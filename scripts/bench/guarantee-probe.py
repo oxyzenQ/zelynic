@@ -365,7 +365,7 @@ def run_live():
         children, addrs = _spawn_leaves()
         rc, out_, err = lib.run_zel(
             [
-                "strict-single",
+                "strict",
                 str(target_id),
                 RATE_STR,
                 "--floor",
@@ -439,7 +439,7 @@ def run_live():
         children, addrs = _spawn_leaves()
         rc, out_, err = lib.run_zel(
             [
-                "strict-single",
+                "strict",
                 str(target_id),
                 "-d",
                 RATE_STR,

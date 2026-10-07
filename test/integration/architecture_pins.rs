@@ -204,8 +204,9 @@ fn every_proc_comm_read_flows_through_the_sanitizer() {
 /// `unstrict-all` in another terminal can tear the BPF pins down
 /// between apply and the epilogue — a success verdict printed on a
 /// torn-down limit reads as enforced while it is gone. The six
-/// handlers (strict-single/multi/all, block-single/multi/all) each
-/// carry the check; the textual tripwire counts the literal error
+/// apply surfaces (strict's two lanes + strict-all, block's two
+/// lanes + block-all) each carry the check; the textual tripwire
+/// counts the literal error
 /// sites per file so a handler that loses its check fails here, in
 /// the plain test lane, before it ships.
 #[test]

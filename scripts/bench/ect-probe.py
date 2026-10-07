@@ -292,9 +292,7 @@ def run_live():
     sb.close()
 
     # 5. The policy (--no-probe: this harness IS the probe).
-    rc, out_, err = lib.run_zel(
-        ["strict-single", str(cgroup_id), RATE_STR, "--per-socket", "--no-probe"]
-    )
+    rc, out_, err = lib.run_zel(["strict", str(cgroup_id), RATE_STR, "--per-socket", "--no-probe"])
     if rc != 0:
         os.close(pipe_w)
         os.waitpid(pid, 0)
@@ -390,7 +388,7 @@ def run_live():
         )
 
     # Teardown: best-effort, never fails a verdict.
-    lib.run_zel(["unstrict-single", str(cgroup_id)])
+    lib.run_zel(["unstrict", str(cgroup_id)])
     try:
         with open(os.path.join(lib.CGROUP_ROOT, "cgroup.procs"), "w", encoding="utf-8") as f:
             f.write(str(os.getpid()))

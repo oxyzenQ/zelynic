@@ -1,7 +1,11 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Strict limiting handlers — strict-single, strict-multi, strict-all.
+//! Strict limiting handlers — the one `strict` verb's two lanes
+//! (NIGHT-improve-53, the masterclass unification: the former
+//! strict-single and strict-multi handlers are the single and group
+//! lanes now, reached through the [`handle_strict`] router).
+//! strict-all lives in strict_all.rs (night-during's LOC-cap split).
 
 use anyhow::Result;
 
@@ -10,8 +14,77 @@ use super::{probe, probe_report};
 use crate::commands::rates::resolve_rates;
 use crate::commands::safety::{
     check_dangerous_target, check_dangerous_targets_multi, check_root_catch_all_resolved,
-    validate_multi_targets, validate_single_target,
+    validate_single_target,
 };
+// NIGHT-improve-53: the list law rides its own module now (the
+// masterclass split from safety.rs — target_grammar.rs carries the
+// lineage).
+use crate::commands::target_grammar::{target_is_list, validate_multi_targets};
+
+/// NIGHT-improve-53 (the masterclass unification): the one `strict`
+/// verb's router. The target grammar picks the lane — a '::'
+/// anywhere means the group lane (one shared bucket for every
+/// member), everything else is the single lane (the per-connection
+/// --per-socket shape included). The lanes are the former
+/// strict-single / strict-multi handlers, so every contract they
+/// carry (the parse-before-execute ladder, the atomic group apply,
+/// the probe window, the race guards) rides the merge unchanged.
+#[cfg(feature = "ebpf")]
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn handle_strict(
+    target_str: &str,
+    rate: Option<&str>,
+    download: Option<&str>,
+    upload: Option<&str>,
+    force_this: bool,
+    no_probe: bool,
+    per_socket: bool,
+    // improve-40-b: the six bracket flags ride one struct (the
+    // per-direction spellings included — the resolver's own shape).
+    bracket_flags: super::guarantee::BracketFlags<'_>,
+    during: Option<&str>,
+    verbose: bool,
+) -> Result<()> {
+    if target_is_list(target_str) {
+        // The scope call rides FIRST, before any parsing — the
+        // resolve_guarantee precedent one lane over: the combination
+        // is refused whatever the values would have been, so a
+        // typo'd rate never shadows the routing error. The group
+        // lane's apply has one bucket per member-set, not the
+        // per-connection multiplication --per-socket builds — the
+        // shapes cannot stack.
+        if per_socket {
+            return Err(anyhow::anyhow!(
+                "--per-socket is the single-target lane — a '::' list shares one group bucket across its members\n  \
+                 tip: apply the member alone: zelynic s <member> <rate> --per-socket"
+            ));
+        }
+        handle_strict_multi(
+            target_str,
+            rate,
+            download,
+            upload,
+            force_this,
+            no_probe,
+            bracket_flags,
+            during,
+            verbose,
+        )
+    } else {
+        handle_strict_single(
+            target_str,
+            rate,
+            download,
+            upload,
+            force_this,
+            no_probe,
+            per_socket,
+            bracket_flags,
+            during,
+            verbose,
+        )
+    }
+}
 
 #[cfg(feature = "ebpf")]
 // charger-core-3b: the strict-single surface grew one flag
@@ -19,8 +92,10 @@ use crate::commands::safety::{
 // (the render family's own precedent for the same growth).
 // night-during (schema v23): --during joins the list — the row's
 // own lifetime, parsed before the privilege guard.
+// NIGHT-improve-53: the single LANE of the one strict verb (the
+// router above is the CLI contract; this fn is the machinery).
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn handle_strict_single(
+fn handle_strict_single(
     target_str: &str,
     rate: Option<&str>,
     download: Option<&str>,
@@ -50,7 +125,7 @@ pub(crate) fn handle_strict_single(
     if rates.download.is_none() && rates.upload.is_none() {
         return Err(anyhow::anyhow!(
             "No rate specified. Use positional rate or -d/-u flags.\n\
-             Example: zelynic strict-single brave 100kb"
+             Example: zelynic strict brave 100kb"
         ));
     }
 
@@ -75,7 +150,7 @@ pub(crate) fn handle_strict_single(
     // NIGHT-dinner-16: the single-target input boundary — an empty
     // target dies HERE, before the blocklist and the root ask, the
     // same ladder rung the rate check owns.
-    validate_single_target(target_str, "zelynic strict-single brave 100kb")?;
+    validate_single_target(target_str, "zelynic strict brave 100kb")?;
 
     check_dangerous_target(target_str, force_this)?;
 
@@ -135,14 +210,20 @@ pub(crate) fn handle_strict_single(
             // charger-core-2: a '://'-shaped target that fell through to
             // the no-match path is a malformed container URI (a
             // well-formed one surfaces resolve's specific error instead)
-            // — the grammar tip beats the colon-list tip there.
+            // — the grammar tip beats the list tip there.
             if target_str.contains("://") {
                 tips.push(
                     "container target grammar: docker://<name> or k8s://<namespace>/<pod>"
                         .to_string(),
                 );
             } else if target_str.contains(':') && !target_str.starts_with("cg:") {
-                tips.push("colon-separated lists belong to strict-multi".to_string());
+                // NIGHT-improve-53: the single ':' is the prefix
+                // grammar's byte — the tip teaches the list law the
+                // '::' separator carries now.
+                tips.push(
+                    "list members separate with '::' (single ':' is the cg: prefix and container grammar)"
+                        .to_string(),
+                );
             }
             tips.push(super::TIP_LIST_APPS.to_string());
             return Err(super::target_no_match_error(
@@ -223,8 +304,9 @@ pub(crate) fn handle_strict_single(
 // payload — the same too-many-arguments posture the single's own
 // handler carries one lane over. NIGHT-hunt-30: no_probe joins it
 // too — the multi now carries the single's verification lane.
+// NIGHT-improve-53: the group LANE of the one strict verb.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn handle_strict_multi(
+fn handle_strict_multi(
     targets_str: &str,
     rate: Option<&str>,
     download: Option<&str>,
@@ -245,7 +327,7 @@ pub(crate) fn handle_strict_multi(
     if rates.download.is_none() && rates.upload.is_none() {
         return Err(anyhow::anyhow!(
             "No rate specified. Use positional rate or -d/-u flags.\n\
-             Example: zelynic strict-multi brave:curl 1mb"
+             Example: zelynic strict brave::curl 1mb"
         ));
     }
 
@@ -260,17 +342,19 @@ pub(crate) fn handle_strict_multi(
     // target grammar — one input boundary, every refusal cheap).
     let during_spec = during.map(parse_during).transpose()?;
 
-    // NIGHT-blade-18: the colon list is a grammar now, not a best-effort
+    // NIGHT-blade-18: the list is a grammar now, not a best-effort
     // scan — validate_multi_targets refuses the shapes that can only be
-    // mistakes (empty segments hid a dropped app; '/' or punctuation-only
-    // segments can never be a comm), and the danger loop runs on the
-    // validated segments, so a numeric or cg:<id> segment reaches the
+    // mistakes (empty members hid a dropped app; '/' or punctuation-only
+    // members can never be a comm), and the danger loop runs on the
+    // validated members, so a numeric or cg:<id> member reaches the
     // cgroup-id guard through check_dangerous_target's numeric path
     // (the numeric blocklist bypass, closed the same task).
-    // NIGHT-hunt-30: the grammar's list-verb rung refuses the
-    // one-target list here — "single is single, multi is multi".
-    let segments =
-        validate_multi_targets(targets_str, "zelynic strict-multi brave:curl:pacman 1mb")?;
+    // NIGHT-hunt-30: the grammar's list rung refuses the
+    // one-target list — "single is single, multi is multi" (read
+    // through improve-53: one target needs no separator).
+    // NIGHT-improve-53: the '::' grammar — the separator doubled
+    // when the verbs merged.
+    let segments = validate_multi_targets(targets_str, "zelynic strict brave::curl::pacman 1mb")?;
 
     // Check each target for dangerous names. NIGHT-improve-50: the
     // batched multi guard — one /proc walk for every numeric segment
@@ -386,10 +470,11 @@ pub(crate) fn handle_strict_multi(
         ));
     }
 
-    // NIGHT-improve-28: the multi form suggests the multi unstrict —
-    // 'zelynic unstrict brave:curl' does not split colon lists (the
-    // old suggestion was advice that could not round-trip).
-    super::apply_success_epilogue(&format!("zelynic unstrict-multi {targets_str}"), "remove");
+    // NIGHT-improve-28: the list form suggests the list unstrict —
+    // 'zelynic unstrict brave::curl' does not split lists without
+    // the '::' separator (the old suggestion was advice that could
+    // not round-trip).
+    super::apply_success_epilogue(&format!("zelynic unstrict {targets_str}"), "remove");
     if let Some(outcome) = &probe_outcome {
         for line in probe_report::report_lines(outcome) {
             eprintln_safe!("{line}");
@@ -398,112 +483,12 @@ pub(crate) fn handle_strict_multi(
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Parse-before-execute contract (live smoke-run find): a typo'd
-    /// rate must surface its did-you-mean tip BEFORE the privilege
-    /// guard, exactly like clap validates its own arguments before any
-    /// handler runs. Previously ensure_root() ran first, so a non-root
-    /// user was told to sudo before learning their rate string was
-    /// wrong — a wasted privileged round-trip.
-    ///
-    /// Safe on any uid: the rate error returns before ensure_root(), so
-    /// the test never reaches BPF attach even when run as root.
-    #[cfg(feature = "ebpf")]
-    #[test]
-    fn rate_typo_surfaces_before_root_guard() {
-        let err = handle_strict_single(
-            "bash",
-            Some("1MB"),
-            None,
-            None,
-            false,
-            false,
-            false,
-            super::super::guarantee::BracketFlags::default(),
-            None,
-            false,
-        )
-        .expect_err("typo'd rate must fail");
-        let msg = format!("{err}");
-        assert!(
-            msg.contains("Invalid rate '1MB'"),
-            "rate error must lead, got: {msg}"
-        );
-        assert!(
-            msg.contains("tip: a similar value exists: '1mb'"),
-            "typo tip must ride along, got: {msg}"
-        );
-        assert!(
-            !msg.contains("root required"),
-            "rate error must precede the root guard, got: {msg}"
-        );
-    }
-
-    /// Same contract for the dangerous-target blocklist: a policy
-    /// refusal must surface before the privilege guard.
-    #[cfg(feature = "ebpf")]
-    #[test]
-    fn dangerous_target_refusal_surfaces_before_root_guard() {
-        let err = handle_strict_single(
-            "sshd",
-            Some("1mb"),
-            None,
-            None,
-            false,
-            false,
-            false,
-            super::super::guarantee::BracketFlags::default(),
-            None,
-            false,
-        )
-        .expect_err("dangerous target must be refused");
-        let msg = format!("{err}");
-        assert!(
-            msg.contains("'sshd' is a system process"),
-            "dangerous-target refusal must lead, got: {msg}"
-        );
-        assert!(
-            !msg.contains("root required"),
-            "policy refusal must precede the root guard, got: {msg}"
-        );
-    }
-
-    /// NIGHT-dinner-16: an empty target dies at the input boundary —
-    /// before the blocklist and the privilege guard — instead of
-    /// flowing to the root ask as `Target::parse("")`'s invisible
-    /// `ProcessName("")` (the parse-before-execute ladder's missing
-    /// rung, closed by the verifier-lineage mandate).
-    #[cfg(feature = "ebpf")]
-    #[test]
-    fn empty_target_surfaces_before_root_guard() {
-        let err = handle_strict_single(
-            "",
-            Some("1mb"),
-            None,
-            None,
-            false,
-            false,
-            false,
-            super::super::guarantee::BracketFlags::default(),
-            None,
-            false,
-        )
-        .expect_err("an empty target must be refused");
-        let msg = format!("{err}");
-        assert!(
-            msg.contains("target is empty"),
-            "the empty-target verdict must lead, got: {msg}"
-        );
-        assert!(
-            msg.contains("zelynic strict-single brave 100kb"),
-            "the refusal must carry the example command, got: {msg}"
-        );
-        assert!(
-            !msg.contains("root required"),
-            "the input error must precede the root guard, got: {msg}"
-        );
-    }
-}
+// The strict pins live under the single test/ tree (cosmostrix
+// Pattern C), #[path]-wired across trees exactly like the safety
+// battery — moved out of the inline module at the improve-53
+// masterclass split (the router pushed the file against the
+// 600-line cap, the same pressure that moved types_tests out of
+// types.rs at charger-core-3b).
+#[cfg(all(test, feature = "ebpf"))]
+#[path = "../../test/commands/strict_tests.rs"]
+mod tests;

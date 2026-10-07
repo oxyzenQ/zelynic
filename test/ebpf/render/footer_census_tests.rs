@@ -120,7 +120,7 @@ fn limit_line_rides_the_brand_tier() {
     let src = std::fs::read_to_string(&footer_src)
         .unwrap_or_else(|e| panic!("footer source readable: {e}"));
     assert!(
-        src.contains("brand(&format!(\"'sudo zelynic ss {name} {SUGGESTED_LIMIT}'\"))"),
+        src.contains("brand(&format!(\"'sudo zelynic s {name} {SUGGESTED_LIMIT}'\"))"),
         "the limit command must render through brand() — the theme-aware tier"
     );
     assert!(

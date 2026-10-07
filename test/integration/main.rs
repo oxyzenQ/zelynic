@@ -14,6 +14,9 @@
 //! - `cli_ux` — flag/error UX contract pins (suggestions, EPIPE)
 //! - `help_pins` — `--help` reference drift pins
 //! - `surface_pins` — command-surface wiring pins (aliases, removals)
+//! - `masterclass_pins` — the improve-53 one-verb-per-family
+//!   unification's reference contracts (canonical synopses, the
+//!   '::' list grammar's discovery path)
 //! - `privilege` — the unprivileged contract + validation ladder
 //! - `monitor_guard` — the eagle-eyes interactive-stdio refusal pins
 //! - `architecture_pins` — the cosmic dragon layer-discipline pins
@@ -29,6 +32,7 @@ use std::process::Command;
 mod architecture_pins;
 mod cli_ux;
 mod help_pins;
+mod masterclass_pins;
 mod monitor_guard;
 mod privilege;
 mod smoke;

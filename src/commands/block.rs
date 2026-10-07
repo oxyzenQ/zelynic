@@ -1,7 +1,11 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Block command handlers — block apps from internet entirely.
+//! Block command handlers — the one `block` verb's two lanes
+//! (NIGHT-improve-53, the masterclass unification: the former
+//! block-single and block-multi handlers are the single and group
+//! lanes now, reached through the [`handle_block`] router), plus
+//! block-all.
 
 use anyhow::Result;
 
@@ -10,13 +14,34 @@ use crate::ebpf::limiter::{parse_during, BracketSpec, Limiter, RateSpec, Target}
 // policy family's capacity — the userspace mirror of the eBPF-side
 // map size (types.rs keeps it textually in sync with the pinned
 // maps).
+use crate::commands::target_grammar::{target_is_list, validate_multi_targets};
 use crate::ebpf::limiter::types::POLICY_MAP_CAPACITY as POLICY_CAP;
 
-/// Block a single app from the internet.
+/// NIGHT-improve-53 (the masterclass unification): the one `block`
+/// verb's router — same routing law as strict: a '::' anywhere in
+/// the target means the group lane, everything else is the single
+/// lane. The lanes are the former block-single / block-multi
+/// handlers, unchanged, so every contract (the parse-before-execute
+/// ladder, the batched danger guard, the rate-0 catch-all check,
+/// the race guards) rides the merge.
+pub fn handle_block(
+    target_str: &str,
+    force_this: bool,
+    during: Option<&str>,
+    verbose: bool,
+) -> Result<()> {
+    if target_is_list(target_str) {
+        handle_block_multi(target_str, force_this, during, verbose)
+    } else {
+        handle_block_single(target_str, force_this, during, verbose)
+    }
+}
+
+/// Block a single app from the internet — the single lane.
 /// `during` (night-during, schema v23; the owner's duration-only
 /// revision): the block's own lifetime — a duration from the apply
 /// instant; the block lifts itself, no daemon.
-pub fn handle_block_single(
+fn handle_block_single(
     target_str: &str,
     force_this: bool,
     during: Option<&str>,
@@ -27,8 +52,8 @@ pub fn handle_block_single(
     // refusal surfaces before the root requirement, the same
     // parse-before-execute ladder as the strict handlers (smoke-run
     // find). NIGHT-dinner-16 adds the empty-target boundary at the
-    // same rung: `bs ""` dies HERE, not after the root ask.
-    super::safety::validate_single_target(target_str, "zelynic block-single brave")?;
+    // same rung: `b ""` dies HERE, not after the root ask.
+    super::safety::validate_single_target(target_str, "zelynic block brave")?;
     super::safety::check_dangerous_target(target_str, force_this)?;
 
     // night-during (schema v23): the window parses on the same
@@ -78,7 +103,13 @@ pub fn handle_block_single(
         // is a dead id, not a list mistake.
         let mut tips = Vec::new();
         if target_str.contains(':') && !target_str.starts_with("cg:") {
-            tips.push("colon-separated lists belong to block-multi".to_string());
+            // NIGHT-improve-53: the '::' list law — the tip teaches
+            // the separator (single ':' is the prefix grammar's
+            // byte).
+            tips.push(
+                "list members separate with '::' (single ':' is the cg: prefix and container grammar)"
+                    .to_string(),
+            );
         }
         tips.push(super::TIP_LIST_APPS.to_string());
         return Err(super::target_no_match_error(
@@ -105,32 +136,29 @@ pub fn handle_block_single(
     Ok(())
 }
 
-/// Block multiple apps from the internet.
-pub fn handle_block_multi(
+/// Block multiple apps from the internet — the group lane.
+fn handle_block_multi(
     targets_str: &str,
     force_this: bool,
     during: Option<&str>,
     verbose: bool,
 ) -> Result<()> {
     // Input validation first (fail-fast, no privileges needed) — same
-    // parse-before-execute ladder as the strict-multi handler.
+    // parse-before-execute ladder as the strict group lane.
     //
-    // NIGHT-blade-18: the colon grammar (validate_multi_targets —
-    // same refusals as strict-multi), and the danger loop runs on the
+    // NIGHT-blade-18: the list grammar (validate_multi_targets —
+    // same refusals as strict's), and the danger loop runs on the
     // STRING tokens, not the parsed Targets: the old typed loop only
-    // checked `Target::ProcessName` arms, so a numeric segment parsed
-    // into `Target::CgroupId` and skipped the guard entirely — `bm
-    // x:1` walked the same numeric blocklist bypass `ss 1` did. The
+    // checked `Target::ProcessName` arms, so a numeric member parsed
+    // into `Target::CgroupId` and skipped the guard entirely — `b
+    // x::1` walked the same numeric blocklist bypass `s 1` did. The
     // string loop closes it; check_dangerous_target's numeric path
     // resolves the id to its live members and runs the blocklist.
     // NIGHT-improve-50: the batched multi guard — one /proc walk for
-    // every numeric segment in the list (the per-segment loop was
-    // O(segments x processes)); wording and refusal order are
+    // every numeric member in the list (the per-member loop was
+    // O(members x processes)); wording and refusal order are
     // byte-identical to the loop it replaces.
-    let segments = super::safety::validate_multi_targets(
-        targets_str,
-        "zelynic block-multi brave:curl:pacman",
-    )?;
+    let segments = validate_multi_targets(targets_str, "zelynic block brave::curl::pacman")?;
 
     super::safety::check_dangerous_targets_multi(&segments, force_this)?;
 
@@ -185,14 +213,11 @@ pub fn handle_block_multi(
         ));
     }
 
-    // NIGHT-improve-28: the multi form suggests the multi unstrict —
+    // NIGHT-improve-28: the list form suggests the list unstrict —
     // the old '<target>' placeholder was advice the user had to
-    // re-assemble by hand, and unstrict-single does not split colon
-    // lists anyway.
-    super::apply_success_epilogue(
-        &format!("zelynic unstrict-multi {targets_str}"),
-        "restore access",
-    );
+    // re-assemble by hand, and the single lane does not split lists
+    // without the '::' separator anyway.
+    super::apply_success_epilogue(&format!("zelynic unstrict {targets_str}"), "restore access");
     Ok(())
 }
 

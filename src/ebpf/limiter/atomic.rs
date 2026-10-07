@@ -120,7 +120,7 @@ pub(super) fn multi_no_match_line(failed: &[String], resolvable: usize) -> Strin
         format!("targets {}", quoted.join(", "))
     };
     format!(
-        "{subject} resolved to no cgroup — strict-multi is atomic, nothing was limited \
+        "{subject} resolved to no cgroup — the list apply is atomic, nothing was limited \
          ({resolvable} of {} targets were resolvable, 0 applied)\n  \
          tip: try 'zelynic list-apps' to see live targets",
         failed.len() + resolvable

@@ -4,7 +4,7 @@
 //! NIGHT-boost-38: SMP invariant pins for the eBPF token-bucket math
 //! (ebpf/src/math.rs — the same file the BPF object builds). The
 //! v6-and-earlier enforce lost updates whenever two CPUs enforced the
-//! same bucket concurrently (the E2E strict-multi / curl-burst
+//! same bucket concurrently (the E2E strict group-lane / curl-burst
 //! over-delivery, 130-146% of budget under 2-6 flows); the v7 rewrite
 //! is lock-free atomics. These pins hold the v7 invariants under real
 //! thread contention — the properties that make the race impossible:

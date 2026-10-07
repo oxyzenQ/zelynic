@@ -18,7 +18,7 @@ time, so this harness AMPLIFIES the two endurance clocks instead:
     group slots) through maps capped at 1024/256, so ANY group-slot
     leak exhausts the smallest cap mid-run and the next apply FAILS
     LOUDLY (the maps' own fail-loud contract, turned into the proof).
-    Every odd round is a strict-multi GROUP round (two traffic-bearing
+    Every odd round is a strict GROUP round (two traffic-bearing
     cgroups under one shared bucket), so the lts-7 group-reclaim path
     churns ~300 group slots against its 256 cap — the same mathematical
     proof for the smallest map. Each round also rides a full BPF
@@ -163,7 +163,7 @@ class BurstLoop(threading.Thread):
 
 
 def spawn_cgroup_b_twin():
-    """Fork a burst-loop child into cgroup B (the strict-multi second
+    """Fork a burst-loop child into cgroup B (the strict second
     member). Returns (proc, in_b) — in_b False means the host refused
     the pre-exec migration and the group rounds degrade honestly."""
     script = (
@@ -310,7 +310,7 @@ def teardown_cgroups(original_cgroup):
 
 
 def stage_pin_family(cg_id):
-    rc, _, err = lib.run_zel(["strict-single", f"cg:{cg_id}", "10mb", "--no-probe"])
+    rc, _, err = lib.run_zel(["strict", f"cg:{cg_id}", "10mb", "--no-probe"])
     if rc != 0:
         lib.record("pin-family: first apply", "FAIL", err.strip()[:120])
         return False
@@ -354,14 +354,14 @@ def stage_row_churn(cg_a, cg_b, rounds, group_ok):
     for i in range(rounds):
         kind = kinds[i % len(kinds)]
         if kind == "single":
-            rc, _, err = lib.run_zel(["strict-single", f"cg:{cg_a}", "5mb", "--no-probe"])
+            rc, _, err = lib.run_zel(["strict", f"cg:{cg_a}", "5mb", "--no-probe"])
         else:
             # NIGHT-hunt-32: the multi grammar splits on EVERY colon
             # (safety.rs) — a "cg:" prefix survives only in the
             # single-verb form, so the old "cg:A:cg:B" shape parsed as
             # a bogus process named "cg" and the atomic preflight
             # aborted every group round at resolution.
-            rc, _, err = lib.run_zel(["strict-multi", f"{cg_a}:{cg_b}", "5mb"])
+            rc, _, err = lib.run_zel(["strict", f"{cg_a}:{cg_b}", "5mb"])
         if rc != 0:
             fails += 1
             lib.record(

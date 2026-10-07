@@ -21,17 +21,20 @@ fn test_enforcement_commands_refuse_non_root_cleanly() {
     if euid_is_root() {
         return; // contract only observable as unprivileged user
     }
-    const ENFORCEMENT_ARGV: [&[&str]; 12] = [
-        &["strict-single", "brave", "100kb"],
+    const ENFORCEMENT_ARGV: [&[&str]; 13] = [
+        // NIGHT-improve-53: the masterclass verbs — one per family,
+        // single and '::' list lanes both pinned.
+        &["strict", "brave", "100kb"],
         // NIGHT-boost-37: the canonical display prefix (`cg:48181`,
         // what the status table and the eagle-eyes footer suggest)
         // rides the same clean refusal — the parse never panics on
         // the prefixed form, the root gate still leads.
-        &["ss", "cg:48181", "100kb"],
-        &["strict", "brave", "100kb"],
-        &["strict-multi", "brave:curl", "1mb"],
+        &["s", "cg:48181", "100kb"],
+        &["s", "brave::curl", "1mb"],
+        &["strict", "docker://nginx", "100kb"],
         &["strict-all", "500kb"],
-        &["block-single", "brave"],
+        &["block", "brave"],
+        &["b", "brave::curl"],
         &["block-all"],
         &["unstrict", "brave"],
         &["unstrict-all"],
@@ -75,7 +78,7 @@ fn test_enforcement_commands_report_missing_feature_cleanly() {
         return; // wording identical under root; matrix pinned as non-root
     }
     for argv in [
-        vec!["strict-single", "brave", "100kb"],
+        vec!["strict", "brave", "100kb"],
         vec!["status"],
         vec!["unstrict-all"],
     ] {
@@ -104,10 +107,14 @@ fn test_enforcement_commands_report_missing_feature_cleanly() {
 #[cfg(feature = "ebpf")]
 #[test]
 fn test_input_validation_precedes_privilege_guard() {
-    const CASES: [(&[&str], &str); 4] = [
-        (&["strict-single", "brave", "1MB"], "Invalid rate '1MB'"),
-        (&["strict-single", "brave", "1b"], "below minimum"),
-        (&["strict-single", "brave", "2tb"], "above maximum"),
+    // NIGHT-improve-53: both lanes of the one strict verb parse
+    // their rates before the root ask — the list lane included.
+    const CASES: [(&[&str], &str); 6] = [
+        (&["strict", "brave", "1MB"], "Invalid rate '1MB'"),
+        (&["strict", "brave", "1b"], "below minimum"),
+        (&["strict", "brave", "2tb"], "above maximum"),
+        (&["s", "brave::curl", "1MB"], "Invalid rate '1MB'"),
+        (&["s", "docker://nginx", "1MB"], "Invalid rate '1MB'"),
         (&["eagle-eyes", "--interval", "61s"], "between 1s and 60s"),
     ];
     for (argv, expected) in CASES {
@@ -137,10 +144,10 @@ fn test_input_validation_precedes_privilege_guard() {
 #[test]
 fn test_edge_targets_never_panic() {
     for argv in [
-        vec!["strict-single", "", "100kb"],
-        vec!["strict-single", "99999999999999999999", "100kb"],
-        vec!["strict-single", "../../etc", "100kb"],
-        vec!["strict-single", "two words", "100kb"],
+        vec!["strict", "", "100kb"],
+        vec!["strict", "99999999999999999999", "100kb"],
+        vec!["strict", "../../etc", "100kb"],
+        vec!["strict", "two words", "100kb"],
     ] {
         let output = zelynic_cmd()
             .args(&argv)

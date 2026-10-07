@@ -10,7 +10,7 @@
 # surface — docker:// and k8s:// target resolution end to end, the
 # URI grammar depth, the resolution error paths (no runtime, no
 # socket, no poddir), the resolve-only contract (container targets
-# ride the same strict-single machinery), and the real docker E2E
+# ride the same strict machinery), and the real docker E2E
 # lane (self-skips when no docker daemon is present, the same shape
 # v1's realnet lane self-skips without an endpoint). Python is the
 # engine for the same reasons as v1 and v2: subprocess control,

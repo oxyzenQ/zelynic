@@ -68,12 +68,32 @@ const HELP_FOOTER: &str = "For more information, try '--help'.";
 ///
 /// NIGHT-blade-2: limit-all/la renamed strict-all/sa (strict-family
 /// symmetry) — both old spellings join the redirect table's contract.
+///
+/// NIGHT-improve-53 (the masterclass unification): strict-single +
+/// strict-multi, block-single + block-multi, and unstrict-single +
+/// unstrict-multi merged into one verb per family (strict / block /
+/// unstrict — 's'/'b'/'u' the short forms, '::' the list separator).
+/// Twelve retired spellings join the table — every one of them
+/// lands on its family's successor verb.
 const REMOVED_SUBCOMMAND_REDIRECTS: &[(&str, &str)] = &[
     ("observe", "eagle-eyes"),
     ("top", "eagle-eyes"),
     ("eagle-eye", "eagle-eyes"),
     ("limit-all", "strict-all"),
     ("la", "strict-all"),
+    // NIGHT-improve-53: the masterclass retirees.
+    ("strict-single", "strict"),
+    ("strict-multi", "strict"),
+    ("ss", "strict"),
+    ("sm", "strict"),
+    ("block-single", "block"),
+    ("block-multi", "block"),
+    ("bs", "block"),
+    ("bm", "block"),
+    ("unstrict-single", "unstrict"),
+    ("unstrict-multi", "unstrict"),
+    ("us", "unstrict"),
+    ("um", "unstrict"),
 ];
 
 /// Inject the successor for a removed subcommand as clap's OWN
@@ -232,7 +252,7 @@ fn drop_hidden_subcommand_suggestions(e: &mut clap::Error, cmd: &clap::builder::
 /// and the fuzzy fallback itself — drops the native trailing
 /// escape-hatch tip FIRST (NIGHT-boost-13): clap injects "to pass
 /// '--VERBOS' as a value, use '-- --VERBOS'" whenever the failing
-/// command merely HAS positionals, so `zelynic ss brave --VERBOS`
+/// command merely HAS positionals, so `zelynic s brave --VERBOS`
 /// rendered two tips at once, violating the one-tip contract — a
 /// suggestion beats the escape hatch every time, the same priority
 /// clap's own engine uses.
@@ -269,12 +289,12 @@ fn enrich_unknown_arg_suggestion(e: &mut clap::Error, cmd: &clap::builder::Comma
     if let Some(authority) = top_level_flag_rescue(&typed) {
         // Drop clap's trailing-value escape-hatch tip ("to pass '--help'
         // as a value, use '-- --help'") first: subcommands with optional
-        // positionals (strict-single, eagle-eyes, ...) get it injected
+        // positionals (strict, eagle-eyes, ...) get it injected
         // automatically, and two tips dilute the one that matters. The
         // escape hatch is also a lie for fixed-positional subcommands —
         // the owner's live repro followed it (`zelynic ss brave 550kb
-        // -- -V`) and hit "unexpected argument" a second time
-        // (NIGHT-boost-12).
+        // -- -V`, the NIGHT-boost-12 incident — 'ss' was the spelling
+        // of that era) and hit "unexpected argument" a second time.
         e.remove(ContextKind::Suggested);
         e.insert(
             ContextKind::SuggestedArg,

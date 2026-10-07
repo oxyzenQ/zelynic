@@ -13,7 +13,7 @@ use super::*;
 /// the shadowed-suggestion rescue. clap's UnknownArgument tip at a
 /// SUBCOMMAND position draws from that subcommand's flag pool only —
 /// the root-level flags never join it — so once the improve-40-b
-/// bracket family put `--ceil-upload` in strict-single's pool, the
+/// bracket family put `--ceil-upload` in the strict verb's pool, the
 /// typo `--check-updat` (a 0.97 Jaro match for the root's
 /// `--check-update`) was answered with the 0.78 `--ceil-upload`:
 /// clap's local pool fired over the silent-fallback path that would
@@ -25,7 +25,7 @@ use super::*;
 #[cfg(feature = "ebpf")]
 #[test]
 fn shadowed_root_flag_typo_gets_the_authority_redirect() {
-    let rendered = render_via_bridge(&["zelynic", "ss", "brave", "1mb", "--check-updat"]);
+    let rendered = render_via_bridge(&["zelynic", "s", "brave", "1mb", "--check-updat"]);
     assert!(
         rendered.contains("'zelynic --check-update'"),
         "the authority redirect wins, got:\n{rendered}"
@@ -44,12 +44,12 @@ fn shadowed_root_flag_typo_gets_the_authority_redirect() {
 #[test]
 fn shadow_rescue_never_hijacks_subcommand_flag_typos() {
     // The new-grammar typos keep their subcommand tips.
-    let during = render_via_bridge(&["zelynic", "ss", "brave", "1mb", "--durign", "2h"]);
+    let during = render_via_bridge(&["zelynic", "s", "brave", "1mb", "--durign", "2h"]);
     assert!(
         during.contains("'--during'"),
         "clap's own subcommand tip survives, got:\n{during}"
     );
-    let floor = render_via_bridge(&["zelynic", "ss", "brave", "1mb", "--flor", "100kb"]);
+    let floor = render_via_bridge(&["zelynic", "s", "brave", "1mb", "--flor", "100kb"]);
     assert!(
         floor.contains("'--floor'"),
         "clap's own subcommand tip survives, got:\n{floor}"

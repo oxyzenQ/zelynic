@@ -428,7 +428,7 @@ self_test() {
 	t_case "docs: update PERFORMANCE.md with final v10 benchmark + test results" docs
 	t_case "fix(release): update script list in release.yml - deleted scripts" fix
 	t_case "chore: update deps" chore
-	t_case "feat: block-multi + block-all + rename all-limit to limit-all" feat
+	t_case "feat: block + block-all + rename all-limit to limit-all" feat
 	# Boundary probes: bare subjects (version marker, no prefix).
 	t_case "v10.0.0 - peak optimization + maintenance mode begins" "_others"
 	t_case "Internal research: - zelynic NIGHT-boost-2 CI estate: Gnu Dynamic named, plain release retired for the pro profiles" chore

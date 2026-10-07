@@ -7,35 +7,37 @@
 
 use crate::zelynic_cmd;
 
-/// NIGHT-hunt-10: `strict` is the bare-verb shorthand for
-/// strict-single — the owner's `zelynic strict brave` used to die with
-/// an unrecognized-subcommand error. Missing <target> must be a usage
-/// error (exit 2) about the required positional <TARGET>, proving the
-/// alias is wired to a real command instead of rejected outright.
+/// NIGHT-hunt-10 / NIGHT-improve-53: `strict` is the masterclass
+/// verb's canonical name (the former shorthand) and 's' its short
+/// alias — missing <target> must be a usage error (exit 2) about
+/// the required positional <TARGET>, proving both spellings are
+/// wired to the real command instead of rejected outright.
 #[test]
-fn test_strict_shorthand_is_strict_single() {
-    let output = zelynic_cmd()
-        .arg("strict")
-        .output()
-        .expect("Failed to execute zelynic strict");
+fn test_strict_and_s_require_a_target() {
+    for form in ["strict", "s"] {
+        let output = zelynic_cmd()
+            .arg(form)
+            .output()
+            .unwrap_or_else(|e| panic!("Failed to execute zelynic {form}: {e}"));
 
-    assert_eq!(
-        output.status.code(),
-        Some(2),
-        "strict without a target must be a usage error"
-    );
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("required arguments were not provided") && stderr.contains("<TARGET>"),
-        "error must name the missing strict-single positional, got:\n{stderr}"
-    );
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "{form} without a target must be a usage error"
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("required arguments were not provided") && stderr.contains("<TARGET>"),
+            "error must name the missing {form} positional, got:\n{stderr}"
+        );
+    }
 }
 
-/// NIGHT-hunt-10: the strict shorthand must reach strict-single's
-/// validation ladder — an invalid rate surfaces its did-you-mean tip
-/// BEFORE the root guard, so this pins the dispatch without requiring
-/// root or eBPF state. ebpf-gated: the rate ladder lives in the
-/// feature-gated handler (the default build answers "eBPF not compiled").
+/// NIGHT-hunt-10: the strict verb must reach its validation ladder —
+/// an invalid rate surfaces its did-you-mean tip BEFORE the root
+/// guard, so this pins the dispatch without requiring root or eBPF
+/// state. ebpf-gated: the rate ladder lives in the feature-gated
+/// handler (the default build answers "eBPF not compiled").
 #[cfg(feature = "ebpf")]
 #[test]
 fn test_strict_shorthand_reaches_rate_validation() {
@@ -48,40 +50,95 @@ fn test_strict_shorthand_reaches_rate_validation() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("Invalid rate '1MB'"),
-        "strict must route into strict-single's rate validation, got:\n{stderr}"
+        "strict must route into its rate validation, got:\n{stderr}"
     );
 }
 
-/// NIGHT-hunt-10: unstrict-multi exists and takes a colon-separated
-/// target list — missing <targets> is a usage error naming the required
-/// positional.
+/// NIGHT-improve-53: the masterclass '::' routing, pinned end to
+/// end through the real binary — a list target enters the group
+/// lane (the rate rung inside it names the list grammar), and the
+/// per-socket scope call refuses a list BEFORE any parsing. Both
+/// surface pre-root, so the pin is deterministic on any uid.
+/// ebpf-gated: the routing lives in the feature-gated handler.
+#[cfg(feature = "ebpf")]
 #[test]
-fn test_unstrict_multi_requires_targets() {
+fn test_strict_list_lane_pins_the_routing_law() {
+    // The group lane: the '::' list reaches the group lane's own
+    // no-rate rung — the rung whose example names the list grammar
+    // (a different example string than the single lane's).
     let output = zelynic_cmd()
-        .arg("unstrict-multi")
+        .args(["s", "brave::curl"])
         .output()
-        .expect("Failed to execute zelynic unstrict-multi");
-
-    assert_eq!(
-        output.status.code(),
-        Some(2),
-        "unstrict-multi without targets must be a usage error"
-    );
+        .expect("Failed to execute zelynic s brave::curl");
+    assert_eq!(output.status.code(), Some(1));
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("required arguments were not provided") && stderr.contains("<TARGETS>"),
-        "error must name the missing unstrict-multi positional, got:\n{stderr}"
+        stderr.contains("No rate specified"),
+        "the list target must reach the group lane's no-rate rung, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("zelynic strict brave::curl"),
+        "the group lane's example names the '::' grammar, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("root required"),
+        "the group lane's input error must precede the root guard, got:\n{stderr}"
+    );
+
+    // The scope call: --per-socket on a list is refused before any
+    // parsing — the routing law's own rung.
+    let output = zelynic_cmd()
+        .args(["s", "brave::curl", "1mb", "--per-socket"])
+        .output()
+        .expect("Failed to execute zelynic s brave::curl 1mb --per-socket");
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("--per-socket is the single-target lane"),
+        "the list lane must refuse --per-socket, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("root required"),
+        "the scope refusal must precede the root guard, got:\n{stderr}"
     );
 }
 
-/// NIGHT-hunt-10 introduced the alias; NIGHT-hunt-16 flipped the
-/// canonical to unstrict-single (strict/unstrict symmetry: canonical
-/// carries the -single suffix, shorthand drops it). Missing <target>
-/// is a usage error naming the required positional — for BOTH the
-/// canonical and the shorthand invocation.
+/// NIGHT-improve-53: unstrict carries the '::' list lane on the same
+/// verb — a list target reaches the handler (the root guard fires
+/// for a non-root caller, proving the routing never fell through to
+/// a name lookup). ebpf-gated and skipped under root for the same
+/// reason the owner-invocation pin below carries the pair.
+#[cfg(feature = "ebpf")]
 #[test]
-fn test_unstrict_single_alias_is_unstrict() {
-    for form in ["unstrict-single", "unstrict"] {
+fn test_unstrict_list_lane_reaches_the_handler() {
+    if crate::euid_is_root() {
+        return; // past the root guard these would remove for real
+    }
+    for argv in [vec!["unstrict", "brave::curl"], vec!["u", "brave::curl"]] {
+        let output = zelynic_cmd()
+            .args(&argv)
+            .output()
+            .unwrap_or_else(|e| panic!("Failed to execute zelynic {argv:?}: {e}"));
+        assert_eq!(
+            output.status.code(),
+            Some(1),
+            "'{argv:?}' must reach the handler and stop at the root guard"
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("root required"),
+            "'{argv:?}' must be inside the unstrict handler (root guard), got: {stderr}"
+        );
+    }
+}
+
+/// NIGHT-hunt-10 introduced the alias; hunt-16 flipped the canonical
+/// to unstrict-single; NIGHT-improve-53 merged the pair — `unstrict`
+/// IS the verb now, and its short form is 'u'. Missing <target> is a
+/// usage error naming the required positional — for BOTH spellings.
+#[test]
+fn test_unstrict_and_u_require_a_target() {
+    for form in ["unstrict", "u"] {
         let output = zelynic_cmd()
             .arg(form)
             .output()
@@ -210,17 +267,17 @@ fn test_removed_monitor_filter_flags_are_rejected() {
 
 // ── Short aliases (NIGHT-improve-25) ────────────────────────────────────────
 
-/// NIGHT-improve-25: the ten two-letter aliases route to their
-/// canonical commands. The routing discriminator is the
-/// unrecognized-subcommand error an unwired name would produce:
-/// every alias invocation must NOT end in "unrecognized subcommand"
-/// — the six positional verbs land in clap's required-argument usage
-/// error instead, and the proof below pins that stronger error per
-/// verb. Safe on any uid: a missing positional never reaches a
-/// handler.
+/// NIGHT-improve-25 / NIGHT-improve-53: the surviving short aliases
+/// route to their canonical commands. The routing discriminator is
+/// the unrecognized-subcommand error an unwired name would produce:
+/// every alias invocation must NOT end in "unrecognized
+/// subcommand" — the positional-carrying trio lands in clap's
+/// required-argument usage error instead (pinned below), and the
+/// -all sweeps parse straight into their handlers. Safe on any
+/// uid: nothing here reaches an enforcement handler as root.
 #[test]
 fn test_short_aliases_route_to_canonical_commands() {
-    for alias in ["ss", "sm", "sa", "bs", "bm", "ba", "us", "um", "ua", "ee"] {
+    for alias in ["s", "b", "u", "sa", "ba", "ua", "ee"] {
         let output = zelynic_cmd()
             .arg(alias)
             .output()
@@ -233,20 +290,14 @@ fn test_short_aliases_route_to_canonical_commands() {
     }
 }
 
-/// NIGHT-improve-25: the six positional-carrying short aliases land in
+/// NIGHT-improve-53: the positional-carrying short forms land in
 /// their canonical command's required-argument usage error (exit 2,
-/// naming the missing positional) — the exact ladder the bare-verb
-/// shorthands (strict, unstrict) ride in the tests above.
+/// naming the missing <TARGET>) — the unified surface has ONE
+/// positional per verb now (the list rides the same target slot
+/// through the '::' grammar).
 #[test]
 fn test_short_aliases_with_positionals_hit_usage_errors() {
-    for (alias, positional) in [
-        ("ss", "<TARGET>"),
-        ("sm", "<TARGETS>"),
-        ("bs", "<TARGET>"),
-        ("bm", "<TARGETS>"),
-        ("us", "<TARGET>"),
-        ("um", "<TARGETS>"),
-    ] {
+    for alias in ["s", "b", "u"] {
         let output = zelynic_cmd()
             .arg(alias)
             .output()
@@ -259,8 +310,8 @@ fn test_short_aliases_with_positionals_hit_usage_errors() {
         );
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(
-            stderr.contains("required arguments were not provided") && stderr.contains(positional),
-            "'{alias}' must name its canonical positional {positional}, got: {stderr}"
+            stderr.contains("required arguments were not provided") && stderr.contains("<TARGET>"),
+            "'{alias}' must name its canonical positional <TARGET>, got: {stderr}"
         );
     }
 }
@@ -278,7 +329,7 @@ fn test_owner_short_alias_invocations_reach_handlers() {
         return; // past the root guard these would enforce for real
     }
     for argv in [
-        vec!["ss", "brave", "100kb"],
+        vec!["s", "brave", "100kb"],
         vec!["ee", "brave", "--interval", "1s"],
     ] {
         let output = zelynic_cmd()
@@ -295,6 +346,51 @@ fn test_owner_short_alias_invocations_reach_handlers() {
         assert!(
             stderr.contains("root required"),
             "'{argv:?}' must be inside its canonical handler (root guard), got: {stderr}"
+        );
+    }
+}
+
+/// NIGHT-improve-53 (the masterclass unification): the twelve
+/// retired spellings — the -single/-multi long forms and their
+/// two-letter shorts — must land users on the family successor:
+/// unrecognized subcommand (exit 2) whose tip redirects to strict /
+/// block / unstrict, the exact contract observe/top, limit-all/la,
+/// and eagle-eye carry. Every redirect is exact-match (a fuzzy
+/// near-miss never supplements it).
+#[test]
+fn test_removed_masterclass_spellings_redirect_to_their_verb() {
+    for (gone, successor) in [
+        ("strict-single", "strict"),
+        ("strict-multi", "strict"),
+        ("ss", "strict"),
+        ("sm", "strict"),
+        ("block-single", "block"),
+        ("block-multi", "block"),
+        ("bs", "block"),
+        ("bm", "block"),
+        ("unstrict-single", "unstrict"),
+        ("unstrict-multi", "unstrict"),
+        ("us", "unstrict"),
+        ("um", "unstrict"),
+    ] {
+        let output = zelynic_cmd()
+            .arg(gone)
+            .output()
+            .unwrap_or_else(|e| panic!("Failed to execute zelynic {gone}: {e}"));
+
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "removed '{gone}' must be a usage error"
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains(&format!("unrecognized subcommand '{gone}'")),
+            "error must name the removed spelling, got: {stderr}"
+        );
+        assert!(
+            stderr.contains(successor),
+            "removed '{gone}' must redirect to {successor}, got: {stderr}"
         );
     }
 }

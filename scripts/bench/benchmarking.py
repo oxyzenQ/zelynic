@@ -12,8 +12,8 @@ Metrics collected (NIGHT-hunt-32: the list now states what the code
 actually measures — the old list promised BPF map sizes never
 collected, per-process CPU of a process that never exists, and a
 60s default the flag did not carry):
-  1. Startup latency (strict-single spawn → exit)
-  2. Block latency (block-single spawn → exit)
+  1. Startup latency (strict spawn → exit)
+  2. Block latency (block spawn → exit)
   3. Status query latency
   4. Memory footprint (pin files/bytes; bpftool program + map counts
      when bpftool is installed — skipped loudly, never printed as 0)
@@ -106,14 +106,14 @@ def cleanup():
 
 def bench_startup(iterations):
     print("\n━━━ 1. Startup Latency ━━━")
-    print(f"  Measuring strict-single spawn→exit ({iterations} iterations)")
+    print(f"  Measuring strict spawn→exit ({iterations} iterations)")
     cleanup()
     times = []
     for i in range(iterations):
         sleep_proc = subprocess.Popen(["sleep", "300"], stdout=subprocess.DEVNULL)
         try:
             comm = open(f"/proc/{sleep_proc.pid}/comm").read().strip()
-            rc, _, _, elapsed = run([BINARY, "strict-single", comm, "100kb"], timeout=10)
+            rc, _, _, elapsed = run([BINARY, "strict", comm, "100kb"], timeout=10)
             if rc == 0:
                 times.append(elapsed * 1000)
                 print(f"  [{i + 1}/{iterations}] {elapsed * 1000:.1f}ms")
@@ -141,14 +141,14 @@ def bench_startup(iterations):
 
 def bench_block_latency(iterations):
     print("\n━━━ 2. Block Latency ━━━")
-    print(f"  Measuring block-single spawn→exit ({iterations} iterations)")
+    print(f"  Measuring block spawn→exit ({iterations} iterations)")
     cleanup()
     times = []
     for i in range(iterations):
         sleep_proc = subprocess.Popen(["sleep", "300"], stdout=subprocess.DEVNULL)
         try:
             comm = open(f"/proc/{sleep_proc.pid}/comm").read().strip()
-            rc, _, _, elapsed = run([BINARY, "block-single", comm], timeout=10)
+            rc, _, _, elapsed = run([BINARY, "block", comm], timeout=10)
             if rc == 0:
                 times.append(elapsed * 1000)
                 print(f"  [{i + 1}/{iterations}] {elapsed * 1000:.1f}ms")
@@ -173,7 +173,7 @@ def bench_status(iterations):
     print(f"  Measuring 'zelynic status' ({iterations} iterations)")
     sleep_proc = subprocess.Popen(["sleep", "300"], stdout=subprocess.DEVNULL)
     comm = open(f"/proc/{sleep_proc.pid}/comm").read().strip()
-    run([BINARY, "strict-single", comm, "100kb"], timeout=10)
+    run([BINARY, "strict", comm, "100kb"], timeout=10)
     times = []
     for i in range(iterations):
         rc, _, _, elapsed = run([BINARY, "status"], timeout=5)
@@ -200,7 +200,7 @@ def bench_memory():
     pin_bytes_base, pin_count_base = get_pin_dir_size()
     sleep_proc = subprocess.Popen(["sleep", "300"], stdout=subprocess.DEVNULL)
     comm = open(f"/proc/{sleep_proc.pid}/comm").read().strip()
-    run([BINARY, "strict-single", comm, "100kb"], timeout=10)
+    run([BINARY, "strict", comm, "100kb"], timeout=10)
     time.sleep(0.5)
     pin_bytes_active, pin_count_active = get_pin_dir_size()
     # NIGHT-hunt-32: bpftool absence is a SKIP said out loud — the old
@@ -238,7 +238,7 @@ def bench_memory():
 
 def bench_concurrent(iterations):
     print("\n━━━ 5. Concurrent Throughput ━━━")
-    print(f"  Measuring 5 parallel strict-single ({iterations} rounds)")
+    print(f"  Measuring 5 parallel strict ({iterations} rounds)")
     print("  The lock is non-blocking: refusals are fast errors, not ops —")
     print("  admitted and refused are counted apart (NIGHT-hunt-32: the")
     print("  old ops/sec counted every refusal as a successful op).")
@@ -255,7 +255,7 @@ def bench_concurrent(iterations):
             comm = open(f"/proc/{p.pid}/comm").read().strip()
             procs.append(
                 subprocess.Popen(
-                    [BINARY, "strict-single", comm, "100kb"],
+                    [BINARY, "strict", comm, "100kb"],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 )
@@ -300,7 +300,7 @@ def bench_stress(duration_sec):
     cleanup()
     sleep_proc = subprocess.Popen(["sleep", "300"], stdout=subprocess.DEVNULL)
     comm = open(f"/proc/{sleep_proc.pid}/comm").read().strip()
-    run([BINARY, "strict-single", comm, "100kb"], timeout=10)
+    run([BINARY, "strict", comm, "100kb"], timeout=10)
     time.sleep(0.5)
     pin_bytes0, pin_count0 = get_pin_dir_size()
     alive_checks = 0

@@ -373,7 +373,7 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
     );
     eprintln_safe!(
         "  Next: run {} to re-apply limits",
-        crate::output::suggestion("'zelynic strict-single <target> <rate>'")
+        crate::output::suggestion("'zelynic strict <target> <rate>'")
     );
     Ok(())
 }

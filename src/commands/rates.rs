@@ -44,7 +44,7 @@ fn parse_rate_checked(s: &str, force_this: bool) -> Result<u64> {
 /// NIGHT-hunt-Z9 (the shadowed-positional honesty note): when a
 /// positional rate rides beside -d/-u, the priority rule used to
 /// drop it WITHOUT A WORD — and without parsing it, so
-/// `zelynic ss brave not-a-rate -d 100kb` sailed past the input
+/// `zelynic s brave not-a-rate -d 100kb` sailed past the input
 /// boundary with its typo unexamined, violating the
 /// parse-before-execute ladder every handler here documents (a
 /// typo'd rate must surface its did-you-mean tip before the root

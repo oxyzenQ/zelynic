@@ -300,8 +300,8 @@ fn footer_layout_pins_to_the_bottom() {
     );
     assert_eq!(
         lines[limit_idx],
-        flanked("  limit target with 'sudo zelynic ss cg:7001 100kb'"),
-        "the owner's exact wording: quoted command, the ss short alias, the engraved default rate: {}",
+        flanked("  limit target with 'sudo zelynic s cg:7001 100kb'"),
+        "the owner's exact wording: quoted command, the s short alias, the engraved default rate: {}",
         lines[limit_idx]
     );
     assert!(
@@ -416,7 +416,7 @@ fn footer_discovery_pair_renders_with_the_autodetect_name() {
         "the autodetect names the busiest process INSIDE the champion cgroup (NIGHT-hunt-8 lineage): {joined}"
     );
     assert!(
-        joined.contains("limit target with 'sudo zelynic ss curl 100kb'"),
+        joined.contains("limit target with 'sudo zelynic s curl 100kb'"),
         "the suggestion follows the owner's engrave-4 wording — the quoted command and the ss alias: {joined}"
     );
     assert!(

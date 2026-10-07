@@ -79,7 +79,7 @@ fn dead_groups_keeps_referenced_groups_and_drops_the_rest() {
 }
 
 /// The group reclaim's verbose trace names the 256-slot budget — the
-/// diagnostic that tells an owner why an unstrict after a strict-multi
+/// diagnostic that tells an owner why an unstrict after a group-lane
 /// touches the shared-bucket maps (NIGHT-lts-7).
 #[test]
 fn group_reclaim_trace_line_singular_and_plural() {

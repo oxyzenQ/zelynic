@@ -58,7 +58,7 @@ Design:
     machine where the datapath is half-attached.
   * The brutal battery (NIGHT-improve-21, moved to v2 in
     NIGHT-refactor-2): SIGKILL of the live TUI (`eagle-eyes`)
-    mid-render under active strict-multi enforcement, five times over;
+    mid-render under active strict enforcement, five times over;
     jittered SIGKILLs of one-shot CLI invocations racing the
     attach/pin/write window, twelve times; then the post-kill
     regression re-proof. Killing a monitor stresses exactly the seam
@@ -218,7 +218,7 @@ def test_rate_guard():
     ok_all = (
         refuse(
             "rate guard: below-minimum refused (999 < 1kb)",
-            ["strict-single", tid, "999"],
+            ["strict", tid, "999"],
             "below minimum",
         )
         and ok_all
@@ -228,7 +228,7 @@ def test_rate_guard():
     ok_all = (
         refuse(
             "rate guard: above-maximum refused (2tb > 1tb)",
-            ["strict-single", tid, "2tb"],
+            ["strict", tid, "2tb"],
             "above maximum",
         )
         and ok_all
@@ -238,7 +238,7 @@ def test_rate_guard():
     ok_all = (
         refuse(
             "rate guard: typo tip suggests lowercase twin (1MB -> 1mb)",
-            ["strict-single", tid, "1MB"],
+            ["strict", tid, "1MB"],
             "1mb",
         )
         and ok_all
@@ -251,14 +251,14 @@ def test_rate_guard():
     ok_all = (
         refuse(
             "rate guard: dangerous name refused without --force-this (systemd)",
-            ["strict-single", "systemd", "1mb"],
+            ["strict", "systemd", "1mb"],
             "system process",
         )
         and ok_all
     )
     # The plain-number parser branch (no unit suffix) round-trips
     # through the status JSON at full value.
-    rc, stdout, stderr = run_zel(["strict-single", tid, "1000000", "--no-probe"])
+    rc, stdout, stderr = run_zel(["strict", tid, "1000000", "--no-probe"])
     entry = limit_entry(status_json(), sm1.CG.ids["a"]) if rc == 0 else None
     plain_ok = (
         rc == 0
@@ -280,7 +280,7 @@ def test_rate_guard():
     # unified spelling): 500 B/s applies silently at full value in
     # the status row — the override no longer echoes its own
     # request back.
-    rc, stdout, stderr = run_zel(["strict-single", tid, "--force-this", "500", "--no-probe"])
+    rc, stdout, stderr = run_zel(["strict", tid, "--force-this", "500", "--no-probe"])
     entry = limit_entry(status_json(), sm1.CG.ids["a"]) if rc == 0 else None
     override_ok = (
         rc == 0
@@ -346,7 +346,7 @@ PANIC_MARKERS = ("panicked", "RUST_BACKTRACE", "stack overflow", "SIGABRT")
 CLI_DEPTH_CASES = [
     # ── info surfaces (exit 0) ─────────────────────────────────────────
     ("bare invocation prints the reference", [], "zero", "zelynic"),
-    ("--help prints the end-to-end reference", ["--help"], "zero", "strict-single"),
+    ("--help prints the end-to-end reference", ["--help"], "zero", "strict"),
     ("-h short help", ["-h"], "zero", "zelynic"),
     ("--version banner", ["--version"], "zero", "zelynic"),
     ("-V short version", ["-V"], "zero", "zelynic"),
@@ -360,13 +360,13 @@ CLI_DEPTH_CASES = [
     ),
     (
         "--verbose rides a refusal without changing it",
-        ["strict-single", "brave", "--verbose"],
+        ["strict", "brave", "--verbose"],
         "nonzero",
         "no rate specified",
     ),
     (
         "--force-this with no rate still needs a rate",
-        ["strict-single", "brave", "--force-this"],
+        ["strict", "brave", "--force-this"],
         "nonzero",
         "no rate specified",
     ),
@@ -392,13 +392,13 @@ CLI_DEPTH_CASES = [
     ("--color-mod gets the near-miss tip", ["--color-mod", "16"], "nonzero", "--color-mode"),
     (
         "--force-thi typo after a valid target",
-        ["strict-single", "brave", "1mb", "--force-thi"],
+        ["strict", "brave", "1mb", "--force-thi"],
         "nonzero",
         "--force-this",
     ),
     (
         "removed --allow-dangerous spelling is refused",
-        ["strict-single", "brave", "--allow-dangerous"],
+        ["strict", "brave", "--allow-dangerous"],
         "nonzero",
         "unexpected argument",
     ),
@@ -425,28 +425,28 @@ CLI_DEPTH_CASES = [
     ("help subcommand redirects to the flag", ["help"], "nonzero", "zelynic --help"),
     # ── wrong values (exit 1: runtime validation) ─────────────────────
     (
-        "strict-single with no rate names the fix",
-        ["strict-single", "brave"],
+        "strict with no rate names the fix",
+        ["strict", "brave"],
         "nonzero",
         "no rate specified",
     ),
-    ("non-numeric rate is quoted back", ["strict-single", "brave", "mb"], "nonzero", "rate"),
-    ("1kb/s slash unit is refused", ["strict-single", "brave", "1kb/s"], "nonzero", "rate"),
+    ("non-numeric rate is quoted back", ["strict", "brave", "mb"], "nonzero", "rate"),
+    ("1kb/s slash unit is refused", ["strict", "brave", "1kb/s"], "nonzero", "rate"),
     (
         "double-dot rate 5.5.5mb is refused",
-        ["strict-single", "brave", "5.5.5mb"],
+        ["strict", "brave", "5.5.5mb"],
         "nonzero",
         "rate",
     ),
-    ("leading-dot rate .5mb is refused", ["strict-single", "brave", ".5mb"], "nonzero", "rate"),
-    ("scientific notation 1e6 is not a rate", ["strict-single", "brave", "1e6"], "nonzero", "rate"),
+    ("leading-dot rate .5mb is refused", ["strict", "brave", ".5mb"], "nonzero", "rate"),
+    ("scientific notation 1e6 is not a rate", ["strict", "brave", "1e6"], "nonzero", "rate"),
     (
         "fullwidth unicode rate is refused",
-        ["strict-single", "brave", "\uff11mb"],
+        ["strict", "brave", "\uff11mb"],
         "nonzero",
         "rate",
     ),
-    ("negative rate reads as a flag error", ["strict-single", "brave", "-1mb"], "nonzero", "error"),
+    ("negative rate reads as a flag error", ["strict", "brave", "-1mb"], "nonzero", "error"),
     ("interval 0s is out of range", ["eagle-eyes", "--interval", "0s"], "nonzero", "interval"),
     ("interval 61s is out of range", ["eagle-eyes", "--interval", "61s"], "nonzero", "interval"),
     (
@@ -465,33 +465,33 @@ CLI_DEPTH_CASES = [
     # ── ambiguous input ────────────────────────────────────────────────
     (
         "swapped (target, rate) order fails on the rate",
-        ["strict-single", "100kb", "brave"],
+        ["strict", "100kb", "brave"],
         "nonzero",
         "rate",
     ),
-    ("-d with no value is a usage error", ["strict-single", "brave", "-d"], "nonzero", "required"),
+    ("-d with no value is a usage error", ["strict", "brave", "-d"], "nonzero", "required"),
     (
         "--download with no value is a usage error",
-        ["strict-single", "brave", "--download"],
+        ["strict", "brave", "--download"],
         "nonzero",
         "required",
     ),
-    ("-u with no value is a usage error", ["strict-single", "brave", "-u"], "nonzero", "required"),
+    ("-u with no value is a usage error", ["strict", "brave", "-u"], "nonzero", "required"),
     (
         "--upload with no value is a usage error",
-        ["strict-single", "brave", "--upload"],
+        ["strict", "brave", "--upload"],
         "nonzero",
         "required",
     ),
     (
         "--force-this with no rate reaches the rate guard",
-        ["strict-single", "--force-this", "brave"],
+        ["strict", "--force-this", "brave"],
         "nonzero",
         "no rate specified",
     ),
     (
-        "strict-multi without a rate names the fix",
-        ["strict-multi", "brave:curl:pacman"],
+        "strict without a rate names the fix",
+        ["strict", "brave::curl::pacman"],
         "nonzero",
         "no rate specified",
     ),
@@ -504,43 +504,43 @@ CLI_DEPTH_CASES = [
     # no-execution proof.
     (
         "shell semicolon in the target is echoed as data",
-        ["strict-single", "brave;rm -rf /", "1mb"],
+        ["strict", "brave;rm -rf /", "1mb"],
         "nonzero",
         "brave;rm -rf /",
     ),
     (
         "command substitution in the target is echoed as data",
-        ["strict-single", "$(reboot)", "1mb"],
+        ["strict", "$(reboot)", "1mb"],
         "nonzero",
         "$(reboot)",
     ),
     (
         "backtick substitution in the target is echoed as data",
-        ["strict-single", "`id`", "1mb"],
+        ["strict", "`id`", "1mb"],
         "nonzero",
         "`id`",
     ),
     (
         "path traversal as a target is echoed as data",
-        ["strict-single", "../../etc/passwd", "1mb"],
+        ["strict", "../../etc/passwd", "1mb"],
         "nonzero",
         "../../etc/passwd",
     ),
     (
         "newline injection in the target is echoed as data",
-        ["strict-single", "brave\nrm -rf /", "1mb"],
+        ["strict", "brave\nrm -rf /", "1mb"],
         "nonzero",
         "rm -rf",
     ),
     (
         "shell metacharacters in the rate are refused as a rate",
-        ["strict-single", "brave", "1mb;$(id)"],
+        ["strict", "brave", "1mb;$(id)"],
         "nonzero",
         "rate",
     ),
     (
         "shell chain in the rate is refused as a rate",
-        ["strict-single", "brave", "1mb && rm -rf /"],
+        ["strict", "brave", "1mb && rm -rf /"],
         "nonzero",
         "rate",
     ),
@@ -558,28 +558,28 @@ CLI_DEPTH_CASES = [
     ),
     (
         "a 5000-char target is a graceful refusal, not a hang",
-        ["strict-single", "a" * 5000, "1mb"],
+        ["strict", "a" * 5000, "1mb"],
         "nonzero",
         "no cgroup found",
     ),
     (
         "cgroup id beyond u32 range is a graceful refusal",
-        ["strict-single", "99999999999999999999", "1mb"],
+        ["strict", "99999999999999999999", "1mb"],
         "nonzero",
         "no cgroup found",
     ),
     # ── fatal usage shapes (exit 2: clap) ─────────────────────────────
-    ("strict-single with no target is a usage error", ["strict-single"], "nonzero", "error"),
+    ("strict with no target is a usage error", ["strict"], "nonzero", "error"),
     (
-        "colon target in strict-single tips strict-multi (hard miss)",
-        ["strict-single", ":", "1mb"],
+        "colon target in strict tips strict (hard miss)",
+        ["strict", ":", "1mb"],
         "nonzero",
-        "strict-multi",
+        "strict",
     ),
-    ("unstrict-single with no target is a usage error", ["unstrict-single"], "nonzero", "error"),
-    ("unstrict-multi with no targets is a usage error", ["unstrict-multi"], "nonzero", "error"),
-    ("block-single with no target is a usage error", ["block-single"], "nonzero", "error"),
-    ("block-multi with no targets is a usage error", ["block-multi"], "nonzero", "error"),
+    ("unstrict with no target is a usage error", ["unstrict"], "nonzero", "error"),
+    ("unstrict with no targets is a usage error", ["unstrict"], "nonzero", "error"),
+    ("block with no target is a usage error", ["block"], "nonzero", "error"),
+    ("block with no targets is a usage error", ["block"], "nonzero", "error"),
     ("stray positional after status is refused", ["status", "extra"], "nonzero", "unexpected"),
     ("stray positional after recover is refused", ["recover", "extra"], "nonzero", "unexpected"),
     ("stray positional after doctor is refused", ["doctor", "extra"], "nonzero", "unexpected"),
@@ -596,81 +596,114 @@ CLI_DEPTH_CASES = [
         "unexpected",
     ),
     # ── every alias: the short forms resolve (and refuse safely) ──────
-    ("ss alias resolves (missing target refuses)", ["ss"], "nonzero", "error"),
-    ("strict alias resolves (missing target refuses)", ["strict"], "nonzero", "error"),
-    ("sm alias resolves (missing targets refuse)", ["sm"], "nonzero", "error"),
+    # NIGHT-improve-53: the masterclass merge — s/b/u are the short
+    # forms of the one verb per family; the retired two-letter
+    # spellings (ss/sm/bs/bm/us/um) redirect to their family verb
+    # (unrecognized subcommand, exit 2, successor named).
+    ("s alias resolves (missing target refuses)", ["s"], "nonzero", "error"),
+    ("strict verb resolves (missing target refuses)", ["strict"], "nonzero", "error"),
+    ("b alias resolves (missing target refuses)", ["b"], "nonzero", "error"),
     ("sa alias resolves (missing rate refuses)", ["sa"], "nonzero", "no rate specified"),
-    ("bs alias resolves (missing target refuses)", ["bs"], "nonzero", "error"),
-    ("bm alias resolves (missing targets refuse)", ["bm"], "nonzero", "error"),
+    ("u alias resolves (missing target refuses)", ["u"], "nonzero", "error"),
+    ("unstrict verb resolves (missing target refuses)", ["unstrict"], "nonzero", "error"),
+    ("retired ss redirects to strict", ["ss"], "nonzero", "strict"),
+    ("retired sm redirects to strict", ["sm"], "nonzero", "strict"),
+    ("retired bs redirects to block", ["bs"], "nonzero", "block"),
+    ("retired bm redirects to block", ["bm"], "nonzero", "block"),
+    ("retired us redirects to unstrict", ["us"], "nonzero", "unstrict"),
+    ("retired um redirects to unstrict", ["um"], "nonzero", "unstrict"),
     ("block-all typo refuses before any block", ["block-all", "--forse"], "nonzero", "--force"),
     ("ba alias typo refuses before any block", ["ba", "--forse"], "nonzero", "--force"),
     # NOTE: the --forse needles still say "--force" because the
     # suggestion is now "--force-this" (NIGHT-improve-30) and the
     # old needle remains a substring of it.
-    ("us alias resolves (missing target refuses)", ["us"], "nonzero", "error"),
-    ("unstrict alias resolves (missing target refuses)", ["unstrict"], "nonzero", "error"),
-    ("um alias resolves (missing targets refuse)", ["um"], "nonzero", "error"),
     ("ua alias refuses a stray positional", ["ua", "extra"], "nonzero", "unexpected"),
     ("ee alias resolves (bad interval refuses)", ["ee", "--interval", "0s"], "nonzero", "interval"),
-    # ── NIGHT-blade-18: the colon-list grammar + the numeric guard ──
-    # The owner's future-bug probes, pinned. The multi lists are a
-    # grammar now (empty / path / punctuation-only segments are named
-    # mistakes, refused BEFORE the root guard), and a numeric or cg:
-    # segment runs the cgroup-id blocklist arm. The dynamic id cases
-    # (kthreadd's home, the live fleet round-trip) are built at
-    # runtime in test_cli_depth — machine-resolved ids cannot live in
-    # a static table.
+    # ── NIGHT-blade-18 grammar + NIGHT-improve-53: the '::' list law ──
+    # The owner's future-bug probes, pinned. The lists are a grammar
+    # (empty / path / punctuation-only members are named mistakes,
+    # refused BEFORE the root guard), the separator DOUBLED when the
+    # verbs merged (single ':' belongs to the cg: prefix and the
+    # container URIs), a single-':' member is the old grammar refused,
+    # and a numeric or cg: member runs the cgroup-id blocklist arm.
+    # The dynamic id cases (kthreadd's home, the live fleet
+    # round-trip) are built at runtime in test_cli_depth —
+    # machine-resolved ids cannot live in a static table.
     (
-        "strict-multi fine list is clean usage, hard miss on no such apps",
-        ["sm", "a:b:c", "1mb"],
+        "strict fine list is clean usage, hard miss on no such apps",
+        ["s", "a::b::c", "1mb"],
         "nonzero",
         None,
     ),
     (
-        "strict-multi with the owner's fatal shape is refused",
-        ["sm", "a:a/;/:1", "1mb"],
+        "strict with the owner's fatal shape is refused",
+        ["s", "a::a/;/::1", "1mb"],
         "nonzero",
         "not a valid app name",
     ),
     (
-        "strict-multi empty segment is a named mistake",
-        ["sm", "a::b", "1mb"],
+        "strict empty member is a named mistake",
+        ["s", "a::::b", "1mb"],
         "nonzero",
         "empty target",
     ),
     (
-        "strict-multi punctuation-only segment is refused",
-        ["sm", "x:;;:y", "1mb"],
-        "nonzero",
-        "not a valid app name",
-    ),
-    (
-        "block-multi fatal shape is refused with the same grammar",
-        ["bm", "a:a/;/:1"],
-        "nonzero",
-        "not a valid app name",
-    ),
-    (
-        "unstrict-multi fatal shape is refused with the same grammar",
-        ["um", "a:a/"],
-        "nonzero",
-        "not a valid app name",
-    ),
-    (
-        "unstrict-multi empty segment is refused",
-        ["um", "a::b"],
+        "strict trailing separator drops a member the same way",
+        ["s", "a::", "1mb"],
         "nonzero",
         "empty target",
     ),
     (
-        "strict-multi colon-only list keeps the no-targets error",
-        ["sm", ":", "1mb"],
+        "strict punctuation-only member is refused",
+        ["s", "x::;;::y", "1mb"],
+        "nonzero",
+        "not a valid app name",
+    ),
+    (
+        "strict single-colon member is the old grammar refused",
+        ["s", "brave:curl::steam", "1mb"],
+        "nonzero",
+        "members separate with '::'",
+    ),
+    (
+        "strict container URI in a list is the named refusal",
+        ["s", "docker://nginx::brave", "1mb"],
+        "nonzero",
+        "do not ride lists",
+    ),
+    (
+        "strict one-distinct-member list needs no separator",
+        ["s", "brave::brave", "1mb"],
+        "nonzero",
+        "needs no separator",
+    ),
+    (
+        "block fatal shape is refused with the same grammar",
+        ["b", "a::a/;/::1"],
+        "nonzero",
+        "not a valid app name",
+    ),
+    (
+        "unstrict fatal shape is refused with the same grammar",
+        ["u", "a::a/"],
+        "nonzero",
+        "not a valid app name",
+    ),
+    (
+        "unstrict empty member is refused",
+        ["u", "a::"],
+        "nonzero",
+        "empty target",
+    ),
+    (
+        "strict separator-only list keeps the no-targets error",
+        ["s", "::", "1mb"],
         "nonzero",
         "No targets specified",
     ),
     (
-        "shell substitution in a multi segment stays the no-exec refusal",
-        ["sm", "$(reboot):b", "1mb"],
+        "shell substitution in a list member stays the no-exec refusal",
+        ["s", "$(reboot)::b", "1mb"],
         "nonzero",
         "$(reboot)",
     ),
@@ -690,7 +723,7 @@ CLI_DEPTH_CASES = [
     # case above.
     (
         "cg prefix with a non-numeric remainder keeps the no-match contract",
-        ["ss", "cg:brave", "1mb"],
+        ["s", "cg:brave", "1mb"],
         "nonzero",
         "No cgroup found",
     ),
@@ -702,15 +735,13 @@ CLI_DEPTH_CASES = [
 # CLI without a stresstest case shows up as a FAILING PIN on the next
 # push, not as an untested surface discovered by an attacker.
 CLI_DOCUMENTED_SURFACE = [
-    # commands
-    "strict-single",
-    "strict-multi",
+    # commands (NIGHT-improve-53: the masterclass families — one
+    # verb each, the -all sweeps beside them)
+    "strict",
     "strict-all",
-    "block-single",
-    "block-multi",
+    "block",
     "block-all",
-    "unstrict-single",
-    "unstrict-multi",
+    "unstrict",
     "unstrict-all",
     "recover",
     "status",
@@ -718,18 +749,13 @@ CLI_DOCUMENTED_SURFACE = [
     "eagle-eyes",
     "doctor",
     # aliases
-    "strict",
-    "ss",
-    "sm",
+    "s",
+    "b",
+    "u",
     "sa",
-    "bs",
-    "bm",
     "ba",
-    "us",
-    "um",
     "ua",
     "ee",
-    "unstrict",
     # flags
     "--help",
     "-h",
@@ -816,7 +842,7 @@ def _run_cli_case_headless(argv):
 # CLI_DEPTH_CASES speaks, so the runner loop below is the depth
 # sweep's own verification logic, reused verbatim.
 SERVER_DEPTH_CASES = [
-    ("--help answers headless", ["--help"], "zero", "strict-single"),
+    ("--help answers headless", ["--help"], "zero", "strict"),
     ("-V banner headless", ["-V"], "zero", "Signature: Pure eBPF builtin"),
     ("doctor --print-json parses headless", ["doctor", "--print-json"], "zero", '"system"'),
     (
@@ -931,14 +957,14 @@ def _blade18_dynamic_cases():
     if kid is not None:
         cases += [
             (
-                "strict-multi numeric segment of kthreadd's home is refused",
-                ["sm", f"x:{kid}", "1mb"],
+                "strict numeric member of kthreadd's home is refused",
+                ["s", f"x::{kid}", "1mb"],
                 "nonzero",
                 "system process",
             ),
             (
-                "strict-single cg: form of kthreadd's home is refused",
-                ["ss", f"cg:{kid}", "100kb"],
+                "strict cg: form of kthreadd's home is refused",
+                ["s", f"cg:{kid}", "100kb"],
                 "nonzero",
                 "system process",
             ),
@@ -957,7 +983,7 @@ def _blade18_dynamic_cases():
             # lane the battery measures can ever notice it.
             (
                 "the id guard lifts with --force-this (warn, then the forced apply)",
-                ["ss", f"cg:{kid}", "1tb", "--force-this"],
+                ["s", f"cg:{kid}", "1tb", "--force-this"],
                 "zero",
                 "forcing with --force-this",
             ),
@@ -975,13 +1001,13 @@ def _blade18_dynamic_cases():
         cases += [
             (
                 "a live fleet cgroup's numeric form flows friction-free",
-                ["ss", str(fid), "100kb"],
+                ["s", str(fid), "100kb"],
                 "zero",
                 None,
             ),
             (
                 "the numeric round-trip removes cleanly",
-                ["um", f"cg:{fid}"],
+                ["u", f"cg:{fid}"],
                 "zero",
                 None,
             ),
@@ -1138,9 +1164,9 @@ def _drain_pty(master, seconds):
 def test_kill_tui():
     """SIGKILL the live TUI (`zelynic eagle-eyes`, the NIGHT-boost-1
     merge of the former top/observe) mid-render, under active
-    strict-multi enforcement, five times over.
+    strict enforcement, five times over.
 
-    Each cycle: apply strict-multi on cgroups a:b:c, start the TUI on a
+    Each cycle: apply strict on cgroups a:b:c, start the TUI on a
     pty, let it render for KILL_TUI_RENDER_S seconds (at --interval 1s
     that is at least two frames), SIGKILL it, reap it as signal 9,
     then prove the split the pinned-map architecture promises —
@@ -1177,7 +1203,7 @@ def test_kill_tui():
         ok, payload = sm1.apply_group(["a", "b", "c"], rates[cycle], exp[cycle])
         if not ok:
             record(
-                "kill tui: strict-multi applied",
+                "kill tui: strict applied",
                 "FAIL",
                 f"cycle {cycle + 1}: {payload}",
             )
@@ -1312,7 +1338,7 @@ def test_kill_midflight():
     """SIGKILL one-shot CLI invocations inside the attach/pin/write
     window, twelve times, at jittered offsets.
 
-    A strict-single invocation pins programs, writes policy maps, and
+    A strict invocation pins programs, writes policy maps, and
     updates the row surface — killing it at a jittered point races
     every step of that write path. The contract under test is NOT
     which side wins the race (a kill landing after the CLI finished is
@@ -1337,7 +1363,7 @@ def test_kill_midflight():
     coherent = 0
     for i in range(KILL_MIDFLIGHT_KILLS):
         proc = subprocess.Popen(
-            [lib.BINARY, "strict-single", str(sm1.CG.ids["a"]), rates[i % len(rates)]],
+            [lib.BINARY, "strict", str(sm1.CG.ids["a"]), rates[i % len(rates)]],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -1614,7 +1640,7 @@ def test_regression_battery():
     ok_all = (
         refuse(
             "regression: below-minimum still refused (999 < 1kb)",
-            ["strict-single", tid, "999"],
+            ["strict", tid, "999"],
             "below minimum",
         )
         and ok_all
@@ -1622,7 +1648,7 @@ def test_regression_battery():
     ok_all = (
         refuse(
             "regression: above-maximum still refused (2tb > 1tb)",
-            ["strict-single", tid, "2tb"],
+            ["strict", tid, "2tb"],
             "above maximum",
         )
         and ok_all
@@ -1630,7 +1656,7 @@ def test_regression_battery():
     ok_all = (
         refuse(
             "regression: typo tip still suggests lowercase twin (1MB -> 1mb)",
-            ["strict-single", tid, "1MB"],
+            ["strict", tid, "1MB"],
             "1mb",
         )
         and ok_all
@@ -1638,7 +1664,7 @@ def test_regression_battery():
     ok_all = (
         refuse(
             "regression: dangerous name still refused without --force-this (systemd)",
-            ["strict-single", "systemd", "1mb"],
+            ["strict", "systemd", "1mb"],
             "system process",
         )
         and ok_all
@@ -1651,7 +1677,7 @@ def test_regression_battery():
     ):
         ok, _ = sm1.apply_single(name, rate_str, exp, exp)
         if ok:
-            ok, _ = sm1.unstrict_target("unstrict-single", [name])
+            ok, _ = sm1.unstrict_target("unstrict", [name])
         if ok:
             trips_ok += 1
     ok_all = (

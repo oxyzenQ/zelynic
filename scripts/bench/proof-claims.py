@@ -80,7 +80,7 @@ root required for the live run, --self-test for CI without root):
     cpu, io, etc usage — this project is critical infra not a
     toy" ask). The one-shot CLI's OWN footprint is measured with
     the kernel's own accounting: wait4(2) rusage of a canonical
-    strict-single attach — peak RSS (ru_maxrss), CPU seconds
+    strict attach — peak RSS (ru_maxrss), CPU seconds
     (ru_utime + ru_stime), block IO (ru_inblock + ru_oublock)
     against generous bounds, the real numbers printed. The
     kernel-side cost is measured where it lives: bpftool's
@@ -141,7 +141,7 @@ STATS_KNOB = "/proc/sys/kernel/bpf_stats_enabled"
 BASELINE_WINDOW = 3.0
 NO_DAEMON_WINDOW = 8.0
 # Quick mode's 4s no-daemon window measures a COLD policer: the
-# first epochs of a fresh strict-single attach are the startup
+# first epochs of a fresh strict attach are the startup
 # transient (the flow bucket banks its carry epoch by epoch while
 # TCP backs off its first losses) — the full 8s window amortizes
 # it, the quick 4s window drowns in it (the live quick run measured
@@ -751,7 +751,7 @@ def tool_snapshot(argv):
 
 
 def apply_and_verify(rate_bps, cgroup_id):
-    """Attach strict-single -d to the cgroup and verify the policy row.
+    """Attach strict -d to the cgroup and verify the policy row.
     -d only: one policed hook per stream keeps the accounting 1:1
     (the NIGHT-improve-12 discipline the depth harness pinned)."""
     rate_str = bps_to_rate_str(rate_bps)
@@ -761,11 +761,9 @@ def apply_and_verify(rate_bps, cgroup_id):
     # docs/audits/NIGHT_UPGRADE_CHARGER_CORE_1C_PROBE_CI_FIND) while
     # the same run's battery policed 7/7 — the workers carry the
     # proof here until the probe's lane is debugged on a root box.
-    rc, stdout, stderr = lib.run_zel(
-        ["strict-single", str(cgroup_id), "-d", rate_str, "--no-probe"]
-    )
+    rc, stdout, stderr = lib.run_zel(["strict", str(cgroup_id), "-d", rate_str, "--no-probe"])
     if rc != 0:
-        return False, f"strict-single exit {rc}: {(stderr or stdout).strip()[:200]}"
+        return False, f"strict exit {rc}: {(stderr or stdout).strip()[:200]}"
     doc = lib.status_json()
     entry = lib.limit_entry(doc, cgroup_id)
     if entry is None:
@@ -851,7 +849,7 @@ def stage_no_daemon(quick):
     lib.record(
         "no-daemon: attach limit",
         "PASS",
-        f"strict-single {bps_to_rate_str(NO_DAEMON_RATE)} -d on cgroup A",
+        f"strict {bps_to_rate_str(NO_DAEMON_RATE)} -d on cgroup A",
     )
     # Every zelynic invocation above has returned. A daemon spawned by
     # this attach would appear as a NEW zelynic-named pid against the
@@ -1135,9 +1133,7 @@ def stage_per_app(baseline):
     ok, payload = apply_and_verify(PER_APP_RATE, CG.a_id)
     if not ok:
         return lib.record("per-app: limit cgroup A", "FAIL", payload) == "PASS"
-    lib.record(
-        "per-app: limit cgroup A", "PASS", f"strict-single {bps_to_rate_str(PER_APP_RATE)} -d"
-    )
+    lib.record("per-app: limit cgroup A", "PASS", f"strict {bps_to_rate_str(PER_APP_RATE)} -d")
     # The witness B must span A's whole patience budget — A re-samples
     # its window under-side while B blasts unlimited the entire time,
     # so "same machine, same moment" covers every A sample (the
@@ -1636,7 +1632,7 @@ def stage_footprint(quick):
     window = 2.5 if quick else 5.0
     rate_str = bps_to_rate_str(PURE_RATE)
 
-    # The measured attach: fork the canonical strict-single, reap
+    # The measured attach: fork the canonical strict, reap
     # with wait4 for the rusage (Popen's own wait is bypassed — the
     # pid is reaped here, the returncode handed back so Popen's
     # destructor never double-reaps).
@@ -1644,7 +1640,7 @@ def stage_footprint(quick):
     # twin's ids-DICT shape does not exist here; the first live VM
     # run caught the mixup, and the self-test's source pin now
     # guards the vocabulary).
-    argv = [lib.BINARY, "strict-single", str(CG.a_id), "-d", rate_str, "--no-probe"]
+    argv = [lib.BINARY, "strict", str(CG.a_id), "-d", rate_str, "--no-probe"]
     try:
         child = subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         _, status, ru = os.wait4(child.pid, 0)

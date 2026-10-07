@@ -118,7 +118,7 @@ Design:
     schema v24) gets the law ladder (the one-spelling law, the
     floor<=ceil<=rate contradictions, the removed-direction law, the
     per-direction split's own grammar); the PER-SOCKET TIER gets its
-    valid-parse row (the flag is strict-single's own — the family
+    valid-parse row (the flag is strict's own — the family
     verbs' refusal is pinned too); and the SNAPSHOT/RESTORE pair
     joins the command surface (recognized verbs with their own
     privilege wording — the persistence pair's CLI shape). The three
@@ -199,14 +199,12 @@ PANIC_RE = re.compile(r"panicked|RUST_BACKTRACE|thread .* panicked")
 # The alias must route identically to the canonical (same usage error
 # shape).
 COMMANDS = [
-    ("strict-single", "ss"),
-    ("strict-multi", "sm"),
+    # NIGHT-improve-53: one verb per family, one short form each.
+    ("strict", "s"),
     ("strict-all", "sa"),
-    ("block-single", "bs"),
-    ("block-multi", "bm"),
+    ("block", "b"),
     ("block-all", "ba"),
-    ("unstrict-single", "us"),
-    ("unstrict-multi", "um"),
+    ("unstrict", "u"),
     ("unstrict-all", "ua"),
     ("eagle-eyes", "ee"),
     # Commands without aliases:
@@ -274,7 +272,7 @@ GLOBAL_FLAGS = [
     # NIGHT-boost-12's own incident shape (a subcommand-position -V
     # used to die on a misleading --verbose tip). Both spellings must
     # print the banner and exit 0 before any dispatch.
-    (["ss", "brave", "1mb", "-V"], 0, "info (-V at subcommand position, NIGHT-boost-12)"),
+    (["s", "brave", "1mb", "-V"], 0, "info (-V at subcommand position, NIGHT-boost-12)"),
     (["ee", "brave", "--version"], 0, "info (--version at subcommand position)"),
 ]
 
@@ -295,19 +293,19 @@ COLOR_MODES_INVALID = ["1", "7", "99", "abc", ""]
 # is a second target, and the typo tip still fires, but the canonical
 # shape is target + flag).
 TYPOS = [
-    # strict-single flags (target + rate + typo, driven through ss):
-    ("--per-sockt", "--per-socket", ["ss", "brave", "1mb"]),
-    ("--no-prbe", "--no-probe", ["ss", "brave", "1mb"]),
-    ("--force-ths", "--force-this", ["ss", "brave", "1mb"]),
+    # strict flags (target + rate + typo, driven through s):
+    ("--per-sockt", "--per-socket", ["s", "brave", "1mb"]),
+    ("--no-prbe", "--no-probe", ["s", "brave", "1mb"]),
+    ("--force-ths", "--force-this", ["s", "brave", "1mb"]),
     # eagle-eyes flags (target + typo, driven through ee — no rate):
     ("--depht", "--depth", ["ee", "brave"]),
     ("--interal", "--interval", ["ee", "brave"]),
-    # global flags (driven through ss — globals ride every command):
-    ("--verboes", "--verbose", ["ss", "brave", "1mb"]),
-    ("--color-mdoe", "--color-mode", ["ss", "brave", "1mb"]),
-    ("--print-jso", "--print-json", ["ss", "brave", "1mb"]),
-    ("--check-updat", "--check-update", ["ss", "brave", "1mb"]),
-    ("--reset-termina", "--reset-terminal", ["ss", "brave", "1mb"]),
+    # global flags (driven through s — globals ride every command):
+    ("--verboes", "--verbose", ["s", "brave", "1mb"]),
+    ("--color-mdoe", "--color-mode", ["s", "brave", "1mb"]),
+    ("--print-jso", "--print-json", ["s", "brave", "1mb"]),
+    ("--check-updat", "--check-update", ["s", "brave", "1mb"]),
+    ("--reset-termina", "--reset-terminal", ["s", "brave", "1mb"]),
     # NIGHT-hunt-Z8: the per-command flags the ladder skipped —
     # eagle-eyes --focus, and the -d/-u long forms.
     ("--focs", "--focus", ["ee", "brave"]),
@@ -460,10 +458,10 @@ SHADOWED_POSITIONAL_CASES = [
         True,
     ),
     (
-        ["sm", "brave:curl", "garbage", "-d", "1mb"],
+        ["s", "brave::curl", "garbage", "-d", "1mb"],
         ["Invalid rate"],
         ["root required"],
-        "strict-multi family shares the ladder",
+        "strict family shares the ladder",
         False,
     ),
     (
@@ -526,15 +524,15 @@ HIDDEN_LEAK_CASES = [
 ]
 
 # The long aliases the help's own shorthand notes name (NIGHT-hunt-10):
-# strict-single also answers 'strict', unstrict-single also answers
+# strict also answers 'strict', unstrict also answers
 # 'unstrict' — the two long aliases the short-alias tables above do
 # not carry (NIGHT-hunt-Z8: an alias a help example prints is a
 # surface the battery owns too). Each must route to the canonical:
 # recognized (never "unrecognized subcommand"), the canonical's own
 # complaint, no panic.
 LONG_ALIASES = [
-    ("strict-single", "strict"),
-    ("unstrict-single", "unstrict"),
+    ("strict", "strict"),
+    ("unstrict", "unstrict"),
 ]
 
 # ── NIGHT-improve-42: the private-research-4 depth tables ──────────────────
@@ -589,10 +587,10 @@ DURING_CASES = [
         True,
     ),
     (
-        ["sm", "brave:curl", "1mb", "--during", "2h"],
+        ["s", "brave::curl", "1mb", "--during", "2h"],
         ["root required"],
         [],
-        "strict-multi rides the window",
+        "strict rides the window",
         True,
     ),
     (
@@ -777,9 +775,9 @@ GUARANTEE_CASES = [
 ]
 
 # The per-socket tier's flag surface: --per-socket is
-# strict-single's own (a per-connection cap on the ONE-app verb —
+# strict's own (a per-connection cap on the ONE-app verb —
 # the server shape: one process, many sockets), so the valid parse
-# rides strict-single and the family verb's refusal is the parse
+# rides strict and the family verb's refusal is the parse
 # boundary, not the gate. --no-probe rides the same verb with the
 # same lane (the scripted-use probe skip).
 TIER_FLAGS = [
@@ -798,10 +796,14 @@ TIER_FLAGS = [
         True,
     ),
     (
-        ["sm", "brave:curl", "1mb", "--per-socket"],
-        ["unexpected argument"],
-        ["root required"],
-        "the group verb refuses the per-socket flag at parse",
+        # NIGHT-improve-53: the masterclass surface carries
+        # --per-socket for BOTH lanes, so the parse accepts it and
+        # the ROUTER refuses the list lane — exit 1, pre-root, the
+        # scope call's own wording.
+        ["s", "brave::curl", "1mb", "--per-socket"],
+        ["--per-socket is the single-target lane"],
+        ["unexpected argument", "root required"],
+        "the list lane refuses the per-socket flag at the router",
         False,
     ),
 ]
@@ -1131,8 +1133,8 @@ def test_short_alias_routing():
 # ── stage 4b: long-alias routing (strict, unstrict) ───────────────
 #
 # NIGHT-hunt-Z8: the help's own examples print the long aliases
-# ('zelynic strict brave -d 1mb' in strict-single's doc comment;
-# 'unstrict' mirrors the strict/unstrict-single pair). The two-route
+# ('zelynic strict brave -d 1mb' in strict's doc comment;
+# 'unstrict' mirrors the strict/unstrict pair). The two-route
 # surface the short-alias stage skipped: each long alias must reach
 # the canonical's own validation — same exit class, recognized,
 # no panic.
@@ -1152,8 +1154,8 @@ def test_long_alias_routing():
     all_ok = True
     for canonical, alias in LONG_ALIASES:
         # One target arg reaches both commands' own validation:
-        # strict-single answers its missing-rate complaint, and
-        # unstrict-single answers the rootless root-guard complaint.
+        # strict answers its missing-rate complaint, and
+        # unstrict answers the rootless root-guard complaint.
         args = ["brave"]
         rc_c, out_c = _run_cli_case([canonical] + args)
         rc_a, out_a = _run_cli_case([alias] + args)
@@ -1200,7 +1202,7 @@ def test_typo_handling():
     for typo, real_flag, cmd_argv in TYPOS:
         # Drive the typo through the command that OWNS the flag, with
         # that command's own arg shape (eagle-eyes takes targets, not
-        # rates; strict-single takes target + rate).
+        # rates; strict takes target + rate).
         rc, output = _run_cli_case(cmd_argv + [typo])
         label = f"typo: {typo} -> tip {real_flag}"
         if rc is None:
@@ -1532,7 +1534,7 @@ def test_guarantee_ladder():
 def test_tier_flags():
     """The per-socket tier's flag surface.
 
-    --per-socket is strict-single's own (the server shape: one
+    --per-socket is strict's own (the server shape: one
     process, many sockets, each connection its own budget) — the
     valid parse rides the one verb that owns it, and the group
     verb's refusal is the parse boundary (a per-connection cap on a

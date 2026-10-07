@@ -74,7 +74,7 @@ fn multi_no_match_line_single_miss() {
         "single-miss head must name the target, got: {line}"
     );
     assert!(
-        line.contains("strict-multi is atomic, nothing was limited"),
+        line.contains("the list apply is atomic, nothing was limited"),
         "the atomic contract must be stated, got: {line}"
     );
     assert!(

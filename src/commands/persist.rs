@@ -75,7 +75,7 @@ pub(crate) struct SnapshotEntry {
     pub direction: String,
     /// The policy's rate in bits per second.
     pub rate_bps: u64,
-    /// The strict-multi group the row belongs to (the map's group_id;
+    /// The strict group-lane bucket the row belongs to (the map's group_id;
     /// 0 = solo). The ID itself is per-apply randomness — the restore
     /// hands its members ONE NEW shared bucket — but WITHIN the
     /// document it is the grouping key that re-joins the members a
@@ -166,13 +166,13 @@ impl SnapshotDoc {
 }
 
 /// One restore plan step, derived purely from the merged entries:
-/// one strict-single or one strict-multi apply, with its resolved
+/// one single-lane or one group-lane strict apply, with its resolved
 /// rate legs and the per-socket flag (the flag rides the individual
 /// lane only — the same constraint the CLI surface carries).
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct RestoreStep {
-    /// The single member (strict-single) or the member list
-    /// (strict-multi, one shared bucket).
+    /// The single member (single lane) or the member list
+    /// (group lane, one shared bucket).
     pub names: Vec<String>,
     /// The rate legs the entries carried (None on a direction the
     /// member set never had — the apply's unset-direction removal
@@ -224,9 +224,9 @@ type GroupLeg = (
 );
 
 /// Derive the restore plan from the document's entries: solo rows
-/// collapse per-name into one strict-single step (both directions in
+/// collapse per-name into one single-lane step (both directions in
 /// one RateSpec), grouped rows collapse per member-set into one
-/// strict-multi step. Pure — the caller resolves names and applies.
+/// group-lane step. Pure — the caller resolves names and applies.
 pub(crate) fn restore_plan(doc: &SnapshotDoc) -> Vec<RestoreStep> {
     // Solo legs: name -> (dl rate, ul rate, per_socket).
     let mut solos: Vec<SoloLeg> = Vec::new();

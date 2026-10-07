@@ -208,16 +208,16 @@ fi
 echo "── enforcement surfaces (root refusal) ──"
 
 ROOT_ARGS=(
-	"strict-single brave 100kb"
 	"strict brave 100kb"
-	"strict-multi brave:curl 1mb"
+	"s brave::curl 1mb"
+	"s cg:48181 100kb"
 	"strict-all 500kb"
-	"block-single brave"
-	"block-multi brave:curl"
+	"block brave"
+	"block brave::curl"
+	"b brave"
 	"block-all"
-	"unstrict-single brave"
 	"unstrict brave"
-	"unstrict-multi brave:curl"
+	"u brave::curl"
 	"unstrict-all"
 	"recover"
 	"status"
@@ -238,32 +238,40 @@ expect "status --print-json refuses root identically" 1 "root required" -- "$BIN
 
 echo "── fail-fast ladder (validation before root guard) ──"
 
-expect "rate typo surfaces before root guard" 1 "Invalid rate '1MB'" "tip:" -- "$BINARY" strict-single brave 1MB
-refute "rate typo must not mention root" "root required" -- "$BINARY" strict-single brave 1MB
-expect "missing rate surfaces before root guard" 1 "No rate specified" -- "$BINARY" strict-single brave
-refute "missing rate must not mention root" "root required" -- "$BINARY" strict-single brave
-expect "dangerous target guard precedes root guard" 1 "system process" -- "$BINARY" strict-single root 100kb
+expect "rate typo surfaces before root guard" 1 "Invalid rate '1MB'" "tip:" -- "$BINARY" strict brave 1MB
+refute "rate typo must not mention root" "root required" -- "$BINARY" strict brave 1MB
+expect "missing rate surfaces before root guard" 1 "No rate specified" -- "$BINARY" strict brave
+refute "missing rate must not mention root" "root required" -- "$BINARY" strict brave
+expect "dangerous target guard precedes root guard" 1 "system process" -- "$BINARY" strict root 100kb
 expect "interval bounds precede root guard" 1 "between 1s and 60s" -- "$BINARY" eagle-eyes --interval 61s
 refute "interval error must not mention root" "root required" -- "$BINARY" eagle-eyes --interval 61s
 expect "interval typo carries did-you-mean tip" 1 "Invalid duration '3min'" "tip: a similar value exists: '3m'" -- "$BINARY" eagle-eyes --interval 3min
 expect "empty target spec precedes root guard" 1 "No targets in" -- "$BINARY" eagle-eyes /
-# The colon-list routing tip is post-apply advice (it fires after the
-# /proc walk finds no match, which needs privileges); non-root users
-# correctly see the root guard first.
-expect "colon list in single slot still root-gated" 1 "root required" -- "$BINARY" strict-single brave:curl 100kb
+# NIGHT-improve-53: the single ':' is the prefix grammar's byte
+# now, so 'brave:curl' is ONE (unmatchable) name on the single lane —
+# and the single lane root-gates before its /proc walk, so non-root
+# users correctly see the root guard first. The '::' tip is post-apply
+# advice there (the walk that proves the no-match needs privileges).
+expect "old-grammar colon list in single slot still root-gated" 1 "root required" -- "$BINARY" strict brave:curl 100kb
 
-# NIGHT-blade-18: the colon-list grammar + the numeric-target guard,
-# pinned rootless — every refusal fires BEFORE the root guard, and the
-# fine list passes the grammar through to it.
-expect "multi grammar: path segment precedes root guard" 1 "not a valid app name" -- "$BINARY" strict-multi "a:a/;/:1" 1mb
-refute "multi grammar: path error must not mention root" "root required" -- "$BINARY" strict-multi "a:a/;/:1" 1mb
-expect "multi grammar: empty segment precedes root guard" 1 "empty target" -- "$BINARY" strict-multi a::b 1mb
-expect "multi grammar: punctuation-only segment is refused" 1 "not a valid app name" -- "$BINARY" strict-multi "x:;;:y" 1mb
-expect "multi grammar: block-multi path segment is refused" 1 "not a valid app name" -- "$BINARY" block-multi "a:a/"
-expect "multi grammar: unstrict-multi path segment is refused" 1 "not a valid app name" -- "$BINARY" unstrict-multi "a:a/"
-expect "multi grammar: unstrict-multi empty segment is refused" 1 "empty target" -- "$BINARY" unstrict-multi a::b
-expect "multi grammar: colon-only keeps the no-targets error" 1 "No targets specified" -- "$BINARY" strict-multi ":" 1mb
-expect "multi grammar: fine list passes the grammar to the root guard" 1 "root required" -- "$BINARY" strict-multi a:b:c 1mb
+# NIGHT-blade-18 grammar + NIGHT-improve-53 (the '::' separator):
+# pinned rootless — every refusal fires BEFORE the root guard, and
+# the fine list passes the grammar through to it. The separator
+# doubled when the verbs merged: single ':' belongs to the cg:
+# prefix and the container URIs.
+expect "multi grammar: path member precedes root guard" 1 "not a valid app name" -- "$BINARY" strict "a::a/;/::1" 1mb
+refute "multi grammar: path error must not mention root" "root required" -- "$BINARY" strict "a::a/;/::1" 1mb
+expect "multi grammar: empty member precedes root guard" 1 "empty target" -- "$BINARY" strict a::::b 1mb
+expect "multi grammar: trailing separator drops a member the same way" 1 "empty target" -- "$BINARY" strict a:: 1mb
+expect "multi grammar: punctuation-only member is refused" 1 "not a valid app name" -- "$BINARY" strict "x::;;::y" 1mb
+expect "multi grammar: single-colon member is the old grammar refused" 1 "members separate with '::'" -- "$BINARY" strict "brave:curl::steam" 1mb
+expect "multi grammar: container URI in a list is the named refusal" 1 "do not ride lists" -- "$BINARY" strict "docker://nginx::brave" 1mb
+expect "multi grammar: one distinct member needs no separator" 1 "needs no separator" -- "$BINARY" strict brave::brave 1mb
+expect "multi grammar: block path member is refused" 1 "not a valid app name" -- "$BINARY" block "a::a/"
+expect "multi grammar: unstrict path member is refused" 1 "not a valid app name" -- "$BINARY" unstrict "a::a/"
+expect "multi grammar: unstrict empty member is refused" 1 "empty target" -- "$BINARY" unstrict a::
+expect "multi grammar: separator-only keeps the no-targets error" 1 "No targets specified" -- "$BINARY" strict "::" 1mb
+expect "multi grammar: fine list passes the grammar to the root guard" 1 "root required" -- "$BINARY" strict a::b::c 1mb
 # NIGHT-hunt-Z3: the unresolvable-id example is a DEAD id now, not
 # cg:1 — the old example only "flowed to the root guard" in container
 # views where the host root has no visible members; on the host itself
@@ -272,21 +280,22 @@ expect "multi grammar: fine list passes the grammar to the root guard" 1 "root r
 # near-u32-max id is unresolvable on every machine, so the contract
 # this row pins — a dead id stays allowed and reaches the root ask —
 # is now environment-independent.
-expect "numeric target: cg form flows to the root guard when unresolvable" 1 "root required" -- "$BINARY" strict-single cg:4294967290 100kb
+expect "numeric target: cg form flows to the root guard when unresolvable" 1 "root required" -- "$BINARY" strict cg:4294967290 100kb
 # The Z3 root catch-all arm itself, pinned rootlessly in both
 # directions: the root POSITION refuses before the privilege ask,
 # and --force-this lifts it back onto the root ask's runway.
-expect "numeric target: the cgroupfs root refuses by position (Z3)" 1 "is the root cgroup" -- "$BINARY" strict-single cg:1 100kb
-expect "numeric target: --force-this lifts the root position (Z3)" 1 "root required" -- "$BINARY" strict-single cg:1 100kb --force-this
+expect "numeric target: the cgroupfs root refuses by position (Z3)" 1 "is the root cgroup" -- "$BINARY" strict cg:1 100kb
+expect "numeric target: --force-this lifts the root position (Z3)" 1 "root required" -- "$BINARY" strict cg:1 100kb --force-this
 
 # ━━ 4. Usage errors: exit 2 with canonical shape ━━
 
 echo "── usage errors (exit 2) ──"
 
-expect "strict-single without target" 2 "required arguments were not provided" -- "$BINARY" strict-single
+expect "strict without target" 2 "required arguments were not provided" -- "$BINARY" strict
+expect "s without target" 2 "required arguments were not provided" -- "$BINARY" s
+expect "block without target" 2 "required arguments were not provided" -- "$BINARY" block
 expect "unstrict without target" 2 "required arguments were not provided" -- "$BINARY" unstrict
-expect "unstrict-multi without targets" 2 "required arguments were not provided" -- "$BINARY" unstrict-multi
-expect "typo subcommand suggests fix" 2 "tip:" "strict-single" -- "$BINARY" strict-singl
+expect "typo subcommand suggests fix" 2 "tip:" "strict" -- "$BINARY" strict-singl
 expect "case-variant flag rescued" 2 "--verbose" -- "$BINARY" --VERBOS doctor
 
 # Removed surfaces (NIGHT-hunt-12 plus earlier removals):
@@ -298,6 +307,19 @@ done
 # as unrecognized subcommands whose tip names the successor.
 for gone in observe top; do
 	expect "removed subcommand '$gone' redirects to eagle-eyes" 2 "unrecognized subcommand" "eagle-eyes" -- "$BINARY" "$gone"
+done
+# NIGHT-improve-53 (the masterclass unification): strict-single +
+# strict-multi, block-single + block-multi, unstrict-single +
+# unstrict-multi merged into one verb per family — all twelve retired
+# spellings land on the family successor's redirect tip at exit 2.
+for gone in strict-single strict-multi ss sm; do
+	expect "removed spelling '$gone' redirects to strict" 2 "unrecognized subcommand" "strict" -- "$BINARY" "$gone"
+done
+for gone in block-single block-multi bs bm; do
+	expect "removed spelling '$gone' redirects to block" 2 "unrecognized subcommand" "block" -- "$BINARY" "$gone"
+done
+for gone in unstrict-single unstrict-multi us um; do
+	expect "removed spelling '$gone' redirects to unstrict" 2 "unrecognized subcommand" "unstrict" -- "$BINARY" "$gone"
 done
 # NIGHT-blade-7 (hunt find): the singular 'eagle-eye' alias was removed
 # with the same merge (one canonical name, one short form) — typing it
@@ -317,33 +339,33 @@ expect "removed --no-color rejected" 2 "unexpected argument" -- "$BINARY" --no-c
 
 echo "── edge inputs ──"
 
-run_case "empty target name" "$BINARY" strict-single "" 100kb
+run_case "empty target name" "$BINARY" strict "" 100kb
 # NIGHT-hunt-Z3 find (stale row, pre-existing on main): dinner-16 moved
 # the empty-target boundary to the INPUT rung — validate_single_target
-# refuses `strict-single ""` before the root ask with its own wording
+# refuses `strict ""` before the root ask with its own wording
 # (the unit pin empty_single_target_is_refused_at_the_input_boundary
 # carries the same contract) — but this row still expected the
 # pre-dinner-16 "root required" shape and failed on pristine main.
-expect "empty target refused at the input boundary (dinner-16 wording)" 1 "target is empty" -- "$BINARY" strict-single "" 100kb
-run_case "u64-overflow numeric target" "$BINARY" strict-single 99999999999999999999 100kb
-expect "overflow numeric target treated as name" 1 "root required" -- "$BINARY" strict-single 99999999999999999999 100kb
-run_case "path-shaped target" "$BINARY" strict-single "../../etc" 100kb
-expect "path-shaped target refused as root-first" 1 "root required" -- "$BINARY" strict-single "../../etc" 100kb
-run_case "space target" "$BINARY" strict-single "two words" 100kb
-expect "space target refused as root-first" 1 "root required" -- "$BINARY" strict-single "two words" 100kb
-run_case "negative numeric target" "$BINARY" strict-single -- "-5" 100kb
-expect "negative numeric target refused as root-first" 1 "root required" -- "$BINARY" strict-single -- "-5" 100kb
-run_case "unicode rate" "$BINARY" strict-single brave "100кб"
-expect "unicode rate gets invalid-rate error" 1 "Invalid rate" -- "$BINARY" strict-single brave "100кб"
-# NOTE: 0b is deliberately legal (0 = block, the strict-single path
+expect "empty target refused at the input boundary (dinner-16 wording)" 1 "target is empty" -- "$BINARY" strict "" 100kb
+run_case "u64-overflow numeric target" "$BINARY" strict 99999999999999999999 100kb
+expect "overflow numeric target treated as name" 1 "root required" -- "$BINARY" strict 99999999999999999999 100kb
+run_case "path-shaped target" "$BINARY" strict "../../etc" 100kb
+expect "path-shaped target refused as root-first" 1 "root required" -- "$BINARY" strict "../../etc" 100kb
+run_case "space target" "$BINARY" strict "two words" 100kb
+expect "space target refused as root-first" 1 "root required" -- "$BINARY" strict "two words" 100kb
+run_case "negative numeric target" "$BINARY" strict -- "-5" 100kb
+expect "negative numeric target refused as root-first" 1 "root required" -- "$BINARY" strict -- "-5" 100kb
+run_case "unicode rate" "$BINARY" strict brave "100кб"
+expect "unicode rate gets invalid-rate error" 1 "Invalid rate" -- "$BINARY" strict brave "100кб"
+# NOTE: 0b is deliberately legal (0 = block, the strict path
 # into block semantics); the real below-minimum case is 1b.
-expect "rate 1b rejected below minimum" 1 "below minimum" -- "$BINARY" strict-single brave 1b
-expect "rate 0b is legal block-shorthand (root-gated)" 1 "root required" -- "$BINARY" strict-single brave 0b
+expect "rate 1b rejected below minimum" 1 "below minimum" -- "$BINARY" strict brave 1b
+expect "rate 0b is legal block-shorthand (root-gated)" 1 "root required" -- "$BINARY" strict brave 0b
 # NIGHT-blade-7 (hunt find): the rate ceiling is 1 TB/s (MAX_RATE =
 # 1e12, the TB tier the parser accepts), so the over-max case must
 # sit ABOVE it — the old 101gb pin predates the ceiling raise and
 # parsed as a legal 0.101 TB/s, landing on the root guard instead.
-expect "rate above maximum rejected" 1 "above maximum" -- "$BINARY" strict-single brave 1001gb
+expect "rate above maximum rejected" 1 "above maximum" -- "$BINARY" strict brave 1001gb
 expect "verbose flag parses globally" 0 -- "$BINARY" -v doctor
 
 # --check-update as non-root passes the privilege guard; the network

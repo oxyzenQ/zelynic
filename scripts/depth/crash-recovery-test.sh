@@ -11,7 +11,7 @@
 #   3. Simulate crash (remove program pins → stale state)
 #   4. Run 'recover' → verify cleanup
 #   5. Apply limit, simulate partial pin state
-#   6. Run 'strict-single' → verify auto-recovery
+#   6. Run 'strict' → verify auto-recovery
 #   7. Apply limit, kill -9 (if zelynic were running), verify 'recover' cleans
 #   8. Multiple crash-recover cycles
 #   9. Final state verification
@@ -70,15 +70,15 @@ fi
 
 # Test 2: Apply limit, verify active
 log_test "Apply limit, verify BPF is active"
-"$BINARY" strict-single "$TARGET_COMM" 100kb 2>/dev/null || true
+"$BINARY" strict "$TARGET_COMM" 100kb 2>/dev/null || true
 sleep 1
 # The display contract: "no active limits" is the empty VERDICT line
 # (display.rs) — anything else that is non-empty means live rows.
 out="$("$BINARY" status 2>/dev/null || true)"
 if [ -n "$out" ] && ! grep -q "no active limits" <<<"$out"; then
-	log_pass "BPF is active after strict-single"
+	log_pass "BPF is active after strict"
 else
-	log_fail "BPF not active after strict-single"
+	log_fail "BPF not active after strict"
 fi
 
 # Test 3: Simulate crash — remove program pins (stale state)
@@ -102,7 +102,7 @@ fi
 
 # Test 5: Apply limit, simulate partial pin state (remove one program pin)
 log_test "Apply limit, simulate partial state (remove enforce_dl only)"
-"$BINARY" strict-single "$TARGET_COMM" 100kb 2>/dev/null || true
+"$BINARY" strict "$TARGET_COMM" 100kb 2>/dev/null || true
 sleep 1
 rm -f "$PIN_DIR/enforce_dl" 2>/dev/null || true
 out="$("$BINARY" status 2>/dev/null || true)"
@@ -112,21 +112,21 @@ else
 	log_fail "Status does not detect partial state"
 fi
 
-# Test 6: Run strict-single → verify auto-recovery
-log_test "strict-single auto-recovers from stale state"
-"$BINARY" strict-single "$TARGET_COMM" 100kb 2>/dev/null || true
+# Test 6: Run strict → verify auto-recovery
+log_test "strict auto-recovers from stale state"
+"$BINARY" strict "$TARGET_COMM" 100kb 2>/dev/null || true
 sleep 1
 out="$("$BINARY" status 2>/dev/null || true)"
 if [ -n "$out" ] && ! grep -q "no active limits" <<<"$out"; then
-	log_pass "strict-single auto-recovered"
+	log_pass "strict auto-recovered"
 else
-	log_fail "strict-single did not auto-recover"
+	log_fail "strict did not auto-recover"
 fi
 
 # Test 7: Doctor reports pin state
 log_test "Doctor reports pin state correctly"
 cleanup
-"$BINARY" strict-single "$TARGET_COMM" 100kb 2>/dev/null || true
+"$BINARY" strict "$TARGET_COMM" 100kb 2>/dev/null || true
 sleep 1
 if "$BINARY" doctor 2>/dev/null | grep -q "Pins:"; then
 	log_pass "Doctor shows pin state"
@@ -138,7 +138,7 @@ fi
 log_test "Multiple crash-recover cycles (3x)"
 cleanup
 for i in 1 2 3; do
-	"$BINARY" strict-single "$TARGET_COMM" 100kb 2>/dev/null || true
+	"$BINARY" strict "$TARGET_COMM" 100kb 2>/dev/null || true
 	sleep 0.5
 	# Simulate crash — remove program pins
 	rm -f "$PIN_DIR/enforce_dl" "$PIN_DIR/enforce_ul" 2>/dev/null
@@ -154,7 +154,7 @@ fi
 
 # Test 9: Final state verification
 log_test "Final state — should be clean after unstrict-all"
-"$BINARY" strict-single "$TARGET_COMM" 100kb 2>/dev/null || true
+"$BINARY" strict "$TARGET_COMM" 100kb 2>/dev/null || true
 "$BINARY" unstrict-all 2>/dev/null
 if [ ! -d "$PIN_DIR" ] || [ -z "$(ls -A "$PIN_DIR" 2>/dev/null)" ]; then
 	log_pass "Final state is clean"

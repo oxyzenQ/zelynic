@@ -17,18 +17,21 @@ use crate::zelynic_cmd;
 /// canonical name, one short form). NIGHT-blade-2: limit-all/la is
 /// renamed strict-all/sa — the retired spellings must NOT appear
 /// (the redirect table owns them now, exit 2 with the successor tip).
+/// NIGHT-improve-53 (the masterclass unification): strict-single +
+/// strict-multi, block-single + block-multi, unstrict-single +
+/// unstrict-multi are ONE verb per family — the twelve retired
+/// spellings must NOT appear on the reference (the redirect table
+/// owns every one of them). The one-letter short forms (s/b/u) are
+/// pinned by the alias-pairing test below, not here — a bare
+/// contains() on a single letter proves nothing.
 #[test]
 fn test_help_lists_every_command() {
-    const KNOWN_COMMANDS: [&str; 28] = [
-        "strict-single",
-        "strict-multi",
+    const KNOWN_COMMANDS: [&str; 17] = [
+        "strict",
         "strict-all",
-        "block-single",
-        "block-multi",
+        "block",
         "block-all",
         "unstrict",
-        "unstrict-multi",
-        "unstrict-single",
         "unstrict-all",
         "recover",
         // NIGHT-private-research-4: the persistence pair — the
@@ -41,17 +44,10 @@ fn test_help_lists_every_command() {
         "eagle-eyes",
         "ee",
         "doctor",
-        "strict",
-        // NIGHT-improve-25: the ten two-letter aliases (NIGHT-blade-2:
-        // 'sa' replaces 'la' in the strict-family rename).
-        "ss",
-        "sm",
+        // The short aliases that survive the masterclass merge
+        // (NIGHT-improve-53): the -all sweeps and the monitor.
         "sa",
-        "bs",
-        "bm",
         "ba",
-        "us",
-        "um",
         "ua",
     ];
 
@@ -96,6 +92,46 @@ fn test_help_lists_every_command() {
         !stdout.contains("limit-all"),
         "--help must not document the removed 'limit-all' command (NIGHT-blade-2), got:\n{stdout}"
     );
+    // NIGHT-improve-53: the twelve masterclass retirees — every
+    // -single/-multi spelling is gone from the reference (each lands
+    // on the redirect tip at runtime). The substring checks are
+    // safe in both directions: 'unstrict-single' contains
+    // 'strict-single', and both are gone together.
+    for retired in [
+        "strict-single",
+        "strict-multi",
+        "block-single",
+        "block-multi",
+        "unstrict-single",
+        "unstrict-multi",
+    ] {
+        assert!(
+            !stdout.contains(retired),
+            "--help must not document the removed '{retired}' command (NIGHT-improve-53), got:\n{stdout}"
+        );
+    }
+    // The retired two-letter short forms — pinned by their alias
+    // pairing and example-line shapes, the only two renderings the
+    // reference ever gave them.
+    for retired in [
+        "ss = ",
+        "sm = ",
+        "bs = ",
+        "bm = ",
+        "us = ",
+        "um = ",
+        "zelynic ss",
+        "zelynic sm",
+        "zelynic bs",
+        "zelynic bm",
+        "zelynic us",
+        "zelynic um",
+    ] {
+        assert!(
+            !stdout.contains(retired),
+            "--help must not carry the retired '{retired}' short-form spelling (NIGHT-improve-53), got:\n{stdout}"
+        );
+    }
     // NIGHT-improve-25: the singular 'eagle-eye' alias is removed —
     // its retired shorthand wording must not linger (a bare
     // substring check cannot be used: 'eagle-eyes' contains it).
@@ -120,15 +156,12 @@ fn test_help_short_aliases_use_equals_pairing() {
 
     assert_eq!(output.status.code(), Some(0));
     let stdout = String::from_utf8_lossy(&output.stdout);
-    const PAIRS: [&str; 10] = [
-        "ss = strict-single",
-        "sm = strict-multi",
+    const PAIRS: [&str; 7] = [
+        "s = strict",
+        "b = block",
+        "u = unstrict",
         "sa = strict-all",
-        "bs = block-single",
-        "bm = block-multi",
         "ba = block-all",
-        "us = unstrict-single",
-        "um = unstrict-multi",
         "ua = unstrict-all",
         "ee = eagle-eyes",
     ];
@@ -240,8 +273,7 @@ fn test_help_examples_annotate_above_and_render_green() {
         .get(idx + 1)
         .expect("the note must be followed by its command line");
     assert!(
-        cmd_line.contains("\x1b[38;5;84m")
-            && cmd_line.contains("zelynic strict-single brave -d 100kb"),
+        cmd_line.contains("\x1b[38;5;84m") && cmd_line.contains("zelynic strict brave -d 100kb"),
         "the example command line must render status green, got: {cmd_line}"
     );
     // The note line itself stays uncolored — green is the command
@@ -250,71 +282,6 @@ fn test_help_examples_annotate_above_and_render_green() {
         !lines[idx].contains('\x1b'),
         "the note line must stay uncolored, got: {}",
         lines[idx]
-    );
-}
-
-/// NIGHT-hunt-16: the unstrict family reads symmetrically with the
-/// strict family — the CANONICAL single-target command is
-/// `unstrict-single` (synopsis line in --help) and `unstrict` is the
-/// shorthand, exactly mirroring `strict-single` / `strict`. A bare
-/// `zelynic unstrict <target>` synopsis line is the inconsistency the
-/// owner flagged and must never come back.
-#[test]
-fn test_help_unstrict_synopsis_is_canonical() {
-    let output = zelynic_cmd()
-        .arg("--help")
-        .output()
-        .expect("Failed to execute zelynic --help");
-
-    assert_eq!(output.status.code(), Some(0));
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("zelynic unstrict-single <target>"),
-        "--help must show the canonical unstrict-single synopsis, got:\n{stdout}"
-    );
-    assert!(
-        stdout.contains("('unstrict' is the shorthand)"),
-        "--help must label unstrict as the shorthand, mirroring strict, got:\n{stdout}"
-    );
-    assert!(
-        !stdout.contains("zelynic unstrict <target>"),
-        "--help must NOT present bare 'unstrict' as the canonical synopsis (NIGHT-hunt-16), got:\n{stdout}"
-    );
-    // The strict family pin (same symmetry, pre-existing contract).
-    assert!(
-        stdout.contains("zelynic strict-single <target> [rate]"),
-        "--help must show the canonical strict-single synopsis, got:\n{stdout}"
-    );
-}
-
-/// NIGHT-total-lts-3 find 2: the strict-single synopsis drifted from
-/// the live parse surface — `--per-socket` (charger-core-3b) and
-/// `--no-probe` (charger-core-1-b) parse, are USAGE.md-documented,
-/// and are argv_tests-pinned, but the curated --help never mentioned
-/// either: the in-binary discovery path for the per-socket lane was
-/// empty. This pin fences the drift class at flag level: the
-/// synopsis must carry --per-socket (matching USAGE.md's own
-/// synopsis line) and the strict-single block must name both flags.
-#[test]
-fn test_help_strict_single_flags_are_complete() {
-    let output = zelynic_cmd()
-        .arg("--help")
-        .output()
-        .expect("Failed to execute zelynic --help");
-
-    assert_eq!(output.status.code(), Some(0));
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("[--per-socket]"),
-        "--help's strict-single synopsis must carry --per-socket (USAGE.md parity), got:\n{stdout}"
-    );
-    assert!(
-        stdout.contains("--no-probe skips the"),
-        "--help's strict-single block must document --no-probe, got:\n{stdout}"
-    );
-    assert!(
-        stdout.contains("--per-socket 500kb"),
-        "--help must show a per-socket example (the server shape's discovery path), got:\n{stdout}"
     );
 }
 
@@ -366,6 +333,12 @@ fn test_help_documents_every_target_form() {
         "  <cgroup_id>     e.g., 73386 (use 'zelynic list-apps' to find)",
         "  cg:<cgroup_id>  the display prefix every surface prints (cg:73386) —",
         "                  paste it back: the same direct target as the bare ID",
+        // NIGHT-improve-53: the masterclass list law rides the
+        // grammar section — the '::' separator and the reason it
+        // doubles (the single ':' belongs to the prefix grammar).
+        "  <a>::<b>[::...]  list members for the group lane — the '::' separator",
+        "                  cannot collide with the single ':' the cg: prefix and",
+        "                  the container URIs own",
     ] {
         assert!(
             stdout.contains(needle),
@@ -457,9 +430,9 @@ fn test_help_documents_the_depth_mode() {
 #[test]
 fn test_subcommand_help_errors_with_suggestion() {
     let output = zelynic_cmd()
-        .args(["strict-single", "brave", "--help"])
+        .args(["strict", "brave", "--help"])
         .output()
-        .expect("Failed to execute zelynic strict-single brave --help");
+        .expect("Failed to execute zelynic strict brave --help");
 
     assert_eq!(output.status.code(), Some(2));
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -558,11 +531,11 @@ fn test_help_pro_mode_documents_every_advanced_flag() {
     // These pins hold the discovery path so a future edit cannot
     // strip the examples back out.
     for example_line in [
-        "sudo zelynic ss brave 1mb --during 2h",
-        "sudo zelynic bm brave:curl --during 30m",
-        "sudo zelynic ss firefox 1mb --floor 100kb",
-        "sudo zelynic ss curl 1mb --floor-download 50kb --ceil-upload 200kb",
-        "sudo zelynic ss nginx 500kb --no-probe",
+        "sudo zelynic s brave 1mb --during 2h",
+        "sudo zelynic b brave::curl --during 30m",
+        "sudo zelynic s firefox 1mb --floor 100kb",
+        "sudo zelynic s curl 1mb --floor-download 50kb --ceil-upload 200kb",
+        "sudo zelynic s nginx 500kb --no-probe",
     ] {
         assert!(
             stdout.contains(example_line),

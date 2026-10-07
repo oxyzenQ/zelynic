@@ -9,9 +9,9 @@
 //!    (honestly named, never serialized as bare ids a restore would
 //!    misresolve);
 //!  * restore_plan — the collapse laws: solo legs merge per-name
-//!    into one strict-single step with both directions in one
-//!    RateSpec; grouped legs merge per member-set into one
-//!    strict-multi step; per-socket rides the individual lane only;
+//!    into one single-lane step with both directions in one RateSpec;
+//!    grouped legs merge per member-set into one group-lane step;
+//!    per-socket rides the single lane only;
 //!  * the serde round-trip — the state file's shape is the same JSON
 //!    the --print-json surface emits, so write-then-read is the
 //!    identity (schema tag included);
@@ -105,7 +105,7 @@ fn from_rows_carries_group_and_per_socket_flags() {
 
 #[test]
 fn restore_plan_merges_solo_legs_per_name() {
-    // brave carries both directions: ONE strict-single step with both
+    // brave carries both directions: ONE single-lane step with both
     // legs in one RateSpec (the apply's unset-direction removal then
     // has nothing to remove — the restored policy is faithful).
     let doc = SnapshotDoc {
@@ -165,7 +165,7 @@ fn restore_plan_carries_the_per_socket_flag() {
 #[test]
 fn restore_plan_collapses_group_members_into_one_step() {
     // Three members shared one bucket (the map's group_id 9): the
-    // grouped legs collapse into ONE strict-multi step carrying the
+    // grouped legs collapse into ONE group-lane step carrying the
     // member set and the shared rates — the ID is the grouping key
     // that re-joins members a census read apart. Per-socket never
     // rides the group lane (the CLI's own constraint — the flag is

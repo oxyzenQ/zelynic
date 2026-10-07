@@ -304,7 +304,7 @@ fn print_report(report: &CapabilityReport) {
         println_safe!();
         if report.build_flavor == BUILD_FLAVOR_FULL_LIFE {
             println_safe!(
-                "  {} Run 'zelynic strict-single <target> <rate>' or 'zelynic eagle-eyes'",
+                "  {} Run 'zelynic strict <target> <rate>' or 'zelynic eagle-eyes'",
                 ok_bold("Ready:")
             );
         } else {

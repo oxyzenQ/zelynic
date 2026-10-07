@@ -96,7 +96,7 @@ Design:
     cgroup, while every measurement client — python workers and curls
     alike — is exec-moved into the target cgroup BEFORE its first socket
     exists (deterministic cgroup attribution, no spawn race), so
-    strict-multi / block-multi group policies are measured across
+    strict / block group policies are measured across
     genuinely separate cgroups. On loopback the download direction is
     policed at the receiver's ingress (client cgroup) and the upload
     direction at the sender's egress — one dl-map hit and one ul-map hit
@@ -133,7 +133,7 @@ Design:
     production server carries: the report surfaces under a stripped
     headless environment (PATH + TERM=dumb, no DISPLAY/DBUS/XDG), a
     DENSE fleet (64 cgroups with resident sleepers — censused by
-    list-apps, policed by ONE strict-multi write, measured on a
+    list-apps, policed by ONE strict write, measured on a
     sampled member), DAEMONIZED traffic (setsid, no controlling
     terminal, metrics to a file — the systemd-service stdio shape),
     CONCURRENT report readers (8 parallel status/list-apps JSON
@@ -155,7 +155,7 @@ What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
   the server phase (NIGHT-blade-4, runs FIRST): headless report
          surfaces (doctor, list-apps/status/eagle-eyes --depth JSON
          under PATH + TERM=dumb only), dense fleet census (64
-         cgroups, every member a list-apps row), one strict-multi
+         cgroups, every member a list-apps row), one strict
          write policing all 64 (rows verified, band MEASURED on a
          sampled member, kernel drops engaged), daemonized traffic
          policed (setsid, no ctty, metric to a file), 8 concurrent
@@ -163,21 +163,21 @@ What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
          teardown, then the NIGHT-improve-50 cap-crossing stage
          (owner-approved: 4100 cgroups past the 4096 observer/
          leaderboard boundary — the census rows every member, the
-         4100-target strict-multi argv reaches the policy machinery
+         4100-target strict argv reaches the policy machinery
          and refuses CLEAN at the policy family's 1024 ceiling
          through the atomic rollback, the at-cap control lands 1024
          targets whole, zero residue) — then, only on a green
          server phase, the desktop matrix: env + minimum specs,
          doctor, list-apps JSON, baseline,
-         strict-single policy write, status human + JSON surfaces,
+         strict policy write, status human + JSON surfaces,
          the live rate change 1mb -> 2mb under an active policy (both
          rungs MEASURED, not just re-read from the status row), the
          full rate ladder 1kb..1tb (two windows per rung, 1gb+ rungs as
          six-flow aggregates), upload-only (-u), download-only (-d),
-         asymmetric -d/-u buckets, block-single zero goodput,
-         unstrict-single (unlock) restores speed, curl burst parallel
-         download, curl upload, strict-multi shared group bucket across
-         cgroups, block-multi, unstrict-multi selective removal, mixed
+         asymmetric -d/-u buckets, block zero goodput,
+         unstrict (unlock) restores speed, curl burst parallel
+         download, curl upload, strict shared group bucket across
+         cgroups, block, unstrict selective removal, mixed
          concurrent policies on five cgroups, strict-all --force-this sweep,
          the self-proving probe family (the FAILED lane under a
          mid-window teardown, the clean VERIFIED apply, the overhead
@@ -187,7 +187,7 @@ What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
          non-binding overhead — then
          the real-internet lane: endpoint reachability, unlimited
          realnet baseline, upload-engine sanity, strict download at
-         2mb, strict upload at 1mb, strict-all sweep at 2mb, block-single
+         2mb, strict upload at 1mb, strict-all sweep at 2mb, block
          zero goodput, unstrict-all restores the machine's own internet
          speed — and the cleanup teardown (no limit rows, no pins, no
          pid file, fleet removed).
@@ -726,7 +726,7 @@ def py_download(window, name="a", idle=0.0):
     target cgroup there by construction. A connect failure is ZERO
     GOODPUT, not a crash — under a block-* policy the SYN is dropped
     and create_connection raises (the 2026-09-21 "harness error: timed
-    out" crash at block-single). idle > 0 switches the worker to the
+    out" crash at block). idle > 0 switches the worker to the
     starve-limited drain shape (see _PY_DL_CLIENT) — the cushion
     drains ride it so the client's count spans what the connection
     delivered, keeping the BPF-vs-client accounting comparison honest.
@@ -1003,12 +1003,12 @@ def apply_single(name, rate_str, exp_dl, exp_ul, extra=()):
     # side (run_battery_side rebinds lib.BINARY) predates the flag and
     # exits 2 on it — the CI find on 75e0f3f. The lib-level toggle is
     # set per side by ammsp-vs-legacy's runner.
-    argv = ["strict-single", str(CG.ids[name]), rate_str, *extra]
+    argv = ["strict", str(CG.ids[name]), rate_str, *extra]
     if PROBE_FLAG_SUPPORTED:
         argv.append("--no-probe")
     rc, stdout, stderr = run_zel(argv)
     if rc != 0:
-        return False, f"strict-single exit {rc}: {(stderr or stdout).strip()[:200]}"
+        return False, f"strict exit {rc}: {(stderr or stdout).strip()[:200]}"
     entry = limit_entry(status_json(), CG.ids[name])
     if entry is None:
         return False, f"no limit row for cgroup {CG.ids[name]} in status JSON"
@@ -1021,9 +1021,9 @@ def apply_single(name, rate_str, exp_dl, exp_ul, extra=()):
 
 def apply_group(names, rate_str, exp):
     target = ":".join(str(CG.ids[n]) for n in names)
-    rc, stdout, stderr = run_zel(["strict-multi", target, rate_str])
+    rc, stdout, stderr = run_zel(["strict", target, rate_str])
     if rc != 0:
-        return False, f"strict-multi exit {rc}: {(stderr or stdout).strip()[:200]}"
+        return False, f"strict exit {rc}: {(stderr or stdout).strip()[:200]}"
     doc = status_json()
     for n in names:
         entry = limit_entry(doc, CG.ids[n])
@@ -1150,7 +1150,7 @@ SERVER_FLEET_PREFIX = "zelynic-server-fleet"
 # 4096 ceiling (the eviction/restart/retirement semantics stay
 # unit-pinned — the audit's honest boundary), while the census walk
 # and the policy ceiling are asserted LIVE here: 4100 members must
-# all appear as list-apps rows, the 4100-target strict-multi argv
+# all appear as list-apps rows, the 4100-target strict argv
 # must reach the policy machinery (no argv-boundary refusal), and
 # the policy family's 1024-ceiling must refuse the past-cap apply
 # CLEAN through the atomic rollback — the refusal IS the pin.
@@ -1199,7 +1199,7 @@ class ServerFleet:
     """The dense server population: SERVER_FLEET_N cgroups each holding
     one resident sleeper — the machine shape a production server
     carries (services, container scopes, per-job runners). list-apps
-    must census every member, ONE strict-multi write must police the
+    must census every member, ONE strict write must police the
     whole population at once, and the teardown must leave zero rows
     and zero cgroups. Dedicated-cgroup only: the session-cgroup
     fallback cannot create members, so the dense stages SKIP there
@@ -1230,7 +1230,7 @@ class ServerFleet:
         the server leaves no trace (the crash-family teardown in v2
         owns the violence; this is the orderly exit)."""
         if self.ids:
-            run_zel(["unstrict-multi", ":".join(str(i) for i in self.ids)])
+            run_zel(["unstrict", ":".join(str(i) for i in self.ids)])
         for s in self.sleepers:
             if s is not None:
                 s.kill()
@@ -1265,7 +1265,7 @@ class CapFleet(ServerFleet):
     would run minutes at 4100. The barrier itself is unchanged: every
     member still settles through the same cgroup.procs + comm
     evidence, one worker at a time per member, just N-wide. Teardown
-    is inherited verbatim — unstrict-multi over every id (row-less
+    is inherited verbatim — unstrict over every id (row-less
     members delete as ENOENT-absent, exit clean), sleepers killed and
     reaped, cgroup dirs removed with the same retry shape, zero
     residue."""
@@ -1429,25 +1429,25 @@ def stage_server_dense_fleet():
 
 def stage_server_dense_policy():
     """Server fact 3: ONE policy write polices the whole dense
-    population — strict-multi with a 64-target colon spec (the argv
+    population — strict with a 64-target colon spec (the argv
     scale alone is server-shaped: 512+ bytes of target string), every
     member's status row verified, and the enforcement MEASURED on a
     sampled member (a row on every cgroup is bookkeeping; a measured
     band on one is physics)."""
     if FLEET is None:
         record(
-            "server: dense strict-multi policy (one write, 64 targets)",
+            "server: dense strict policy (one write, 64 targets)",
             "SKIP",
             "fleet absent (census skipped)",
         )
         return False
     out()
-    out("━━━ server depth: one strict-multi write across the fleet ━━━")
+    out("━━━ server depth: one strict write across the fleet ━━━")
     target = ":".join(str(i) for i in FLEET.ids)
-    rc, stdout, stderr = run_zel(["strict-multi", target, "2mb"], timeout=60)
+    rc, stdout, stderr = run_zel(["strict", target, "2mb"], timeout=60)
     if rc != 0:
         record(
-            "server: dense strict-multi policy (one write, 64 targets)",
+            "server: dense strict policy (one write, 64 targets)",
             "FAIL",
             f"exit {rc}: {(stderr or stdout).strip()[:200]}",
         )
@@ -1455,7 +1455,7 @@ def stage_server_dense_policy():
     doc = status_json()
     if doc is None:
         record(
-            "server: dense strict-multi policy (one write, 64 targets)",
+            "server: dense strict policy (one write, 64 targets)",
             "FAIL",
             "status JSON unreadable after the write",
         )
@@ -1469,7 +1469,7 @@ def stage_server_dense_policy():
     ]
     ok = (
         record(
-            "server: dense strict-multi policy (one write, 64 targets)",
+            "server: dense strict policy (one write, 64 targets)",
             "PASS" if not wrong else "FAIL",
             f"{SERVER_FLEET_N - len(wrong)}/{SERVER_FLEET_N} rows at 2mb/2mb"
             + (f", wrong: {wrong[:5]}..." if wrong else ""),
@@ -1520,12 +1520,12 @@ def stage_server_daemon_traffic():
         return False
     out()
     out("━━━ server depth: daemonized traffic under a limit ━━━")
-    rc, stdout, stderr = run_zel(["strict-single", str(FLEET.ids[1]), "1mb", "--no-probe"])
+    rc, stdout, stderr = run_zel(["strict", str(FLEET.ids[1]), "1mb", "--no-probe"])
     if rc != 0:
         record(
             "server: daemon traffic policed (setsid, no ctty)",
             "FAIL",
-            f"strict-single exit {rc}: {(stderr or stdout).strip()[:200]}",
+            f"strict exit {rc}: {(stderr or stdout).strip()[:200]}",
         )
         return False
     time.sleep(0.5)
@@ -1574,7 +1574,7 @@ def stage_server_daemon_traffic():
         == "PASS"
         and ok
     )
-    run_zel(["unstrict-single", str(FLEET.ids[1])])
+    run_zel(["unstrict", str(FLEET.ids[1])])
     return ok
 
 
@@ -1594,12 +1594,12 @@ def stage_server_parallel_readers():
     out()
     out("━━━ server depth: concurrent report readers under load ━━━")
     subset = FLEET.ids[:4]
-    rc, _, _ = run_zel(["strict-multi", ":".join(str(i) for i in subset), "2mb"])
+    rc, _, _ = run_zel(["strict", ":".join(str(i) for i in subset), "2mb"])
     if rc != 0:
         record(
             "server: parallel report readers (8x concurrent)",
             "FAIL",
-            f"strict-multi on 4 members exit {rc}",
+            f"strict on 4 members exit {rc}",
         )
         return False
     readers = [
@@ -1629,12 +1629,12 @@ def stage_server_parallel_readers():
         )
         == "PASS"
     )
-    run_zel(["unstrict-multi", ":".join(str(i) for i in subset)])
+    run_zel(["unstrict", ":".join(str(i) for i in subset)])
     return ok
 
 
 def stage_server_teardown():
-    """Server fact 6: the fleet leaves nothing — unstrict-multi drops
+    """Server fact 6: the fleet leaves nothing — unstrict drops
     every row, the sleepers die, the cgroups vanish, and the pin
     state is exactly what the desktop matrix expects to inherit."""
     global FLEET
@@ -1671,7 +1671,7 @@ def stage_server_cap_crossing():
     1. the census walk: list-apps must row EVERY member (the walk
        has no cap; 64 proved the walk, 4100 proves it at 64x past
        the leaderboard's own boundary);
-    2. the 4100-target strict-multi argv: the one colon spec must
+    2. the 4100-target strict argv: the one colon spec must
        REACH the policy machinery — no argv-boundary refusal — and
        die there at the policy family's 1024 ceiling, CLEAN: the
        atomic rollback owns the partial state, zero rows survive;
@@ -1694,7 +1694,7 @@ def stage_server_cap_crossing():
             "session-cgroup fallback — dedicated cgroups not creatable",
         )
         record(
-            "server: cap-crossing strict-multi refusal (1024-ceiling)",
+            "server: cap-crossing strict refusal (1024-ceiling)",
             "SKIP",
             "fleet absent (census skipped)",
         )
@@ -1758,7 +1758,7 @@ def stage_server_cap_crossing():
     # rollback's own line ("apply rolled back ... no residue"), and
     # a status JSON carrying ZERO fleet rows after it all.
     target = ":".join(str(i) for i in CAP_FLEET.ids)
-    rc, stdout, stderr = run_zel(["strict-multi", target, "2mb"], timeout=180)
+    rc, stdout, stderr = run_zel(["strict", target, "2mb"], timeout=180)
     combined = (stderr or "") + (stdout or "")
     doc = status_json()
     rows_after = sum(1 for i in CAP_FLEET.ids if limit_entry(doc, i) is not None) if doc else -1
@@ -1771,7 +1771,7 @@ def stage_server_cap_crossing():
     )
     ok = (
         record(
-            "server: cap-crossing strict-multi refusal (1024-ceiling)",
+            "server: cap-crossing strict refusal (1024-ceiling)",
             "PASS" if refusal_ok else "FAIL",
             f"exit {rc}, insert cause surfaced: {'Failed to write policy' in combined},"
             f" rollback line: {'apply rolled back' in combined}, fleet rows after: {rows_after}",
@@ -1787,7 +1787,7 @@ def stage_server_cap_crossing():
     # nothing overflows.
     control_ids = CAP_FLEET.ids[:POLICY_MAP_CAPACITY]
     control_target = ":".join(str(i) for i in control_ids)
-    rc, stdout, stderr = run_zel(["strict-multi", control_target, "2mb"], timeout=180)
+    rc, stdout, stderr = run_zel(["strict", control_target, "2mb"], timeout=180)
     if rc == 0:
         doc = status_json()
         wrong = [
@@ -1966,7 +1966,7 @@ def test_baseline(window):
 def test_policy_write():
     ok, payload = apply_single("a", "100kb", 100_000, 100_000)
     verdict = record(
-        "strict-single 100kb: policy lands in the kernel maps",
+        "strict 100kb: policy lands in the kernel maps",
         "PASS" if ok else "FAIL",
         "" if ok else payload,
     )
@@ -2132,7 +2132,7 @@ def test_upload(window, baseline):
     """
     if baseline and baseline < 2e6:
         return record("upload (-u only): enforced", "SKIP", "baseline too low")
-    rc, stdout, stderr = run_zel(["strict-single", str(CG.ids["a"]), "-u", "1mb", "--no-probe"])
+    rc, stdout, stderr = run_zel(["strict", str(CG.ids["a"]), "-u", "1mb", "--no-probe"])
     if rc != 0:
         return record(
             "upload (-u only): enforced", "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}"
@@ -2193,7 +2193,7 @@ def test_download_only(window, baseline):
     name = "download (-d only): enforced"
     if baseline and baseline < 1e6:
         return record(name, "SKIP", "baseline too low")
-    rc, stdout, stderr = run_zel(["strict-single", str(CG.ids["a"]), "-d", "500kb", "--no-probe"])
+    rc, stdout, stderr = run_zel(["strict", str(CG.ids["a"]), "-d", "500kb", "--no-probe"])
     if rc != 0:
         return record(name, "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}")
     entry = limit_entry(status_json(), CG.ids["a"])
@@ -2247,7 +2247,7 @@ def test_asymmetric(window, baseline):
     if baseline and baseline < 2e6:
         return record(name, "SKIP", "baseline too low")
     rc, stdout, stderr = run_zel(
-        ["strict-single", str(CG.ids["a"]), "-d", "100kb", "-u", "1mb", "--no-probe"]
+        ["strict", str(CG.ids["a"]), "-d", "100kb", "-u", "1mb", "--no-probe"]
     )
     if rc != 0:
         return record(name, "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}")
@@ -2370,20 +2370,20 @@ def test_asymmetric(window, baseline):
 
 
 def test_block_single(window):
-    ok, payload = block_target("block-single", ["a"])
+    ok, payload = block_target("block", ["a"])
     if not ok:
-        return record("block-single: zero goodput", "FAIL", payload)
+        return record("block: zero goodput", "FAIL", payload)
     time.sleep(0.3)
     got = py_download(window)
     verdict = "PASS" if got <= BLOCK_GOODPUT_CEIL else "FAIL"
     record(
-        "block-single: zero goodput",
+        "block: zero goodput",
         verdict,
         f"{got} bytes over {window:.1f}s (ceiling {BLOCK_GOODPUT_CEIL})",
     )
     entry = limit_entry(status_json(), CG.ids["a"])
     record(
-        "block-single: kernel drops engaged",
+        "block: kernel drops engaged",
         "PASS" if (entry or {}).get("packets_dropped", 0) > 0 else "FAIL",
         f"{(entry or {}).get('packets_dropped', 0)} packets dropped",
     )
@@ -2391,19 +2391,19 @@ def test_block_single(window):
 
 
 def test_unlock(window, baseline):
-    """unstrict-single is the unlock: apply, remove, prove the speed is back."""
+    """unstrict is the unlock: apply, remove, prove the speed is back."""
     ok, payload = apply_single("a", "500kb", 500_000, 500_000)
     if not ok:
-        return record("unlock: unstrict-single restores speed", "FAIL", payload)
+        return record("unlock: unstrict restores speed", "FAIL", payload)
     py_download(window)  # generate some policed traffic first
-    ok, payload = unstrict_target("unstrict-single", ["a"])
+    ok, payload = unstrict_target("unstrict", ["a"])
     if not ok:
-        return record("unlock: unstrict-single restores speed", "FAIL", payload)
+        return record("unlock: unstrict restores speed", "FAIL", payload)
     got = py_download(window)
     bps = got / window
     floor = 0.3 * baseline if baseline else 1e6
     record(
-        "unlock: unstrict-single restores speed",
+        "unlock: unstrict restores speed",
         "PASS" if bps >= floor else "FAIL",
         f"{fmt_bps(bps)} after unlock (floor {fmt_bps(floor)})",
     )
@@ -2845,7 +2845,7 @@ def multi_guard(name):
 
 
 def test_multi_group(window, baseline):
-    name = "strict-multi: group bucket shared across cgroups"
+    name = "strict: group bucket shared across cgroups"
     if not multi_guard(name):
         return True
     if baseline and baseline < 2e6:
@@ -2859,9 +2859,7 @@ def test_multi_group(window, baseline):
     if got_b is None:
         clear_all()
         return record(name, "FAIL", f"curl in b failed: {err}")
-    solo = band_check(
-        "strict-multi: member alone fills the shared bucket", got_b / window, 1_000_000
-    )
+    solo = band_check("strict: member alone fills the shared bucket", got_b / window, 1_000_000)
     # Phase 2: two members together still only get ONE bucket.
     results = {}
 
@@ -2910,7 +2908,7 @@ def test_multi_group(window, baseline):
     if joint_span < window or joint_span > window + 2.0:
         clear_all()
         return record(
-            f"strict-multi: {len(results)} members joint, still one shared bucket",
+            f"strict: {len(results)} members joint, still one shared bucket",
             "FAIL",
             f"joint span {joint_span:.2f} s outside [{window:.1f}, {window + 2.0:.1f}]"
             " — spawn/teardown pathology",
@@ -2919,7 +2917,7 @@ def test_multi_group(window, baseline):
     burst_s = 1.0
     budget_ceiling = (live + burst_s) / joint_span
     joint = band_check(
-        f"strict-multi: {len(results)} members joint, still one shared bucket",
+        f"strict: {len(results)} members joint, still one shared bucket",
         total / joint_span,
         1_000_000,
         extra=(
@@ -2929,7 +2927,7 @@ def test_multi_group(window, baseline):
         hi=min(1.05 * budget_ceiling, 1.60),
     )
     record(
-        "strict-multi: group rows visible in status",
+        "strict: group rows visible in status",
         "PASS",
         f"cgroups {CG.ids['b']} and {CG.ids['c']} both carry the 1mb policy",
     )
@@ -3168,7 +3166,7 @@ def test_ammsp_subtree(window, baseline):
         # Verdict 4 — nested roots: a 50kb policy on the sub cgroup
         # itself; a grandchild under it resolves to the NEAREST root.
         sub_id = os.stat(sub_path).st_ino
-        rc, stdout, stderr = run_zel(["strict-single", str(sub_id), "50kb", "--no-probe"])
+        rc, stdout, stderr = run_zel(["strict", str(sub_id), "50kb", "--no-probe"])
         if rc != 0:
             record("ammsp: nested root apply", "FAIL", f"exit {rc}: {(stderr or stdout)[:120]}")
             passed = False
@@ -3661,7 +3659,7 @@ def test_probe_failed():
     The success and overhead sides ride the same stage (the
     checklist's other two rows): a clean apply must print VERIFIED
     exit 0, and the probe's own latency must be the 3s window plus
-    bounded setup — the strict-single doc's whole-probe bound is
+    bounded setup — the strict doc's whole-probe bound is
     "under five seconds", so the with-probe minus no-probe delta is
     asserted inside [2.0, 8.0] and filed in the row's metrics. The
     overhead row rides the b target (the stage itself proves b live
@@ -3713,7 +3711,7 @@ def test_probe_failed():
         ok, payload = apply_single("a", "1mb", 1_000_000, 1_000_000)
         if not ok:
             return record(name, "FAIL", payload)
-        probe_argv = [str(lib.BINARY), "strict-single", str(CG.ids["a"]), "1mb"]
+        probe_argv = [str(lib.BINARY), "strict", str(CG.ids["a"]), "1mb"]
         proc = subprocess.Popen(
             probe_argv,
             stdout=subprocess.PIPE,
@@ -3724,7 +3722,7 @@ def test_probe_failed():
         # (dinner-28), this lands INSIDE the 3s window — the exact
         # operational accident the probe exists to catch.
         time.sleep(2.5)
-        rc, stdout, stderr = run_zel(["unstrict-single", str(CG.ids["a"])])
+        rc, stdout, stderr = run_zel(["unstrict", str(CG.ids["a"])])
         if rc != 0:
             record(
                 "probe: mid-window unstrict",
@@ -3789,7 +3787,7 @@ def test_probe_failed():
         # VERIFIED" was the trap's own work). The row now demands the
         # verdict line's own shape: enforced-VERIFIED without the
         # UN- prefix.
-        rc, stdout, stderr = run_zel(["strict-single", str(CG.ids["b"]), "100kb"])
+        rc, stdout, stderr = run_zel(["strict", str(CG.ids["b"]), "100kb"])
         combined = (stdout or "") + (stderr or "")
         verdict = verdict_line(combined)
         verified = "UNVERIFIED" not in verdict and verdict.endswith("VERIFIED")
@@ -3810,11 +3808,11 @@ def test_probe_failed():
         # detail carries both exit codes and tails so a fast-fail
         # (the 0.0s/0.0s shape the CI caught) can never hide again.
         t0 = time.perf_counter()
-        rc_np, out_np, err_np = run_zel(["strict-single", str(CG.ids["b"]), "100kb", "--no-probe"])
+        rc_np, out_np, err_np = run_zel(["strict", str(CG.ids["b"]), "100kb", "--no-probe"])
         t_noprobe = time.perf_counter() - t0
         ok_noprobe = rc_np == 0
         t0 = time.perf_counter()
-        rc_p, out_p, err_p = run_zel(["strict-single", str(CG.ids["b"]), "200kb"])
+        rc_p, out_p, err_p = run_zel(["strict", str(CG.ids["b"]), "200kb"])
         t_probe = time.perf_counter() - t0
         delta = t_probe - t_noprobe
         passed = (
@@ -3863,9 +3861,7 @@ def test_probe_failed():
             ("download", "-d", "c"),
             ("upload", "-u", "d"),
         ):
-            rc_lane, out_lane, err_lane = run_zel(
-                ["strict-single", str(CG.ids[target]), flag, "100kb"]
-            )
+            rc_lane, out_lane, err_lane = run_zel(["strict", str(CG.ids[target]), flag, "100kb"])
             combined_lane = (out_lane or "") + (err_lane or "")
             verdict_lane = verdict_line(combined_lane)
             verified_lane = "UNVERIFIED" not in verdict_lane and verdict_lane.endswith("VERIFIED")
@@ -3900,10 +3896,10 @@ def test_probe_failed():
 
 
 def test_block_multi(window):
-    name = "block-multi: zero goodput on both cgroups"
+    name = "block: zero goodput on both cgroups"
     if not multi_guard(name):
         return True
-    ok, payload = block_target("block-multi", ["d", "e"])
+    ok, payload = block_target("block", ["d", "e"])
     if not ok:
         return record(name, "FAIL", payload)
     time.sleep(0.3)
@@ -3920,7 +3916,7 @@ def test_block_multi(window):
     )
     entry = limit_entry(status_json(), CG.ids["d"])
     record(
-        "block-multi: kernel drops engaged",
+        "block: kernel drops engaged",
         "PASS" if (entry or {}).get("packets_dropped", 0) > 0 else "FAIL",
         f"{(entry or {}).get('packets_dropped', 0)} packets dropped",
     )
@@ -3929,7 +3925,7 @@ def test_block_multi(window):
 
 def test_unstrict_multi():
     """Selective unlock: removing B:C must leave A's limit standing."""
-    name = "unstrict-multi: selective removal leaves other limits standing"
+    name = "unstrict: selective removal leaves other limits standing"
     if not multi_guard(name):
         return True
     ok_a, payload = apply_single("a", "500kb", 500_000, 500_000)
@@ -3937,7 +3933,7 @@ def test_unstrict_multi():
     if not (ok_a and ok_g):
         clear_all()
         return record(name, "FAIL", payload or payload_g)
-    ok, payload = unstrict_target("unstrict-multi", ["b", "c"])
+    ok, payload = unstrict_target("unstrict", ["b", "c"])
     if not ok:
         clear_all()
         return record(name, "FAIL", payload)
@@ -3957,20 +3953,20 @@ def test_unstrict_multi():
 
 def test_mixed(window, baseline):
     """Three policy families coexisting on five cgroups at once."""
-    name = "mixed: strict + strict-multi + block concurrent"
+    name = "mixed: strict + strict + block concurrent"
     if not multi_guard(name):
         return True
     if baseline and baseline < 2 * 500_000:
         return record(name, "SKIP", "baseline too low")
     ok_a, payload = apply_single("a", "500kb", 500_000, 500_000)
     ok_g, payload_g = apply_group(["b", "c"], "1mb", 1_000_000)
-    ok_bl, payload_bl = block_target("block-single", ["e"])
+    ok_bl, payload_bl = block_target("block", ["e"])
     if not (ok_a and ok_g and ok_bl):
         clear_all()
         return record(name, "FAIL", payload or payload_g or payload_bl)
     time.sleep(0.5)
     got_a = py_download(window)
-    solo = band_check("mixed: strict-single member at 500kb", got_a / window, 500_000)
+    solo = band_check("mixed: strict member at 500kb", got_a / window, 500_000)
     got_e, _ = curl_in_cgroup("e", window)
     blocked = got_e is not None and got_e <= BLOCK_GOODPUT_CEIL
     record(
@@ -4084,7 +4080,7 @@ def test_sustain(rate_bps, windows, window, baseline):
 
 
 def stage_rate_change(window):
-    name = "rate change: strict-single 1mb -> 2mb under live policy"
+    name = "rate change: strict 1mb -> 2mb under live policy"
     ok, payload = apply_single("a", RATE_CHANGE_FROM_STR, RATE_CHANGE_FROM_BPS, None)
     if not ok:
         return record(name, "FAIL", payload)
@@ -4380,7 +4376,7 @@ def stage_realnet_upload_sanity():
 
 
 def stage_realnet_strict_download():
-    name = "real internet: strict-single download at 2mb"
+    name = "real internet: strict download at 2mb"
     if not DL_ENDPOINT:
         return record(name, "SKIP", "no download endpoint")
     if REALNET_BASELINE_BPS < 2 * REALNET_DL_RATE_BPS:
@@ -4412,7 +4408,7 @@ def stage_realnet_strict_download():
 
 
 def stage_realnet_strict_upload():
-    name = "real internet: strict-single upload at 1mb"
+    name = "real internet: strict upload at 1mb"
     if not UL_ENDPOINT:
         return record(name, "SKIP", "no upload endpoint")
     if not REALNET_UL_USABLE:
@@ -4489,13 +4485,13 @@ def stage_realnet_strict_all():
 
 
 def stage_realnet_block():
-    """block-single against the real internet: the connection must
+    """block against the real internet: the connection must
     carry ~zero payload bytes. The kernel-drop proof rides the same
     status row the loopback block stages read."""
-    name = "real internet: block-single zero goodput"
+    name = "real internet: block zero goodput"
     if not DL_ENDPOINT:
         return record(name, "SKIP", "no download endpoint")
-    ok, payload = block_target("block-single", ["a"])
+    ok, payload = block_target("block", ["a"])
     if not ok:
         return record(name, "FAIL", payload)
     time.sleep(0.3)
@@ -5118,7 +5114,7 @@ def self_test():
     SERVER.stop()
     # NIGHT-improve-12 regression pin: a connect failure must surface
     # as ZERO GOODPUT, never as an uncaught TimeoutError — the
-    # 2026-09-21 root run died at block-single with "harness error:
+    # 2026-09-21 root run died at block with "harness error:
     # timed out" and every later stage unrecorded. The dead listener is
     # a socket bound but NEVER listen()-ing: connects are refused
     # instantly and deterministically (SERVER.stop() alone does not
