@@ -28,7 +28,7 @@ use super::during_parse::DuringSpec;
 use super::lanes::map_error_means_absent;
 use super::types::{
     group_id_from, BracketSpec, Direction, PolicyRaw, PolicyWindowRaw, RateSpec, Target,
-    POLICY_FLAG_PER_SOCKET,
+    POLICY_FLAG_PER_SOCKET, POLICY_MAP_CAPACITY,
 };
 use crate::ebpf::pin::{PIN_MAP_POLICY_DL, PIN_MAP_POLICY_UL};
 
@@ -134,6 +134,12 @@ impl super::Limiter {
     /// root carries the same window row. `bracket` is the guarantee
     /// pair per direction's rows (improve-40; the per-direction
     /// shape improve-40-b).
+    ///
+    /// NIGHT-hunt-27: resolution + dedup extracted into
+    /// [`Self::resolve_group_ids`] and the write loop into
+    /// [`Self::write_group_legs`] so the sweep twin
+    /// ([`Self::apply_group_sweep`]) can share the exact write
+    /// discipline while owning its own admission policy.
     pub fn apply_group(
         &mut self,
         targets: &[Target],
@@ -141,6 +147,58 @@ impl super::Limiter {
         bracket: &BracketSpec,
         during: Option<&DuringSpec>,
     ) -> Result<usize> {
+        let all_cgroup_ids = self.resolve_group_ids(targets)?;
+        if all_cgroup_ids.is_empty() {
+            return Ok(0);
+        }
+        self.write_group_legs(&all_cgroup_ids, rates, bracket, during)
+    }
+
+    /// The SWEEP twin (NIGHT-hunt-27, strict-all / block-all): the
+    /// best-effort apply with capacity admission. The sweeps' own
+    /// design contract — "an app that exits between snapshot and
+    /// write must not abort the fleet's limits" — extends to the
+    /// policy family's 1024-row ceiling: a dense host (the
+    /// "host server padat" shape the improve-31 note names, past
+    /// 1024 live user cgroups) made the old abort-on-leg-1025 shape
+    /// refuse the WHOLE sweep, every time, with zero enforcement —
+    /// the exact fleet-wide abort the best-effort contract says
+    /// must not happen. This twin reads the live policy rows first,
+    /// admits every already-limited id (an overwrite costs no new
+    /// slot) plus as many fresh ids as the emptier direction's map
+    /// has room for, and hands the rest back as `saturated` so the
+    /// handler can warn. A concurrent writer can still fill the map
+    /// between the read and the writes — the write loop's atomic
+    /// rollback stays the safety net exactly as it owns every other
+    /// mid-flight failure. The EXPLICIT lists (strict-multi /
+    /// block-multi) keep their whole-refusal contract: every
+    /// segment there is the operator's own claim. Returns
+    /// (applied, saturated-skipped).
+    pub fn apply_group_sweep(
+        &mut self,
+        targets: &[Target],
+        rates: &RateSpec,
+        bracket: &BracketSpec,
+        during: Option<&DuringSpec>,
+    ) -> Result<(usize, usize)> {
+        let all_cgroup_ids = self.resolve_group_ids(targets)?;
+        if all_cgroup_ids.is_empty() {
+            return Ok((0, 0));
+        }
+        let (admitted, saturated) = self.sweep_capacity_admit(&all_cgroup_ids)?;
+        if admitted.is_empty() {
+            return Ok((0, saturated));
+        }
+        let applied = self.write_group_legs(&admitted, rates, bracket, during)?;
+        Ok((applied, saturated))
+    }
+
+    /// Resolve the multi target list to deduped cgroup ids,
+    /// first-seen order (the shared front half of the apply twins).
+    /// Unresolved targets print their own trace and contribute
+    /// nothing — the best-effort resolution shape apply_group has
+    /// owned since its birth.
+    fn resolve_group_ids(&mut self, targets: &[Target]) -> Result<Vec<u32>> {
         // Resolve all targets to cgroup IDs (resolve_target prints
         // its own trace, so an unresolved target needs no second skip line).
         let mut all_cgroup_ids: Vec<u32> = Vec::new();
@@ -162,11 +220,39 @@ impl super::Limiter {
         // One cgroup, one write, one count.
         let mut seen_cgroups = std::collections::HashSet::new();
         all_cgroup_ids.retain(|id| seen_cgroups.insert(*id));
+        Ok(all_cgroup_ids)
+    }
 
-        if all_cgroup_ids.is_empty() {
-            return Ok(0);
-        }
+    /// The sweep lane's capacity gate (NIGHT-hunt-27): read both
+    /// direction maps' live rows (read-only, pre-mutation — the
+    /// stats.rs reader contract), compute the emptier side's free
+    /// slots (a leg needs a slot in each direction map it writes;
+    /// the min is the conservative bound for any direction mix),
+    /// and hand the id list to the pure admission rule.
+    fn sweep_capacity_admit(&self, ids: &[u32]) -> Result<(Vec<u32>, usize)> {
+        let dl = self.read_policies_public(Direction::Download)?;
+        let ul = self.read_policies_public(Direction::Upload)?;
+        let free = POLICY_MAP_CAPACITY
+            .saturating_sub(dl.len())
+            .min(POLICY_MAP_CAPACITY.saturating_sub(ul.len()));
+        let mut live = std::collections::HashSet::new();
+        live.extend(dl.iter().map(|(id, _)| *id));
+        live.extend(ul.iter().map(|(id, _)| *id));
+        Ok(capacity_admit(ids, &live, free))
+    }
 
+    /// The shared write half of the apply twins: one group id, one
+    /// window, the ledgered write loop (rollback on any leg
+    /// failure), the superseded-group reclaim, the window sweep,
+    /// the memo invalidation, the verbose tail (NIGHT-hunt-27
+    /// extraction — byte-identical to the loop apply_group owned).
+    fn write_group_legs(
+        &mut self,
+        all_cgroup_ids: &[u32],
+        rates: &RateSpec,
+        bracket: &BracketSpec,
+        during: Option<&DuringSpec>,
+    ) -> Result<usize> {
         // Generate group_id: the NIGHT-master-3 mixer (types.rs —
         // splitmix64 over (pid, nanos), unit-pinned; the old
         // pid*1000+nanos%1000 banded same-pid ids into 1000 and
@@ -201,7 +287,7 @@ impl super::Limiter {
         let mut window_mutations: Vec<WindowMutation> = Vec::new();
         let mut superseded: Vec<u32> = Vec::new();
         let mut applied = 0usize;
-        for cgroup_id in &all_cgroup_ids {
+        for cgroup_id in all_cgroup_ids {
             match self.write_policies_for_cgroup(
                 *cgroup_id,
                 rates,
@@ -299,6 +385,35 @@ impl super::Limiter {
             Direction::Upload => PIN_MAP_POLICY_UL.to_string(),
         }
     }
+}
+
+/// The sweep lane's pure admission rule (NIGHT-hunt-27): every
+/// already-live id is admitted (an overwrite costs no new map slot
+/// — the row exists), fresh ids are admitted first-seen while
+/// `free` lasts, and the remainder is counted as `saturated`. Pure
+/// so the capacity arithmetic is unit-pinnable independent of any
+/// map state. First-seen order keeps the sweep deterministic: the
+/// identity walk's order decides which apps saturate in, never
+/// hash iteration order.
+pub(super) fn capacity_admit(
+    ids: &[u32],
+    live: &std::collections::HashSet<u32>,
+    free: usize,
+) -> (Vec<u32>, usize) {
+    let mut admitted: Vec<u32> = Vec::with_capacity(ids.len());
+    let mut fresh_used = 0usize;
+    let mut saturated = 0usize;
+    for &id in ids {
+        if live.contains(&id) {
+            admitted.push(id);
+        } else if fresh_used < free {
+            admitted.push(id);
+            fresh_used += 1;
+        } else {
+            saturated += 1;
+        }
+    }
+    (admitted, saturated)
 }
 
 // NIGHT-hunt-17: pins live under the single test/ tree, #[path]-wired (Pattern C).

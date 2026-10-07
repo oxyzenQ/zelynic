@@ -12,6 +12,11 @@ use anyhow::Result;
 use crate::commands::rates::resolve_rates;
 #[cfg(feature = "ebpf")]
 use crate::commands::safety::is_dangerous_target;
+// NIGHT-hunt-27: the sweep's saturation wording names the policy
+// family's capacity — the userspace mirror of the eBPF-side map
+// size (types.rs keeps it textually in sync with the pinned maps).
+#[cfg(feature = "ebpf")]
+use crate::ebpf::limiter::types::POLICY_MAP_CAPACITY as POLICY_CAP;
 
 /// Handle `zelynic strict-all` — limit ALL user apps.
 /// System/dangerous apps are excluded unless --force-this.
@@ -137,16 +142,63 @@ pub(crate) fn handle_strict_all(
     // Attach + pin BPF programs (fire-and-forget: pins survive process
     // exit, no daemon). Unconditional for the same schema-ladder parity
     // as handle_strict_multi (NIGHT-hunt-21). The sweep keeps the
-    // best-effort apply_group (NOT apply_group_atomic) on purpose:
+    // best-effort lane (NOT apply_group_atomic) on purpose:
     // the target list is a snapshot of list-apps, and an app that
     // exits between snapshot and write must not abort the fleet's
     // limits — the atomic contract belongs to the explicit colon
     // list, where every segment is the operator's own claim
     // (charger-core-2).
+    // NIGHT-hunt-27: the sweep rides apply_group_sweep now — the
+    // capacity-admitting twin. The old shape aborted the WHOLE
+    // sweep at the policy family's 1024-row ceiling (leg 1025's
+    // insert failure rolled back legs 1-1024): on a dense host —
+    // the "host server padat" shape — strict-all refused
+    // everything, every run, zero enforcement, contradicting the
+    // best-effort contract two comments above. The twin admits
+    // what fits (already-limited ids cost no new slot; fresh ids
+    // up to the emptier map's free rows) and returns the skipped
+    // count; the warn below names it, and the applied==0 error
+    // paths keep the no-silent-no-op contract exact.
     crate::ebpf::limiter::Limiter::attach(verbose)?;
 
     let mut limiter = Limiter::open_pinned(verbose)?;
-    limiter.apply_group(&targets, &rates, &bracket, during_spec.as_ref())?;
+    let (applied, saturated) =
+        limiter.apply_group_sweep(&targets, &rates, &bracket, during_spec.as_ref())?;
+
+    if applied == 0 {
+        // NIGHT-hunt-27: the vacuous-sweep ladder. Saturated>0 with
+        // applied==0 means the policy family is FULL and the sweep
+        // enforced nothing — never a success, never the generic
+        // no-match wording either (the apps ARE there; the ROOM is
+        // not). Saturated==0 means every snapshot member resolved
+        // to nothing between the walk and the write (the stale
+        // snapshot race) — the no-match contract strict-multi
+        // owns, dinner-11.
+        if saturated > 0 {
+            return Err(super::target_no_match_error(
+                format!(
+                    "Policy family at capacity ({POLICY_CAP} rows) — 0 of {} app(s) \
+                     limited, {saturated} left unlimited",
+                    targets.len()
+                ),
+                &["run 'zelynic unstrict-all' to make room".to_string()],
+            ));
+        }
+        return Err(super::target_no_match_error(
+            "No cgroups found for any target — nothing was limited".to_string(),
+            &[super::TIP_LIST_APPS.to_string()],
+        ));
+    }
+    if saturated > 0 {
+        // The partial-saturation warn (improve-30's one-line
+        // concise contract): what landed, what did not, and the
+        // one command that makes room.
+        crate::output::eprintln_warn_labeled(&format!(
+            "Policy ceiling saturated: {applied} app(s) limited, {saturated} left \
+             unlimited — the policy family's {POLICY_CAP}-row capacity is full; \
+             'zelynic unstrict-all' makes room."
+        ));
+    }
 
     // NIGHT-improve-28: strict-all reverses with the sledgehammer, not
     // a per-target unstrict — the old suggestion built

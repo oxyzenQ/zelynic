@@ -27,6 +27,55 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **fix(limiter) + fix(commands): NIGHT-hunt-27 — the sweeps
+  saturate instead of refusing whole at the 1024 policy ceiling,
+  and two silent-no-op holes close with them: the deep hunt's
+  critical find.** The class: the leaderboard 4096-cap freeze
+  (mitigate-1's retire_dead) was the owner's named example — the
+  hunt enumerated every fixed-capacity resource in the product and
+  checked each for the same freeze/refusal shape. The find:
+  strict-all and block-all ride the best-effort apply whose write
+  loop aborts and rolls back the WHOLE invocation on any leg
+  failure — correct for genuine failures, but the policy family's
+  1024-row maps make leg 1025's insert fail DETERMINISTICALLY on a
+  host past 1024 live user cgroups (the "host server padat" shape
+  improve-31 documents: big Kubernetes nodes, per-job-scope CI
+  runners), so the sweep refuses EVERYTHING, every run, zero
+  enforcement — while tolerating the very failure class (an app
+  exiting between snapshot and write) its own design comment says
+  must never abort the fleet. The fix: `apply_group_sweep` in
+  src/ebpf/limiter/policy.rs — the sweep twin sharing the exact
+  ledgered write discipline (atomic rollback stays the safety net
+  for genuine failures and concurrent-writer races) but owning a
+  capacity admission: already-live ids re-limit freely (an
+  overwrite costs no new slot — re-limitting a limited host never
+  refuses), fresh ids admit first-seen up to the emptier direction
+  map's free rows (min of dl/ul — a leg needs a slot in each side
+  it writes), the remainder returns as `saturated`; the handlers
+  warn once (what landed, what did not, the one command that makes
+  room) and exit non-zero with a dedicated at-capacity error when
+  the sweep enforced NOTHING — never a silent success. The
+  explicit lists (strict-multi, block-multi) keep their
+  whole-refusal contract untouched: every segment there is the
+  operator's own claim, and the improve-50 cap-crossing stage pins
+  that refusal as the product's honest boundary. Also closed: both
+  sweeps ignored the applied count entirely, so a fully-stale
+  snapshot printed the success epilogue with nothing enforced —
+  both now carry the applied==0 no-match error (dinner-11's
+  contract). Pins: the pure `capacity_admit` rule and the
+  `POLICY_MAP_CAPACITY == 1024` userspace mirror (the
+  kernel-side map class, both-sides-pin discipline) in
+  test/ebpf/limiter/policy_tests.rs; the refactor extracted
+  resolve_group_ids + write_group_legs so the twins share one
+  write path byte-identically. The full hunt record (capacity-class
+  table, the clean-audit list, two named residuals left for the
+  owner's call — name-list O(N x /proc) resolution, the absent
+  live saturation proof) lives in docs/audits/
+  NIGHT_HUNT_27_SWEEP_CAPACITY_SATURATION_2026-10-07.md;
+  SAFETY_ANALYSIS.md's Finding 1 carries the refinement note. The
+  A/B frame benchmark (b2d2719 vs HEAD) shows the render lane
+  untouched: gini/entropy identical to noise, fps within noise.
+
 - **test(supermassive) + feat(safety): NIGHT-improve-50 — the
   owner-approved cap-crossing density stage: one stage in v1's
   server phase crosses the product's own boundaries LIVE, plus the
