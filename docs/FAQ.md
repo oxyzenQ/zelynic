@@ -50,7 +50,7 @@ support.
 ### Q: My app shows "unlimited" — is the limit broken?
 
 A: No: **unlimited is the honest verdict when nothing is pinned**.
-`strict-single <app> <rate>` pins the enforcement (download AND
+`strict <app> <rate>` pins the enforcement (download AND
 upload), `unstrict` removes it, and `block` cuts access entirely
 (docs/USAGE.md). Status output is printed from probes of the real
 pinned state, never from assumptions (NIGHT-master-4) — so "unlimited"

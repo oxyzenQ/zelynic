@@ -31,12 +31,12 @@ read this one. Build instructions live in the
 ## The 30-second version
 
 ```bash
-sudo zelynic list-apps                  # find the app + its cgroup id
-sudo zelynic strict-single brave 100kb  # limit it (download AND upload)
-sudo zelynic status                     # verify the limit is live
-sudo zelynic eagle-eyes                 # watch traffic live, ranked (q to quit)
-sudo zelynic ee cg:1234 --depth         # who/what IS this cgroup? (one shot)
-sudo zelynic unstrict-single brave      # remove the limit
+sudo zelynic list-apps            # find the app + its cgroup id
+sudo zelynic strict brave 100kb   # limit it (download AND upload)
+sudo zelynic status               # verify the limit is live
+sudo zelynic eagle-eyes           # watch traffic live, ranked (q to quit)
+sudo zelynic ee cg:1234 --depth   # who/what IS this cgroup? (one shot)
+sudo zelynic unstrict brave       # remove the limit
 ```
 
 Limiting is **fire-and-forget**: the command writes rules into pinned
@@ -60,7 +60,7 @@ rate policy in a BPF map. Enforcement is pure kernel work: no proxy, no
 
 **2. A "target" is resolved once, at command time — and the limit
 follows the whole subtree.**
-When you type `zelynic strict-single brave 100kb`, zelynic walks
+When you type `zelynic strict brave 100kb`, zelynic walks
 `/proc`, finds every process whose name is `brave`, resolves the cgroup
 each one lives in, and writes one policy per cgroup (per direction).
 That resolution is a **snapshot** — see
@@ -94,32 +94,41 @@ it** (and re-assigns cgroup IDs anyway): limits are not reboot-persistent.
 
 ## Command reference
 
-Names follow one grammar: **strict** applies limits, **block** cuts
-access entirely, **unstrict** removes limits. `-single` takes one
-target, `-multi` takes a colon-separated list, `-all` sweeps every user
-app. `strict` is the shorthand for `strict-single`; `unstrict` is the
-shorthand for `unstrict-single` (NIGHT-hunt-16 — the canonical always
-carries the `-single` suffix, so the two verb families read
-symmetrically). Every enforcement verb plus the monitor also has a
-two-letter short alias (NIGHT-improve-25): `ss` = strict-single, `sm`
-= strict-multi, `sa` = strict-all (NIGHT-blade-2 — formerly
-`limit-all`/`la`; the old spellings refuse with a redirect tip), `bs`
-= block-single, `bm` = block-multi, `ba` = block-all, `us` =
-unstrict-single, `um` = unstrict-multi, `ua` = unstrict-all, `ee` =
-eagle-eyes (the `alias = canonical` pairing is the same one-glance
-form `--help` prints, NIGHT-boost-29) — e.g. `zelynic ss brave 100kb`
-or `zelynic ee brave --interval 1s`.
+Names follow one grammar (NIGHT-improve-53, the masterclass
+unification): **strict** applies limits, **block** cuts access
+entirely, **unstrict** removes limits — ONE verb per family, and
+`-all` sweeps every user app. The target grammar picks the lane: a
+single target (`brave`, `cg:18571`, `docker://nginx`) rides the
+single lane, and a `::`-separated list
+(`brave::curl::pacman`) rides the group lane — one shared bucket
+for every member. The separator DOUBLED because container native
+grammar owns the single `:` (`docker://nginx`,
+`k8s://prod/web-abc`, and the `cg:` display prefix), so the list
+byte sequence is one they can never contain. The short forms: `s`
+= strict, `b` = block, `u` = unstrict, `sa` = strict-all
+(NIGHT-blade-2 — formerly `limit-all`/`la`), `ba` = block-all,
+`ua` = unstrict-all, `ee` = eagle-eyes (the `alias = canonical`
+pairing is the same one-glance form `--help` prints,
+NIGHT-boost-29). The twelve retired spellings — strict-single,
+strict-multi, ss, sm, block-single, block-multi, bs, bm,
+unstrict-single, unstrict-multi, us, um — refuse with a redirect
+tip naming their family's verb — e.g. `zelynic s brave 100kb`,
+`zelynic s brave::curl::pacman 1mb`, or `zelynic ee brave
+--interval 1s`.
 
-### strict-single / strict — limit one app
+### strict — limit one app, or a group sharing one rate
 
 ```bash
-sudo zelynic strict-single <target> [rate] [-d <rate>] [-u <rate>] [--per-socket] [--floor <rate>] [--ceil <rate>] [--floor-download <rate>] [--floor-upload <rate>] [--ceil-download <rate>] [--ceil-upload <rate>] [--during <duration>]
-sudo zelynic strict brave 100kb        # shorthand form
+sudo zelynic strict <target> [rate] [-d <rate>] [-u <rate>] [--per-socket] [--floor <rate>] [--ceil <rate>] [--floor-download <rate>] [--floor-upload <rate>] [--ceil-download <rate>] [--ceil-upload <rate>] [--during <duration>]
+sudo zelynic s brave::curl::pacman 1mb # the group lane: one shared rate
 ```
 
-- `<target>`: a process name (`brave`) or a cgroup ID (`18571`, from
+- `<target>`: a process name (`brave`), a cgroup ID (`18571`, from
   `list-apps`; the `cg:18571` display form round-trips verbatim —
-  paste what `status` or eagle-eyes shows you).
+  paste what `status` or eagle-eyes shows you), or a `::`-separated
+  list for the group lane (`brave::curl::pacman`, `cg:1234::1245`)
+  — see [the group lane](#strict--the-group-lane-one-shared-rate-for-several-apps)
+  below.
 - The policy covers **the target's whole subtree** with ONE shared
   budget (NIGHT-private-research-2, AMMSP): every process that
   spawns under the target's cgroup — at any depth, born at any
@@ -146,8 +155,9 @@ sudo zelynic strict brave 100kb        # shorthand form
   500kb and 8 live connections can move 4mb together). Packets the
   hook cannot attribute to a socket (cookie 0 — rare early-ingress
   paths) fall back to the cgroup's shared DRR budget, still
-  policed. The lane rides strict-single only: a group policy
-  (strict-multi) IS the shared-budget answer, and block-* needs no
+  policed. The lane rides the single lane only: a `::` list IS the
+  shared-budget answer (one group bucket for every member — the two
+  shapes refuse together, before any parsing), and block needs no
   bucket lane at all. `status` marks the rate cells (`500.0 KB/s
   /socket`) and the JSON carries `download_per_socket` /
   `upload_per_socket`; a policy mutation zeroes every socket's
@@ -203,8 +213,8 @@ sudo zelynic strict brave 100kb        # shorthand form
   free — the pinned perf law), and the unpoliced direction's
   handshake packets are where the policed side's CID geometry is
   learnable — so single-leg policies keep QUIC data on the socket
-  key (the pre-v22 behavior). The dual-leg default (`strict-
-  single <target> <rate>` polices both directions) learns both.
+  key (the pre-v22 behavior). The dual-leg default (`strict
+  <target> <rate>` polices both directions) learns both.
 - The shared budget is **fair-shared** (NIGHT-upgrade-charger-core-1c,
   the DRR lane): a shared first-come-first-served bucket let ONE
   greedy subprocess consume every token the instant it refilled and
@@ -255,7 +265,7 @@ sudo zelynic strict brave 100kb        # shorthand form
   impossible in a cgroup_skb hot path — the honest bound is one
   quantum of slop); the stale-quantum belt zeroes any leaf's tokens
   the moment a policy mutation outlives them (the AMMSP generation
-  stamp, applied to buckets), and the group lane (strict-multi)
+  stamp, applied to buckets), and the group lane (`strict a::b`)
   keeps the FCFS shape by documented scope (its members are
   enumerated by the apply itself, so the unknown-leaf starvation
   problem does not exist there).
@@ -311,17 +321,17 @@ sudo zelynic strict brave 100kb        # shorthand form
 - A positional `rate` sets **both** download and upload. `-d`/`-u` set
   them independently — and they take precedence: if either flag is
   present, the positional rate does not apply (no silent mixing), so
-  `strict-single brave 100kb -d 1mb` limits download only.
+  `strict brave 100kb -d 1mb` limits download only.
   NIGHT-hunt-Z9 closed the shadow's two silent shapes: the positional
   is still PARSED (a typo'd value surfaces its did-you-mean tip
-  before the root ask — `ss brave not-a-rate -d 100kb` used to sail
+  before the root ask — `s brave not-a-rate -d 100kb` used to sail
   past the input boundary unexamined) and a valid one prints one
   stderr note naming what was dropped (`positional rate '100kb'
   ignored — -d/-u flags take priority`), the same
   ignored-input honesty `--print-json`, `--interval`, and `--focus`
   carry; stdout and exit codes are untouched. The
   unset direction is also REMOVED if a previous apply had enforced
-  it (NIGHT-improve-29: `ss brave 100kb` then `ss brave -d 1mb`
+  it (NIGHT-improve-29: `s brave 100kb` then `s brave -d 1mb`
   used to silently keep the old upload leg — the documented
   "download only" contract now holds in the map itself; re-specify
   `-u` when you want to keep both legs under one apply).
@@ -342,8 +352,8 @@ sudo zelynic strict brave 100kb        # shorthand form
   prefix costs one `--force-this`. The numeric door enforces the same
   contract (NIGHT-blade-18): a bare id (`48181`) or the display form
   (`cg:48181`) resolves to its live member processes and runs the
-  same family-aware blocklist on their names, so `ss cg:<sshd's
-  cgroup>` refuses exactly like `ss sshd` — the old bypass, where
+  same family-aware blocklist on their names, so `s cg:<sshd's
+  cgroup>` refuses exactly like `s sshd` — the old bypass, where
   every numeric spelling skipped the guard entirely, is closed. An id
   with no live members (a dead id, or a container view that resolves
   nothing) stays allowed: the policy against it can never match a
@@ -355,7 +365,7 @@ The root catch-all arm (NIGHT-hunt-Z3): a policy keyed at the
 cgroupfs root (`cg:1` on the host — the node the hooks attach to) is
 not one app's limit — the AMMSP ancestor walk resolves EVERY socket
 on the machine through the root's row, so the root position is
-refused whatever spelling reaches it: the explicit id (`ss cg:1`),
+refused whatever spelling reaches it: the explicit id (`s cg:1`),
 a name whose processes live in the root cgroup (a daemon on a
 no-systemd guest, where every comm's cgroup IS the root — checked
 after the privilege ask, so the non-root refusal ladder is
@@ -367,22 +377,29 @@ every other guard arm teaches. Container targets are excluded on
 purpose: they resolve to the workload's own scope subtree, never the
 namespace root.
 
-The multi-list grammar (NIGHT-blade-18): the colon lists of
-`strict-multi`/`block-multi`/`unstrict-multi` are validated as a
-whole before anything runs. Empty segments (`a::b` — a dropped app
-is a named mistake, not a silent skip), segments containing `/` (`a/`
-— comm can never carry a path separator), and punctuation-only
-segments (`;` — and unquoted in a shell this exact byte splits
-commands) are all refused with the offending segment named. What
-stays legal on purpose: numeric and `cg:<id>` segments (their safety
+The list grammar (NIGHT-blade-18, doubled to `::` by
+NIGHT-improve-53): the `::` lists of the group lane are validated
+as a whole before anything runs. Empty members (`a::::b`, `a::` —
+a dropped app is a named mistake, not a silent skip), members
+containing `/` (`a/` — comm can never carry a path separator), and
+punctuation-only members (`;` — and unquoted in a shell this exact
+byte splits commands) are all refused with the offending member
+named. A member carrying a single `:` outside the `cg:` prefix
+(`brave:curl::steam`) is the old single-colon grammar half-migrated
+— refused with the separator law named, before any parsing, so it
+never dies as a late no-match on a process name that cannot exist.
+A one-distinct-member list (`brave::brave`) needs no separator —
+hunt-30's "single is single" read through the merge. What stays
+legal on purpose: numeric and `cg:<id>` members (their safety
 rides the blocklist arm above), and alnum-bearing unknown names —
-`sm '$(reboot):b' 1mb` stays the graceful refusal that echoes the
+`s '$(reboot)::b' 1mb` stays the graceful refusal that echoes the
 payload verbatim as data, never executes it (and since
 NIGHT-dinner-11 it exits 1 — the no-match contract in
 [Exit codes](#exit-codes)). A container URI inside the list is
-refused with the fix named (charger-core-2: the URI's own `://`
-and `/` bytes cannot survive the colon split — container targets
-are single-target verbs; see the strict-single section above).
+refused with the fix named (charger-core-2's contract, carried
+over the separator change: the group lane shares ONE bucket
+across its members, and a container workload owns its own apply —
+see the container targets paragraph in the strict section above).
 
 The burst contract (no flag, by design): every policy banks a token
 bucket of one second of traffic — rate bytes read straight — clamped
@@ -411,9 +428,9 @@ live in `zelynic status`, not in the success echo.
 
 The SELF-PROVING ENFORCEMENT (NIGHT-upgrade-charger-core-1-b): after
 the apply lands, the strict family measures the limit it just wrote
-before it claims it (strict-single since the beginning; strict-multi
-and strict-all since NIGHT-hunt-30, the owner's parity find — the
-multi probes the first colon member, whose landing the atomic
+before it claims it (the single lane since the beginning; the
+group lane and strict-all since NIGHT-hunt-30, the owner's parity
+find — the group probes the first list member, whose landing the atomic
 contract guarantees, and the sweep probes the first applied app,
 standing down with a named skip note when the fleet saturated —
 measuring a lane that may not have landed would be a verdict built
@@ -513,13 +530,13 @@ and target the cgroup ID directly when you want surgical precision.
 Container targets (NIGHT-upgrade-charger-core-2, TIER A):
 
 ```bash
-sudo zelynic strict-single docker://nginx 100kb
-sudo zelynic strict-single k8s://prod/web-abc 1mb
-sudo zelynic unstrict-single docker://nginx
+sudo zelynic strict docker://nginx 100kb
+sudo zelynic s k8s://prod/web-abc 1mb
+sudo zelynic unstrict docker://nginx
 ```
 
 The reference resolves to the workload's cgroup id and everything
-after that is the strict-single machinery unchanged — policy write,
+after that is the strict single lane's machinery unchanged — policy write,
 self-probing enforcement probe, `unstrict` round-trip. `docker://`
 accepts a container name or an id prefix (the `docker ps` hex, at
 least 4 chars) and resolves through the Engine API over
@@ -541,10 +558,11 @@ namespace 'z'", each with its discovery tip. A stopped container
 is named as such: the daemon's own status word rides the error,
 because a stopped container's cgroup is torn down at exit — there
 is no live workload to target, and a policy left behind against
-its dead cgroup is a job for `zelynic recover`. Container targets are
-single-target verbs: the colon list cannot carry them (its grammar
-and the URI grammar fight over the same bytes), so
-`strict-multi docker://a:nginx` is refused with the fix named.
+its dead cgroup is a job for `zelynic recover`. Container targets
+ride the single lane: a `::` list cannot carry them (the group lane
+shares ONE bucket across its members — a container workload owns
+its own apply), so `s docker://a:nginx::brave` is refused with the
+fix named.
 The dangerous-target blocklist does not apply to container
 targets: it names HOST system processes whose throttling can lock
 the operator out, while a container policy can starve only the
@@ -552,16 +570,18 @@ workload. The eagle-eyes target grammar stays process-name /
 cgroup-id (its `/`-separator cannot carry a URI) — watch a
 container's cgroup by its `cg:<id>` from `list-apps`.
 
-### strict-multi — one shared rate for several apps
+### strict — the group lane: one shared rate for several apps
 
 ```bash
-sudo zelynic strict-multi brave:curl:pacman 1mb
+sudo zelynic strict brave::curl::pacman 1mb
+sudo zelynic s curl::pacman::aria2c 1mb
 ```
 
 All listed targets share **one** rate collectively: if one app saturates
 it, the others starve. Use it for download tools you want to cap as a
-pool (`curl:pacman:aria2c 1mb`), not for apps that each need their own
-guaranteed slice — apply separate `strict-single` calls for that.
+pool (`curl::pacman::aria2c 1mb`), not for apps that each need their own
+guaranteed slice — apply separate `strict` calls for that (one target
+each).
 
 The apply is **atomic** (NIGHT-upgrade-charger-core-2): every target
 resolves before the first policy write, and one unresolvable name
@@ -571,13 +591,14 @@ fleet automation never lands in a half-configured state. A mid-flight
 write failure (a full map, an ENOMEM) rolls the transaction back to
 the exact pre-apply state: a target that already had a limit gets it
 restored at its own rate and group, a fresh target returns to
-unlimited. `strict-all` and `block-multi`/`block-all` deliberately keep
+unlimited. `strict-all` and `block-all` deliberately keep
 the best-effort sweep — their target lists are snapshots of live
 state, and an app exiting mid-sweep must not abort the fleet's limits.
 
 The apply is **verified** (NIGHT-hunt-30, the owner's parity find):
-strict-multi carries strict-single's own self-proving enforcement —
-the probe measures a real flow through the FIRST member's subtree
+the group lane carries the single lane's own self-proving
+enforcement — the probe measures a real flow through the FIRST
+member's subtree
 (the atomic contract guarantees that member landed) and prints the
 same `enforced: VERIFIED` block, the multi-leaf note naming the
 group's per-cgroup ledger. `--no-probe` keeps the scripted
@@ -588,7 +609,7 @@ The shared bucket's lifecycle (NIGHT-lts-7): every invocation banks a
 fresh group id, and the group maps hold 256 slots each — a group's
 slots are now returned when its LAST reference goes (an unstrict of
 the group's last member, or an apply that overwrites the old
-policies), so a long-lived host cycling strict-multi invocations
+policies), so a long-lived host cycling group-lane invocations
 cannot fill the maps. Before lts-7 the slots were never reclaimed:
 after ~256 invocations the next group's bucket could not materialize
 and its members silently enforced unlimited (the fail-open lookup).
@@ -619,11 +640,11 @@ lane the probe would name, and an unlimited path reads FAILED by its
 own numbers, a verdict built on a guess. `--no-probe` keeps the
 scripted apply-only shape.
 
-### block-single / block-multi / block-all
+### block / block-all
 
 Every block verb takes `--during` (night-during, schema v23;
 the owner's duration-only revision): a blocked row with a window
-lifts itself — `bs shorts --during 8h` blocks for eight hours
+lifts itself — `b shorts --during 8h` blocks for eight hours
 and stands down when they are over (no daemon, no cron; the same
 one-shape grammar the strict family takes: `<N><unit>`, units
 s m h d mn y, bounds 1s..10y). The KERNEL decides when the window
@@ -636,23 +657,23 @@ unstrict (the hunt-30 session's core find: stale rows sat in
 to run).
 
 ```bash
-sudo zelynic block-single brave
-sudo zelynic block-multi brave:curl:pacman
+sudo zelynic block brave
+sudo zelynic b brave::curl::pacman
 sudo zelynic block-all [--force-this]
 ```
 
 Cut internet access entirely — packets are dropped at the cgroup
-boundary in both directions. Same target grammar and `--force-this`
-contract as strict. `unstrict-single` removes a block exactly like it removes
-a rate limit (blocks and limits live in the same policy maps; a
-blocked cgroup shows a 0-rate policy in `status`).
+boundary in both directions. Same target grammar (single target or
+a `::` list) and `--force-this` contract as strict. `unstrict`
+removes a block exactly like it removes a rate limit (blocks and
+limits live in the same policy maps; a blocked cgroup shows a
+0-rate policy in `status`).
 
-### unstrict-single / unstrict-multi / unstrict-all
+### unstrict / unstrict-all
 
 ```bash
-sudo zelynic unstrict-single brave     # canonical ('unstrict' is the shorthand)
-sudo zelynic unstrict brave            # shorthand form
-sudo zelynic unstrict-multi brave:curl:pacman
+sudo zelynic unstrict brave            # one target
+sudo zelynic unstrict brave::curl::pacman  # the list lane, same verb
 sudo zelynic unstrict-all              # emergency reset: removes everything
 ```
 
@@ -1025,8 +1046,8 @@ question a bare `cg:1234` row leaves open — WHAT is this:
    curl (4242) → 142.250.185.78:443 tcp ESTABLISHED [dl 12.4 MB | ul 300.0 KB]
    curl (4242) → 93.184.216.34:443 tcp ESTABLISHED
   ────────────────────────────────────────────────────────────────
-  act:  zelynic strict-single cg:1234 500kb
-        zelynic block-single cg:1234
+  act:  zelynic strict cg:1234 500kb
+        zelynic block cg:1234
         zelynic ee cg:1234
 ```
 
@@ -1262,11 +1283,11 @@ scope as the grand — a filtered frame's pair describes the watched
 set, one paragraph one story — and a saturated 400G peer reads
 `40.0 GB/s` through the same EB-capped SI ladder every figure
 uses), the
-actionable line (`limit target with 'sudo zelynic ss curl 100kb'` —
+actionable line (`limit target with 'sudo zelynic s curl 100kb'` —
 the owner's engrave-4 wording: since NIGHT-engrave-7 the quoted
 command rides the ACTIVE theme's brand tier (purple under
 netrunner, each theme's own accent under itself — the owner's call),
-the `ss` short alias the CLI already carries, and
+the `s` short alias the CLI already carries, and
 the engraved default rate — a named, documented constant, the one
 fixed suggestion value on a line whose every other fact is derived
 live), one blank of air, the status line — the frame's legend `1s
@@ -1523,7 +1544,7 @@ with what the renderer draws.
 │  total usage internet in 1h:20s = 11.1 GB                                   │
 │  total max dl | ul = 24.6 MB/s | 1.2 MB/s                                   │
 │  total avg dl | ul = 2.9 MB/s | 143.6 KB/s                                  │
-│  limit target with 'sudo zelynic ss brave 100kb'                            │
+│  limit target with 'sudo zelynic s brave 100kb'                             │
 │                                                                              │
 │  1s realtime - theme netrunner - q quit - t theme                           │
 │                                                                              │
@@ -1562,7 +1583,7 @@ order. Every figure names its horizon and scope:
 | `total usage internet in 1h:20s = 11.1 GB` | The story in one line: session uptime and the grand total ALONE (the per-frame rates retired at the owner's call — only totals consume bandwidth). The grand sums the whole leaderboard, every candidate. The uptime ladder reads `45s` / `12m:34s` / `3h:7m` / `2d:5h`. |
 | `total max dl | ul = 24.6 MB/s \| 1.2 MB/s` | The session's PEAK per-direction rate: running maxima of the per-frame watched-set deltas, tracked in the session state beside the totals — never reset, the session horizon. Honest zeroes at rest (`0 B/s`). |
 | `total avg dl | ul = 2.9 MB/s \| 143.6 KB/s` | The session's average per-direction rate: the same per-direction totals the grand sums, divided by the SAME uptime the total row renders — the three lines of the paragraph share their legs and their clock, so they can never disagree. |
-| `limit target with 'sudo zelynic ss brave 100kb'` | The action: a ready-to-paste command for the consumer the headline just named — the `ss` short alias, and the `100kb` engraved default (the one fixed suggestion value on a line whose every other fact is derived live). The command rides the ACTIVE theme's brand tier — the frame's two living accents, the thing to read and the thing to act on. |
+| `limit target with 'sudo zelynic s brave 100kb'` | The action: a ready-to-paste command for the consumer the headline just named — the `s` short alias, and the `100kb` engraved default (the one fixed suggestion value on a line whose every other fact is derived live). The command rides the ACTIVE theme's brand tier — the frame's two living accents, the thing to read and the thing to act on. |
 | status line | The legend: `1s realtime - theme netrunner - q quit - t theme` — the poll interval, the active theme's name, the quit key, the theme key. Rides every compression tier. |
 | Build stamp | `v11.0.0-beta.1 (a1b2c3d) by oxyzenQ` — version, git hash, author, brand purple: the frame's quiet closing paragraph. |
 | `(identities unresolved — labels show raw cgroup IDs)` | The rare honesty note: the /proc walk found no identities this frame, so labels render raw IDs. It rides only when true. |
@@ -1634,23 +1655,23 @@ Full matrix: [docs/SAFETY_ANALYSIS.md](SAFETY_ANALYSIS.md).
 ```bash
 sudo zelynic eagle-eyes               # who is eating bandwidth? (q to quit)
 sudo zelynic list-apps                # confirm name + cgroup id
-sudo zelynic strict-single brave 100kb
+sudo zelynic strict brave 100kb
 sudo zelynic status                   # see the policy + counters
 # ... browse with the limit active; check a speed test site:
 # 100kb means 100 KB/s = 0.8 Mbps on speed-test readouts (decimal SI)
-sudo zelynic unstrict-single brave
+sudo zelynic unstrict brave
 ```
 
-**Cap a pool of download tools:**
+**Cap a pool of download tools** (the group lane, `::`-separated):
 
 ```bash
-sudo zelynic strict-multi curl:pacman:aria2c 1mb
+sudo zelynic s curl::pacman::aria2c 1mb
 ```
 
 **Asymmetric limits (e.g., slow uploads for a game):**
 
 ```bash
-sudo zelynic strict-single firefox -d 5mb -u 500kb
+sudo zelynic strict firefox -d 5mb -u 500kb
 ```
 
 **Focus a noisy background updater:**
@@ -1659,7 +1680,7 @@ sudo zelynic strict-single firefox -d 5mb -u 500kb
 sudo zelynic eagle-eyes               # ranked; raise the window for more
 sudo zelynic eagle-eyes 8066          # zoom in, see endpoints (q to quit)
 sudo zelynic ee 8066 --depth          # who runs it, from where, since when
-sudo zelynic strict-single 8066 50kb  # target the cgroup id directly
+sudo zelynic strict 8066 50kb          # target the cgroup id directly
 ```
 
 **Scripted monitoring** (JSON is stable, jq-friendly):
@@ -1684,7 +1705,7 @@ zelynic is deliberately small and stateless. These are real behaviors,
 not bugs — knowing them makes the tool predictable.
 
 **1. Rules are a snapshot of TARGETS, not of subtrees.**
-When you run `zelynic strict-single A 100kb` or `strict-all 100kb`,
+When you run `zelynic strict A 100kb` or `strict-all 100kb`,
 zelynic resolves the apps that exist **at that moment** and writes
 their cgroup rules. What happens next splits in two:
 
@@ -1765,14 +1786,14 @@ design; if you need one, a systemd unit or shell profile calling
 zelynic is a user-side decision.
 
 **3. Name resolution needs the app to be running.**
-`strict-single` matches live processes in `/proc`. An app that is not
+`strict` matches live processes in `/proc`. An app that is not
 running has no cgroup to resolve — start the app first, or target a
 cgroup ID from an earlier `list-apps` if you know it. A name that
 matches nothing prints `No cgroup found for '<name>'` plus a
 `list-apps` tip.
 
 **4. A name can match more than one cgroup.**
-`strict-single brave` limits every cgroup containing a process named
+`strict brave` limits every cgroup containing a process named
 `brave` — including browser helpers (e.g., a crash-pad handler). That
 is usually what you want (the app's whole footprint), but for surgical
 control, target the cgroup ID directly and verify with
@@ -1789,8 +1810,8 @@ input that rounds to zero is rejected because `0` is the block
 verdict. NIGHT-hunt-31 extended the same fractional grammar to
 durations — `1.5h` parses to 5,400 seconds, with a fractional
 duration that rounds to zero rejected because `0` means infinity).
-A positional rate sets **both** directions — `strict-single
-brave 100kb` limits upload too, not just download. Minimum 1kb,
+A positional rate sets **both** directions — `strict brave
+100kb` limits upload too, not just download. Minimum 1kb,
 maximum 1tb; both bounds overridable with `--force-this` — below
 1kb an app can stop working entirely (that is the dangerous the flag
 asks you to own).
@@ -1913,7 +1934,7 @@ their bytes (the closing design is documented in
 | `root required — eBPF operations need CAP_BPF` | Re-run with `sudo`. Only `list-apps`/`doctor`/`--help`/`-V` skip this. |
 | `--check-update` refuses to run as root | Re-run **without** sudo. It is a plain network fetch. |
 | `zelynic help` exits 2 with a tip | By design: help is the `--help` flag, not a subcommand (the single-tier reference). The tip names the spelling (NIGHT-boost-13). |
-| Unknown flag after a full command shows NO "use `--`" tip (e.g. `ss brave 550kb -i`) | Honest silence: the escape-hatch tip prints only where following it actually parses (the NIGHT-boost-13 probe re-parses with the splice). No tip means the positional slots are full — the usage line under the error is the failing command's own grammar, and nothing more fits. |
+| Unknown flag after a full command shows NO "use `--`" tip (e.g. `s brave 550kb -i`) | Honest silence: the escape-hatch tip prints only where following it actually parses (the NIGHT-boost-13 probe re-parses with the splice). No tip means the positional slots are full — the usage line under the error is the failing command's own grammar, and nothing more fits. |
 | `--json` (a habit from other tools) | The vocabulary rescue tips the zelynic spelling: `--print-json` (NIGHT-boost-13). |
 | `No cgroup found for '<name>'` | The app is not running (or the name is wrong). Start it, check `zelynic list-apps`, or target a cgroup ID. |
 | `Invalid rate '1MB'` (with a tip) | Units are lowercase. The tip suggests the fix (`1mb`; fractional twins like `5.5MB` -> `5.5mb` work the same way). |
@@ -2092,10 +2113,9 @@ means exactly that: nothing is limited right now.
 
 The no-match contract (NIGHT-dinner-11 — the eBPF-verifier lineage
 applied to the CLI surface: reject, never a soft no-op): a command
-that names a target — `strict-single`/`strict-multi`,
-`block-single`/`block-multi`, `unstrict`/`unstrict-multi` — whose
-target resolves to nothing prints the branded error and exits 1,
-so a script can tell the typo'd `ss cg8401` from an enforced
+that names a target — `strict`, `block`, `unstrict`, either lane —
+whose target resolves to nothing prints the branded error and exits 1,
+so a script can tell the typo'd `s cg8401` from an enforced
 limit. The `-all` apply sweeps (`strict-all`, `block-all`) exit 1
 when the identity map offers nothing to enforce; `unstrict-all` on
 an already-clean system stays exit 0 — the requested state already
@@ -2110,7 +2130,7 @@ No. Two eBPF programs run per packet crossing a cgroup boundary —
 nanosecond-scale work, no userspace involved. Benchmarks live in
 [docs/PERFORMANCE.md](PERFORMANCE.md).
 
-**Why does `strict-single brave 100kb` also slow my uploads?**
+**Why does `strict brave 100kb` also slow my uploads?**
 A positional rate means both directions. Use `-d`/`-u` to split them
 (and if you pass both a positional and `-d`/`-u`, one stderr note
 names the positional that was ignored — the flags decide).

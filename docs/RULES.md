@@ -209,9 +209,9 @@ Do not guess past failing checks.
 
 ## Release Honesty
 
-- The validated limiter paths are `zelynic strict-single` and
-  `zelynic strict-multi`.
-- The `zelynic block-*` family shares the same pinned-map enforcement
+- The validated limiter path is `zelynic strict` (either lane —
+  one target, or a `::` list sharing one bucket; NIGHT-improve-53).
+- The `zelynic block` family shares the same pinned-map enforcement
   mechanism (zero-rate policy).
 - Do not overclaim enforcement beyond what the pinned maps + watchdog
   actually guarantee.

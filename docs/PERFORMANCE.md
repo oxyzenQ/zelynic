@@ -35,15 +35,15 @@ sudo ./scripts/bench/benchmarking.sh --stress 1000  # 1000s sustained enforcemen
 
 | Operation | Target | Measured | Stdev | Status |
 |-----------|--------|----------|-------|--------|
-| `strict-single` (spawn → exit) | < 50ms | **32.4ms** | 0.6ms | Yes |
-| `block-single` (spawn → exit) | < 50ms | **32.1ms** | 0.4ms | Yes |
+| `strict` (spawn → exit) | < 50ms | **32.4ms** | 0.6ms | Yes |
+| `block` (spawn → exit) | < 50ms | **32.1ms** | 0.4ms | Yes |
 | `status` (1 limit active) | < 20ms | **11.1ms** | 0.2ms | Yes |
 
 ### Throughput
 
 | Operation | Target | Measured | Status |
 |-----------|--------|----------|--------|
-| Concurrent strict-single (5 parallel) | < 200ms total | **32.2ms** | Yes |
+| Concurrent strict (5 parallel) | < 200ms total | **32.2ms** | Yes |
 | Throughput (ops/sec) | > 50 | **155.4 ops/sec** | Yes |
 
 ### Memory Footprint
@@ -712,7 +712,7 @@ the standard harness protocol).
 
 Reading: PARITY — bytes/frame identical to the decimal, every other
 delta inside the harness's own run-to-run noise class. The probe's
-own cost lives in the strict-single command's wall-clock, not any
+own cost lives in the strict command's wall-clock, not any
 steady-state path: it runs once per apply (~4 s: two child spawns,
 one 3 s measured window, teardown), and the `--no-probe` escape
 plus the harness-side rides keep every scripted lane at apply-only

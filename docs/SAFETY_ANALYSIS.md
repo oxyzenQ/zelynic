@@ -82,7 +82,7 @@ privilege contract:
 
 | Surface | Root? | Contract |
 |---------|-------|----------|
-| `strict-single`/`strict-multi`/`strict-all`, `block-single`/`block-multi`/`block-all`, `unstrict`/`unstrict-all`/`recover` | required | load, attach, and pin BPF programs; write policy maps. Fail fast with a "re-run with sudo" tip before touching BPF state when run non-root |
+| `strict`/`strict-all`, `block`/`block-all`, `unstrict`/`unstrict-all`/`recover` | required | load, attach, and pin BPF programs; write policy maps. Fail fast with a "re-run with sudo" tip before touching BPF state when run non-root |
 | `status`, `eagle-eyes` | required | read pinned BPF maps (same fail-fast guard) |
 | `list-apps`, `doctor` | either | pure `/proc` + `/sys` reads; `doctor` additionally reports pin state when root |
 | `--help`, `-h`, `-V`/`--version`, bare invocation | either | pure stdout, no side effects, no file or network access |
@@ -140,7 +140,7 @@ guard: there root is the requirement, here root is the hazard.
 ### Pin mode (fire-and-forget):
 
 - The watchdog is never armed (deadline 0 = absent) — BPF always enforces
-- Rate = 0 is an explicit user request: `block-single`/`block-*` write a
+- Rate = 0 is an explicit user request: the `block` family writes a
   zero rate and BPF blocks all traffic for that cgroup (schema v3); the
   drop is booked through the same atomic fetch_add the rate path uses
   (schema v9, NIGHT-master-3 — the v5 plain `+=` lost drop increments
@@ -280,7 +280,7 @@ entry once both directions are gone (including ENOENT-only walks,
 which are the residue of crashed removals); recover does the same
 for dead-cgroup orphans. The maps stay proportional to live
 policies, not to host history. Shared group buckets are exempt —
-their lifecycle belongs to the strict-multi group, not to any one
+their lifecycle belongs to the strict group lane, not to any one
 member's removal.
 
 ## Memory Safety (Rust)
@@ -372,9 +372,9 @@ unit-pinned.
 > emptier direction map's free rows, and the remainder is handed
 > back for the one-line saturation warn (plus an honest
 > exit-non-zero when the sweep enforced NOTHING — the
-> no-silent-no-op contract). The explicit lists (strict-multi /
-> block-multi) keep the whole-refusal contract above unchanged:
-> every segment there is the operator's own claim. The pure
+> no-silent-no-op contract). The explicit lists (the strict /
+> block group lanes) keep the whole-refusal contract above
+> unchanged: every member there is the operator's own claim. The pure
 > admission rule and the capacity mirror are unit-pinned
 > (test/ebpf/limiter/policy_tests.rs); the full hunt record lives
 > in docs/audits/
@@ -1142,7 +1142,7 @@ sudo ss -tunp | grep zelynic
 
 ```bash
 # Trace file access by zelynic
-sudo strace -f -e trace=openat zelynic strict-single brave 100kb 2>&1 | head -50
+sudo strace -f -e trace=openat zelynic strict brave 100kb 2>&1 | head -50
 ```
 
 ### Check BPF programs:
@@ -1279,10 +1279,11 @@ apps when three were meant, and every path-shaped or
 punctuation-only segment (`a/`, `;` — the exact bytes of the owner's
 fatal example) flowed through as a guaranteed no-match that hid the
 mistake. The multi families now share one grammar
-(`validate_multi_targets`): empty segments, `/`-bearing segments,
-and punctuation-only segments are refused with the offending segment
-named, before the root guard, in strict-multi, block-multi, and
-unstrict-multi alike. What stays legal on purpose: numeric and
+(`validate_multi_targets`): empty members, `/`-bearing members,
+and punctuation-only members are refused with the offending member
+named, before the root guard, in every family's group lane alike
+(the '::' grammar, NIGHT-improve-53). What stays legal on purpose:
+numeric and
 `cg:<id>` segments (their semantics are the blocklist arm's), and
 alnum-bearing unknown names — the single-target no-execution proof
 (payloads echoed verbatim as data) survives in the multi form
@@ -1455,7 +1456,7 @@ RateRing 128 B, the u64 state words 8 B):
 | --- | --- | --- | --- |
 | Policy census | cgroup_policy_dl/ul | 1024 pinned | 1024 roots at the cap (new applies fail loudly, documented) |
 | DRR pools | cgroup_bucket_dl/ul | 1024 pinned | 1024 (one per root) |
-| Group buckets | group_bucket_dl/ul | 256 pinned | bounded by strict-multi groups, reclaimed by the dead-group sweep |
+| Group buckets | group_bucket_dl/ul | 256 pinned | bounded by group-lane lists, reclaimed by the dead-group sweep |
 | Stats ledger | cgroup_limiter_stats | 1024 pinned | 1024 (keyed at the resolved root) |
 | Delivered-rate rings | rate_ring_dl/ul | 1024 pinned | 1024 roots x 128 B |
 | AMMSP memo | ammsp_leaf_cache_dl/ul | 4096 LRU | 1024 live + dead cold entries age out (4x margin) |
