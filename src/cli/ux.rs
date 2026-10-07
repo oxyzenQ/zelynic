@@ -118,13 +118,14 @@ const REMOVED_SUBCOMMAND_REDIRECTS: &[(&str, &str)] = &[
     ("ba", "block --all"),
     ("unstrict-all", "unstrict --all"),
     ("ua", "unstrict --all"),
-    // NIGHT-improve-55: the snapshot verb is retired — the owner's
-    // live-test verdict was that the dump half of the persistence
-    // pair was not worth its workflow (the operator's own script is
-    // the state). The pair's survivor owns the muscle memory: the
-    // state file is now the operator's hand-maintained desired
-    // state, and `restore` is the verb that honors it.
-    ("snapshot", "restore"),
+    // NIGHT-improve-55: the persistence pair is retired whole —
+    // the owner's live-test verdict was that neither half earned
+    // its keep (remembering to dump before a reboot is a workflow
+    // the operator's own script already owns, and the state-file
+    // apply did not change that). Both spellings land on the
+    // vocabulary tip, the same contract every retired verb rides.
+    ("snapshot", "status"),
+    ("restore", "status"),
 ];
 
 /// Inject the successor for a removed subcommand as clap's OWN

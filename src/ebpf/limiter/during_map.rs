@@ -25,13 +25,16 @@ use crate::ebpf::pin::{PIN_MAP_POLICY_WINDOW, PIN_MAP_WALL_CLOCK_OFFSET};
 
 // ━━ The mutation ledger ━━
 
-/// Translate one spec at the apply instant, both clocks read
-/// fresh: the one-shot form every apply-family caller shares
+/// Translate one spec at the apply instant, the monotonic clock
+/// read fresh: the one-shot form every apply-family caller shares
 /// (policy.rs apply_single/apply_group, atomic.rs apply_multi) —
-/// one place pairs the wall read with the monotonic read, so the
-/// twin arithmetic always sees the same instant.
+/// one place owns the read, so every caller sees the same
+/// discipline. The duration-only grammar needs no wall read
+/// here anymore (the span/daily translations that did are retired
+/// with the restore lane — NIGHT-improve-55); the wall clock
+/// still rides the offset-bridge stamps below.
 pub(super) fn translate_now(spec: &DuringSpec) -> PolicyWindowRaw {
-    during_to_window(spec, wall_now_ns(), monotonic_ns())
+    during_to_window(spec, monotonic_ns())
 }
 
 /// One window mutation this invocation made, carrying the row's

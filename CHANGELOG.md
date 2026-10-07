@@ -1366,34 +1366,42 @@ NIGHT-hunt-18's git-history-only call.
   warn's `u --all` hint, the no-rate example, the epilogue, the
   recover suggestions) name the new spelling end to end.
 
-- **feat(cli): NIGHT-improve-55 — the snapshot verb is retired: the
-  persistence pair's dump half, removed after the owner's live-test
-  verdict (not worth the workflow).** `zelynic snapshot` — the verb
-  that serialized the live policy census to
-  /var/lib/zelynic/limits.json — is gone from the surface, and with
-  it the dump machinery (the census join, the atomic write, the
-  wall-form window serializer's command-layer re-export). What the
-  live test taught: a dump you must remember to run before every
-  reboot is a workflow the operator's own script already owns
-  (`zelynic s brave 500kb` in a unit file IS the desired state),
-  and the dump added nothing to it. The pair's surviving half keeps
-  the lane, unchanged in name and shape (no new flags, no new CLI —
-  the owner's explicit constraint): `zelynic restore` still reads
-  the state file and re-applies every entry through the strict
-  family's own machinery, best-effort with the honest report; the
-  file is now the operator's hand-maintained desired state (kept in
-  git, edited by hand — the "GitOps for bandwidth" apply direction,
-  the half that earned its keep; schema v1 and the WALL-clock
-  `during` form unchanged, so every existing file restores exactly
-  as before). Typing the retired spelling lands on the redirect
-  table's tip naming `restore` (exit 2, the observe/top contract);
-  the state file's schema-drift refusal now points at the
-  operator's own edit ("fix the schema tag or re-create the file"),
-  never a re-dump. The supermassive v4 battery rides the verdict:
-  the survivor's privilege-refusal and no-positional rows stay, the
-  retired spelling is a REMOVED row with the restore-redirect
-  needle; the Rust pins lose the dump's transform battery and gain
-  the redirect pin.
+- **feat(cli): NIGHT-improve-55 — the persistence pair is retired
+  WHOLE: snapshot AND restore, removed after the owner's live-test
+  verdict (not worth it).** The verdict landed in two steps — first
+  the dump half went (`zelynic snapshot`, the verb that serialized
+  the live policy census to /var/lib/zelynic/limits.json), then the
+  owner's re-audit retired the survivor with it: a dump you must
+  remember to run before every reboot is a workflow the operator's
+  own script already owns (`zelynic s brave 500kb` in a unit file
+  IS the desired state), and a hand-maintained state file did not
+  change that — the "GitOps for bandwidth" lane was two verbs of
+  ceremony the fleet's own strict spellings already cover. What
+  goes with the pair: the `restore` command and its dispatch arm
+  (surface.rs, commands/mod.rs), the whole handler pair
+  (persist.rs's state-file schema + restore plan, persist_run.rs's
+  apply lane), the JSON-surface classification (scope.rs drops the
+  restore arm and the list entry), the restore block in --help, the
+  persist_tests + persist_window_tests batteries, the USAGE section
+  with its systemd pairing example, and the v4 battery's restore
+  rows. The eBPF machinery the lane borrowed is untouched where it
+  serves the living `--during` feature, and trimmed where it was
+  the file format alone: the persistence form trio
+  (WindowPersist, window_persist_form, window_persist_to_spec) is
+  gone from during.rs, DuringSpec's Span/Daily re-translation
+  variants — the state file's read-side vocabulary, constructorless
+  since the retirement — went with the dead_code the compiler
+  honestly flagged, and during_to_window drops its unused wall
+  parameter (the duration-only grammar needs just the monotonic
+  clock; the legacy span/daily MAP rows stay honored at the
+  window_active/window_state level, the runtime never forgetting a
+  promised row). Both retired spellings land on the redirect
+  table's tip naming `status` (exit 2, the observe/top contract);
+  the successor also suppresses clap's fuzzy near-miss, which for
+  'restore' would have suggested the unrelated 'recover'. The
+  reboot truth keeps its one honest home: USAGE's "Limits do not
+  survive reboot" limitation, which now names the retirement and
+  the unit-file answer in one breath.
 
 - **refactor(cli): NIGHT-improve-53 — the twelve masterclass retirees
   (see the Added entry above).** strict-single, strict-multi, ss,

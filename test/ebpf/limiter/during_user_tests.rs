@@ -5,13 +5,17 @@
 //! rootless pins for the --during userspace half — the grammar
 //! family (during_parse.rs: the flag's ONE shape, and the removed
 //! window/date shapes refusing by name), the wall-to-mono
-//! translation (the RESTORE lane's variants included — a row an
-//! older build promised keeps its promise), the calendar
+//! translation (the LEGACY MAP ROW variants included — a row an
+//! older build pinned in the map keeps its promise), the calendar
 //! renderer, and the dormancy notes. THE TWIN GRID
 //! (window_active_user vs the kernel core's window_active) lives
 //! in during_tests.rs beside the core wiring it compares against
 //! (the one-load discipline: the core file compiles into this
 //! tree exactly once).
+//!
+//! NIGHT-improve-55: the persistence round-trip grid that lived
+//! here went with the snapshot/restore pair when the owner retired
+//! the feature whole — the wall form had no reader left.
 
 use crate::ebpf::limiter::during_parse::{parse_during, DuringSpec, DURING_MAX_NS, DURING_MIN_NS};
 use crate::ebpf::limiter::types::{PolicyWindowRaw, WINDOW_KIND_DAILY, WINDOW_KIND_SPAN};
@@ -174,8 +178,8 @@ fn format_wall_utc_renders_known_instants() {
     assert_eq!(format_wall_utc(NS_PER_DAY), "1970-01-02 00:00:00 UTC");
     // 20741 days = 2026-10-15 (hardcoded the way the anchor above
     // is: the renderer still owns the wall-clock surface the
-    // restore lane and the status lines print, so its calendar
-    // stays pinned on known instants).
+    // status lines print, so its calendar stays pinned on known
+    // instants).
     let day = 20_741 * NS_PER_DAY + 18 * 3600 * NS_PER_SEC;
     assert_eq!(format_wall_utc(day), "2026-10-15 18:00:00 UTC");
 }
@@ -187,12 +191,10 @@ fn duration_translates_to_a_running_span() {
     use crate::ebpf::limiter::during::{during_to_window, wall_now_ns};
     let _ = wall_now_ns(); // the impure shell compiles in this tree too
     let mono = 10 * NS_PER_SEC;
-    let wall = 1_700_000_000 * NS_PER_SEC;
     let row = during_to_window(
         &DuringSpec::Duration {
             ns: 2 * 3600 * NS_PER_SEC,
         },
-        wall,
         mono,
     );
     assert_eq!(row.kind, WINDOW_KIND_SPAN);
@@ -203,89 +205,14 @@ fn duration_translates_to_a_running_span() {
     assert_eq!(row.end_mono_ns, mono + 2 * 3600 * NS_PER_SEC);
 }
 
-#[test]
-fn span_translates_across_the_clock_pair() {
-    use crate::ebpf::limiter::during::during_to_window;
-    let mono = 5 * NS_PER_SEC;
-    let wall = 1_700_000_000 * NS_PER_SEC;
-    let start_wall = wall - NS_PER_SEC; // started 1s before the apply
-    let end_wall = wall + 100 * NS_PER_SEC;
-    let row = during_to_window(
-        &DuringSpec::Span {
-            start_wall_ns: start_wall,
-            end_wall_ns: end_wall,
-        },
-        wall,
-        mono,
-    );
-    // start = mono - (wall - start_wall) = 5s - 1s = 4s.
-    assert_eq!(row.start_mono_ns, 4 * NS_PER_SEC);
-    assert_eq!(row.end_mono_ns, mono + 100 * NS_PER_SEC);
-    // A start before the host booted clamps to "since boot".
-    let ancient = during_to_window(
-        &DuringSpec::Span {
-            start_wall_ns: 0,
-            end_wall_ns: end_wall,
-        },
-        wall,
-        mono,
-    );
-    assert_eq!(ancient.start_mono_ns, 0, "a pre-boot start saturates to 0");
-}
-
-#[test]
-fn future_date_span_sleeps_until_its_day() {
-    use crate::ebpf::limiter::during::during_to_window;
-    let mono = 5 * NS_PER_SEC;
-    let wall = 1_700_000_000 * NS_PER_SEC;
-    // A span whose start is 9 days out and end 10 days out (a
-    // state file restored before its span's day arrives — the
-    // restore lane's dormancy shape, the wall deadlines an older
-    // snapshot promised).
-    let start_wall = wall + 9 * NS_PER_DAY;
-    let end_wall = wall + 10 * NS_PER_DAY;
-    let row = during_to_window(
-        &DuringSpec::Span {
-            start_wall_ns: start_wall,
-            end_wall_ns: end_wall,
-        },
-        wall,
-        mono,
-    );
-    // The dormancy law: the row sleeps until its day arrives — the
-    // future start translates FORWARD into the monotonic domain,
-    // it must never collapse onto the apply instant (night-audit-1
-    // task 17's law, now guarding the restore lane).
-    assert_eq!(
-        row.start_mono_ns,
-        mono + 9 * NS_PER_DAY,
-        "a future start sleeps until its instant: start_mono={}",
-        row.start_mono_ns
-    );
-    assert_eq!(row.end_mono_ns, mono + 10 * NS_PER_DAY);
-    assert!(
-        row.start_mono_ns > mono,
-        "a freshly applied future date is dormant at the apply instant"
-    );
-}
-
-#[test]
-fn daily_translates_verbatim() {
-    use crate::ebpf::limiter::during::during_to_window;
-    let row = during_to_window(
-        &DuringSpec::Daily {
-            start_s: 22 * 3600,
-            end_s: 6 * 3600,
-        },
-        wall_anchor(),
-        5 * NS_PER_SEC,
-    );
-    assert_eq!(row.kind, WINDOW_KIND_DAILY);
-    assert_eq!(row.start_s, 22 * 3600);
-    assert_eq!(row.end_s, 6 * 3600);
-    assert_eq!(row.start_mono_ns, 0);
-    assert_eq!(row.end_mono_ns, 0);
-}
+// NIGHT-improve-55: the span/daily translation pins that lived
+// here went with the restore lane — DuringSpec's Span/Daily
+// variants were the snapshot file's read-side vocabulary, and
+// they have no constructor left. The LEGACY MAP ROW contract
+// (dormant spans sleeping until their instant, daily rows honoring
+// their hours) stays pinned where it lives: window_state and the
+// dormancy-note grids above, PolicyWindowRaw level, the runtime
+// never forgetting a promised row.
 
 // ━━ The dormancy notes (the probe's stand-down wording) ━━
 
@@ -352,7 +279,7 @@ fn dormancy_notes_name_the_three_shapes() {
     assert!(dormancy_note(&corrupt, wall, mono).is_none());
 }
 
-// ━━ The status vocabulary + the persistence round-trip ━━
+// ━━ The status vocabulary ━━
 
 #[test]
 fn window_state_names_the_four_states() {
@@ -395,59 +322,4 @@ fn window_state_names_the_four_states() {
     let mut corrupt = daily(0, 10);
     corrupt.kind = 7;
     assert_eq!(window_state(&corrupt, wall, mono), "active");
-}
-
-#[test]
-fn window_persistence_round_trips_both_shapes() {
-    use crate::ebpf::limiter::during::{window_persist_form, window_persist_to_spec};
-    use crate::ebpf::limiter::types::WINDOW_KIND_SPAN;
-    let wall = 1_791_288_000_000_000_000u64;
-    let mono = 5 * 1_000_000_000u64;
-    // A span: the wall instants reconstruct through the offset pair
-    // (start_wall = mono_start + (wall - mono)).
-    let offset = wall - mono;
-    let row = PolicyWindowRaw {
-        kind: WINDOW_KIND_SPAN,
-        reserved: 0,
-        start_mono_ns: 10 * 1_000_000_000,
-        end_mono_ns: 3600 * 1_000_000_000,
-        start_s: 0,
-        end_s: 0,
-    };
-    let form = window_persist_form(&row, wall, mono);
-    assert_eq!(form.kind, "span");
-    assert_eq!(form.start_wall_ns, 10 * 1_000_000_000 + offset);
-    assert_eq!(form.end_wall_ns, 3600 * 1_000_000_000 + offset);
-    assert_eq!(
-        window_persist_to_spec(&form),
-        Some(DuringSpec::Span {
-            start_wall_ns: 10 * 1_000_000_000 + offset,
-            end_wall_ns: 3600 * 1_000_000_000 + offset,
-        }),
-        "the span round-trips through its wall form"
-    );
-    // A daily: the pair verbatim.
-    let daily_row = PolicyWindowRaw {
-        kind: crate::ebpf::limiter::types::WINDOW_KIND_DAILY,
-        reserved: 0,
-        start_mono_ns: 0,
-        end_mono_ns: 0,
-        start_s: 22 * 3600,
-        end_s: 6 * 3600,
-    };
-    let form = window_persist_form(&daily_row, wall, mono);
-    assert_eq!(form.kind, "daily");
-    assert_eq!(form.start_s, 22 * 3600);
-    assert_eq!(form.end_s, 6 * 3600);
-    assert_eq!(
-        window_persist_to_spec(&form),
-        Some(DuringSpec::Daily {
-            start_s: 22 * 3600,
-            end_s: 6 * 3600
-        })
-    );
-    // A corrupt kind name refuses — never a best-guess parse.
-    let mut bad = form;
-    bad.kind = "whenever".to_string();
-    assert!(window_persist_to_spec(&bad).is_none());
 }

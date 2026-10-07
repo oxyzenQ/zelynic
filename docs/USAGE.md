@@ -738,106 +738,6 @@ green with partial-failure results in warning yellow, and every
 quoted runnable command in suggestion white — all degrading to plain
 text when piped, like every styled surface.
 
-### restore — apply the desired-state file
-
-```bash
-sudo zelynic restore               # re-apply every limit from the state file (idempotent)
-```
-
-The pins under `/sys/fs/bpf/zelynic` already survive process exit —
-that is the whole point of LIBBPF_PIN_BY_NAME. What they cannot
-survive is a REBOOT: bpffs starts empty, and with it every policy.
-The persistence lane (NIGHT-private-research-4, reworked by
-NIGHT-improve-55) closes that gap with ONE verb and zero background
-presence — no daemon, ever.
-
-`restore` applies `/var/lib/zelynic/limits.json`, the operator's
-hand-maintained desired state (kept in git, edited by hand — the
-"GitOps for bandwidth" apply direction). The file is JSON, keyed by
-NAME: a reboot changes cgroup IDs, so names are the only stable
-key. One entry per policy leg, `schema: 1` at the root:
-
-```json
-{
-  "schema": 1,
-  "captured_at_unix": 1791288000,
-  "entries": [
-    { "name": "brave", "direction": "download", "rate_bps": 1000000,
-      "group_id": 0, "per_socket": false, "floor_bps": 0, "ceil_bps": 0 },
-    { "name": "brave", "direction": "upload", "rate_bps": 500000,
-      "group_id": 0, "per_socket": false, "floor_bps": 0, "ceil_bps": 0 }
-  ]
-}
-```
-
-Every field is documented by its shape: `direction` is the full word
-(`download` / `upload`), `group_id` re-joins the members of one
-shared bucket (the restore hands each group ONE NEW bucket; `0` =
-solo), `per_socket` is the per-connection tier (the single lane
-only), the bracket pair (`floor_bps` / `ceil_bps`, improve-40
-schema v24) is the per-direction guarantee with `0` = unset, and
-`during` (night-during, schema v23) carries an auto-expire window
-in its WALL-clock form — `{"kind": "span", "start_wall_ns": ...,
-"end_wall_ns": ...}` or `{"kind": "daily", "start_s": ..., "end_s":
-...}`; absent means a plain forever-limit. A window whose kind is
-neither `span` nor `daily` REFUSES the restore naming its row: an
-unreadable auto-expire promise must never restore as a
-forever-limit.
-
-`restore` re-applies every entry through the strict family's own
-machinery — the pre-flight resolution, the rollback ledger, the
-memo invalidation, the whole ladder. A fresh boot has no pins at
-all, so restore runs the same attach every strict-* does first.
-The contract is best-effort with an honest report (the fleet
-sweep's precedent): a name that is not running yet — containers start late
-— is listed as skipped, never silently missed, and never an abort
-for the rest of the fleet. Re-run restore after the late starter
-boots to pick it up. Idempotent: an apply over an existing limit is
-the documented supersede. A drifted `schema` tag refuses outright
-with the tag in the error — a best-guess parse would apply the
-wrong shape's policies, and the fix is your own edit, never a
-re-dump (the dump verb is retired; NIGHT-hunt-30's visit sweep had
-kept expired `--during` rows out of its census, and the operator's
-own file carries that responsibility now by simply not listing dead
-spans).
-
-Pair it with systemd yourself — the unit is the operator's choice,
-not ours to impose:
-
-```ini
-# /etc/systemd/system/zelynic-restore.service
-[Unit]
-Description=Re-apply zelynic bandwidth policies after reboot
-After=network.target
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/zelynic restore
-
-[Install]
-WantedBy=multi-user.target
-```
-
-What rides along, stated honestly: the file pins the POLICY, not
-the bucket state — tokens, refill fractions, DRR carries, and ECN
-debt are runtime transients the fresh buckets re-derive (a restore
-is a fresh apply, the same shape every strict-* ride; the burst
-re-derives from the rate's default law, which is also the only
-value the CLI surface can write, so a hand-written and a restored
-policy agree). The stats ledger starts at zero — it measures THIS
-boot's enforcement, which is the truth a status reader wants. The
-verb honors `--print-json`: the restore report carries the applied
-and skipped names for scripting.
-
-Why the dump verb is gone (NIGHT-improve-55, the owner's live-test
-verdict): the original pair's other half serialized the live policy
-census to the state file — but a dump you must remember to run
-before every reboot is a workflow your own script already owns
-(`zelynic s brave 500kb` in a unit file IS the desired state), and
-the dump added nothing to it. The apply direction earns its keep;
-the dump did not. Typing the retired spelling lands on the redirect
-tip that names `restore`.
-
 ### status — what is limited right now
 
 ```bash
@@ -1809,7 +1709,13 @@ Pins live on bpffs (`/sys/fs/bpf/zelynic/`), which is wiped at boot —
 and cgroup IDs are re-assigned by the kernel anyway. After a reboot,
 re-apply your limits. There is no boot-time persistence layer by
 design; if you need one, a systemd unit or shell profile calling
-zelynic is a user-side decision.
+zelynic is a user-side decision. (The `snapshot`/`restore` pair that
+briefly shipped a state-file lane is retired whole — NIGHT-improve-55:
+the owner's live-test verdict was that a dump you must remember to
+run is a workflow your own script already owns, and the state-file
+apply did not change that. A unit file calling the strict family IS
+the desired state. Typing either retired spelling lands on the
+redirect tip.)
 
 **3. Name resolution needs the app to be running.**
 `strict` matches live processes in `/proc`. An app that is not

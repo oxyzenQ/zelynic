@@ -58,14 +58,14 @@ pub use parse::{
 pub use types::{
     BracketPair, BracketSpec, Direction, LimiterStatsRaw, PolicyRaw, RateSpec, Target, LIMITER_ELF,
 };
-// night-during (schema v23): the --during surfaces the command layer
-// consumes (the display join rides the re-exports). window_persist_form
-// stays during-internal since NIGHT-improve-55 retired the snapshot
-// dump (its only command-layer caller); the during_user_tests reach
-// it through the module path directly.
+// night-during (schema v23): the --during surfaces the command
+// layer consumes (the display join rides the re-exports). The
+// persistence trio (WindowPersist + its two halves) went with the
+// snapshot/restore pair when NIGHT-improve-55 retired the feature
+// whole — nothing command-layer reaches into during's file format
+// anymore, so no re-export rides for it.
 pub use during::{dormancy_note, format_wall_utc, wall_minus_mono, wall_now_ns, window_state};
-pub(crate) use during::{window_persist_to_spec, WindowPersist};
-pub use during_parse::{parse_during, DuringSpec};
+pub use during_parse::parse_during;
 
 pub use crate::ebpf::pin::{
     pin_dir_has_files, read_pinned_schema_version, unpin_all, PIN_DIR, PIN_LINK_DL, PIN_LINK_UL,

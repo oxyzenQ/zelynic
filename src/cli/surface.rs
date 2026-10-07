@@ -234,30 +234,6 @@ pub enum Commands {
     #[command(name = "recover")]
     Recover,
 
-    /// Re-apply every limit from the state file (idempotent)
-    ///
-    /// NIGHT-improve-55: the persistence pair's surviving half. The
-    /// serialized-dump verb (`snapshot`) is retired — the owner's
-    /// live-test verdict was that remembering to dump before a
-    /// reboot is a workflow the operator's own script already owns,
-    /// and the dump added nothing to it. What stays is the APPLY
-    /// direction: /var/lib/zelynic/limits.json is the operator's
-    /// hand-maintained desired state (kept in git, edited by hand —
-    /// the "GitOps for bandwidth" half that earned its keep), and
-    /// this verb re-applies every entry through the strict family's
-    /// own apply machinery (the rollback ledger, memo invalidation,
-    /// the whole ladder). Best-effort with an honest report — a name
-    /// that is not running yet (containers start late) is listed as
-    /// skipped, never silently missed; re-run restore after it
-    /// starts to pick it up. Pairs with a systemd oneshot unit an
-    /// operator wires — zelynic ships the verb, not a daemon.
-    ///
-    /// Examples:
-    ///   sudo zelynic restore                # apply the state file
-    ///   sudo zelynic restore --print-json   # machine-readable report
-    #[command(name = "restore")]
-    Restore,
-
     /// Show active limits and watchdog status
     #[command(name = "status")]
     Status,
