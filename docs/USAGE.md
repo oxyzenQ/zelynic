@@ -723,6 +723,17 @@ last policies, the empty enforcement skeleton is unpinned too (the
 same no-residue ladder the unstrict family runs — a verified zero,
 never an assumed one).
 
+NIGHT-lts-8 (the leftovers question, closed): hosts that ran the
+retired snapshot/restore pair may still carry its state file at
+`/var/lib/zelynic/limits.json`. It is inert — nothing in zelynic
+reads it, writes it, or chokes on it — so the full-cleanup ladder
+sweeps it as old-install hygiene: `u --all`, `recover`, and the
+no-residue unpin (the ladder that runs when the last policy leaves)
+all remove it best-effort, with a one-time `[cleanup] legacy state
+swept` line naming what left. The sweep never touches anything else
+under `/var/lib/zelynic` — a directory with other content keeps the
+directory.
+
 NIGHT-dinner-23 (the count-honesty and style hardening): the
 none-branch verdict reports BOTH dimensions the maps just read —
 `Orphans: none (2 policies across 1 cgroup, all live)` — where the

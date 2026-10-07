@@ -27,6 +27,32 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **feat(cleanup): NIGHT-total-lts-8 — the legacy state sweep: the
+  retired persistence pair's limits.json leaves upgraded hosts on
+  the no-residue ladder.** The owner's policy call on lts-8's other
+  honest residual ("whether a cleanup lane should sweep root's
+  /var/lib content is an owner policy call, not an audit's
+  default"): approved. The audit's verdict stands — the file is
+  INERT (zero references in src/ or scripts/; nothing reads it,
+  nothing writes it, nothing chokes on it) — so the sweep is pure
+  old-install hygiene riding the lane the legacy PID file and the
+  world-writable-era lock file already ride: `unpin_all_bpf` sweeps
+  /var/lib/zelynic/limits.json best-effort, meaning `u --all`,
+  `recover`, and the no-residue unpin (the ladder that runs when
+  the last policy leaves) all carry it. Best-effort by the
+  legacy-file law (a permission error or a missing file never fails
+  the cleanup verdict the user asked for); the pair's directory
+  only leaves WITH the file and only when empty (anything a user
+  parked under /var/lib/zelynic keeps the directory — remove_dir
+  refuses it by construction); the announcement prints exactly once
+  per upgraded host (`[cleanup] legacy state swept: ...`), never on
+  hosts that never ran the pair, never twice (nothing writes the
+  file anymore, so it cannot come back). The pure core takes its
+  path and is pinned rootlessly from a tempdir in
+  test/commands/legacy_sweep_tests.rs — four shapes: the pair's
+  file and its now-empty dir leave together, sibling content keeps
+  the dir, a clean host is untouched, and a bare empty dir without
+  the file is not the sweep's to take.
 - **feat(gates): NIGHT-total-lts-8 — the audits-index completeness
   recipe becomes gate 20: an audit doc that ships without a
   docs/README.md row fails the push.** The owner approved lifting
