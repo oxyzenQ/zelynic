@@ -79,6 +79,33 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
         let mut limiter = Limiter::open_pinned(verbose)?;
         limiter.refresh_identity();
 
+        // NIGHT-hunt-30 (the session's core find): the window-death
+        // pass runs BEFORE the orphan scan — an expired `--during`
+        // row is not crash residue (its cgroup is alive, its window
+        // is over), but it used to ride the scan as a "live" policy
+        // and read "nothing to recover" while stale rows waited for
+        // a manual unstrict (the same visit-sweep law status now
+        // owns; recover holds the lock already). Window-death first,
+        // crash-residue second: the orphan census below then counts
+        // only rows whose clock still stands, and the doctor's own
+        // report names what the window pass collected. The sweep
+        // stays best-effort (its own contract): a failed read warns
+        // and the orphan scan below still propagates ITS reads —
+        // the honest ladder, each surface its own verdict.
+        let swept = match limiter.sweep_expired_windows() {
+            Ok(n) => n,
+            Err(e) => {
+                eprintln_safe!("[limiter] window sweep skipped: {e}");
+                0
+            }
+        };
+        if swept > 0 {
+            eprintln_safe!(
+                "  Windows: {} expired row(s) swept (window-death, not crash residue)",
+                crate::output::ok(&swept.to_string())
+            );
+        }
+
         // NIGHT-master-4 (the honesty audit): the orphan scan's reads
         // PROPAGATE. The former unwrap_or_default() here folded a
         // failed map read into zero policies — and zero policies

@@ -337,7 +337,17 @@ impl super::Limiter {
     /// AFTER its own writes land, so a sweep failure warns and never
     /// fails the apply that triggered it (sweep_expired_windows'
     /// contract, one call-site shape).
-    pub(super) fn sweep_expired_windows_best_effort(&mut self) {
+    ///
+    /// NIGHT-hunt-30: the read visits join the apply family as sweep
+    /// drivers — status, recover, and snapshot all call this under
+    /// their own lock (status try-locks and skips silently when
+    /// another operation holds it), so an expired `--during` row is
+    /// collected by the very visit the owner uses to check state,
+    /// not left as an "awaiting sweep" row that needs a manual
+    /// unstrict (the hunt-30 session's core find). The
+    /// "CLI is the daemon" law, completed: every mutation-capable
+    /// visit reaps what its own clock says is dead.
+    pub fn sweep_expired_windows_best_effort(&mut self) {
         if let Err(e) = self.sweep_expired_windows() {
             eprintln_safe!("[limiter] window sweep skipped: {e}");
         }

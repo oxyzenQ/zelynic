@@ -51,6 +51,27 @@ pub fn handle_status(verbose: bool, json: bool) -> Result<()> {
 
     let mut limiter = Limiter::open_pinned(verbose)?;
     limiter.refresh_identity();
+
+    // NIGHT-hunt-30 (the session's core find — "the brave on status
+    // should gone but this need manual"): status IS a daemon visit.
+    // The lazy sweep used to ride only the apply family, so an
+    // expired `--during` row sat in the maps as an "awaiting sweep"
+    // row — counted as an ACTIVE limit, rendered with its stale
+    // rate, and needing a manual unstrict to die — while the owner
+    // checked `status` again and again watching it not leave (the
+    // kernel had already stopped policing it; only the ROW was
+    // stale). The "CLI is the daemon" law, completed: the visit the
+    // owner uses to CHECK state is the visit that collects what the
+    // clock says is dead. Try-lock, never block: another operation
+    // holding the lock simply means this render shows the
+    // "awaiting sweep" wording honestly (the sweep's own unstrict
+    // traces on stderr name what was collected, the audit trail the
+    // applies already print).
+    let _sweep_lock = crate::ebpf::lock::acquire().ok();
+    if _sweep_lock.is_some() {
+        limiter.sweep_expired_windows_best_effort();
+    }
+
     if json {
         limiter.print_status_json()?;
     } else {

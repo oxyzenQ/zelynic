@@ -28,7 +28,17 @@ pub fn handle_snapshot(json: bool) -> Result<()> {
     }
     let _lock = crate::ebpf::lock::acquire()?;
 
-    let limiter = Limiter::open_pinned(false)?;
+    let mut limiter = Limiter::open_pinned(false)?;
+    // NIGHT-hunt-30 (the visit-sweep law, the persistence lane): the
+    // census captures what the CLOCK says is alive — an expired
+    // `--during` row would ride the state file as a live limit and
+    // restore as a born-expired span ("awaiting sweep" again, one
+    // reboot later). The sweep runs under the lock this handler
+    // already owns (status's own try-lock shape does not apply
+    // here); the identity refresh rides it so the sweep's unstrict
+    // traces name the apps, not bare cg: ids.
+    limiter.refresh_identity();
+    limiter.sweep_expired_windows_best_effort();
     let dl = limiter.read_policies_public(Direction::Download)?;
     let ul = limiter.read_policies_public(Direction::Upload)?;
 

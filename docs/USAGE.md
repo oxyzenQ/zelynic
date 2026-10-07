@@ -626,7 +626,14 @@ the owner's duration-only revision): a blocked row with a window
 lifts itself — `bs shorts --during 8h` blocks for eight hours
 and stands down when they are over (no daemon, no cron; the same
 one-shape grammar the strict family takes: `<N><unit>`, units
-s m h d mn y, bounds 1s..10y).
+s m h d mn y, bounds 1s..10y). The KERNEL decides when the window
+is over; the ROW is collected by the next zelynic visit — every
+apply, and since NIGHT-hunt-30 the read visits too (`status`,
+`recover`, `snapshot`: the commands the owner actually runs to
+check state), so an expired row never waits for a manual
+unstrict (the hunt-30 session's core find: stale rows sat in
+`status` as "awaiting sweep" until a mutating command happened
+to run).
 
 ```bash
 sudo zelynic block-single brave
@@ -672,6 +679,15 @@ their policies (the same LTS budget unstrict maintains). Safe to run
 anytime — it does nothing when state is clean. `status` tells you when
 you need it ("stale bpf pin files detected").
 
+NIGHT-hunt-30: recover also runs the WINDOW-DEATH pass before its
+orphan scan — an expired `--during` row is not crash residue (its
+cgroup is alive, its clock is over), but it used to ride the scan as
+a "live" policy and read "nothing to recover" while stale rows
+waited for a manual unstrict. The window pass reaps what the clock
+says is dead (a `Windows: N expired row(s) swept` line names it),
+and the orphan census below counts only rows whose clock still
+stands — window-death first, crash-residue second.
+
 NIGHT-master-4 (the honesty hardening): every verdict recover prints
 is VERIFIED. A failed policy-map read errors out (never a fabricated
 "Orphans: none"), the removed-file counts come from the teardown's
@@ -715,6 +731,11 @@ background presence (NIGHT-private-research-4, the owner-approved
 `snapshot` reads the live policy census from both pinned policy maps
 and writes it to `/var/lib/zelynic/limits.json`, keyed by NAME: a
 reboot changes cgroup IDs, so names are the only stable key. The
+census captures what the clock says is ALIVE (NIGHT-hunt-30): the
+visit sweep runs before the read, so an expired `--during` row
+never rides the state file as a live limit (a restored dead span
+would land as born-expired — "awaiting sweep" again, one reboot
+later). The
 document carries every leg — who, which direction, what rate,
 grouping (the shared-bucket members re-join through the map's group
 id), the per-socket flag, the guarantee bracket (improve-40,
@@ -780,6 +801,20 @@ Reads the pinned maps and prints the active limits: how many dl/ul
 policies, and a table of cgroup / download / upload / allowed /
 dropped per cgroup, with labels resolved by majority vote over the
 live processes inside each cgroup.
+
+Status is a daemon visit (NIGHT-hunt-30, the hunt-30 session's core
+find): before the table renders, the visit sweep collects every
+expired `--during` row — the kernel already stopped policing it at
+its window's end, and the row used to sit in the table as an
+"awaiting sweep" line with its stale rate until a mutating command
+happened to run ("the brave on status should gone but this need
+manual"). Now the check IS the collection: the sweep's unstrict
+traces on stderr name what was reaped, and the table counts only
+what the clock says is alive. A concurrent operation holding the
+lock skips the sweep silently — the row renders with its honest
+"awaiting sweep" lifetime line, collected by the next quiet visit.
+`--print-json` rides the same lane, so automation's
+`active_limits` counts live windows only.
 
 Reading the last two columns (spelled out after the rc.2 long-run
 audit showed the pair can read as a mystery):
