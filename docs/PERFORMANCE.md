@@ -1783,3 +1783,46 @@ correctness surface is the nine chroma pins (the round-trip law,
 the pinned brand triple, the polar saturation law, the gamut
 mapping's hue-hold law) — the bench proves the price, the pins
 prove the colors.
+
+### NIGHT-hunt-29 A/B (the synthetic-cookie fixture re-baseline, 2026-10-07)
+
+This is not a layout A/B — it is the harness's own re-baseline: the
+fixture variant that closes lts-7's documented residual (the
+cookie:None shape that never drove the join lane). A = cb3e3c8 (the
+cookie:None era), B = 0c5ab4d (every socket resolving a synthetic
+cookie, one dup'd-fd pair per detail cgroup, the monitor loop's
+exact join wiring — socket_cookies, the synthetic cookie-map result,
+apply_socket_bytes — running every frame). 10 s formal runs, the
+standard harness protocol; the B side re-confirmed at HEAD after
+commit (three runs, fps 5,764.6 / 5,735.7 / 5,722.4 — the spread is
+the shared-host band).
+
+| Metric | cb3e3c8 (A) | 0c5ab4d (B) | Delta |
+|--------|------------|-------------|-------|
+| fps | 7,203.9 | 5,722.4 | -20.6% (the join lane's debug-profile cost) |
+| bytes/frame | 1,919.0 | 1,919.0 | +0.0% |
+| emit bytes/frame | 511.5 | 536.9 | +5.0% |
+| frame entropy | 3.0320 | 3.2091 | +5.8% (the figures are real content) |
+| density gini | 0.3500 | 0.3219 | -8.0% (the figures are real content) |
+| dirty cells/frame | 40.0 | 82.4 | +105.9% (the figures grow every frame) |
+
+Reading: bytes/frame BYTE-EXACT — the logical frame is the boxed
+render, the row count is unchanged, and the [dl X | ul Y] figures
+live inside the existing line budget, so the layout surface is
+untouched; the entropy/gini/dirty movement is the intended delta
+(the endpoint figures are content the old fixture never rendered,
+and they churn per frame exactly as the live lifetime counters do
+at their own cadence). The fps drop was bisected before landing:
+-17.8% of it is the join COMPUTE (socket_cookies plus the key-set
+build) and -2.7% the install, figure rendering, and diff churn —
+all of it in the harness's unoptimized test profile, where ~100
+HashMap operations cost tens of microseconds; the same block costs
+~1-2 us in the release lane the live monitor runs. The honest
+reading is the closure's own point: the old 7,203.9 measured a
+frame that SKIPPED the join work the live loop always did — the
+fps drop is the blind spot's price becoming visible, not a
+regression. The A/B protocol itself is intact from here on: any
+layout change compares like-for-like, both sides carrying the join.
+Determinism holds (frame 1 byte-identical across independent runs;
+the ±0.0001 gini/entropy drift across full runs is the
+frame-count-window noise class the lts-9 record documented).
