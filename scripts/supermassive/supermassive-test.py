@@ -1020,8 +1020,22 @@ def apply_single(name, rate_str, exp_dl, exp_ul, extra=()):
 
 
 def apply_group(names, rate_str, exp):
+    # --no-probe rides apply_group for the same scripted-use reason
+    # apply_single carries it (the legacy v11.0.0 side of the A/B
+    # predates the flag — PROBE_FLAG_SUPPORTED is the per-side
+    # toggle): hunt-30's verification probe runs a 3s measurement
+    # window through the FIRST member's row, and its bytes land in
+    # that row's bytes_allowed counter. The kill-tui accounting
+    # contract compares the counter against the cycle's own 2.5s
+    # client window on the same member — a probed apply reads
+    # (3s + 2.5s)/2.5s = 2.2x, the exact inflation the 2026-10-07
+    # supermassive legs convicted (224-234%, five cycles, every
+    # leg). The scripted harness wants the apply, not the probe.
     target = "::".join(str(CG.ids[n]) for n in names)
-    rc, stdout, stderr = run_zel(["strict", target, rate_str])
+    argv = ["strict", target, rate_str]
+    if PROBE_FLAG_SUPPORTED:
+        argv.append("--no-probe")
+    rc, stdout, stderr = run_zel(argv)
     if rc != 0:
         return False, f"strict exit {rc}: {(stderr or stdout).strip()[:200]}"
     doc = status_json()
