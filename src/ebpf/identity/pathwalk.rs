@@ -50,7 +50,7 @@ const MAX_DEPTH: usize = 32;
 /// the cgroupfs walk. None means the id names no directory the
 /// mount admits — a gone cgroup, or a tree past the bounds.
 pub fn rel_path_by_id(cgroup_id: u32) -> Option<String> {
-    if let Some(rel) = super::depth::deep_collect(cgroup_id).rel_path {
+    if let Some(rel) = super::depth_walk::deep_collect(cgroup_id).rel_path {
         return Some(rel);
     }
     let mut visits = 0usize;

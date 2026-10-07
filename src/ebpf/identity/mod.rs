@@ -45,6 +45,12 @@ pub mod name_walk;
 // --depth — same family as the walk + tally pair, one more concern.
 pub mod depth;
 
+// NIGHT-hunt-30: the depth family's walk layer — the set walk that
+// closed the eagle-eyes depth report's per-id /proc quadratic (the
+// same one-walk class improve-50 / hunt-28 / hunt-29 own), split
+// from depth.rs at its LOC cap.
+pub mod depth_walk;
+
 // NIGHT-repair-1: the id-to-path resolver — the family's INVERSE
 // boundary (stat the mount, match the kernfs inode), the lane that
 // names a memberless cgroup the /proc walk cannot.

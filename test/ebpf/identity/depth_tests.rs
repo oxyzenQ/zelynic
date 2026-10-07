@@ -101,7 +101,7 @@ fn status_parse_reads_uid_state_threads_rss() {
 /// absent id yields the empty report, the honest shape).
 #[test]
 fn deep_collect_never_panics_on_absent_cgroup() {
-    let out = deep_collect(u32::MAX);
+    let out = crate::ebpf::identity::depth_walk::deep_collect(u32::MAX);
     assert!(out.procs.is_empty());
     assert!(out.rel_path.is_none());
 }
@@ -267,7 +267,7 @@ fn controller_resource_parsers_take_the_exact_payloads() {
 /// view).
 #[test]
 fn controller_resources_without_a_path_are_all_none() {
-    let r = cgroup_resources(None);
+    let r = crate::ebpf::identity::depth_walk::cgroup_resources(None);
     assert_eq!(r.memory_current_bytes, None);
     assert_eq!(r.cpu_usage_usec, None);
 }
