@@ -118,14 +118,16 @@ pub fn handle_block_multi(
     // x:1` walked the same numeric blocklist bypass `ss 1` did. The
     // string loop closes it; check_dangerous_target's numeric path
     // resolves the id to its live members and runs the blocklist.
+    // NIGHT-improve-50: the batched multi guard — one /proc walk for
+    // every numeric segment in the list (the per-segment loop was
+    // O(segments x processes)); wording and refusal order are
+    // byte-identical to the loop it replaces.
     let segments = super::safety::validate_multi_targets(
         targets_str,
         "zelynic block-multi brave:curl:pacman",
     )?;
 
-    for t in &segments {
-        super::safety::check_dangerous_target(t, force_this)?;
-    }
+    super::safety::check_dangerous_targets_multi(&segments, force_this)?;
 
     let targets: Vec<Target> = segments
         .iter()

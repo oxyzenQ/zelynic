@@ -9,8 +9,8 @@ use anyhow::Result;
 use super::{probe, probe_report};
 use crate::commands::rates::resolve_rates;
 use crate::commands::safety::{
-    check_dangerous_target, check_root_catch_all_resolved, validate_multi_targets,
-    validate_single_target,
+    check_dangerous_target, check_dangerous_targets_multi, check_root_catch_all_resolved,
+    validate_multi_targets, validate_single_target,
 };
 
 #[cfg(feature = "ebpf")]
@@ -268,10 +268,13 @@ pub(crate) fn handle_strict_multi(
     let segments =
         validate_multi_targets(targets_str, "zelynic strict-multi brave:curl:pacman 1mb")?;
 
-    // Check each target for dangerous names.
-    for t in &segments {
-        check_dangerous_target(t, force_this)?;
-    }
+    // Check each target for dangerous names. NIGHT-improve-50: the
+    // batched multi guard — one /proc walk for every numeric segment
+    // in the list (the per-segment loop was O(segments x processes);
+    // a fleet-scale apply walked /proc thousands of times before the
+    // policy write ever ran). Wording and refusal order are
+    // byte-identical to the loop it replaces.
+    check_dangerous_targets_multi(&segments, force_this)?;
 
     let targets: Vec<Target> = segments
         .iter()

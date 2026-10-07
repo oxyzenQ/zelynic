@@ -160,8 +160,15 @@ What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
          sampled member, kernel drops engaged), daemonized traffic
          policed (setsid, no ctty, metric to a file), 8 concurrent
          report readers under enforcement, zero-row zero-cgroup
-         teardown — then, only on a green server phase, the desktop
-         matrix: env + minimum specs, doctor, list-apps JSON, baseline,
+         teardown, then the NIGHT-improve-50 cap-crossing stage
+         (owner-approved: 4100 cgroups past the 4096 observer/
+         leaderboard boundary — the census rows every member, the
+         4100-target strict-multi argv reaches the policy machinery
+         and refuses CLEAN at the policy family's 1024 ceiling
+         through the atomic rollback, the at-cap control lands 1024
+         targets whole, zero residue) — then, only on a green
+         server phase, the desktop matrix: env + minimum specs,
+         doctor, list-apps JSON, baseline,
          strict-single policy write, status human + JSON surfaces,
          the live rate change 1mb -> 2mb under an active policy (both
          rungs MEASURED, not just re-read from the status row), the
@@ -1130,6 +1137,32 @@ def enforcement_proofs(label, got_bytes, name="a", baseline_allowed=0):
 SERVER_FLEET_N = 64
 SERVER_FLEET_PREFIX = "zelynic-server-fleet"
 
+# NIGHT-improve-50 (owner-approved 2026-10-07): the cap-crossing
+# fleet. The decision audit (docs/audits/
+# NIGHT_IMPROVE_50_SUPERMASSIVE_EXTREME_MODE_DECISION_2026-10-07.md)
+# skipped the extreme mode as proposed — 1M/1T cgroups are physically
+# impossible and product-invisible; past 4096 live cgroups every
+# further member exercises the same LRU/retirement mechanisms with
+# zero new semantics — and named exactly ONE candidate worth owner
+# approval: a single density stage crossing the product's own
+# boundaries LIVE. The owner approved it; this constant is the
+# approved shape. 4100 crosses the observer/leaderboard family's
+# 4096 ceiling (the eviction/restart/retirement semantics stay
+# unit-pinned — the audit's honest boundary), while the census walk
+# and the policy ceiling are asserted LIVE here: 4100 members must
+# all appear as list-apps rows, the 4100-target strict-multi argv
+# must reach the policy machinery (no argv-boundary refusal), and
+# the policy family's 1024-ceiling must refuse the past-cap apply
+# CLEAN through the atomic rollback — the refusal IS the pin.
+CAP_FLEET_N = 4100
+CAP_FLEET_PREFIX = "zelynic-cap-fleet"
+# The policy family's per-map capacity (ebpf/src/bin/limiter.rs:
+# cgroup_policy_dl/ul — HashMap::pinned(1024, 0); the bucket and
+# stats maps share the class). At-cap is the legal edge this stage
+# proves from below: exactly 1024 targets must land whole, and the
+# 1025th leg of a past-cap apply must refuse whole.
+POLICY_MAP_CAPACITY = 1024
+
 
 def server_headless_env():
     """The stripped environment a real server carries (NIGHT-blade-4):
@@ -1220,6 +1253,46 @@ class ServerFleet:
 
 
 FLEET = None
+CAP_FLEET = None
+
+
+class CapFleet(ServerFleet):
+    """The cap-crossing population (NIGHT-improve-50, owner-approved):
+    CAP_FLEET_N cgroups each holding one resident sleeper — the same
+    member shape ServerFleet owns (one mkdir + one `sleep 600` fork),
+    built through a bounded worker pool because the sequential
+    per-member residency barrier that costs nothing at 64 members
+    would run minutes at 4100. The barrier itself is unchanged: every
+    member still settles through the same cgroup.procs + comm
+    evidence, one worker at a time per member, just N-wide. Teardown
+    is inherited verbatim — unstrict-multi over every id (row-less
+    members delete as ENOENT-absent, exit clean), sleepers killed and
+    reaped, cgroup dirs removed with the same retry shape, zero
+    residue."""
+
+    def __init__(self):
+        super().__init__(count=CAP_FLEET_N)
+
+    def setup(self):
+        """Create the cap fleet with residency-guaranteed sleepers,
+        16 barriers wide; every member settles or the fleet reports
+        how many did not (a half-populated fleet would read as a
+        census bug in zelynic, not in the harness — the same honesty
+        ServerFleet.setup carries)."""
+        self.paths = [f"{CGROUP_ROOT}/{CAP_FLEET_PREFIX}-{i:02d}" for i in range(self.count)]
+        for path in self.paths:
+            os.mkdir(path)
+        self.ids = [CgroupSet._read_id(p) for p in self.paths]
+        if any(i is None for i in self.ids):
+            return False
+        with ThreadPoolExecutor(max_workers=16) as pool:
+            self.sleepers = list(
+                pool.map(
+                    lambda p: spawn_bg_in_cgroup_path(p, ["sleep", "600"]),
+                    self.paths,
+                )
+            )
+        return all(s is not None for s in self.sleepers)
 
 
 def stage_server_headless():
@@ -1589,12 +1662,195 @@ def stage_server_teardown():
     return ok
 
 
+def stage_server_cap_crossing():
+    """Server fact 7 (NIGHT-improve-50, owner-approved): the
+    cap-crossing population — 4100 live cgroups with resident
+    sleepers, PAST the observer/leaderboard family's 4096 ceiling,
+    asserting the three boundaries that actually change behavior:
+
+    1. the census walk: list-apps must row EVERY member (the walk
+       has no cap; 64 proved the walk, 4100 proves it at 64x past
+       the leaderboard's own boundary);
+    2. the 4100-target strict-multi argv: the one colon spec must
+       REACH the policy machinery — no argv-boundary refusal — and
+       die there at the policy family's 1024 ceiling, CLEAN: the
+       atomic rollback owns the partial state, zero rows survive;
+    3. the at-cap control: exactly POLICY_MAP_CAPACITY targets must
+       land WHOLE (every row at the written rate) — the ceiling
+       proven from below, so the past-cap refusal means capacity,
+       not breakage.
+
+    The eviction/restart/retirement semantics past 4096 stay
+    unit-pinned (the decision audit's honest boundary: a live
+    eviction proof would need a TUI assertion under churn — the
+    flake class the busy-hour residual already documents)."""
+    global CAP_FLEET
+    out()
+    out(
+        f"━━━ server depth: cap crossing ({CAP_FLEET_N} cgroups, past the 4096 boundary) ━━━"
+    )
+    if not CG.dedicated:
+        record(
+            f"server: cap-crossing fleet census ({CAP_FLEET_N} cgroups)",
+            "SKIP",
+            "session-cgroup fallback — dedicated cgroups not creatable",
+        )
+        record(
+            "server: cap-crossing strict-multi refusal (1024-ceiling)",
+            "SKIP",
+            "fleet absent (census skipped)",
+        )
+        record(
+            "server: cap-crossing at-cap control (1024 targets, whole)",
+            "SKIP",
+            "fleet absent (census skipped)",
+        )
+        record(
+            "server: cap-crossing fleet teardown (zero rows, zero cgroups)",
+            "SKIP",
+            "fleet absent (census skipped)",
+        )
+        return False
+    CAP_FLEET = CapFleet()
+    built_at = time.monotonic()
+    if not CAP_FLEET.setup():
+        settled = sum(1 for s in CAP_FLEET.sleepers if s is not None)
+        record(
+            f"server: cap-crossing fleet census ({CAP_FLEET_N} cgroups)",
+            "FAIL",
+            f"residency barrier failed: {settled}/{CAP_FLEET_N} sleepers settled",
+        )
+        CAP_FLEET.teardown()
+        CAP_FLEET = None
+        return False
+    construction = time.monotonic() - built_at
+    rc, stdout, _ = run_zel(["list-apps", "--print-json"], timeout=180)
+    census = None
+    if rc == 0:
+        try:
+            census = json.loads(stdout)
+        except json.JSONDecodeError:
+            census = None
+    if census is None:
+        record(
+            f"server: cap-crossing fleet census ({CAP_FLEET_N} cgroups)",
+            "FAIL",
+            f"list-apps exit {rc}, no JSON",
+        )
+        CAP_FLEET.teardown()
+        CAP_FLEET = None
+        return False
+    seen = {row.get("cgroup_id") for row in census.get("apps", [])}
+    missing = [i for i in CAP_FLEET.ids if i not in seen]
+    ok = (
+        record(
+            f"server: cap-crossing fleet census ({CAP_FLEET_N} cgroups)",
+            "PASS" if not missing else "FAIL",
+            f"{CAP_FLEET_N - len(missing)}/{CAP_FLEET_N} fleet rows in list-apps"
+            f", construction {construction:.1f}s"
+            + (f", missing: {missing[:5]}..." if missing else ""),
+        )
+        == "PASS"
+    )
+    # The past-cap refusal: one 4100-target colon spec (~20 KB of
+    # argv on this VM's id width — the real-host width is larger,
+    # still two orders under MAX_ARG_STRLEN), refused at the policy
+    # family's 1024 ceiling. The PASS contract is the CLEAN shape:
+    # non-zero exit, the insert-failure cause surfaced, the atomic
+    # rollback's own line ("apply rolled back ... no residue"), and
+    # a status JSON carrying ZERO fleet rows after it all.
+    target = ":".join(str(i) for i in CAP_FLEET.ids)
+    rc, stdout, stderr = run_zel(["strict-multi", target, "2mb"], timeout=180)
+    combined = (stderr or "") + (stdout or "")
+    doc = status_json()
+    rows_after = (
+        sum(1 for i in CAP_FLEET.ids if limit_entry(doc, i) is not None) if doc else -1
+    )
+    refusal_ok = (
+        rc != 0
+        and "Failed to write policy" in combined
+        and "apply rolled back" in combined
+        and "no residue" in combined
+        and rows_after == 0
+    )
+    ok = (
+        record(
+            "server: cap-crossing strict-multi refusal (1024-ceiling)",
+            "PASS" if refusal_ok else "FAIL",
+            f"exit {rc}, insert cause surfaced: {'Failed to write policy' in combined},"
+            f" rollback line: {'apply rolled back' in combined}, fleet rows after: {rows_after}",
+        )
+        == "PASS"
+        and ok
+    )
+    # The at-cap control: exactly POLICY_MAP_CAPACITY targets — the
+    # legal edge. Every row must land at 2mb/2mb, whole (the
+    # past-cap refusal only means capacity if the at-cap apply
+    # works). Runs on the refusal's rolled-back slate: the maps are
+    # empty again, so the arithmetic is exact — legs 1..1024 insert,
+    # nothing overflows.
+    control_ids = CAP_FLEET.ids[:POLICY_MAP_CAPACITY]
+    control_target = ":".join(str(i) for i in control_ids)
+    rc, stdout, stderr = run_zel(["strict-multi", control_target, "2mb"], timeout=180)
+    if rc == 0:
+        doc = status_json()
+        wrong = [
+            cid
+            for cid in control_ids
+            if (entry := limit_entry(doc, cid)) is None
+            or entry.get("download_bps") != 2_000_000
+            or entry.get("upload_bps") != 2_000_000
+        ]
+        ok = (
+            record(
+                "server: cap-crossing at-cap control (1024 targets, whole)",
+                "PASS" if not wrong else "FAIL",
+                f"{POLICY_MAP_CAPACITY - len(wrong)}/{POLICY_MAP_CAPACITY} rows at 2mb/2mb"
+                + (f", wrong: {wrong[:5]}..." if wrong else ""),
+            )
+            == "PASS"
+            and ok
+        )
+    else:
+        ok = (
+            record(
+                "server: cap-crossing at-cap control (1024 targets, whole)",
+                "FAIL",
+                f"exit {rc}: {(stderr or stdout).strip()[:200]}",
+            )
+            == "PASS"
+            and ok
+        )
+    # The teardown: the cap fleet leaves nothing — rows, sleepers,
+    # cgroups, all gone (the same contract the dense fleet owns).
+    clean = CAP_FLEET.teardown()
+    doc = status_json()
+    rows = (
+        sum(1 for i in CAP_FLEET.ids if limit_entry(doc, i) is not None) if doc else len(CAP_FLEET.ids)
+    )
+    ok = (
+        record(
+            "server: cap-crossing fleet teardown (zero rows, zero cgroups)",
+            "PASS" if clean and rows == 0 else "FAIL",
+            f"cgroups removed: {clean}, limit rows left: {rows}",
+        )
+        == "PASS"
+        and ok
+    )
+    CAP_FLEET = None
+    return ok
+
+
 def run_server_phase():
     """NIGHT-blade-4: the server depth phase — headless env, dense
     population, daemonized traffic, concurrent readers, orderly
     teardown — run BEFORE the desktop matrix (the owner's phase
     order). Returns True when no server stage FAILED (SKIP is an
-    honest environment verdict, never a gate failure)."""
+    honest environment verdict, never a gate failure).
+    NIGHT-improve-50: the cap-crossing stage rides LAST, after the
+    dense fleet's teardown — the 1024-ceiling arithmetic wants the
+    empty-slate pin state the teardown's unpin leaves behind, and
+    the 4100-member population wants the 64-fleet's memory back."""
     out()
     out("━━━ phase 1/2: server depth (headless, dense, daemonized) ━━━")
     stage_server_headless()
@@ -1603,6 +1859,7 @@ def run_server_phase():
     stage_server_daemon_traffic()
     stage_server_parallel_readers()
     stage_server_teardown()
+    stage_server_cap_crossing()
     failed = [r for r in RESULTS if r["test"].startswith("server:") and r["verdict"] == "FAIL"]
     if failed:
         out()
