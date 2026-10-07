@@ -27,6 +27,41 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **docs(audit): NIGHT-total-lts-6 — the all-infra pass, total LTS,
+  honest: zero new defects, every surface read SOUND at peak, the
+  skip reasons on the record.** The infra twin of lts-7's
+  killer-features pass (landed the same night): where lts-7 read
+  the feature engines, this pass read the FOUNDATION around them —
+  the crash-pattern sweep (every unwrap/expect/panic across src/,
+  all hits in test blocks or provable loop invariants), the
+  term-reset stack (the five-layer recovery re-read against its
+  improve-30/31/34 lineage), the lock module (the hunt-14 /run
+  0700 close, flock-on-fd released by any death), the update lane
+  (root refusal before any I/O, the hourly swarm bound, the
+  sanitize boundary on the untrusted tag — the one semantic note
+  found, the pre-release SemVer strip, recorded and declined with
+  its reason: owner-controlled tagging never produces the shape
+  against itself), the CI estate (all nine workflows
+  least-privileged, actionlint + actions-pin health green), and
+  the numeric-cast family (the u32 cgroup-ID truncation is the
+  documented kernel-consistent map-key contract). Two repo-wide
+  automated hunts built for this round and kept outside the repo
+  tree (ad-hoc audit instruments, not repo assets): the
+  stale-reference sweep (502 path references across 67 living docs
+  — eight apparent hits, each classified: two false positives, one
+  upstream path, four accurate history records, one frozen
+  changelog shorthand under the estate's disclaimer; ZERO true
+  stale references requiring fixes) and the zombie-code sweep
+  (zero TODO/FIXME/HACK in production source; all twelve
+  allow(dead_code) sites carry their dual-compile rationale in
+  their own comments). The live eBPF stress legs cannot run on a
+  rootless cgroup-v1 host — the CI supermassive matrix owns them,
+  named as the audit's own honest residual. Audit record:
+  [docs/audits/NIGHT_TOTAL_LTS_6_ALL_INFRA_AUDIT_2026-10-07.md](docs/audits/NIGHT_TOTAL_LTS_6_ALL_INFRA_AUDIT_2026-10-07.md)
+  (the verdict table and the residuals live there; the one real
+  find of the night — the cookie-join dedup — landed in the
+  lts-7 commit with its own A/B).
+
 - **fix(identity) + fix(commands): NIGHT-hunt-30 — the depth
   report's per-id class closed: one set walk, one policy read,
   one stats join (the hunt-until-nothing-remains sweep's
