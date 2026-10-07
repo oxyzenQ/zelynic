@@ -1319,6 +1319,35 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Removed
 
+- **feat(cli): NIGHT-improve-55 — the snapshot verb is retired: the
+  persistence pair's dump half, removed after the owner's live-test
+  verdict (not worth the workflow).** `zelynic snapshot` — the verb
+  that serialized the live policy census to
+  /var/lib/zelynic/limits.json — is gone from the surface, and with
+  it the dump machinery (the census join, the atomic write, the
+  wall-form window serializer's command-layer re-export). What the
+  live test taught: a dump you must remember to run before every
+  reboot is a workflow the operator's own script already owns
+  (`zelynic s brave 500kb` in a unit file IS the desired state),
+  and the dump added nothing to it. The pair's surviving half keeps
+  the lane, unchanged in name and shape (no new flags, no new CLI —
+  the owner's explicit constraint): `zelynic restore` still reads
+  the state file and re-applies every entry through the strict
+  family's own machinery, best-effort with the honest report; the
+  file is now the operator's hand-maintained desired state (kept in
+  git, edited by hand — the "GitOps for bandwidth" apply direction,
+  the half that earned its keep; schema v1 and the WALL-clock
+  `during` form unchanged, so every existing file restores exactly
+  as before). Typing the retired spelling lands on the redirect
+  table's tip naming `restore` (exit 2, the observe/top contract);
+  the state file's schema-drift refusal now points at the
+  operator's own edit ("fix the schema tag or re-create the file"),
+  never a re-dump. The supermassive v4 battery rides the verdict:
+  the survivor's privilege-refusal and no-positional rows stay, the
+  retired spelling is a REMOVED row with the restore-redirect
+  needle; the Rust pins lose the dump's transform battery and gain
+  the redirect pin.
+
 - **refactor(cli): NIGHT-improve-53 — the twelve masterclass retirees
   (see the Added entry above).** strict-single, strict-multi, ss,
   sm, block-single, block-multi, bs, bm, unstrict-single,

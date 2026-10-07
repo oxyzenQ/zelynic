@@ -240,11 +240,10 @@ pub fn window_state(win: &PolicyWindowRaw, wall_now_ns: u64, mono_now_ns: u64) -
     }
 }
 
-/// The WALL-clock persistence form of one window row (the snapshot
-/// document's `during` field): a span's monotonic deadlines are
-/// meaningless across a reboot (mono resets), so the census
-/// serializes the WALL instants (reconstructed through the same
-/// offset pair the twin uses) and the daily pair verbatim; the
+/// The WALL-clock persistence form of one window row (the state
+/// file's `during` field): a span's monotonic deadlines are
+/// meaningless across a reboot (mono resets), so the document
+/// carries the WALL instants and the daily pair verbatim; the
 /// restore re-translates through a fresh bridge. A restored row
 /// must never convert "auto-expires" into "forever" — the design
 /// brief's safety direction.
@@ -264,7 +263,11 @@ pub struct WindowPersist {
 
 /// One row's persistence form (pure): the span's wall instants
 /// reconstructed as `mono + (wall - mono)` — the exact inverse of
-/// the apply-time translation, the twin's own arithmetic.
+/// the apply-time translation, the twin's own arithmetic. Test-only
+/// since NIGHT-improve-55: the snapshot dump that called it is
+/// retired (the operator writes the wall form by hand now), so the
+/// round-trip grid in during_user_tests is the shape's only reader.
+#[cfg(test)]
 pub fn window_persist_form(
     win: &PolicyWindowRaw,
     wall_now_ns: u64,

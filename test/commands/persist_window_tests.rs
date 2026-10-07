@@ -2,18 +2,17 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 //! night-during's persistence pins (schema v23; the owner's
-//! duration-only revision): the WINDOW family the snapshot/restore
-//! lane owns, rootless — the wall-form census join, the plan's
-//! window round-trip (the restore lane's Span/Daily vocabulary,
-//! the read-side belt), and the window-kind gate that refuses an
-//! unreadable auto-expire promise instead of swallowing it into a
-//! forever-limit. Split out of persist_tests.rs when the
-//! window-kind gate pushed that file past the 500-LOC owner cap
-//! (the during_map discipline, one test tree over); the shared
-//! census factories stay with the parent file (pub(super), the
-//! sibling's vocabulary).
+//! duration-only revision): the WINDOW family the restore lane
+//! owns, rootless — the plan's window round-trip (the restore
+//! lane's Span/Daily vocabulary, the read-side belt) and the
+//! window-kind gate that refuses an unreadable auto-expire promise
+//! instead of swallowing it into a forever-limit. Split out of
+//! persist_tests.rs when the window-kind gate pushed that file past
+//! the 500-LOC owner cap (the during_map discipline, one test tree
+//! over); the shared entry factory stays with the parent file
+//! (pub(super), the sibling's vocabulary).
 
-use super::persist_tests::{entry, raw};
+use super::persist_tests::entry;
 use super::{restore_plan, validate_persisted_windows, SnapshotDoc, SnapshotEntry, STATE_SCHEMA};
 
 #[test]
@@ -69,68 +68,9 @@ fn an_unknown_window_kind_refuses_the_restore_naming_the_row() {
     .is_ok());
 }
 
-/// from_rows joins the window census: a leg whose root carries a
-/// window serializes its WALL form (the offset pair makes the
-/// instants deterministic); a row without one stays absent; both
-/// leg entries of one row carry the same form.
-#[test]
-fn from_rows_joins_the_window_wall_form() {
-    use crate::ebpf::limiter::types::{PolicyWindowRaw, WINDOW_KIND_SPAN};
-    use crate::ebpf::limiter::window_persist_form;
-
-    let rows = vec![(101u32, raw(1_000_000, 0, 0))];
-    let names = |id: u32| {
-        if id == 101 {
-            Some("brave".to_string())
-        } else {
-            None
-        }
-    };
-    let wall = 1_791_288_000_000_000_000u64;
-    let mono = 5 * 1_000_000_000u64;
-    let windows = vec![(
-        101u32,
-        PolicyWindowRaw {
-            kind: WINDOW_KIND_SPAN,
-            reserved: 0,
-            start_mono_ns: 0,
-            end_mono_ns: 3600 * 1_000_000_000,
-            start_s: 0,
-            end_s: 0,
-        },
-    )];
-    let mut skip = Vec::new();
-    let doc = SnapshotDoc::from_rows(
-        crate::ebpf::limiter::Direction::Download,
-        &rows,
-        &names,
-        1,
-        &windows,
-        wall,
-        mono,
-        &mut skip,
-    );
-    let expected = window_persist_form(&windows[0].1, wall, mono);
-    assert_eq!(doc.entries[0].during, Some(expected));
-
-    // Without a window: absent, never a fabricated form.
-    let mut skip = Vec::new();
-    let doc = SnapshotDoc::from_rows(
-        crate::ebpf::limiter::Direction::Download,
-        &rows,
-        &names,
-        1,
-        &[],
-        wall,
-        mono,
-        &mut skip,
-    );
-    assert!(doc.entries[0].during.is_none());
-}
-
 /// restore_plan carries the window into the step (the wall form
 /// back into the spec the apply family takes), solo and group
-/// alike; a mixed member set keeps the FIRST form the census read.
+/// alike; a mixed member set keeps the FIRST form the file carried.
 #[test]
 fn restore_plan_carries_the_window_spec() {
     // A solo row's daily window round-trips into the step's spec.
@@ -183,8 +123,9 @@ fn restore_plan_carries_the_window_spec() {
     );
 
     // A span form round-trips into the wall-span spec; a mixed
-    // member set keeps the FIRST form the census read (the map
-    // guarantees one row per root, so disagreement means torn).
+    // member set keeps the FIRST form the file carried (the restore
+    // reads what the operator wrote — the first entry of the set
+    // owns the window).
     let span_form = crate::ebpf::limiter::WindowPersist {
         kind: "span".to_string(),
         start_wall_ns: 100,

@@ -1,17 +1,18 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! The snapshot/restore lane (NIGHT-private-research-4's
-//! owner-approved persistence ask) — "GitOps for bandwidth" without
-//! a daemon. The pins under /sys/fs/bpf/zelynic already survive
-//! process exit (the whole point of LIBBPF_PIN_BY_NAME); what they
-//! cannot survive is a REBOOT — bpffs starts empty, and with it every
-//! policy. This module closes that gap with two one-shot verbs and
-//! zero background presence:
+//! The restore lane (NIGHT-private-research-4's persistence ask,
+//! reworked by NIGHT-improve-55) — the surviving half of the
+//! "GitOps for bandwidth" pair. The DUMP verb (`snapshot`) is
+//! retired: the owner's live-test verdict was that remembering to
+//! dump before a reboot is a workflow the operator's own script
+//! already owns, and the dump added nothing to it. What survives is
+//! the APPLY direction, zero background presence:
 //!
-//!   `zelynic snapshot` — serialize the live policy census to the
-//!                        state file (who is limited, which
-//!                        direction, what rate, grouping, per-socket)
+//!   /var/lib/zelynic/limits.json — the operator's hand-maintained
+//!                        desired state (kept in git, edited by hand:
+//!                        who is limited, which direction, what rate,
+//!                        grouping, per-socket)
 //!   `zelynic restore`  — re-apply every entry from the state file
 //!                        (idempotent, safe to re-run, honest about
 //!                        names that no longer resolve)
@@ -23,31 +24,31 @@
 //! silently missed, and never an abort for the rest. Re-running
 //! restore after the late starter boots picks it up — the systemd
 //! oneshot + path/timer pairing an operator wires is their choice;
-//! zelynic ships the two verbs, not a daemon.
+//! zelynic ships the verb, not a daemon.
 //!
-//! WHAT RIDES ALONG (stated honestly): the snapshot pins the
+//! WHAT WRITES THE FILE (stated honestly): since NIGHT-improve-55
+//! the operator does — the dump verb is gone. The document pins the
 //! POLICY, not the bucket state — tokens, fractions, DRR carries,
 //! and ECN debt are runtime transients the fresh buckets re-derive
 //! (a restore is a fresh apply, the same shape every strict-* ride;
 //! the burst re-derives from the rate's default law, which is also
-//! the only value the CLI surface can write, so the captured and the
-//! restored policies agree). The stats ledger starts at zero — it
+//! the only value the CLI surface can write, so a hand-written and
+//! a restored policy agree). The stats ledger starts at zero — it
 //! measures THIS boot's enforcement, which is the truth a status
 //! reader wants.
 //!
 //! Everything map-touching is root-gated like the strict family;
-//! the pure transforms (rows -> entries, entries -> the restore
-//! plan) are test-pinned rootlessly under test/commands/.
+//! the pure transform (entries -> the restore plan) is
+//! test-pinned rootlessly under test/commands/.
 
 use anyhow::{bail, Result};
 
 use crate::ebpf::limiter::{
-    window_persist_form, window_persist_to_spec, BracketPair, BracketSpec, Direction, DuringSpec,
-    PolicyRaw, RateSpec, WindowPersist,
+    window_persist_to_spec, BracketPair, BracketSpec, DuringSpec, RateSpec, WindowPersist,
 };
 
-/// Where the serialized policy state lives. A system lane, not a
-/// user lane: the policies are root's to write (the strict family's
+/// Where the desired-state file lives. A system lane, not a user
+/// lane: the policies are root's to write (the strict family's
 /// privilege ladder), and /var/lib is the distro-blessed home for
 /// reboot-persistent service state (XDG_RUNTIME_DIR is per-boot by
 /// contract — exactly the lifetime this file must outlive).
@@ -59,27 +60,27 @@ pub(crate) const STATE_FILE: &str = "/var/lib/zelynic/limits.json";
 /// tag in the error, never a best-guess parse).
 pub(crate) const STATE_SCHEMA: u32 = 1;
 
-// ── The document (serde both ways: the file is the same JSON the
-// --print-json surface emits, one writer discipline) ────────────────
+// ── The document (serde both ways: the operator's hand-written
+// file and the restore's --print-json report share one JSON
+// discipline) ──────────────────────────────────────────────
 
 /// One serialized policy leg: a name, a direction, and the policy
-/// the map carried for it.
+/// the operator wants it to carry.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct SnapshotEntry {
-    /// The process name the /proc walk resolved at capture time (the
-    /// stable key across reboots; cgroup IDs are not).
+    /// The process name to limit (the stable key across reboots;
+    /// cgroup IDs are not — the restore resolves the name fresh at
+    /// its own instant).
     pub name: String,
-    /// "download" or "upload" — the pinned map the row was read from
-    /// (`Direction::label()`, the full word: the file is a scripting
-    /// surface, not a map-name fragment).
+    /// "download" or "upload" — the leg's direction (the full word:
+    /// the file is a scripting surface, not a map-name fragment).
     pub direction: String,
     /// The policy's rate in bits per second.
     pub rate_bps: u64,
-    /// The strict group-lane bucket the row belongs to (the map's group_id;
-    /// 0 = solo). The ID itself is per-apply randomness — the restore
-    /// hands its members ONE NEW shared bucket — but WITHIN the
-    /// document it is the grouping key that re-joins the members a
-    /// census read apart.
+    /// The strict group-lane bucket the row belongs to (0 = solo).
+    /// The ID itself is per-apply randomness — the restore hands its
+    /// members ONE NEW shared bucket — but WITHIN the document it is
+    /// the grouping key that re-joins the members of one group.
     pub group_id: u32,
     /// True when the policy carried the per-socket flag (every
     /// connection its own budget at the policy rate).
@@ -109,60 +110,14 @@ pub(crate) struct SnapshotEntry {
 pub(crate) struct SnapshotDoc {
     /// The schema tag; a restore refuses a mismatching tag outright.
     pub schema: u32,
-    /// Capture time in unix seconds (std only — the no-chrono
-    /// discipline; a reader formats it their own way).
+    /// The file's last-edit stamp in unix seconds (std only — the
+    /// no-chrono discipline; a reader formats it their own way).
+    /// Informational: the restore never branches on it.
     pub captured_at_unix: u64,
-    /// Every policy leg, capture order.
+    /// Every policy leg, the operator's own order (a dump-era file
+    /// keeps its capture order — the plan's collapse laws are
+    /// order-independent, so both read identically).
     pub entries: Vec<SnapshotEntry>,
-}
-
-impl SnapshotDoc {
-    /// Build one direction's half of the document from the census
-    /// rows plus the cgroup-id -> name join the identity walk
-    /// produced. Pure: the caller owns the map reads and the walk;
-    /// this function only shapes — and a census row whose cgroup no
-    /// longer has a name lands in the skip list it returns through,
-    /// honestly NAMED, never serialized as a bare id the restore
-    /// would misresolve.
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn from_rows(
-        direction: Direction,
-        rows: &[(u32, PolicyRaw)],
-        names: &dyn Fn(u32) -> Option<String>,
-        per_socket_flag: u32,
-        windows: &[(u32, crate::ebpf::limiter::PolicyWindowRaw)],
-        wall_now_ns: u64,
-        mono_now_ns: u64,
-        skip: &mut Vec<u32>,
-    ) -> SnapshotDoc {
-        let mut entries = Vec::with_capacity(rows.len());
-        for (cgroup_id, raw) in rows {
-            match names(*cgroup_id) {
-                Some(name) => entries.push(SnapshotEntry {
-                    name,
-                    direction: direction.label().to_string(),
-                    rate_bps: raw.rate_bps,
-                    group_id: raw.group_id,
-                    per_socket: raw.flags & per_socket_flag != 0,
-                    // improve-40 (schema v24): the bracket rides the
-                    // row verbatim — both legs carry the same pair,
-                    // the plan collapses it.
-                    floor_bps: raw.floor_bps,
-                    ceil_bps: raw.ceil_bps,
-                    during: windows
-                        .iter()
-                        .find(|(id, _)| id == cgroup_id)
-                        .map(|(_, w)| window_persist_form(w, wall_now_ns, mono_now_ns)),
-                }),
-                None => skip.push(*cgroup_id),
-            }
-        }
-        SnapshotDoc {
-            schema: STATE_SCHEMA,
-            captured_at_unix: 0,
-            entries,
-        }
-    }
 }
 
 /// One restore plan step, derived purely from the merged entries:

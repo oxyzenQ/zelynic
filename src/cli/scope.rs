@@ -30,8 +30,7 @@ use super::Commands;
 /// needs no BPF). A featureless build answers with its honest
 /// smaller set.
 #[cfg(feature = "ebpf")]
-const JSON_SURFACE_COMMANDS: &str =
-    "status, list-apps, eagle-eyes --depth, doctor, snapshot, restore";
+const JSON_SURFACE_COMMANDS: &str = "status, list-apps, eagle-eyes --depth, doctor, restore";
 #[cfg(not(feature = "ebpf"))]
 const JSON_SURFACE_COMMANDS: &str = "doctor";
 
@@ -48,12 +47,13 @@ pub(crate) fn command_honors_print_json(command: Option<&Commands>) -> bool {
         // gate is the pipe's answer).
         #[cfg(feature = "ebpf")]
         Some(Commands::EagleEyes { depth: true, .. }) => true,
-        // NIGHT-private-research-4: the persistence pair — both are
-        // scripting surfaces (the snapshot document IS the state
-        // file's JSON; the restore report carries the applied and
+        // NIGHT-private-research-4's surviving half (NIGHT-improve-55
+        // retired the snapshot dump — the state file is the
+        // operator's hand-maintained desired state now): restore is
+        // a scripting surface (the report carries the applied and
         // skipped names).
         #[cfg(feature = "ebpf")]
-        Some(Commands::Snapshot | Commands::Restore) => true,
+        Some(Commands::Restore) => true,
         _ => false,
     }
 }

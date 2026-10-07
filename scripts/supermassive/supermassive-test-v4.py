@@ -214,30 +214,25 @@ COMMANDS = [
     ("doctor", None),
 ]
 
-# NIGHT-improve-42: the persistence pair — private-research-4's
-# snapshot/restore verbs. They take NO required args (a bare
-# invocation IS the full invocation), so the COMMANDS shape above
-# (the missing-arg complaint) does not fit: the recognized proof is
-# the verb's OWN privilege refusal, which names the sudo ladder and
-# the state file — never "unrecognized subcommand". The bare verbs
-# are rootless-lane rows (as root they would WRITE the state file /
-# RE-APPLY its policies — a mutation this battery refuses to make,
-# the Z9 doctrine); the extra-positional row is a parse-boundary
-# refusal and holds under every uid.
+# NIGHT-improve-42's table, reworked by NIGHT-improve-55: the
+# persistence lane's SURVIVING verb. `restore` takes NO required
+# args (a bare invocation IS the full invocation), so the COMMANDS
+# shape above (the missing-arg complaint) does not fit: the
+# recognized proof is the verb's OWN privilege refusal, which names
+# the sudo ladder and the state file — never "unrecognized
+# subcommand". The bare verb is a rootless-lane row (as root it
+# would RE-APPLY the state file's policies — a mutation this
+# battery refuses to make, the Z9 doctrine); the extra-positional
+# row is a parse-boundary refusal and holds under every uid.
 # Post as (argv, must_contain, must_not_contain, description,
 # rootless_lane) — the shared needle-case shape. The verb's own name
 # rides the needles: the refusal names the verb it refuses
-# ("snapshot writes the policy state file ... run with sudo"), so an
-# "unrecognized subcommand" answer fails as a missing needle — the
-# same recognized proof the COMMANDS rows carry.
+# ("restore re-applies policies from the state file ... run with
+# sudo"), so an "unrecognized subcommand" answer fails as a missing
+# needle — the same recognized proof the COMMANDS rows carry.
+# (The retired `snapshot` spelling is a REMOVED row below: it
+# answers as unrecognized with the redirect that names restore.)
 PRIVILEGED_VERBS = [
-    (
-        ["snapshot"],
-        ["sudo", "snapshot"],
-        [],
-        "snapshot recognized - its own privilege refusal",
-        True,
-    ),
     (
         ["restore"],
         ["sudo", "restore"],
@@ -246,10 +241,10 @@ PRIVILEGED_VERBS = [
         True,
     ),
     (
-        ["snapshot", "extra"],
+        ["restore", "extra"],
         ["unexpected argument"],
         [],
-        "snapshot takes no positionals (the parse refusal, every uid)",
+        "restore takes no positionals (the parse refusal, every uid)",
         False,
     ),
 ]
@@ -345,6 +340,10 @@ REMOVED = [
     ("limit-all", "unrecognized or redirect to strict-all"),
     ("eagle-eye", "unrecognized or redirect to eagle-eyes"),
     ("man", "unrecognized (rejected)"),
+    # NIGHT-improve-55: the snapshot dump is retired — the redirect
+    # names restore, the persistence pair's surviving half (the
+    # needle proof rides the dedicated block in test_removed_retired).
+    ("snapshot", "unrecognized or redirect to restore"),
 ]
 
 # Hidden subcommands the parser knows but the help hides. Each must
@@ -977,11 +976,12 @@ def test_command_surface():
                 all_ok = False
                 continue
             record(label_a, "PASS", f"rc={rc_a}, routed, no panic")
-    # NIGHT-improve-42: the persistence pair joins the command surface
-    # — snapshot/restore carry no required args, so their recognized
-    # proof is their own privilege refusal (the needles name the verb
-    # AND the sudo ladder; an "unrecognized subcommand" answer fails
-    # as a missing needle, the same contract the rows above carry).
+    # NIGHT-improve-42: the persistence lane's surviving verb joins
+    # the command surface (NIGHT-improve-55 retired the dump half) —
+    # restore carries no required args, so its recognized proof is
+    # its own privilege refusal (the needles name the verb AND the
+    # sudo ladder; an "unrecognized subcommand" answer fails as a
+    # missing needle, the same contract the rows above carry).
     all_ok = _run_needle_cases(PRIVILEGED_VERBS, "verb") and all_ok
     return all_ok
 
@@ -1273,11 +1273,11 @@ def test_rate_explode():
 def test_removed_retired():
     """Every removed/retired command answers clean (no hang, no panic).
 
-    Removed commands (observe, top, limit-all, eagle-eye, man) are
-    rejected as unrecognized (with a redirect suggestion where the help
-    documents one). Retired flags (--info) redirect to their successor
-    (--depth). The contract: answers, no panic, non-zero (a removed
-    command never silently succeeds).
+    Removed commands (observe, top, limit-all, eagle-eye, snapshot,
+    man) are rejected as unrecognized (with a redirect suggestion
+    where the help documents one). Retired flags (--info) redirect to
+    their successor (--depth). The contract: answers, no panic,
+    non-zero (a removed command never silently succeeds).
     """
     out()
     out("── stage 7: removed/retired commands (clean redirect/reject) ──")
@@ -1313,6 +1313,26 @@ def test_removed_retired():
         all_ok = False
     else:
         record(label, "PASS", f"rc={rc}, no panic (retired flag rejected clean)")
+    # NIGHT-improve-55: snapshot retired -> restore. The redirect is
+    # the contract (the ux redirect table names the persistence
+    # pair's survivor): the answer must be unrecognized AND carry the
+    # restore tip — a dead end here means the redirect row was lost.
+    rc, output = _run_cli_case(["snapshot"])
+    label = "retired: snapshot -> restore"
+    if rc is None:
+        record(label, "FAIL", "timed out (hang)")
+        all_ok = False
+    elif _case_panicked(output):
+        record(label + " no panic", "FAIL", "panic leaked")
+        all_ok = False
+    elif rc == 0:
+        record(label, "FAIL", "retired snapshot accepted (rc=0)")
+        all_ok = False
+    elif "restore" not in output:
+        record(label, "FAIL", f"no redirect tip naming restore, got: {output[:200]}")
+        all_ok = False
+    else:
+        record(label, "PASS", "rc=2, unrecognized with the restore redirect")
     return all_ok
 
 
