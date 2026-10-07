@@ -36,6 +36,7 @@ mod resolve;
 mod schema;
 mod stats;
 pub mod types;
+mod unstrict;
 
 // The rootless test-tree wiring for the pure cores, one file over
 // (NIGHT-private-research-4's LOC-cap split: mod.rs rode the

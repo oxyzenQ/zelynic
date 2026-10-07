@@ -25,9 +25,8 @@
 use anyhow::{anyhow, Result};
 
 use super::lanes::map_error_means_absent;
-use super::policy::policy_survivor_line;
 use super::rate_ring::RateRingRaw;
-use super::types::{BucketRaw, Direction, LimiterStatsRaw, PolicyRaw, PolicyWindowRaw, Target};
+use super::types::{BucketRaw, Direction, LimiterStatsRaw, PolicyRaw, PolicyWindowRaw};
 use crate::ebpf::pin::{
     PIN_MAP_BUCKET_DL, PIN_MAP_BUCKET_UL, PIN_MAP_GROUP_BUCKET_DL, PIN_MAP_GROUP_BUCKET_UL,
     PIN_MAP_POLICY_DL, PIN_MAP_POLICY_UL, PIN_MAP_POLICY_WINDOW, PIN_MAP_RATE_RING_DL,
@@ -76,8 +75,10 @@ fn dead_groups(captured: &[u32], live_group_refs: &[u32]) -> Vec<u32> {
 /// The error an unstrict returns when some deletes failed (NIGHT-
 /// hunt-20): removal is best-effort across cgroups and directions, but
 /// never silent — this reports what WAS removed and names what stayed
-/// enforced. Pure so the wording is unit-pinned.
-fn unstrict_partial_failure_line(removed: usize, failed: &[String]) -> String {
+/// enforced. Pure so the wording is unit-pinned. NIGHT-hunt-29:
+/// `pub(super)` for the unstrict family's move to its own file
+/// (reclaim.rs's LOC-cap split).
+pub(super) fn unstrict_partial_failure_line(removed: usize, failed: &[String]) -> String {
     let n = failed.len();
     let unit = if removed == 1 { "policy" } else { "policies" };
     let verb = if n == 1 { "is" } else { "are" };
@@ -350,127 +351,6 @@ impl super::Limiter {
 
 // NIGHT-hunt-17: pins live under the single test/ tree, #[path]-wired
 // across trees (cosmostrix Pattern C).
-impl super::Limiter {
-    /// Remove policy for a target (unstrict).
-    ///
-    /// Returns the number of POLICIES removed — each direction (dl/ul)
-    /// counts separately, the same unit `apply_single`/`apply_group`
-    /// report as "(N policies, active in background)". NIGHT-hunt-10:
-    /// the old per-cgroup counting printed "Removed 1 limit" for the
-    /// same state strict-single had just described as "4 policies".
-    ///
-    /// NIGHT-hunt-20: removal is best-effort across cgroups and
-    /// directions, but never silent — a delete that FAILS (as opposed
-    /// to ENOENT "absent") is recorded and reported.
-    ///
-    /// NIGHT-improve-10: every direction confirmed gone (deleted or
-    /// ENOENT-absent) also reclaims the per-cgroup bucket and stats
-    /// entries — see [`Self::reclaim_cgroup_state`].
-    pub fn unstrict(&mut self, target: &Target) -> Result<usize> {
-        let cgroup_ids = self.resolve_target(target)?;
-        let mut removed = 0usize;
-        let mut failed: Vec<String> = Vec::new();
-        // The groups whose policies this removal takes (NIGHT-lts-7):
-        // captured read-before-delete, swept once after the loop —
-        // the LAST reference hands the group's shared-bucket slots
-        // back (the 256-entry budget's previously-missing half).
-        let mut superseded: Vec<u32> = Vec::new();
-
-        for cgroup_id in &cgroup_ids {
-            let label = self.identity.label(*cgroup_id);
-            let mut found = false;
-            // Per-direction gone tracking (NIGHT-improve-10): a
-            // direction is gone when its policy was deleted here OR
-            // was already ENOENT-absent — only a real failure leaves
-            // it uncertain, and an uncertain direction keeps its
-            // state (conservative: state may still be reachable).
-            let mut dl_gone = false;
-            let mut ul_gone = false;
-
-            // Remove from dl + ul policy maps — each deleted direction
-            // is one policy removed. A failed delete (not ENOENT) is
-            // reported per direction and summed into the final error.
-            // The group capture (NIGHT-lts-7) reads BEFORE the delete:
-            // after it the old group id is unrecoverable.
-            for direction in [Direction::Download, Direction::Upload] {
-                if let Ok(Some(group)) = self.read_policy_group(*cgroup_id, direction) {
-                    superseded.push(group);
-                }
-                match self.delete_policy(*cgroup_id, direction) {
-                    Ok(true) => {
-                        found = true;
-                        removed += 1;
-                        match direction {
-                            Direction::Download => dl_gone = true,
-                            Direction::Upload => ul_gone = true,
-                        }
-                    }
-                    Ok(false) => match direction {
-                        Direction::Download => dl_gone = true,
-                        Direction::Upload => ul_gone = true,
-                    },
-                    Err(e) => {
-                        eprintln_safe!(
-                            "[limiter] Unstrict: cg:{cgroup_id} {} not removed: {e}",
-                            direction.label()
-                        );
-                        failed.push(policy_survivor_line(*cgroup_id, direction));
-                    }
-                }
-            }
-
-            // Reclaim the state the removal leaves behind: buckets
-            // for gone directions, stats when both are gone. Runs even
-            // when this invocation removed nothing — an ENOENT-only
-            // walk is exactly the crashed-removal case whose residue
-            // the LTS budget needs back.
-            if dl_gone || ul_gone {
-                let reclaimed =
-                    self.reclaim_cgroup_state(*cgroup_id, dl_gone, ul_gone, dl_gone && ul_gone);
-                self.print_reclaim_trace(*cgroup_id, reclaimed);
-            }
-
-            if found {
-                eprintln_safe!("[limiter] Unstrict: {label} — limits removed");
-            }
-        }
-
-        if !failed.is_empty() {
-            // NIGHT-private-research-2 / perf-0: removals are the
-            // mutation the datapath's stale-detect already covers,
-            // but the generation bump still runs before the
-            // partial-failure error returns — the deletes that DID
-            // land are a mutation like any other, and the
-            // belt-and-suspenders pair (stamp + stale-detect) is
-            // cheaper than reasoning about which half of it a given
-            // removal needed.
-            self.ammsp_memo_invalidate_best_effort();
-            return Err(anyhow!(
-                "{}",
-                unstrict_partial_failure_line(removed, &failed)
-            ));
-        }
-
-        // The dead-group sweep (NIGHT-lts-7): once every requested
-        // removal has landed, a captured group no live policy
-        // references returns its shared-bucket slots. Runs after the
-        // per-cgroup state reclaim so one unstrict hands back both
-        // halves of the endurance budget.
-        self.reclaim_dead_groups(&superseded);
-
-        // AMMSP memo invalidation (NIGHT-private-research-2,
-        // generation-stamped by NIGHT-perf-0): a removed root leaves
-        // cached resolutions pointing at a policy that no longer
-        // exists — the datapath's stale-detect re-walks them per
-        // packet, and this bump retires the whole stale generation
-        // in one word so the re-walk cost is paid once, not per
-        // packet, per leaf.
-        self.ammsp_memo_invalidate_best_effort();
-
-        Ok(removed)
-    }
-}
-
 #[cfg(test)]
 #[path = "../../../test/ebpf/limiter/reclaim_tests.rs"]
 mod reclaim_tests;

@@ -163,23 +163,27 @@ pub fn handle_unstrict_multi(targets_str: &str, verbose: bool) -> Result<()> {
     Ok(())
 }
 
-/// Shared removal core for the unstrict family: resolve each target
-/// string and delete its policies. Returns the number of POLICIES
+/// Shared removal core for the unstrict family: resolve the target
+/// list and delete its policies. Returns the number of POLICIES
 /// removed (dl + ul counted separately) — the same unit strict-single
 /// reports in "(N policies, active in background)", so apply and remove
 /// sides of the CLI now count identically (NIGHT-hunt-10: the old
 /// per-cgroup counting here printed "Removed 1 limit" while strict
 /// had said "4 policies" for the same state).
+///
+/// NIGHT-hunt-29: the whole list resolves in ONE /proc walk and
+/// removes per target (`Limiter::unstrict_multi`, the walker
+/// hunt-28 built). The single spelling rides the same path (one
+/// name, one walk — the cost it always paid); the multi spelling
+/// drops the per-name walks hunt-28's shard boundary named. Abort
+/// semantics, per-target removal cadence, and every output line
+/// are the loop's own, verbatim.
 #[cfg(feature = "ebpf")]
 fn remove_limits(limiter: &mut crate::ebpf::limiter::Limiter, targets: &[&str]) -> Result<usize> {
     use crate::ebpf::limiter::Target;
 
-    let mut removed = 0usize;
-    for target_str in targets {
-        let target = Target::parse(target_str);
-        removed += limiter.unstrict(&target)?;
-    }
-    Ok(removed)
+    let parsed: Vec<Target> = targets.iter().map(|s| Target::parse(s)).collect();
+    limiter.unstrict_multi(&parsed)
 }
 
 /// Count policies still live in both direction maps (for the honesty

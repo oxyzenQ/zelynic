@@ -27,6 +27,41 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **fix(limiter) + fix(commands): NIGHT-hunt-29 — the removal
+  lane's one-walk shard closed (hunt-28's named boundary, the
+  owner's "hunt until nothing remains"): unstrict-multi resolves
+  the whole list in ONE /proc walk.** The shard: hunt-28 closed
+  the name lists' O(N x /proc) for the apply family, the guard,
+  and the depth report, but `unstrict-multi` (um) still resolved
+  per name — `remove_limits` looped `limiter.unstrict`, each call
+  walking /proc once, so a thousand-name removal paid a thousand
+  walks. The closure avoided the accumulator restructure the
+  boundary feared by splitting resolve from removal:
+  `unstrict` = `resolve_target` + `remove_ids` (the verbatim
+  removal body), and `unstrict_multi` = ONE `resolve_target_list`
+  walk + the per-target `remove_ids` with the loop's EXACT
+  per-target semantics — each target keeping its own failed list,
+  superseded ledger, dead-group sweep, and memo bump, and the
+  first partial failure aborting the remaining targets with the
+  same Err the per-target loop returned (the cadence documented
+  as the risk turned out to be what makes the split safe).
+  `remove_limits` — the shared front half of unstrict-single AND
+  unstrict-multi — parses the whole list and rides
+  `unstrict_multi`; the single spelling pays one walk exactly as
+  before; the during window's expiry path (per-cgroup-id unstrict
+  calls) is unaffected by construction (the CgroupId arm never
+  walked). Every output line, the abort path, and the counting
+  unit are the loop's own, verbatim; the existing reclaim pins
+  (partial-failure wording, dead-group rule) and the
+  resolve_target_list pins carry the semantics, with the
+  supermassive VM lane covering the removal rows end to end. The
+  split put reclaim.rs past the limiter family's 500-line owner
+  cap, so the unstrict family moved to its own file (unstrict.rs,
+  171 lines; reclaim.rs back to 356) — the house precedent, one
+  cohesive concern out. Full audit:
+  [docs/audits/NIGHT_HUNT_28_NAME_RESOLUTION_ONE_WALK_2026-10-07.md](docs/audits/NIGHT_HUNT_28_NAME_RESOLUTION_ONE_WALK_2026-10-07.md)
+  (section 3's addendum).
+
 - **fix(identity) + fix(limiter) + fix(commands): NIGHT-hunt-28 —
   the name lists' O(N x /proc) resolution closed: one walk for the
   whole list (hunt-27's named residual #1, owner-called).** The
