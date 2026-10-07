@@ -538,24 +538,18 @@ slightly easier to maintain.
 - No REST API
 - No non-Linux support
 
-### Stable API (from v20.0.0, locked as the LTS baseline at v20.0.0)
+### Stable API (from v50.0.0)
 
-Starting with v20.0.0, the CLI surface is frozen. No breaking changes
+The CLI surface is frozen. No breaking changes
 to commands, flags, or output format. Future releases focus on:
 
 - Bug fixes
 - Kernel compatibility updates
 - Performance improvements (internal, no API changes)
 
-v20.0.0 locks the era as the LTS baseline: the fair-share law audited
-under high load (NIGHT-hunt-Z6, SOUND — its one tradeoff owned and
-pinned from both sides), the LTS state budget audited under a
-1024-cgroup fleet (NIGHT-hunt-Z4), and the supermassive battery green
-on every leg since the instrument split (NIGHT-hunt-Z5).
+### Maintenance Mode (from v50.0.0)
 
-### Maintenance Mode (from v20.0.0)
-
-> **zelynic v20 marks the beginning of maintenance mode. Future releases
+> **zelynic marks the beginning of maintenance mode. Future releases
 > prioritize stability, compatibility, performance, and bug fixes over
 > feature expansion.**
 
