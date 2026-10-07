@@ -410,13 +410,21 @@ fn test_help_documents_the_depth_mode() {
         "--depth is the only spelling",
         "sudo zelynic ee cg:1234 --depth",
         "sudo zelynic ee 12345 --depth --print-json",
-        "--print-json     JSON output for status, list-apps, eagle-eyes --depth, doctor,",
+        "--print-json     JSON output for status, list-apps, eagle-eyes --depth, doctor",
     ] {
         assert!(
             stdout.contains(needle),
             "--help must document the depth mode ('{needle}'), got:\n{stdout}"
         );
     }
+    // NIGHT-total-lts-9: the retired restore verb left the JSON
+    // surface line whole — the list is exactly the four the scope
+    // contract names (cli/scope.rs JSON_SURFACE_COMMANDS), with no
+    // trailing-comma continuation naming a retired verb.
+    assert!(
+        !stdout.contains("doctor,\n"),
+        "the --print-json surface line must end at doctor (restore is retired), got:\n{stdout}"
+    );
 }
 
 /// NIGHT-improve-3 owner contract: --help typed after a subcommand is a

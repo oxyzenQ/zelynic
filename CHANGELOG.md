@@ -1816,6 +1816,20 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **fix(help): NIGHT-total-lts-9 — the `--print-json` reference
+  line still advertised `restore` as the pair's fifth JSON surface
+  after the total retirement (NIGHT-improve-55) removed the verb
+  whole.** The scope contract (`cli/scope.rs`
+  JSON_SURFACE_COMMANDS) is the machine truth — status, list-apps,
+  eagle-eyes --depth, doctor — and the help surface mirrored it
+  faithfully until the retirement deleted the verb but left the
+  line's trailing continuation ("doctor," + "restore") standing: a
+  script author reading the one end-to-end reference would target a
+  verb that exits 2. The fix collapses the pair into the single
+  line the contract names; the help pin learns the needle's new
+  shape plus a negative assertion (`doctor,` no longer trails a
+  continuation naming a retired verb) so the stale spelling cannot
+  ride the line back unnoticed.
 - **fix(strict-all): NIGHT-hunt-30 rider — the sweep's lock
   restructure left the function-wide acquire in place beside the
   new apply-scoped one, and a non-blocking flock on a second fd of
