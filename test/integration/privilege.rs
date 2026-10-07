@@ -32,12 +32,15 @@ fn test_enforcement_commands_refuse_non_root_cleanly() {
         &["s", "cg:48181", "100kb"],
         &["s", "brave::curl", "1mb"],
         &["strict", "docker://nginx", "100kb"],
-        &["strict-all", "500kb"],
+        // NIGHT-improve-54: the sweeps ride the --all lanes now
+        // (the retired -all spellings are exit-2 redirects, not
+        // enforcement surfaces).
+        &["s", "--all", "500kb"],
         &["block", "brave"],
         &["b", "brave::curl"],
-        &["block-all"],
+        &["b", "--all"],
         &["unstrict", "brave"],
-        &["unstrict-all"],
+        &["u", "--all"],
         &["recover"],
         &["status"],
         &["eagle-eyes"],
@@ -80,7 +83,7 @@ fn test_enforcement_commands_report_missing_feature_cleanly() {
     for argv in [
         vec!["strict", "brave", "100kb"],
         vec!["status"],
-        vec!["unstrict-all"],
+        vec!["u", "--all"],
     ] {
         let output = zelynic_cmd()
             .args(&argv)

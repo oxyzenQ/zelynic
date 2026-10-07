@@ -201,11 +201,11 @@ fn every_proc_comm_read_flows_through_the_sanitizer() {
 
 /// NIGHT-dinner-16: every apply-family handler verifies the pin state
 /// BEFORE printing its success verdict. The race is real: a concurrent
-/// `unstrict-all` in another terminal can tear the BPF pins down
+/// `u --all` in another terminal can tear the BPF pins down
 /// between apply and the epilogue — a success verdict printed on a
 /// torn-down limit reads as enforced while it is gone. The six
-/// apply surfaces (strict's two lanes + strict-all, block's two
-/// lanes + block-all) each carry the check; the textual tripwire
+/// apply surfaces (strict's two lanes + the s --all sweep, block's
+/// two lanes + the b --all sweep) each carry the check; the textual tripwire
 /// counts the literal error
 /// sites per file so a handler that loses its check fails here, in
 /// the plain test lane, before it ships.

@@ -488,7 +488,7 @@ pub(crate) fn run_enforcement_probe(
         Err(close) => {
             // The belt's own read died. When the pins themselves are
             // gone the lane was torn down mid-window (only
-            // unstrict-all / recover removes them) — the teardown
+            // the u --all reset / recover removes them) — the teardown
             // verdict with the lane's own note; with the pins
             // standing it is a read glitch, and only a Verified
             // verdict steps down to Unverified (never a guess).
@@ -497,7 +497,7 @@ pub(crate) fn run_enforcement_probe(
                 outcome.teardown = true;
                 outcome.notes.push(format!(
                     "the policy lane was torn down mid-window (the pinned maps \
-                     are gone — a concurrent unstrict-all or recover?); the \
+                     are gone — a concurrent u --all or recover?); the \
                      ledger cross-check died with it: {close}"
                 ));
             } else if outcome.verdict == ProbeVerdict::Verified {

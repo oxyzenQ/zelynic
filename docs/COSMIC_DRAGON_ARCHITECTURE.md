@@ -187,7 +187,7 @@ line.
 - [x] Watchdog hook in the enforcer (dormant by design — never armed, deadline 0 = enforcing forever; preserved for a future `--timeout`)
 - [x] Min-rate guard: rejects < 1 KB/s (prevents bricking apps)
 - [x] Fire-and-forget: strict commands exit 0, limits persist via pinned maps + bpf_links (no child, no daemon)
-- [x] No residue: `unstrict-all` removes all pin files and reclaims map slots
+- [x] No residue: `u --all` removes all pin files and reclaims map slots
 - [x] Override: re-running strict replaces old rate (no duplicates)
 - [x] Verified: real enforcement on Arch Linux, kernel 6.18, AMD Ryzen 7
 
@@ -213,7 +213,7 @@ line.
   is no-op.
 - **No daemon mode.** Every invocation is one-shot. Fire-and-forget pins
   BPF programs + links to bpffs — the kernel enforces with zero zelynic
-  processes running. `unstrict-all` removes the pins; a reboot clears
+  processes running. `u --all` removes the pins; a reboot clears
   them (bpffs is not persistent across boots).
 - **No combined-tool fallback.** If BPF can't do it, zelynic doesn't do
   it. `main` is pure eBPF.

@@ -214,12 +214,12 @@ Build verification only:
 
 1. Baseline: clean
 2. strict + unstrict cycle: active → clean
-3. strict + unstrict-all: active → clean
+3. strict + unstrict-all (the era's spelling, today `u --all`): active → clean
 4. 10x strict + unstrict cycles: clean
 5. crash (SIGKILL child): BPF unloaded (correct)
 6. crash: pinned maps persist (need cleanup)
 7. crash: manual cleanup → clean
-8. kill target + unstrict-all: clean
+8. kill target + unstrict-all (today `u --all`): clean
 9. 3x overrides: active → clean
 10-13. (various cleanup checks)
 
@@ -298,7 +298,7 @@ Claim data (all four support the README claims):
   (bound 1.0%, residual = status-read spawn latency, not limiter
   math — the 0.00% contract is the token math, pinned in
   test/ebpf/limiter/math_tests.rs).
-- **cleanup** — unstrict-all exit 0, zero BPF pins remain, proof
+- **cleanup** — u --all exit 0, zero BPF pins remain, proof
   cgroups removed, kernel log clean.
 
 The 4 failures were HARNESS false negatives, not product failures —

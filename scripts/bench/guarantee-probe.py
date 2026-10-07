@@ -311,7 +311,7 @@ def _blast_leg(children, addrs):
 def _teardown():
     """Best-effort: lift the policy, empty and remove the leaf
     cgroups, then the target. Never fails a verdict."""
-    lib.run_zel(["unstrict-all", "--force-this"], timeout=30)
+    lib.run_zel(["u", "--all"], timeout=30)
     # Adopt any strays UP the tree (a leaf's cgroup.procs read after
     # its child died is usually empty; a live stray would block the
     # rmdir), then rmdir deepest-first.
@@ -372,7 +372,7 @@ def run_live():
                 FLOOR_STR,
                 "--ceil",
                 CEIL_STR,
-                "--no-probe",
+                "--no-test",
             ]
         )
         if rc != 0:
@@ -447,7 +447,7 @@ def run_live():
                 FLOOR_STR,
                 "--ceil-download",
                 CEIL_STR,
-                "--no-probe",
+                "--no-test",
             ]
         )
         if rc != 0:

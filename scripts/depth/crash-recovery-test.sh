@@ -39,7 +39,7 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/harness_lib.sh"
 
 cleanup() {
-	"$BINARY" unstrict-all 2>/dev/null || true
+	"$BINARY" u --all 2>/dev/null || true
 }
 
 # A long-lived target for every apply in this suite (NIGHT-hunt-32 —
@@ -65,7 +65,7 @@ log_test "Clean state baseline — no pins should exist"
 if [ ! -d "$PIN_DIR" ] || [ -z "$(ls -A "$PIN_DIR" 2>/dev/null)" ]; then
 	log_pass "Pin directory is clean"
 else
-	log_fail "Pin directory has files (run 'zelynic unstrict-all' first)"
+	log_fail "Pin directory has files (run 'zelynic u --all' first)"
 fi
 
 # Test 2: Apply limit, verify active
@@ -153,9 +153,9 @@ if [ "$FAIL" -eq 0 ]; then
 fi
 
 # Test 9: Final state verification
-log_test "Final state — should be clean after unstrict-all"
+log_test "Final state — should be clean after u --all"
 "$BINARY" strict "$TARGET_COMM" 100kb 2>/dev/null || true
-"$BINARY" unstrict-all 2>/dev/null
+"$BINARY" u --all 2>/dev/null
 if [ ! -d "$PIN_DIR" ] || [ -z "$(ls -A "$PIN_DIR" 2>/dev/null)" ]; then
 	log_pass "Final state is clean"
 else

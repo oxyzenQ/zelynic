@@ -55,13 +55,14 @@ pub(crate) fn print_help() {
     // headings carry the same brand purple as section headings; each
     // synopsis sits on its own line with the description and
     // examples indented below — no more 120-char mixed lines.
-    // NIGHT-blade-2: strict-all rides the strict group (the former
+    // NIGHT-blade-2: strict-all rode the strict group (the former
     // one-command "limit" group dissolved with the rename).
     // NIGHT-improve-53 (the masterclass unification): each family is
     // ONE verb now — strict, block, unstrict — with the '::' list
-    // grammar riding the same spelling, and the -all sweep beside
-    // it. The single/multi/-single/-multi spellings are retired
-    // (the redirect table owns them).
+    // grammar riding the same spelling. The single/multi/-single/
+    // -multi spellings are retired (the redirect table owns them).
+    // NIGHT-improve-54: the -all sweeps retired too — --all is a
+    // lane of each family verb, documented in the Pro mode section.
     println_safe!("  {}", brand_bold("strict — apply rate limits"));
     println_safe!();
     println_safe!("  zelynic strict <target> [rate] [-d <rate>] [-u <rate>] [--per-socket]");
@@ -69,7 +70,7 @@ pub(crate) fn print_help() {
     println_safe!("    ONE rate (group limit: if one member downloads at full rate,");
     println_safe!("    the others get nothing). 's' is the short alias.");
     println_safe!("    --per-socket caps every connection at the rate (the single");
-    println_safe!("    target's server shape); --no-probe skips the post-apply");
+    println_safe!("    target's server shape); --no-test skips the post-apply");
     println_safe!("    verification loop for scripted use.");
     example("both dl+ul = 100kb", "sudo zelynic strict brave 100kb");
     example("download only", "sudo zelynic strict brave -d 100kb");
@@ -99,11 +100,6 @@ pub(crate) fn print_help() {
     println_safe!("  k8s://<namespace>/<pod> via the kubelet's pod log dirs.");
     println_safe!("  unstrict accepts the same references.");
     println_safe!();
-    println_safe!("  zelynic strict-all [rate] [-d <rate>] [-u <rate>]");
-    println_safe!("    Limit ALL user apps (system apps excluded; --force-this includes them).");
-    example("limit all user apps", "sudo zelynic strict-all 500kb");
-    example("per-direction", "sudo zelynic strict-all -d 1mb -u 500kb");
-    println_safe!();
     println_safe!("  {}", brand_bold("block — cut internet access"));
     println_safe!();
     println_safe!("  zelynic block <target>");
@@ -112,11 +108,6 @@ pub(crate) fn print_help() {
     example("cut one app off", "sudo zelynic block brave");
     example("cut a whole group", "sudo zelynic b brave::curl::pacman");
     println_safe!();
-    println_safe!("  zelynic block-all");
-    println_safe!("    Block ALL user apps (--force-this includes system apps).");
-    example("all user apps", "sudo zelynic block-all");
-    example("include system apps", "sudo zelynic block-all --force-this");
-    println_safe!();
     println_safe!("  {}", brand_bold("unstrict — remove limits & recover"));
     println_safe!();
     println_safe!("  zelynic unstrict <target>");
@@ -124,9 +115,6 @@ pub(crate) fn print_help() {
     println_safe!("    'u' is the short alias.");
     example("remove one app's limit", "sudo zelynic unstrict brave");
     example("bulk removal", "sudo zelynic u brave::curl::pacman");
-    println_safe!();
-    println_safe!("  zelynic unstrict-all");
-    println_safe!("    Remove ALL limits (emergency reset).");
     println_safe!();
     println_safe!("  zelynic recover");
     println_safe!("    Clean orphaned BPF pins after a crash (SIGKILL, OOM, power loss).");
@@ -216,16 +204,14 @@ pub(crate) fn print_help() {
     // and a wide label column needs no alignment guesswork. The same
     // `=` pairing is the format README and docs/USAGE.md already
     // teach, so the reference and the docs read identically.
-    // NIGHT-improve-53: seven aliases — the single/multi pairs
-    // collapsed into one verb per family (s/b/u), the -all sweeps
-    // and the monitor keep theirs.
+    // NIGHT-improve-53: the single/multi pairs collapsed into one
+    // verb per family. NIGHT-improve-54: the -all sweeps retired
+    // into the --all lanes — four aliases now (the sweeps' sa/ba/ua
+    // died with their verbs, the redirect table owns them).
     println_safe!("{}", brand_bold("Short aliases:"));
     println_safe!("  s = strict");
     println_safe!("  b = block");
     println_safe!("  u = unstrict");
-    println_safe!("  sa = strict-all");
-    println_safe!("  ba = block-all");
-    println_safe!("  ua = unstrict-all");
     println_safe!("  ee = eagle-eyes");
     println_safe!();
     println_safe!("{}", brand_bold("Global flags:"));
@@ -238,8 +224,9 @@ pub(crate) fn print_help() {
         "  -v, --verbose    Diagnostic trace: target resolution, policy writes, BPF lifecycle"
     );
     println_safe!(
-        "  --print-json     JSON output for status, list-apps, eagle-eyes --depth, doctor"
+        "  --print-json     JSON output for status, list-apps, eagle-eyes --depth, doctor,"
     );
+    println_safe!("                   restore");
     println_safe!("  --color-mode M   Force color depth: 0 mono, 16, 8/256 cube, 24/32 truecolor");
     println_safe!(
         "                   (default auto-fallback; for terminals whose truecolor claim lies)"
@@ -260,16 +247,38 @@ pub(crate) fn print_help() {
     // every hidden and advanced flag documented COMPLETELY on the
     // one reference surface, grouped by the verb family that owns
     // each flag. The globals already carry their own section above;
-    // this one is the per-verb advanced family: the --during
-    // grammar (zero mentions before this section), the guarantee
-    // brackets (zero mentions), the enforcement shape and the guard
-    // override, and the eagle-eyes inspection knobs. help_pins.rs
-    // pins every spelling below so the section can never silently
-    // thin back to hidden.
+    // this one is the per-verb advanced family: the --all sweeps
+    // (NIGHT-improve-54, zero mentions before this section), the
+    // --during grammar (zero mentions before this section), the
+    // guarantee brackets (zero mentions), the enforcement shape and
+    // the guard override, and the eagle-eyes inspection knobs.
+    // help_pins.rs pins every spelling below so the section can
+    // never silently thin back to hidden.
     println_safe!("{}", brand_bold("Pro mode:"));
     println_safe!(
         "  The hidden and advanced flags, complete — grouped by the verbs that own them."
     );
+    println_safe!();
+    // NIGHT-improve-54 (the owner's ask): the fleet sweeps live
+    // HERE — --all is a lane of each family verb, and the Pro mode
+    // section is its one documented home (the retired -all verbs'
+    // redirects name the family verbs).
+    println_safe!("  Fleet sweeps (strict + block + unstrict):");
+    println_safe!("    --all          the lane that owns every user app at once: limit");
+    println_safe!("                  them all, block them all, or tear every limit down.");
+    println_safe!("                  System apps stay behind --force-this's guard by");
+    println_safe!("                  default; the target is omitted (a lone positional on");
+    println_safe!("                  strict is the RATE: 'zelynic s --all 500kb').");
+    example(
+        "limit every user app at 500kb",
+        "sudo zelynic s --all 500kb",
+    );
+    example(
+        "per-direction, whole fleet",
+        "sudo zelynic s --all -d 1mb -u 500kb",
+    );
+    example("block every user app", "sudo zelynic b --all");
+    example("emergency reset, every limit gone", "sudo zelynic u --all");
     println_safe!();
     println_safe!("  Time windows (strict family + block family):");
     println_safe!("    --during DUR   auto-expire: the limit tears itself down when the window");
@@ -280,10 +289,10 @@ pub(crate) fn print_help() {
     // spelling but ZERO runnable examples — the one discovery path
     // a user copies from was missing for the whole hidden family.
     // The examples live HERE (not in the command blocks above)
-    // because --during, the guarantee brackets, and --no-probe are
-    // Pro-mode vocabulary: each example appears exactly once on the
-    // surface (NIGHT-hunt-15's no-duplicate law), paired note-above
-    // /command-below via the shared example() helper.
+    // because --all, --during, the guarantee brackets, and --no-test
+    // are Pro-mode vocabulary: each example appears exactly once on
+    // the surface (NIGHT-hunt-15's no-duplicate law), paired
+    // note-above /command-below via the shared example() helper.
     example(
         "auto-expire after two hours",
         "sudo zelynic s brave 1mb --during 2h",
@@ -311,13 +320,14 @@ pub(crate) fn print_help() {
         "sudo zelynic s curl 1mb --floor-download 50kb --ceil-upload 200kb",
     );
     println_safe!();
-    println_safe!("  Enforcement shape (strict, single target):");
+    println_safe!("  Enforcement shape (strict):");
     println_safe!("    --per-socket   cap every connection at the rate (the server shape:");
     println_safe!("                  one process, many sockets).");
-    println_safe!("    --no-probe     skip the post-apply verification loop (scripted use).");
+    println_safe!("    --no-test      skip the post-apply verification loop (scripted use;");
+    println_safe!("                  the former --no-probe spelling redirects here).");
     example(
-        "scripted apply, no probe",
-        "sudo zelynic s nginx 500kb --no-probe",
+        "scripted apply, no verification loop",
+        "sudo zelynic s nginx 500kb --no-test",
     );
     println_safe!();
     println_safe!("  Guard override (strict family + block family):");
@@ -357,7 +367,7 @@ pub(crate) fn print_help() {
     // and one that resolves to nothing is rejected, not soft-exited
     // (the eBPF-verifier lineage the owner specced for the CLI).
     println_safe!("  A target that matches nothing is a hard error (exit 1) — never a");
-    println_safe!("  silent no-op; unstrict-all on an already-clean system exits 0.");
+    println_safe!("  silent no-op; the --all reset on an already-clean system exits 0.");
     println_safe!();
     println_safe!("{}", brand_bold("Safety:"));
     println_safe!("  • Min-rate guard: rejects < 1kb");
@@ -385,7 +395,7 @@ pub(crate) fn print_help() {
     println_safe!("  {}", ok("sudo zelynic recover"));
     println_safe!();
     println_safe!("  # Emergency: remove all limits");
-    println_safe!("  {}", ok("sudo zelynic unstrict-all"));
+    println_safe!("  {}", ok("sudo zelynic u --all"));
     println_safe!();
     println_safe!("  # Rescue a terminal broken by a kill -9 TUI death");
     println_safe!("  {}", ok("zelynic --reset-terminal"));

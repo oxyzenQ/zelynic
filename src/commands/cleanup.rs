@@ -5,7 +5,7 @@
 //! (NIGHT-improve-53, the masterclass unification: the former
 //! unstrict-single and unstrict-multi handlers are the single and
 //! list lanes, reached through the [`handle_unstrict`] router), plus
-//! unstrict-all (recover moved to its own module by NIGHT-dinner-11's
+//! unstrict's --all reset (recover moved to its own module by NIGHT-dinner-11's
 //! LOC-cap push — a different concern from user-initiated removal).
 
 use anyhow::Result;
@@ -42,7 +42,7 @@ fn handle_unstrict_single(target_str: &str, verbose: bool) -> Result<()> {
     if !crate::ebpf::limiter::Limiter::is_pinned() {
         // NIGHT-dinner-11: the named-target no-match contract —
         // nothing is limited at all, so the target the user NAMED
-        // cannot match. (unstrict-all keeps its clean-state exit 0;
+        // cannot match. (the --all reset keeps its clean-state exit 0;
         // that sweep names no target.)
         return Err(super::target_no_match_error(
             format!("No active limits — nothing to remove for '{target_str}'"),
@@ -123,7 +123,7 @@ fn handle_unstrict_multi(targets_str: &str, verbose: bool) -> Result<()> {
     let _lock = crate::ebpf::lock::acquire()?;
     if !crate::ebpf::limiter::Limiter::is_pinned() {
         // NIGHT-dinner-11: the named-target no-match contract (see
-        // handle_unstrict — unstrict-all owns the clean-state exit 0).
+        // handle_unstrict — the --all reset owns the clean-state exit 0).
         return Err(super::target_no_match_error(
             format!("No active limits — nothing to remove for any target in '{targets_str}'"),
             &[super::TIP_STATUS.to_string()],
@@ -250,6 +250,9 @@ pub(crate) fn unpin_if_no_policies(
     }
 }
 
+/// The `u --all` emergency reset — remove EVERY limit on the
+/// machine (the former unstrict-all verb, NIGHT-improve-54);
+/// exits 0 on an already-clean system.
 #[cfg(feature = "ebpf")]
 pub fn handle_unstrict_all(verbose: bool) -> Result<()> {
     use crate::ebpf::limiter::pin_dir_has_files;
@@ -264,7 +267,7 @@ pub fn handle_unstrict_all(verbose: bool) -> Result<()> {
     // from old versions, or a crash between program and link pinning —
     // NIGHT-hunt-19) still need cleanup.
     if !pin_dir_has_files() {
-        // NIGHT-dinner-11: the clean-state carve-out. unstrict-all
+        // NIGHT-dinner-11: the clean-state carve-out. The --all reset
         // names NO target — it asks for a clean system, and an
         // already-clean system IS that state, so this stays the
         // exit-0 success `recover`'s clean path owns. The forms that

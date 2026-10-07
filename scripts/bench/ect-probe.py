@@ -291,8 +291,8 @@ def run_live():
     sa.close()
     sb.close()
 
-    # 5. The policy (--no-probe: this harness IS the probe).
-    rc, out_, err = lib.run_zel(["strict", str(cgroup_id), RATE_STR, "--per-socket", "--no-probe"])
+    # 5. The policy (--no-test: this harness IS the probe).
+    rc, out_, err = lib.run_zel(["strict", str(cgroup_id), RATE_STR, "--per-socket", "--no-test"])
     if rc != 0:
         os.close(pipe_w)
         os.waitpid(pid, 0)

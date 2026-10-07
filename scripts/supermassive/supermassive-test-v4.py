@@ -199,13 +199,12 @@ PANIC_RE = re.compile(r"panicked|RUST_BACKTRACE|thread .* panicked")
 # The alias must route identically to the canonical (same usage error
 # shape).
 COMMANDS = [
-    # NIGHT-improve-53: one verb per family, one short form each.
+    # NIGHT-improve-53 + 54: one verb per family, one short form
+    # each; the sweeps are --all lanes now (the retired -all
+    # spellings are REMOVED rows below).
     ("strict", "s"),
-    ("strict-all", "sa"),
     ("block", "b"),
-    ("block-all", "ba"),
     ("unstrict", "u"),
-    ("unstrict-all", "ua"),
     ("eagle-eyes", "ee"),
     # Commands without aliases:
     ("recover", None),
@@ -290,7 +289,11 @@ COLOR_MODES_INVALID = ["1", "7", "99", "abc", ""]
 TYPOS = [
     # strict flags (target + rate + typo, driven through s):
     ("--per-sockt", "--per-socket", ["s", "brave", "1mb"]),
-    ("--no-prbe", "--no-probe", ["s", "brave", "1mb"]),
+    # NIGHT-improve-54: the verification flag's typo rides the new
+    # --no-test spelling (the retired --no-probe has its own
+    # vocabulary-redirect row in the NEEDLE block below).
+    ("--no-tst", "--no-test", ["s", "brave", "1mb"]),
+    ("--al", "--all", ["s"]),
     ("--force-ths", "--force-this", ["s", "brave", "1mb"]),
     # eagle-eyes flags (target + typo, driven through ee — no rate):
     ("--depht", "--depth", ["ee", "brave"]),
@@ -337,7 +340,17 @@ RATE_CASES = [
 REMOVED = [
     ("observe", "unrecognized or redirect to eagle-eyes"),
     ("top", "unrecognized or redirect to eagle-eyes"),
-    ("limit-all", "unrecognized or redirect to strict-all"),
+    # NIGHT-improve-54: the sweep retirees — the successors name the
+    # runnable verb + flag spelling (the needle proof rides the
+    # dedicated blocks in test_removed_retired).
+    ("limit-all", "unrecognized or redirect to strict --all"),
+    ("la", "unrecognized or redirect to strict --all"),
+    ("strict-all", "unrecognized or redirect to strict --all"),
+    ("sa", "unrecognized or redirect to strict --all"),
+    ("block-all", "unrecognized or redirect to block --all"),
+    ("ba", "unrecognized or redirect to block --all"),
+    ("unstrict-all", "unrecognized or redirect to unstrict --all"),
+    ("ua", "unrecognized or redirect to unstrict --all"),
     ("eagle-eye", "unrecognized or redirect to eagle-eyes"),
     ("man", "unrecognized (rejected)"),
     # NIGHT-improve-55: the snapshot dump is retired — the redirect
@@ -466,10 +479,10 @@ SHADOWED_POSITIONAL_CASES = [
         False,
     ),
     (
-        ["sa", "100kb", "-d", "1mb"],
+        ["s", "--all", "100kb", "-d", "1mb"],
         ["positional rate '100kb' ignored", "root required"],
         [],
-        "strict-all family shares the note",
+        "the s --all sweep shares the note",
         True,
     ),
     (
@@ -595,10 +608,10 @@ DURING_CASES = [
         True,
     ),
     (
-        ["sa", "1mb", "--during", "2h"],
+        ["s", "--all", "1mb", "--during", "2h"],
         ["root required"],
         [],
-        "strict-all rides the window",
+        "the s --all sweep rides the window",
         True,
     ),
     (
@@ -609,10 +622,10 @@ DURING_CASES = [
         True,
     ),
     (
-        ["ba", "--during", "2h"],
+        ["b", "--all", "--during", "2h"],
         ["root required"],
         [],
-        "block-all rides the window",
+        "the b --all sweep rides the window",
         True,
     ),
     # The refusal ladder — parse-boundary refusals, every uid.
@@ -779,8 +792,9 @@ GUARANTEE_CASES = [
 # strict's own (a per-connection cap on the ONE-app verb —
 # the server shape: one process, many sockets), so the valid parse
 # rides strict and the family verb's refusal is the parse
-# boundary, not the gate. --no-probe rides the same verb with the
-# same lane (the scripted-use probe skip).
+# boundary, not the gate. --no-test (NIGHT-improve-54's rename of
+# --no-probe) rides the same verb with the same lane (the
+# scripted-use verification skip).
 TIER_FLAGS = [
     (
         ["s", "brave", "1mb", "--per-socket"],
@@ -790,10 +804,10 @@ TIER_FLAGS = [
         True,
     ),
     (
-        ["s", "brave", "1mb", "--no-probe"],
+        ["s", "brave", "1mb", "--no-test"],
         ["root required"],
         [],
-        "the scripted-use probe skip parses to the gate",
+        "the scripted-use verification skip parses to the gate",
         True,
     ),
     (
@@ -1085,8 +1099,8 @@ def test_color_mode_ladder():
 
 
 def test_short_alias_routing():
-    """Every short alias (ss, sm, sa, bs, bm, ba, us, um, ua, ee)
-    routes to its canonical command.
+    """Every short alias (s, b, u, ee) is wired to its canonical
+    command.
 
     The alias and the canonical, invoked with the same args, must
     produce the SAME exit code and a consistent complaint shape — the
@@ -1313,6 +1327,26 @@ def test_removed_retired():
         all_ok = False
     else:
         record(label, "PASS", f"rc={rc}, no panic (retired flag rejected clean)")
+    # --no-probe retired -> --no-test (NIGHT-improve-54): the
+    # vocabulary rescue is the contract (jaro 0.69 sits under the
+    # fuzzy bar, so without the table the old spelling dies
+    # tip-less) — the answer must name the successor flag.
+    rc, output = _run_cli_case(["s", "brave", "1mb", "--no-probe"])
+    label = "retired: --no-probe -> --no-test"
+    if rc is None:
+        record(label, "FAIL", "timed out (hang)")
+        all_ok = False
+    elif _case_panicked(output):
+        record(label + " no panic", "FAIL", "panic leaked")
+        all_ok = False
+    elif rc == 0:
+        record(label, "FAIL", "retired --no-probe accepted (rc=0)")
+        all_ok = False
+    elif "--no-test" not in output:
+        record(label, "FAIL", f"no redirect tip naming --no-test, got: {output[:200]}")
+        all_ok = False
+    else:
+        record(label, "PASS", "rc=2, the --no-test vocabulary redirect")
     # NIGHT-improve-55: snapshot retired -> restore. The redirect is
     # the contract (the ux redirect table names the persistence
     # pair's survivor): the answer must be unrecognized AND carry the
@@ -1560,11 +1594,12 @@ def test_tier_flags():
     process, many sockets, each connection its own budget) — the
     valid parse rides the one verb that owns it, and the group
     verb's refusal is the parse boundary (a per-connection cap on a
-    group verb is a different feature, not a wider one). --no-probe
-    rides the same verb with the same lane.
+    group verb is a different feature, not a wider one). --no-test
+    (NIGHT-improve-54's rename of --no-probe) rides the same verb
+    with the same lane.
     """
     out()
-    out("── stage 12: tier flags (--per-socket / --no-probe) ──")
+    out("── stage 12: tier flags (--per-socket / --no-test) ──")
     return _run_needle_cases(TIER_FLAGS, "tier")
 
 

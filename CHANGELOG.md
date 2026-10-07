@@ -27,6 +27,40 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **feat(cli): NIGHT-improve-54 — the sweep merge: `--all` is a
+  lane of every family verb, and the verification flag is
+  `--no-test`.** Continuing the improve-53 masterclass, the three
+  `-all` verbs retire into the family verbs they always shadowed:
+  `zelynic s --all 500kb` is the strict sweep (strict-all),
+  `zelynic b --all` the block sweep (block-all), `zelynic u --all`
+  the emergency reset (unstrict-all). The grammar is one law per
+  verb: TARGET xor `--all` (clap's required-unless-present rung
+  owns the bare-verb shape), and on the strict sweep a lone
+  positional IS the rate — `s --all 500kb` parks `500kb` in
+  TARGET's slot and the dispatch re-feeds it to the sweep's rate
+  ladder (`s --all 1MB` refuses with the rate error, the
+  reinterpretation proven end to end). A target beside `--all` is
+  a lane confusion and refuses naming the stray on every family.
+  `--no-probe` is renamed `--no-test` (the flag's name says what it
+  skips — the enforcement test, not the probe machinery that runs
+  it); the retired spelling redirects through the vocabulary
+  rescue (jaro 0.69 sits under the fuzzy bar, so the table is the
+  only tip — the --info contract). The eight retired spellings
+  (strict-all, sa, block-all, ba, unstrict-all, ua, and blade-2's
+  limit-all/la repointed with them) redirect to the runnable
+  verb + flag spelling (`strict --all`), pinned in ux_tests,
+  surface_pins, v2, and v4's REMOVED table with dedicated
+  redirect-needle blocks. `--help` documents the sweeps in the Pro
+  mode section (the owner's ask): the `--all` block with four
+  runnable examples leads the section, and the retired alias
+  table rows are gone (four aliases now: s, b, u, ee). The v2
+  depth table grows to 106 cases (+ the --no-test parse row, +
+  the --no-probe redirect row) with its size pin and citations
+  updated together; every driver (v1's fleet stages, ammsp's
+  side-aware helpers — the legacy v11.0.0 side keeps its era
+  spellings by design, the depth/bench/bench-proof suites,
+  smoke-cli, uninstall) rides the new spelling.
+
 - **feat(cli): NIGHT-improve-53 — the masterclass unification: one
   verb per enforcement family. strict-single + strict-multi are
   `strict` (short form `s`), block-single + block-multi are
@@ -1318,6 +1352,19 @@ NIGHT-hunt-18's git-history-only call.
   dropped once, re-apply after upgrade.
 
 ### Removed
+
+- **refactor(cli): NIGHT-improve-54 — the six sweep retirees (see
+  the Added entry above).** strict-all, sa, block-all, ba,
+  unstrict-all, and ua are gone from the surface (blade-2's
+  limit-all/la repoint to the sweep spelling with them): every one
+  lands on the redirect table's tip naming the runnable
+  verb + flag (`strict --all`, `block --all`, `unstrict --all`),
+  never a dead end, and `--no-probe` redirects to `--no-test`
+  through the flag-vocabulary rescue (the --info contract). The
+  `--help` Short aliases table carries the four living forms
+  (s/b/u/ee), and the sweep lanes' own wordings (the saturation
+  warn's `u --all` hint, the no-rate example, the epilogue, the
+  recover suggestions) name the new spelling end to end.
 
 - **feat(cli): NIGHT-improve-55 — the snapshot verb is retired: the
   persistence pair's dump half, removed after the owner's live-test

@@ -26,16 +26,13 @@ use crate::zelynic_cmd;
 /// contains() on a single letter proves nothing.
 #[test]
 fn test_help_lists_every_command() {
-    // NIGHT-improve-55: 16 commands — the snapshot dump is retired
-    // (the state file is the operator's hand-maintained desired
-    // state; restore, the pair's surviving half, keeps the lane).
-    const KNOWN_COMMANDS: [&str; 16] = [
+    // NIGHT-improve-54: 10 commands — the -all sweeps retired into
+    // the family verbs' --all lanes (sa/ba/ua with their verbs),
+    // on top of improve-55's snapshot retirement.
+    const KNOWN_COMMANDS: [&str; 10] = [
         "strict",
-        "strict-all",
         "block",
-        "block-all",
         "unstrict",
-        "unstrict-all",
         "recover",
         // NIGHT-private-research-4's surviving half
         // (NIGHT-improve-55 retired the snapshot dump).
@@ -45,11 +42,6 @@ fn test_help_lists_every_command() {
         "eagle-eyes",
         "ee",
         "doctor",
-        // The short aliases that survive the masterclass merge
-        // (NIGHT-improve-53): the -all sweeps and the monitor.
-        "sa",
-        "ba",
-        "ua",
     ];
 
     let output = zelynic_cmd()
@@ -157,19 +149,20 @@ fn test_help_short_aliases_use_equals_pairing() {
 
     assert_eq!(output.status.code(), Some(0));
     let stdout = String::from_utf8_lossy(&output.stdout);
-    const PAIRS: [&str; 7] = [
-        "s = strict",
-        "b = block",
-        "u = unstrict",
-        "sa = strict-all",
-        "ba = block-all",
-        "ua = unstrict-all",
-        "ee = eagle-eyes",
-    ];
+    const PAIRS: [&str; 4] = ["s = strict", "b = block", "u = unstrict", "ee = eagle-eyes"];
+    // NIGHT-improve-54: the sweep aliases died with their verbs —
+    // sa/ba/ua are redirects now, never reference vocabulary.
+    const RETIRED_PAIRS: [&str; 3] = ["sa = strict-all", "ba = block-all", "ua = unstrict-all"];
     for pair in PAIRS {
         assert!(
             stdout.contains(pair),
             "--help must render the tidy '{pair}' alias pairing, got:\n{stdout}"
+        );
+    }
+    for pair in RETIRED_PAIRS {
+        assert!(
+            !stdout.contains(pair),
+            "--help must not present the retired '{pair}' alias (NIGHT-improve-54), got:\n{stdout}"
         );
     }
     // The retired separator-less packing must not come back: a packed
@@ -370,7 +363,7 @@ fn test_help_documents_status_ledger_and_no_match_contract() {
         "was set — allowed passed the budget, dropped exceeded it (the",
         "sender retries); removing the limit clears both.",
         "A target that matches nothing is a hard error (exit 1) — never a",
-        "silent no-op; unstrict-all on an already-clean system exits 0.",
+        "silent no-op; the --all reset on an already-clean system exits 0.",
     ] {
         assert!(
             stdout.contains(needle),
@@ -415,7 +408,7 @@ fn test_help_documents_the_depth_mode() {
         "--depth is the only spelling",
         "sudo zelynic ee cg:1234 --depth",
         "sudo zelynic ee 12345 --depth --print-json",
-        "--print-json     JSON output for status, list-apps, eagle-eyes --depth, doctor",
+        "--print-json     JSON output for status, list-apps, eagle-eyes --depth, doctor,",
     ] {
         assert!(
             stdout.contains(needle),
@@ -467,7 +460,9 @@ fn test_subcommand_help_errors_with_suggestion() {
 /// hidden: add its spelling here the same hour it joins the enum.
 #[test]
 fn test_help_pro_mode_documents_every_advanced_flag() {
-    const ADVANCED_FLAGS: [&str; 13] = [
+    const ADVANCED_FLAGS: [&str; 14] = [
+        // Fleet sweeps (strict + block + unstrict) — NIGHT-improve-54.
+        "--all",
         // Time windows (strict family + block family).
         "--during",
         // The guarantee bracket family (strict family).
@@ -477,9 +472,9 @@ fn test_help_pro_mode_documents_every_advanced_flag() {
         "--floor-upload",
         "--ceil-download",
         "--ceil-upload",
-        // Enforcement shape (strict-single).
+        // Enforcement shape (strict family).
         "--per-socket",
-        "--no-probe",
+        "--no-test",
         // Guard override (strict family + block family).
         "--force-this",
         // Deep inspection (eagle-eyes).
@@ -531,12 +526,22 @@ fn test_help_pro_mode_documents_every_advanced_flag() {
     // example-empty (zero copyable lines for the hidden family).
     // These pins hold the discovery path so a future edit cannot
     // strip the examples back out.
+    // NIGHT-improve-54: the retired --no-probe spelling must not
+    // linger as living vocabulary on the reference (the redirect
+    // note beside --no-test is the only legal mention).
+    assert!(
+        !stdout.contains("--no-probe     "),
+        "the retired --no-probe flag line must not linger, got:\n{stdout}"
+    );
     for example_line in [
+        "sudo zelynic s --all 500kb",
+        "sudo zelynic b --all",
+        "sudo zelynic u --all",
         "sudo zelynic s brave 1mb --during 2h",
         "sudo zelynic b brave::curl --during 30m",
         "sudo zelynic s firefox 1mb --floor 100kb",
         "sudo zelynic s curl 1mb --floor-download 50kb --ceil-upload 200kb",
-        "sudo zelynic s nginx 500kb --no-probe",
+        "sudo zelynic s nginx 500kb --no-test",
     ] {
         assert!(
             stdout.contains(example_line),

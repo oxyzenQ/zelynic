@@ -49,7 +49,8 @@ fn unpin_dir_removes_every_file_and_the_directory() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// Idempotence (the recover-after-unstrict-all sequence): a missing
+/// Idempotence (the recover-after-unstrict-all sequence, the era's
+/// spelling — today's `u --all`): a missing
 /// directory is a clean Ok(0), never an error — every teardown path
 /// must be safe to re-run.
 #[test]
@@ -118,7 +119,7 @@ fn unpin_dir_survivor_count_pluralizes() {
 }
 
 /// Re-running after a successful teardown: the second call finds the
-/// directory gone and answers Ok(0) — the recover-after-unstrict-all
+/// directory gone and answers Ok(0) — the recover-after-reset
 /// sequence pinned end to end at the core level.
 #[test]
 fn unpin_dir_is_idempotent_after_success() {

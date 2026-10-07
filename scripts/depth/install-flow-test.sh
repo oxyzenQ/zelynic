@@ -172,7 +172,7 @@ if "${STAGE}/uninstall.sh" --user >"${STAGE}/user-uninstall.log" 2>&1 &&
 else
 	fail "uninstall.sh --user: removes the user binary, leaves kernel state (no escalation)"
 fi
-if grep -qi "unstrict-all\|does not escalate" "${STAGE}/user-uninstall.log"; then
+if grep -qi "u --all\|does not escalate" "${STAGE}/user-uninstall.log"; then
 	pass "uninstall.sh --user names the still-active kernel state"
 else
 	fail "uninstall.sh --user names the still-active kernel state"

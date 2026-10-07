@@ -9,7 +9,7 @@
 # limits are live leaves BPF programs pinned in /sys/fs/bpf/zelynic —
 # enforcement keeps running with NO tool left to remove it. So before any
 # file is deleted, the script checks the pin directory; when pins exist
-# and a zelynic binary is still available, it runs `zelynic unstrict-all`
+# and a zelynic binary is still available, it runs `zelynic u --all`
 # (escalating only in the sudo-sanctioned modes) and verifies the pins
 # are gone. When no binary is available, it says exactly what is still
 # enforcing and how to clear it by hand. Never silent, never a trap.
@@ -193,7 +193,7 @@ clear_enforcement() {
 		echo "   Limits stay active in the kernel. Manual cleanup (as root):" >&2
 		echo "     sudo rm -rf ${PIN_DIR}" >&2
 		echo "   (removing the link pins detaches the programs; removing the whole" >&2
-		echo "    directory unpins maps and programs — this is what 'unstrict-all' does.)" >&2
+		echo "    directory unpins maps and programs — this is what 'u --all' does.)" >&2
 		return 0
 	fi
 	version_line="$("${bin}" -V 2>/dev/null | head -n 1 || true)"
@@ -204,12 +204,12 @@ clear_enforcement() {
 	fi
 	if ! sudo_capable; then
 		echo "   WARNING: kernel state is machine-wide; --user mode does not escalate." >&2
-		echo "   Clear it with: sudo ${bin} unstrict-all" >&2
+		echo "   Clear it with: sudo ${bin} u --all" >&2
 		return 0
 	fi
-	echo ">> Clearing kernel enforcement: ${bin} unstrict-all"
-	if ! "${SUDO_CMD[@]}" "${bin}" unstrict-all; then
-		echo "   WARNING: 'unstrict-all' failed — kernel state may still be active." >&2
+	echo ">> Clearing kernel enforcement: ${bin} u --all"
+	if ! "${SUDO_CMD[@]}" "${bin}" u --all; then
+		echo "   WARNING: 'u --all' failed — kernel state may still be active." >&2
 	fi
 	if pins_present; then
 		echo "   WARNING: pins still present in ${PIN_DIR}." >&2

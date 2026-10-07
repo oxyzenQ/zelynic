@@ -55,7 +55,7 @@ SRV_PID=""
 URL="http://127.0.0.1:${PORT}/blob"
 
 cleanup() {
-	"$BINARY" unstrict-all 2>/dev/null || true
+	"$BINARY" u --all 2>/dev/null || true
 }
 
 # shellcheck disable=SC2317 # teardown rides the EXIT trap, never a call by name
@@ -199,7 +199,7 @@ SLEEP_PID=$!
 SLEEP_COMM=$(cat /proc/$SLEEP_PID/comm 2>/dev/null || echo "sleep")
 "$BINARY" strict "$SLEEP_COMM" 100kb 2>/dev/null || true
 kill "$SLEEP_PID" 2>/dev/null || true
-"$BINARY" unstrict-all 2>/dev/null
+"$BINARY" u --all 2>/dev/null
 if [ ! -d "/sys/fs/bpf/zelynic" ] || [ -z "$(ls -A /sys/fs/bpf/zelynic 2>/dev/null)" ]; then
 	log_pass "Final state is clean"
 else

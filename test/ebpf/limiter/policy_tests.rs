@@ -264,7 +264,8 @@ fn policy_write_line_names_the_guarantee_bracket() {
 }
 
 /// NIGHT-hunt-27: the sweep lane's capacity admission — the pure
-/// rule strict-all/block-all ride past the policy family's 1024-row
+/// rule the sweeps (s --all / b --all) ride past the policy family's
+/// 1024-row
 /// ceiling. The contract: already-live ids always admit (an
 /// overwrite costs no new slot), fresh ids admit first-seen while
 /// `free` lasts, the remainder counts as saturated, and the output
