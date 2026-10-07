@@ -1605,6 +1605,41 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **test(bench): NIGHT-mitigate-2 — the claims proof's two
+  false-red CI classes closed at the instrument (the owner's
+  "1 failed left, mitigate so it cannot happen again" mandate;
+  closes the hunt-31 candidate boost-10 recorded).** Two rows,
+  one class: a verdict reddening on runner weather while the
+  product held its contract. (1) The held-rate rows measured one
+  AIMD flow: the 37583456726 low-gnu leg's per-app row read
+  785.8 KB/s (39.3%) of a 2mb policy across all three patient
+  windows while its own witness held 11.8 GB/s side by side —
+  the policer alive, the sender parked. Both rate rows
+  (no-daemon, per-app) now ride `fleet_download` /
+  `RATE_ROW_FLOWS = 4` — the cgroup-level truth the rows verdict
+  on, the precision stage's own instrument law — through the
+  same one-sided patience, cushion redrain, and unchanged
+  0.65/1.30 band; a rootless pin fails the next revert to a
+  single-flow reading. (2) The precision row's improve-48
+  discriminator keyed its regression verdict on refusals, and
+  the 2b269f73 best-gnu leg broke it with the mixed shape: the
+  offer sagged window-wide to 878.8 MB against a 1000.5 MB
+  budget (TCP-level 73.9%, admit ratio 1.0070 — every offered
+  byte passed the hook) while its burst instants still refused
+  134.1 MB, so the row read "real regression" from a window
+  that never presented the budget. The v2 gate is the budget
+  scale itself (`precision_offer_tested_refill`): an under-band
+  window certifies the regression only when its hook-level
+  offer (admitted + refused) integrated up to the budget; an
+  offer-limited window — refusals or not — adapts at 80% of its
+  own offer and SKIPs honestly on a repeat, and a budget-scale
+  under-admission whose re-attempt cannot present the budget
+  again is inconclusive, not red. Pinned rootlessly on both
+  sides with the exact 2b269f73 shape; the zero-refusal starve
+  improve-48 pinned is the offer-limited special case, one law
+  for both spellings. Audit:
+  `docs/audits/NIGHT_MITIGATE_2_CLAIMS_RATE_ROW_FLEET_AUDIT_2026-10-07.md`.
+
 - **ci: gate debt cleared — the wholesale gate-keepers red on the
   last three consecutive pushes (494a4d2, b305638, 10be32d),
   closed riding NIGHT-boost-10.** Two content debts: the hunt-27

@@ -37,7 +37,7 @@ row ships without one. The mechanisms come in three strengths:
 | 1 | **No daemon** — enforcement survives process exit | `no-daemon`: process set must not grow across an attach; a download stays policed after the CLI exits | supermassive v1 reload/sustain rows; the pinned-link surface in `pin.rs` |
 | 2 | **Pure eBPF** — no tc/nft/LD_PRELOAD | `pure-eBPF`: ruleset structure snapshot + kernel drop counters + bpftool's attach-mechanism-independent surfaces | nft/tc normalization pins (engine self-test); CI runs the engine self-test on every push |
 | 3 | **Per-app per-cgroup** | `per-app`: cgroup A shaped at its rate while its unlimited neighbor rides ≥50x above, same moment | witness-floor pins; strict-multi shared-bucket rows (supermassive v1) |
-| 4 | **Precision 0.00%** | `precision`: kernel-admitted bytes vs configured rate × wall time over a saturating window, cross-checked against the client counter — the row prints the residual and the PASS bound's derivation (estimator floor + the token bank's one-burst wander, `burst/(rate × window)`; under-side windows re-attempt bounded — the quick-row closure v3), it rounds nothing; the starved-window discriminator (improve-48): an under-band window with ZERO refusals re-attempts once at 80% of its own measured offer, then SKIPs honestly (a starved window measures the offer, not the policer), while under-band WITH refusals stays the red real-regression signature | the token math pinned rootlessly: `test/ebpf/limiter/math_tests.rs` (steady-state exactness, fractional carry) + the budget-covers pair (lts-8, contention) |
+| 4 | **Precision 0.00%** | `precision`: kernel-admitted bytes vs configured rate × wall time over a saturating window, cross-checked against the client counter — the row prints the residual and the PASS bound's derivation (estimator floor + the token bank's one-burst wander, `burst/(rate × window)`; under-side windows re-attempt bounded — the quick-row closure v3), it rounds nothing; the offer-test discriminator (improve-48, v2 by mitigate-2): an under-band window whose hook-level offer (admitted + refused) never reached the budget is offer-limited — refusals or not, a sagging offer's bursts refuse without presenting a budget-scale surplus — so it re-attempts at 80% of its own offer and SKIPs honestly on a repeat (an offer-limited window measures the offer, not the policer), while under-band AT budget scale stays the red real-regression signature | the token math pinned rootlessly: `test/ebpf/limiter/math_tests.rs` (steady-state exactness, fractional carry) + the budget-covers pair (lts-8, contention) |
 | 5 | **Resource honesty** — the CLI's own RAM/CPU/IO + kernel cost (lts-6) | `footprint`: wait4 rusage of a canonical attach (peak RSS, CPU seconds, block IO — real numbers printed) + bpftool `run_time_ns`/`run_cnt` (average ns per attached-prog run; the kernel collects those fields only while `kernel.bpf_stats_enabled` is on, so the harness turns the knob on for its window and writes the original value back — lts-6 followup 3) | verdict-math + stats-knob-plan pins (engine self-test); idle-frame zero-emit: `test/terminal/diff_tests.rs` |
 
 The 0.00% claim told honestly (the two levels): the CONTRACT is
@@ -110,16 +110,24 @@ push" wording claimed surfaces the path filters never woke).
   policer passed every offered byte; the offer itself integrated
   under the rate — the same host's quieter hours read 1.921% on
   the same kernel, and the 5.13 floor legs read 3.606% on the
-  same runs). The row now discriminates before it verdicts: an
-  under-band window with refusals is the real regression
-  signature (the bucket refused the surplus while
-  under-admitting the refill) and stays red; a starved window
-  re-attempts once at 80% of its own measured offer (capped at
-  the configured rate, floored at the 5mb loopback GSO-safe
-  rung) and a second starve — or an offer below the floor —
-  records the honest SKIP instead of failing the lane on the
-  host's own poverty. The evidence rows (the TCP-level offer,
-  the admit-ratio) ride every verdict unchanged.
+  same runs). The row discriminates before it verdicts, and
+  mitigate-2 refined the gate from refusals to the budget scale
+  itself: an under-band window whose hook-level offer (admitted
+  and refused summed) never reached the budget is offer-limited — the
+  2b269f73 best-gnu leg's mixed shape (878.8 MB offered vs a
+  1000.5 MB budget, 134.1 MB refused in burst instants, admit
+  ratio 1.0070) wears refusals without ever presenting a
+  budget-scale surplus, a host whose fleet sagged, not a broken
+  token math — so it re-attempts at 80% of its own offer (capped
+  at the configured rate, floored at the 5mb loopback GSO-safe
+  rung) and a second offer-limited window — or an offer below
+  the floor — records the honest SKIP instead of failing the
+  lane on the host's own poverty; a budget-scale under-admission
+  stays red on the attempt that produced it, and a
+  budget-scale reading whose re-attempt cannot present the
+  budget again is inconclusive (SKIP, every number attached).
+  The evidence rows (the TCP-level offer, the admit-ratio) ride
+  every verdict unchanged.
 - The BIG TCP corner: opt-in per-link `gro-max-size` above 64 KiB
   (kernel 6.x) can still hand the hook a super-packet above the
   burst floor — an inherent property of any bounded bucket
@@ -163,6 +171,20 @@ push" wording claimed surfaces the path filters never woke).
   the quick lane settles past it before its measured window, and
   the window re-samples under-side through the same one-sided
   patience the matrix proved on every CI leg.
+- The held-rate rows measure the fleet (NIGHT-mitigate-2, the
+  37583456726 low-gnu lesson): a cgroup-held rate is a cgroup-level
+  truth, so the no-daemon and per-app windows read the sum of
+  `RATE_ROW_FLOWS = 4` concurrent connections, not one AIMD
+  sawtooth. The failing leg's lone flow parked at 39.3% of a 2mb
+  policy across all three patient windows while its own witness
+  row held 11.8 GB/s side by side — the policer alive, the sender
+  physics under the band. Patience cannot lift a source's own
+  ceiling (the precision stage's round-3 law); the fleet's
+  staggering sockets keep the shared bucket's offered load above
+  the refill, so the aggregate rides the rate. The verdict law is
+  untouched — same one-sided patience, same cushion redrain, same
+  0.65/1.30 band — and a rootless self-test pin fails the next
+  revert to a single-flow reading.
 - The footprint bounds are regression fences, not bragging rights:
   the rows print the real numbers they measured.
 

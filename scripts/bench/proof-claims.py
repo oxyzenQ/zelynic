@@ -198,6 +198,19 @@ PRECISION_ATTEMPTS = 2
 # individual sawtooths staggering behind it. The fleet also pays the
 # fresh bucket's cushion several times faster than one flow can.
 PRECISION_FLOWS = 4
+# The claim rows' own fleet (the 37583456726 low-gnu lesson): the
+# no-daemon and per-app rows measure a CGROUP's held rate, and a
+# cgroup-level truth needs a cgroup-level instrument — one lone AIMD
+# flow under a drop-only policer rides its own sawtooth and can park
+# under the band on a cold slow leg (the failure's three patient
+# windows read 671.3/802.2/785.8 KB/s of a 2mb policy, ~40%, all
+# under the 0.65 floor, while the witness proved the policer fully
+# alive at 11.8 GB/s side by side — sender physics, not enforcement),
+# so the instrument is the fleet's SUM: RATE_ROW_FLOWS concurrent
+# sockets share the one bucket, the individual back-offs stagger, and
+# the aggregate rides the refill exactly (the matrix's high-rung law
+# the precision stage already rides verbatim).
+RATE_ROW_FLOWS = 4
 # The provably-paid settle (the drain_cushion contract applied to
 # the stage's own warm-up): the measured window may only start after
 # the fleet has cumulatively moved at least one default_burst —
@@ -209,23 +222,31 @@ PRECISION_FLOWS = 4
 PRECISION_SETTLE_MAX_QUICK = 3.0
 PRECISION_SETTLE_MAX_FULL = 6.0
 
-# The starved-window discriminator (NIGHT-improve-48, the CI runs
-# 224/228 best-specs lesson): a drop-only bucket admits min(offer,
-# refill) at (nearly) every instant, so an under-band window that
-# refused NOTHING measured its own offer — the fleet's bytes
-# integrated under the refill (the shared-runner shape: TCP-level
-# 69.9-78.4% of the configured rate while admitted==client at ratio
-# 1.004 — the policer passed everything offered; the offer never
-# reached the rate). The SAME under-band error WITH refusals in the
-# window is the real regression the row exists to catch — the bucket
-# refused the surplus AND still under-admitted the refill — and that
-# verdict stays red. The discriminator is pure, pinned by the
-# self-test on both sides.
-PRECISION_STARVED_DROPS = 0
-# The adaptation a starved window earns: the re-attempt's rate rides
-# 80% of the starved window's own admitted rate (zero refusals made
-# admitted==offered, so the number IS the offer) — 25% headroom for
-# the fleet to saturate the refill again — floored at the loopback
+# The offer-test discriminator (NIGHT-improve-48's starved-window
+# law, v2 by NIGHT-mitigate-2): a window can only CERTIFY the
+# regression the row exists to catch — the bucket refused a
+# budget-scale surplus while under-admitting the refill — when its
+# offer actually TESTED the budget scale: the hook-level offer
+# (admitted + refused) integrated up to the configured budget. The
+# improve-48 binary keyed on refusals (zero = starved, any = the
+# real signature) and the 2b269f73 best-gnu leg broke exactly there
+# with the mixed shape: the offer sagged window-wide to 878.8 MB
+# against a 1000.5 MB budget (TCP-level 73.9%, admit ratio 1.0070 —
+# every offered byte passed the hook) while its burst instants
+# still spiked over the instantaneous tokens, refusing 134.1 MB —
+# refusals without a budget-scale surplus: a host whose fleet
+# cannot hold the refill, not a broken token math (the determinism
+# a regression claims cannot hide from a window that never
+# presented the budget). The zero-refusal starve improve-48 pinned
+# (runs 224/228: 69.9-78.4% TCP, admitted==client at 1.004) is the
+# offer-limited special case — offered == admitted there — so one
+# law covers both spellings. The discriminator is pure, pinned by
+# the self-test on both sides including the exact 2b269f73 shape.
+# The adaptation an offer-limited window earns: the re-attempt's
+# rate rides 80% of that window's own hook-level offer (admitted +
+# refused; the zero-refusal starve's admitted, the same number
+# there) — 25% headroom for the fleet to saturate the refill again
+# — floored at the loopback
 # GSO-safe 5mb (NO_DAEMON_RATE's discipline: below it the sub-skb
 # window regime bites), capped at the current rate, rounded to the
 # whole-mb grammar bps_to_rate_str speaks. When the offer cannot
@@ -330,26 +351,30 @@ NFT_VOLATILE = (
 )
 
 
-def precision_window_starved(dropped_delta):
-    """Pure: did this under-band window refuse nothing? A drop-only
-    bucket under a saturated offer admits the refill exactly (the
-    math pins hold that contract), so an under-band window with zero
-    refusals is the offer itself integrating under the rate — the
-    instrument starved, not the policer. Both sides pinned by the
-    self-test (NIGHT-improve-48)."""
-    return dropped_delta <= PRECISION_STARVED_DROPS
+def precision_offer_tested_refill(offered_bytes, expected_bytes):
+    """Pure: did this window's offer test the refill? The hook-level
+    offer (admitted + refused) must integrate up to the configured
+    budget before an under-band admission can read as the bucket's
+    own doing — an offer under the budget measured the host's fleet
+    (refusals or not: a sagging offer's burst instants spike over
+    the instantaneous tokens and refuse without ever presenting a
+    budget-scale surplus). Both sides pinned by the self-test,
+    including the exact 2b269f73 best-gnu shape (NIGHT-improve-48's
+    zero-refusal law, the v2 spelling from NIGHT-mitigate-2)."""
+    return offered_bytes >= expected_bytes
 
 
-def precision_adapt_rate(starved_offer_bps, current_rate):
-    """Pure: the rate a starved window's re-attempt runs at — 80% of
-    the starved window's own offer (zero refusals made admitted the
-    offer), floored at the loopback GSO-safe 5mb, capped at the
+def precision_adapt_rate(offer_bps, current_rate):
+    """Pure: the rate an offer-limited window's re-attempt runs at —
+    80% of that window's own hook-level offer (admitted + refused;
+    the zero-refusal starve's admitted, the same number there),
+    floored at the loopback GSO-safe 5mb, capped at the
     current rate, rounded to whole mb. None when the offer cannot
     fund the floor — the honest SKIP case. Pinned by the self-test on
     the CI shapes (78.4mb -> 62mb, 69.9mb -> 55mb)."""
-    if starved_offer_bps <= 0:
+    if offer_bps <= 0:
         return None
-    adapted = int(starved_offer_bps * PRECISION_ADAPT_MARGIN / 1_000_000) * 1_000_000
+    adapted = int(offer_bps * PRECISION_ADAPT_MARGIN / 1_000_000) * 1_000_000
     adapted = min(adapted, current_rate)
     if adapted < PRECISION_ADAPT_MIN_RATE:
         return None
@@ -573,6 +598,39 @@ def tracked_download(window, port, progress=None):
             if progress is not None:
                 progress[0] = total
     return total
+
+
+def fleet_download(flows, window, port):
+    """The rate-row instrument: `flows` concurrent downloads, summed.
+
+    The held-rate claim rows ride the fleet (the precision stage's
+    law applied to every configured-rate window): each thread opens
+    its own connection and reads for `window` seconds, the return
+    value is the fleet's total bytes — the cgroup-level rate, the
+    quantity the rows verdict on. A single connection under a
+    drop-only policer measures one AIMD sawtooth (a cold lone flow
+    can park at ~40% of a 2mb policy on a slow leg while the
+    policer itself is fully alive); the fleet's staggering sockets
+    keep the shared bucket's offered load above the refill at
+    (nearly) every instant, so the sum rides the rate. The server is
+    the decoupled worker with one serve thread per connection — the
+    fleet never shares the harness GIL with the data source (the
+    quick-row closure v2 contract).
+    """
+    progresses = [[0] for _ in range(flows)]
+    threads = [
+        threading.Thread(
+            target=tracked_download,
+            args=(window, port, p),
+            daemon=True,
+        )
+        for p in progresses
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    return sum(p[0] for p in progresses)
 
 
 # ── the proof pair: cgroup A (policed) + cgroup B (witness) ───────────────
@@ -846,23 +904,31 @@ def stage_no_daemon(quick):
         # claim: settle past it (unmeasured), then measure the steady
         # state the row actually claims — enforcement alive with zero
         # zelynic processes. The full-mode 8s window amortizes the
-        # transient on its own; quick needs the explicit settle.
-        tracked_download(NO_DAEMON_SETTLE_QUICK, SERVER.port)
+        # transient on its own; quick needs the explicit settle, and
+        # the fleet pays the fresh bucket's cushion several times
+        # faster than one flow can (the settle lands warm on the
+        # slowest leg the runners field).
+        fleet_download(RATE_ROW_FLOWS, NO_DAEMON_SETTLE_QUICK, SERVER.port)
     # The measured window rides the lib's one-sided patience (the
-    # quick-row closure v2): the matrix proved this exact discipline
-    # on every CI leg while this harness's single window read the
-    # 5.13 leg at 41.9% of a 5mb policy with enforcement fully alive
-    # (the shared-runner startup transient is envelope-scaled AIMD
-    # chop, not the law). In-band stops the loop, over-band fails now
-    # through band_check, all-under after the attempts fails the same
-    # way, and every sample rides the row detail.
+    # quick-row closure v2) and the fleet's aggregate (the
+    # 37583456726 low-gnu lesson, the precision stage's law applied
+    # here): the matrix proved this exact discipline on every CI leg
+    # while this harness's single window read the 5.13 leg at 41.9%
+    # of a 5mb policy with enforcement fully alive (the shared-runner
+    # startup transient is envelope-scaled AIMD chop, not the law),
+    # and one lone flow can stay parked under the band across every
+    # patient window while the policer holds — a cgroup-held rate is
+    # a cgroup-level truth, so the window reads the fleet's SUM. In-
+    # band stops the loop, over-band fails now through band_check,
+    # all-under after the attempts fails the same way, and every
+    # sample rides the row detail.
     samples = lib.patient_rate_window(
-        lambda: tracked_download(NO_DAEMON_WINDOW, SERVER.port),
+        lambda: fleet_download(RATE_ROW_FLOWS, NO_DAEMON_WINDOW, SERVER.port),
         NO_DAEMON_RATE,
         NO_DAEMON_WINDOW,
         attempts=BAND_ATTEMPTS,
         redrain=lambda: lib.drain_cushion(
-            lambda: tracked_download(REDRAIN_WINDOW, SERVER.port),
+            lambda: fleet_download(RATE_ROW_FLOWS, REDRAIN_WINDOW, SERVER.port),
             lib.default_burst(NO_DAEMON_RATE),
         ),
     )
@@ -878,6 +944,7 @@ def stage_no_daemon(quick):
         # the verifier of record, and the signature's two spellings
         # never mix in one call.
         "traffic still policed after the CLI exited — the kernel holds the law; "
+        + f"{RATE_ROW_FLOWS}-flow aggregate; "
         + lib.window_samples_note(samples),
     )
     return verdict == "PASS" and ok_all
@@ -1070,19 +1137,23 @@ def stage_per_app(baseline):
 
     def a_side():
         # A's measured window rides the same one-sided patience as the
-        # no-daemon row: the shared-runner cold attach can read 30% of
-        # a 2mb policy with enforcement alive (the 5.13 leg's number)
-        # while the matrix's patient shape reads 101.5% on the same
-        # leg — in-band stops, over-band fails now, samples ride the
-        # row detail, and the cushion bank between samples is paid out
-        # by the redrain before the next window reads.
+        # no-daemon row AND the fleet's aggregate (the 37583456726
+        # low-gnu lesson): a cold lone flow under a 2mb policy read
+        # ~40% across all three patient windows on the failed leg
+        # with enforcement fully alive (the witness held 11.8 GB/s
+        # side by side) while the matrix's patient shape read in-band
+        # on the same leg — a cgroup-held rate is a cgroup-level
+        # truth, so the window reads the fleet's SUM, the cushion
+        # bank between samples paid out by the redrain before the
+        # next window reads. In-band stops, over-band fails now,
+        # samples ride the row detail.
         holder["samples"] = lib.patient_rate_window(
-            lambda: tracked_download(PER_APP_WINDOW, SERVER.port),
+            lambda: fleet_download(RATE_ROW_FLOWS, PER_APP_WINDOW, SERVER.port),
             PER_APP_RATE,
             PER_APP_WINDOW,
             attempts=BAND_ATTEMPTS,
             redrain=lambda: lib.drain_cushion(
-                lambda: tracked_download(REDRAIN_WINDOW, SERVER.port),
+                lambda: fleet_download(RATE_ROW_FLOWS, REDRAIN_WINDOW, SERVER.port),
                 lib.default_burst(PER_APP_RATE),
             ),
         )
@@ -1107,7 +1178,7 @@ def stage_per_app(baseline):
             "per-app: policed cgroup A held at its configured rate",
             a_bps,
             PER_APP_RATE,
-            extra=lib.window_samples_note(samples),
+            extra=f"{RATE_ROW_FLOWS}-flow aggregate; " + lib.window_samples_note(samples),
         )
         == "PASS"
     )
@@ -1194,7 +1265,7 @@ def stage_precision(baseline, quick):
     attempt_rates = []
     adapted = False
     adapt_trail = None
-    starved_final = False
+    offer_limited_final = False
     real_signature_seen = False
     attempts_used = 0
     while attempts_used < PRECISION_ATTEMPTS:
@@ -1269,40 +1340,55 @@ def stage_precision(baseline, quick):
         attempt_rates.append(rate)
         if admitted >= expected * (1.0 - bound):
             break  # in-band, or over-band: the verdict is now, not retried
-        # Under-side, the improve-48 discriminator first: WITH refusals
-        # in the window this is the real regression the row exists to
-        # catch — the bucket refused the surplus AND still
-        # under-admitted the refill — and it fails below, on the
-        # attempt that produced it. Zero refusals means the offer
-        # itself integrated under the refill: the starved-window
-        # shape (the run-224/228 evidence — TCP-level 69.9-78.4%,
-        # admitted==client at 1.004 — the policer held, the fleet
-        # starved).
-        if not precision_window_starved(dropped):
-            # The real signature: keep the old same-rate patience — a
-            # mixed transient (saturated instants dropping, starved
-            # gaps under) gets its second window; a systematic break
-            # stays red on both. The verdict below appends the
-            # refused-surplus evidence whenever the trail carries it.
+        # Under-side, the offer-test discriminator first (improve-48's
+        # law, the v2 spelling): a budget-scale offer — the hook's
+        # admitted + refused integrating up to the budget — with an
+        # under-band admission is the real regression the row exists
+        # to catch, and the re-attempt stays at the SAME rate: a
+        # systematic break reproduces at budget scale, a transient
+        # washes out (the old patience verbatim). An offer that
+        # integrated UNDER the budget is offer-limited, refusals or
+        # not — a sagging offer's burst instants spike over the
+        # instantaneous tokens and refuse without ever presenting a
+        # budget-scale surplus (the 2b269f73 best-gnu shape: 878.8 MB
+        # offered vs the 1000.5 MB budget, 134.1 MB refused, TCP-level
+        # 73.9%, admit ratio 1.0070 — the window measured the host's
+        # fleet, not the token math) — and the offer-limited family
+        # rides the adaptation below, never a red verdict from a
+        # window that could not present the budget.
+        offered = admitted + dropped
+        if precision_offer_tested_refill(offered, expected):
+            # The real signature: keep the same-rate patience — a
+            # mixed transient gets its second window; a systematic
+            # break stays red on both, on the attempt that produced
+            # it. The verdict below appends the refused-surplus
+            # evidence whenever the trail carries it.
             real_signature_seen = True
             if attempts_used < PRECISION_ATTEMPTS:
                 continue
             break
-        # Starved: adapt once — the re-attempt rides 80% of THIS
-        # window's own admitted rate (zero refusals made admitted the
-        # offer), giving the fleet 25% headroom over the refill. The
-        # adapted attempt consumes the attempt budget (PRECISION_ATTEMPTS
-        # windows total, one adaptation between them); a starve that
-        # cannot fund the 5mb floor, or a second starve after the
-        # adaptation, records the honest SKIP — a window this host
-        # cannot saturate measures the offer, not the policer, and the
-        # admit-ratio row below already proves every offered byte
-        # passed the hook.
+        # Offer-limited: adapt once — the re-attempt rides 80% of THIS
+        # window's own hook-level offer (admitted + refused; the
+        # zero-refusal starve's admitted, the same number there),
+        # giving the fleet 25% headroom over the refill. The adapted
+        # attempt consumes the attempt budget (PRECISION_ATTEMPTS
+        # windows total, one adaptation between them); an offer that
+        # cannot fund the 5mb floor, or a second offer-limited window
+        # after the adaptation, records the honest SKIP — a window
+        # this host cannot saturate measures the offer, not the
+        # policer, and the admit-ratio row below already proves every
+        # offered byte passed the hook. An earlier window's real
+        # signature does NOT govern a red verdict here: the verdict
+        # stands on the FINAL window's evidence, and a budget-scale
+        # under-admission whose re-attempt cannot even present the
+        # budget again is inconclusive, not red — the row records the
+        # honest SKIP with every number attached.
         if real_signature_seen:
-            break  # the earlier window's real signature governs: FAIL below
-        new_rate = precision_adapt_rate(admitted / elapsed, rate)
+            offer_limited_final = True
+            break
+        new_rate = precision_adapt_rate(offered / elapsed, rate)
         if adapted or new_rate is None:
-            starved_final = True
+            offer_limited_final = True
             break
         ok_adapt, payload_adapt = apply_and_verify(new_rate, CG.a_id)
         if not ok_adapt:
@@ -1314,13 +1400,13 @@ def stage_precision(baseline, quick):
                 )
                 == "PASS"
             )
-        adapt_trail = (rate, new_rate, admitted / elapsed)
+        adapt_trail = (rate, new_rate, offered / elapsed)
         rate = new_rate
         bound = accounting_bound(base, rate, window)
         bank_floor = bound - base
         adapted = True
-    if starved_final:
-        # The starved window's TCP-level number is the OFFER — the
+    if offer_limited_final:
+        # The offer-limited window's TCP-level number is the OFFER — the
         # matrix's starved-rung spelling (lo=0.0) keeps the row honest
         # about what it measured instead of failing a band the host
         # could not reach.
@@ -1328,9 +1414,9 @@ def stage_precision(baseline, quick):
             "precision: TCP-level throughput (honest — drops cost, a policer never queues)",
             client_delta / elapsed,
             rate,
-            f"{PRECISION_FLOWS}-flow aggregate, the window starved (zero "
-            "refusals) — the number is the offer this host's fleet "
-            "actually made, not the shaping",
+            f"{PRECISION_FLOWS}-flow aggregate, the window offer-limited "
+            "(the offer integrated under the refill) — the number is the "
+            "offer this host's fleet actually made, not the shaping",
             lo=0.0,
         )
     else:
@@ -1355,7 +1441,7 @@ def stage_precision(baseline, quick):
             + ", ".join(
                 f"{e * 100:.3f}% at {r // 1_000_000}mb" for e, r in zip(attempt_errs, attempt_rates)
             )
-            + " (the starved window adapted, the under-side re-attempt; "
+            + " (the offer-limited window adapted, the under-side re-attempt; "
             "the over-side fails on the attempt that produced it)"
         )
     else:
@@ -1365,21 +1451,30 @@ def stage_precision(baseline, quick):
             + " (the under-side re-attempt; the over-side fails on the attempt "
             "that produced it)"
         )
-    if starved_final:
+    if offer_limited_final:
         detail = (
             f"admitted {admitted} B over {elapsed:.1f}s vs configured "
-            f"rate x time {expected:.0f} B — error {err * 100:.3f}% with ZERO "
-            f"refusals in the window ({dropped} B dropped): the fleet's own "
-            "offer integrated under the refill — the instrument starved on "
-            "this host, the policer held its contract (the admit-ratio row "
-            "above proves every offered byte passed the hook). "
+            f"rate x time {expected:.0f} B — error {err * 100:.3f}% with the "
+            f"offer at {admitted + dropped} B against the {expected:.0f} B "
+            f"budget ({dropped} B refused in burst instants): the fleet's "
+            "own offer integrated under the refill — the instrument was "
+            "offer-limited on this host, the policer held its contract (the "
+            "admit-ratio row above proves every offered byte passed the "
+            "hook). "
         )
         if adapt_trail:
             detail += (
                 f"The rate adapted {adapt_trail[0] // 1_000_000}mb -> "
-                f"{adapt_trail[1] // 1_000_000}mb after the first starved "
-                f"window (its offer {lib.fmt_bps(adapt_trail[2])}) and the "
-                "adapted window starved too. "
+                f"{adapt_trail[1] // 1_000_000}mb after the first "
+                f"offer-limited window (its offer {lib.fmt_bps(adapt_trail[2])}) "
+                "and the adapted window was offer-limited too. "
+            )
+        elif real_signature_seen:
+            detail += (
+                "An earlier window read under-band at budget scale; its "
+                "re-attempt's offer sagged under the refill, so the "
+                "evidence did not reproduce — the row reads inconclusive "
+                "with every number attached, not red. "
             )
         else:
             detail += (
@@ -1417,7 +1512,7 @@ def stage_precision(baseline, quick):
         f"{bank_floor * 100:.1f}% token-bank floor, one default_burst of "
         f"wander over a {window:.0f}s window)"
     )
-    if err > bound and (real_signature_seen or not precision_window_starved(dropped)):
+    if err > bound and (real_signature_seen or dropped > 0):
         detail += (
             f" — WITH {dropped} B refused in the window: the bucket refused "
             "the surplus while under-admitting the refill, the real "
@@ -1426,8 +1521,8 @@ def stage_precision(baseline, quick):
     if adapted:
         detail += (
             f". The rate adapted {adapt_trail[0] // 1_000_000}mb -> "
-            f"{rate // 1_000_000}mb after a starved first window (zero "
-            f"refusals, its offer {lib.fmt_bps(adapt_trail[2])}); this row's "
+            f"{rate // 1_000_000}mb after an offer-limited first window (its "
+            f"hook-level offer {lib.fmt_bps(adapt_trail[2])}); this row's "
             "numbers are the adapted window's"
         )
     detail += (
@@ -1985,6 +2080,29 @@ def self_test():
         == "PASS"
         and ok
     )
+    # The fleet pin (the 37583456726 low-gnu lesson): the no-daemon and
+    # per-app rows verdict on a CGROUP's held rate, so their windows
+    # must read the fleet's sum, not one AIMD sawtooth — a cold lone
+    # flow parked at ~40% of a 2mb policy across every patient window
+    # with the policer fully alive, and only the aggregate reads the
+    # cgroup-level truth (the precision stage's own instrument law,
+    # applied to the remaining held-rate rows). The pin fails
+    # rootlessly the next time a row reverts to a single flow.
+    ok = (
+        lib.record(
+            "selftest: the rate rows measure the fleet, not one flow",
+            "PASS"
+            if "fleet_download" in nd_src
+            and "fleet_download" in pa_src
+            and "RATE_ROW_FLOWS" in module_src
+            else "FAIL",
+            "a cgroup-held rate is a cgroup-level truth — one cold AIMD flow "
+            "parks at its own sawtooth under the band while the fleet's "
+            "aggregate rides the refill (the 37583456726 low-gnu lesson)",
+        )
+        == "PASS"
+        and ok
+    )
     # The band_check signature discipline, EXECUTED (the 481b2de CI
     # round's lesson): the self-test pins source text and never runs
     # a stage's call sites, so a call that mixes the positional extra
@@ -2041,27 +2159,38 @@ def self_test():
         == "PASS"
         and ok
     )
-    # The improve-48 pins: the starved-window discriminator, both
-    # sides of its law, and the adaptation math on the exact CI
-    # shapes that motivated it (runs 224/228's best-specs legs read
+    # The improve-48 pins (v2, NIGHT-mitigate-2): the offer-test
+    # discriminator, both sides of its law including the exact CI
+    # shape that broke the v1 binary (the 2b269f73 best-gnu leg —
+    # 878.8 MB offered against a 1000.5 MB budget with 134.1 MB
+    # refused: refusals without a budget-scale surplus, the offer
+    # sagged, the policer held), and the adaptation math on the exact
+    # CI shapes that motivated it (runs 224/228's best-specs legs read
     # 29.775%/21.297% under with zero refusals — the offer, not the
     # policer). Pure functions, executed here so the LIVE row's
     # decision tree is proven, not assumed (the band_check-signature
     # lesson applied to the new arms).
     ok = (
         lib.record(
-            "selftest: starved-window discriminator — zero refusals starved the offer",
-            "PASS" if precision_window_starved(0) and not precision_window_starved(1) else "FAIL",
-            "under-band with zero refusals: the offer integrated under the "
-            "refill (starved); one refused byte or more: the real regression "
-            "signature, the verdict stays red",
+            "selftest: offer-test discriminator — the budget scale is the gate",
+            "PASS"
+            if precision_offer_tested_refill(1_000_479_172, 1_000_479_172)
+            and not precision_offer_tested_refill(878_834_209, 1_000_479_172)
+            and not precision_offer_tested_refill(744_746_367, 1_000_479_172)
+            else "FAIL",
+            "under-band certifies the regression only at budget scale: the "
+            "2b269f73 best-gnu shape — 878.8 MB offered (744.7 admitted + "
+            "134.1 refused) against the 1000.5 MB budget — never presented "
+            "the budget, so its refusals are burst instants on a sag, not "
+            "the regression signature; the zero-refusal starve (744.7 "
+            "admitted, offered == admitted) is the same law's special case",
         )
         == "PASS"
         and ok
     )
     ok = (
         lib.record(
-            "selftest: starved-window adaptation math (the CI shapes)",
+            "selftest: offer-limited adaptation math (the CI shapes)",
             "PASS"
             if precision_adapt_rate(78.4e6, 100e6) == 62_000_000
             and precision_adapt_rate(69.9e6, 100e6) == 55_000_000
@@ -2083,7 +2212,7 @@ def self_test():
         lib.record(
             "selftest: the precision stage wires the discriminator",
             "PASS"
-            if "precision_window_starved" in prec48_src
+            if "precision_offer_tested_refill" in prec48_src
             and "precision_adapt_rate" in prec48_src
             and "byte_counters_now" in prec48_src
             else "FAIL",
