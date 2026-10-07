@@ -27,6 +27,28 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **feat(gates): NIGHT-total-lts-8 — the audits-index completeness
+  recipe becomes gate 20: an audit doc that ships without a
+  docs/README.md row fails the push.** The owner approved lifting
+  the gate-inventory freeze for exactly this gate, closing lts-8's
+  own honest residual ("no index-completeness gate exists yet — the
+  drift's root cause is that nothing failed for eighteen
+  sessions"): `scripts/gates/check-audits-index.sh` enforces the
+  recipe the audit doc recorded — `git ls-files 'docs/audits/*.md'`
+  minus the index's audits/ link set must be empty — so the
+  eighteen-session drift class (audit docs invisible in the
+  institutional-memory map while every individual path still
+  resolved) can no longer recur silently; the gate sees staged
+  files, so it fails BEFORE the commit that would ship an unindexed
+  doc. It fails closed on non-canonical link shapes (a doc linked
+  any other way stays missing), treats a deleted index file as the
+  amnesia it is while a genuinely empty audits tree passes as
+  complete-by-vacuum, and skips with a warning outside a git work
+  tree. Scope is coverage only — dead index rows remain the
+  stale-reference class lts-6's instrument hunts at audit time, one
+  contract one place. MAINTENANCE.md's docs-hygiene section now
+  names the machine enforcement behind its "the index gets the same
+  commit" law.
 - **feat(cli): NIGHT-improve-54 — the sweep merge: `--all` is a
   lane of every family verb, and the verification flag is
   `--no-test`.** Continuing the improve-53 masterclass, the three
