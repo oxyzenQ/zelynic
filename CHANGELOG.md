@@ -1732,6 +1732,30 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **fix(strict-all): NIGHT-hunt-30 rider — the sweep's lock
+  restructure left the function-wide acquire in place beside the
+  new apply-scoped one, and a non-blocking flock on a second fd of
+  the same file refuses its own process: every strict-all since
+  the parity commit died "another zelynic operation is in
+  progress" before a single row landed.** The hunt-30 restructure
+  moved the lock's scope to the APPLY (dinner-28, the probe
+  outside it) and added the inner acquire — but the outer one
+  stayed, and the sweep became the one handler that refused its
+  own lock. The rootless lanes could never see it (the sweep dies
+  at the root gate before any lock exists), and the supermassive
+  legs convicted it only when the battery reached the sweep row
+  again: the machine-wide `--force-this` row, red on all four VM
+  legs, the lock-held refusal riding behind the root-cgroup warn
+  where the harness's own truncation hid it. The fix removes the
+  outer acquire — the identity walk rides outside the lock (the
+  strict family's own shape one lane over: resolution pre-lock,
+  apply under it, probe after it). Same rider, same root-cause
+  family, harness side: the verification probe's 3s measurement
+  window lands its bytes in the first member's bytes_allowed
+  counter, so the survival battery's kill-tui accounting row read
+  (probe 3s + client 2.5s) / client 2.5s = 2.2x on every leg —
+  apply_group now rides --no-probe, the scripted-use lane
+  apply_single has carried since the flag was born.
 - **test(supermassive): NIGHT-improve-53 rider — the suites finish
   learning the '::' grammar: the retired spellings leave v4's case
   tables, v1's fleets join with the doubled separator, and v2's

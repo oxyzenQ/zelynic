@@ -69,10 +69,17 @@ pub(crate) fn handle_strict_all(
 
     super::ensure_root()?;
 
-    // Prevent concurrent operations (race condition elimination).
-    let _lock = crate::ebpf::lock::acquire()?;
-
-    // Get all apps from identity map.
+    // Get all apps from identity map. The walk rides OUTSIDE the
+    // lock (the strict family's own shape one lane over: resolution
+    // pre-lock, apply under it): the lock's scope is the APPLY, not
+    // the probe — dinner-28, restructured by NIGHT-hunt-30. The
+    // 2026-10-07 rider lesson is on the record here: the restructure
+    // ADDED the apply-scoped acquire below while leaving this
+    // function-wide one in place, and a non-blocking flock on a
+    // second fd of the same file refuses its own process — every
+    // strict-all died "another zelynic operation is in progress"
+    // from 3abd7d4 until the supermassive legs ran the sweep again
+    // (the root lanes the rootless CI can never reach).
     let mut identity = IdentityMap::new();
     identity.refresh();
 
