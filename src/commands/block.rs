@@ -6,6 +6,11 @@
 use anyhow::Result;
 
 use crate::ebpf::limiter::{parse_during, BracketSpec, Limiter, RateSpec, Target};
+// NIGHT-hunt-27: the block sweep's saturation wording names the
+// policy family's capacity — the userspace mirror of the eBPF-side
+// map size (types.rs keeps it textually in sync with the pinned
+// maps).
+use crate::ebpf::limiter::types::POLICY_MAP_CAPACITY as POLICY_CAP;
 
 /// Block a single app from the internet.
 /// `during` (night-during, schema v23; the owner's duration-only
@@ -292,7 +297,17 @@ pub fn handle_block_all(force_this: bool, during: Option<&str>, verbose: bool) -
         download: Some(0),
         upload: Some(0),
     };
-    limiter.apply_group(
+    // NIGHT-hunt-27: the sweep rides apply_group_sweep — the
+    // capacity-admitting twin (strict_all.rs's comment carries the
+    // full rationale): the old shape aborted the WHOLE block-all at
+    // the policy family's 1024-row ceiling, so a dense host could
+    // never block anything at all. The twin admits what fits and
+    // reports the rest; the applied==0 ladder below keeps the
+    // no-silent-no-op contract exact (the old handler ignored the
+    // apply count entirely — a fully-stale snapshot printed OK with
+    // nothing blocked, the silent no-op the no-match contract
+    // forbids).
+    let (applied, saturated) = limiter.apply_group_sweep(
         &targets,
         &rates,
         // improve-40 (schema v24): the block family's permanent
@@ -301,6 +316,29 @@ pub fn handle_block_all(force_this: bool, during: Option<&str>, verbose: bool) -
         &BracketSpec::UNSET,
         during_spec.as_ref(),
     )?;
+    if applied == 0 {
+        if saturated > 0 {
+            return Err(super::target_no_match_error(
+                format!(
+                    "Policy family at capacity ({POLICY_CAP} rows) — 0 of {} app(s) \
+                     blocked, {saturated} left with access",
+                    targets.len()
+                ),
+                &["run 'zelynic unstrict-all' to make room".to_string()],
+            ));
+        }
+        return Err(super::target_no_match_error(
+            "No cgroups found for any target — nothing was blocked".to_string(),
+            &[super::TIP_LIST_APPS.to_string()],
+        ));
+    }
+    if saturated > 0 {
+        crate::output::eprintln_warn_labeled(&format!(
+            "Policy ceiling saturated: {applied} app(s) blocked, {saturated} left with \
+             access — the policy family's {POLICY_CAP}-row capacity is full; \
+             'zelynic unstrict-all' makes room."
+        ));
+    }
 
     // NIGHT-dinner-16 (race-window parity): verdict verified before
     // it prints.

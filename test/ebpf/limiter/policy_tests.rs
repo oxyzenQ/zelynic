@@ -262,3 +262,76 @@ fn policy_write_line_names_the_guarantee_bracket() {
         "[limiter] cg:73386 download → 1.0 MB/s (burst 1.0 MB)"
     );
 }
+
+/// NIGHT-hunt-27: the sweep lane's capacity admission — the pure
+/// rule strict-all/block-all ride past the policy family's 1024-row
+/// ceiling. The contract: already-live ids always admit (an
+/// overwrite costs no new slot), fresh ids admit first-seen while
+/// `free` lasts, the remainder counts as saturated, and the output
+/// order preserves the input order (the identity walk's order
+/// decides who saturates in — never hash order).
+#[test]
+fn capacity_admit_passes_live_ids_without_cost() {
+    let live: std::collections::HashSet<u32> = [10u32, 11, 12].into_iter().collect();
+    let ids = [10, 11, 12];
+    let (admitted, saturated) = capacity_admit(&ids, &live, 0);
+    assert_eq!(
+        admitted,
+        vec![10, 11, 12],
+        "live rows re-limit freely at zero free"
+    );
+    assert_eq!(saturated, 0, "no fresh ids were skipped");
+}
+
+#[test]
+fn capacity_admit_truncates_fresh_first_seen() {
+    let live: std::collections::HashSet<u32> = [7u32].into_iter().collect();
+    let ids = [100, 101, 7, 102, 103];
+    let (admitted, saturated) = capacity_admit(&ids, &live, 2);
+    assert_eq!(
+        admitted,
+        vec![100, 101, 7],
+        "two fresh (first-seen) + the live row that costs no slot"
+    );
+    assert_eq!(
+        saturated, 2,
+        "the fresh ids past `free` (102, 103) saturate out"
+    );
+}
+
+#[test]
+fn capacity_admit_zero_free_saturates_every_fresh_id() {
+    let live: std::collections::HashSet<u32> = std::collections::HashSet::new();
+    let ids = [1u32, 2, 3];
+    let (admitted, saturated) = capacity_admit(&ids, &live, 0);
+    assert!(admitted.is_empty(), "a full map admits no fresh ids");
+    assert_eq!(saturated, 3, "every id is counted as saturated");
+    // The degenerate all-live list still admits at zero free.
+    let live: std::collections::HashSet<u32> = [1u32, 2, 3].into_iter().collect();
+    let (admitted, saturated) = capacity_admit(&ids, &live, 0);
+    assert_eq!(admitted, vec![1, 2, 3]);
+    assert_eq!(saturated, 0);
+}
+
+#[test]
+fn capacity_admit_free_beyond_need_admits_all() {
+    let live: std::collections::HashSet<u32> = std::collections::HashSet::new();
+    let ids = [5u32, 6];
+    let (admitted, saturated) = capacity_admit(&ids, &live, 1024);
+    assert_eq!(admitted, vec![5, 6], "a sparse host admits everything");
+    assert_eq!(saturated, 0);
+}
+
+/// The userspace mirror must match the eBPF-side policy map size
+/// (the burst-bound mirror's discipline: both sides pin the value,
+/// the doc comment owns the sync rule). ebpf/src/bin/limiter.rs
+/// defines cgroup_policy_dl/ul and the bucket/stats/window maps at
+/// this same class — a drift here splits the sweep's admission
+/// arithmetic from the kernel's real ceiling.
+#[test]
+fn policy_map_capacity_matches_the_kernel_side_class() {
+    assert_eq!(
+        POLICY_MAP_CAPACITY, 1024,
+        "the sweep admission and the eBPF pinned maps must share one capacity class"
+    );
+}

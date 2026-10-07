@@ -358,6 +358,28 @@ whole invocation back, and if a rollback delete itself fails, the error
 names the exact surviving policies. Both outcome wordings are
 unit-pinned.
 
+> NIGHT-hunt-27 refinement (2026-10-07): the rollback contract
+> above is untouched for genuine failures, but the SWEEP lane
+> (`strict-all`/`block-all`) no longer reaches the map-full case
+> blind. The exact dense-host scenario this finding named — 1024+
+> live cgroups — made the whole-rollback shape refuse the ENTIRE
+> sweep, every run, zero enforcement: the fleet-wide abort the
+> sweep's own best-effort design ("an app that exits between
+> snapshot and write must not abort the fleet's limits") exists to
+> prevent. The sweeps now ride `apply_group_sweep`, the
+> capacity-admitting twin: already-limited ids re-limit freely (an
+> overwrite costs no slot), fresh ids admit first-seen up to the
+> emptier direction map's free rows, and the remainder is handed
+> back for the one-line saturation warn (plus an honest
+> exit-non-zero when the sweep enforced NOTHING — the
+> no-silent-no-op contract). The explicit lists (strict-multi /
+> block-multi) keep the whole-refusal contract above unchanged:
+> every segment there is the operator's own claim. The pure
+> admission rule and the capacity mirror are unit-pinned
+> (test/ebpf/limiter/policy_tests.rs); the full hunt record lives
+> in docs/audits/
+> NIGHT_HUNT_27_SWEEP_CAPACITY_SATURATION_2026-10-07.md.
+
 ### Finding 2 (fixed): delete errors conflated with "absent"
 
 `delete_policy` mapped EVERY remove error to `Ok(false)` ("not found"),

@@ -92,6 +92,22 @@ pub const BURST_CEIL_BYTES: u64 = 100_000_000;
 /// changes.
 pub const MAX_ENFORCABLE_BURST: u64 = u64::MAX / (2 * 1_000_000_000);
 
+/// The policy family's per-map capacity (NIGHT-hunt-27): every map
+/// the apply family fills — cgroup_policy_dl/ul, the per-cgroup
+/// buckets, the stats map, the window map — is
+/// `HashMap::pinned(POLICY_MAP_CAPACITY, 0)` on the eBPF side
+/// (ebpf/src/bin/limiter.rs, the 1024 class the improve-50 decision
+/// audit's cap map names). Userspace mirror for the SWEEP lane's
+/// capacity admission (apply_group_sweep): the sweeps are
+/// best-effort by their own design contract, so past this many
+/// live rows they admit what fits and warn about the rest, instead
+/// of aborting the whole fleet sweep the way the ATOMIC family
+/// (strict-multi's documented contract) refuses whole. Keep this
+/// textually in sync with the eBPF-side map definitions — the
+/// burst-bound mirror's discipline, one capacity constant shared
+/// by every pinned map.
+pub const POLICY_MAP_CAPACITY: usize = 1024;
+
 // ━━ BPF map value structs (must match the ebpf crate's structs) ━━
 
 #[repr(C)]
