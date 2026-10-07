@@ -27,6 +27,33 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **test(bench): NIGHT-hunt-29 — the frame harness now resolves
+  synthetic cookies, closing lts-7's documented fixture blind spot:
+  the join lane is measured frame work.** The harness's fixture
+  built its socket detail with `cookie: None` (the
+  graceful-degradation shape), so the per-frame cookie join —
+  `socket_cookies()` (the lts-7 HashSet dedup), the loader
+  point-lookups it feeds, `apply_socket_bytes`, and the
+  `[dl X | ul Y]` endpoint figures — never ran under the benchmark;
+  the bench's byte-exactness claims never covered the lane the live
+  monitor exercises every frame. The fixture variant gives every
+  socket a kernel-shaped synthetic u64 (unique per socket, one
+  dup'd-fd pair sharing a cookie — the shared-socket-table-row shape
+  the dedup exists for: 36 walked sockets folding to 27 distinct
+  join keys), and every frame runs the monitor loop's exact wiring
+  with synthetic cookie-map counters (pure in (cookie, frame), no
+  LCG draws — the frozen traffic stream stays byte-identical).
+  Stress evidence: frame 1 byte-identical across independent runs;
+  the 10s A/B versus the cookie:None era holds bytes/frame
+  BYTE-EXACT at 1,919.0 with gini/entropy/dirty carrying the
+  intended figure delta; the fps drop (-20.6%) was bisected to its
+  honest cause — the join compute's debug-profile cost (~1-2us in
+  the release lane), i.e. the old fps measured a frame that skipped
+  the join work the live loop always did. The A/B protocol stays
+  like-for-like: any layout change now compares both sides carrying
+  the join. Audit record:
+  [docs/audits/NIGHT_HUNT_29_PROBE_FAMILY_AND_COOKIE_FIXTURE_2026-10-07.md](docs/audits/NIGHT_HUNT_29_PROBE_FAMILY_AND_COOKIE_FIXTURE_2026-10-07.md)
+
 - **docs(audit): NIGHT-total-lts-6 — the all-infra pass, total LTS,
   honest: zero new defects, every surface read SOUND at peak, the
   skip reasons on the record.** The infra twin of lts-7's
@@ -1639,6 +1666,42 @@ NIGHT-hunt-18's git-history-only call.
   lane's translation pins stand unchanged beside them.
 
 ### Fixed
+
+- **fix(probe): NIGHT-hunt-29 — the enforcement probe's server
+  placement never verified its own premise on the mkdir-succeeded
+  lane; a policy row on the ROOT cgroup policed the "unpoliced"
+  blast server.** The probe's transient server home is a direct
+  child of the root cgroup, and the module's own honesty contract
+  claims the server "lives outside every policy for the window
+  (checked against BOTH policy maps)" — but only the refused-mkdir
+  lane paid that check (`our_chain_is_clean`, whose first hop IS
+  the root); the successful-mkdir lane skipped it entirely, because
+  the premise assumed the root cgroup itself can never carry a
+  policy row. It can: `Target::parse` accepts `cg:<root-inode>`
+  straight into the map, and on minimal or container hosts a
+  root-resident process name resolves to the root id — while the
+  enforcement object resolves the NEAREST policed ancestor per
+  packet, so a root row polices the server's sockets through the
+  same subtree walk that covers the client. A server throttled at
+  the root's rate then breaks the verdict's physics two ways: a
+  band-coincident flow reads as a vacuous VERIFIED over a limit the
+  probe never measured, and a starved flow reads UNVERIFIED with no
+  note able to name the cause (the ledger leak veto stays silent
+  too — the target's own rows admitted everything the throttled
+  server offered). The fix: the placement family hoisted from the
+  chain walk's inner closure into named fns (`cgroup_id_is_policed`
+  pure and pinned, the IO half keeping the never-a-guess
+  read-failure arm, `root_cgroup_is_clean` the new gate), and the
+  orchestrator's mkdir lane now stands down with its own honest
+  note when the root carries a row — a root-row host has NO
+  unpoliced placement for the peer by construction, so the
+  stand-down is the only honest verdict, the same conservative
+  class as the blocked-policy and dormant-window gates. The empty
+  home is removed on the way out (the residue discipline
+  kill_and_reap carries for the occupied homes). One new pure pin
+  (`a_root_row_in_either_direction_marks_the_id_policed`) drives
+  every predicate shape. Audit record:
+  [docs/audits/NIGHT_HUNT_29_PROBE_FAMILY_AND_COOKIE_FIXTURE_2026-10-07.md](docs/audits/NIGHT_HUNT_29_PROBE_FAMILY_AND_COOKIE_FIXTURE_2026-10-07.md)
 
 - **perf(monitor): NIGHT-total-lts-7 — the per-frame cookie join's
   dedup was quadratic on exactly the dense-host class the object's
