@@ -202,3 +202,111 @@ fn socket_cookies_are_the_deduped_join_keys() {
     cookies.sort_unstable();
     assert_eq!(cookies, vec![7, 9], "deduped, cookie-less absent");
 }
+
+/// NIGHT-total-lts-6 pin: the HashSet dedup preserves the FIRST-SEEN
+/// order the Vec::contains scan produced — the join is
+/// order-independent (loader.rs socket_bytes folds into a HashMap),
+/// but the contract freezes anyway so the O(n) swap can never drift
+/// an observable byte: cookie 7 first seen before 9, the duplicate
+/// 7 between them moves nothing.
+#[test]
+fn socket_cookies_preserve_first_seen_order() {
+    use crate::ebpf::connections::{
+        CgroupConnections, ConnectionMap, ProcessDetail, Proto, SocketInfo,
+    };
+
+    let socket = |cookie: Option<u64>| SocketInfo {
+        proto: Proto::Tcp,
+        remote: "10.0.0.9:443".to_string(),
+        state: "ESTABLISHED",
+        queued: false,
+        cookie,
+    };
+    let mut conns = ConnectionMap::new();
+    conns.insert(
+        7001,
+        CgroupConnections {
+            total_procs: 1,
+            socket_holders: vec![ProcessDetail {
+                pid: 4242,
+                comm: "curl".to_string(),
+                // First-seen order: 42, 7, 9 — the trailing 42 is a
+                // duplicate and must not repeat or reorder anything.
+                sockets: vec![
+                    socket(Some(42)),
+                    socket(Some(7)),
+                    socket(Some(9)),
+                    socket(Some(42)),
+                    socket(None),
+                ],
+            }],
+        },
+    );
+    assert_eq!(
+        conns.socket_cookies(),
+        vec![42, 7, 9],
+        "first-seen order, duplicates absorbed: {:?}",
+        conns.socket_cookies()
+    );
+}
+
+/// NIGHT-total-lts-6 pin: the dense-host shape the O(n) dedup exists
+/// for — many cgroups, many sockets, shared cookies across cgroups
+/// (the shared-socket-table-row shape) — stays correct at a scale
+/// the quadratic scan would have paid millions of comparisons for:
+/// every distinct cookie exactly once, the count exact, the dedup
+/// linear.
+#[test]
+fn socket_cookies_dense_fixture_stays_exact() {
+    use crate::ebpf::connections::{
+        CgroupConnections, ConnectionMap, ProcessDetail, Proto, SocketInfo,
+    };
+
+    // 64 cgroups x 64 sockets = 4096 walked sockets, cookies cycling
+    // modulo 1024 — 1024 distinct values, each seen exactly 4 times,
+    // spread across cgroups AND holders.
+    const CGROUPS: u32 = 64;
+    const SOCKETS_PER_HOLDER: usize = 64;
+    let mut conns = ConnectionMap::new();
+    for cg in 0..CGROUPS {
+        let sockets: Vec<SocketInfo> = (0..SOCKETS_PER_HOLDER)
+            .map(|i| SocketInfo {
+                proto: Proto::Tcp,
+                remote: format!("10.{}.{}.{}:443", cg, i / 256, i % 256),
+                state: "ESTABLISHED",
+                queued: false,
+                cookie: Some(((cg as u64 * SOCKETS_PER_HOLDER as u64 + i as u64) % 1024) + 1),
+            })
+            .collect();
+        conns.insert(
+            cg,
+            CgroupConnections {
+                total_procs: 1,
+                socket_holders: vec![ProcessDetail {
+                    pid: 10_000 + cg,
+                    comm: "worker".to_string(),
+                    sockets,
+                }],
+            },
+        );
+    }
+
+    let cookies = conns.socket_cookies();
+    // 4096 sockets over a 1024-value cycle: every value 1..=1024
+    // appears, each exactly once in the output.
+    assert_eq!(
+        cookies.len(),
+        1024,
+        "every distinct cookie once: {cookies:?}"
+    );
+    let mut sorted = cookies.clone();
+    sorted.sort_unstable();
+    let expected: Vec<u64> = (1..=1024).collect();
+    assert_eq!(sorted, expected, "the exact distinct set");
+    // And no duplicates in the first-seen output itself.
+    let mut seen = std::collections::HashSet::new();
+    assert!(
+        cookies.iter().all(|c| seen.insert(*c)),
+        "no duplicate in the returned order"
+    );
+}

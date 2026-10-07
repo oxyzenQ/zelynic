@@ -41,7 +41,7 @@
 
 mod parse;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::time::{Duration, Instant};
 
@@ -293,12 +293,27 @@ impl ConnectionMap {
     /// see [`PidFd`]).
     #[must_use]
     pub fn socket_cookies(&self) -> Vec<u64> {
+        // NIGHT-total-lts-6: the dedup rode a Vec::contains linear
+        // scan — O(resolved sockets x distinct cookies) per monitor
+        // frame, quadratic on exactly the dense-host class the
+        // object's own 4096-entry LRU caps exist for (a server with
+        // thousands of held sockets pays millions of comparisons
+        // per frame; lts-5's decline measured "hundreds typically"
+        // against the desktop shape, not the dense-host one). The
+        // HashSet carries the seen-set at O(1) per socket; the Vec
+        // keeps the FIRST-SEEN order verbatim (the join's point
+        // lookups are order-independent — loader.rs `socket_bytes`
+        // folds into a HashMap either way — so the swap changes
+        // nothing observable; the order pin in detail_bytes_tests
+        // freezes the first-seen contract regardless, byte-exactness
+        // by construction instead of by argument).
+        let mut seen: HashSet<u64> = HashSet::new();
         let mut out: Vec<u64> = Vec::new();
         for detail in self.cache.values() {
             for proc in &detail.socket_holders {
                 for socket in &proc.sockets {
                     if let Some(cookie) = socket.cookie {
-                        if !out.contains(&cookie) {
+                        if seen.insert(cookie) {
                             out.push(cookie);
                         }
                     }

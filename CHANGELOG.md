@@ -1605,6 +1605,32 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **perf(monitor): NIGHT-total-lts-7 — the per-frame cookie join's
+  dedup was quadratic on exactly the dense-host class the object's
+  own LRU caps exist for.** `socket_cookies()` deduped its
+  join-key set with a Vec::contains linear scan — O(resolved
+  sockets x distinct cookies) per monitor frame, invisible on a
+  desktop ("hundreds typically", the lts-5 decline's own
+  measurement) and millions of comparisons per frame on a server
+  host holding thousands of sockets — the "host server padat"
+  class the 4096-entry LRU caps were sized for. The frame harness
+  never saw it: its fixture builds socket detail with
+  `cookie: None`, so the dedup loop never ran under the benchmark
+  the decline cited as its reason. The close: the seen-set rides a
+  HashSet (O(1) per socket), the Vec keeps the FIRST-SEEN order
+  verbatim, and the join's consumers are order-independent by
+  construction (loader.rs `socket_bytes` folds its point lookups
+  into a HashMap) — the swap changes nothing observable, and two
+  new pins freeze the claim by test: the first-seen order pin and
+  the dense fixture (64 cgroups x 64 sockets over a 1024-value
+  cookie cycle — every distinct value exactly once, no duplicates
+  in the returned order). Verification: 837 + 48 / 0 failed, the
+  10s frame A/B byte-exact (bytes/frame 1,919.0 both sides, emit
+  511.3/510.7 noise, gini/entropy/dirty ±0.0001 noise, fps
+  7244.1 -> 7317.4 shared-host noise), check-all -q clean, 23/23
+  gatekeepers. Audit record:
+  [docs/audits/NIGHT_TOTAL_LTS_7_KILLER_FEATURES_AUDIT_2026-10-07.md](docs/audits/NIGHT_TOTAL_LTS_7_KILLER_FEATURES_AUDIT_2026-10-07.md).
+
 - **test(bench): NIGHT-mitigate-3 — the held-rate rows' floor was
   the overreach: the hunt-Z5 ceiling doctrine applied to the
   claims proof (the fleet fix's own live run is the
