@@ -221,7 +221,8 @@ pub(crate) fn handle_strict_single(
 #[cfg(feature = "ebpf")]
 // improve-40 (schema v24): the bracket pair joins the multi's
 // payload — the same too-many-arguments posture the single's own
-// handler carries one lane over.
+// handler carries one lane over. NIGHT-hunt-30: no_probe joins it
+// too — the multi now carries the single's verification lane.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn handle_strict_multi(
     targets_str: &str,
@@ -229,6 +230,7 @@ pub(crate) fn handle_strict_multi(
     download: Option<&str>,
     upload: Option<&str>,
     force_this: bool,
+    no_probe: bool,
     bracket_flags: super::guarantee::BracketFlags<'_>,
     during: Option<&str>,
     verbose: bool,
@@ -265,6 +267,8 @@ pub(crate) fn handle_strict_multi(
     // validated segments, so a numeric or cg:<id> segment reaches the
     // cgroup-id guard through check_dangerous_target's numeric path
     // (the numeric blocklist bypass, closed the same task).
+    // NIGHT-hunt-30: the grammar's list-verb rung refuses the
+    // one-target list here — "single is single, multi is multi".
     let segments =
         validate_multi_targets(targets_str, "zelynic strict-multi brave:curl:pacman 1mb")?;
 
@@ -289,51 +293,108 @@ pub(crate) fn handle_strict_multi(
     check_root_catch_all_resolved(&targets, force_this)?;
 
     // Prevent concurrent operations (race condition elimination).
-    let _lock = crate::ebpf::lock::acquire()?;
+    //
+    // NIGHT-hunt-30: the lock's scope is the APPLY, not the probe —
+    // strict-single's own dinner-28 contract, one lane over. The
+    // probe mutates no policy state (it reads the maps it was handed
+    // and spawns its own transient cgroups), so the lock drops
+    // before the window opens and a concurrent unstrict stays
+    // observable as the measurement's own FAILED verdict.
+    let mut limiter;
+    {
+        let _lock = crate::ebpf::lock::acquire()?;
 
-    // Attach + pin BPF programs (fire-and-forget: pins survive process
-    // exit, no daemon). NIGHT-hunt-21: unconditional — attach() IS the
-    // lifecycle ladder (operational-reuse check, schema-version
-    // migration, stale-pin cleanup). The old `if !is_pinned()` pre-check
-    // skipped the schema step, so an upgraded binary facing
-    // stale-schema pins would write policies into old-layout maps while
-    // strict-single and the block family already ran the full ladder.
-    // With healthy, current pins attach() is a few stats + one read.
-    crate::ebpf::limiter::Limiter::attach(verbose)?;
+        // Attach + pin BPF programs (fire-and-forget: pins survive process
+        // exit, no daemon). NIGHT-hunt-21: unconditional — attach() IS the
+        // lifecycle ladder (operational-reuse check, schema-version
+        // migration, stale-pin cleanup). The old `if !is_pinned()` pre-check
+        // skipped the schema step, so an upgraded binary facing
+        // stale-schema pins would write policies into old-layout maps while
+        // strict-single and the block family already ran the full ladder.
+        // With healthy, current pins attach() is a few stats + one read.
+        crate::ebpf::limiter::Limiter::attach(verbose)?;
 
-    let mut limiter = Limiter::open_pinned(verbose)?;
-    // NIGHT-upgrade-charger-core-2 (TIER A #6): the atomic apply —
-    // every segment resolves BEFORE the first map write (one miss
-    // aborts the whole invocation with nothing limited), and a
-    // mid-flight failure restores each mutated policy to its
-    // pre-apply state. The old best-effort shape skipped unresolved
-    // names silently and reported OK on a half-limited list — the
-    // exact trap for scripted fleet automation, which now sees the
-    // transaction fail whole or land whole. night-during (schema
-    // v23): the window rides the same atomic contract.
-    let applied = limiter.apply_group_atomic(&targets, &rates, &bracket, during_spec.as_ref())?;
-    if applied == 0 {
-        // NIGHT-dinner-11: the no-match hard error (strict-single's
-        // contract, the multi's plural wording).
-        return Err(super::target_no_match_error(
-            format!("No cgroups found for any target in '{targets_str}' — nothing was limited"),
-            &[super::TIP_LIST_APPS.to_string()],
+        limiter = Limiter::open_pinned(verbose)?;
+        // NIGHT-upgrade-charger-core-2 (TIER A #6): the atomic apply —
+        // every segment resolves BEFORE the first map write (one miss
+        // aborts the whole invocation with nothing limited), and a
+        // mid-flight failure restores each mutated policy to its
+        // pre-apply state. The old best-effort shape skipped unresolved
+        // names silently and reported OK on a half-limited list — the
+        // exact trap for scripted fleet automation, which now sees the
+        // transaction fail whole or land whole. night-during (schema
+        // v23): the window rides the same atomic contract.
+        let applied =
+            limiter.apply_group_atomic(&targets, &rates, &bracket, during_spec.as_ref())?;
+        if applied == 0 {
+            // NIGHT-dinner-11: the no-match hard error (strict-single's
+            // contract, the multi's plural wording).
+            return Err(super::target_no_match_error(
+                format!("No cgroups found for any target in '{targets_str}' — nothing was limited"),
+                &[super::TIP_LIST_APPS.to_string()],
+            ));
+        }
+
+        // NIGHT-dinner-16: the race-window check — the verdict is
+        // verified BEFORE it prints, so a torn-down limit never reads
+        // as enforced.
+        if !crate::ebpf::limiter::Limiter::is_pinned() {
+            return Err(anyhow::anyhow!(
+                "BPF pins missing after apply — a concurrent operation may have interfered\n  \
+                 tip: run 'zelynic recover' to repair state"
+            ));
+        }
+    } // the lock drops here: the probe below runs unserialized
+
+    // NIGHT-hunt-30 (the owner's parity find — "need verify for
+    // multi and all strict mode"): the multi carries the single's
+    // self-proving enforcement now. "applied" is a claim, "VERIFIED"
+    // is a measurement: the probe generates a real flow through the
+    // FIRST member's subtree and measures what the kernel let
+    // through — the atomic contract guarantees that member landed
+    // (one miss aborts the whole list), so the measurement reads the
+    // group's fresh bucket, and the report's own multi-leaf note
+    // names the ledger the group spans. --no-probe keeps the
+    // scripted apply-only shape; a blocked (rate-0) member stands
+    // down on the drop-ledger note, exactly like the single's.
+    let probe_outcome = if no_probe {
+        None
+    } else {
+        Some(probe::run_enforcement_probe(
+            &limiter,
+            &targets[0],
+            &rates,
+            false,
+        ))
+    };
+    // NIGHT-repair-1 ordering (the single's own law): a FAILED probe
+    // is the louder, more specific truth — its block names the
+    // enforcement failure with the measured numbers attached, while
+    // the pin guard below names only a class.
+    if let Some(outcome) = &probe_outcome {
+        if outcome.verdict == probe_report::ProbeVerdict::Failed {
+            return Err(probe_report::failure_error(&segments[0], outcome));
+        }
+    }
+    // The dinner-16 parity at the probe boundary: pins torn down
+    // DURING the window are caught here, before any success surface
+    // prints (VERIFIED and UNVERIFIED alike).
+    if !crate::ebpf::limiter::Limiter::is_pinned() {
+        return Err(anyhow::anyhow!(
+            "BPF pins missing after the probe — a concurrent operation may have interfered\n  \
+             tip: run 'zelynic recover' to repair state"
         ));
     }
 
     // NIGHT-improve-28: the multi form suggests the multi unstrict —
     // 'zelynic unstrict brave:curl' does not split colon lists (the
     // old suggestion was advice that could not round-trip).
-    // NIGHT-dinner-16: the race-window check moved BEFORE the
-    // success verdict — printing "OK." and then erroring on the
-    // torn-down state said both things at once.
-    if !crate::ebpf::limiter::Limiter::is_pinned() {
-        return Err(anyhow::anyhow!(
-            "BPF pins missing after apply — a concurrent operation may have interfered\n  \
-             tip: run 'zelynic recover' to repair state"
-        ));
-    }
     super::apply_success_epilogue(&format!("zelynic unstrict-multi {targets_str}"), "remove");
+    if let Some(outcome) = &probe_outcome {
+        for line in probe_report::report_lines(outcome) {
+            eprintln_safe!("{line}");
+        }
+    }
     Ok(())
 }
 
