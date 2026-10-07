@@ -5,11 +5,33 @@
 //! --during threading pushed the parent past the 500-line owner cap;
 //! the house precedent moves one cohesive concern out — the resolve
 //! walk, unchanged, its callers' paths updated).
+//!
+//! NIGHT-hunt-28: the walk itself moved one layer down — every
+//! ProcessName resolution, single or batched, walks through
+//! `identity::name_walk::resolve_name_set` (one walker, one
+//! matching semantics, no per-site drift class). `resolve_target`
+//! keeps the single-target contract; `resolve_target_list` is the
+//! multi lanes' batched twin — ONE /proc walk for the whole name
+//! population of the list (hunt-27's residual #1: the per-name
+//! loop was O(names x /proc), so a thousand-name multi walked
+//! /proc a thousand times before the first map write — the same
+//! quadratic class improve-50 closed for numeric ids).
 
 use anyhow::Result;
 
 use super::policy_lines::resolution_trace_line;
 use super::types::Target;
+use crate::ebpf::identity::name_walk::{matched_pairs_to_ids, resolve_name_set};
+
+/// One name's matched `(pid, cgroup)` pairs through the shared
+/// walker — `resolve_target`'s ProcessName arm, split so the single
+/// arm and the batch read as one discipline (the pairs are the
+/// trace's input; `matched_pairs_to_ids` is the reduction).
+fn name_pairs(name: &str) -> Vec<(u32, u32)> {
+    resolve_name_set(&[name.to_string()])
+        .remove(&name.to_lowercase())
+        .unwrap_or_default()
+}
 
 impl super::Limiter {
     /// Resolve a target to cgroup IDs. Process names do a DIRECT
@@ -32,59 +54,12 @@ impl super::Limiter {
                 crate::ebpf::identity::container::resolve(c, self.verbose)
             }
             Target::ProcessName(name) => {
-                // Direct /proc walk: find all PIDs whose comm matches.
-                let name_lower = name.to_lowercase();
-                let mut cgroup_ids = Vec::new();
-                let mut seen = std::collections::HashSet::new();
-                // Verbose evidence (NIGHT-hunt-9): every (pid,
-                // cgroup) pair the walk accepted, including multiple
-                // pids sharing one cgroup (NIGHT-hunt-8's lie).
-                let mut matched: Vec<(u32, u32)> = Vec::new();
-
-                let proc_entries = match std::fs::read_dir("/proc") {
-                    Ok(e) => e,
-                    Err(_) => return Ok(Vec::new()),
-                };
-
-                for entry in proc_entries.flatten() {
-                    let pid_str = entry.file_name();
-                    let pid_str = match pid_str.to_str() {
-                        Some(s) => s,
-                        None => continue,
-                    };
-                    let pid: u32 = match pid_str.parse() {
-                        Ok(p) => p,
-                        Err(_) => continue,
-                    };
-
-                    // Read comm through the canonical boundary
-                    // (NIGHT-optimized-1): pid_comm() sanitizes, so
-                    // matching operates on the same canonical label
-                    // list-apps displays — a prctl-spoofed comm can
-                    // never display one thing and match another.
-                    let Some(comm) = crate::ebpf::identity::pid_comm(pid) else {
-                        continue;
-                    };
-                    let comm = comm.to_lowercase();
-
-                    if comm != name_lower {
-                        continue;
-                    }
-
-                    // Cgroup membership through the same canonical
-                    // boundary (NIGHT-optimized-1): one pid-to-cgroup
-                    // resolution shared with the identity walk and the
-                    // connection walk.
-                    let Some(cgroup_id) = crate::ebpf::identity::pid_cgroup_id(pid) else {
-                        continue;
-                    };
-
-                    matched.push((pid, cgroup_id));
-                    if seen.insert(cgroup_id) {
-                        cgroup_ids.push(cgroup_id);
-                    }
-                }
-
+                // Direct /proc walk: find all PIDs whose comm matches —
+                // through the shared one-walk resolver (NIGHT-hunt-28:
+                // the walk, the matching, and the pair-to-id reduction
+                // are the same code the batched twin runs, so a name
+                // resolves identically however it is spelled in).
+                let matched = name_pairs(name);
                 if self.verbose {
                     eprintln_safe!("{}", resolution_trace_line(name, &matched));
                 }
@@ -92,8 +67,68 @@ impl super::Limiter {
                 // Also refresh identity map for display purposes.
                 self.identity.maybe_refresh();
 
-                Ok(cgroup_ids)
+                Ok(matched_pairs_to_ids(&matched))
             }
         }
+    }
+
+    /// The multi lanes' batched resolver (NIGHT-hunt-28): resolve
+    /// every target of a list, walking /proc ONCE for the whole
+    /// ProcessName population — the per-target `resolve_target`
+    /// loop the strict/block multi lanes rode was O(names x
+    /// /proc), the residual hunt-27 named and the owner has now
+    /// called. Contract-identical to the loop it replaces:
+    /// resolutions return in TARGET order; each name keeps
+    /// `resolve_target`'s verbose trace (the matched (pid,
+    /// cgroup) evidence, per name, in list order); the CgroupId
+    /// arm never walked /proc and still does not; the Container
+    /// arm keeps its own URI machinery at its list position; the
+    /// identity refresh that rode per name rides once for the
+    /// batch (the TTL gate made the per-name repeats no-ops by
+    /// construction — one refresh is the same gate with the
+    /// redundant checks dropped).
+    pub(super) fn resolve_target_list(&mut self, targets: &[Target]) -> Result<Vec<Vec<u32>>> {
+        // The name population, resolved in ONE walk before the
+        // per-target loop (the walk prints nothing, so trace order
+        // is the target order either way).
+        let names: Vec<String> = targets
+            .iter()
+            .filter_map(|t| match t {
+                Target::ProcessName(n) => Some(n.clone()),
+                _ => None,
+            })
+            .collect();
+        let matched_by_name = resolve_name_set(&names);
+
+        let mut out: Vec<Vec<u32>> = Vec::with_capacity(targets.len());
+        let mut walked_names = false;
+        for target in targets {
+            match target {
+                Target::CgroupId(id) => {
+                    if self.verbose {
+                        eprintln_safe!("[limiter] cg:{id} targeted directly (no /proc walk)");
+                    }
+                    out.push(vec![*id]);
+                }
+                Target::Container(c) => {
+                    out.push(crate::ebpf::identity::container::resolve(c, self.verbose)?);
+                }
+                Target::ProcessName(name) => {
+                    let matched = matched_by_name
+                        .get(&name.to_lowercase())
+                        .cloned()
+                        .unwrap_or_default();
+                    if self.verbose {
+                        eprintln_safe!("{}", resolution_trace_line(name, &matched));
+                    }
+                    out.push(matched_pairs_to_ids(&matched));
+                    walked_names = true;
+                }
+            }
+        }
+        if walked_names {
+            self.identity.maybe_refresh();
+        }
+        Ok(out)
     }
 }

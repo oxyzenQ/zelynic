@@ -32,7 +32,7 @@ use anyhow::Result;
 
 use crate::ebpf::bypass::{self, ShadowAudit};
 use crate::ebpf::connections::ConnectionMap;
-use crate::ebpf::identity::{depth, pid_cgroup_id, pid_comm, IdentityMap};
+use crate::ebpf::identity::{depth, IdentityMap};
 use crate::ebpf::limiter::{
     parse_focus_window, pin_dir_has_files, terminal_width, Direction, Limiter, PolicyRaw, Target,
 };
@@ -169,30 +169,16 @@ pub(crate) fn resolve_live_targets(
 /// lowercase exact-match semantics, so a name resolves identically
 /// here and under `zelynic ss <name>`. Shared with the enforcement
 /// probe (NIGHT-upgrade-charger-core-1-b), which must resolve the
-/// target the same way the apply just did.
+/// target the same way the apply just did. NIGHT-hunt-28: the walk
+/// itself is `identity::name_walk::resolve_name_set` — the ONE
+/// walker every name resolution in the estate rides (single here,
+/// batched in the multi lanes and the depth token loop), so the
+/// single spelling and the list spelling can never drift.
 pub(crate) fn resolve_name(name: &str) -> Vec<u32> {
-    let name_lower = name.to_lowercase();
-    let mut ids: Vec<u32> = Vec::new();
-    let Ok(entries) = std::fs::read_dir("/proc") else {
-        return ids;
-    };
-    for entry in entries.flatten() {
-        let Ok(pid) = entry.file_name().to_string_lossy().parse::<u32>() else {
-            continue;
-        };
-        let Some(comm) = pid_comm(pid) else {
-            continue;
-        };
-        if comm.to_lowercase() != name_lower {
-            continue;
-        }
-        if let Some(id) = pid_cgroup_id(pid) {
-            if !ids.contains(&id) {
-                ids.push(id);
-            }
-        }
-    }
-    ids
+    let pairs = crate::ebpf::identity::name_walk::resolve_name_set(&[name.to_string()])
+        .remove(&name.to_lowercase())
+        .unwrap_or_default();
+    crate::ebpf::identity::name_walk::matched_pairs_to_ids(&pairs)
 }
 
 /// Open the pinned enforcement state when anything is pinned,
@@ -391,6 +377,20 @@ pub(crate) fn handle_eagle_eyes_depth(
 
     let mut reports: Vec<DepthReport> = Vec::new();
     let mut misses: Vec<(String, String)> = Vec::new();
+    // NIGHT-hunt-28: the depth spec's names resolve in ONE /proc
+    // walk (the per-token resolve_name loop was O(tokens x /proc),
+    // the residual hunt-27 named) — same walker, same lowercase
+    // exact-match semantics, so a name resolves identically here
+    // and under `zelynic ss <name>`, however many names the spec
+    // carries.
+    let name_tokens: Vec<String> = tokens
+        .iter()
+        .filter_map(|t| match t {
+            Target::ProcessName(n) => Some(n.clone()),
+            _ => None,
+        })
+        .collect();
+    let resolved_names = crate::ebpf::identity::name_walk::resolve_name_set(&name_tokens);
     for token in &tokens {
         let ids = match token {
             // NIGHT-dinner-18: a named cgroup id must be LIVE — the
@@ -405,7 +405,13 @@ pub(crate) fn handle_eagle_eyes_depth(
             // not the identity map's majority-vote representative).
             // Container targets take the container resolver — the
             // same lane the apply used (charger-core-2).
-            Target::ProcessName(name) => resolve_name(name),
+            Target::ProcessName(name) => {
+                let pairs = resolved_names
+                    .get(&name.to_lowercase())
+                    .cloned()
+                    .unwrap_or_default();
+                crate::ebpf::identity::name_walk::matched_pairs_to_ids(&pairs)
+            }
             Target::Container(c) => {
                 crate::ebpf::identity::container::resolve(c, false).unwrap_or_default()
             }

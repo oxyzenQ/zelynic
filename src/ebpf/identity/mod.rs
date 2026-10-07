@@ -33,6 +33,14 @@ use std::time::{Duration, Instant};
 
 mod tally;
 
+// NIGHT-hunt-28: the one-walk name-set resolver — every name-list
+// consumer in the estate (the strict/block multi applies, the
+// root-catch-all guard, the eagle-eyes depth report, and the
+// single-name spellings through thin wrappers) resolves through
+// it, closing hunt-27's residual #1 (the O(N x /proc) class
+// improve-50 closed for numeric ids).
+pub mod name_walk;
+
 // NIGHT-master-1: the per-pid deep facts layer for eagle-eyes
 // --depth — same family as the walk + tally pair, one more concern.
 pub mod depth;

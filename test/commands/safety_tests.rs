@@ -279,6 +279,43 @@ fn the_resolved_position_check_covers_the_root_spelling() {
     .expect("an unresolvable name flows friction-free (the graceful no-match lane)");
 }
 
+/// NIGHT-hunt-28: the guard's name population resolves through ONE
+/// snapshot now (the per-name resolve_name loop was O(names x
+/// /proc), the residual hunt-27 named). The batched lane keeps the
+/// guard's own contracts: a clean multi-name list flows
+/// friction-free, and the id spelling AFTER clean names still
+/// refuses at its list position (targets iterated in order, the
+/// verdict at the first hit — the order the per-name loop owned).
+#[test]
+fn the_resolved_position_check_batches_the_name_list() {
+    let Some(root) = cgroupfs_root_id() else {
+        return;
+    };
+    use crate::ebpf::limiter::Target;
+    check_root_catch_all_resolved(
+        &[
+            Target::ProcessName("zelynic-no-such-comm-a".to_string()),
+            Target::ProcessName("zelynic-no-such-comm-b".to_string()),
+            Target::CgroupId(root.wrapping_add(1)),
+        ],
+        false,
+    )
+    .expect("the clean multi-name list flows friction-free through the snapshot");
+    let err = check_root_catch_all_resolved(
+        &[
+            Target::ProcessName("zelynic-no-such-comm-a".to_string()),
+            Target::CgroupId(root),
+        ],
+        false,
+    )
+    .expect_err("the root id after clean names still refuses");
+    let msg = format!("{err}");
+    assert!(
+        msg.contains(&format!("cg:{root}")),
+        "the refusal names the root id at its list position, got: {msg}"
+    );
+}
+
 /// NIGHT-blade-18: the colon-list grammar. The owner's exact examples
 /// are the contract: `sm a:b:c` is fine, `sm a:a/;/:1` is refused —
 /// every segment of the fatal string (the path shape, the

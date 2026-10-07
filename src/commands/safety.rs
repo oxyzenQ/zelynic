@@ -276,6 +276,20 @@ pub(crate) fn check_root_catch_all_resolved(
     let Some(root_id) = cgroupfs_root_id() else {
         return Ok(());
     };
+    // NIGHT-hunt-28: ONE /proc walk for the whole name population —
+    // the per-name resolve_name loop was O(names x /proc), the
+    // residual hunt-27 named (a thousand-name multi paid a thousand
+    // guard walks and a thousand apply walks before the first map
+    // write). Pure-id lists (the sweeps' identity-row shape) collect
+    // no names, so the guard still costs them zero walks.
+    let names: Vec<String> = targets
+        .iter()
+        .filter_map(|t| match t {
+            crate::ebpf::limiter::Target::ProcessName(n) => Some(n.clone()),
+            _ => None,
+        })
+        .collect();
+    let resolved = crate::ebpf::identity::name_walk::resolve_name_set(&names);
     for target in targets {
         let spelling = match target {
             crate::ebpf::limiter::Target::CgroupId(id) => {
@@ -286,7 +300,15 @@ pub(crate) fn check_root_catch_all_resolved(
                 }
             }
             crate::ebpf::limiter::Target::ProcessName(name) => {
-                if super::eagle::resolve_name(name).contains(&root_id) {
+                // Same verdict, same evidence: the name resolves to
+                // the root when any matched pair's cgroup IS the
+                // root (the pair set is resolve_name's own walk —
+                // one code path now, no per-site drift).
+                let hits_root = resolved
+                    .get(&name.to_lowercase())
+                    .map(|pairs| pairs.iter().any(|(_, cg)| *cg == root_id))
+                    .unwrap_or(false);
+                if hits_root {
                     name.clone()
                 } else {
                     continue;

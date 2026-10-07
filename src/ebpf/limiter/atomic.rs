@@ -149,9 +149,14 @@ impl super::Limiter {
         // write. resolve_target prints its own verbose trace per
         // segment (the /proc walk evidence), so the pre-flight
         // error rides on traces the operator can already read.
+        // NIGHT-hunt-28: the segments resolve in ONE /proc walk
+        // (resolve_target_list, the batched twin) — the per-segment
+        // resolve_target loop was O(names x /proc), the residual
+        // hunt-27 named (a thousand-name multi walked /proc a
+        // thousand times before the first map write).
+        let ids_per_target = self.resolve_target_list(targets)?;
         let mut resolutions: Vec<SegmentResolution> = Vec::with_capacity(targets.len());
-        for target in targets {
-            let ids = self.resolve_target(target)?;
+        for (target, ids) in targets.iter().zip(ids_per_target) {
             resolutions.push(SegmentResolution {
                 label: target.label(),
                 ids,
