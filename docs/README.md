@@ -29,6 +29,7 @@ question well, and this page says which.
 
 | Doc | Covers |
 |-----|--------|
+| [INNOVATIONS.md](INNOVATIONS.md) | The innovation ledger: the thirteen research wins that define the engine (AMMSP through time windows), plus the two retired by verdict |
 | [COSMIC_DRAGON_ARCHITECTURE.md](COSMIC_DRAGON_ARCHITECTURE.md) | Pure-eBPF architecture: single hooking layer, cgroup v2, why Linux-only |
 | [PHILOSOPHY.md](PHILOSOPHY.md) | The design canon: cgroup as the unit, observation before enforcement, frozen CLI grammar, local-first |
 | [PURE_RUST_EVALUATION.md](PURE_RUST_EVALUATION.md) | The full C-to-Rust eBPF migration record (aya, no C toolchain) |
