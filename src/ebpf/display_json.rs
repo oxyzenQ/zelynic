@@ -90,7 +90,12 @@ fn status_json(
             let rate_ring = match (dl_ring, ul_ring) {
                 (None, None) => None,
                 (download, upload) => Some(RateRingJson {
-                    window_secs: 1,
+                    // NIGHT-hunt-30: the field names the SPAN the
+                    // series covers (8 one-second slots), not the
+                    // per-slot width — the owner's "what mean window
+                    // secs 1" find: `1` made `sum(bytes) /
+                    // window_secs` overcount eight-fold.
+                    window_secs: RATE_RING_SLOTS as u64,
                     download,
                     upload,
                 }),
@@ -285,6 +290,11 @@ struct RateRingDirectionJson {
 
 #[derive(serde::Serialize)]
 struct RateRingJson {
+    /// The number of seconds the series spans: RATE_RING_SLOTS
+    /// one-second windows (NIGHT-hunt-30 — was the per-slot width,
+    /// which read as the whole window). `sum(bytes) / window_secs`
+    /// is the row's average rate over the horizon; the per-slot
+    /// granularity is `bytes.len()`, one sample per second.
     window_secs: u64,
     download: Option<RateRingDirectionJson>,
     upload: Option<RateRingDirectionJson>,
