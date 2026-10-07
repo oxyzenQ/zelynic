@@ -279,17 +279,11 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             }
         }
 
-        Some(Commands::Snapshot) => {
-            #[cfg(feature = "ebpf")]
-            {
-                persist_run::handle_snapshot(cli.print_json)
-            }
-            #[cfg(not(feature = "ebpf"))]
-            {
-                ebpf_disabled()
-            }
-        }
-
+        // NIGHT-improve-55: the snapshot verb is retired (the dump
+        // half of the persistence pair — the owner's live-test
+        // verdict); `restore`, the pair's surviving half, keeps the
+        // state-file apply lane. Typing the retired spelling lands
+        // on the ux redirect that names restore.
         Some(Commands::Restore) => {
             #[cfg(feature = "ebpf")]
             {

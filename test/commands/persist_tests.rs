@@ -1,46 +1,33 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! private-research-4's persistence pins: the pure transforms the
-//! snapshot/restore lane owns, rootless (the map-touching halves are
-//! root-gated in the handlers; these pins hold the shaping laws):
+//! private-research-4's persistence pins, reworked by
+//! NIGHT-improve-55 (the snapshot dump retired — the state file is
+//! the operator's hand-maintained desired state now): the pure
+//! transform the restore lane owns, rootless (the map-touching half
+//! is root-gated in the handler; these pins hold the shaping laws):
 //!
-//!  * from_rows — the census join: names in, skipped cgroup ids OUT
-//!    (honestly named, never serialized as bare ids a restore would
-//!    misresolve);
 //!  * restore_plan — the collapse laws: solo legs merge per-name
 //!    into one single-lane step with both directions in one RateSpec;
 //!    grouped legs merge per member-set into one group-lane step;
 //!    per-socket rides the single lane only;
-//!  * the serde round-trip — the state file's shape is the same JSON
-//!    the --print-json surface emits, so write-then-read is the
-//!    identity (schema tag included);
+//!  * the serde round-trip — the hand-written state file parses into
+//!    the same shape every dump-era file carried, so write-then-read
+//!    is the identity (schema tag included);
 //!  * the schema refusal — a drifted tag never parses into an
 //!    applied fleet.
 //!
-//! The WINDOW family's pins (the wall-form census join, the plan's
-//! window round-trip, the window-kind gate) live in the
-//! persist_window_tests sibling — the LOC cap's split, the
-//! during_map discipline one test tree over.
+//! The WINDOW family's pins (the plan's window round-trip, the
+//! window-kind gate) live in the persist_window_tests sibling — the
+//! LOC cap's split, the during_map discipline one test tree over.
 
 use super::{restore_plan, SnapshotDoc, SnapshotEntry, STATE_SCHEMA};
 
-use crate::ebpf::limiter::{Direction, PolicyRaw, RateSpec};
+use crate::ebpf::limiter::RateSpec;
 
-/// A census row factory (the pinned PolicyRaw layout's fields that
-/// matter to the document: rate, group, flags). pub(super): the
-/// persist_window_tests sibling shares it.
-pub(super) fn raw(rate_bps: u64, group_id: u32, flags: u32) -> PolicyRaw {
-    PolicyRaw {
-        rate_bps,
-        burst_bytes: 0,
-        floor_bps: 0,
-        ceil_bps: 0,
-        group_id,
-        flags,
-    }
-}
-
+/// An entry factory (the document's fields that matter to the plan:
+/// name, direction, rate, group, the per-socket flag). pub(super):
+/// the persist_window_tests sibling shares it.
 pub(super) fn entry(
     name: &str,
     direction: &str,
@@ -58,49 +45,6 @@ pub(super) fn entry(
         floor_bps: 0,
         ceil_bps: 0,
     }
-}
-
-#[test]
-fn from_rows_joins_names_and_names_the_skips() {
-    // Two resolvable rows serialize; the cgroup with no running
-    // process lands in the skip list by ID — the honesty contract:
-    // it cannot be restored by name, so it must be NAMED, not
-    // serialized as a bare id.
-    let rows = vec![(101u32, raw(1_000_000, 0, 0)), (999u32, raw(5, 0, 0))];
-    let names = |id: u32| {
-        if id == 101 {
-            Some("brave".to_string())
-        } else {
-            None
-        }
-    };
-    let mut skip = Vec::new();
-    let doc = SnapshotDoc::from_rows(Direction::Download, &rows, &names, 1, &[], 0, 0, &mut skip);
-    assert_eq!(doc.entries.len(), 1);
-    assert_eq!(
-        doc.entries[0],
-        entry("brave", "download", 1_000_000, 0, false)
-    );
-    assert_eq!(skip, vec![999u32]);
-}
-
-#[test]
-fn from_rows_carries_group_and_per_socket_flags() {
-    let rows = vec![(7u32, raw(2_000_000, 42, 1))];
-    let names = |id: u32| {
-        if id == 7 {
-            Some("nginx".to_string())
-        } else {
-            None
-        }
-    };
-    let mut skip = Vec::new();
-    let doc = SnapshotDoc::from_rows(Direction::Upload, &rows, &names, 1, &[], 0, 0, &mut skip);
-    assert_eq!(
-        doc.entries[0],
-        entry("nginx", "upload", 2_000_000, 42, true)
-    );
-    assert!(skip.is_empty());
 }
 
 #[test]

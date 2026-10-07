@@ -1,126 +1,23 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! The persistence pair's verbs (night-during's LOC-cap split of
-//! persist.rs: the --during wall-form fields pushed the parent past
-//! the 500-line owner cap; the house precedent moves one cohesive
-//! concern out — the snapshot/restore handlers and the state-file
-//! I/O, unchanged, the document and the plan staying with their
-//! pins).
+//! The persistence lane's surviving verb (night-during's LOC-cap
+//! split of persist.rs, reworked by NIGHT-improve-55): the snapshot
+//! DUMP is retired — the owner's live-test verdict was that
+//! remembering to dump before a reboot is a workflow the operator's
+//! own script already owns, so the write half went with it. What
+//! stays is `zelynic restore`: the state file
+//! /var/lib/zelynic/limits.json is the operator's hand-maintained
+//! desired state (kept in git, edited by hand — the "GitOps for
+//! bandwidth" half that earned its keep), and the handler re-applies
+//! every entry through the strict family's own machinery.
 
 use anyhow::{Context, Result};
-use std::path::Path;
 
 use super::persist::{
     restore_plan, validate_persisted_windows, SnapshotDoc, STATE_FILE, STATE_SCHEMA,
 };
-use crate::ebpf::limiter::{Direction, Limiter, Target};
-
-#[cfg(feature = "ebpf")]
-pub fn handle_snapshot(json: bool) -> Result<()> {
-    use crate::ebpf::identity::IdentityMap;
-    use crate::ebpf::limiter::types::POLICY_FLAG_PER_SOCKET;
-
-    if !nix::unistd::geteuid().is_root() {
-        anyhow::bail!(
-            "snapshot writes the policy state file ({STATE_FILE}) — run with sudo (the strict family's privilege ladder)"
-        );
-    }
-    let _lock = crate::ebpf::lock::acquire()?;
-
-    let mut limiter = Limiter::open_pinned(false)?;
-    // NIGHT-hunt-30 (the visit-sweep law, the persistence lane): the
-    // census captures what the CLOCK says is alive — an expired
-    // `--during` row would ride the state file as a live limit and
-    // restore as a born-expired span ("awaiting sweep" again, one
-    // reboot later). The sweep runs under the lock this handler
-    // already owns (status's own try-lock shape does not apply
-    // here); the identity refresh rides it so the sweep's unstrict
-    // traces name the apps, not bare cg: ids.
-    limiter.refresh_identity();
-    limiter.sweep_expired_windows_best_effort();
-    let dl = limiter.read_policies_public(Direction::Download)?;
-    let ul = limiter.read_policies_public(Direction::Upload)?;
-
-    // The identity join: one walk, both directions.
-    let mut identity = IdentityMap::new();
-    identity.refresh();
-    let join = |id: u32| -> Option<String> {
-        identity
-            .all()
-            .into_iter()
-            .find(|e| e.cgroup_id == id)
-            .map(|e| e.comm.clone())
-    };
-
-    // night-during (schema v23): the window census — one read, both
-    // directions' rows join it (the row is per root, not per leg),
-    // serialized in the WALL form with the clocks read once.
-    let windows = limiter.read_policy_windows_all().unwrap_or_default();
-    let (wall_now, mono_now) = (
-        crate::ebpf::limiter::wall_now_ns(),
-        crate::ebpf::limiter::monotonic_ns(),
-    );
-
-    let mut skip = Vec::new();
-    let mut doc = SnapshotDoc::from_rows(
-        Direction::Download,
-        &dl,
-        &join,
-        POLICY_FLAG_PER_SOCKET,
-        &windows,
-        wall_now,
-        mono_now,
-        &mut skip,
-    );
-    let mut ul_skip = Vec::new();
-    let ul_doc = SnapshotDoc::from_rows(
-        Direction::Upload,
-        &ul,
-        &join,
-        POLICY_FLAG_PER_SOCKET,
-        &windows,
-        wall_now,
-        mono_now,
-        &mut ul_skip,
-    );
-    doc.entries.extend(ul_doc.entries);
-    skip.extend(ul_skip);
-    doc.captured_at_unix = unix_now_secs();
-
-    // The honest-capture report: census rows that no longer have a
-    // running process are named on stderr (the partial-census note
-    // pattern), never silently dropped.
-    if !skip.is_empty() {
-        let ids: Vec<String> = skip.iter().map(|id| format!("cg:{id}")).collect();
-        eprintln_safe!(
-            "{}",
-            crate::output::warn_bold(&format!(
-                "{} policy leg(s) skipped: cgroup id(s) {} no longer resolve to a process — they cannot be restored by name",
-                skip.len(),
-                ids.join(", ")
-            ))
-        );
-    }
-
-    write_state_file(&doc)?;
-
-    if json {
-        crate::output::print_json(&doc);
-        return Ok(());
-    }
-    let names: std::collections::BTreeSet<&str> =
-        doc.entries.iter().map(|e| e.name.as_str()).collect();
-    println_safe!(
-        "{}",
-        crate::output::ok(&format!(
-            "snapshot: {} policy leg(s) across {} name(s) -> {STATE_FILE}",
-            doc.entries.len(),
-            names.len()
-        ))
-    );
-    Ok(())
-}
+use crate::ebpf::limiter::{Limiter, Target};
 
 /// Handle `zelynic restore`: read the state file, derive the plan,
 /// apply it step by step, and report honestly (applied legs, names
@@ -226,43 +123,21 @@ struct RestoreReportJson {
 
 // ── The file lane (thin, honest errors) ────────────────────────────
 
-/// Write the document to the state path: create the parent (first
-/// run on a fresh install), then the atomic write (temp + rename, so
-/// a crash mid-write never leaves a half-serialized policy fleet).
-pub(crate) fn write_state_file(doc: &SnapshotDoc) -> Result<()> {
-    let path = Path::new(STATE_FILE);
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("creating state directory {}", parent.display()))?;
-    }
-    let tmp = path.with_extension("json.tmp");
-    let body = serde_json::to_string_pretty(doc).context("serializing the snapshot document")?;
-    std::fs::write(&tmp, body).with_context(|| format!("writing {}", tmp.display()))?;
-    std::fs::rename(&tmp, path).with_context(|| format!("installing {STATE_FILE}"))?;
-    Ok(())
-}
-
 /// Read the state file and refuse schema drift loudly (the tag ride:
 /// a newer zelynic's file names its own version; a best-guess parse
-/// would apply the wrong shape's policies).
+/// would apply the wrong shape's policies). The file is the
+/// operator's hand-maintained desired state since NIGHT-improve-55
+/// retired the dump verb — the fix for a drifted tag is the
+/// operator's own edit, never a re-dump.
 pub(crate) fn read_state_file() -> Result<SnapshotDoc> {
     let body =
         std::fs::read_to_string(STATE_FILE).with_context(|| format!("reading {STATE_FILE}"))?;
     let doc: SnapshotDoc = serde_json::from_str(&body).context("parsing the state file")?;
     if doc.schema != STATE_SCHEMA {
         anyhow::bail!(
-            "state file schema v{} != expected v{STATE_SCHEMA} — a newer or older zelynic wrote it; re-run snapshot to refresh it",
+            "state file schema v{} != expected v{STATE_SCHEMA} — a newer or older zelynic wrote it; fix the schema tag or re-create the file",
             doc.schema
         );
     }
     Ok(doc)
-}
-
-/// Unix seconds, std only (the no-chrono discipline; the value is a
-/// capture stamp, not a formatted clock).
-pub(crate) fn unix_now_secs() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
 }

@@ -14,11 +14,14 @@
 #
 # NIGHT-improve-42 adds the private-research-4 depth stages: the
 # --during grammar ladder, the --floor/--ceil guarantee laws, the
-# per-socket tier flags, and the snapshot/restore privileged verbs —
-# the owner's seven-feature audit pinned at the CLI surface each
-# feature owns (the three automatic lanes — ECN-first, CAKE flow
-# isolation, QUIC-aware — have no CLI surface; their depth lives in
-# the Rust pins, the live probes, and v1's VM matrix).
+# per-socket tier flags, and the persistence lane's privileged verb
+# (restore — NIGHT-improve-55 retired the snapshot dump, so the
+# table pins the survivor's privilege refusal and the retired
+# spelling's redirect) — the owner's seven-feature audit pinned at
+# the CLI surface each feature owns (the three automatic lanes —
+# ECN-first, CAKE flow isolation, QUIC-aware — have no CLI surface;
+# their depth lives in the Rust pins, the live probes, and v1's VM
+# matrix).
 #
 # Usage:
 #   ./scripts/supermassive/supermassive-test-v4.sh               # full CLI depth (rootless)

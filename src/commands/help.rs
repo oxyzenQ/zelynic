@@ -132,19 +132,14 @@ pub(crate) fn print_help() {
     println_safe!("    Clean orphaned BPF pins after a crash (SIGKILL, OOM, power loss).");
     println_safe!("    Safe to run anytime — does nothing if state is clean.");
     println_safe!();
-    // NIGHT-private-research-4: the persistence pair — the reboot
-    // survival verbs (snapshot writes the policy census to the state
-    // file, restore re-applies it; "GitOps for bandwidth" without a
-    // daemon).
-    println_safe!("  zelynic snapshot");
-    println_safe!(
-        "    Serialize every live limit to /var/lib/zelynic/limits.json (survives a reboot)."
-    );
-    println_safe!("    Names are the key — cgroup IDs change across reboots.");
-    example("write the state file", "sudo zelynic snapshot");
-    println_safe!();
+    // NIGHT-private-research-4's surviving half (NIGHT-improve-55
+    // retired the snapshot dump — the state file is the operator's
+    // hand-maintained desired state now; "GitOps for bandwidth"
+    // without a daemon, the apply direction only).
     println_safe!("  zelynic restore");
-    println_safe!("    Re-apply every limit from the state file (idempotent, safe to re-run).");
+    println_safe!("    Re-apply every limit from /var/lib/zelynic/limits.json (idempotent,");
+    println_safe!("    safe to re-run). The state file is yours to write — names are the");
+    println_safe!("    key, cgroup IDs change across reboots.");
     println_safe!("    Names not running yet are reported as skipped, never missed silently.");
     example("apply the state file", "sudo zelynic restore");
     println_safe!();

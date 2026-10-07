@@ -94,6 +94,13 @@ const REMOVED_SUBCOMMAND_REDIRECTS: &[(&str, &str)] = &[
     ("unstrict-multi", "unstrict"),
     ("us", "unstrict"),
     ("um", "unstrict"),
+    // NIGHT-improve-55: the snapshot verb is retired — the owner's
+    // live-test verdict was that the dump half of the persistence
+    // pair was not worth its workflow (the operator's own script is
+    // the state). The pair's survivor owns the muscle memory: the
+    // state file is now the operator's hand-maintained desired
+    // state, and `restore` is the verb that honors it.
+    ("snapshot", "restore"),
 ];
 
 /// Inject the successor for a removed subcommand as clap's OWN

@@ -650,8 +650,8 @@ one-shape grammar the strict family takes: `<N><unit>`, units
 s m h d mn y, bounds 1s..10y). The KERNEL decides when the window
 is over; the ROW is collected by the next zelynic visit — every
 apply, and since NIGHT-hunt-30 the read visits too (`status`,
-`recover`, `snapshot`: the commands the owner actually runs to
-check state), so an expired row never waits for a manual
+`recover`: the commands the owner actually runs to check state),
+so an expired row never waits for a manual
 unstrict (the hunt-30 session's core find: stale rows sat in
 `status` as "awaiting sweep" until a mutating command happened
 to run).
@@ -735,54 +735,68 @@ green with partial-failure results in warning yellow, and every
 quoted runnable command in suggestion white — all degrading to plain
 text when piped, like every styled surface.
 
-### snapshot / restore — reboot persistence
+### restore — apply the desired-state file
 
 ```bash
-sudo zelynic snapshot              # write the policy census to the state file
-sudo zelynic restore               # re-apply every limit from it (idempotent)
+sudo zelynic restore               # re-apply every limit from the state file (idempotent)
 ```
 
 The pins under `/sys/fs/bpf/zelynic` already survive process exit —
 that is the whole point of LIBBPF_PIN_BY_NAME. What they cannot
 survive is a REBOOT: bpffs starts empty, and with it every policy.
-This pair closes that gap with two one-shot verbs and zero
-background presence (NIGHT-private-research-4, the owner-approved
-"GitOps for bandwidth" ask — no daemon, ever).
+The persistence lane (NIGHT-private-research-4, reworked by
+NIGHT-improve-55) closes that gap with ONE verb and zero background
+presence — no daemon, ever.
 
-`snapshot` reads the live policy census from both pinned policy maps
-and writes it to `/var/lib/zelynic/limits.json`, keyed by NAME: a
-reboot changes cgroup IDs, so names are the only stable key. The
-census captures what the clock says is ALIVE (NIGHT-hunt-30): the
-visit sweep runs before the read, so an expired `--during` row
-never rides the state file as a live limit (a restored dead span
-would land as born-expired — "awaiting sweep" again, one reboot
-later). The
-document carries every leg — who, which direction, what rate,
-grouping (the shared-bucket members re-join through the map's group
-id), the per-socket flag, the guarantee bracket (improve-40,
-schema v24: the floor/ceil pair, both legs, serde-defaulted so a
-v23 file restores as the unset sentinel), and the `--during`
-window in its WALL-clock form (night-during, schema v23): a
-monotonic deadline
-resets with the boot, so the census serializes the wall instants
-and `restore` re-translates them through a fresh clock bridge —
-auto-expire survives the reboot it was born for, never converting
-into forever. Census rows whose cgroup no longer
-resolves to a running process are named on stderr and skipped — an
-unrestorable row must be NAMED, never silently dropped. The write is
-atomic (temp file + rename), so a crash mid-snapshot never leaves a
-half-serialized fleet.
+`restore` applies `/var/lib/zelynic/limits.json`, the operator's
+hand-maintained desired state (kept in git, edited by hand — the
+"GitOps for bandwidth" apply direction). The file is JSON, keyed by
+NAME: a reboot changes cgroup IDs, so names are the only stable
+key. One entry per policy leg, `schema: 1` at the root:
 
-`restore` reads the state file and re-applies every policy through
-the strict family's own apply machinery — the pre-flight resolution,
-the rollback ledger, the memo invalidation, the whole ladder. A
-fresh boot has no pins at all, so restore runs the same attach every
-strict-* does first. The contract is best-effort with an honest
-report (the strict-all precedent): a name that is not running yet —
-containers start late — is listed as skipped, never silently missed,
-and never an abort for the rest of the fleet. Re-run restore after
-the late starter boots to pick it up. Idempotent: an apply over an
-existing limit is the documented supersede.
+```json
+{
+  "schema": 1,
+  "captured_at_unix": 1791288000,
+  "entries": [
+    { "name": "brave", "direction": "download", "rate_bps": 1000000,
+      "group_id": 0, "per_socket": false, "floor_bps": 0, "ceil_bps": 0 },
+    { "name": "brave", "direction": "upload", "rate_bps": 500000,
+      "group_id": 0, "per_socket": false, "floor_bps": 0, "ceil_bps": 0 }
+  ]
+}
+```
+
+Every field is documented by its shape: `direction` is the full word
+(`download` / `upload`), `group_id` re-joins the members of one
+shared bucket (the restore hands each group ONE NEW bucket; `0` =
+solo), `per_socket` is the per-connection tier (the single lane
+only), the bracket pair (`floor_bps` / `ceil_bps`, improve-40
+schema v24) is the per-direction guarantee with `0` = unset, and
+`during` (night-during, schema v23) carries an auto-expire window
+in its WALL-clock form — `{"kind": "span", "start_wall_ns": ...,
+"end_wall_ns": ...}` or `{"kind": "daily", "start_s": ..., "end_s":
+...}`; absent means a plain forever-limit. A window whose kind is
+neither `span` nor `daily` REFUSES the restore naming its row: an
+unreadable auto-expire promise must never restore as a
+forever-limit.
+
+`restore` re-applies every entry through the strict family's own
+machinery — the pre-flight resolution, the rollback ledger, the
+memo invalidation, the whole ladder. A fresh boot has no pins at
+all, so restore runs the same attach every strict-* does first.
+The contract is best-effort with an honest report (the strict-all
+precedent): a name that is not running yet — containers start late
+— is listed as skipped, never silently missed, and never an abort
+for the rest of the fleet. Re-run restore after the late starter
+boots to pick it up. Idempotent: an apply over an existing limit is
+the documented supersede. A drifted `schema` tag refuses outright
+with the tag in the error — a best-guess parse would apply the
+wrong shape's policies, and the fix is your own edit, never a
+re-dump (the dump verb is retired; NIGHT-hunt-30's visit sweep had
+kept expired `--during` rows out of its census, and the operator's
+own file carries that responsibility now by simply not listing dead
+spans).
 
 Pair it with systemd yourself — the unit is the operator's choice,
 not ours to impose:
@@ -801,16 +815,25 @@ ExecStart=/usr/local/bin/zelynic restore
 WantedBy=multi-user.target
 ```
 
-What rides along, stated honestly: the snapshot pins the POLICY, not
+What rides along, stated honestly: the file pins the POLICY, not
 the bucket state — tokens, refill fractions, DRR carries, and ECN
 debt are runtime transients the fresh buckets re-derive (a restore
 is a fresh apply, the same shape every strict-* ride; the burst
-re-derives from the rate's default law, which is also the only value
-the CLI surface can write). The stats ledger starts at zero — it
-measures THIS boot's enforcement, which is the truth a status reader
-wants. Both verbs honor `--print-json`: the snapshot document IS the
-state file's JSON, and the restore report carries the applied and
-skipped names for scripting.
+re-derives from the rate's default law, which is also the only
+value the CLI surface can write, so a hand-written and a restored
+policy agree). The stats ledger starts at zero — it measures THIS
+boot's enforcement, which is the truth a status reader wants. The
+verb honors `--print-json`: the restore report carries the applied
+and skipped names for scripting.
+
+Why the dump verb is gone (NIGHT-improve-55, the owner's live-test
+verdict): the original pair's other half serialized the live policy
+census to the state file — but a dump you must remember to run
+before every reboot is a workflow your own script already owns
+(`zelynic s brave 500kb` in a unit file IS the desired state), and
+the dump added nothing to it. The apply direction earns its keep;
+the dump did not. Typing the retired spelling lands on the redirect
+tip that names `restore`.
 
 ### status — what is limited right now
 
