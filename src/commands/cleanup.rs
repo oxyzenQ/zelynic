@@ -1,20 +1,39 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Cleanup command handlers — unstrict, unstrict-multi,
-//! unstrict-all (recover moved to its own module by
-//! NIGHT-dinner-11's LOC-cap push — a different concern from
-//! user-initiated removal).
+//! Cleanup command handlers — the one `unstrict` verb's two lanes
+//! (NIGHT-improve-53, the masterclass unification: the former
+//! unstrict-single and unstrict-multi handlers are the single and
+//! list lanes, reached through the [`handle_unstrict`] router), plus
+//! unstrict-all (recover moved to its own module by NIGHT-dinner-11's
+//! LOC-cap push — a different concern from user-initiated removal).
 
 use anyhow::Result;
 
+use crate::commands::target_grammar::{target_is_list, validate_multi_targets};
+
+/// NIGHT-improve-53 (the masterclass unification): the one
+/// `unstrict` verb's router — same routing law as strict: a '::'
+/// anywhere in the target means the list lane, everything else is
+/// the single lane. The lanes are the former unstrict-single /
+/// unstrict-multi handlers, unchanged.
 #[cfg(feature = "ebpf")]
 pub fn handle_unstrict(target_str: &str, verbose: bool) -> Result<()> {
+    if target_is_list(target_str) {
+        handle_unstrict_multi(target_str, verbose)
+    } else {
+        handle_unstrict_single(target_str, verbose)
+    }
+}
+
+/// Remove the rate limit from one app — the single lane.
+#[cfg(feature = "ebpf")]
+fn handle_unstrict_single(target_str: &str, verbose: bool) -> Result<()> {
     // NIGHT-dinner-16: the single-target input boundary — an empty
     // target dies before the root ask (the parse-before-execute
     // ladder), instead of reading as a no-match with an invisible
     // target name after privileges were already granted.
-    super::safety::validate_single_target(target_str, "zelynic unstrict-single brave")?;
+    super::safety::validate_single_target(target_str, "zelynic unstrict brave")?;
 
     super::ensure_root()?;
 
@@ -84,20 +103,18 @@ pub fn handle_unstrict(target_str: &str, verbose: bool) -> Result<()> {
     Ok(())
 }
 
-/// Handle `zelynic unstrict-multi <a:b:c>` — remove limits from several
-/// targets in one shot (NIGHT-hunt-10: mirrors strict-multi's colon
-/// syntax; previously the unstrict family had no multi form).
+/// Remove limits from several targets in one shot — the list lane
+/// (NIGHT-hunt-10: the unstrict family previously had no list form;
+/// NIGHT-improve-53: the '::' grammar, same law as strict).
 #[cfg(feature = "ebpf")]
-pub fn handle_unstrict_multi(targets_str: &str, verbose: bool) -> Result<()> {
-    // Same parsing contract as strict-multi — and NIGHT-blade-18: the
-    // colon grammar (validate_multi_targets), so a malformed removal
-    // list is refused with the same wording instead of silently
-    // dropping the broken segment. Removal is the safe direction, so
-    // there is no danger loop here — only the grammar.
-    let segments = super::safety::validate_multi_targets(
-        targets_str,
-        "zelynic unstrict-multi brave:curl:pacman",
-    )?;
+fn handle_unstrict_multi(targets_str: &str, verbose: bool) -> Result<()> {
+    // Same parsing contract as strict's group lane — and
+    // NIGHT-blade-18: the list grammar (validate_multi_targets), so a
+    // malformed removal list is refused with the same wording
+    // instead of silently dropping the broken member. Removal is the
+    // safe direction, so there is no danger loop here — only the
+    // grammar.
+    let segments = validate_multi_targets(targets_str, "zelynic unstrict brave::curl::pacman")?;
     let targets: Vec<&str> = segments.iter().map(|s| s.as_str()).collect();
 
     super::ensure_root()?;
@@ -165,8 +182,8 @@ pub fn handle_unstrict_multi(targets_str: &str, verbose: bool) -> Result<()> {
 
 /// Shared removal core for the unstrict family: resolve the target
 /// list and delete its policies. Returns the number of POLICIES
-/// removed (dl + ul counted separately) — the same unit strict-single
-/// reports in "(N policies, active in background)", so apply and remove
+/// removed (dl + ul counted separately) — the same unit the
+/// strict single lane reports in "(N policies, active in background)", so apply and remove
 /// sides of the CLI now count identically (NIGHT-hunt-10: the old
 /// per-cgroup counting here printed "Removed 1 limit" while strict
 /// had said "4 policies" for the same state).
@@ -251,7 +268,7 @@ pub fn handle_unstrict_all(verbose: bool) -> Result<()> {
         // names NO target — it asks for a clean system, and an
         // already-clean system IS that state, so this stays the
         // exit-0 success `recover`'s clean path owns. The forms that
-        // NAME a target (unstrict/unstrict-multi) error on a miss;
+        // NAME a target (unstrict, either lane) error on a miss;
         // this sweep never can.
         eprintln_safe!("No active limits. Nothing to remove.");
         return Ok(());

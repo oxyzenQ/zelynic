@@ -162,9 +162,9 @@ fn test_list_apps() {
 #[ignore = "requires root + eBPF feature"]
 fn test_rate_parse() {
     let output = zelynic_cmd()
-        .args(["strict-single", "sleep", "-d", "invalid"])
+        .args(["strict", "sleep", "-d", "invalid"])
         .output()
-        .expect("Failed to execute zelynic strict-single");
+        .expect("Failed to execute zelynic strict");
 
     assert!(!output.status.success(), "Invalid rate should fail");
 }
@@ -186,7 +186,7 @@ fn test_strict_unstrict_cycle() {
 
     // Apply limit (lowercase rate units; per-direction flag)
     let output = zelynic_cmd()
-        .args(["strict-single", "sleep", "-d", "1mb"])
+        .args(["strict", "sleep", "-d", "1mb"])
         .output()
         .expect("Failed to apply limit");
 

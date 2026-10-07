@@ -177,7 +177,7 @@ surfaces() {
 	fi
 
 	run "$BIN" -h
-	if [ "$RC" -eq 0 ] && grep -q "strict-single" <<<"$OUT" && grep -q "eagle-eyes" <<<"$OUT"; then
+	if [ "$RC" -eq 0 ] && grep -q "strict" <<<"$OUT" && grep -q "eagle-eyes" <<<"$OUT"; then
 		row "-h (help lists the verb families)" 0
 	else
 		row "-h (help lists the verb families)" 1 "rc=${RC}"
@@ -196,14 +196,14 @@ surfaces() {
 # ── group B: the enforcement matrix ─────────────────────────────────────
 
 enforcement() {
-	expect_ok "strict-single cg:A 500kb (both directions)" \
-		"$BIN" strict-single "cg:${CG_A}" 500kb
-	expect_ok "strict-single cg:B -d 300kb -u 400kb (per-direction)" \
-		"$BIN" strict-single "cg:${CG_B}" -d 300kb -u 400kb
+	expect_ok "strict cg:A 500kb (both directions)" \
+		"$BIN" strict "cg:${CG_A}" 500kb
+	expect_ok "strict cg:B -d 300kb -u 400kb (per-direction)" \
+		"$BIN" strict "cg:${CG_B}" -d 300kb -u 400kb
 	expect_ok "status --print-json (two rows after two singles)" \
 		bash -c "\"$BIN\" status --print-json | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if d[\"active_limits\"] >= 2 else 1)'"
-	expect_ok "unstrict-single cg:A" "$BIN" unstrict-single "cg:${CG_A}"
-	expect_ok "unstrict-single cg:B" "$BIN" unstrict-single "cg:${CG_B}"
+	expect_ok "unstrict cg:A" "$BIN" unstrict "cg:${CG_A}"
+	expect_ok "unstrict cg:B" "$BIN" unstrict "cg:${CG_B}"
 
 	# NIGHT-blade-18: the multi grammar splits on EVERY colon, so the
 	# compound "cg:<id>" form cannot ride the list — the split turns
@@ -211,19 +211,19 @@ enforcement() {
 	# resolve (dinner-11 aborts the whole apply). Bare numeric segments
 	# are the list's cgroup-id form (Target::parse mirrors the single
 	# verb's id rule), so the fleet rides its bare cgroup ids.
-	expect_ok "strict-multi A:B 1mb (shared bucket over bare ids)" \
-		"$BIN" strict-multi "${CG_A}:${CG_B}" 1mb
+	expect_ok "strict A::B 1mb (shared bucket over bare ids)" \
+		"$BIN" strict "${CG_A}::${CG_B}" 1mb
 	expect_ok "status (rows present under the multi policy)" \
 		bash -c "\"$BIN\" status --print-json | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if d[\"active_limits\"] >= 1 else 1)'"
-	expect_ok "unstrict-multi A:B (bare ids)" "$BIN" unstrict-multi "${CG_A}:${CG_B}"
+	expect_ok "unstrict A::B (bare ids)" "$BIN" unstrict "${CG_A}::${CG_B}"
 
 	expect_ok "strict-all --force-this (sweep, generous rate)" \
 		"$BIN" strict-all --force-this 500kb
 	expect_ok "unstrict-all (after strict-all)" "$BIN" unstrict-all
 
-	expect_ok "block-single cg:B (zero-rate policy)" \
-		"$BIN" block-single "cg:${CG_B}"
-	expect_ok "block-multi A:B (bare ids)" "$BIN" block-multi "${CG_A}:${CG_B}"
+	expect_ok "block cg:B (zero-rate policy)" \
+		"$BIN" block "cg:${CG_B}"
+	expect_ok "block A::B (bare ids)" "$BIN" block "${CG_A}::${CG_B}"
 	expect_ok "block-all --force-this" "$BIN" block-all --force-this
 	expect_ok "unstrict-all (after the block matrix)" "$BIN" unstrict-all
 	expect_ok "status --print-json (zero rows after teardown)" \
@@ -234,13 +234,13 @@ enforcement() {
 
 guards() {
 	expect_refused "invalid rate (clean refusal + tip)" "invalid rate" \
-		"$BIN" strict-single "cg:${CG_A}" 10potatoes
+		"$BIN" strict "cg:${CG_A}" 10potatoes
 	expect_refused "rate below the 1 KB/s floor" "below minimum" \
-		"$BIN" strict-single "cg:${CG_A}" 500b
+		"$BIN" strict "cg:${CG_A}" 500b
 	expect_refused "dangerous target blocklist (kthreadd)" "system process" \
-		"$BIN" strict-single kthreadd 1mb
+		"$BIN" strict kthreadd 1mb
 	expect_ok "dangerous target + --force-this (override honored)" \
-		"$BIN" strict-single kthreadd 1mb --force-this
+		"$BIN" strict kthreadd 1mb --force-this
 	expect_ok "unstrict-all (drop the forced policy)" "$BIN" unstrict-all
 	# An empty target is refused at the INPUT boundary
 	# (NIGHT-dinner-16, the verifier-lineage mandate — the wording
@@ -249,7 +249,7 @@ guards() {
 	# the privilege ask, never a crash, never a silent success.
 	# ("No cgroup found" is dinner-11's NON-empty no-match contract,
 	# a different rung of the ladder.)
-	run "$BIN" strict-single "" 1mb
+	run "$BIN" strict "" 1mb
 	if ! grep -q "panicked" <<<"$OUT" &&
 		[ "$RC" -eq 1 ] && grep -qi "target is empty" <<<"$OUT"; then
 		row "empty target (input-boundary refusal, not a crash)" 0
@@ -355,7 +355,7 @@ PYEOF
 		BASE_MS=0
 	fi
 
-	run "$BIN" strict-single "cg:${CG_C}" 500kb
+	run "$BIN" strict "cg:${CG_C}" 500kb
 	if [ "$RC" -ne 0 ]; then
 		row "policing (500kb cap applied to the client cgroup)" 1 "strict failed rc=${RC}"
 		kill "$SRV_PID" 2>/dev/null
@@ -374,7 +374,7 @@ PYEOF
 		row "policing (limited fetch ${LIM_MS:-timeout} ms vs baseline ${BASE_MS:-?} ms)" 1 \
 			"expected >= 900 ms and >= 2.5x baseline (burst allowance accounted)"
 	fi
-	"$BIN" unstrict-single "cg:${CG_C}" >/dev/null 2>&1
+	"$BIN" unstrict "cg:${CG_C}" >/dev/null 2>&1
 	kill "$SRV_PID" 2>/dev/null
 }
 
@@ -456,7 +456,7 @@ security() {
 	else
 		row "unprivileged doctor (diagnoses, names the privilege, exit 0)" 1 "rc=${UNPRIV_RC}: $(head -c 120 <<<"$OUT")"
 	fi
-	OUT="$(run_unprivileged "$BIN" strict-single "cg:${CG_A}" 1mb 2>&1)"
+	OUT="$(run_unprivileged "$BIN" strict "cg:${CG_A}" 1mb 2>&1)"
 	UNPRIV_RC=$?
 	if [ "$UNPRIV_RC" -ne 0 ] && ! grep -q "panicked" <<<"$OUT" && grep -qi "require root\|root required" <<<"$OUT"; then
 		row "unprivileged strict refused (uid 65534)" 0

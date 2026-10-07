@@ -6,10 +6,10 @@
 # Race condition test — verifies file lock prevents concurrent corruption.
 #
 # Tests:
-#   1. Concurrent strict-single (5 parallel) — only 1 should succeed
+#   1. Concurrent strict (5 parallel) — only 1 should succeed
 #   2. Concurrent unstrict-all (5 parallel) — no crash
-#   3. Mixed strict-single + unstrict-all — no crash, no corruption
-#   4. Rapid strict-single → unstrict → strict-single cycle
+#   3. Mixed strict + unstrict-all — no crash, no corruption
+#   4. Rapid strict → unstrict → strict cycle
 #   5. Lock release on exit — sequential operations work after lock holder exits
 #   6. Final state verification
 #
@@ -51,11 +51,11 @@ check_root
 check_binary
 cleanup
 
-# Test 1: Concurrent strict-single — lock should serialize
-log_test "Concurrent strict-single (5 parallel) — lock serializes"
+# Test 1: Concurrent strict — lock should serialize
+log_test "Concurrent strict (5 parallel) — lock serializes"
 PIDS=()
 for _ in 1 2 3 4 5; do
-	"$BINARY" strict-single "$TARGET_COMM" 100kb 2>/dev/null &
+	"$BINARY" strict "$TARGET_COMM" 100kb 2>/dev/null &
 	PIDS+=($!)
 done
 SUCCESS=0
@@ -75,7 +75,7 @@ cleanup
 
 # Test 2: Concurrent unstrict-all — no crash
 log_test "Concurrent unstrict-all (5 parallel) — no crash"
-"$BINARY" strict-single "$TARGET_COMM" 100kb 2>/dev/null || true
+"$BINARY" strict "$TARGET_COMM" 100kb 2>/dev/null || true
 PIDS=()
 for _ in 1 2 3 4 5; do
 	"$BINARY" unstrict-all 2>/dev/null &
@@ -103,11 +103,11 @@ else
 fi
 cleanup
 
-# Test 3: Mixed strict-single + unstrict-all
-log_test "Mixed strict-single + unstrict-all — no corruption"
+# Test 3: Mixed strict + unstrict-all
+log_test "Mixed strict + unstrict-all — no corruption"
 PIDS=()
 for _ in 1 2 3; do
-	"$BINARY" strict-single curl 100kb 2>/dev/null &
+	"$BINARY" strict curl 100kb 2>/dev/null &
 	PIDS+=($!)
 	"$BINARY" unstrict-all 2>/dev/null &
 	PIDS+=($!)
@@ -131,7 +131,7 @@ cleanup
 log_test "Rapid strict → unstrict → strict cycle (10x)"
 ERRORS=0
 for _ in $(seq 1 10); do
-	"$BINARY" strict-single "$TARGET_COMM" 100kb 2>/dev/null || ERRORS=$((ERRORS + 1))
+	"$BINARY" strict "$TARGET_COMM" 100kb 2>/dev/null || ERRORS=$((ERRORS + 1))
 	"$BINARY" unstrict-all 2>/dev/null || ERRORS=$((ERRORS + 1))
 done
 if [ "$ERRORS" -eq 0 ]; then
@@ -147,19 +147,19 @@ log_test "Lock release on exit — sequential operations work"
 sleep 600 &
 SLEEP_PID=$!
 SLEEP_COMM=$(cat /proc/$SLEEP_PID/comm 2>/dev/null || echo "sleep")
-"$BINARY" strict-single "$SLEEP_COMM" 100kb 2>/dev/null
-"$BINARY" strict-single "$SLEEP_COMM" 200kb 2>/dev/null
+"$BINARY" strict "$SLEEP_COMM" 100kb 2>/dev/null
+"$BINARY" strict "$SLEEP_COMM" 200kb 2>/dev/null
 if "$BINARY" status 2>/dev/null | grep -q "200.0 KB/s"; then
-	log_pass "Sequential strict-single works (lock released between calls)"
+	log_pass "Sequential strict works (lock released between calls)"
 else
-	log_fail "Second strict-single blocked or failed"
+	log_fail "Second strict blocked or failed"
 fi
 kill "$SLEEP_PID" 2>/dev/null || true
 cleanup
 
 # Test 6: Final state — clean
 log_test "Final state verification"
-"$BINARY" strict-single "$TARGET_COMM" 100kb 2>/dev/null || true
+"$BINARY" strict "$TARGET_COMM" 100kb 2>/dev/null || true
 "$BINARY" unstrict-all 2>/dev/null
 if [ ! -d "/sys/fs/bpf/zelynic" ] || [ -z "$(ls -A /sys/fs/bpf/zelynic 2>/dev/null)" ]; then
 	log_pass "Final state is clean"

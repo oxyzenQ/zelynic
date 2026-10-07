@@ -21,7 +21,7 @@ const PID_FILE: &str = "/tmp/zelynic.pid";
 
 // ── The apply-verb success epilogue (NIGHT-improve-28) ──────────────
 //
-// The owner's verbosity audit: the apply verbs (strict-single and its
+// The owner's verbosity audit: the apply verbs (strict and its
 // siblings) answered with a two-line report that restated the request
 // ("Limiting 'cg:48181' to 10.0 KB/s + 10.0 KB/s (2 policies, active
 // in background)") before the follow-up line. The pro contract is the
@@ -36,9 +36,10 @@ const PID_FILE: &str = "/tmp/zelynic.pid";
 // The follow-up must ROUND-TRIP: each caller passes the exact unstrict
 // form that reverses what it applied. The former shared suggestion
 // was wrong advice on two shapes — 'zelynic unstrict brave:curl'
-// does not split colon lists (unstrict-single takes one target), and
-// 'zelynic unstrict 3 apps' is not a target at all — so the multi and
-// all verbs now suggest 'unstrict-multi <list>' / 'unstrict-all'.
+// does not split lists (the single lane takes one target), and
+// 'zelynic unstrict 3 apps' is not a target at all — so the list and
+// all lanes now suggest 'unstrict <list>' / 'unstrict-all' (the
+// improve-53 masterclass grammar: the list rides the same verb).
 
 /// The pure line builder behind the apply-verb epilogue (pinned in
 /// test/cli/apply_epilogue_tests.rs): line 1 is the affirmative

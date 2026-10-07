@@ -15,27 +15,28 @@ fn argv(list: &[&str]) -> Vec<std::ffi::OsString> {
 
 // ── escape_hatch_is_honest ─────────────────────────────────────────
 
-/// The owner's live case: strict-single's two positional slots are
-/// full, so every advised splice (`-- -i`) still dies on "unexpected
-/// argument" — the advice fails when followed, the probe must say
-/// dishonest.
+/// The owner's live case (boost-13's era spelled it 'ss'; the
+/// improve-53 masterclass short form is 's' — same two positional
+/// slots): both are full, so every advised splice (`-- -i`) still
+/// dies on "unexpected argument" — the advice fails when followed,
+/// the probe must say dishonest.
 #[test]
 fn probe_convicts_when_every_splice_still_fails() {
-    let a = argv(&["zelynic", "-v", "ss", "brave", "550kb", "-i"]);
+    let a = argv(&["zelynic", "-v", "s", "brave", "550kb", "-i"]);
     assert!(
         !escape_hatch_is_honest(&a, "-i"),
         "positionals full: the splice must fail"
     );
 }
 
-/// The honest twin: strict-single's RATE slot is open, so the advised
+/// The honest twin: strict's RATE slot is open, so the advised
 /// splice parses with `-i` as the rate value — the advice works, the
 /// probe must acquit. This is the pair that forbids the cheap fix
 /// (dropping the tip unconditionally): silence here would discard
 /// real advice.
 #[test]
 fn probe_acquits_when_the_splice_parses() {
-    let a = argv(&["zelynic", "ss", "brave", "-i"]);
+    let a = argv(&["zelynic", "s", "brave", "-i"]);
     assert!(
         escape_hatch_is_honest(&a, "-i"),
         "rate slot open: the splice must parse"
@@ -59,7 +60,7 @@ fn probe_acquits_for_open_optional_positionals() {
 /// missing evidence — a tip is dropped only when disproven.
 #[test]
 fn probe_declines_to_judge_tokens_argv_lacks() {
-    let a = argv(&["zelynic", "ss", "brave", "550kb", "-vi"]);
+    let a = argv(&["zelynic", "s", "brave", "550kb", "-vi"]);
     assert!(
         escape_hatch_is_honest(&a, "-i"),
         "unprovable tokens pass through as honest"
@@ -68,20 +69,19 @@ fn probe_declines_to_judge_tokens_argv_lacks() {
 
 // ── failing_subcommand (the parser-descent walk) ───────────────────
 
-/// The walk matches subcommand ALIASES: 'ss' is strict-single's
-/// short form, and the failing command is the same command either
-/// way.
+/// The walk matches subcommand ALIASES: 's' is strict's short form,
+/// and the failing command is the same command either way.
 #[test]
 fn walk_resolves_aliases_to_the_canonical_command() {
     use clap::CommandFactory;
     let root = crate::cli::Cli::command();
     let sub = failing_subcommand(
         &root,
-        &argv(&["zelynic", "-v", "ss", "brave", "550kb", "-i"]),
+        &argv(&["zelynic", "-v", "s", "brave", "550kb", "-i"]),
         Some("-i"),
     )
-    .expect("ss must resolve");
-    assert_eq!(sub.get_name(), "strict-single");
+    .expect("s must resolve");
+    assert_eq!(sub.get_name(), "strict");
 }
 
 /// Tokens after the failing token never had a parser look at them:
@@ -136,11 +136,11 @@ fn walk_consumes_the_color_mode_value_token() {
     let root = crate::cli::Cli::command();
     let sub = failing_subcommand(
         &root,
-        &argv(&["zelynic", "--color-mode", "16", "ss", "brave", "--verbos"]),
+        &argv(&["zelynic", "--color-mode", "16", "s", "brave", "--verbos"]),
         Some("--verbos"),
     )
-    .expect("the walk must reach ss past the consumed MODE value");
-    assert_eq!(sub.get_name(), "strict-single");
+    .expect("the walk must reach s past the consumed MODE value");
+    assert_eq!(sub.get_name(), "strict");
 }
 
 /// A MODE value that IS a real subcommand name must still be eaten as
@@ -157,7 +157,7 @@ fn walk_consumes_a_mode_value_that_names_a_subcommand() {
             "zelynic",
             "--color-mode",
             "status",
-            "ss",
+            "s",
             "brave",
             "--verbos",
         ]),
@@ -166,7 +166,7 @@ fn walk_consumes_a_mode_value_that_names_a_subcommand() {
     .expect("the MODE value is a value, never the subcommand");
     assert_eq!(
         sub.get_name(),
-        "strict-single",
+        "strict",
         "the walk resolves the subcommand AFTER the consumed value"
     );
 }
@@ -179,11 +179,11 @@ fn walk_resolves_the_subcommand_after_the_equals_form() {
     let root = crate::cli::Cli::command();
     let sub = failing_subcommand(
         &root,
-        &argv(&["zelynic", "--color-mode=16", "ss", "brave", "--verbos"]),
+        &argv(&["zelynic", "--color-mode=16", "s", "brave", "--verbos"]),
         Some("--verbos"),
     )
     .expect("the =-form never leaves a bare value token");
-    assert_eq!(sub.get_name(), "strict-single");
+    assert_eq!(sub.get_name(), "strict");
 }
 
 /// The gate removes exactly the Suggested context the probe
@@ -192,7 +192,7 @@ fn walk_resolves_the_subcommand_after_the_equals_form() {
 #[test]
 fn gate_drops_only_the_convicted_tip() {
     use clap::Parser;
-    let a = argv(&["zelynic", "-v", "ss", "brave", "550kb", "-i"]);
+    let a = argv(&["zelynic", "-v", "s", "brave", "550kb", "-i"]);
     let mut err = Cli::try_parse_from(&a).expect_err("argv must fail to parse");
     assert!(
         err.get(clap::error::ContextKind::Suggested).is_some(),
@@ -213,7 +213,7 @@ fn gate_drops_only_the_convicted_tip() {
 #[test]
 fn gate_keeps_the_proven_honest_tip() {
     use clap::Parser;
-    let a = argv(&["zelynic", "ss", "brave", "-i"]);
+    let a = argv(&["zelynic", "s", "brave", "-i"]);
     let mut err = Cli::try_parse_from(&a).expect_err("argv must fail to parse");
     drop_dishonest_escape_hatch(&mut err, &a);
     assert!(
@@ -222,30 +222,32 @@ fn gate_keeps_the_proven_honest_tip() {
     );
 }
 
-// ── charger-core-3b: the --per-socket flag's parse contract ───────
+// ── charger-core-3b / NIGHT-improve-53: the --per-socket flag's
+// parse contract ────────────────────────────────────────────────────
 
-/// The flag parses on strict-single (and its strict/ss aliases —
-/// they are the same command) and lands as per_socket: true; other
-/// verbs do not know the flag (clap rejects it with the unknown-
-/// argument error), so the lane cannot be requested where it does
-/// not ride.
+/// The flag parses on strict (and its 's' alias — the same command)
+/// and lands as per_socket: true; the masterclass surface carries
+/// the flag for BOTH lanes, so the parse cannot know the lane — the
+/// group-lane refusal is the router's own scope call, unit-pinned in
+/// commands/strict_tests (per_socket_is_refused_on_the_group_lane_
+/// before_any_parsing). Other verbs do not know the flag at all.
 #[test]
-fn per_socket_flag_parses_on_strict_single_only() {
+fn per_socket_flag_parses_on_strict_only() {
     use crate::cli::Cli;
 
-    for verb in ["strict-single", "strict", "ss"] {
+    for verb in ["strict", "s"] {
         let cli = Cli::try_parse_from(["zelynic", verb, "nginx", "500kb", "--per-socket"])
             .unwrap_or_else(|e| panic!("{verb} must parse --per-socket: {e}"));
         match cli.command {
-            Some(crate::cli::Commands::StrictSingle { per_socket, .. }) => {
+            Some(crate::cli::Commands::Strict { per_socket, .. }) => {
                 assert!(per_socket, "{verb} must carry per_socket: true");
             }
-            other => panic!("{verb} must route to StrictSingle, got: {other:?}"),
+            other => panic!("{verb} must route to Strict, got: {other:?}"),
         }
     }
 
-    let err = Cli::try_parse_from(["zelynic", "strict-multi", "a:b", "1mb", "--per-socket"])
-        .expect_err("strict-multi must reject --per-socket");
+    let err = Cli::try_parse_from(["zelynic", "block", "nginx", "--per-socket"])
+        .expect_err("block must reject --per-socket");
     assert!(
         err.to_string().contains("unexpected argument"),
         "the rejection is clap's unknown-argument error, got: {err}"

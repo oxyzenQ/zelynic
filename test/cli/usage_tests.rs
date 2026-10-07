@@ -22,15 +22,15 @@ use super::*;
 #[test]
 fn subcommand_errors_show_the_subcommand_usage() {
     for argv in [
-        vec!["zelynic", "-v", "ss", "brave", "550kb", "-i"],
-        vec!["zelynic", "ss", "brave", "550kb", "--", "-x"],
-        vec!["zelynic", "ss", "brave", "550kb", "extra"],
-        vec!["zelynic", "ss", "brave", "550kb", "-h"],
+        vec!["zelynic", "-v", "s", "brave", "550kb", "-i"],
+        vec!["zelynic", "s", "brave", "550kb", "--", "-x"],
+        vec!["zelynic", "s", "brave", "550kb", "extra"],
+        vec!["zelynic", "s", "brave", "550kb", "-h"],
     ] {
         let rendered = render_via_bridge(&argv);
         assert!(
-            rendered.contains("Usage: zelynic strict-single [OPTIONS] <TARGET> [RATE]"),
-            "an error inside ss must show the strict-single usage for {argv:?}, got:\n{rendered}"
+            rendered.contains("Usage: zelynic strict [OPTIONS] <TARGET> [RATE]"),
+            "an error inside s must show the strict usage for {argv:?}, got:\n{rendered}"
         );
     }
 }
@@ -41,8 +41,8 @@ fn subcommand_errors_show_the_subcommand_usage() {
 fn missing_positional_keeps_the_subcommand_usage() {
     let rendered = render_via_bridge(&["zelynic", "unstrict"]);
     assert!(
-        rendered.contains("Usage: zelynic unstrict-single <TARGET>"),
-        "the native unstrict-single usage must stay, got:\n{rendered}"
+        rendered.contains("Usage: zelynic unstrict <TARGET>"),
+        "the native unstrict usage must stay, got:\n{rendered}"
     );
 }
 
@@ -51,14 +51,14 @@ fn missing_positional_keeps_the_subcommand_usage() {
 /// FAILING subcommand's full usage — same command, no narrowed flag.
 #[test]
 fn narrowed_usage_is_regenerated_from_the_failing_command() {
-    let rendered = render_via_bridge(&["zelynic", "ss", "brave", "--downlod", "1mb"]);
+    let rendered = render_via_bridge(&["zelynic", "s", "brave", "--downlod", "1mb"]);
     assert!(
         rendered.contains("'--download'"),
         "clap's own suggestion must survive, got:\n{rendered}"
     );
     assert!(
-        rendered.contains("Usage: zelynic strict-single [OPTIONS] <TARGET> [RATE]"),
-        "the narrowed usage must regenerate as the full strict-single line, got:\n{rendered}"
+        rendered.contains("Usage: zelynic strict [OPTIONS] <TARGET> [RATE]"),
+        "the narrowed usage must regenerate as the full strict line, got:\n{rendered}"
     );
 }
 

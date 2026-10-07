@@ -56,52 +56,48 @@ pub(crate) fn print_help() {
     // synopsis sits on its own line with the description and
     // examples indented below — no more 120-char mixed lines.
     // NIGHT-blade-2: strict-all rides the strict group (the former
-    // one-command "limit" group dissolved with the rename — the
-    // strict family now reads single/multi/all like block and
-    // unstrict already did).
+    // one-command "limit" group dissolved with the rename).
+    // NIGHT-improve-53 (the masterclass unification): each family is
+    // ONE verb now — strict, block, unstrict — with the '::' list
+    // grammar riding the same spelling, and the -all sweep beside
+    // it. The single/multi/-single/-multi spellings are retired
+    // (the redirect table owns them).
     println_safe!("  {}", brand_bold("strict — apply rate limits"));
     println_safe!();
-    println_safe!("  zelynic strict-single <target> [rate] [-d <rate>] [-u <rate>] [--per-socket]");
-    println_safe!("    Limit one app's network speed ('strict' is the shorthand).");
-    println_safe!("    --per-socket caps every connection at the rate (the server");
-    println_safe!("    shape: one process, many sockets); --no-probe skips the");
-    println_safe!("    post-apply verification loop for scripted use.");
-    example(
-        "both dl+ul = 100kb",
-        "sudo zelynic strict-single brave 100kb",
-    );
-    example("download only", "sudo zelynic strict-single brave -d 100kb");
-    example("upload only", "sudo zelynic strict-single brave -u 500kb");
+    println_safe!("  zelynic strict <target> [rate] [-d <rate>] [-u <rate>] [--per-socket]");
+    println_safe!("    Limit one app's network speed, or a '::'-separated list sharing");
+    println_safe!("    ONE rate (group limit: if one member downloads at full rate,");
+    println_safe!("    the others get nothing). 's' is the short alias.");
+    println_safe!("    --per-socket caps every connection at the rate (the single");
+    println_safe!("    target's server shape); --no-probe skips the post-apply");
+    println_safe!("    verification loop for scripted use.");
+    example("both dl+ul = 100kb", "sudo zelynic strict brave 100kb");
+    example("download only", "sudo zelynic strict brave -d 100kb");
+    example("upload only", "sudo zelynic strict brave -u 500kb");
     example(
         "both, different rates",
-        "sudo zelynic strict-single firefox -d 1mb -u 500kb",
+        "sudo zelynic strict firefox -d 1mb -u 500kb",
     );
     example(
         "per-connection cap (server)",
-        "sudo zelynic ss nginx --per-socket 500kb",
+        "sudo zelynic s nginx --per-socket 500kb",
     );
-    example("shorthand form", "sudo zelynic strict brave 100kb");
-    example("short alias form", "sudo zelynic ss brave 100kb");
-    example("docker container", "sudo zelynic ss docker://nginx 100kb");
-    example("kubernetes pod", "sudo zelynic ss k8s://prod/web-abc 1mb");
+    example(
+        "a group sharing one rate",
+        "sudo zelynic s brave::curl::pacman 1mb",
+    );
+    example(
+        "cgroup ids, list form",
+        "sudo zelynic s cg:1234::1245 100kb",
+    );
+    example("short alias form", "sudo zelynic s brave 100kb");
+    example("docker container", "sudo zelynic s docker://nginx 100kb");
+    example("kubernetes pod", "sudo zelynic s k8s://prod/web-abc 1mb");
     println_safe!();
     println_safe!("  Container targets resolve to the workload's cgroup:");
     println_safe!("  docker://<name> (or id prefix) via the Engine API,");
     println_safe!("  k8s://<namespace>/<pod> via the kubelet's pod log dirs.");
     println_safe!("  unstrict accepts the same references.");
-    println_safe!();
-    println_safe!("  zelynic strict-multi <a:b:c> [rate] [-d <rate>] [-u <rate>]");
-    println_safe!("    Limit multiple apps sharing ONE rate (group limit).");
-    println_safe!("    All apps collectively share the rate — if one downloads at full");
-    println_safe!("    rate, the others get nothing.");
-    example(
-        "both dl+ul = 1mb",
-        "sudo zelynic strict-multi brave:curl:pacman 1mb",
-    );
-    example(
-        "per-direction",
-        "sudo zelynic strict-multi brave:firefox -d 1mb -u 500kb",
-    );
     println_safe!();
     println_safe!("  zelynic strict-all [rate] [-d <rate>] [-u <rate>]");
     println_safe!("    Limit ALL user apps (system apps excluded; --force-this includes them).");
@@ -110,16 +106,11 @@ pub(crate) fn print_help() {
     println_safe!();
     println_safe!("  {}", brand_bold("block — cut internet access"));
     println_safe!();
-    println_safe!("  zelynic block-single <target>");
-    println_safe!("    Block one app from the internet entirely.");
-    example("cut one app off", "sudo zelynic block-single brave");
-    println_safe!();
-    println_safe!("  zelynic block-multi <a:b:c>");
-    println_safe!("    Block multiple apps from the internet.");
-    example(
-        "cut a whole group",
-        "sudo zelynic block-multi brave:curl:pacman",
-    );
+    println_safe!("  zelynic block <target>");
+    println_safe!("    Block one app from the internet entirely, or a");
+    println_safe!("    '::'-separated list. 'b' is the short alias.");
+    example("cut one app off", "sudo zelynic block brave");
+    example("cut a whole group", "sudo zelynic b brave::curl::pacman");
     println_safe!();
     println_safe!("  zelynic block-all");
     println_safe!("    Block ALL user apps (--force-this includes system apps).");
@@ -128,20 +119,11 @@ pub(crate) fn print_help() {
     println_safe!();
     println_safe!("  {}", brand_bold("unstrict — remove limits & recover"));
     println_safe!();
-    println_safe!("  zelynic unstrict-single <target>");
-    println_safe!("    Remove the rate limit from one app ('unstrict' is the shorthand).");
-    example(
-        "remove one app's limit",
-        "sudo zelynic unstrict-single brave",
-    );
-    example("shorthand form", "sudo zelynic unstrict brave");
-    println_safe!();
-    println_safe!("  zelynic unstrict-multi <a:b:c>");
-    println_safe!("    Remove rate limits from multiple apps at once.");
-    example(
-        "bulk removal",
-        "sudo zelynic unstrict-multi brave:curl:pacman",
-    );
+    println_safe!("  zelynic unstrict <target>");
+    println_safe!("    Remove the rate limit from one app or a '::'-separated list.");
+    println_safe!("    'u' is the short alias.");
+    example("remove one app's limit", "sudo zelynic unstrict brave");
+    example("bulk removal", "sudo zelynic u brave::curl::pacman");
     println_safe!();
     println_safe!("  zelynic unstrict-all");
     println_safe!("    Remove ALL limits (emergency reset).");
@@ -225,9 +207,9 @@ pub(crate) fn print_help() {
         "    Check host eBPF support and this binary's build flavor (full-life / half-life)."
     );
     println_safe!();
-    // NIGHT-improve-25: the ten two-letter aliases — every
-    // enforcement verb plus the monitor in two keystrokes. Documented
-    // as a compact table after the command groups, so the canonical
+    // NIGHT-improve-25: the two-letter aliases — every enforcement
+    // verb plus the monitor in two keystrokes. Documented as a
+    // compact table after the command groups, so the canonical
     // names stay the vocabulary of the reference and the short forms
     // read as the typing shortcut they are.
     // NIGHT-boost-29 (tidy data): one alias per line in the explicit
@@ -239,15 +221,15 @@ pub(crate) fn print_help() {
     // and a wide label column needs no alignment guesswork. The same
     // `=` pairing is the format README and docs/USAGE.md already
     // teach, so the reference and the docs read identically.
+    // NIGHT-improve-53: seven aliases — the single/multi pairs
+    // collapsed into one verb per family (s/b/u), the -all sweeps
+    // and the monitor keep theirs.
     println_safe!("{}", brand_bold("Short aliases:"));
-    println_safe!("  ss = strict-single");
-    println_safe!("  sm = strict-multi");
+    println_safe!("  s = strict");
+    println_safe!("  b = block");
+    println_safe!("  u = unstrict");
     println_safe!("  sa = strict-all");
-    println_safe!("  bs = block-single");
-    println_safe!("  bm = block-multi");
     println_safe!("  ba = block-all");
-    println_safe!("  us = unstrict-single");
-    println_safe!("  um = unstrict-multi");
     println_safe!("  ua = unstrict-all");
     println_safe!("  ee = eagle-eyes");
     println_safe!();
@@ -309,11 +291,11 @@ pub(crate) fn print_help() {
     // /command-below via the shared example() helper.
     example(
         "auto-expire after two hours",
-        "sudo zelynic ss brave 1mb --during 2h",
+        "sudo zelynic s brave 1mb --during 2h",
     );
     example(
         "block a group for 30 minutes",
-        "sudo zelynic bm brave:curl --during 30m",
+        "sudo zelynic b brave::curl --during 30m",
     );
     println_safe!();
     println_safe!("  Guaranteed share (strict family):");
@@ -327,20 +309,20 @@ pub(crate) fn print_help() {
     println_safe!("                    both-directions flag and its twin refuse together.");
     example(
         "guaranteed floor under the cap",
-        "sudo zelynic ss firefox 1mb --floor 100kb",
+        "sudo zelynic s firefox 1mb --floor 100kb",
     );
     example(
         "per-direction brackets",
-        "sudo zelynic ss curl 1mb --floor-download 50kb --ceil-upload 200kb",
+        "sudo zelynic s curl 1mb --floor-download 50kb --ceil-upload 200kb",
     );
     println_safe!();
-    println_safe!("  Enforcement shape (strict-single):");
+    println_safe!("  Enforcement shape (strict, single target):");
     println_safe!("    --per-socket   cap every connection at the rate (the server shape:");
     println_safe!("                  one process, many sockets).");
     println_safe!("    --no-probe     skip the post-apply verification loop (scripted use).");
     example(
         "scripted apply, no probe",
-        "sudo zelynic ss nginx 500kb --no-probe",
+        "sudo zelynic s nginx 500kb --no-probe",
     );
     println_safe!();
     println_safe!("  Guard override (strict family + block family):");
@@ -367,6 +349,14 @@ pub(crate) fn print_help() {
     // tells users to paste (NIGHT-boost-37's round-trip contract).
     println_safe!("  cg:<cgroup_id>  the display prefix every surface prints (cg:73386) —");
     println_safe!("                  paste it back: the same direct target as the bare ID");
+    // NIGHT-improve-53: the masterclass list law — '::' separates
+    // the members of a list (strict / block / unstrict all route on
+    // it); the single ':' belongs to the target's own grammar (the
+    // cg: display prefix, the container URIs), which is why the
+    // list separator doubles it.
+    println_safe!("  <a>::<b>[::...]  list members for the group lane — the '::' separator");
+    println_safe!("                  cannot collide with the single ':' the cg: prefix and");
+    println_safe!("                  the container URIs own");
     // NIGHT-dinner-11: the no-match contract rides the grammar
     // section — the forms above are what a target must resolve to,
     // and one that resolves to nothing is rejected, not soft-exited

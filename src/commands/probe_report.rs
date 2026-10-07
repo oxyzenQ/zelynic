@@ -10,7 +10,7 @@
 //! flow floor), the LEDGER verdict family (NIGHT-hunt-Z7 — the
 //! kernel's own allowed/dropped counters as verdict evidence, not
 //! just a display row), the outcome they produce, the verify block
-//! strict-single prints after its success epilogue, and the FAILED
+//! the strict family prints after its success epilogue, and the FAILED
 //! block it errors with instead — every line shape unit-pinned
 //! rootlessly.
 //!

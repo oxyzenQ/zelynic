@@ -23,7 +23,7 @@ every path a hostile operator and an absent runtime can produce?" — the
 docker:// and k8s:// target grammar end to end, the resolution error
 paths (no docker socket, no /var/log/pods, no container named X, no pod
 matching Y), the resolve-only contract (a container target is just
-another way to NAME a cgroup — the strict-single machinery is unchanged),
+another way to NAME a cgroup — the strict machinery is unchanged),
 and the real docker E2E lane (spawn a container, resolve, enforce,
 teardown — self-skips when no docker daemon is present, the same shape
 v1's realnet lane self-skips without an endpoint).
@@ -73,7 +73,7 @@ Design:
 
   * The docker E2E lane (root + docker, self-skip): when a docker
     daemon is reachable, v3 spawns a pause container, resolves
-    docker://<name> to its cgroup id, writes a strict-single policy,
+    docker://<name> to its cgroup id, writes a strict policy,
     verifies the enforcement row, and tears down — the full
     container-native round trip. When no daemon is present (the CI
     micro-VM ships no docker), the lane self-skips with a note, the
@@ -184,14 +184,15 @@ MALFORMED_URIS = [
     ("k8s://a/b/c", "too many slashes"),
 ]
 
-# A valid rate for the strict-single invocations (the resolver is
+# A valid rate for the strict invocations (the resolver is
 # reached only after the rate parses; 1mb is the canonical unit).
 VALID_RATE = "1mb"
 
-# The short alias the help examples use (ss = strict-single); v3 drives
-# both the canonical and the alias so the short-form surface is pinned.
-STRICT_SINGLE = "strict-single"
-STRICT_SINGLE_ALIAS = "ss"
+# The short alias the help examples use (NIGHT-improve-53: the
+# masterclass short form is 's'); v3 drives both the canonical and
+# the alias so the short-form surface is pinned.
+STRICT_SINGLE = "strict"
+STRICT_SINGLE_ALIAS = "s"
 
 # The resolver's own error markers (NIGHT-improve-37): when a real
 # runtime is present (the E2E lanes), a non-zero exit that carries one
@@ -362,7 +363,7 @@ def _resolution_failed(output):
 # ── stage 1: the help/usage surface (rootless, always runs) ────────────────
 #
 # The binary's own --help is the container surface's first home: the
-# examples carry `ss docker://nginx 100kb` and `ss k8s://prod/web-abc
+# examples carry `s docker://nginx 100kb` and `s k8s://prod/web-abc
 # 1mb`, and the prose names the resolve-only contract ("Container
 # targets resolve to the workload's cgroup"). This stage pins that the
 # help mentions both URI families — a user who reads --help learns the
@@ -406,7 +407,7 @@ def test_container_help_surface():
         "the --help examples name k8s://<namespace>/<pod>",
     )
     # The resolve-only contract in the prose: the help explains that
-    # container targets resolve to a cgroup (the strict-single
+    # container targets resolve to a cgroup (the strict
     # machinery is unchanged — containers are just another way to NAME
     # a cgroup).
     has_contract = "cgroup" in output.lower() and ("container" in output.lower())
@@ -540,7 +541,7 @@ def test_container_uri_grammar():
     all_ok = True
     for uri, shape in MALFORMED_URIS:
         # Both the canonical command and the short alias: the alias
-        # (ss) routes to the same parser, so both must hold the
+        # (s) routes to the same parser, so both must hold the
         # contract.
         for cmd in (STRICT_SINGLE, STRICT_SINGLE_ALIAS):
             rc, output = _run_cli_case([cmd, uri, VALID_RATE])
@@ -634,7 +635,7 @@ def test_container_resolution_errors():
 # ── stage 5: the docker E2E lane (root + docker, self-skip) ────────────────
 #
 # When a docker daemon is reachable, v3 spawns a pause container,
-# resolves docker://<name> to its cgroup id, writes a strict-single
+# resolves docker://<name> to its cgroup id, writes a strict
 # policy, verifies the enforcement row, and tears down — the full
 # container-native round trip. When no daemon is present (the CI
 # micro-VM ships no docker), the lane self-skips with a note, the same
@@ -1074,14 +1075,14 @@ def self_test():
         )
         and ok
     )
-    # The short alias (ss) is the surface the help examples use; v3
+    # The short alias (s) is the surface the help examples use; v3
     # drives both the canonical and the alias, so the alias string is
     # pinned here (a rename would break the alias cases silently).
     ok = (
         record(
-            "engine: strict-single alias pinned",
-            "PASS" if STRICT_SINGLE_ALIAS == "ss" else "FAIL",
-            f"ss -> {STRICT_SINGLE}",
+            "engine: strict alias pinned",
+            "PASS" if STRICT_SINGLE_ALIAS == "s" else "FAIL",
+            f"s -> {STRICT_SINGLE}",
         )
         and ok
     )

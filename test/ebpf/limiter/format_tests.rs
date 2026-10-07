@@ -131,8 +131,8 @@ fn test_validate_rate_minimum_harmonized_with_parser() {
     // NIGHT-hunt-5 harmonization: MIN_RATE is decimal SI (1000 B/s),
     // matching parse_rate where 1kb = 1000. The documented minimum
     // "1 KB/s" must accept the documented input "1kb" — before the
-    // fix, MIN_RATE was 1024 and `strict-single brave 1kb` was
-    // rejected as below-minimum, contradicting every doc.
+    // fix, MIN_RATE was 1024 and the era's `strict-single brave 1kb`
+    // was rejected as below-minimum, contradicting every doc.
     let rate = parse_rate("1kb").unwrap();
     assert_eq!(rate, 1000);
     assert!(validate_rate(rate).is_ok());

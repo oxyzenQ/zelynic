@@ -5,37 +5,44 @@ use clap::Subcommand;
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Limit a single app's network speed
+    /// Limit an app's network speed — one target or a shared group
     ///
-    /// 'strict' is the shorthand (NIGHT-hunt-10: the missing bare
-    /// verb made owners type `zelynic strict brave` into an error).
-    /// 'ss' is the short alias (NIGHT-improve-25 — the ten two-letter
-    /// aliases cover every enforcement verb).
+    /// NIGHT-improve-53 (the masterclass unification): strict-single
+    /// and strict-multi are ONE verb. The single ':' stays INSIDE a
+    /// target (the cg: display prefix, the container URIs
+    /// docker://nginx and k8s://prod/web-abc) — which is exactly why
+    /// the list separator doubles it. The target grammar picks the
+    /// lane:
+    /// - one target (brave, cg:73386, docker://nginx): the single
+    ///   lane, --per-socket's per-connection shape included
+    /// - a '::' list (brave::steam::discord): the group lane — one
+    ///   shared bucket for every member
     ///
     /// Examples:
-    ///   zelynic strict-single brave 100kb              # both dl+ul = 100kb
-    ///   zelynic strict-single brave -d 100kb           # download only
-    ///   zelynic strict-single brave -u 500kb           # upload only
-    ///   zelynic strict-single firefox -d 1mb -u 500kb  # both, different rates
-    ///   zelynic ss docker://nginx 100kb                # container target
-    ///   zelynic strict-single nginx 500kb --per-socket # each connection 500kb
-    ///   zelynic strict brave -d 1mb                    # shorthand form
-    ///   zelynic ss brave 100kb                         # short alias form
-    #[command(name = "strict-single", alias = "strict", alias = "ss")]
-    StrictSingle {
-        /// Target: process name (brave), cgroup ID (73386 or cg:73386 —
-        /// the display prefix round-trips), or container (docker://nginx)
+    ///   zelynic strict brave 100kb                    # both dl+ul = 100kb
+    ///   zelynic strict brave -d 100kb -u 500kb        # per-direction
+    ///   zelynic strict brave::steam::discord 100kb    # a group sharing one rate
+    ///   zelynic s cg:1234::1245 100kb                 # cgroup ids, list form
+    ///   zelynic s docker://nginx 100kb                # container target
+    ///   zelynic strict nginx 500kb --per-socket       # each connection 500kb
+    ///   zelynic s brave 100kb                         # short alias form
+    #[command(name = "strict", alias = "s")]
+    Strict {
+        /// Target: a process name (brave), cgroup ID (73386 or
+        /// cg:73386 — the display prefix round-trips), or container
+        /// (docker://nginx) — or a '::'-separated list for the group
+        /// lane (brave::steam::discord, cg:1234::1245)
         target: String,
 
         /// Rate for both download+upload (e.g., 100kb, 5.5mb). Use -d/-u for per-direction.
         #[arg(value_name = "RATE")]
         rate: Option<String>,
 
-        /// Download rate limit (e.g., 100kb, 5.5mb)
+        /// Download rate limit (e.g., 100kb, 5.5mb; shared across a list)
         #[arg(short = 'd', long = "download")]
         download: Option<String>,
 
-        /// Upload rate limit (e.g., 100kb, 5.5mb)
+        /// Upload rate limit (e.g., 100kb, 5.5mb; shared across a list)
         #[arg(short = 'u', long = "upload")]
         upload: Option<String>,
 
@@ -53,14 +60,18 @@ pub enum Commands {
         /// charger-core-1-b (the self-proving enforcement): the
         /// apply is verified with a short measured loopback flow
         /// (~3s, the VERIFIED verdict) — this flag keeps the
-        /// apply-only shape for scripted use.
+        /// apply-only shape for scripted use. The probe rides both
+        /// lanes (the list lane measures the first member —
+        /// NIGHT-hunt-30's parity find).
         #[arg(long = "no-probe")]
         no_probe: bool,
 
         /// Enforce per SOCKET, not per cgroup (charger-core-3b):
         /// every connection gets its own bucket at the rate — the
         /// server shape (one process, many sockets; the cgroup total
-        /// is rate x concurrent sockets, NOT rate).
+        /// is rate x concurrent sockets, NOT rate). The single lane
+        /// only: a '::' list shares one group bucket, so the flag is
+        /// refused there (NIGHT-improve-53's routing law).
         #[arg(long = "per-socket")]
         per_socket: bool,
 
@@ -118,105 +129,6 @@ pub enum Commands {
 
         /// Per-UPLOAD spelling of --ceil (improve-40-b):
         /// `--ceil-upload 200kb` caps only the upload row.
-        #[arg(long = "ceil-upload", value_name = "RATE")]
-        ceil_upload: Option<String>,
-    },
-
-    /// Limit multiple apps sharing one rate (group limit)
-    ///
-    /// All apps collectively share the rate: if one downloads at
-    /// full rate, the others get nothing.
-    ///
-    /// Examples:
-    ///   zelynic strict-multi brave:curl:pacman 1mb              # both dl+ul = 1mb
-    ///   zelynic strict-multi brave:curl -d 1mb -u 500kb         # per-direction
-    ///   zelynic sm brave:curl:pacman 1mb                        # short alias form
-    #[command(name = "strict-multi", alias = "sm")]
-    StrictMulti {
-        /// Targets separated by colons (e.g., brave:curl:pacman)
-        targets: String,
-
-        /// Rate for both download+upload (e.g., 5.5mb). Use -d/-u for per-direction.
-        #[arg(value_name = "RATE")]
-        rate: Option<String>,
-
-        /// Download rate limit (shared across all targets)
-        #[arg(short = 'd', long = "download")]
-        download: Option<String>,
-
-        /// Upload rate limit (shared across all targets)
-        #[arg(short = 'u', long = "upload")]
-        upload: Option<String>,
-
-        /// Override every safety guard: rates below 1kb and the
-        /// dangerous/system target blocklist (root, systemd, ...)
-        ///
-        /// NIGHT-improve-30: `--allow-dangerous` + `--force` are ONE
-        /// flag — one spelling for "I know, force this".
-        #[arg(long = "force-this")]
-        force_this: bool,
-
-        /// Skip the post-apply enforcement probe
-        ///
-        /// NIGHT-hunt-30 (the owner's parity find): strict-multi
-        /// carries strict-single's own verification lane now — the
-        /// first colon member is the measured target (the group's
-        /// shared bucket under it, the note naming the multi-leaf
-        /// ledger). This flag keeps the scripted apply-only shape.
-        #[arg(long = "no-probe")]
-        no_probe: bool,
-
-        /// Auto-expire this row (night-during, schema v23; the
-        /// owner's duration-only revision): a duration from the
-        /// apply instant (`2h`; s m h d mn y, 1s..10y) — the
-        /// kernel expires it, no daemon.
-        #[arg(long = "during", value_name = "DURATION")]
-        during: Option<String>,
-
-        /// Per-LEAF guaranteed minimum, shared across the group's
-        /// targets (improve-40, schema v24): every subprocess under
-        /// every member is guaranteed at least RATE. `--floor 100kb`
-        ///
-        /// A PRIORITY, not a reservation: idle leaves lend their
-        /// unspent share back (the pool's own accumulation is the
-        /// lender). Over-subscribed floors degrade gracefully to
-        /// the fair split (the pool never creates budget).
-        #[arg(long = "floor", value_name = "RATE")]
-        floor: Option<String>,
-
-        /// Per-LEAF maximum, shared across the group's targets
-        /// (improve-40, schema v24): no subprocess may exceed RATE
-        /// even when its siblings are idle. `--ceil 300kb`
-        ///
-        /// Binds even a lone subprocess (a cap that folds when
-        /// siblings appear is not a cap); the banking bound
-        /// tightens to the ceiling's own quantum.
-        #[arg(long = "ceil", value_name = "RATE")]
-        ceil: Option<String>,
-
-        /// Per-DOWNLOAD spelling of --floor (improve-40-b, the
-        /// asymmetric link): `--floor-download 100kb` brackets
-        /// only the download row, shared across the group. `--floor`
-        /// sets both; the two spellings refuse together.
-        #[arg(long = "floor-download", value_name = "RATE")]
-        floor_download: Option<String>,
-
-        /// Per-UPLOAD spelling of --floor (improve-40-b):
-        /// `--floor-upload 50kb` brackets only the upload row,
-        /// shared across the group.
-        #[arg(long = "floor-upload", value_name = "RATE")]
-        floor_upload: Option<String>,
-
-        /// Per-DOWNLOAD spelling of --ceil (improve-40-b, the
-        /// asymmetric link): `--ceil-download 300kb` caps only the
-        /// download row, shared across the group. `--ceil` caps
-        /// both; the two spellings refuse together.
-        #[arg(long = "ceil-download", value_name = "RATE")]
-        ceil_download: Option<String>,
-
-        /// Per-UPLOAD spelling of --ceil (improve-40-b):
-        /// `--ceil-upload 200kb` caps only the upload row, shared
-        /// across the group.
         #[arg(long = "ceil-upload", value_name = "RATE")]
         ceil_upload: Option<String>,
     },
@@ -326,13 +238,22 @@ pub enum Commands {
         ceil_upload: Option<String>,
     },
 
-    /// Block multiple apps from the internet entirely
+    /// Block an app from the internet — one target or a list
     ///
-    /// Example: zelynic block-multi brave:curl:pacman
-    #[command(name = "block-multi", alias = "bm")]
-    BlockMulti {
-        /// Targets separated by colons (e.g., brave:curl:pacman)
-        targets: String,
+    /// NIGHT-improve-53 (the masterclass unification): block-single
+    /// and block-multi are ONE verb, same routing law as strict —
+    /// '::' is the list separator, a single ':' stays inside a
+    /// target (the cg: prefix).
+    ///
+    /// Examples:
+    ///   zelynic block brave
+    ///   zelynic block brave::curl::pacman
+    ///   zelynic b brave
+    #[command(name = "block", alias = "b")]
+    Block {
+        /// Target: a process name, cgroup ID (cg: prefix accepted)
+        /// — or a '::'-separated list (brave::curl::pacman)
+        target: String,
 
         /// Force block on dangerous/system targets (root, systemd,
         /// ...) — the improve-30 unified override spelling.
@@ -365,54 +286,23 @@ pub enum Commands {
         during: Option<String>,
     },
 
-    /// Block an app from accessing the internet entirely
+    /// Remove rate limit(s) — one target or a list
     ///
-    /// Example: zelynic block-single brave
-    #[command(name = "block-single", alias = "bs")]
-    BlockSingle {
-        /// Target: process name or cgroup ID (cg: prefix accepted)
-        target: String,
-
-        /// Force block on dangerous/system targets (root, systemd,
-        /// ...) — the improve-30 unified override spelling.
-        #[arg(long = "force-this")]
-        force_this: bool,
-
-        /// Auto-expire the block (night-during, schema v23; the
-        /// owner's duration-only revision): a duration from the
-        /// apply instant (s m h d mn y, 1s..10y) — the block
-        /// lifts itself, no daemon.
-        #[arg(long = "during", value_name = "DURATION")]
-        during: Option<String>,
-    },
-
-    /// Remove rate limit(s) from a target
+    /// NIGHT-improve-53 (the masterclass unification): unstrict-single
+    /// and unstrict-multi are ONE verb, same routing law as strict —
+    /// '::' is the list separator. The container references strict
+    /// accepts round-trip here too (docker://nginx).
     ///
-    /// 'unstrict' is the shorthand that mirrors the strict / strict-single
-    /// pair (NIGHT-hunt-10 introduced the alias; NIGHT-hunt-16 flipped the
-    /// canonical to unstrict-single so the strict and unstrict families
-    /// read symmetrically: canonical always carries the -single suffix).
-    /// 'us' is the short alias (NIGHT-improve-25).
-    ///
-    /// Example: zelynic unstrict-single brave
-    #[command(name = "unstrict-single", alias = "unstrict", alias = "us")]
+    /// Examples:
+    ///   zelynic unstrict brave
+    ///   zelynic unstrict brave::curl::pacman
+    ///   zelynic u brave
+    #[command(name = "unstrict", alias = "u")]
     Unstrict {
-        /// Target: process name, cgroup ID (cg: accepted), or container
-        /// reference (docker://nginx) — strict-single's grammar
+        /// Target: process name, cgroup ID (cg: accepted), or
+        /// container reference (docker://nginx) — or a
+        /// '::'-separated list (brave::curl::pacman)
         target: String,
-    },
-
-    /// Remove rate limits from multiple apps at once
-    ///
-    /// Mirrors strict-multi's colon syntax (NIGHT-hunt-10): the unstrict
-    /// family previously had no multi form, so bulk removal meant either
-    /// repeated single calls or the unstrict-all sledgehammer.
-    ///
-    /// Example: zelynic unstrict-multi brave:curl:pacman
-    #[command(name = "unstrict-multi", alias = "um")]
-    UnstrictMulti {
-        /// Targets separated by colons (e.g., brave:curl:pacman)
-        targets: String,
     },
 
     /// Remove ALL rate limits (emergency reset)
@@ -567,7 +457,7 @@ pub enum Commands {
     Doctor,
 
     /// Internal: the enforcement-probe server role. Hidden — spawned
-    /// by strict-single's verification window, never typed by hand.
+    /// by strict's verification window, never typed by hand.
     #[command(name = "__probe-server", hide = true)]
     ProbeServer {
         /// Port to bind (0 = ephemeral; announced on stdout).
@@ -578,7 +468,7 @@ pub enum Commands {
     },
 
     /// Internal: the enforcement-probe client role. Hidden — spawned
-    /// by strict-single's verification window, never typed by hand.
+    /// by strict's verification window, never typed by hand.
     #[command(name = "__probe-client", hide = true)]
     ProbeClient {
         /// The server to connect to (host:port).

@@ -471,16 +471,16 @@ pub fn depth_report_lines(reports: &[DepthReport], width: usize) -> Vec<String> 
         // stay correct even when the friendly name is ambiguous or
         // shared by several cgroups. private-research-3 compacting:
         // the header line is gone — the commands name their own verbs
-        // (strict-single, block-single, ee) and the `act:` label rides
-        // the first line, so the tail spends its lines on commands,
-        // not furniture.
+        // (strict, block, ee — the improve-53 masterclass spellings)
+        // and the `act:` label rides the first line, so the tail
+        // spends its lines on commands, not furniture.
         lines.push(grid_line(width));
         lines.push(grey(&format!(
-            "  act:  zelynic strict-single cg:{} 500kb",
+            "  act:  zelynic strict cg:{} 500kb",
             report.cgroup_id
         )));
         lines.push(grey(&format!(
-            "        zelynic block-single cg:{}",
+            "        zelynic block cg:{}",
             report.cgroup_id
         )));
         lines.push(grey(&format!("        zelynic ee cg:{}", report.cgroup_id)));

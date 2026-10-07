@@ -37,6 +37,10 @@ fn test_no_color_flag_is_rejected() {
 /// clap's did-you-mean tip with the right exit code.
 #[test]
 fn test_typo_subcommand_gets_suggestion() {
+    // NIGHT-improve-53: the near-miss 'strict-singl' once pointed at
+    // the retired strict-single; the masterclass vocabulary it can
+    // reach now is 'strict' itself (the redirect table owns the
+    // exact retired spelling, pinned in surface_pins).
     let output = zelynic_cmd()
         .arg("strict-singl")
         .output()
@@ -49,8 +53,8 @@ fn test_typo_subcommand_gets_suggestion() {
         "typo must carry a suggestion tip, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("strict-single"),
-        "tip must point at strict-single, got:\n{stderr}"
+        stderr.contains("strict"),
+        "tip must point at the strict family's living vocabulary, got:\n{stderr}"
     );
 }
 

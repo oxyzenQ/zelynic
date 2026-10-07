@@ -37,8 +37,15 @@ pub(crate) mod rates;
 #[cfg(feature = "ebpf")]
 pub(crate) mod recover;
 pub(crate) mod safety;
+// NIGHT-improve-53: the masterclass '::' list grammar — the
+// routing law (target_is_list) and the list validation the unified
+// verbs (strict / block / unstrict) share. Split from safety.rs at
+// the 600-line cap, the same one-theme-one-file discipline that
+// gave strict_all.rs and dispatch_common.rs their own homes.
 #[cfg(feature = "ebpf")]
 pub(crate) mod strict;
+#[cfg(feature = "ebpf")]
+pub(crate) mod target_grammar;
 // night-during's LOC-cap split: the strict-all handler moved out of
 // strict.rs when the --during threading crossed the 500-line cap.
 #[cfg(feature = "ebpf")]
@@ -79,7 +86,12 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
         crate::cli::warn_print_json_ignored();
     }
     match cli.command {
-        Some(Commands::StrictSingle {
+        // NIGHT-improve-53 (the masterclass unification): strict /
+        // block / unstrict are ONE verb each — the '::' routing law
+        // lives inside the family handlers (target_grammar), so the
+        // dispatch arm is a single delegation whatever lane the
+        // target grammar picks.
+        Some(Commands::Strict {
             target,
             rate,
             download,
@@ -97,7 +109,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
         }) => {
             #[cfg(feature = "ebpf")]
             {
-                strict::handle_strict_single(
+                strict::handle_strict(
                     &target,
                     rate.as_deref(),
                     download.as_deref(),
@@ -123,7 +135,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             {
                 // per_socket joins the tuple with the other payload
                 // fields: the dormant-mode build destructures every
-                // strict-single flag here so -D warnings never sees an
+                // strict flag here so -D warnings never sees an
                 // unused binding (the CI build leg's -D warnings ride
                 // the no-default-features leg; the field is read only
                 // on the ebpf side, so the dormant arm silences it).
@@ -135,64 +147,6 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     force_this,
                     no_probe,
                     per_socket,
-                    floor,
-                    ceil,
-                    floor_download,
-                    floor_upload,
-                    ceil_download,
-                    ceil_upload,
-                    during,
-                    cli.verbose,
-                );
-                ebpf_disabled()
-            }
-        }
-
-        Some(Commands::StrictMulti {
-            targets,
-            rate,
-            download,
-            upload,
-            force_this,
-            no_probe,
-            floor,
-            ceil,
-            floor_download,
-            floor_upload,
-            ceil_download,
-            ceil_upload,
-            during,
-        }) => {
-            #[cfg(feature = "ebpf")]
-            {
-                strict::handle_strict_multi(
-                    &targets,
-                    rate.as_deref(),
-                    download.as_deref(),
-                    upload.as_deref(),
-                    force_this,
-                    no_probe,
-                    guarantee::BracketFlags {
-                        floor: floor.as_deref(),
-                        ceil: ceil.as_deref(),
-                        floor_download: floor_download.as_deref(),
-                        floor_upload: floor_upload.as_deref(),
-                        ceil_download: ceil_download.as_deref(),
-                        ceil_upload: ceil_upload.as_deref(),
-                    },
-                    during.as_deref(),
-                    cli.verbose,
-                )
-            }
-            #[cfg(not(feature = "ebpf"))]
-            {
-                let _ = (
-                    targets,
-                    rate,
-                    download,
-                    upload,
-                    force_this,
-                    no_probe,
                     floor,
                     ceil,
                     floor_download,
@@ -261,34 +215,18 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             }
         }
 
-        Some(Commands::BlockSingle {
+        Some(Commands::Block {
             target,
             force_this,
             during,
         }) => {
             #[cfg(feature = "ebpf")]
             {
-                block::handle_block_single(&target, force_this, during.as_deref(), cli.verbose)
+                block::handle_block(&target, force_this, during.as_deref(), cli.verbose)
             }
             #[cfg(not(feature = "ebpf"))]
             {
                 let _ = (target, force_this, during, cli.verbose);
-                ebpf_disabled()
-            }
-        }
-
-        Some(Commands::BlockMulti {
-            targets,
-            force_this,
-            during,
-        }) => {
-            #[cfg(feature = "ebpf")]
-            {
-                block::handle_block_multi(&targets, force_this, during.as_deref(), cli.verbose)
-            }
-            #[cfg(not(feature = "ebpf"))]
-            {
-                let _ = (targets, force_this, during, cli.verbose);
                 ebpf_disabled()
             }
         }
@@ -305,6 +243,8 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             }
         }
 
+        // NIGHT-improve-53: unstrict's '::' routing lives inside
+        // cleanup::handle_unstrict (the masterclass router).
         Some(Commands::Unstrict { target }) => {
             #[cfg(feature = "ebpf")]
             {
@@ -313,18 +253,6 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             #[cfg(not(feature = "ebpf"))]
             {
                 let _ = (target, cli.verbose);
-                ebpf_disabled()
-            }
-        }
-
-        Some(Commands::UnstrictMulti { targets }) => {
-            #[cfg(feature = "ebpf")]
-            {
-                cleanup::handle_unstrict_multi(&targets, cli.verbose)
-            }
-            #[cfg(not(feature = "ebpf"))]
-            {
-                let _ = (targets, cli.verbose);
                 ebpf_disabled()
             }
         }

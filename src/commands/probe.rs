@@ -3,7 +3,7 @@
 
 //! The self-proving enforcement probe (NIGHT-upgrade-charger-core-1-b,
 //! the TIER S ability): "applied" is a claim, "VERIFIED" is a
-//! measurement. After strict-single writes the policy, the probe
+//! measurement. After strict's single lane writes the policy, the probe
 //! generates REAL traffic through the subtree it just policed and
 //! measures what the kernel let through — the success the command
 //! prints is earned, not asserted (no other rate limiter verifies its

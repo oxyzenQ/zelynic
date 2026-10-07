@@ -31,7 +31,7 @@ server, the same traffic workers, the same bands — the only variable
 is the binary. The battery is the subtree depth sweep the AMMSP
 design promised:
 
-  1. a strict-single on the PARENT cgroup at 100kb;
+  1. a strict on the PARENT cgroup at 100kb;
   2. seven leaf children measured one by one — a three-level depth
      chain (parent/sub, parent/sub/sub2, parent/sub/sub2/sub3), three
      direct siblings, and one child created AFTER the apply (the
@@ -458,7 +458,7 @@ def measure_line_rate(win=2.0):
 
 
 def nested_apply_argv(chain1_id, probe_supported):
-    """The nested-root row's strict-single argv, built side-aware.
+    """The nested-root row's strict argv, built side-aware.
 
     The probe flag rides the current side only: the legacy v11.0.0
     binary predates --no-probe and exits 2 on it. The ff8e73dc CI
@@ -469,7 +469,7 @@ def nested_apply_argv(chain1_id, probe_supported):
     the argv through one helper makes the side-awareness
     structural — a future call site cannot regress it silently.
     """
-    argv = ["strict-single", str(chain1_id), NESTED_STR]
+    argv = ["strict", str(chain1_id), NESTED_STR]
     if probe_supported:
         argv.append("--no-probe")
     return argv
@@ -553,10 +553,10 @@ def run_battery_side(label, binary, is_current=False):
 
         ok, payload = sm1.apply_single("a", RATE_STR, RATE_BPS, RATE_BPS)
         if not ok:
-            record(f"ammsp-vs-legacy: {label} strict-single on the parent", "FAIL", payload)
+            record(f"ammsp-vs-legacy: {label} strict on the parent", "FAIL", payload)
             return None
         record(
-            f"ammsp-vs-legacy: {label} strict-single on the parent",
+            f"ammsp-vs-legacy: {label} strict on the parent",
             "PASS",
             f"{RATE_STR} on cgroup a — the subtree contract is now the question",
         )
@@ -761,9 +761,9 @@ def self_test():
     # The argv must ride the toggle: the current side carries the
     # flag, the legacy side never sees it.
     argv_now = nested_apply_argv(4242, True)
-    assert argv_now == ["strict-single", "4242", NESTED_STR, "--no-probe"], argv_now
+    assert argv_now == ["strict", "4242", NESTED_STR, "--no-probe"], argv_now
     argv_old = nested_apply_argv(4242, False)
-    assert argv_old == ["strict-single", "4242", NESTED_STR], argv_old
+    assert argv_old == ["strict", "4242", NESTED_STR], argv_old
     record(
         "self: nested-root argv rides the side-aware probe toggle",
         "PASS",

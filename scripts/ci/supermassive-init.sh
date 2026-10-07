@@ -260,7 +260,7 @@ fi
 # v1, the limiter matrix (the e2e pipeline's phase two): the
 # NIGHT-blade-4 server phase FIRST (headless report surfaces under
 # PATH + TERM=dumb, the dense 64-cgroup fleet censused and policed
-# by one strict-multi write, daemonized traffic, concurrent report
+# by one strict write, daemonized traffic, concurrent report
 # readers) gating the desktop matrix — every policy shape on the
 # loopback lane (the realnet lane rides the egress block above,
 # honest SKIPs on the endpoint-down days), the rate ladder, reload,

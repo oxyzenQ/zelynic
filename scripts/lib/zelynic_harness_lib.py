@@ -172,7 +172,7 @@ def patient_rate_window(probe, configured_bps, window, attempts=3, redrain=None)
     stops the loop; an OVER-band sample stops it too — a real
     over-delivery must fail immediately through band_check, never
     be retried away (enforcement can only under-deliver a budget,
-    the strict-single probe's one-sidedness contract). All samples
+    the strict probe's one-sidedness contract). All samples
     under after `attempts` tries FAIL the same way: a
     systematically broken datapath cannot pass by retry.
 

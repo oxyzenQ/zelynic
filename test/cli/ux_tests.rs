@@ -40,7 +40,7 @@ fn rendered_error_carries_exactly_one_help_footer() {
         vec!["zelynic", "backend"],
         vec!["zelynic", "helpp"],
         vec!["zelynic", "--VERBOS", "doctor"],
-        vec!["zelynic", "strict-single"],
+        vec!["zelynic", "strict"],
     ] {
         let rendered = render_via_bridge(&argv);
         assert_eq!(
@@ -64,7 +64,7 @@ fn rendered_error_carries_exactly_one_help_footer() {
 /// placed it after a subcommand.
 #[test]
 fn subcommand_help_position_points_at_top_level_help() {
-    let rendered = render_via_bridge(&["zelynic", "strict-single", "brave", "--help"]);
+    let rendered = render_via_bridge(&["zelynic", "strict", "brave", "--help"]);
     assert!(
         rendered.contains("unexpected argument '--help'"),
         "must name the rejected flag, got:\n{rendered}"
@@ -113,20 +113,21 @@ fn removed_help_all_flag_suggests_help() {
 
 // ── Version-anywhere + top-level-authority rescues (NIGHT-boost-12) ──
 
-/// The owner's live repro: `zelynic -v ss brave 550kb -V` must PARSE
-/// (the version flag is global) — before NIGHT-boost-12 it died on
-/// the misleading `--verbose` tip, the jaro_ci V-tie broken toward
-/// verbose. `main` intercepts `cli.version` before dispatch, so the
-/// command never runs.
+/// The owner's live repro (boost-12's era spelled it 'ss'; the
+/// improve-53 masterclass short form is 's'): `zelynic -v s brave
+/// 550kb -V` must PARSE (the version flag is global) — before
+/// NIGHT-boost-12 it died on the misleading `--verbose` tip, the
+/// jaro_ci V-tie broken toward verbose. `main` intercepts
+/// `cli.version` before dispatch, so the command never runs.
 #[test]
 fn version_parses_after_subcommand_positionals() {
     use clap::Parser;
-    let cli = Cli::try_parse_from(["zelynic", "-v", "ss", "brave", "550kb", "-V"])
+    let cli = Cli::try_parse_from(["zelynic", "-v", "s", "brave", "550kb", "-V"])
         .expect("-V must parse after subcommand positionals");
     assert!(cli.version, "the -V flag must reach main for interception");
     assert!(cli.verbose, "-v survives alongside");
     assert!(
-        matches!(cli.command, Some(crate::cli::Commands::StrictSingle { .. })),
+        matches!(cli.command, Some(crate::cli::Commands::Strict { .. })),
         "the subcommand must still parse behind the flag"
     );
 }
@@ -135,7 +136,7 @@ fn version_parses_after_subcommand_positionals() {
 #[test]
 fn version_long_form_parses_after_subcommand() {
     use clap::Parser;
-    let cli = Cli::try_parse_from(["zelynic", "ss", "brave", "550kb", "--version"])
+    let cli = Cli::try_parse_from(["zelynic", "s", "brave", "550kb", "--version"])
         .expect("--version must parse after subcommand positionals");
     assert!(cli.version);
 }
@@ -146,7 +147,7 @@ fn version_long_form_parses_after_subcommand() {
 /// the escape-hatch tip must be gone.
 #[test]
 fn escaped_version_value_tips_the_top_level_spelling() {
-    let rendered = render_via_bridge(&["zelynic", "ss", "brave", "550kb", "--", "-V"]);
+    let rendered = render_via_bridge(&["zelynic", "s", "brave", "550kb", "--", "-V"]);
     assert!(
         rendered.contains("unexpected argument '-V'"),
         "must name the rejected value, got:\n{rendered}"
@@ -309,7 +310,7 @@ fn info_vocabulary_rescues_depth() {
 /// without dropping the native Suggested context.
 #[test]
 fn suggestion_replaces_the_escape_hatch_tip() {
-    let rendered = render_via_bridge(&["zelynic", "ss", "brave", "--VERBOS"]);
+    let rendered = render_via_bridge(&["zelynic", "s", "brave", "--VERBOS"]);
     assert!(
         rendered.contains("unexpected argument '--VERBOS'"),
         "must name the rejected flag, got:\n{rendered}"
@@ -341,7 +342,7 @@ fn suggestion_replaces_the_escape_hatch_tip() {
 #[test]
 fn escape_hatch_lie_is_dropped_when_positionals_are_full() {
     for flag in ["-i", "-x"] {
-        let rendered = render_via_bridge(&["zelynic", "-v", "ss", "brave", "550kb", flag]);
+        let rendered = render_via_bridge(&["zelynic", "-v", "s", "brave", "550kb", flag]);
         assert!(
             rendered.contains(&format!("unexpected argument '{flag}'")),
             "must name the rejected flag, got:\n{rendered}"
@@ -354,15 +355,15 @@ fn escape_hatch_lie_is_dropped_when_positionals_are_full() {
     }
 }
 
-/// The probe keeps the tip where following it WORKS: strict-single's
-/// RATE slot is still open, so `ss brave -- -i` parses with `-i` as
+/// The probe keeps the tip where following it WORKS: strict's
+/// RATE slot is still open, so `s brave -- -i` parses with `-i` as
 /// the rate value. Dropping the tip there would discard honest
 /// advice — the probe distinguishes by re-parsing, not by guesswork,
 /// and the unprovable token (not in argv verbatim) reports honest
 /// and passes clap's behavior through untouched.
 #[test]
 fn escape_hatch_survives_where_the_advice_parses() {
-    let rendered = render_via_bridge(&["zelynic", "ss", "brave", "-i"]);
+    let rendered = render_via_bridge(&["zelynic", "s", "brave", "-i"]);
     assert!(
         rendered.contains("unexpected argument '-i'"),
         "must name the rejected flag, got:\n{rendered}"

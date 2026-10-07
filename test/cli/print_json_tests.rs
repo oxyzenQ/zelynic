@@ -121,7 +121,7 @@ fn depth_report_honors_the_flag_live_monitor_does_not() {
 /// representative, the exact surface class the owner audited.
 #[test]
 fn enforcement_verbs_do_not_honor_the_flag() {
-    let strict = Commands::StrictSingle {
+    let strict = Commands::Strict {
         target: "brave".to_string(),
         rate: None,
         download: None,
@@ -141,6 +141,6 @@ fn enforcement_verbs_do_not_honor_the_flag() {
     };
     assert!(
         !command_honors_print_json(Some(&strict)),
-        "strict-single renders its branded text report"
+        "strict renders its branded text report"
     );
 }

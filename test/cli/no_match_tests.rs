@@ -42,10 +42,14 @@ fn no_match_error_head_and_one_tip() {
 /// the generic discovery tip after (the call sites' contract).
 #[test]
 fn no_match_error_stacks_tips_in_order() {
+    // NIGHT-improve-53: the list tip teaches the '::' separator now
+    // (single ':' is the prefix grammar's byte) — the builder is
+    // payload-agnostic; the wording is the call site's own.
     let e = target_no_match_error(
         "No cgroup found for 'brave:curl' — nothing was limited".to_string(),
         &[
-            "colon-separated lists belong to strict-multi".to_string(),
+            "list members separate with '::' (single ':' is the cg: prefix and container grammar)"
+                .to_string(),
             "try 'zelynic list-apps' to see live targets".to_string(),
         ],
     );
@@ -53,7 +57,7 @@ fn no_match_error_stacks_tips_in_order() {
     assert_eq!(
         msg,
         "No cgroup found for 'brave:curl' — nothing was limited\n  \
-         tip: colon-separated lists belong to strict-multi\n  \
+         tip: list members separate with '::' (single ':' is the cg: prefix and container grammar)\n  \
          tip: try 'zelynic list-apps' to see live targets"
     );
 }

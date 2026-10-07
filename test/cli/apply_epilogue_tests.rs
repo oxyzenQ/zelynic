@@ -20,10 +20,10 @@
 //!    escape assertions run under a forced color capability so the
 //!    wraps are byte-visible.
 //! 5. Every call site passes an unstrict form that ROUND-TRIPS:
-//!    single -> "unstrict <target>", multi -> "unstrict-multi <list>"
-//!    (unstrict-single does not split colon lists), all -> the
-//!    "unstrict-all" sledgehammer (never "unstrict N apps", which is
-//!    not a target).
+//!    single -> "unstrict <target>", list -> "unstrict <a>::<b>"
+//!    (NIGHT-improve-53: the same verb carries the list lane now —
+//!    the '::' separator routes it), all -> the "unstrict-all"
+//!    sledgehammer (never "unstrict N apps", which is not a target).
 
 use super::apply_success_lines;
 
@@ -57,10 +57,10 @@ fn epilogue_restore_access_variant_pinned() {
 fn epilogue_is_exactly_two_lines() {
     for (cmd, action) in [
         ("zelynic unstrict brave", "remove"),
-        ("zelynic unstrict-multi brave:curl", "remove"),
+        ("zelynic unstrict brave::curl", "remove"),
         ("zelynic unstrict-all", "remove"),
         ("zelynic unstrict brave", "restore access"),
-        ("zelynic unstrict-multi brave:curl", "restore access"),
+        ("zelynic unstrict brave::curl", "restore access"),
         ("zelynic unstrict-all", "restore access"),
     ] {
         assert_eq!(
@@ -84,7 +84,7 @@ fn epilogue_is_exactly_two_lines() {
 fn epilogue_green_wraps_exactly_the_runnable_commands() {
     for (cmd, action) in [
         ("zelynic unstrict cg:48181", "remove"),
-        ("zelynic unstrict-multi brave:curl", "remove"),
+        ("zelynic unstrict brave::curl", "remove"),
         ("zelynic unstrict-all", "remove"),
         ("zelynic unstrict brave", "restore access"),
     ] {

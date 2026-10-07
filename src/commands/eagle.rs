@@ -106,7 +106,7 @@ pub(crate) fn parse_target_spec(spec: &str) -> Result<Vec<Target>> {
 ///   the frame could never show, nor reject one it would. (The depth
 ///   report's name resolution deliberately keeps the strict-family
 ///   /proc walk instead — see `resolve_name` — so a name resolves
-///   identically there and under `zelynic ss <name>`.)
+///   identically there and under `zelynic s <name>`.)
 ///
 /// Pure in its inputs, so the liveness contracts pin rootlessly with
 /// a seeded identity map (the cfg(test) insert seam) — pinned in
@@ -168,7 +168,7 @@ pub(crate) fn resolve_live_targets(
 /// limiter's resolve_target owns, on the same canonical boundaries
 /// (NIGHT-optimized-1) — pid_comm + pid_cgroup_id — with the same
 /// lowercase exact-match semantics, so a name resolves identically
-/// here and under `zelynic ss <name>`. Shared with the enforcement
+/// here and under `zelynic s <name>`. Shared with the enforcement
 /// probe (NIGHT-upgrade-charger-core-1-b), which must resolve the
 /// target the same way the apply just did. NIGHT-hunt-28: the walk
 /// itself is `identity::name_walk::resolve_name_set` — the ONE
@@ -386,7 +386,7 @@ pub(crate) fn handle_eagle_eyes_depth(
     // walk (the per-token resolve_name loop was O(tokens x /proc),
     // the residual hunt-27 named) — same walker, same lowercase
     // exact-match semantics, so a name resolves identically here
-    // and under `zelynic ss <name>`, however many names the spec
+    // and under `zelynic s <name>`, however many names the spec
     // carries.
     let name_tokens: Vec<String> = tokens
         .iter()
@@ -415,7 +415,7 @@ pub(crate) fn handle_eagle_eyes_depth(
             // empty report the verbatim pass used to print around it.
             Target::CgroupId(_) => resolve_live_targets(std::slice::from_ref(token), &identity).0,
             // Names keep the strict-family /proc walk: a name resolves
-            // identically here and under `zelynic ss <name>` (the
+            // identically here and under `zelynic s <name>` (the
             // documented depth contract — per-process comm matching,
             // not the identity map's majority-vote representative).
             // Container targets take the container resolver — the

@@ -436,8 +436,8 @@ fn report_ends_with_the_act_tail() {
     let text = depth_report_lines(&[report], 100).join("\n");
     for tip in [
         "act:",
-        "zelynic strict-single cg:1234 500kb",
-        "zelynic block-single cg:1234",
+        "zelynic strict cg:1234 500kb",
+        "zelynic block cg:1234",
         "zelynic ee cg:1234",
     ] {
         assert!(

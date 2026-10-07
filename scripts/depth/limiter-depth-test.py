@@ -53,7 +53,7 @@ What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
            supported kernel to the latest, so a verdict from any
            machine names the kernel generation it rode on
   baseline unlimited loopback throughput (the measurement ceiling)
-  policy   strict-single writes the exact policy (status JSON fields)
+  policy   strict writes the exact policy (status JSON fields)
   rate     enforced download rate at 100kb / 1mb / 10mb (adaptive skip)
   upload   enforced upload rate (-u only) at 1mb
   drops    packets_dropped > 0 under a binding limit (kernel proof)
@@ -625,7 +625,7 @@ def test_baseline(window):
 
 
 def apply_and_verify(rate_str, expect_dl, expect_ul, flags=()):
-    """Apply strict-single to the test cgroup and verify the write.
+    """Apply strict to the test cgroup and verify the write.
 
     `flags` selects the policy direction. The download rate stages pass
     ("-d",) on purpose: this harness's client AND server are the same
@@ -639,9 +639,9 @@ def apply_and_verify(rate_str, expect_dl, expect_ul, flags=()):
     covered by test_policy_write.
     """
     target = str(CG.id)
-    rc, stdout, stderr = run_zel(["strict-single", target, *flags, rate_str, "--no-probe"])
+    rc, stdout, stderr = run_zel(["strict", target, *flags, rate_str, "--no-probe"])
     if rc != 0:
-        return False, f"strict-single exit {rc}: {(stderr or stdout).strip()[:200]}"
+        return False, f"strict exit {rc}: {(stderr or stdout).strip()[:200]}"
     doc = status_json()
     entry = limit_entry(doc, CG.id)
     if entry is None:
@@ -663,7 +663,7 @@ def clear_limits():
 def test_policy_write():
     ok, payload = apply_and_verify("100kb", 100_000, 100_000)
     verdict = record(
-        "policy write: strict-single 100kb lands in the kernel maps",
+        "policy write: strict 100kb lands in the kernel maps",
         "PASS" if ok else "FAIL",
         "" if ok else payload,
     )
@@ -731,7 +731,7 @@ def test_upload(rate_bps, window, baseline):
             "upload rate: enforced (-u only)", "SKIP", f"baseline {fmt_bps(baseline)} too close"
         )
     rate_str = bps_to_rate_str(rate_bps)
-    rc, stdout, stderr = run_zel(["strict-single", str(CG.id), "-u", rate_str, "--no-probe"])
+    rc, stdout, stderr = run_zel(["strict", str(CG.id), "-u", rate_str, "--no-probe"])
     if rc != 0:
         return record(
             "upload rate: enforced (-u only)",

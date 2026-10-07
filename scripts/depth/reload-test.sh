@@ -109,13 +109,13 @@ log_test "Apply limit, change rate during traffic — no crash"
 sleep 600 &
 SLEEP_PID=$!
 SLEEP_COMM=$(cat /proc/$SLEEP_PID/comm 2>/dev/null || echo "sleep")
-"$BINARY" strict-single "$SLEEP_COMM" 100kb 2>/dev/null
+"$BINARY" strict "$SLEEP_COMM" 100kb 2>/dev/null
 # Start background traffic (loopback — self-contained)
 curl -s -o /dev/null "${URL}" 2>/dev/null &
 CURL_PID=$!
 sleep 1
 # Change rate while traffic flows
-"$BINARY" strict-single "$SLEEP_COMM" 500kb 2>/dev/null
+"$BINARY" strict "$SLEEP_COMM" 500kb 2>/dev/null
 sleep 1
 if "$BINARY" status 2>/dev/null | grep -q "500.0 KB/s"; then
 	log_pass "Rate changed during traffic without crash"
@@ -131,11 +131,11 @@ log_test "Unstrict → re-apply — no gap"
 sleep 600 &
 SLEEP_PID=$!
 SLEEP_COMM=$(cat /proc/$SLEEP_PID/comm 2>/dev/null || echo "sleep")
-"$BINARY" strict-single "$SLEEP_COMM" 100kb 2>/dev/null
+"$BINARY" strict "$SLEEP_COMM" 100kb 2>/dev/null
 sleep 0.5
 "$BINARY" unstrict "$SLEEP_COMM" 2>/dev/null
 sleep 0.5
-"$BINARY" strict-single "$SLEEP_COMM" 200kb 2>/dev/null
+"$BINARY" strict "$SLEEP_COMM" 200kb 2>/dev/null
 if "$BINARY" status 2>/dev/null | grep -q "200.0 KB/s"; then
 	log_pass "Re-apply after unstrict works"
 else
@@ -151,7 +151,7 @@ SLEEP_PID=$!
 SLEEP_COMM=$(cat /proc/$SLEEP_PID/comm 2>/dev/null || echo "sleep")
 ERRORS=0
 for rate in 100kb 500kb 1mb 100kb; do
-	"$BINARY" strict-single "$SLEEP_COMM" "$rate" 2>/dev/null || ERRORS=$((ERRORS + 1))
+	"$BINARY" strict "$SLEEP_COMM" "$rate" 2>/dev/null || ERRORS=$((ERRORS + 1))
 	sleep 0.3
 done
 if [ "$ERRORS" -eq 0 ]; then
@@ -167,7 +167,7 @@ log_test "Change rate while packets are being dropped"
 sleep 600 &
 SLEEP_PID=$!
 SLEEP_COMM=$(cat /proc/$SLEEP_PID/comm 2>/dev/null || echo "sleep")
-"$BINARY" strict-single "$SLEEP_COMM" 10kb 2>/dev/null # Very low rate → lots of drops
+"$BINARY" strict "$SLEEP_COMM" 10kb 2>/dev/null # Very low rate → lots of drops
 # Generate traffic (loopback — self-contained, same cgroup as the target)
 CURL_PIDS=()
 for _ in 1 2 3; do
@@ -178,7 +178,7 @@ sleep 2
 # Check drops are happening (the JSON column contract — see header)
 DROPS_BEFORE="$(dropped_bytes)"
 # Change rate
-"$BINARY" strict-single "$SLEEP_COMM" 500kb 2>/dev/null
+"$BINARY" strict "$SLEEP_COMM" 500kb 2>/dev/null
 sleep 1
 DROPS_AFTER="$(dropped_bytes)"
 for cpid in "${CURL_PIDS[@]}"; do
@@ -197,7 +197,7 @@ log_test "Final state verification"
 sleep 600 &
 SLEEP_PID=$!
 SLEEP_COMM=$(cat /proc/$SLEEP_PID/comm 2>/dev/null || echo "sleep")
-"$BINARY" strict-single "$SLEEP_COMM" 100kb 2>/dev/null || true
+"$BINARY" strict "$SLEEP_COMM" 100kb 2>/dev/null || true
 kill "$SLEEP_PID" 2>/dev/null || true
 "$BINARY" unstrict-all 2>/dev/null
 if [ ! -d "/sys/fs/bpf/zelynic" ] || [ -z "$(ls -A /sys/fs/bpf/zelynic 2>/dev/null)" ]; then

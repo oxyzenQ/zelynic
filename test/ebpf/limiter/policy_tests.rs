@@ -111,7 +111,7 @@ fn map_error_means_absent_classifies_the_absent_family() {
 
     // The read shape (night-audit-1 task 16, the supermassive
     // catch): aya 0.14's HashMap::get on an absent row — the error
-    // `strict-single` on a fresh cgroup once died on.
+    // `strict` (the era's strict-single) on a fresh cgroup once died on.
     assert!(map_error_means_absent(&MapError::KeyNotFound));
 
     // Real delete failures — the policy may still be enforced, so

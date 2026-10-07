@@ -56,7 +56,7 @@ pub struct Cli {
     /// Print complete version and build information
     ///
     /// Global since NIGHT-boost-12: `-V`/`--version` parse at every
-    /// level (`zelynic ss brave 550kb -V` prints the banner), closing
+    /// level (`zelynic s brave 550kb -V` prints the banner), closing
     /// the ambiguous usage where a subcommand-position `-V` died on a
     /// misleading `--verbose` tip — the rescue engine's jaro_ci ties
     /// "V" to verbose and version at exactly 0.714 and broke the tie

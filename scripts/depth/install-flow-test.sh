@@ -158,7 +158,7 @@ mkdir -p "${CG}" 2>/dev/null || true
 bash -c 'echo $$ > "$1/cgroup.procs"; shift; exec "$@"' worker "${CG}" sleep 300 &
 sleep 0.5
 CG_ID="$(stat -c %i "${CG}")"
-if /usr/bin/zelynic strict-single "cg:${CG_ID}" 500kb >/dev/null 2>&1 && pins_present; then
+if /usr/bin/zelynic strict "cg:${CG_ID}" 500kb >/dev/null 2>&1 && pins_present; then
 	pass "a live strict policy leaves pins in /sys/fs/bpf/zelynic"
 else
 	fail "a live strict policy leaves pins in /sys/fs/bpf/zelynic"
