@@ -65,8 +65,8 @@ use super::probe_report::{
 };
 use super::probe_role::{
     enter_cgroup, kill_and_reap, ledger_snapshots, mkdir_quiet, our_chain_is_clean,
-    policy_still_stands, probe_cgroup_name, read_metric_line, read_metric_line_from, wait_resident,
-    wait_with_deadline, window_dormancy_note, LeafDelta,
+    policy_still_stands, probe_cgroup_name, read_metric_line, read_metric_line_from,
+    root_cgroup_is_clean, wait_resident, wait_with_deadline, window_dormancy_note, LeafDelta,
 };
 
 /// The measured window (seconds): long enough that the refill term
@@ -157,6 +157,31 @@ pub(crate) fn run_enforcement_probe(
         return unverified(
             "probe server placement unavailable (no clean cgroup for the \
              unpoliced endpoint)"
+                .to_string(),
+        );
+    }
+    // NIGHT-hunt-29: the root-level placement's own premise, verified
+    // instead of assumed. The transient home is a DIRECT child of the
+    // root, so the one ancestor that can police the server's sockets
+    // is the root itself — a row there is reachable (`cg:<root-inode>`
+    // parses straight into the map; a root-resident process name
+    // resolves to it on minimal and container hosts), and the
+    // mkdir-succeeded lane used to skip the check the refused lane
+    // already pays (the chain walk's first hop IS the root). A server
+    // throttled at the root's rate is not the "unlimited peer" the
+    // verdict's physics assumes: its band-coincident flow reads as a
+    // vacuous VERIFIED over a limit the probe never measured, and its
+    // starved flow an UNVERIFIED the notes cannot name. A root-row
+    // host has NO unpoliced placement for the peer — the honest
+    // verdict is the stand-down, never a guess. The empty home is
+    // removed on the way out (the residue discipline kill_and_reap
+    // carries for the occupied homes).
+    if srv_placed && !root_cgroup_is_clean(limiter) {
+        let _ = std::fs::remove_dir(&srv_dir);
+        return unverified(
+            "the root cgroup itself is policed — no unpoliced lane exists for \
+             the probe server (the blast would measure the root's rate, not \
+             the target's)"
                 .to_string(),
         );
     }

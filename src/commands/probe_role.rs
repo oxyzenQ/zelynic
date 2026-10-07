@@ -315,6 +315,58 @@ pub(crate) fn probe_cgroup_name(role: &str) -> String {
     format!("zelynic-probe-{role}-{nanos}")
 }
 
+/// Does one cgroup id carry a row in either direction's policy set
+/// (pure, NIGHT-hunt-29)? The placement family's shared predicate:
+/// the chain walk feeds it each ancestor's id, the root gate feeds it
+/// the root's own. Pure so the pins drive every shape (a row on the
+/// id in EITHER set, clean sets, empty maps) without a loaded
+/// Limiter — the same discipline the verdict family keeps its band
+/// math in.
+pub(crate) fn cgroup_id_is_policed(
+    id: u32,
+    dl_rows: &[(u32, crate::ebpf::limiter::PolicyRaw)],
+    ul_rows: &[(u32, crate::ebpf::limiter::PolicyRaw)],
+) -> bool {
+    dl_rows.iter().any(|(k, _)| *k == id) || ul_rows.iter().any(|(k, _)| *k == id)
+}
+
+/// One cgroup id's cleanliness against BOTH policy maps: an
+/// unreadable map is "not clean" — never a guess (the read-failure
+/// arm the pure predicate leaves to this IO half).
+fn cgroup_id_is_clean(limiter: &crate::ebpf::limiter::Limiter, id: u32) -> bool {
+    match (
+        limiter.read_policies_public(Direction::Download),
+        limiter.read_policies_public(Direction::Upload),
+    ) {
+        (Ok(dl), Ok(ul)) => !cgroup_id_is_policed(id, &dl, &ul),
+        _ => false,
+    }
+}
+
+/// One cgroup directory's cleanliness: its kernfs-inode id (the same
+/// id the policy maps key on) against both direction maps.
+fn dir_is_clean(limiter: &crate::ebpf::limiter::Limiter, path: &Path) -> bool {
+    match std::fs::metadata(path) {
+        Ok(meta) => cgroup_id_is_clean(limiter, u32::try_from(meta.ino()).unwrap_or(0)),
+        Err(_) => false,
+    }
+}
+
+/// Does the ROOT cgroup itself carry a policy row (NIGHT-hunt-29)?
+/// The probe server's transient home is a DIRECT child of the root,
+/// so the root is the one ancestor that can police the server's
+/// sockets through the object's nearest-ancestor resolution
+/// (enforce.rs's ammsp_resolve_root — the same walk that covers the
+/// client's subtree). A row there is reachable: `Target::parse`
+/// accepts `cg:<root-inode>`, and on minimal or container hosts a
+/// root-resident process name resolves to it. The root-level
+/// placement's "outside every policed subtree" premise fails exactly
+/// then, so the placement family checks the root explicitly instead
+/// of assuming it.
+pub(crate) fn root_cgroup_is_clean(limiter: &crate::ebpf::limiter::Limiter) -> bool {
+    dir_is_clean(limiter, Path::new("/sys/fs/cgroup"))
+}
+
 /// Is zelynic's own cgroup chain free of policies (both directions,
 /// every ancestor including the root cgroup itself)? The fallback
 /// server placement: a policed server would under-measure every probe
@@ -328,20 +380,8 @@ pub(crate) fn our_chain_is_clean(limiter: &crate::ebpf::limiter::Limiter) -> boo
     // Each ancestor's cgroup id is the dir's inode (kernfs); check
     // every one against both policy maps. A failed read is "not
     // clean" — never a guess.
-    let dir_clean = |path: &Path| match std::fs::metadata(path) {
-        Ok(meta) => {
-            let id = u32::try_from(meta.ino()).unwrap_or(0);
-            [Direction::Download, Direction::Upload].iter().all(|d| {
-                limiter
-                    .read_policies_public(*d)
-                    .map(|rows| rows.iter().all(|(k, _)| *k != id))
-                    .unwrap_or(false)
-            })
-        }
-        Err(_) => false,
-    };
     let mut path = std::path::PathBuf::from("/sys/fs/cgroup");
-    if !dir_clean(&path) {
+    if !dir_is_clean(limiter, &path) {
         return false;
     }
     let Some(rel) = text.lines().find_map(|l| l.strip_prefix("0::")) else {
@@ -349,7 +389,7 @@ pub(crate) fn our_chain_is_clean(limiter: &crate::ebpf::limiter::Limiter) -> boo
     };
     rel.split('/').filter(|s| !s.is_empty()).all(|seg| {
         path.push(seg);
-        dir_clean(&path)
+        dir_is_clean(limiter, &path)
     })
 }
 

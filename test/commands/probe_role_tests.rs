@@ -83,3 +83,38 @@ fn the_roles_pair_over_loopback_ul_and_exit_clean() {
         .expect("the server role thread must not panic")
         .expect("the server role completes");
 }
+
+// ── The placement family's pure predicate (NIGHT-hunt-29) ────────
+
+/// One row on the id in EITHER direction's set is a policed id — the
+/// placement family's shared core, pinned without a loaded Limiter
+/// (the IO half's read-failure arm is the caller's "not clean",
+/// never a guess; the live cgroup-resident lane is the CI
+/// supermassive battery's job, the family's own posture).
+#[test]
+fn a_root_row_in_either_direction_marks_the_id_policed() {
+    use crate::ebpf::limiter::PolicyRaw;
+    let row = |id: u32| {
+        (
+            id,
+            PolicyRaw {
+                rate_bps: 100_000,
+                burst_bytes: 100_000,
+                floor_bps: 0,
+                ceil_bps: 0,
+                group_id: 0,
+                flags: 0,
+            },
+        )
+    };
+    let root = 4_819;
+    // Clean on both sides: the placement premise stands.
+    assert!(!cgroup_id_is_policed(root, &[row(7), row(8)], &[row(9)]));
+    // A row on the root id in the download set alone breaks it.
+    assert!(cgroup_id_is_policed(root, &[row(7), row(root)], &[row(9)]));
+    // And in the upload set alone — the counter-direction row is the
+    // exact shape a dual apply on `cg:<root-inode>` would write.
+    assert!(cgroup_id_is_policed(root, &[row(7)], &[row(root), row(9)]));
+    // Empty maps are clean, not "unknown".
+    assert!(!cgroup_id_is_policed(root, &[], &[]));
+}
