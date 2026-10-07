@@ -27,6 +27,27 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **feat(verify): NIGHT-hunt-30 — strict-multi and strict-all carry
+  the self-proving verification lane, the owner's parity find:
+  "applied" is a claim everywhere now, "VERIFIED" is a
+  measurement.** strict-single had measured its own enforcement
+  since NIGHT-upgrade-charger-core-1-b while the multi and the
+  sweep printed "applied" and hoped (the owner's live echo: "run
+  strict multi and all without verify like using single why?").
+  strict-multi probes the FIRST colon member after the atomic
+  apply — the atomic contract guarantees that member landed (one
+  miss aborts the whole list), so the measurement reads the
+  group's fresh shared bucket, the report's own multi-leaf note
+  naming the per-cgroup ledger; the lock's scope became the APPLY,
+  not the probe (strict-single's dinner-28 contract, one lane
+  over). strict-all probes the first applied app when the whole
+  fleet landed, and a saturated sweep skips the probe with a named
+  note instead of measuring a lane that may not have landed (an
+  unlimited path reads FAILED by its own numbers — a verdict built
+  on a guess). Both verbs carry `--no-probe` (the scripted
+  apply-only shape, flag parity with the single). Audit record:
+  [docs/audits/NIGHT_HUNT_30_OWNER_LIVE_SESSION_FINDS_2026-10-07.md](docs/audits/NIGHT_HUNT_30_OWNER_LIVE_SESSION_FINDS_2026-10-07.md)
+
 - **test(bench): NIGHT-hunt-29 — the frame harness now resolves
   synthetic cookies, closing lts-7's documented fixture blind spot:
   the join lane is measured frame work.** The harness's fixture
@@ -1666,6 +1687,63 @@ NIGHT-hunt-18's git-history-only call.
   lane's translation pins stand unchanged beside them.
 
 ### Fixed
+
+- **fix(during): NIGHT-hunt-30 — the visit sweep: status, recover,
+  and snapshot collect expired `--during` rows themselves, the
+  session's core find ("the brave on status should gone but this
+  need manual").** The lazy sweep rode the apply family only, so
+  an expired row sat in the maps as an "awaiting sweep" row
+  indefinitely — counted as an ACTIVE limit, rendered with its
+  stale rate, dying only when a mutating command happened to run
+  or the owner manually unstrict'd it, while the kernel had
+  already stopped policing (the browser measured full speed) and
+  the owner checked `status` again and again watching it not
+  leave; `recover` read the same rows as "all live". The "CLI is
+  the daemon" law, completed — every mutation-capable VISIT reaps
+  what its own clock says is dead: status try-locks and skips
+  silently when a concurrent operation holds the lock (the row
+  renders with its honest "awaiting sweep" line, collected by the
+  next quiet visit), both surfaces swept so `--print-json`'s
+  `active_limits` counts live windows only; recover runs the
+  window-death pass BEFORE its orphan scan with a named report
+  line (window-death first, crash-residue second); snapshot sweeps
+  before the census read so an expired row never rides the state
+  file as a live limit (a restored dead span would land
+  born-expired). The sweep path itself is untouched — the existing
+  unstrict machinery the applies have driven since v23. Audit
+  record:
+  [docs/audits/NIGHT_HUNT_30_OWNER_LIVE_SESSION_FINDS_2026-10-07.md](docs/audits/NIGHT_HUNT_30_OWNER_LIVE_SESSION_FINDS_2026-10-07.md)
+
+- **fix(cli): NIGHT-hunt-30 — the multi verbs are list verbs: a
+  colon list carrying fewer than two DISTINCT targets is refused
+  at the parse rung (the owner's grammar find: "should strict
+  single is single and multi is multi").** `sm brave 100kb`
+  applied cleanly — strict-multi on ONE target, the single verb's
+  lane wearing the wrong flag; `sm brave:brave` was one app
+  spelled twice, not a fleet. validate_multi_targets (the one
+  boundary strict-multi, block-multi, and unstrict-multi share)
+  now refuses both shapes with the verb named (each caller's
+  example param is the source), the requirement, and both exits
+  as tips — the single verb with a runnable command, or a grown
+  list. The single lanes and the numeric / cg: display-form
+  segments ride as they always did. Audit record:
+  [docs/audits/NIGHT_HUNT_30_OWNER_LIVE_SESSION_FINDS_2026-10-07.md](docs/audits/NIGHT_HUNT_30_OWNER_LIVE_SESSION_FINDS_2026-10-07.md)
+
+- **fix(status-json): NIGHT-hunt-30 — rate_ring's window_secs
+  names the SPAN the series covers (8), not the per-slot width
+  (the owner's label find: "what mean window secs 1").** The field
+  printed `1` beside an eight-entry bytes array — each ring slot
+  covers one second — but beside a series it reads as the window
+  the series spans, and a consumer computing the horizon's
+  average rate as `sum(bytes) / window_secs` overcounted
+  eight-fold. The horizon is the documented eight seconds (the
+  shared core's RING_SLOTS x RING_WINDOW_NS design, the kernel
+  object untouched): the label, not the lens, was wrong. The
+  per-slot granularity is `bytes.len()` (one sample per second),
+  documented on the field and in the scripting reference's
+  rate_ring section; no field renamed, no field removed — one
+  value corrected with its semantics documented. Audit record:
+  [docs/audits/NIGHT_HUNT_30_OWNER_LIVE_SESSION_FINDS_2026-10-07.md](docs/audits/NIGHT_HUNT_30_OWNER_LIVE_SESSION_FINDS_2026-10-07.md)
 
 - **fix(probe): NIGHT-hunt-29 — the enforcement probe's server
   placement never verified its own premise on the mkdir-succeeded
