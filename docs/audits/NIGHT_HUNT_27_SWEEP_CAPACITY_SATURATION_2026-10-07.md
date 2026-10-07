@@ -113,8 +113,7 @@ tag handling), the bypass shadow audit (saturating, wrap-coherent
 deltas). clippy clean on every lane; no TODO/FIXME markers
 anywhere in src/ or ebpf/src/.
 
-## 3. Named residuals (owner's call, not fixed — the
-over-engineering guard)
+## 3. Named residuals (owner's call, not fixed — the over-engineering guard)
 
 1. **Name-list resolution is O(N x /proc).** `resolve_target` on
    a `ProcessName` walks /proc once per name, and

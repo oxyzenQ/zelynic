@@ -31,33 +31,35 @@ name: Dragon Guard - CodeQL
   push:
     branches: ["main"]
     paths:
-      # Rust — NIGHT-improve-38: ebpf/** added (the aya-ebpf crate is
-      # pure Rust, the whole shipped code surface the autobuild scans;
-      # a change under ebpf/src/*.rs was silently invisible to codeql
-      # before this — the one CI leg that missed the *.rs trigger the
-      # other code-push workflows carry). deny.toml added too: a
-      # policy change affects what the scanner reports.
-      - 'src/**'
-      - 'test/**'
-      - 'ebpf/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'deny.toml'
-      - 'build.rs'
-      - 'rust-toolchain.toml'
+      # NIGHT-boost-10: the estate-wide spelling, scanner edition
+      # — the surface this scan actually reads. improve-11's
+      # documented rule stays: scripts/** wakes a Rust-language
+      # scan that has nothing new to find on a tooling-only diff,
+      # so the scanner workflows carry the surface they scan, not
+      # the surface the build estate executes. '**/*.rs'
+      # subsumes the old src/** + test/** pair (improve-38's
+      # ebpf/** entry rides in ebpf/**); '**/*.toml' subsumes
+      # deny.toml and both toolchain pins; the self-file line
+      # closes the NIGHT-hunt-34 gap this workflow carried — an
+      # edit to its own analysis steps used to go live unexecuted.
+      # A docs-only change matches nothing here — gate-keepers.yml
+      # (unfiltered) runs alone.
+      - '**/*.rs'
+      - '**/*.toml'
+      - '**/Cargo.lock'
       - '.cargo/**'
+      - 'ebpf/**'
+      - '.github/workflows/codeql.yml'
   pull_request:
     branches: ["main"]
     paths:
-      - 'src/**'
-      - 'test/**'
-      - 'ebpf/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'deny.toml'
-      - 'build.rs'
-      - 'rust-toolchain.toml'
+      # NIGHT-boost-10: same spelling as push (the no-drift law).
+      - '**/*.rs'
+      - '**/*.toml'
+      - '**/Cargo.lock'
       - '.cargo/**'
+      - 'ebpf/**'
+      - '.github/workflows/codeql.yml'
   schedule:
     # Monday 00:00 UTC (07:00 WIB) — the owner's morning, one clock
     # for every scheduled workflow (NIGHT-improve-9).

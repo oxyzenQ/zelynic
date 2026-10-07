@@ -207,21 +207,22 @@ on:
   push:
     branches: ["main"]
     paths:
-      - 'src/**'
-      - 'ebpf/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'build.rs'
-      - 'rust-toolchain.toml'
+      # NIGHT-boost-10: the estate-wide trigger spelling — six
+      # shared surface globs plus this file's own name, identical
+      # in every build workflow (ci.yml's header carries the
+      # coverage facts). The eight hardcoded script paths this
+      # list used to carry (setup.sh, the dev installers,
+      # supermassive/**, depth/**, proof-claims.py, lib/**, ci/**)
+      # were boost-9's per-consumer drift tax — all sub-sets of
+      # scripts/**; one glob replaces them all, every current and
+      # future consumer covered. A docs-only change matches
+      # nothing here — gate-keepers.yml (unfiltered) runs alone.
+      - '**/*.rs'
+      - '**/*.toml'
+      - '**/Cargo.lock'
       - '.cargo/**'
-      - 'scripts/setup.sh'
-      - 'scripts/dev/bootstrap-ebpf.sh'
-      - 'scripts/dev/install-bpf-linker.sh'
-      - 'scripts/supermassive/**'
-      - 'scripts/depth/**'
-      - 'scripts/bench/proof-claims.py'
-      - 'scripts/lib/**'
-      - 'scripts/ci/**'
+      - 'ebpf/**'
+      - 'scripts/**'
       - '.github/workflows/supermassive.yml'
   # NIGHT-approved-1: the weekly clock — Monday 03:00 UTC (10:00
   # WIB, the owner's Monday morning), the slot the header has

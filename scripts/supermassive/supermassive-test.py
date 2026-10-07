@@ -1686,9 +1686,7 @@ def stage_server_cap_crossing():
     flake class the busy-hour residual already documents)."""
     global CAP_FLEET
     out()
-    out(
-        f"━━━ server depth: cap crossing ({CAP_FLEET_N} cgroups, past the 4096 boundary) ━━━"
-    )
+    out(f"━━━ server depth: cap crossing ({CAP_FLEET_N} cgroups, past the 4096 boundary) ━━━")
     if not CG.dedicated:
         record(
             f"server: cap-crossing fleet census ({CAP_FLEET_N} cgroups)",
@@ -1763,9 +1761,7 @@ def stage_server_cap_crossing():
     rc, stdout, stderr = run_zel(["strict-multi", target, "2mb"], timeout=180)
     combined = (stderr or "") + (stdout or "")
     doc = status_json()
-    rows_after = (
-        sum(1 for i in CAP_FLEET.ids if limit_entry(doc, i) is not None) if doc else -1
-    )
+    rows_after = sum(1 for i in CAP_FLEET.ids if limit_entry(doc, i) is not None) if doc else -1
     refusal_ok = (
         rc != 0
         and "Failed to write policy" in combined
@@ -1826,7 +1822,9 @@ def stage_server_cap_crossing():
     clean = CAP_FLEET.teardown()
     doc = status_json()
     rows = (
-        sum(1 for i in CAP_FLEET.ids if limit_entry(doc, i) is not None) if doc else len(CAP_FLEET.ids)
+        sum(1 for i in CAP_FLEET.ids if limit_entry(doc, i) is not None)
+        if doc
+        else len(CAP_FLEET.ids)
     )
     ok = (
         record(
