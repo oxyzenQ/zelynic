@@ -7,8 +7,8 @@
 #
 # Tests:
 #   1. Concurrent strict (5 parallel) — only 1 should succeed
-#   2. Concurrent unstrict-all (5 parallel) — no crash
-#   3. Mixed strict + unstrict-all — no crash, no corruption
+#   2. Concurrent u --all (5 parallel) — no crash
+#   3. Mixed strict + u --all — no crash, no corruption
 #   4. Rapid strict → unstrict → strict cycle
 #   5. Lock release on exit — sequential operations work after lock holder exits
 #   6. Final state verification
@@ -33,7 +33,7 @@ set -uo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/harness_lib.sh"
 
 cleanup() {
-	"$BINARY" unstrict-all 2>/dev/null || true
+	"$BINARY" u --all 2>/dev/null || true
 }
 
 # A long-lived target for the concurrent applies (NIGHT-hunt-32 — see
@@ -73,12 +73,12 @@ else
 fi
 cleanup
 
-# Test 2: Concurrent unstrict-all — no crash
-log_test "Concurrent unstrict-all (5 parallel) — no crash"
+# Test 2: Concurrent u --all — no crash
+log_test "Concurrent u --all (5 parallel) — no crash"
 "$BINARY" strict "$TARGET_COMM" 100kb 2>/dev/null || true
 PIDS=()
 for _ in 1 2 3 4 5; do
-	"$BINARY" unstrict-all 2>/dev/null &
+	"$BINARY" u --all 2>/dev/null &
 	PIDS+=($!)
 done
 CRASHED=0
@@ -103,13 +103,13 @@ else
 fi
 cleanup
 
-# Test 3: Mixed strict + unstrict-all
-log_test "Mixed strict + unstrict-all — no corruption"
+# Test 3: Mixed strict + u --all
+log_test "Mixed strict + u --all — no corruption"
 PIDS=()
 for _ in 1 2 3; do
 	"$BINARY" strict curl 100kb 2>/dev/null &
 	PIDS+=($!)
-	"$BINARY" unstrict-all 2>/dev/null &
+	"$BINARY" u --all 2>/dev/null &
 	PIDS+=($!)
 done
 for pid in "${PIDS[@]}"; do
@@ -132,7 +132,7 @@ log_test "Rapid strict → unstrict → strict cycle (10x)"
 ERRORS=0
 for _ in $(seq 1 10); do
 	"$BINARY" strict "$TARGET_COMM" 100kb 2>/dev/null || ERRORS=$((ERRORS + 1))
-	"$BINARY" unstrict-all 2>/dev/null || ERRORS=$((ERRORS + 1))
+	"$BINARY" u --all 2>/dev/null || ERRORS=$((ERRORS + 1))
 done
 if [ "$ERRORS" -eq 0 ]; then
 	log_pass "10 cycles completed without errors"
@@ -160,7 +160,7 @@ cleanup
 # Test 6: Final state — clean
 log_test "Final state verification"
 "$BINARY" strict "$TARGET_COMM" 100kb 2>/dev/null || true
-"$BINARY" unstrict-all 2>/dev/null
+"$BINARY" u --all 2>/dev/null
 if [ ! -d "/sys/fs/bpf/zelynic" ] || [ -z "$(ls -A /sys/fs/bpf/zelynic 2>/dev/null)" ]; then
 	log_pass "Final state is clean"
 else

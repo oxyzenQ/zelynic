@@ -29,7 +29,9 @@ fn subcommand_errors_show_the_subcommand_usage() {
     ] {
         let rendered = render_via_bridge(&argv);
         assert!(
-            rendered.contains("Usage: zelynic strict [OPTIONS] <TARGET> [RATE]"),
+            // NIGHT-improve-54: TARGET is optional now (--all rides
+            // beside it), so the usage line carries the bracket form.
+            rendered.contains("Usage: zelynic strict [OPTIONS] [TARGET] [RATE]"),
             "an error inside s must show the strict usage for {argv:?}, got:\n{rendered}"
         );
     }
@@ -57,7 +59,9 @@ fn narrowed_usage_is_regenerated_from_the_failing_command() {
         "clap's own suggestion must survive, got:\n{rendered}"
     );
     assert!(
-        rendered.contains("Usage: zelynic strict [OPTIONS] <TARGET> [RATE]"),
+        // NIGHT-improve-54: TARGET is optional (--all beside it) —
+        // the full strict line carries the bracket form.
+        rendered.contains("Usage: zelynic strict [OPTIONS] [TARGET] [RATE]"),
         "the narrowed usage must regenerate as the full strict line, got:\n{rendered}"
     );
 }

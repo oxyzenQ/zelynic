@@ -198,7 +198,7 @@ other class already fenced:
   stored value it consumes (security-3/depthbore-1).
 - **Kernel resource leaks — fenced.** Observer maps are
   session-scoped and freed at detach; the limiter's pinned state is
-  reclaimed by `unstrict`/`unstrict-all`/`recover` with bucket-slot
+  reclaimed by `unstrict`/`u --all`/`recover` with bucket-slot
   return (improve-10), and since NIGHT-lts-7 the return covers the
   SHARED group buckets too (a group's slots go back when its last
   reference does — unstrict from lts-7, recover closing the gap at
@@ -453,7 +453,7 @@ walk happened and found the floor solid.
 |---|---|---|
 | A strict/limit command errors at BPF load | `zelynic doctor` | Preflights kernel eBPF support, cgroup v2, and BPF fs; names the missing piece |
 | Limits behave oddly after a crash / old binary | `zelynic recover` | Repairs or clears pinned state via the schema version |
-| Machine-wide sweep misbehaving | `sudo zelynic unstrict-all` | Full unpin: every limit, link, and map removed in one shot |
+| Machine-wide sweep misbehaving | `sudo zelynic u --all` | Full unpin: every limit, link, and map removed in one shot |
 | A from-source build dies on toolchain errors | `./scripts/dev/bootstrap-ebpf.sh` | Installs/repairs the dated nightly + bpf-linker pair, then builds |
 | Uninstalling while limits are live | `./scripts/package/uninstall.sh` | Clears kernel enforcement BEFORE removing the binary (NIGHT-improve-15) |
 

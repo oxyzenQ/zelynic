@@ -103,6 +103,91 @@ fn test_strict_list_lane_pins_the_routing_law() {
     );
 }
 
+/// NIGHT-improve-54: the --all sweep lanes, pinned end to end
+/// through the real binary — the routing law (target vs fleet), the
+/// rate reinterpretation (a lone positional on the sweep IS the
+/// rate: clap parks it in TARGET's slot), and the no-target
+/// refusals, all pre-root and deterministic on every uid.
+/// ebpf-gated: the lanes live in the feature-gated handlers.
+#[cfg(feature = "ebpf")]
+#[test]
+fn test_sweep_lanes_pin_the_all_routing() {
+    // The sweep's own no-rate rung: `s --all` with nothing else names
+    // the sweep spelling in its example (the single lane's example
+    // names the target grammar instead).
+    let output = zelynic_cmd()
+        .args(["s", "--all"])
+        .output()
+        .expect("Failed to execute zelynic s --all");
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("No rate specified"),
+        "the bare sweep must reach the sweep lane's no-rate rung, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("zelynic s --all 500kb"),
+        "the sweep lane's example names the --all spelling, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("root required"),
+        "the sweep's input error must precede the root guard, got:\n{stderr}"
+    );
+
+    // The rate reinterpretation: `s --all 1MB` parks "1MB" in the
+    // TARGET slot, and the sweep re-feeds it as the RATE — the rate
+    // ladder's own refusal is the proof (an uppercase rate never
+    // reaches the root guard).
+    let output = zelynic_cmd()
+        .args(["s", "--all", "1MB"])
+        .output()
+        .expect("Failed to execute zelynic s --all 1MB");
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Invalid rate '1MB'"),
+        "the lone positional must ride the sweep's rate ladder, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("root required"),
+        "the rate refusal must precede the root guard, got:\n{stderr}"
+    );
+
+    // The lane confusions: a target beside --all is refused on every
+    // family, before any parsing of the values.
+    for (argv, needle) in [
+        (
+            vec!["s", "--all", "brave", "100kb"],
+            "takes a rate, not a target",
+        ),
+        (vec!["b", "--all", "brave"], "takes no target"),
+        (vec!["u", "--all", "brave"], "takes no target"),
+    ] {
+        let output = zelynic_cmd()
+            .args(&argv)
+            .output()
+            .unwrap_or_else(|e| panic!("Failed to execute zelynic {argv:?}: {e}"));
+        assert_eq!(
+            output.status.code(),
+            Some(1),
+            "{argv:?} must refuse the lane confusion"
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains(needle),
+            "{argv:?} must name the --all lane law, got:\n{stderr}"
+        );
+        assert!(
+            stderr.contains("--all"),
+            "{argv:?} must name the flag in the refusal, got:\n{stderr}"
+        );
+        assert!(
+            !stderr.contains("root required"),
+            "the lane refusal must precede the root guard, got:\n{stderr}"
+        );
+    }
+}
+
 /// NIGHT-improve-53: unstrict carries the '::' list lane on the same
 /// verb — a list target reaches the handler (the root guard fires
 /// for a non-root caller, proving the routing never fell through to
@@ -157,127 +242,21 @@ fn test_unstrict_and_u_require_a_target() {
     }
 }
 
-/// NIGHT-hunt-12: the `man` subcommand is removed totally — it must
-/// be an unrecognized subcommand (exit 2), not a silent success. The
-/// release tarballs no longer ship man/zelynic.1; `--help` is the one
-/// reference surface.
-#[test]
-fn test_removed_man_command_is_rejected() {
-    let output = zelynic_cmd()
-        .arg("man")
-        .output()
-        .expect("Failed to execute zelynic man");
-
-    assert_eq!(
-        output.status.code(),
-        Some(2),
-        "removed 'man' must be a usage error"
-    );
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("unrecognized subcommand 'man'"),
-        "error must name the removed subcommand, got:\n{stderr}"
-    );
-}
-
-/// NIGHT-hunt-12: the monitor family is always-live — `--live` and
-/// `--duration` are removed from the eagle-eyes monitor (NIGHT-boost-1
-/// merged observe/top into it), so both must fail as unknown
-/// arguments (exit 2) instead of silently changing behavior.
-#[test]
-fn test_removed_monitor_timer_flags_are_rejected() {
-    for argv in [
-        vec!["eagle-eyes", "--live", "3m"],
-        vec!["eagle-eyes", "--duration", "30s"],
-    ] {
-        let output = zelynic_cmd()
-            .args(&argv)
-            .output()
-            .unwrap_or_else(|e| panic!("Failed to execute zelynic {argv:?}: {e}"));
-
-        assert_eq!(
-            output.status.code(),
-            Some(2),
-            "removed timer flag {argv:?} must be a usage error"
-        );
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(
-            stderr.contains("unexpected argument"),
-            "error must name the rejected flag, got:\n{stderr}"
-        );
-    }
-}
-
-/// NIGHT-boost-1: observe and top are removed as subcommands (merged
-/// into eagle-eyes) — both must fail as unrecognized subcommands
-/// (exit 2) whose tip redirects to the successor, never a silent
-/// success and never a dead end.
-#[test]
-fn test_removed_observe_and_top_redirect_to_eagle_eyes() {
-    for gone in ["observe", "top"] {
-        let output = zelynic_cmd()
-            .arg(gone)
-            .output()
-            .unwrap_or_else(|e| panic!("Failed to execute zelynic {gone}: {e}"));
-
-        assert_eq!(
-            output.status.code(),
-            Some(2),
-            "removed '{gone}' must be a usage error"
-        );
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(
-            stderr.contains(&format!("unrecognized subcommand '{gone}'")),
-            "error must name the removed subcommand, got:\n{stderr}"
-        );
-        assert!(
-            stderr.contains("eagle-eyes"),
-            "removed '{gone}' must redirect to eagle-eyes, got:\n{stderr}"
-        );
-    }
-}
-
-/// NIGHT-boost-1: the retired monitor flags (--cgroup on observe,
-/// --limit on top) must not ride on eagle-eyes — the target filter is
-/// the positional TARGETS spec now, and the row budget is the
-/// terminal height. Both must fail as unknown arguments.
-#[test]
-fn test_removed_monitor_filter_flags_are_rejected() {
-    for argv in [
-        vec!["eagle-eyes", "--cgroup", "8066"],
-        vec!["eagle-eyes", "--limit", "20"],
-    ] {
-        let output = zelynic_cmd()
-            .args(&argv)
-            .output()
-            .unwrap_or_else(|e| panic!("Failed to execute zelynic {argv:?}: {e}"));
-
-        assert_eq!(
-            output.status.code(),
-            Some(2),
-            "removed filter flag {argv:?} must be a usage error"
-        );
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(
-            stderr.contains("unexpected argument"),
-            "error must name the rejected flag, got:\n{stderr}"
-        );
-    }
-}
-
 // ── Short aliases (NIGHT-improve-25) ────────────────────────────────────────
 
-/// NIGHT-improve-25 / NIGHT-improve-53: the surviving short aliases
-/// route to their canonical commands. The routing discriminator is
-/// the unrecognized-subcommand error an unwired name would produce:
-/// every alias invocation must NOT end in "unrecognized
-/// subcommand" — the positional-carrying trio lands in clap's
-/// required-argument usage error instead (pinned below), and the
-/// -all sweeps parse straight into their handlers. Safe on any
-/// uid: nothing here reaches an enforcement handler as root.
+/// NIGHT-improve-25 / NIGHT-improve-53/54: the surviving short
+/// aliases route to their canonical commands. The routing
+/// discriminator is the unrecognized-subcommand error an unwired
+/// name would produce: every alias invocation must NOT end in
+/// "unrecognized subcommand" — the positional-carrying trio lands
+/// in clap's required-argument usage error instead (pinned below),
+/// and the sweeps route through their --all flags (the retired
+/// sa/ba/ua spellings are redirects, pinned in the sweep-redirect
+/// test above). Safe on any uid: nothing here reaches an
+/// enforcement handler as root.
 #[test]
 fn test_short_aliases_route_to_canonical_commands() {
-    for alias in ["s", "b", "u", "sa", "ba", "ua", "ee"] {
+    for alias in ["s", "b", "u", "ee"] {
         let output = zelynic_cmd()
             .arg(alias)
             .output()
@@ -348,107 +327,6 @@ fn test_owner_short_alias_invocations_reach_handlers() {
             "'{argv:?}' must be inside its canonical handler (root guard), got: {stderr}"
         );
     }
-}
-
-/// NIGHT-improve-53 (the masterclass unification): the twelve
-/// retired spellings — the -single/-multi long forms and their
-/// two-letter shorts — must land users on the family successor:
-/// unrecognized subcommand (exit 2) whose tip redirects to strict /
-/// block / unstrict, the exact contract observe/top, limit-all/la,
-/// and eagle-eye carry. Every redirect is exact-match (a fuzzy
-/// near-miss never supplements it).
-#[test]
-fn test_removed_masterclass_spellings_redirect_to_their_verb() {
-    for (gone, successor) in [
-        ("strict-single", "strict"),
-        ("strict-multi", "strict"),
-        ("ss", "strict"),
-        ("sm", "strict"),
-        ("block-single", "block"),
-        ("block-multi", "block"),
-        ("bs", "block"),
-        ("bm", "block"),
-        ("unstrict-single", "unstrict"),
-        ("unstrict-multi", "unstrict"),
-        ("us", "unstrict"),
-        ("um", "unstrict"),
-    ] {
-        let output = zelynic_cmd()
-            .arg(gone)
-            .output()
-            .unwrap_or_else(|e| panic!("Failed to execute zelynic {gone}: {e}"));
-
-        assert_eq!(
-            output.status.code(),
-            Some(2),
-            "removed '{gone}' must be a usage error"
-        );
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(
-            stderr.contains(&format!("unrecognized subcommand '{gone}'")),
-            "error must name the removed spelling, got: {stderr}"
-        );
-        assert!(
-            stderr.contains(successor),
-            "removed '{gone}' must redirect to {successor}, got: {stderr}"
-        );
-    }
-}
-
-/// NIGHT-blade-2: the removed limit-all/la spellings (renamed
-/// strict-all/sa, the strict-family symmetry) must land users on the
-/// successor — unrecognized subcommand (exit 2) whose tip redirects
-/// to strict-all, the exact contract observe/top/eagle-eye carry.
-#[test]
-fn test_removed_limit_all_redirects_to_strict_all() {
-    for gone in ["limit-all", "la"] {
-        let output = zelynic_cmd()
-            .arg(gone)
-            .output()
-            .unwrap_or_else(|e| panic!("Failed to execute zelynic {gone}: {e}"));
-
-        assert_eq!(
-            output.status.code(),
-            Some(2),
-            "removed '{gone}' must be a usage error"
-        );
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(
-            stderr.contains(&format!("unrecognized subcommand '{gone}'")),
-            "error must name the removed spelling, got: {stderr}"
-        );
-        assert!(
-            stderr.contains("strict-all"),
-            "removed '{gone}' must redirect to strict-all, got: {stderr}"
-        );
-    }
-}
-
-/// NIGHT-improve-25: the singular 'eagle-eye' alias is removed (one
-/// canonical name, one short form 'ee') — it must fail as an
-/// unrecognized subcommand whose tip redirects to eagle-eyes, the
-/// exact contract observe/top carry.
-#[test]
-fn test_removed_eagle_eye_alias_redirects_to_eagle_eyes() {
-    let output = zelynic_cmd()
-        .arg("eagle-eye")
-        .output()
-        .expect("Failed to execute zelynic eagle-eye");
-
-    assert_eq!(
-        output.status.code(),
-        Some(2),
-        "removed 'eagle-eye' must be a usage error"
-    );
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("unrecognized subcommand 'eagle-eye'"),
-        "error must name the removed alias, got: {stderr}"
-    );
-    assert!(
-        stderr.contains("eagle-eyes"),
-        "removed 'eagle-eye' must redirect to eagle-eyes, got: {stderr}"
-    );
 }
 
 /// NIGHT-master-1: the eagle-eyes depth surface — the missing-target

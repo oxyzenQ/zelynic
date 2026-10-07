@@ -310,7 +310,7 @@ def teardown_cgroups(original_cgroup):
 
 
 def stage_pin_family(cg_id):
-    rc, _, err = lib.run_zel(["strict", f"cg:{cg_id}", "10mb", "--no-probe"])
+    rc, _, err = lib.run_zel(["strict", f"cg:{cg_id}", "10mb", "--no-test"])
     if rc != 0:
         lib.record("pin-family: first apply", "FAIL", err.strip()[:120])
         return False
@@ -345,16 +345,16 @@ def stage_row_churn(cg_a, cg_b, rounds, group_ok):
     fails = 0
 
     # The shape is pinned once, at the first of each kind.
-    rc, _, err = lib.run_zel(["unstrict-all"])
+    rc, _, err = lib.run_zel(["u", "--all"])
     if rc != 0:
-        lib.record("row-churn: unstrict-all", "FAIL", err.strip()[:120])
+        lib.record("row-churn: u --all", "FAIL", err.strip()[:120])
         return False
 
     kinds = ["single", "group"] if group_ok else ["single"]
     for i in range(rounds):
         kind = kinds[i % len(kinds)]
         if kind == "single":
-            rc, _, err = lib.run_zel(["strict", f"cg:{cg_a}", "5mb", "--no-probe"])
+            rc, _, err = lib.run_zel(["strict", f"cg:{cg_a}", "5mb", "--no-test"])
         else:
             # NIGHT-hunt-32: the multi grammar splits on EVERY colon
             # (safety.rs) — a "cg:" prefix survives only in the
@@ -382,13 +382,13 @@ def stage_row_churn(cg_a, cg_b, rounds, group_ok):
                     f"first {kind} apply showed {rows} limit rows, expected {want}",
                 )
                 break
-        rc, _, err = lib.run_zel(["unstrict-all"])
+        rc, _, err = lib.run_zel(["u", "--all"])
         if rc != 0:
             fails += 1
             lib.record(
                 "row-churn: unstrict cycle",
                 "FAIL",
-                f"round {i + 1} unstrict-all failed: {err.strip()[:100]}",
+                f"round {i + 1} u --all failed: {err.strip()[:100]}",
             )
             break
 
@@ -617,7 +617,7 @@ def main():
         if twin is not None:
             twin.kill()
             twin.wait()
-        lib.run_zel(["unstrict-all"])
+        lib.run_zel(["u", "--all"])
         teardown_cgroups(original_cgroup)
 
     ok_line = (

@@ -122,12 +122,13 @@ fn depth_report_honors_the_flag_live_monitor_does_not() {
 #[test]
 fn enforcement_verbs_do_not_honor_the_flag() {
     let strict = Commands::Strict {
-        target: "brave".to_string(),
+        target: Some("brave".to_string()),
         rate: None,
         download: None,
         upload: None,
+        all: false,
         force_this: false,
-        no_probe: false,
+        no_test: false,
         per_socket: false,
         floor: None,
         ceil: None,

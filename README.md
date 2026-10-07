@@ -341,7 +341,7 @@ across all six build shapes. A v3 build runs on any x86_64 CPU from
 verifies the binary answers `-V` before anything is installed
 (NIGHT-improve-15). `scripts/package/uninstall.sh` clears kernel enforcement
 first: while BPF pins are still live under `/sys/fs/bpf/zelynic` it
-runs `unstrict-all` (or prints the exact manual steps when no binary
+runs `u --all` (or prints the exact manual steps when no binary
 is left) before deleting files, so active limits never outlive the
 tool that can remove them.
 
@@ -364,12 +364,12 @@ sudo zelynic strict firefox -d 1mb -u 500kb
 sudo zelynic s brave::curl::pacman 1mb
 
 # Every user app at once (system apps excluded unless --force-this)
-sudo zelynic strict-all 500kb
+sudo zelynic s --all 500kb
 
 # Block apps from the internet entirely — one target or a '::' list
 sudo zelynic block brave
 sudo zelynic b brave::curl
-sudo zelynic block-all
+sudo zelynic b --all
 
 # Live monitor (box mode, q to quit) — apps ranked by consumption,
 # one target opens the deep focus view
@@ -391,9 +391,9 @@ sudo zelynic ee 12345 --depth --print-json | jq '.targets[0]'
 sudo zelynic unstrict brave
 sudo zelynic u brave::curl
 # emergency reset
-sudo zelynic unstrict-all
+sudo zelynic u --all
 
-# Short aliases (NIGHT-improve-53): s b u sa ba ua ee
+# Short aliases (NIGHT-improve-53/54): s b u ee
 # strict brave 100kb
 sudo zelynic s brave 100kb
 # eagle-eyes brave --interval 1s
@@ -419,8 +419,12 @@ it (the sender retransmits, so it reappears in allowed later);
 Monitors are always live; the CLI surface is frozen (v11) — the
 removed surfaces (`man`, `completions`, `unblock`, `limit-all`/`la`,
 `-i`, `--live`, `--duration`) exit with a usage error on
-purpose (the retired `limit-all` spelling redirects to `strict-all`,
-NIGHT-blade-2; the `--info` alias of `eagle-eyes --depth` returned
+purpose (the retired `limit-all` spelling redirects to the
+`s --all` sweep, NIGHT-blade-2/improve-54; the `-all` verbs
+themselves retired into the family verbs' `--all` lanes in
+NIGHT-improve-54 — `strict-all`/`sa`, `block-all`/`ba`,
+`unstrict-all`/`ua` all redirect; the `--info` alias of
+`eagle-eyes --depth` returned
 at NIGHT-master-1 and is retired again in NIGHT-blade-4 — `--depth`
 is the one spelling, and the short `-i` stays retired). Command
 semantics, quit keys, and recipes: [docs/USAGE.md](docs/USAGE.md);
@@ -650,7 +654,7 @@ trails live in each row's doc, told once there:
 | [depth](docs/CROSS_DISTRO_RESULTS.md) | Rate accuracy, kernel-drop proof, BPF accounting, residue — on your machine or any distro (~2 min) | `sudo ./scripts/depth/limiter-depth-test.sh` |
 | [endurance](docs/STABILITY.md) | The ultra-long horizon: the LTS map budget under 300 churn cycles, a monitor soaked flat, zero residue (~100s) | `sudo ./scripts/depth/endurance-test.sh` |
 | [supermassive v1](docs/CROSS_DISTRO_RESULTS.md) | Every stage that measures a LIMIT: the 64-cgroup server fleet, then the full desktop matrix (6+ min) | `sudo ./scripts/supermassive/supermassive-test.sh` |
-| [supermassive v2](docs/CROSS_DISTRO_RESULTS.md) | The abuse family: the 104-case CLI stresstest, guards, SIGKILL batteries, crash teardown (4+ min) | `sudo ./scripts/supermassive/supermassive-test-v2.sh` |
+| [supermassive v2](docs/CROSS_DISTRO_RESULTS.md) | The abuse family: the 106-case CLI stresstest, guards, SIGKILL batteries, crash teardown (4+ min) | `sudo ./scripts/supermassive/supermassive-test-v2.sh` |
 | [supermassive v3](docs/CROSS_DISTRO_RESULTS.md) | The container depth: docker:// and k8s:// target grammar, resolution errors, the resolve-only contract, docker E2E (self-skips with no daemon) | `sudo ./scripts/supermassive/supermassive-test-v3.sh` |
 | [supermassive v4](docs/CROSS_DISTRO_RESULTS.md) | The CLI depth: every command, alias, flag, color mode (zero to hero), typo tip, rate-explode category, removed/retired + hidden surface (rootless) | `./scripts/supermassive/supermassive-test-v4.sh` |
 | [AMMSP vs legacy](docs/CROSS_DISTRO_RESULTS.md) | The subtree contract as a DELTA: this build vs the pre-AMMSP v11.0.0 stable, seven child leaves each, the >= 99% coverage proof (~3 min) | `sudo ./scripts/supermassive/ammsp-vs-legacy-test.sh` (the v11.0.0 side auto-downloads, sha512-verified) |

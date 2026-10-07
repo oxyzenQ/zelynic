@@ -1,10 +1,13 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! The strict-all handler (night-during's LOC-cap split of strict.rs:
+//! The strict sweep lane (night-during's LOC-cap split of strict.rs:
 //! the --during threading pushed the parent past the 500-line owner
 //! cap, and the house split precedent moves HANDLERS out — this one
 //! whole, its tests staying with the strict family's own).
+//! NIGHT-improve-54: the lane is reached through `zelynic s --all`
+//! now — the strict-all verb is retired (the ux redirect names
+//! strict), but the handler is the machinery unchanged.
 
 use anyhow::Result;
 
@@ -23,20 +26,25 @@ use crate::commands::{probe, probe_report};
 #[cfg(feature = "ebpf")]
 use crate::ebpf::limiter::types::POLICY_MAP_CAPACITY as POLICY_CAP;
 
-/// Handle `zelynic strict-all` — limit ALL user apps.
+/// The `s --all` sweep lane — limit EVERY user app (the former
+/// strict-all verb, NIGHT-improve-54).
 /// System/dangerous apps are excluded unless --force-this.
-/// NIGHT-blade-2: renamed from limit-all (the strict family symmetry).
+/// NIGHT-blade-2: the sweep was born as limit-all, renamed
+/// strict-all for the family symmetry, and merged into strict as
+/// the --all lane.
 #[cfg(feature = "ebpf")]
 // improve-40 (schema v24): the bracket pair joins the sweep's
 // payload — the same too-many-arguments posture the strict
-// handlers carry. NIGHT-hunt-30: no_probe joins it too.
+// handlers carry. NIGHT-hunt-30: no_test joins it too
+// (NIGHT-improve-54 renamed the CLI flag --no-probe -> --no-test;
+// the internal lane keeps the same boolean).
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn handle_strict_all(
     rate: Option<&str>,
     download: Option<&str>,
     upload: Option<&str>,
     force_this: bool,
-    no_probe: bool,
+    no_test: bool,
     bracket_flags: crate::commands::guarantee::BracketFlags<'_>,
     during: Option<&str>,
     verbose: bool,
@@ -53,7 +61,7 @@ pub(crate) fn handle_strict_all(
     if rates.download.is_none() && rates.upload.is_none() {
         return Err(anyhow::anyhow!(
             "No rate specified. Use positional rate or -d/-u flags.\n\
-             Example: zelynic strict-all 500kb"
+             Example: zelynic s --all 500kb"
         ));
     }
 
@@ -206,7 +214,7 @@ pub(crate) fn handle_strict_all(
                          limited, {saturated} left unlimited",
                         targets.len()
                     ),
-                    &["run 'zelynic unstrict-all' to make room".to_string()],
+                    &["run 'zelynic u --all' to make room".to_string()],
                 ));
             }
             return Err(super::target_no_match_error(
@@ -232,7 +240,7 @@ pub(crate) fn handle_strict_all(
         crate::output::eprintln_warn_labeled(&format!(
             "Policy ceiling saturated: {applied} app(s) limited, {saturated} left \
              unlimited — the policy family's {POLICY_CAP}-row capacity is full; \
-             'zelynic unstrict-all' makes room."
+             'zelynic u --all' makes room."
         ));
     }
 
@@ -252,8 +260,8 @@ pub(crate) fn handle_strict_all(
     //     the very lane the probe would name, and an unlimited path
     //     reads FAILED by its own numbers. The skip note names the
     //     saturated fleet; the warn above already named the fix.
-    // --no-probe keeps the scripted apply-only shape.
-    let probe_outcome = if no_probe {
+    // --no-test keeps the scripted apply-only shape.
+    let probe_outcome = if no_test {
         None
     } else if saturated > 0 {
         crate::output::eprintln_warn_labeled(
@@ -287,10 +295,11 @@ pub(crate) fn handle_strict_all(
         ));
     }
 
-    // NIGHT-improve-28: strict-all reverses with the sledgehammer, not
+    // NIGHT-improve-28: the sweep reverses with the sledgehammer, not
     // a per-target unstrict — the old suggestion built
     // 'zelynic unstrict 3 apps', which is not a target at all.
-    super::apply_success_epilogue("zelynic unstrict-all", "remove");
+    // NIGHT-improve-54: the sledgehammer is the --all lane now.
+    super::apply_success_epilogue("zelynic u --all", "remove");
     if let Some(outcome) = &probe_outcome {
         for line in probe_report::report_lines(outcome) {
             eprintln_safe!("{line}");

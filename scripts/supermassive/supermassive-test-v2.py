@@ -91,7 +91,7 @@ What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
          ee --depth error ladder, every invariant identical to the
          inherited-env sweep; then, on a green server phase, the
          survival battery:
-  guards: the NIGHT-ultimate-3 depth sweep — 104 cases (size pinned by --self-test): info surfaces
+  guards: the NIGHT-ultimate-3 depth sweep — 106 cases (size pinned by --self-test): info surfaces
          (bare invocation, --help/-h, --version/-V, global -V at
          subcommand level, --color-mode, --, doctor --print-json, the
          root-refusing --check-update pair), flag typos with their
@@ -112,7 +112,7 @@ What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
   regression: the guards still refuse after the kills, policy
          round-trips still land on three cgroups, doctor + list-apps
          JSON still parse, the -V token still matches the checkout;
-  teardown: recover exits clean, unstrict-all leaves no limit rows,
+  teardown: recover exits clean, u --all leaves no limit rows,
          zero BPF pins, no pid file, the fleet is removed, and the
          kernel log stayed clean of BPF errors during the run.
 """
@@ -258,7 +258,7 @@ def test_rate_guard():
     )
     # The plain-number parser branch (no unit suffix) round-trips
     # through the status JSON at full value.
-    rc, stdout, stderr = run_zel(["strict", tid, "1000000", "--no-probe"])
+    rc, stdout, stderr = run_zel(["strict", tid, "1000000", "--no-test"])
     entry = limit_entry(status_json(), sm1.CG.ids["a"]) if rc == 0 else None
     plain_ok = (
         rc == 0
@@ -280,7 +280,7 @@ def test_rate_guard():
     # unified spelling): 500 B/s applies silently at full value in
     # the status row — the override no longer echoes its own
     # request back.
-    rc, stdout, stderr = run_zel(["strict", tid, "--force-this", "500", "--no-probe"])
+    rc, stdout, stderr = run_zel(["strict", tid, "--force-this", "500", "--no-test"])
     entry = limit_entry(status_json(), sm1.CG.ids["a"]) if rc == 0 else None
     override_ok = (
         rc == 0
@@ -396,15 +396,33 @@ CLI_DEPTH_CASES = [
         "nonzero",
         "--force-this",
     ),
+    # NIGHT-improve-54: the renamed verification-skip flag parses on
+    # the strict verb (the retired --no-probe redirects — its row
+    # rides the removed-spelling family below).
+    (
+        "--no-test parses on strict (scripted apply)",
+        ["strict", "brave", "1mb", "--no-test"],
+        "nonzero",
+        "root required",
+    ),
     (
         "removed --allow-dangerous spelling is refused",
         ["strict", "brave", "--allow-dangerous"],
         "nonzero",
         "unexpected argument",
     ),
+    # NIGHT-improve-54: the retired --no-probe spelling redirects to
+    # --no-test through the vocabulary rescue (jaro 0.69 sits under
+    # the fuzzy bar, so the table is the only tip).
+    (
+        "removed --no-probe redirects to --no-test",
+        ["strict", "brave", "1mb", "--no-probe"],
+        "nonzero",
+        "--no-test",
+    ),
     (
         "removed --force spelling is refused",
-        ["block-all", "--force"],
+        ["b", "brave", "--force"],
         "nonzero",
         "unexpected argument",
     ),
@@ -416,12 +434,12 @@ CLI_DEPTH_CASES = [
     ("removed top redirects to eagle-eyes", ["top"], "nonzero", "eagle-eyes"),
     ("removed singular eagle-eye redirects", ["eagle-eye"], "nonzero", "eagle-eyes"),
     (
-        "removed limit-all redirects to strict-all",
+        "removed limit-all redirects to the s --all sweep",
         ["limit-all"],
         "nonzero",
-        "strict-all",
+        "strict --all",
     ),
-    ("removed la alias redirects to strict-all", ["la"], "nonzero", "strict-all"),
+    ("removed la alias redirects to the s --all sweep", ["la"], "nonzero", "strict --all"),
     ("help subcommand redirects to the flag", ["help"], "nonzero", "zelynic --help"),
     # ── wrong values (exit 1: runtime validation) ─────────────────────
     (
@@ -495,8 +513,18 @@ CLI_DEPTH_CASES = [
         "nonzero",
         "no rate specified",
     ),
-    ("strict-all without a rate names the fix", ["strict-all"], "nonzero", "no rate specified"),
-    ("strict-all -d with no value is a usage error", ["strict-all", "-d"], "nonzero", "required"),
+    (
+        "the s --all sweep without a rate names the fix",
+        ["s", "--all"],
+        "nonzero",
+        "no rate specified",
+    ),
+    (
+        "the s --all sweep -d with no value is a usage error",
+        ["s", "--all", "-d"],
+        "nonzero",
+        "required",
+    ),
     # ── security injection: values are DATA, never executed ───────
     # Unknown-name targets are hard refusals now (NIGHT-dinner-11,
     # exit 1, "No cgroup found"): the needle is the PAYLOAD ITSELF,
@@ -590,10 +618,10 @@ CLI_DEPTH_CASES = [
         "unexpected",
     ),
     (
-        "stray positional after unstrict-all is refused",
-        ["unstrict-all", "extra"],
+        "a target beside the u --all reset is refused",
+        ["u", "--all", "extra"],
         "nonzero",
-        "unexpected",
+        "takes no target",
     ),
     # ── every alias: the short forms resolve (and refuse safely) ──────
     # NIGHT-improve-53: the masterclass merge — s/b/u are the short
@@ -603,7 +631,7 @@ CLI_DEPTH_CASES = [
     ("s alias resolves (missing target refuses)", ["s"], "nonzero", "error"),
     ("strict verb resolves (missing target refuses)", ["strict"], "nonzero", "error"),
     ("b alias resolves (missing target refuses)", ["b"], "nonzero", "error"),
-    ("sa alias resolves (missing rate refuses)", ["sa"], "nonzero", "no rate specified"),
+    ("retired sa redirects to the s --all sweep", ["sa"], "nonzero", "strict --all"),
     ("u alias resolves (missing target refuses)", ["u"], "nonzero", "error"),
     ("unstrict verb resolves (missing target refuses)", ["unstrict"], "nonzero", "error"),
     ("retired ss redirects to strict", ["ss"], "nonzero", "strict"),
@@ -612,12 +640,17 @@ CLI_DEPTH_CASES = [
     ("retired bm redirects to block", ["bm"], "nonzero", "block"),
     ("retired us redirects to unstrict", ["us"], "nonzero", "unstrict"),
     ("retired um redirects to unstrict", ["um"], "nonzero", "unstrict"),
-    ("block-all typo refuses before any block", ["block-all", "--forse"], "nonzero", "--force"),
-    ("ba alias typo refuses before any block", ["ba", "--forse"], "nonzero", "--force"),
+    (
+        "the b --all sweep's typo refuses before any block",
+        ["b", "--all", "--forse"],
+        "nonzero",
+        "--force",
+    ),
+    ("retired ba redirects to the b --all sweep", ["ba"], "nonzero", "block --all"),
     # NOTE: the --forse needles still say "--force" because the
     # suggestion is now "--force-this" (NIGHT-improve-30) and the
     # old needle remains a substring of it.
-    ("ua alias refuses a stray positional", ["ua", "extra"], "nonzero", "unexpected"),
+    ("retired ua redirects to the u --all reset", ["ua"], "nonzero", "unstrict --all"),
     ("ee alias resolves (bad interval refuses)", ["ee", "--interval", "0s"], "nonzero", "interval"),
     # ── NIGHT-blade-18 grammar + NIGHT-improve-53: the '::' list law ──
     # The owner's future-bug probes, pinned. The lists are a grammar
@@ -735,14 +768,11 @@ CLI_DEPTH_CASES = [
 # CLI without a stresstest case shows up as a FAILING PIN on the next
 # push, not as an untested surface discovered by an attacker.
 CLI_DOCUMENTED_SURFACE = [
-    # commands (NIGHT-improve-53: the masterclass families — one
-    # verb each, the -all sweeps beside them)
+    # commands (NIGHT-improve-53/54: the masterclass families —
+    # one verb each, the sweeps as their --all lanes)
     "strict",
-    "strict-all",
     "block",
-    "block-all",
     "unstrict",
-    "unstrict-all",
     "recover",
     "status",
     "list-apps",
@@ -752,11 +782,11 @@ CLI_DOCUMENTED_SURFACE = [
     "s",
     "b",
     "u",
-    "sa",
-    "ba",
-    "ua",
     "ee",
-    # flags
+    # flags (NIGHT-improve-54: the sweep lane and the renamed
+    # verification skip join the contracted surface)
+    "--all",
+    "--no-test",
     "--help",
     "-h",
     "--version",
@@ -803,7 +833,7 @@ def _run_cli_case(argv):
 
 # ── NIGHT-blade-4: the server depth phase (the survival family's half) ─────
 #
-# The CLI depth stresstest (104 static cases, size pinned by
+# The CLI depth stresstest (106 static cases, size pinned by
 # --self-test) runs the guards under the INHERITED environment; a production server carries none of it (no
 # DISPLAY, no DBUS session bus, no XDG desktop variables, TERM=dumb
 # at best), so a representative guard subset re-runs under the
@@ -1397,7 +1427,7 @@ def test_kill_midflight():
         )
         if coherent_cycle:
             coherent += 1
-        run_zel(["unstrict-all"])
+        run_zel(["u", "--all"])
     run_zel(["recover"])
     pins_left = len(os.listdir(PIN_DIR)) if os.path.isdir(PIN_DIR) else 0
     record(
@@ -1890,9 +1920,9 @@ def self_test():
     # own body, healed by the same task). Any case added or removed
     # without touching this pin and the headers fails the self-test
     # rootlessly, on the next push, not in the field.
-    count_ok = len(CLI_DEPTH_CASES) == 104
+    count_ok = len(CLI_DEPTH_CASES) == 106
     record(
-        "engine: cli depth table size pinned (104 cases)",
+        "engine: cli depth table size pinned (106 cases)",
         "PASS" if count_ok else "FAIL",
         f"{len(CLI_DEPTH_CASES)} rows",
     )

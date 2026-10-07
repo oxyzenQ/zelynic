@@ -35,6 +35,7 @@ mod help_pins;
 mod masterclass_pins;
 mod monitor_guard;
 mod privilege;
+mod redirect_pins;
 mod smoke;
 mod surface_pins;
 

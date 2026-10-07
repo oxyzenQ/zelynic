@@ -62,7 +62,7 @@ What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
   sustain  20s steady-state: per-window rate + drift guard
   overhead non-binding-policy throughput vs baseline (BPF cost)
   reload   25 rate-change cycles verified through the status JSON
-  cleanup  unstrict-all leaves zero pins, no pid file, no test cgroup
+  cleanup  u --all leaves zero pins, no pid file, no test cgroup
   dmesg    kernel log stayed clean of BPF errors during the run
 """
 
@@ -639,7 +639,7 @@ def apply_and_verify(rate_str, expect_dl, expect_ul, flags=()):
     covered by test_policy_write.
     """
     target = str(CG.id)
-    rc, stdout, stderr = run_zel(["strict", target, *flags, rate_str, "--no-probe"])
+    rc, stdout, stderr = run_zel(["strict", target, *flags, rate_str, "--no-test"])
     if rc != 0:
         return False, f"strict exit {rc}: {(stderr or stdout).strip()[:200]}"
     doc = status_json()
@@ -656,7 +656,7 @@ def apply_and_verify(rate_str, expect_dl, expect_ul, flags=()):
 
 
 def clear_limits():
-    rc, _, _ = run_zel(["unstrict-all"])
+    rc, _, _ = run_zel(["u", "--all"])
     return rc == 0
 
 
@@ -731,7 +731,7 @@ def test_upload(rate_bps, window, baseline):
             "upload rate: enforced (-u only)", "SKIP", f"baseline {fmt_bps(baseline)} too close"
         )
     rate_str = bps_to_rate_str(rate_bps)
-    rc, stdout, stderr = run_zel(["strict", str(CG.id), "-u", rate_str, "--no-probe"])
+    rc, stdout, stderr = run_zel(["strict", str(CG.id), "-u", rate_str, "--no-test"])
     if rc != 0:
         return record(
             "upload rate: enforced (-u only)",
@@ -868,11 +868,11 @@ def test_reload(cycles):
 
 def test_cleanup():
     ok_all = True
-    rc, _, _ = run_zel(["unstrict-all"])
+    rc, _, _ = run_zel(["u", "--all"])
     time.sleep(0.5)
     ok_all = (
         record(
-            "cleanup: unstrict-all exits 0",
+            "cleanup: u --all exits 0",
             "PASS" if rc == 0 else "FAIL",
             f"exit {rc}",
         )

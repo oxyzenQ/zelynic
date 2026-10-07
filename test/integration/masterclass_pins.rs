@@ -42,14 +42,16 @@ fn test_help_unstrict_synopsis_is_canonical() {
     );
 }
 
-/// NIGHT-total-lts-3 find 2, carried over the masterclass merge:
-/// the strict synopsis must not drift from the live parse surface
-/// — `--per-socket` (charger-core-3b) and `--no-probe`
-/// (charger-core-1-b) parse, are USAGE.md-documented, and are
-/// argv_tests-pinned, so the curated --help must carry them too.
-/// This pin fences the drift class at flag level: the synopsis must
-/// carry --per-socket (matching USAGE.md's own synopsis line) and
-/// the strict block must name both flags.
+/// NIGHT-total-lts-3 find 2, carried over the masterclass merge
+/// and the sweep merge (improve-54): the strict synopsis must not
+/// drift from the live parse surface — `--per-socket`
+/// (charger-core-3b) and `--no-test` (charger-core-1-b's flag,
+/// renamed from --no-probe by improve-54) parse, are
+/// USAGE.md-documented, and are argv_tests-pinned, so the curated
+/// --help must carry them too. This pin fences the drift class at
+/// flag level: the synopsis must carry --per-socket (matching
+/// USAGE.md's own synopsis line) and the strict block must name the
+/// flag.
 #[test]
 fn test_help_strict_flags_are_complete() {
     let output = zelynic_cmd()
@@ -64,8 +66,8 @@ fn test_help_strict_flags_are_complete() {
         "--help's strict synopsis must carry --per-socket (USAGE.md parity), got:\n{stdout}"
     );
     assert!(
-        stdout.contains("--no-probe skips the"),
-        "--help's strict block must document --no-probe, got:\n{stdout}"
+        stdout.contains("--no-test skips the"),
+        "--help's strict block must document --no-test, got:\n{stdout}"
     );
     assert!(
         stdout.contains("--per-socket 500kb"),

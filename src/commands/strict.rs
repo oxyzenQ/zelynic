@@ -5,7 +5,7 @@
 //! (NIGHT-improve-53, the masterclass unification: the former
 //! strict-single and strict-multi handlers are the single and group
 //! lanes now, reached through the [`handle_strict`] router).
-//! strict-all lives in strict_all.rs (night-during's LOC-cap split).
+//! the --all sweep lane lives in strict_all.rs (night-during's LOC-cap split).
 
 use anyhow::Result;
 
@@ -37,7 +37,7 @@ pub(crate) fn handle_strict(
     download: Option<&str>,
     upload: Option<&str>,
     force_this: bool,
-    no_probe: bool,
+    no_test: bool,
     per_socket: bool,
     // improve-40-b: the six bracket flags ride one struct (the
     // per-direction spellings included — the resolver's own shape).
@@ -65,7 +65,7 @@ pub(crate) fn handle_strict(
             download,
             upload,
             force_this,
-            no_probe,
+            no_test,
             bracket_flags,
             during,
             verbose,
@@ -77,7 +77,7 @@ pub(crate) fn handle_strict(
             download,
             upload,
             force_this,
-            no_probe,
+            no_test,
             per_socket,
             bracket_flags,
             during,
@@ -101,7 +101,7 @@ fn handle_strict_single(
     download: Option<&str>,
     upload: Option<&str>,
     force_this: bool,
-    no_probe: bool,
+    no_test: bool,
     per_socket: bool,
     // improve-40-b: the six bracket flags ride one struct (the
     // per-direction spellings included — the resolver's own shape).
@@ -233,7 +233,7 @@ fn handle_strict_single(
         }
 
         // NIGHT-dinner-16 (race-window parity with strict-multi/all): a
-        // concurrent unstrict-all can tear the pins down between apply
+        // concurrent u --all can tear the pins down between apply
         // and the success verdict — the verdict is verified BEFORE it
         // prints, so a torn-down limit never reads as enforced.
         if !crate::ebpf::limiter::Limiter::is_pinned() {
@@ -250,10 +250,10 @@ fn handle_strict_single(
     // covered and measures what the kernel let through — BEFORE the
     // success verdict prints (a FAILED probe must never read as OK;
     // the never-print-then-fail discipline the race-window check
-    // above already owns). --no-probe keeps the scripted apply-only
+    // above already owns). --no-test keeps the scripted apply-only
     // shape; UNVERIFIED prints with the epilogue and never fails the
     // apply — the measurement lane, not the enforcement, was weak.
-    let probe_outcome = if no_probe {
+    let probe_outcome = if no_test {
         None
     } else {
         Some(probe::run_enforcement_probe(
@@ -302,7 +302,7 @@ fn handle_strict_single(
 #[cfg(feature = "ebpf")]
 // improve-40 (schema v24): the bracket pair joins the multi's
 // payload — the same too-many-arguments posture the single's own
-// handler carries one lane over. NIGHT-hunt-30: no_probe joins it
+// handler carries one lane over. NIGHT-hunt-30: no_test joins it
 // too — the multi now carries the single's verification lane.
 // NIGHT-improve-53: the group LANE of the one strict verb.
 #[allow(clippy::too_many_arguments)]
@@ -312,7 +312,7 @@ fn handle_strict_multi(
     download: Option<&str>,
     upload: Option<&str>,
     force_this: bool,
-    no_probe: bool,
+    no_test: bool,
     bracket_flags: super::guarantee::BracketFlags<'_>,
     during: Option<&str>,
     verbose: bool,
@@ -438,10 +438,10 @@ fn handle_strict_multi(
     // through — the atomic contract guarantees that member landed
     // (one miss aborts the whole list), so the measurement reads the
     // group's fresh bucket, and the report's own multi-leaf note
-    // names the ledger the group spans. --no-probe keeps the
+    // names the ledger the group spans. --no-test keeps the
     // scripted apply-only shape; a blocked (rate-0) member stands
     // down on the drop-ledger note, exactly like the single's.
-    let probe_outcome = if no_probe {
+    let probe_outcome = if no_test {
         None
     } else {
         Some(probe::run_enforcement_probe(

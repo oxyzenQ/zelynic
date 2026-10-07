@@ -208,22 +208,30 @@ fn removed_observe_and_top_redirect_to_eagle_eyes() {
     }
 }
 
-/// NIGHT-blade-2: limit-all/la is renamed strict-all/sa (the strict
-/// family now mirrors the block and unstrict single/multi/all
-/// triples) — both old spellings must land users on the successor
-/// in clap's own suggestion slot, the exact contract observe/top
-/// carry.
+/// NIGHT-blade-2/improve-54: limit-all/la renamed strict-all/sa
+/// (blade-2), then strict-all itself retired into strict's --all
+/// lane (improve-54) — every spelling of the sweep lands on the
+/// runnable successor, verb + flag, in clap's own suggestion slot.
 #[test]
-fn removed_limit_all_redirects_to_strict_all() {
-    for gone in ["limit-all", "la"] {
+fn removed_sweep_spellings_redirect_to_the_all_lanes() {
+    for (gone, successor) in [
+        ("limit-all", "strict --all"),
+        ("la", "strict --all"),
+        ("strict-all", "strict --all"),
+        ("sa", "strict --all"),
+        ("block-all", "block --all"),
+        ("ba", "block --all"),
+        ("unstrict-all", "unstrict --all"),
+        ("ua", "unstrict --all"),
+    ] {
         let rendered = render_via_bridge(&["zelynic", gone]);
         assert!(
             rendered.contains(&format!("unrecognized subcommand '{gone}'")),
             "must name the removed spelling, got:\n{rendered}"
         );
         assert!(
-            rendered.contains("strict-all"),
-            "removed '{gone}' must redirect to strict-all, got:\n{rendered}"
+            rendered.contains(successor),
+            "removed '{gone}' must redirect to '{successor}', got:\n{rendered}"
         );
     }
 }
@@ -313,6 +321,29 @@ fn info_vocabulary_rescues_depth() {
     assert!(
         rendered.contains("'--depth'"),
         "tip must point at --depth, got:\n{rendered}"
+    );
+    assert_eq!(
+        rendered.matches("tip:").count(),
+        1,
+        "exactly one tip line, got:\n{rendered}"
+    );
+}
+
+/// NIGHT-improve-54: the retired `--no-probe` spelling must land on
+/// the vocabulary rescue — `--no-test` is the one spelling now, and
+/// jaro_ci("no-probe", "no-test") = 0.69 sits under the 0.7 bar (as
+/// does every other live flag), so without the table the old muscle
+/// memory would die tip-less (the allow-dangerous contract).
+#[test]
+fn no_probe_vocabulary_rescues_no_test() {
+    let rendered = render_via_bridge(&["zelynic", "s", "brave", "1mb", "--no-probe"]);
+    assert!(
+        rendered.contains("unexpected argument '--no-probe'"),
+        "must name the rejected flag, got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("'--no-test'"),
+        "tip must point at --no-test, got:\n{rendered}"
     );
     assert_eq!(
         rendered.matches("tip:").count(),

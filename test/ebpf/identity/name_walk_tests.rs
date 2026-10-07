@@ -72,7 +72,7 @@ fn the_walk_resolves_the_own_process_and_dedups_case() {
 }
 
 /// The empty-list contract: no names, no walk, no entries — the
-/// pure-id sweep lists (strict-all/block-all's identity-row shape)
+/// pure-id sweep lists (the --all sweeps' identity-row shape)
 /// ride the guard at zero /proc cost, exactly as before the batch.
 #[test]
 fn an_empty_name_list_resolves_to_nothing() {

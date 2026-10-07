@@ -21,7 +21,7 @@
 #   * real policing: a loopback transfer through a 500kb cap vs the
 #     unlimited baseline — the limiter must actually slow the bytes
 #   * leaks: zero BPF pins, zero /run/zelynic state, zero lingering
-#     processes after unstrict-all + recover
+#     processes after u --all + recover
 #   * security: an unprivileged (uid 65534) invocation must be
 #     refused cleanly — no partial application, no panic
 #
@@ -217,15 +217,15 @@ enforcement() {
 		bash -c "\"$BIN\" status --print-json | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if d[\"active_limits\"] >= 1 else 1)'"
 	expect_ok "unstrict A::B (bare ids)" "$BIN" unstrict "${CG_A}::${CG_B}"
 
-	expect_ok "strict-all --force-this (sweep, generous rate)" \
-		"$BIN" strict-all --force-this 500kb
-	expect_ok "unstrict-all (after strict-all)" "$BIN" unstrict-all
+	expect_ok "s --all --force-this (sweep, generous rate)" \
+		"$BIN" s --all --force-this 500kb
+	expect_ok "u --all (after s --all)" "$BIN" u --all
 
 	expect_ok "block cg:B (zero-rate policy)" \
 		"$BIN" block "cg:${CG_B}"
 	expect_ok "block A::B (bare ids)" "$BIN" block "${CG_A}::${CG_B}"
-	expect_ok "block-all --force-this" "$BIN" block-all --force-this
-	expect_ok "unstrict-all (after the block matrix)" "$BIN" unstrict-all
+	expect_ok "b --all --force-this" "$BIN" b --all --force-this
+	expect_ok "u --all (after the block matrix)" "$BIN" u --all
 	expect_ok "status --print-json (zero rows after teardown)" \
 		bash -c "\"$BIN\" status --print-json | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if d[\"active_limits\"] == 0 else 1)'"
 }
@@ -241,7 +241,7 @@ guards() {
 		"$BIN" strict kthreadd 1mb
 	expect_ok "dangerous target + --force-this (override honored)" \
 		"$BIN" strict kthreadd 1mb --force-this
-	expect_ok "unstrict-all (drop the forced policy)" "$BIN" unstrict-all
+	expect_ok "u --all (drop the forced policy)" "$BIN" u --all
 	# An empty target is refused at the INPUT boundary
 	# (NIGHT-dinner-16, the verifier-lineage mandate — the wording
 	# nonroot-depth-test.sh and the strict.rs unit pins carry):
@@ -381,18 +381,18 @@ PYEOF
 # ── group F: leaks and security ─────────────────────────────────────────
 
 leaks() {
-	"$BIN" unstrict-all >/dev/null 2>&1
+	"$BIN" u --all >/dev/null 2>&1
 	"$BIN" recover >/dev/null 2>&1
 
 	# NIGHT-hunt-32: count the PRODUCT's pin dir, not the bpffs root —
 	# foreign software pinning under /sys/fs/bpf used to fail this
 	# row on shared hosts ("runs anywhere root + eBPF work", the
-	# header's own promise). After unstrict-all + recover the
+	# header's own promise). After u --all + recover the
 	# zelynic dir itself must be gone.
 	if [ ! -e /sys/fs/bpf/zelynic ]; then
-		row "leak: zero BPF pins after unstrict-all + recover" 0
+		row "leak: zero BPF pins after u --all + recover" 0
 	else
-		row "leak: zero BPF pins after unstrict-all + recover" 1 "left: $(find /sys/fs/bpf/zelynic -mindepth 1 -maxdepth 1 -printf '%f ' 2>/dev/null)"
+		row "leak: zero BPF pins after u --all + recover" 1 "left: $(find /sys/fs/bpf/zelynic -mindepth 1 -maxdepth 1 -printf '%f ' 2>/dev/null)"
 	fi
 
 	# /run/zelynic is the lock dir (0700, root). The lock FILE is
@@ -480,7 +480,7 @@ security() {
 # ── teardown ────────────────────────────────────────────────────────────
 
 teardown() {
-	"$BIN" unstrict-all >/dev/null 2>&1
+	"$BIN" u --all >/dev/null 2>&1
 	"$BIN" recover >/dev/null 2>&1
 	for cg in "$FLEET_A" "$FLEET_B" "$FLEET_C"; do
 		if [ -d "$cg" ]; then

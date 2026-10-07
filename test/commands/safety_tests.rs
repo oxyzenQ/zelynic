@@ -38,7 +38,8 @@ fn exact_blocklist_names_stay_dangerous() {
 /// forms — list-apps showed "systemd-resolved", the guard compared
 /// against "systemd-resolve", and the copy-pasted target (and the
 /// strict-all sweep, which matches the same enriched comms) sailed
-/// past with no --force-this. Every enriched twin must be dangerous.
+/// past with no --force-this (the s --all sweep matches the same
+/// enriched comms today). Every enriched twin must be dangerous.
 #[test]
 fn enriched_daemon_names_are_dangerous() {
     for name in [
@@ -52,14 +53,14 @@ fn enriched_daemon_names_are_dangerous() {
         assert!(
             is_dangerous_target(name),
             "the enriched daemon name '{name}' must be dangerous — \
-             strict-all sweeps these comms"
+             the s --all sweep matches these comms"
         );
     }
 }
 
 /// THE SPLIT-DAEMON SUFFIX: OpenSSH 9.8+ runs each connection's
 /// process as "sshd-session" — a fresh name the exact list never
-/// carried, so a strict-all sweep rate-limited every active SSH
+/// carried, so a sweep rate-limited every active SSH
 /// session (the exact hazard this list exists to prevent).
 #[test]
 fn split_daemon_siblings_are_dangerous() {

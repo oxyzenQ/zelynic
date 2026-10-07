@@ -134,10 +134,20 @@ pub(super) fn rescue_shadowed_suggestion(e: &mut clap::Error, cmd: &clap::builde
 /// 0.583, print-json 0.567), so without the table the old spelling
 /// died tip-less (the allow-dangerous contract, one tip, the right
 /// one).
+///
+/// `no-probe` (NIGHT-improve-54): the retired strict spelling of
+/// `--no-test` — the verification flag's name says what it skips
+/// now (the enforcement test, not the probe machinery that runs
+/// it). jaro_ci("no-probe", "no-test") = 0.69 — under the 0.7 bar —
+/// and every other live flag sits lower still (verbose 0.607,
+/// per-socket and print-json 0.575), so without the table the old
+/// spelling died tip-less (the allow-dangerous contract, one tip,
+/// the right one).
 const FLAG_VOCABULARY_RESCUES: &[(&str, &str)] = &[
     ("json", "--print-json"),
     ("allow-dangerous", "--force-this"),
     ("info", "--depth"),
+    ("no-probe", "--no-test"),
 ];
 
 /// The zelynic flag a typed name answers to by cross-tool vocabulary,

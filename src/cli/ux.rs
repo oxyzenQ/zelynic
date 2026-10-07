@@ -69,6 +69,13 @@ const HELP_FOOTER: &str = "For more information, try '--help'.";
 /// NIGHT-blade-2: limit-all/la renamed strict-all/sa (strict-family
 /// symmetry) — both old spellings join the redirect table's contract.
 ///
+/// NIGHT-improve-54 (the sweep merge): strict-all, block-all, and
+/// unstrict-all are LANES of their family verbs now (`s --all`,
+/// `b --all`, `u --all`) — the six retired spellings (canonical +
+/// short alias each) join the table, and the blade-2 pair above
+/// repoints at `strict` with them: every one lands on its family's
+/// successor verb.
+///
 /// NIGHT-improve-53 (the masterclass unification): strict-single +
 /// strict-multi, block-single + block-multi, and unstrict-single +
 /// unstrict-multi merged into one verb per family (strict / block /
@@ -79,8 +86,14 @@ const REMOVED_SUBCOMMAND_REDIRECTS: &[(&str, &str)] = &[
     ("observe", "eagle-eyes"),
     ("top", "eagle-eyes"),
     ("eagle-eye", "eagle-eyes"),
-    ("limit-all", "strict-all"),
-    ("la", "strict-all"),
+    // NIGHT-improve-54: repointed with the sweep merge — strict-all
+    // itself is retired into strict's --all lane, so the blade-2
+    // spellings land on the sweep spelling like every -all after
+    // them. The successor string names WHAT TO TYPE (verb + flag):
+    // a bare 'strict' tip would strand the sweep-seeker on the
+    // TARGET-required rung one keystroke later.
+    ("limit-all", "strict --all"),
+    ("la", "strict --all"),
     // NIGHT-improve-53: the masterclass retirees.
     ("strict-single", "strict"),
     ("strict-multi", "strict"),
@@ -94,6 +107,17 @@ const REMOVED_SUBCOMMAND_REDIRECTS: &[(&str, &str)] = &[
     ("unstrict-multi", "unstrict"),
     ("us", "unstrict"),
     ("um", "unstrict"),
+    // NIGHT-improve-54: the sweep retirees — the -all verbs are
+    // --all lanes of the family verbs now (the sa/ba/ua short
+    // aliases with them, the short-alias surface's own law). The
+    // successors name the runnable spelling (verb + flag), the
+    // limit-all contract one entry up.
+    ("strict-all", "strict --all"),
+    ("sa", "strict --all"),
+    ("block-all", "block --all"),
+    ("ba", "block --all"),
+    ("unstrict-all", "unstrict --all"),
+    ("ua", "unstrict --all"),
     // NIGHT-improve-55: the snapshot verb is retired — the owner's
     // live-test verdict was that the dump half of the persistence
     // pair was not worth its workflow (the operator's own script is

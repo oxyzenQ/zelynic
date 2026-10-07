@@ -105,14 +105,18 @@ for every member. The separator DOUBLED because container native
 grammar owns the single `:` (`docker://nginx`,
 `k8s://prod/web-abc`, and the `cg:` display prefix), so the list
 byte sequence is one they can never contain. The short forms: `s`
-= strict, `b` = block, `u` = unstrict, `sa` = strict-all
-(NIGHT-blade-2 — formerly `limit-all`/`la`), `ba` = block-all,
-`ua` = unstrict-all, `ee` = eagle-eyes (the `alias = canonical`
-pairing is the same one-glance form `--help` prints,
-NIGHT-boost-29). The twelve retired spellings — strict-single,
-strict-multi, ss, sm, block-single, block-multi, bs, bm,
-unstrict-single, unstrict-multi, us, um — refuse with a redirect
-tip naming their family's verb — e.g. `zelynic s brave 100kb`,
+= strict, `b` = block, `u` = unstrict, `ee` = eagle-eyes (the
+`alias = canonical` pairing is the same one-glance form `--help`
+prints, NIGHT-boost-29). The fleet sweeps are `--all` lanes of
+the family verbs now (NIGHT-improve-54): `s --all`, `b --all`,
+`u --all` — the retired `-all` spellings (strict-all, block-all,
+unstrict-all, their sa/ba/ua short forms, and blade-2's limit-all/
+la before them) refuse with a redirect tip naming the runnable
+verb + flag spelling. The twelve retired masterclass spellings —
+strict-single, strict-multi, ss, sm, block-single, block-multi,
+bs, bm, unstrict-single, unstrict-multi, us, um — carry the same
+redirect contract, their tips naming the family verb — e.g.
+`zelynic s brave 100kb`,
 `zelynic s brave::curl::pacman 1mb`, or `zelynic ee brave
 --interval 1s`.
 
@@ -346,7 +350,7 @@ sudo zelynic s brave::curl::pacman 1mb # the group lane: one shared rate
   kernel-truncated `systemd-resolve` entry) and `sshd-session`
   (OpenSSH 9.8+'s per-connection process) both refuse without the
   override, where the old exact match let them through — and
-  `strict-all`/`block-all` sweeps, which match the same comms the
+  the `s --all`/`b --all` sweeps, which match the same comms the
   display enriches, used to sweep those daemons INTO the user-app
   set. Fail-safe by design: an innocent app that merely shares a
   prefix costs one `--force-this`. The numeric door enforces the same
@@ -369,7 +373,7 @@ refused whatever spelling reaches it: the explicit id (`s cg:1`),
 a name whose processes live in the root cgroup (a daemon on a
 no-systemd guest, where every comm's cgroup IS the root — checked
 after the privilege ask, so the non-root refusal ladder is
-unchanged), and the `strict-all`/`block-all` sweeps (the root row
+unchanged), and the `s --all`/`b --all` sweeps (the root row
 rides the skipped system roster however it is named; `--force-this`
 includes it with a warn naming the blast radius). The refusal names
 the machine-wide semantics and teaches the same `--force-this` lift
@@ -429,7 +433,7 @@ live in `zelynic status`, not in the success echo.
 The SELF-PROVING ENFORCEMENT (NIGHT-upgrade-charger-core-1-b): after
 the apply lands, the strict family measures the limit it just wrote
 before it claims it (the single lane since the beginning; the
-group lane and strict-all since NIGHT-hunt-30, the owner's parity
+group lane and the sweep since NIGHT-hunt-30, the owner's parity
 find — the group probes the first list member, whose landing the atomic
 contract guarantees, and the sweep probes the first applied app,
 standing down with a named skip note when the fleet saturated —
@@ -470,7 +474,7 @@ nests its own client under the target and resolves the cgroup by
 inode when no member process can name its path. The
 residency belt: the client's cgroup is verified from /proc before
 the window opens, because an unentered probe measures an unlimited
-path — the worst lie a verifier can tell. `--no-probe` keeps the
+path — the worst lie a verifier can tell. `--no-test` keeps the
 scripted apply-only shape (CI lanes use it); a blocked (rate-0)
 policy skips the probe by design — the drop ledger IS the block's
 verdict. The probe costs ~4 seconds and one transient cgroup pair
@@ -591,7 +595,7 @@ fleet automation never lands in a half-configured state. A mid-flight
 write failure (a full map, an ENOMEM) rolls the transaction back to
 the exact pre-apply state: a target that already had a limit gets it
 restored at its own rate and group, a fresh target returns to
-unlimited. `strict-all` and `block-all` deliberately keep
+unlimited. The `s --all` and `b --all` sweeps deliberately keep
 the best-effort sweep — their target lists are snapshots of live
 state, and an app exiting mid-sweep must not abort the fleet's limits.
 
@@ -601,7 +605,7 @@ enforcement — the probe measures a real flow through the FIRST
 member's subtree
 (the atomic contract guarantees that member landed) and prints the
 same `enforced: VERIFIED` block, the multi-leaf note naming the
-group's per-cgroup ledger. `--no-probe` keeps the scripted
+group's per-cgroup ledger. `--no-test` keeps the scripted
 apply-only shape (CI lanes use it); a blocked (rate-0) group stands
 down on the drop-ledger note — the block family's own verdict.
 
@@ -617,11 +621,11 @@ The kernel side now also degrades a failed group lookup to each
 member's own bucket at the group rate — over-admission against the
 shared intent, never unlimited (schema v8).
 
-### strict-all — cap every user app
+### strict --all — cap every user app
 
 ```bash
-sudo zelynic strict-all 500kb
-sudo zelynic strict-all -d 1mb -u 500kb
+sudo zelynic s --all 500kb
+sudo zelynic s --all -d 1mb -u 500kb
 ```
 
 Snapshots the current app list (same resolution as above) and applies
@@ -637,10 +641,10 @@ flow through the first applied app's subtree and prints the same
 (some rows left unlimited at the 1024-row policy ceiling) skips the
 probe with a named note instead — the skipped member may be the very
 lane the probe would name, and an unlimited path reads FAILED by its
-own numbers, a verdict built on a guess. `--no-probe` keeps the
+own numbers, a verdict built on a guess. `--no-test` keeps the
 scripted apply-only shape.
 
-### block / block-all
+### block
 
 Every block verb takes `--during` (night-during, schema v23;
 the owner's duration-only revision): a blocked row with a window
@@ -659,7 +663,7 @@ to run).
 ```bash
 sudo zelynic block brave
 sudo zelynic b brave::curl::pacman
-sudo zelynic block-all [--force-this]
+sudo zelynic b --all [--force-this]
 ```
 
 Cut internet access entirely — packets are dropped at the cgroup
@@ -669,12 +673,12 @@ removes a block exactly like it removes a rate limit (blocks and
 limits live in the same policy maps; a blocked cgroup shows a
 0-rate policy in `status`).
 
-### unstrict / unstrict-all
+### unstrict
 
 ```bash
 sudo zelynic unstrict brave            # one target
 sudo zelynic unstrict brave::curl::pacman  # the list lane, same verb
-sudo zelynic unstrict-all              # emergency reset: removes everything
+sudo zelynic u --all                    # emergency reset: removes everything
 ```
 
 Removes policies for the resolved cgroups and reports how many policies
@@ -683,9 +687,8 @@ in and "4 policies" out line up. Every removal also reclaims the
 cgroup's token-bucket and stats entries behind it (NIGHT-improve-10):
 the 1024-slot maps stay proportional to live limits, so a long-lived
 host with churny cgroups never reaches the point where new limits
-would silently stop applying (verbose mode traces each reclaim).
-`unstrict-all` also removes the pin
-directory itself: after it, `status` reports a clean state.
+would silently stop applying (verbose mode traces each reclaim). The `u --all` reset also
+removes the pin directory itself: after it, `status` reports a clean state.
 
 ### recover — crash cleanup
 
@@ -785,8 +788,8 @@ forever-limit.
 machinery — the pre-flight resolution, the rollback ledger, the
 memo invalidation, the whole ladder. A fresh boot has no pins at
 all, so restore runs the same attach every strict-* does first.
-The contract is best-effort with an honest report (the strict-all
-precedent): a name that is not running yet — containers start late
+The contract is best-effort with an honest report (the fleet
+sweep's precedent): a name that is not running yet — containers start late
 — is listed as skipped, never silently missed, and never an abort
 for the rest of the fleet. Re-run restore after the late starter
 boots to pick it up. Idempotent: an apply over an existing limit is
@@ -1728,7 +1731,7 @@ zelynic is deliberately small and stateless. These are real behaviors,
 not bugs — knowing them makes the tool predictable.
 
 **1. Rules are a snapshot of TARGETS, not of subtrees.**
-When you run `zelynic strict A 100kb` or `strict-all 100kb`,
+When you run `zelynic strict A 100kb` or `s --all 100kb`,
 zelynic resolves the apps that exist **at that moment** and writes
 their cgroup rules. What happens next splits in two:
 
@@ -1744,7 +1747,7 @@ their cgroup rules. What happens next splits in two:
   own sibling scope — that newcomer is unlimited until you re-run:
 
 ```bash
-sudo zelynic strict-all 500kb          # run again to sweep in newcomers
+sudo zelynic s --all 500kb             # run again to sweep in newcomers
 ```
 
 The precise rule: enforcement follows **cgroups**, not processes,
@@ -2139,8 +2142,8 @@ applied to the CLI surface: reject, never a soft no-op): a command
 that names a target — `strict`, `block`, `unstrict`, either lane —
 whose target resolves to nothing prints the branded error and exits 1,
 so a script can tell the typo'd `s cg8401` from an enforced
-limit. The `-all` apply sweeps (`strict-all`, `block-all`) exit 1
-when the identity map offers nothing to enforce; `unstrict-all` on
+limit. The `--all` apply sweeps (`s --all`, `b --all`) exit 1
+when the identity map offers nothing to enforce; `u --all` on
 an already-clean system stays exit 0 — the requested state already
 holds, the same clean-state precedent `recover`'s clean path owns.
 
@@ -2169,7 +2172,7 @@ you limited — check `eagle-eyes`/`status` labels and target the cgroup ID;
 The dangerous-target blocklist guards `sshd` and friends by default;
 `--force-this` is the explicit override. If you do brick connectivity,
 recovery is a reboot away (limits do not survive it) or
-`sudo zelynic unstrict-all` from any working session.
+`sudo zelynic u --all` from any working session.
 
 **Where is the config file?**
 There is none — CLI flags only, ever. State lives in pinned BPF maps,

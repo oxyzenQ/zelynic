@@ -140,7 +140,7 @@ pub fn pin_dir_has_files() -> bool {
 ///
 /// NIGHT-master-4 (the honesty audit): the removal is VERIFIED, not
 /// assumed. The former implementation discarded every `remove_file`
-/// result and returned `Ok(())` unconditionally — so `unstrict-all`
+/// result and returned `Ok(())` unconditionally — so `u --all`
 /// could print "All limits removed, no residue." and `recover`
 /// "Result: recovered" while pin files were still on disk (a busy
 /// pin, a read-only bpffs mount, or a foreign nested entry). The
@@ -151,7 +151,7 @@ pub fn pin_dir_has_files() -> bool {
 /// hold (`unpin_if_no_policies`, NIGHT-hunt-20).
 ///
 /// A missing directory is `Ok(0)` (idempotent — every teardown path
-/// must be safe to re-run, which `recover` after `unstrict-all`
+/// must be safe to re-run, which `recover` after `u --all`
 /// exercises for real).
 ///
 /// Returns the number of pin entries removed.

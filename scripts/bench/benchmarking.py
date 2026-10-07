@@ -101,7 +101,7 @@ def get_pin_dir_size():
 
 
 def cleanup():
-    run([BINARY, "unstrict-all"], timeout=5)
+    run([BINARY, "u", "--all"], timeout=5)
 
 
 def bench_startup(iterations):

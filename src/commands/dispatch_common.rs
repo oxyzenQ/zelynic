@@ -38,7 +38,7 @@ const PID_FILE: &str = "/tmp/zelynic.pid";
 // was wrong advice on two shapes — 'zelynic unstrict brave:curl'
 // does not split lists (the single lane takes one target), and
 // 'zelynic unstrict 3 apps' is not a target at all — so the list and
-// all lanes now suggest 'unstrict <list>' / 'unstrict-all' (the
+// all lanes now suggest 'unstrict <list>' / 'u --all' (the
 // improve-53 masterclass grammar: the list rides the same verb).
 
 /// The pure line builder behind the apply-verb epilogue (pinned in
@@ -105,7 +105,7 @@ pub(crate) fn ensure_root() -> Result<()> {
 // exit-adjacent renderer paints the branded block (bold red
 // `error:` label, red body, white `tip:` lines — green when the tip
 // quotes a command to run, NIGHT-dinner-12) and exits 1.
-// The one carve-out: `unstrict-all` on an already-clean system
+// The one carve-out: `u --all` on an already-clean system
 // keeps its exit 0 — the requested state already holds, the same
 // clean-state precedent `recover`'s clean path owns.
 

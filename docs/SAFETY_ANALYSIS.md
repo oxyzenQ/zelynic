@@ -82,7 +82,7 @@ privilege contract:
 
 | Surface | Root? | Contract |
 |---------|-------|----------|
-| `strict`/`strict-all`, `block`/`block-all`, `unstrict`/`unstrict-all`/`recover` | required | load, attach, and pin BPF programs; write policy maps. Fail fast with a "re-run with sudo" tip before touching BPF state when run non-root |
+| `strict` (+ `--all`), `block` (+ `--all`), `unstrict` (+ `--all`), `recover` | required | load, attach, and pin BPF programs; write policy maps. Fail fast with a "re-run with sudo" tip before touching BPF state when run non-root |
 | `status`, `eagle-eyes` | required | read pinned BPF maps (same fail-fast guard) |
 | `list-apps`, `doctor` | either | pure `/proc` + `/sys` reads; `doctor` additionally reports pin state when root |
 | `--help`, `-h`, `-V`/`--version`, bare invocation | either | pure stdout, no side effects, no file or network access |
@@ -105,7 +105,7 @@ guard: there root is the requirement, here root is the hazard.
 3. The flock guard (`/run/zelynic/zelynic.lock`) releases automatically when the
    crashed process dies — no stuck lock
 
-### If user runs `unstrict-all`:
+### If user runs the `u --all` reset:
 
 1. All pin files removed (`/sys/fs/bpf/zelynic/*`)
 2. Pin directory removed
@@ -154,7 +154,7 @@ guard: there root is the requirement, here root is the hazard.
   unconditionally (NIGHT-hunt-21) — no handler pre-checks its way
   past the schema-version migration
 - If anything unexpected happens to the pins, `zelynic recover` repairs
-  state and `unstrict-all` removes everything
+  state and `u --all` removes everything
 
 ## Overflow & Long-Endurance Audit (NIGHT-improve-10 / security-3, 2026-09)
 
@@ -348,8 +348,8 @@ closed; the rest of the surface evaluated and kept by design.
 ### Finding 1 (fixed): partial apply was invisible
 
 `apply_single`/`apply_group` write per-cgroup policies in a loop; a
-mid-flight write failure (map full at 1024 entries — reachable via
-`strict-all`/`block-all` on cgroup-dense systemd desktops, ENOMEM, or a
+mid-flight write failure (map full at 1024 entries — reachable via the `s --all`/`b --all`
+sweeps on cgroup-dense systemd desktops, ENOMEM, or a
 map-open failure) propagated the error while the already-written prefix
 stayed ENFORCED with no mention — the inverse of the hunt-19 trap: a
 command that "failed" while silently limiting. Fix: strict
@@ -360,7 +360,7 @@ unit-pinned.
 
 > NIGHT-hunt-27 refinement (2026-10-07): the rollback contract
 > above is untouched for genuine failures, but the SWEEP lane
-> (`strict-all`/`block-all`) no longer reaches the map-full case
+> (`s --all`/`b --all`, the era's strict-all/block-all) no longer reaches the map-full case
 > blind. The exact dense-host scenario this finding named — 1024+
 > live cgroups — made the whole-rollback shape refuse the ENTIRE
 > sweep, every run, zero enforcement: the fleet-wide abort the
@@ -1159,10 +1159,10 @@ sudo bpftool prog show | grep -A2 enforce
 ls -la /sys/fs/bpf/zelynic/
 ```
 
-### Check for residue after unstrict-all:
+### Check for residue after the u --all reset:
 
 ```bash
-sudo zelynic unstrict-all
+sudo zelynic u --all
 ls /sys/fs/bpf/zelynic/ 2>&1           # should not exist
 ls /tmp/zelynic.pid 2>&1               # should not exist
 sudo bpftool prog show | grep enforce  # should be empty
@@ -1184,19 +1184,19 @@ carry the kernel's 15-byte truncated comms (`systemd-resolve`,
 `systemd-journal`, `systemd-timesyn`, ...) while the display-name
 enrichment (NIGHT-engrave-7) restores the FULL names
 (`systemd-resolved`, `systemd-journald`, ...) — and the same enriched
-comms feed `strict-all`'s and `block-all`'s sweeps. Two live
+comms feed the `s --all` and `b --all` sweeps. Two live
 consequences on every current distro:
 
 - A copy-pasted `zelynic ss systemd-resolved 100kb` (the name
   list-apps itself displays) sailed past the guard with no
   `--force-this`.
-- `strict-all 500kb` — whose ONLY system-app filter is this
+- `s --all 500kb` — whose ONLY system-app filter is this
   blocklist, no uid check — swept the enriched system-daemon comms
   INTO the user-app set: DNS (resolved), logging (journald), NTP
   (timesyncd) limited with no override asked at all.
 - The split-daemon era added a fresh shape: OpenSSH 9.8+ runs each
   connection's process as `sshd-session` — an exact match for
-  nothing, so a strict-all sweep rate-limited every ACTIVE SSH
+  nothing, so a sweep rate-limited every ACTIVE SSH
   session: the exact "limit myself out of SSH" hazard the blocklist
   exists to prevent.
 

@@ -88,14 +88,14 @@ pub(crate) const DANGEROUS_TARGETS: &[&str] = &[
 ///    name from argv[0] — list-apps shows "systemd-resolved" while
 ///    the blocklist carried the kernel-truncated "systemd-resolve",
 ///    so the copy-pasted target sailed past this guard with no
-///    --force-this. The same enriched comms feed strict-all's sweep
-///    and block-all's filters (identity walk -> is_dangerous_target),
+///    --force-this. The same enriched comms feed the s --all sweep
+///    and the b --all filters (identity walk -> is_dangerous_target),
 ///    so system daemons whose true names exceed the cap (resolved,
 ///    journald, timesyncd, hostnamed, machined) were swept INTO the
 ///    user-app set — limited with no override asked at all.
 /// 2. THE SPLIT-DAEMON SUFFIX. OpenSSH 9.8+ runs the per-connection
 ///    process as "sshd-session" — a fresh name the exact list never
-///    carried, so a strict-all sweep rate-limited every active SSH
+///    carried, so an s --all sweep rate-limited every active SSH
 ///    session on a modern server: the exact "limit myself out of
 ///    SSH" hazard this list exists to prevent.
 ///
@@ -262,7 +262,7 @@ fn root_catch_all_verdict(spelling: &str, id: u32, force_this: bool) -> Result<(
 ///     socket" — true for dead LEAF ids, false for the root, whose
 ///     row the ancestor walk matches for every socket regardless of
 ///     member visibility;
-///   - the sweeps' force path: block-all --force-this mapped every
+///   - the sweeps' force path: b --all --force-this mapped every
 ///     identity row to its cgroup id, the root row included — a
 ///     rate-0 write on the root is machine-wide network death.
 ///

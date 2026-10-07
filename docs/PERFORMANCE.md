@@ -714,7 +714,7 @@ Reading: PARITY — bytes/frame identical to the decimal, every other
 delta inside the harness's own run-to-run noise class. The probe's
 own cost lives in the strict command's wall-clock, not any
 steady-state path: it runs once per apply (~4 s: two child spawns,
-one 3 s measured window, teardown), and the `--no-probe` escape
+one 3 s measured window, teardown), and the `--no-test` escape
 plus the harness-side rides keep every scripted lane at apply-only
 cost.
 

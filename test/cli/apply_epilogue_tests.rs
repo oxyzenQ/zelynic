@@ -22,7 +22,7 @@
 //! 5. Every call site passes an unstrict form that ROUND-TRIPS:
 //!    single -> "unstrict <target>", list -> "unstrict <a>::<b>"
 //!    (NIGHT-improve-53: the same verb carries the list lane now —
-//!    the '::' separator routes it), all -> the "unstrict-all"
+//!    the '::' separator routes it), the --all sweep -> the "u --all"
 //!    sledgehammer (never "unstrict N apps", which is not a target).
 
 use super::apply_success_lines;
@@ -43,11 +43,11 @@ fn epilogue_lines_pinned_mono() {
 /// wording is the contract each verb family reads identically.
 #[test]
 fn epilogue_restore_access_variant_pinned() {
-    let lines = apply_success_lines("zelynic unstrict-all", "restore access");
+    let lines = apply_success_lines("zelynic u --all", "restore access");
     assert_eq!(lines[0], "OK.");
     assert_eq!(
         lines[1],
-        "Run 'zelynic unstrict-all' to restore access, or 'zelynic status' to check."
+        "Run 'zelynic u --all' to restore access, or 'zelynic status' to check."
     );
 }
 
@@ -58,10 +58,10 @@ fn epilogue_is_exactly_two_lines() {
     for (cmd, action) in [
         ("zelynic unstrict brave", "remove"),
         ("zelynic unstrict brave::curl", "remove"),
-        ("zelynic unstrict-all", "remove"),
+        ("zelynic u --all", "remove"),
         ("zelynic unstrict brave", "restore access"),
         ("zelynic unstrict brave::curl", "restore access"),
-        ("zelynic unstrict-all", "restore access"),
+        ("zelynic u --all", "restore access"),
     ] {
         assert_eq!(
             apply_success_lines(cmd, action).len(),
@@ -85,7 +85,7 @@ fn epilogue_green_wraps_exactly_the_runnable_commands() {
     for (cmd, action) in [
         ("zelynic unstrict cg:48181", "remove"),
         ("zelynic unstrict brave::curl", "remove"),
-        ("zelynic unstrict-all", "remove"),
+        ("zelynic u --all", "remove"),
         ("zelynic unstrict brave", "restore access"),
     ] {
         let lines = apply_success_lines(cmd, action);

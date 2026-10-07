@@ -34,7 +34,7 @@ use super::cleanup::unpin_if_no_policies;
 
 /// Handle `zelynic recover` — crash recovery cleanup.
 /// Detects orphaned/stale BPF pin files and removes them.
-/// Differs from `unstrict-all` in that it's diagnostic: reports what
+/// Differs from `u --all` in that it's diagnostic: reports what
 /// it found before cleaning. Safe to run anytime.
 ///
 /// NIGHT-master-4 hardening: every verdict this command prints is
@@ -157,7 +157,7 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
             // from the status stale lines.
             eprintln_safe!(
                 "  Action: nothing to recover — use {} to remove limits",
-                crate::output::suggestion("'zelynic unstrict-all'")
+                crate::output::suggestion("'zelynic u --all'")
             );
             return Ok(());
         }
@@ -320,7 +320,7 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
             // orphans the script believes it removed.
             return Err(anyhow::anyhow!(
                 "recover incomplete — {} orphan policy(ies) could not be removed\n  \
-                 tip: retry 'zelynic recover', or 'zelynic unstrict-all' to force-clear",
+                 tip: retry 'zelynic recover', or 'zelynic u --all' to force-clear",
                 failed.len()
             ));
         }

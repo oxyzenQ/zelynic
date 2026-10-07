@@ -755,13 +755,13 @@ def apply_and_verify(rate_bps, cgroup_id):
     -d only: one policed hook per stream keeps the accounting 1:1
     (the NIGHT-improve-12 discipline the depth harness pinned)."""
     rate_str = bps_to_rate_str(rate_bps)
-    # --no-probe (charger-core-1-b): this harness measures enforcement
+    # --no-test (charger-core-1-b): this harness measures enforcement
     # with its own e2e workers after the apply; the probe's own lane
     # escaped policing in the CI proof stages on 12fb418 (see
     # docs/audits/NIGHT_UPGRADE_CHARGER_CORE_1C_PROBE_CI_FIND) while
     # the same run's battery policed 7/7 — the workers carry the
     # proof here until the probe's lane is debugged on a root box.
-    rc, stdout, stderr = lib.run_zel(["strict", str(cgroup_id), "-d", rate_str, "--no-probe"])
+    rc, stdout, stderr = lib.run_zel(["strict", str(cgroup_id), "-d", rate_str, "--no-test"])
     if rc != 0:
         return False, f"strict exit {rc}: {(stderr or stdout).strip()[:200]}"
     doc = lib.status_json()
@@ -1640,7 +1640,7 @@ def stage_footprint(quick):
     # twin's ids-DICT shape does not exist here; the first live VM
     # run caught the mixup, and the self-test's source pin now
     # guards the vocabulary).
-    argv = [lib.BINARY, "strict", str(CG.a_id), "-d", rate_str, "--no-probe"]
+    argv = [lib.BINARY, "strict", str(CG.a_id), "-d", rate_str, "--no-test"]
     try:
         child = subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         _, status, ru = os.wait4(child.pid, 0)
@@ -1744,17 +1744,17 @@ def stage_footprint(quick):
         )
 
     # Leave the maps as the other stages found them.
-    lib.run_zel(["unstrict-all"])
+    lib.run_zel(["u", "--all"])
 
 
 def stage_cleanup():
     out = lib.out
     out()
     out("━━━ cleanup ━━━")
-    rc, _, _ = lib.run_zel(["unstrict-all"])
+    rc, _, _ = lib.run_zel(["u", "--all"])
     ok_all = (
         lib.record(
-            "cleanup: unstrict-all exits clean",
+            "cleanup: u --all exits clean",
             "PASS" if rc == 0 else "FAIL",
             f"exit {rc}",
         )
@@ -2390,7 +2390,7 @@ def main():
     except Exception as e:  # noqa: BLE001 - report, then still clean up
         lib.out(f"  harness error: {e}")
         try:
-            lib.run_zel(["unstrict-all"])
+            lib.run_zel(["u", "--all"])
             CG.cleanup()
         except Exception:
             pass

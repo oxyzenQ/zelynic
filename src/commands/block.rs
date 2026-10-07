@@ -5,7 +5,7 @@
 //! (NIGHT-improve-53, the masterclass unification: the former
 //! block-single and block-multi handlers are the single and group
 //! lanes now, reached through the [`handle_block`] router), plus
-//! block-all.
+//! the b --all sweep lane (NIGHT-improve-54).
 
 use anyhow::Result;
 
@@ -119,7 +119,7 @@ fn handle_block_single(
     }
 
     // NIGHT-dinner-16 (race-window parity with the strict family): a
-    // concurrent unstrict-all can tear the pins down between apply
+    // concurrent u --all can tear the pins down between apply
     // and the success verdict — the verdict is verified BEFORE it
     // prints, so a torn-down block never reads as enforced.
     if !crate::ebpf::limiter::Limiter::is_pinned() {
@@ -221,12 +221,13 @@ fn handle_block_multi(
     Ok(())
 }
 
-/// Block ALL user apps from the internet.
+/// The `b --all` sweep lane — block EVERY user app from the
+/// internet (the former block-all verb, NIGHT-improve-54).
 pub fn handle_block_all(force_this: bool, during: Option<&str>, verbose: bool) -> Result<()> {
     use crate::ebpf::identity::IdentityMap;
 
     // night-during (schema v23): the fleet-wide window refuses
-    // before the identity walk (the strict-all handler's rung).
+    // before the identity walk (the sweep lane's rung, strict_all.rs).
     let during_spec = during.map(crate::ebpf::limiter::parse_during).transpose()?;
 
     super::ensure_root()?;
@@ -236,12 +237,13 @@ pub fn handle_block_all(force_this: bool, during: Option<&str>, verbose: bool) -
     let mut identity = IdentityMap::new();
     identity.refresh();
 
-    // Same "system app" definition as strict-all: uid 0 OR on the
+    // Same "system app" definition as the strict sweep lane: uid 0 OR on the
     // dangerous-target blocklist. The old filter (uid == 0 only) would
     // have blocked user-session processes like gnome-shell, pipewire,
     // and the display manager — a desktop-killer inconsistency with
-    // strict-all's guard (NIGHT-blade-2: the limit-all name is gone
-    // with the strict-family rename). NIGHT-hunt-Z3 adds the root
+    // the strict sweep's guard (NIGHT-blade-2 renamed limit-all;
+    // improve-54 merged strict-all into the s --all lane — both old
+    // spellings are gone). NIGHT-hunt-Z3 adds the root
     // POSITION to the system-app definition: the force branch below
     // once mapped EVERY identity row to its cgroup id, the root row
     // included — a rate-0 policy on the root is machine-wide network
@@ -324,7 +326,7 @@ pub fn handle_block_all(force_this: bool, during: Option<&str>, verbose: bool) -
     };
     // NIGHT-hunt-27: the sweep rides apply_group_sweep — the
     // capacity-admitting twin (strict_all.rs's comment carries the
-    // full rationale): the old shape aborted the WHOLE block-all at
+    // full rationale): the old shape aborted the WHOLE sweep at
     // the policy family's 1024-row ceiling, so a dense host could
     // never block anything at all. The twin admits what fits and
     // reports the rest; the applied==0 ladder below keeps the

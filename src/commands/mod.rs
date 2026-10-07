@@ -86,18 +86,22 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
         crate::cli::warn_print_json_ignored();
     }
     match cli.command {
-        // NIGHT-improve-53 (the masterclass unification): strict /
-        // block / unstrict are ONE verb each — the '::' routing law
-        // lives inside the family handlers (target_grammar), so the
-        // dispatch arm is a single delegation whatever lane the
-        // target grammar picks.
+        // NIGHT-improve-53 (the masterclass unification) +
+        // NIGHT-improve-54 (the sweep merge): strict / block /
+        // unstrict are ONE verb per family, and --all is the sweep
+        // LANE of each — the target grammar (target_grammar) picks
+        // the single/list lane, this dispatch picks target-vs-fleet.
+        // The three retired -all spellings (strict-all/sa,
+        // block-all/ba, unstrict-all/ua) land on the ux redirect
+        // table's successor tips.
         Some(Commands::Strict {
             target,
             rate,
             download,
             upload,
+            all,
             force_this,
-            no_probe,
+            no_test,
             per_socket,
             floor,
             ceil,
@@ -109,27 +113,71 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
         }) => {
             #[cfg(feature = "ebpf")]
             {
-                strict::handle_strict(
-                    &target,
-                    rate.as_deref(),
-                    download.as_deref(),
-                    upload.as_deref(),
-                    force_this,
-                    no_probe,
-                    per_socket,
-                    // improve-40-b: the six bracket flags ride one
-                    // struct (the per-direction spellings included).
-                    guarantee::BracketFlags {
-                        floor: floor.as_deref(),
-                        ceil: ceil.as_deref(),
-                        floor_download: floor_download.as_deref(),
-                        floor_upload: floor_upload.as_deref(),
-                        ceil_download: ceil_download.as_deref(),
-                        ceil_upload: ceil_upload.as_deref(),
-                    },
-                    during.as_deref(),
-                    cli.verbose,
-                )
+                // NIGHT-improve-54: the sweep lane. On --all the
+                // TARGET positional is absent by grammar, so clap
+                // parks a lone positional in its slot — `s --all
+                // 500kb` carries the RATE there. Reinterpreted here
+                // (the CLI boundary owns the shape), with the
+                // two-positional shape refused: a target beside
+                // --all is a lane confusion, whatever the values.
+                if all {
+                    if let (Some(stray), Some(_)) = (target.as_deref(), rate.as_deref()) {
+                        return Err(anyhow::anyhow!(
+                            "--all sweeps every user app — it takes a rate, not a target\n  \
+                             tip: zelynic s --all 500kb (drop '{stray}', or drop --all)"
+                        ));
+                    }
+                    let sweep_rate = rate.as_deref().or(target.as_deref());
+                    return strict_all::handle_strict_all(
+                        sweep_rate,
+                        download.as_deref(),
+                        upload.as_deref(),
+                        force_this,
+                        no_test,
+                        guarantee::BracketFlags {
+                            floor: floor.as_deref(),
+                            ceil: ceil.as_deref(),
+                            floor_download: floor_download.as_deref(),
+                            floor_upload: floor_upload.as_deref(),
+                            ceil_download: ceil_download.as_deref(),
+                            ceil_upload: ceil_upload.as_deref(),
+                        },
+                        during.as_deref(),
+                        cli.verbose,
+                    );
+                }
+                match target.as_deref() {
+                    Some(t) => {
+                        strict::handle_strict(
+                            t,
+                            rate.as_deref(),
+                            download.as_deref(),
+                            upload.as_deref(),
+                            force_this,
+                            no_test,
+                            per_socket,
+                            // improve-40-b: the six bracket flags ride one
+                            // struct (the per-direction spellings included).
+                            guarantee::BracketFlags {
+                                floor: floor.as_deref(),
+                                ceil: ceil.as_deref(),
+                                floor_download: floor_download.as_deref(),
+                                floor_upload: floor_upload.as_deref(),
+                                ceil_download: ceil_download.as_deref(),
+                                ceil_upload: ceil_upload.as_deref(),
+                            },
+                            during.as_deref(),
+                            cli.verbose,
+                        )
+                    }
+                    // clap's required_unless_present owns this rung;
+                    // the crafted fallback is the no-panic posture
+                    // if that attribute ever drifts.
+                    None => Err(anyhow::anyhow!(
+                        "a target is required unless --all sweeps the fleet\n  \
+                         tip: zelynic s brave 100kb, or zelynic s --all 500kb"
+                    )),
+                }
             }
             #[cfg(not(feature = "ebpf"))]
             {
@@ -144,64 +192,10 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     rate,
                     download,
                     upload,
+                    all,
                     force_this,
-                    no_probe,
+                    no_test,
                     per_socket,
-                    floor,
-                    ceil,
-                    floor_download,
-                    floor_upload,
-                    ceil_download,
-                    ceil_upload,
-                    during,
-                    cli.verbose,
-                );
-                ebpf_disabled()
-            }
-        }
-
-        Some(Commands::StrictAll {
-            rate,
-            download,
-            upload,
-            force_this,
-            no_probe,
-            floor,
-            ceil,
-            floor_download,
-            floor_upload,
-            ceil_download,
-            ceil_upload,
-            during,
-        }) => {
-            #[cfg(feature = "ebpf")]
-            {
-                strict_all::handle_strict_all(
-                    rate.as_deref(),
-                    download.as_deref(),
-                    upload.as_deref(),
-                    force_this,
-                    no_probe,
-                    guarantee::BracketFlags {
-                        floor: floor.as_deref(),
-                        ceil: ceil.as_deref(),
-                        floor_download: floor_download.as_deref(),
-                        floor_upload: floor_upload.as_deref(),
-                        ceil_download: ceil_download.as_deref(),
-                        ceil_upload: ceil_upload.as_deref(),
-                    },
-                    during.as_deref(),
-                    cli.verbose,
-                )
-            }
-            #[cfg(not(feature = "ebpf"))]
-            {
-                let _ = (
-                    rate,
-                    download,
-                    upload,
-                    force_this,
-                    no_probe,
                     floor,
                     ceil,
                     floor_download,
@@ -217,53 +211,65 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
 
         Some(Commands::Block {
             target,
+            all,
             force_this,
             during,
         }) => {
             #[cfg(feature = "ebpf")]
             {
-                block::handle_block(&target, force_this, during.as_deref(), cli.verbose)
+                // NIGHT-improve-54: the block sweep lane (the former
+                // block-all verb) — it takes no target at all.
+                if all {
+                    if let Some(stray) = target.as_deref() {
+                        return Err(anyhow::anyhow!(
+                            "--all blocks every user app — it takes no target\n  \
+                             tip: zelynic b --all (drop '{stray}', or drop --all)"
+                        ));
+                    }
+                    return block::handle_block_all(force_this, during.as_deref(), cli.verbose);
+                }
+                match target.as_deref() {
+                    Some(t) => block::handle_block(t, force_this, during.as_deref(), cli.verbose),
+                    None => Err(anyhow::anyhow!(
+                        "a target is required unless --all sweeps the fleet\n  \
+                         tip: zelynic b brave, or zelynic b --all"
+                    )),
+                }
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (target, force_this, during, cli.verbose);
-                ebpf_disabled()
-            }
-        }
-
-        Some(Commands::BlockAll { force_this, during }) => {
-            #[cfg(feature = "ebpf")]
-            {
-                block::handle_block_all(force_this, during.as_deref(), cli.verbose)
-            }
-            #[cfg(not(feature = "ebpf"))]
-            {
-                let _ = (force_this, during, cli.verbose);
+                let _ = (target, all, force_this, during, cli.verbose);
                 ebpf_disabled()
             }
         }
 
         // NIGHT-improve-53: unstrict's '::' routing lives inside
         // cleanup::handle_unstrict (the masterclass router).
-        Some(Commands::Unstrict { target }) => {
+        // NIGHT-improve-54: --all is the emergency-reset lane (the
+        // former unstrict-all verb) — it takes no target at all.
+        Some(Commands::Unstrict { target, all }) => {
             #[cfg(feature = "ebpf")]
             {
-                cleanup::handle_unstrict(&target, cli.verbose)
+                if all {
+                    if let Some(stray) = target.as_deref() {
+                        return Err(anyhow::anyhow!(
+                            "--all removes every limit on the machine — it takes no target\n  \
+                             tip: zelynic u --all (drop '{stray}', or drop --all)"
+                        ));
+                    }
+                    return cleanup::handle_unstrict_all(cli.verbose);
+                }
+                match target.as_deref() {
+                    Some(t) => cleanup::handle_unstrict(t, cli.verbose),
+                    None => Err(anyhow::anyhow!(
+                        "a target is required unless --all resets the fleet\n  \
+                         tip: zelynic u brave, or zelynic u --all"
+                    )),
+                }
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (target, cli.verbose);
-                ebpf_disabled()
-            }
-        }
-
-        Some(Commands::UnstrictAll) => {
-            #[cfg(feature = "ebpf")]
-            {
-                cleanup::handle_unstrict_all(cli.verbose)
-            }
-            #[cfg(not(feature = "ebpf"))]
-            {
+                let _ = (target, all, cli.verbose);
                 ebpf_disabled()
             }
         }

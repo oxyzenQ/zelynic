@@ -122,9 +122,9 @@ Design:
   * Every rate verdict is MEASURED (client / curl byte counters), then
     proven in-kernel through the status JSON (bytes_allowed /
     packets_dropped) — exactly the NIGHT-master-1 contract.
-  * strict-all is exercised with --force-this, briefly and
+  * the s --all sweep is exercised with --force-this, briefly and
     at a generous rate: as root the harness's own cgroups are uid 0 and
-    would otherwise be skipped as system apps. block-all is deliberately
+    would otherwise be skipped as system apps. The b --all sweep is deliberately
     NOT exercised — blocking every app can sever the very session that
     runs the test.
   * NIGHT-blade-4 — the SERVER phase runs FIRST, then the desktop
@@ -178,7 +178,7 @@ What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
          unstrict (unlock) restores speed, curl burst parallel
          download, curl upload, strict shared group bucket across
          cgroups, block, unstrict selective removal, mixed
-         concurrent policies on five cgroups, strict-all --force-this sweep,
+         concurrent policies on five cgroups, the s --all --force-this sweep,
          the self-proving probe family (the FAILED lane under a
          mid-window teardown, the clean VERIFIED apply, the overhead
          bound, and NIGHT-hunt-Z2's direction lanes: a download-only
@@ -187,8 +187,8 @@ What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
          non-binding overhead — then
          the real-internet lane: endpoint reachability, unlimited
          realnet baseline, upload-engine sanity, strict download at
-         2mb, strict upload at 1mb, strict-all sweep at 2mb, block
-         zero goodput, unstrict-all restores the machine's own internet
+         2mb, strict upload at 1mb, the s --all sweep at 2mb, block
+         zero goodput, u --all restores the machine's own internet
          speed — and the cleanup teardown (no limit rows, no pins, no
          pid file, fleet removed).
 """
@@ -973,7 +973,7 @@ def spawn_bg_in_cgroup(name, argv, settle_timeout=5.0):
     exec (/proc/<pid>/comm equals the final argv[0] basename), or None when
     the child died or never settled within settle_timeout seconds (killed
     first, so a failed spawn leaks nothing). The barrier closes the
-    spawn/strict-all race the 2026-09-22 heavy run exposed: strict-all walks
+    spawn/sweep race the 2026-09-22 heavy run exposed: the sweep walks
     /proc twice (the identity tally, then per-name resolution after the
     BPF attach), and a bash child caught between its cgroup.procs echo and
     its exec resolves as "bash" in the first walk and as nothing in the
@@ -991,21 +991,25 @@ def curl_in_cgroup(name, window):
 # ── policy helpers (single source for every apply / verify / clear) ────────
 
 
-# charger-core-1b: whether the CURRENT lib.BINARY knows --no-probe
-# (the standalone matrix and v2 always run the current build; the
-# ammsp-vs-legacy A/B rebinds lib.BINARY per side and flips this off
-# for the legacy half).
+# charger-core-1b: whether the CURRENT lib.BINARY knows the
+# verification-skip flag (NIGHT-improve-54: --no-test; the retired
+# --no-probe redirects to it) — the standalone matrix and v2 always
+# run the current build; the ammsp-vs-legacy A/B rebinds lib.BINARY
+# per side and flips this off for the legacy half (the legacy
+# v11.0.0 predates both spellings).
 PROBE_FLAG_SUPPORTED = True
+PROBE_FLAG = "--no-test"
 
 
 def apply_single(name, rate_str, exp_dl, exp_ul, extra=()):
-    # --no-probe rides the CURRENT binary only: the legacy v11.0.0
-    # side (run_battery_side rebinds lib.BINARY) predates the flag and
-    # exits 2 on it — the CI find on 75e0f3f. The lib-level toggle is
-    # set per side by ammsp-vs-legacy's runner.
+    # The verification-skip flag rides the CURRENT binary only
+    # (--no-test since improve-54; --no-probe before it): the legacy
+    # v11.0.0 side (run_battery_side rebinds lib.BINARY) predates the
+    # flag and exits 2 on it — the CI find on 75e0f3f. The lib-level
+    # toggle is set per side by ammsp-vs-legacy's runner.
     argv = ["strict", str(CG.ids[name]), rate_str, *extra]
     if PROBE_FLAG_SUPPORTED:
-        argv.append("--no-probe")
+        argv.append(PROBE_FLAG)
     rc, stdout, stderr = run_zel(argv)
     if rc != 0:
         return False, f"strict exit {rc}: {(stderr or stdout).strip()[:200]}"
@@ -1020,7 +1024,7 @@ def apply_single(name, rate_str, exp_dl, exp_ul, extra=()):
 
 
 def apply_group(names, rate_str, exp):
-    # --no-probe rides apply_group for the same scripted-use reason
+    # The skip flag rides apply_group for the same scripted-use reason
     # apply_single carries it (the legacy v11.0.0 side of the A/B
     # predates the flag — PROBE_FLAG_SUPPORTED is the per-side
     # toggle): hunt-30's verification probe runs a 3s measurement
@@ -1034,7 +1038,7 @@ def apply_group(names, rate_str, exp):
     target = "::".join(str(CG.ids[n]) for n in names)
     argv = ["strict", target, rate_str]
     if PROBE_FLAG_SUPPORTED:
-        argv.append("--no-probe")
+        argv.append(PROBE_FLAG)
     rc, stdout, stderr = run_zel(argv)
     if rc != 0:
         return False, f"strict exit {rc}: {(stderr or stdout).strip()[:200]}"
@@ -1077,7 +1081,7 @@ def unstrict_target(cmd, names):
 
 
 def clear_all():
-    rc, _, _ = run_zel(["unstrict-all"])
+    rc, _, _ = run_zel(["u", "--all"])
     return rc == 0
 
 
@@ -1534,7 +1538,7 @@ def stage_server_daemon_traffic():
         return False
     out()
     out("━━━ server depth: daemonized traffic under a limit ━━━")
-    rc, stdout, stderr = run_zel(["strict", str(FLEET.ids[1]), "1mb", "--no-probe"])
+    rc, stdout, stderr = run_zel(["strict", str(FLEET.ids[1]), "1mb", PROBE_FLAG])
     if rc != 0:
         record(
             "server: daemon traffic policed (setsid, no ctty)",
@@ -2146,7 +2150,7 @@ def test_upload(window, baseline):
     """
     if baseline and baseline < 2e6:
         return record("upload (-u only): enforced", "SKIP", "baseline too low")
-    rc, stdout, stderr = run_zel(["strict", str(CG.ids["a"]), "-u", "1mb", "--no-probe"])
+    rc, stdout, stderr = run_zel(["strict", str(CG.ids["a"]), "-u", "1mb", PROBE_FLAG])
     if rc != 0:
         return record(
             "upload (-u only): enforced", "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}"
@@ -2207,7 +2211,7 @@ def test_download_only(window, baseline):
     name = "download (-d only): enforced"
     if baseline and baseline < 1e6:
         return record(name, "SKIP", "baseline too low")
-    rc, stdout, stderr = run_zel(["strict", str(CG.ids["a"]), "-d", "500kb", "--no-probe"])
+    rc, stdout, stderr = run_zel(["strict", str(CG.ids["a"]), "-d", "500kb", PROBE_FLAG])
     if rc != 0:
         return record(name, "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}")
     entry = limit_entry(status_json(), CG.ids["a"])
@@ -2261,7 +2265,7 @@ def test_asymmetric(window, baseline):
     if baseline and baseline < 2e6:
         return record(name, "SKIP", "baseline too low")
     rc, stdout, stderr = run_zel(
-        ["strict", str(CG.ids["a"]), "-d", "100kb", "-u", "1mb", "--no-probe"]
+        ["strict", str(CG.ids["a"]), "-d", "100kb", "-u", "1mb", PROBE_FLAG]
     )
     if rc != 0:
         return record(name, "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}")
@@ -3180,7 +3184,7 @@ def test_ammsp_subtree(window, baseline):
         # Verdict 4 — nested roots: a 50kb policy on the sub cgroup
         # itself; a grandchild under it resolves to the NEAREST root.
         sub_id = os.stat(sub_path).st_ino
-        rc, stdout, stderr = run_zel(["strict", str(sub_id), "50kb", "--no-probe"])
+        rc, stdout, stderr = run_zel(["strict", str(sub_id), "50kb", PROBE_FLAG])
         if rc != 0:
             record("ammsp: nested root apply", "FAIL", f"exit {rc}: {(stderr or stdout)[:120]}")
             passed = False
@@ -3674,7 +3678,7 @@ def test_probe_failed():
     checklist's other two rows): a clean apply must print VERIFIED
     exit 0, and the probe's own latency must be the 3s window plus
     bounded setup — the strict doc's whole-probe bound is
-    "under five seconds", so the with-probe minus no-probe delta is
+    "under five seconds", so the with-probe minus no-test delta is
     asserted inside [2.0, 8.0] and filed in the row's metrics. The
     overhead row rides the b target (the stage itself proves b live
     one row earlier) and its detail carries both exit codes and
@@ -3822,7 +3826,7 @@ def test_probe_failed():
         # detail carries both exit codes and tails so a fast-fail
         # (the 0.0s/0.0s shape the CI caught) can never hide again.
         t0 = time.perf_counter()
-        rc_np, out_np, err_np = run_zel(["strict", str(CG.ids["b"]), "100kb", "--no-probe"])
+        rc_np, out_np, err_np = run_zel(["strict", str(CG.ids["b"]), "100kb", PROBE_FLAG])
         t_noprobe = time.perf_counter() - t0
         ok_noprobe = rc_np == 0
         t0 = time.perf_counter()
@@ -3833,7 +3837,7 @@ def test_probe_failed():
             record(
                 "probe: overhead is the 3s window + bounded setup",
                 "PASS" if ok_noprobe and rc_p == 0 and 2.0 <= delta <= 8.0 else "FAIL",
-                f"no-probe {t_noprobe:.1f}s (exit {rc_np}; tail "
+                f"no-test {t_noprobe:.1f}s (exit {rc_np}; tail "
                 f"{((out_np or '') + (err_np or '')).strip()[:240]!r}), "
                 f"with-probe {t_probe:.1f}s (exit {rc_p}; tail "
                 f"{((out_p or '') + (err_p or '')).strip()[:240]!r}), "
@@ -4002,7 +4006,7 @@ def test_mixed(window, baseline):
 def test_strict_all(window, baseline):
     """The supermassive sweep: every cgroup on the machine, briefly, --force-this so
     the harness's own root-owned cgroups are included."""
-    name = "strict-all --force-this: machine-wide sweep"
+    name = "s --all --force-this: machine-wide sweep"
     if baseline and baseline < 2e6:
         return record(name, "SKIP", "baseline too low")
     # Keep sleepers resident in a..e so the sweep has live cgroups to
@@ -4021,7 +4025,7 @@ def test_strict_all(window, baseline):
                 f"sleeper residency barrier failed: {len(spawned) - len(sleepers)}"
                 f"/{len(spawned)} cgroups never got a resident sleeper",
             )
-        rc, stdout, stderr = run_zel(["strict-all", "--force-this", "2mb"])
+        rc, stdout, stderr = run_zel(["s", "--all", "--force-this", "2mb"])
         if rc != 0:
             return record(name, "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}")
         entry = limit_entry(status_json(), CG.ids["a"])
@@ -4449,10 +4453,10 @@ def stage_realnet_strict_upload():
 
 def stage_realnet_strict_all():
     """The machine-wide sweep policing REAL traffic: same sleeper fleet
-    and --force-this sweep as the loopback strict-all stage, but the measured
+    and --force-this sweep as the loopback s --all stage, but the measured
     worker is a real-internet download — proving the sweep reached the
     cgroup the production traffic will actually live in."""
-    name = "real internet: strict-all --force-this sweep at 2mb"
+    name = "real internet: s --all --force-this sweep at 2mb"
     if not DL_ENDPOINT:
         return record(name, "SKIP", "no download endpoint")
     if REALNET_BASELINE_BPS < 2 * 2_000_000:
@@ -4472,7 +4476,7 @@ def stage_realnet_strict_all():
                 f"{len(spawned) - len(sleepers)}/{len(spawned)} cgroups "
                 "never got a resident sleeper",
             )
-        rc, stdout, stderr = run_zel(["strict-all", "--force-this", "2mb"])
+        rc, stdout, stderr = run_zel(["s", "--all", "--force-this", "2mb"])
         if rc != 0:
             return record(name, "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}")
         time.sleep(0.5)
@@ -4535,10 +4539,10 @@ def _remeasure_realnet_baseline():
 
 
 def stage_realnet_restore():
-    """After the whole internet lane, unstrict-all must give the machine
+    """After the whole internet lane, u --all must give the machine
     its real-internet speed back — measured against the machine's own
     re-measured baseline, not a configured number."""
-    name = "real internet: unstrict-all restores speed"
+    name = "real internet: u --all restores speed"
     if not DL_ENDPOINT:
         return record(name, "SKIP", "no download endpoint")
     # Leave a limit standing so the restore has something to undo.
@@ -4546,7 +4550,7 @@ def stage_realnet_restore():
     if not ok:
         return record(name, "FAIL", payload)
     if not clear_all():
-        return record(name, "FAIL", "unstrict-all exited non-zero")
+        return record(name, "FAIL", "u --all exited non-zero")
     got, err = realnet_download("a", REALNET_BASE_WINDOW)
     if got is None:
         return record(name, "FAIL", f"worker failed: {err}")
@@ -4556,7 +4560,7 @@ def stage_realnet_restore():
     return record(
         name,
         "PASS" if bps >= floor else "FAIL",
-        f"{fmt_bps(bps)} after unstrict-all (floor {fmt_bps(floor)}, "
+        f"{fmt_bps(bps)} after u --all (floor {fmt_bps(floor)}, "
         f"re-measured baseline {fmt_bps(baseline)})",
     )
 
@@ -4577,11 +4581,11 @@ def test_list_apps():
 
 def test_cleanup():
     ok_all = True
-    rc, _, _ = run_zel(["unstrict-all"])
+    rc, _, _ = run_zel(["u", "--all"])
     time.sleep(0.5)
     ok_all = (
         record(
-            "cleanup: unstrict-all exits 0",
+            "cleanup: u --all exits 0",
             "PASS" if rc == 0 else "FAIL",
             f"exit {rc}",
         )
@@ -5380,7 +5384,7 @@ def run_heavy(baseline_window):
     test_reload(60)
     test_sustain(1_000_000, 6, 5.0, baseline)
     test_overhead(4.0, baseline)
-    # The internet lane's own teardown proof: unstrict-all must give the
+    # The internet lane's own teardown proof: u --all must give the
     # machine its real-internet speed back, measured against the
     # machine's own re-measured baseline.
     stage_realnet_restore()
