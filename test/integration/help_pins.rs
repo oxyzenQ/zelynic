@@ -437,7 +437,7 @@ fn test_help_documents_the_depth_mode() {
     assert_eq!(output.status.code(), Some(0));
     let stdout = String::from_utf8_lossy(&output.stdout);
     for needle in [
-        "One-shot deep inspection (NIGHT-master-1): --depth",
+        "One-shot deep inspection: --depth",
         "--depth is the only spelling",
         "sudo zelynic ee cg:1234 --depth",
         "sudo zelynic ee 12345 --depth --print-json",
@@ -533,10 +533,42 @@ fn test_help_pro_mode_documents_every_advanced_flag() {
     }
     // The one grammar law worth its own line on the reference: the
     // duration-only revision refuses the removed shapes by name.
+    // NIGHT-improve-52 tightened the law line to a standalone
+    // sentence ("Duration only, one shape, no schedules.") — the
+    // needle matches the rendered case exactly.
     assert!(
-        stdout.contains("duration only"),
+        stdout.contains("Duration only"),
         "the --during duration-only law must be stated, got:\n{stdout}"
     );
+    // NIGHT-improve-52: the retired window/date shapes (09:00-17:00,
+    // 2026-10-15) no longer appear on the reference — naming dead
+    // grammar by example reads as stale data; the law line above is
+    // the whole contract now.
+    assert!(
+        !stdout.contains("09:00-17:00") && !stdout.contains("2026-10-15"),
+        "the retired window/date shape examples must not linger, got:\n{stdout}"
+    );
+    assert!(
+        !stdout.contains("--info alias is retired"),
+        "the retired --info spelling's history note must not linger, got:\n{stdout}"
+    );
+    // NIGHT-improve-52: every Pro mode flag family now carries a
+    // runnable example — the section was spelling-complete but
+    // example-empty (zero copyable lines for the hidden family).
+    // These pins hold the discovery path so a future edit cannot
+    // strip the examples back out.
+    for example_line in [
+        "sudo zelynic ss brave 1mb --during 2h",
+        "sudo zelynic bm brave:curl --during 30m",
+        "sudo zelynic ss firefox 1mb --floor 100kb",
+        "sudo zelynic ss curl 1mb --floor-download 50kb --ceil-upload 200kb",
+        "sudo zelynic ss nginx 500kb --no-probe",
+    ] {
+        assert!(
+            stdout.contains(example_line),
+            "--help's Pro mode must carry the example '{example_line}', got:\n{stdout}"
+        );
+    }
 }
 
 /// The removed --help-all flag must land users on the merged surface:

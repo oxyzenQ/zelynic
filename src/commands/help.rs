@@ -85,8 +85,8 @@ pub(crate) fn print_help() {
     example("docker container", "sudo zelynic ss docker://nginx 100kb");
     example("kubernetes pod", "sudo zelynic ss k8s://prod/web-abc 1mb");
     println_safe!();
-    println_safe!("  Container targets resolve to the workload's cgroup (NIGHT-upgrade-");
-    println_safe!("  charger-core-2): docker://<name> (or id prefix) via the Engine API,");
+    println_safe!("  Container targets resolve to the workload's cgroup:");
+    println_safe!("  docker://<name> (or id prefix) via the Engine API,");
     println_safe!("  k8s://<namespace>/<pod> via the kubelet's pod log dirs.");
     println_safe!("  unstrict accepts the same references.");
     println_safe!();
@@ -182,8 +182,8 @@ pub(crate) fn print_help() {
     println_safe!("    List apps with their cgroup IDs.");
     println_safe!();
     println_safe!("  zelynic eagle-eyes [targets] [--interval <1s-60s>]");
-    println_safe!("    The unified live monitor (NIGHT-boost-1: observe + top merged;");
-    println_safe!("    'ee' is the short alias, NIGHT-improve-25).");
+    println_safe!("    The unified live monitor (observe + top merged;");
+    println_safe!("    'ee' is the short alias).");
     println_safe!("    Apps ranked by consumption — rank 1 eats the internet right now.");
     println_safe!("    Rows follow the terminal height (no --limit): raise the window");
     println_safe!("    to see more, the list runs high to low.");
@@ -192,14 +192,12 @@ pub(crate) fn print_help() {
     println_safe!("    the display prefix cg:73386 round-trips, a name = process —");
     println_safe!("    one target opens the deep focus view");
     println_safe!("    (per-direction deltas, rate, lifetime, socket endpoints).");
-    println_safe!("    One-shot deep inspection (NIGHT-master-1): --depth prints the");
+    println_safe!("    One-shot deep inspection: --depth prints the");
     println_safe!("    full report — package id/name, user, cgroup path, enforcement,");
     println_safe!("    per-process census (type, perms, path, start time), the");
     println_safe!("    network-traffic focus section — window totals plus");
-    println_safe!("    per-endpoint bytes, movers ranked first");
-    println_safe!("    (NIGHT-private-research-3) — then exits. Pipe-friendly —");
-    println_safe!("    --depth is the only spelling");
-    println_safe!("    (the --info alias is retired, NIGHT-blade-4);");
+    println_safe!("    per-endpoint bytes, movers ranked first — then exits.");
+    println_safe!("    Pipe-friendly: --depth is the only spelling;");
     println_safe!("    --print-json emits the machine-readable document;");
     println_safe!("    --focus <1s-30s> tunes the traffic window (default 3s).");
     example("all apps, ranked", "sudo zelynic eagle-eyes");
@@ -299,9 +297,24 @@ pub(crate) fn print_help() {
     println_safe!("  Time windows (strict family + block family):");
     println_safe!("    --during DUR   auto-expire: the limit tears itself down when the window");
     println_safe!("                  passes. Units: s, m, h, d, mn, y — min 1s, max 10y");
-    println_safe!("                  (20d = twenty days; months 30d, years 365d). The");
-    println_safe!("                  window and date shapes (09:00-17:00, 2026-10-15) are");
-    println_safe!("                  refused: duration only, one shape, no schedules.");
+    println_safe!("                  (20d = twenty days; months 30d, years 365d).");
+    println_safe!("                  Duration only, one shape, no schedules.");
+    // NIGHT-improve-52: the Pro mode block carried every flag's
+    // spelling but ZERO runnable examples — the one discovery path
+    // a user copies from was missing for the whole hidden family.
+    // The examples live HERE (not in the command blocks above)
+    // because --during, the guarantee brackets, and --no-probe are
+    // Pro-mode vocabulary: each example appears exactly once on the
+    // surface (NIGHT-hunt-15's no-duplicate law), paired note-above
+    // /command-below via the shared example() helper.
+    example(
+        "auto-expire after two hours",
+        "sudo zelynic ss brave 1mb --during 2h",
+    );
+    example(
+        "block a group for 30 minutes",
+        "sudo zelynic bm brave:curl --during 30m",
+    );
     println_safe!();
     println_safe!("  Guaranteed share (strict family):");
     println_safe!("    --floor RATE   the fair-share floor: a shaped cgroup's slice never falls");
@@ -312,11 +325,23 @@ pub(crate) fn print_help() {
     println_safe!("    --floor-download, --floor-upload, --ceil-download, --ceil-upload");
     println_safe!("                    per-direction spellings, one per side: the");
     println_safe!("                    both-directions flag and its twin refuse together.");
+    example(
+        "guaranteed floor under the cap",
+        "sudo zelynic ss firefox 1mb --floor 100kb",
+    );
+    example(
+        "per-direction brackets",
+        "sudo zelynic ss curl 1mb --floor-download 50kb --ceil-upload 200kb",
+    );
     println_safe!();
     println_safe!("  Enforcement shape (strict-single):");
     println_safe!("    --per-socket   cap every connection at the rate (the server shape:");
     println_safe!("                  one process, many sockets).");
     println_safe!("    --no-probe     skip the post-apply verification loop (scripted use).");
+    example(
+        "scripted apply, no probe",
+        "sudo zelynic ss nginx 500kb --no-probe",
+    );
     println_safe!();
     println_safe!("  Guard override (strict family + block family):");
     println_safe!("    --force-this   lift every guard in one flag: the min-rate floor and the");
