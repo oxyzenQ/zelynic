@@ -104,7 +104,36 @@ scripted consumer has filed a shape against. Named here so the
 day one does, the diagnosis is one grep away — the same residual
 discipline hunt-27 modeled.
 
-## 3. Verification
+## 3. Addendum (NIGHT-hunt-29, same day): the shard closed
+
+The owner called the removal lane's shard (the "hunt until
+nothing remains" directive), and it closed without the accumulator
+restructure the boundary feared. The find while implementing: the per-target
+contract could be preserved EXACTLY by splitting the resolve from
+the removal — `unstrict` = `resolve_target` + `remove_ids` (the
+verbatim removal body), and `unstrict_multi` = ONE
+`resolve_target_list` walk + the per-target `remove_ids` with the
+loop's own abort semantics (first partial failure stops the
+remaining targets with the same Err), each target keeping its own
+failed list, superseded ledger, dead-group sweep, and memo bump —
+the cadence the boundary documented as the risk turned out to be
+the thing that makes the split safe. `remove_limits` (the shared
+front half of unstrict-single AND unstrict-multi) parses the whole
+list and rides `unstrict_multi`; the single spelling pays one walk
+exactly as before, and a thousand-name `um` drops from a thousand
+walks to one. The during window's expiry path (during_map's
+per-cgroup-id unstrict calls) is unaffected by construction — the
+CgroupId arm never walked. The family's file move: the split put
+reclaim.rs past the limiter family's 500-line owner cap, so the
+unstrict family (resolve + remove) moved to its own file
+(unstrict.rs, 171 lines; reclaim.rs back to 356) — the house
+precedent, one cohesive concern out. Every output line, the
+abort path, and the counting unit are the loop's own, verbatim;
+the existing reclaim pins (partial-failure wording, dead-group
+rule) and the resolve_target_list pins carry the semantics, with
+the supermassive VM lane covering the removal rows end to end.
+
+## 4. Verification
 
 - 832 unit + 48 integration tests green (five new pins, one
   environment-hardened live pin).
