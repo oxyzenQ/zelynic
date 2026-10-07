@@ -9,10 +9,13 @@
 //! binary, is that binary a script or an ELF, what are its
 //! permissions, where does it run from, how long has it been alive.
 //! This module extends the identity family with that per-pid layer:
-//! one /proc walk per target cgroup collecting [`ProcessFacts`] for
-//! every live member plus the cgroup's own v2 path (whose basename is
-//! the package-name fallback when no comm resolved — the owner's
-//! "unknown/cat-test" ladder).
+//! [`ProcessFacts`] for every live member plus the cgroup's own v2
+//! path (whose basename is the package-name fallback when no comm
+//! resolved — the owner's "unknown/cat-test" ladder). NIGHT-hunt-30
+//! moved the walk itself to depth_walk.rs (the LOC-cap split that
+//! also closed the per-id quadratic: one set walk for the whole
+//! report); this file keeps the facts layer — the parsers, probes,
+//! and per-pid assembly the pins own.
 //!
 //! Every read is best-effort: a process that exits mid-walk yields
 //! partial facts (readable fields render, the rest stay None/zero,
@@ -42,7 +45,7 @@ use std::fs;
 use std::io::Read;
 use std::os::unix::fs::MetadataExt;
 
-use super::{pid_cgroup_id, pid_comm};
+use super::pid_comm;
 use crate::output::sanitize_comm;
 
 /// One live process's deep facts. Unreadable fields are None, never
@@ -117,58 +120,6 @@ pub struct CgroupResources {
     /// Accumulated CPU time in microseconds from the controller's
     /// `cpu.stat` `usage_usec` line (None unreadable).
     pub cpu_usage_usec: Option<u64>,
-}
-
-/// Walk /proc once and collect deep facts for every process living in
-/// `cgroup_id`, plus the cgroup's own v2 path. Membership routes
-/// through the ONE canonical pid-to-cgroup boundary
-/// (NIGHT-optimized-1) — the same resolver the identity, connection,
-/// and target-match walks use, so boundary fixes land here too.
-pub fn deep_collect(cgroup_id: u32) -> CgroupDepth {
-    let mut out = CgroupDepth::default();
-    let hz = clock_ticks();
-    let uptime = uptime_secs();
-    let btime = boot_epoch();
-
-    let Ok(entries) = fs::read_dir("/proc") else {
-        return out;
-    };
-    for entry in entries.flatten() {
-        let Ok(pid) = entry.file_name().to_string_lossy().parse::<u32>() else {
-            continue;
-        };
-        if pid_cgroup_id(pid) != Some(cgroup_id) {
-            continue;
-        }
-        if out.rel_path.is_none() {
-            out.rel_path = pid_cgroup_rel_path(pid);
-        }
-        out.procs.push(process_facts(pid, hz, uptime, btime));
-    }
-    // The controller's own resource view (NIGHT-blade-5) needs only
-    // the resolved path — a cgroup with live members but an
-    // unresolvable path still reports the census, just without the
-    // controller layer (best-effort, the family contract).
-    out.resources = cgroup_resources(out.rel_path.as_deref());
-    out
-}
-
-/// Read the cgroup controller's own resource facts for one resolved
-/// v2 path (NIGHT-blade-5). Pure plumbing over two best-effort file
-/// reads; the parsers are pure and pinned separately.
-pub fn cgroup_resources(rel_path: Option<&str>) -> CgroupResources {
-    let Some(rel) = rel_path else {
-        return CgroupResources::default();
-    };
-    let dir = format!("/sys/fs/cgroup{rel}");
-    CgroupResources {
-        memory_current_bytes: fs::read_to_string(format!("{dir}/memory.current"))
-            .ok()
-            .and_then(|c| parse_memory_current(&c)),
-        cpu_usage_usec: fs::read_to_string(format!("{dir}/cpu.stat"))
-            .ok()
-            .and_then(|c| parse_cpu_usage_usec(&c)),
-    }
 }
 
 /// The controller's `memory.current` payload: one number, optional
@@ -368,7 +319,7 @@ fn read_link_split_deleted(path: &str) -> Option<(String, bool)> {
 /// The host clock-tick rate (CLK_TCK). The sysconf fallback of 100
 /// matches every mainstream Linux build; the None path in the pure
 /// helpers keeps a refused sysconf honest rather than wrong.
-fn clock_ticks() -> f64 {
+pub(super) fn clock_ticks() -> f64 {
     let ticks = unsafe { libc::sysconf(libc::_SC_CLK_TCK) };
     if ticks > 0 {
         ticks as f64
@@ -378,13 +329,13 @@ fn clock_ticks() -> f64 {
 }
 
 /// Seconds since boot from /proc/uptime's first field.
-fn uptime_secs() -> Option<f64> {
+pub(super) fn uptime_secs() -> Option<f64> {
     let content = fs::read_to_string("/proc/uptime").ok()?;
     content.split_whitespace().next()?.parse::<f64>().ok()
 }
 
 /// Boot time in epoch seconds from /proc/stat's btime line.
-fn boot_epoch() -> Option<u64> {
+pub(super) fn boot_epoch() -> Option<u64> {
     let content = fs::read_to_string("/proc/stat").ok()?;
     for line in content.lines() {
         if let Some(rest) = line.strip_prefix("btime ") {
@@ -397,16 +348,6 @@ fn boot_epoch() -> Option<u64> {
 /// The cgroup v2 path of a pid ("/cat-test"), mirroring the parsing
 /// pid_cgroup_id owns — called only for pids already proven to be
 /// members, so the double read stays on the rare path.
-fn pid_cgroup_rel_path(pid: u32) -> Option<String> {
-    let content = fs::read_to_string(format!("/proc/{pid}/cgroup")).ok()?;
-    let path = content.lines().next()?.split("::").nth(1)?.trim();
-    if path.is_empty() {
-        None
-    } else {
-        Some(path.to_string())
-    }
-}
-
 /// The /proc/<pid>/status facts the depth report shows (uid, state
 /// words, thread count, resident memory), one parse over one read.
 fn parse_status(content: &str) -> (Option<u32>, Option<String>, Option<usize>, Option<u64>) {
@@ -432,7 +373,12 @@ fn parse_status(content: &str) -> (Option<u32>, Option<String>, Option<usize>, O
 /// and best-effort — a process exiting between reads keeps whatever
 /// was still readable, the same tolerance the connection walk gives
 /// its fd scan.
-fn process_facts(pid: u32, hz: f64, uptime: Option<f64>, btime: Option<u64>) -> ProcessFacts {
+pub(super) fn process_facts(
+    pid: u32,
+    hz: f64,
+    uptime: Option<f64>,
+    btime: Option<u64>,
+) -> ProcessFacts {
     let mut facts = ProcessFacts {
         pid,
         comm: pid_comm(pid).unwrap_or_default(),

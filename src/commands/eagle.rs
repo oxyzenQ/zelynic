@@ -32,9 +32,10 @@ use anyhow::Result;
 
 use crate::ebpf::bypass::{self, ShadowAudit};
 use crate::ebpf::connections::ConnectionMap;
-use crate::ebpf::identity::{depth, IdentityMap};
+use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::{
-    parse_focus_window, pin_dir_has_files, terminal_width, Direction, Limiter, PolicyRaw, Target,
+    parse_focus_window, pin_dir_has_files, terminal_width, Direction, Limiter, LimiterStatsRaw,
+    PolicyRaw, Target,
 };
 use crate::ebpf::loader::{CgroupDelta, Observer, SocketBytes};
 use crate::ebpf::render::{
@@ -196,28 +197,32 @@ fn open_enforcement(verbose: bool) -> Result<Option<Limiter>> {
     Ok(Some(Limiter::open_pinned(verbose)?))
 }
 
-/// The enforcement verdict for one cgroup from the pinned policy
-/// maps. Read failures propagate (the NIGHT-hunt-22 status contract:
-/// this is a report surface — a fabricated verdict is the exact lie
-/// the audit removed).
-fn enforcement_for(limiter: Option<&Limiter>, cgroup_id: u32) -> Result<Enforcement> {
-    let Some(limiter) = limiter else {
-        return Ok(Enforcement::Unlimited);
+/// The per-id enforcement join over the maps read ONCE (NIGHT-
+/// hunt-30: the old enforcement_for read BOTH full policy maps per
+/// id — N ids x 2 map reads x 1024 rows, the same join-class the
+/// stats map below closed). Pure over the prebuilt maps, so the
+/// join's verdict is pinned by the existing rendering pins; the
+/// read itself happens once before the report loop, where read
+/// failures still propagate (the NIGHT-hunt-22 status contract:
+/// this is a report surface — a fabricated verdict is the exact
+/// lie the audit removed).
+fn enforcement_join(policies: Option<(&PolicyMaps, &PolicyMaps)>, cgroup_id: u32) -> Enforcement {
+    let Some((dl, ul)) = policies else {
+        return Enforcement::Unlimited;
     };
-    let lookup = |direction: Direction| -> Result<Option<PolicyRaw>> {
-        let rows = limiter.read_policies_public(direction)?;
-        Ok(rows
-            .iter()
-            .find(|(key, _)| *key == cgroup_id)
-            .map(|(_, policy)| *policy))
-    };
-    let download = lookup(Direction::Download)?;
-    let upload = lookup(Direction::Upload)?;
-    Ok(match (download, upload) {
+    let download = dl.get(&cgroup_id).copied();
+    let upload = ul.get(&cgroup_id).copied();
+    match (download, upload) {
         (None, None) => Enforcement::Unlimited,
         (download, upload) => Enforcement::Limited { download, upload },
-    })
+    }
 }
+
+/// The policy maps read once for the whole report: (download,
+/// upload) keyed by cgroup id. None when no enforcement is pinned
+/// (the unlimited report — zero map reads, the ladder it always
+/// owned).
+type PolicyMaps = HashMap<u32, PolicyRaw>;
 
 /// The focus window's measured result (NIGHT-private-research-3):
 /// the closing poll's per-cgroup deltas (the kernel's window totals)
@@ -391,8 +396,18 @@ pub(crate) fn handle_eagle_eyes_depth(
         })
         .collect();
     let resolved_names = crate::ebpf::identity::name_walk::resolve_name_set(&name_tokens);
-    for token in &tokens {
-        let ids = match token {
+    // NIGHT-hunt-30: every token resolves FIRST, then ONE depth walk
+    // for the whole report's cgroup population — the per-id
+    // deep_collect was O(ids x /proc), the same quadratic class
+    // improve-50 / hunt-28 / hunt-29 closed (a multi-cgroup target
+    // like brave's ~30, or a fleet-scale spec, walked ALL of /proc
+    // per id before the report's own data reads ran). Two tokens
+    // naming the same cgroup share one facts snapshot now — the
+    // same-id rows render the same walk instead of two walks racing
+    // process churn.
+    let ids_per_token: Vec<Vec<u32>> = tokens
+        .iter()
+        .map(|token| match token {
             // NIGHT-dinner-18: a named cgroup id must be LIVE — the
             // shared liveness gate (resolve_live_targets owns the
             // semantics; from_ref borrows the single token without an
@@ -415,7 +430,40 @@ pub(crate) fn handle_eagle_eyes_depth(
             Target::Container(c) => {
                 crate::ebpf::identity::container::resolve(c, false).unwrap_or_default()
             }
-        };
+        })
+        .collect();
+    let mut all_ids: Vec<u32> = Vec::new();
+    let mut seen_ids: std::collections::HashSet<u32> = std::collections::HashSet::new();
+    for ids in &ids_per_token {
+        for id in ids {
+            if seen_ids.insert(*id) {
+                all_ids.push(*id);
+            }
+        }
+    }
+    let facts_by_id = crate::ebpf::identity::depth_walk::deep_collect_set(&all_ids);
+    // The policy maps read once for the whole report (the old
+    // enforcement_for read both full maps PER ID — the same
+    // join-class). Read failures propagate here, before any report
+    // row renders, exactly where the first id's read failed before.
+    let policy_maps = match &limiter {
+        Some(l) => Some((
+            l.read_policies_public(Direction::Download)?
+                .into_iter()
+                .collect::<PolicyMaps>(),
+            l.read_policies_public(Direction::Upload)?
+                .into_iter()
+                .collect::<PolicyMaps>(),
+        )),
+        None => None,
+    };
+    // The stats join as a map (the find-per-id scan was
+    // O(ids x rows) — the census row family is 1024-wide, a
+    // fleet-scale depth spec paid a 4M-compare scan for nothing).
+    let stats_by_id: Option<HashMap<u32, LimiterStatsRaw>> = stats_rows
+        .as_ref()
+        .map(|rows| rows.iter().cloned().collect());
+    for (token, ids) in tokens.iter().zip(ids_per_token) {
         if ids.is_empty() {
             misses.push((token.label(), "no live cgroup matches".to_string()));
             continue;
@@ -425,18 +473,15 @@ pub(crate) fn handle_eagle_eyes_depth(
         }
         for id in ids {
             let target = token.label();
-            let facts = depth::deep_collect(id);
+            let facts = facts_by_id.get(&id).cloned().unwrap_or_default();
             let comm = identity.get(id).map(|entry| entry.comm.clone());
             let name = package_name(comm.as_deref(), facts.rel_path.as_deref());
-            let enforcement = enforcement_for(limiter.as_ref(), id)?;
+            let enforcement = enforcement_join(policy_maps.as_ref().map(|(dl, ul)| (dl, ul)), id);
             // The ledger row only exists for cgroups the kernel has
             // booked (a limited cgroup with zero traffic on a fresh
             // pin may not have one yet) — None renders no accounting
             // line, the honest absence, never a fabricated zero.
-            let enforcement_stats = stats_rows
-                .as_ref()
-                .and_then(|rows| rows.iter().find(|(key, _)| *key == id))
-                .map(|(_, stats)| *stats);
+            let enforcement_stats = stats_by_id.as_ref().and_then(|m| m.get(&id)).copied();
             let conns_view = conns.get(id).cloned();
             // The focus window's per-cgroup composition (pure): the
             // kernel's window totals joined onto this report's census

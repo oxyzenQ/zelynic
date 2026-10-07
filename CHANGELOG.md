@@ -27,6 +27,43 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **fix(identity) + fix(commands): NIGHT-hunt-30 — the depth
+  report's per-id class closed: one set walk, one policy read,
+  one stats join (the hunt-until-nothing-remains sweep's
+  find).** The class: the one-walk family had closed numeric ids
+  (improve-50), names (hunt-28), and removal (hunt-29) — but
+  `eagle-eyes --depth` resolved its spec to N cgroup ids and then
+  paid THREE per-id taxes: `deep_collect(id)` walked ALL of /proc
+  per id (N x ~8200 membership reads — brave's ~30 cgroups paid
+  246k cgroup-file reads before the report's own data reads ran),
+  `enforcement_for(id)` read BOTH full 1024-row policy maps per id
+  (N x 2 full map reads), and the stats ledger joined by a
+  linear find per id (O(N x 1024)). The fix:
+  `identity::depth_walk::deep_collect_set(ids)` — the walk moved
+  out of depth.rs (which rode the limiter family's 500-line owner
+  cap exactly; the facts layer — parsers, probes, per-pid
+  assembly — stays with its pins) and answers a SET of ids in ONE
+  pass: membership through the canonical pid_cgroup_id boundary,
+  a pid outside the wanted set costs its cgroup read and nothing
+  more, member facts through the same process_facts layer (the
+  per-pid reads ARE the data — per-member, linear in the data
+  volume), the clock reads once for the set. `deep_collect`
+  becomes the single-id spelling over the set walk (pathwalk's
+  first arm keeps its exact cost); two tokens naming the same
+  cgroup now share ONE facts snapshot instead of two walks racing
+  process churn. The policy maps read ONCE before the report loop
+  into id-keyed maps (read failures still propagate before any row
+  renders — the hunt-22 contract), the per-id verdict a pure map
+  lookup; the stats ledger join becomes one HashMap build. Pins:
+  the empty-set no-walk contract, the live walk against the test
+  process's own cgroup (guarded the improve-50 way for the
+  hybrid-v1 runner class), and the single-vs-set agreement (the
+  drift fence). The class sweep's clean walk (per-item I/O sites,
+  panics, casts, silent swallows, locks) is documented in the
+  audit record — no residuals named: the one-walk family is
+  closed at every site the sweep found. Full audit:
+  [docs/audits/NIGHT_HUNT_30_DEPTH_SET_WALK_2026-10-07.md](docs/audits/NIGHT_HUNT_30_DEPTH_SET_WALK_2026-10-07.md).
+
 - **fix(limiter) + fix(commands): NIGHT-hunt-29 — the removal
   lane's one-walk shard closed (hunt-28's named boundary, the
   owner's "hunt until nothing remains"): unstrict-multi resolves
