@@ -554,6 +554,37 @@ produced it. Pinned rootlessly with the exact 2b269f73 shape on
 both sides of the gate. The audit is
 `docs/audits/NIGHT_MITIGATE_2_CLAIMS_RATE_ROW_FLEET_AUDIT_2026-10-07.md`.
 
+The mandate's third shape, filed from run 37588414621 (push
+6588e3a, the fleet fix's own live verification) — three of four
+legs red on the same two rows at the same busy hour (~07:52),
+the passing leg in-band on a quieter host:
+
+| Leg | no-daemon (5mb, fleet) | per-app (2mb, fleet) | verdict |
+| --- | --- | --- | --- |
+| low gnu + low musl (identical rows) | 44.5%, windows 3209/2259/2227 KB/s | 36.0%, windows 851/802/720 KB/s | failure |
+| best gnu | 42.9%, windows 3170/2370/2146 KB/s | 38.1%, windows 1146/794/762 KB/s | failure |
+| best musl | 80.7% in-band, first window | 68.8%, windows 798/1265/1376 (climbing) | success |
+
+The fleet reads what the single flow read on the equivalent leg
+(36.0% vs 39.3%) — flow count is not the variable at 2mb under
+load; the AIMD equilibrium is rate-dependent and its busy-hour
+floor sits where one flow's did. The close (NIGHT-mitigate-3,
+the hunt-Z5 ceiling doctrine applied to the claims rows, the
+matrix's own law for this class — its fair-share single row
+passes at 36.9% with "the ceiling carries the verdict"): both
+held-rate rows verdict on the ceiling (lo=0.0, hi 1.30
+unchanged — over-delivery still fails immediately), the per-app
+row renamed to "stays inside its configured rate" (the name
+matches the verdict), a silent-zero guard (under one GSO skb in
+the window = a broken pair, FAIL) keeps near-zero from passing
+as policed, and every patience sample still rides the detail.
+Pinned rootlessly (38 rows green). The precision row on the same
+legs performed as mitigate-2 designed: offer 470.9 MB vs the
+731.1 MB budget -> adapted 100mb -> 73mb -> still offer-limited
+-> the honest SKIP, admit ratio 1.0013 carrying the contract.
+The audit is
+`docs/audits/NIGHT_MITIGATE_3_RATE_ROW_CEILING_LAW_2026-10-07.md`.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

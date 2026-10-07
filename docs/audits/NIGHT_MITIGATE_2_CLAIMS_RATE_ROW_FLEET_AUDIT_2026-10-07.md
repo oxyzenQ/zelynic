@@ -308,3 +308,25 @@ the instrument that reads it.
   If you find a discrepancy, please open a PR — the doc is wrong, not
   the source.
 -->
+
+## 10. Postscript — the live verdict on section 8, and the followup it forced
+
+Section 8's claim that "the fleet removes the sender-side class
+entirely" was falsified by the fleet's own live verification run
+(37588414621, push 6588e3a): three of four legs read 36-44% of
+the 2-5mb policies through the fleet — the AIMD equilibrium under
+a drop-only policer is rate-dependent and flow count is not the
+variable at these rungs under load, exactly the physics the
+precision row's offer-test (section 6, which performed as
+designed on the same run: offer 470.9 MB vs the 731.1 MB budget,
+the honest SKIP, admit ratio 1.0013) had just learned at the
+offer level. The held-rate rows' 0.65 floor was the overreach
+the whole time — hunt-Z5's ceiling doctrine, the matrix's own
+law for this class, applied to the claims rows by
+NIGHT-mitigate-3 the same day:
+`docs/audits/NIGHT_MITIGATE_3_RATE_ROW_CEILING_LAW_2026-10-07.md`
+carries the close (ceiling verdicts, the silent-zero guard, the
+row names matched to their laws, 38 self-test rows green). The
+fleet stays — it is still the honest cgroup-level instrument
+(mitigate-3's section 4) — but the verdict law it feeds is the
+ceiling, and that law is what makes the rows weather-proof.
