@@ -36,7 +36,7 @@ use crate::ebpf::pin::{PIN_MAP_POLICY_DL, PIN_MAP_POLICY_UL};
 // trace/rollback line formatters in policy_lines.rs (re-exported above).
 
 impl super::Limiter {
-    /// Apply strict-single: individual policy per cgroup.
+    /// Apply the single lane: individual policy per cgroup.
     /// `target` is resolved to cgroup IDs. Each gets its own token bucket.
     /// `during` (night-during, schema v23): the row's time window —
     /// `Some(spec)` writes the window beside the legs, `None`
@@ -128,7 +128,7 @@ impl super::Limiter {
         Ok(applied)
     }
 
-    /// Apply strict-multi: all cgroups share one group token bucket
+    /// Apply the group lane: all cgroups share one group token bucket
     /// (a random group_id; every policy points at it). `during` is
     /// the row's window (night-during, schema v23) — every member
     /// root carries the same window row. `bracket` is the guarantee
@@ -154,7 +154,7 @@ impl super::Limiter {
         self.write_group_legs(&all_cgroup_ids, rates, bracket, during)
     }
 
-    /// The SWEEP twin (NIGHT-hunt-27, strict-all / block-all): the
+    /// The SWEEP twin (NIGHT-hunt-27, born strict-all / block-all): the
     /// best-effort apply with capacity admission. The sweeps' own
     /// design contract — "an app that exits between snapshot and
     /// write must not abort the fleet's limits" — extends to the
@@ -170,8 +170,8 @@ impl super::Limiter {
     /// handler can warn. A concurrent writer can still fill the map
     /// between the read and the writes — the write loop's atomic
     /// rollback stays the safety net exactly as it owns every other
-    /// mid-flight failure. The EXPLICIT lists (strict-multi /
-    /// block-multi) keep their whole-refusal contract: every
+    /// mid-flight failure. The EXPLICIT lists (the group lanes of
+    /// strict and block) keep their whole-refusal contract: every
     /// segment there is the operator's own claim. Returns
     /// (applied, saturated-skipped).
     pub fn apply_group_sweep(
@@ -280,7 +280,7 @@ impl super::Limiter {
         // some members never share, so a mid-flight failure must not
         // leave group orphans behind. The superseded-group ledger
         // (NIGHT-lts-7) is why this path matters most: every
-        // strict-multi invocation banks a FRESH group id, so the
+        // group-lane invocation banks a FRESH group id, so the
         // overwritten members' OLD groups die here — without the
         // sweep the 256-slot group maps filled irreversibly and the
         // 257th invocation silently enforced unlimited. The

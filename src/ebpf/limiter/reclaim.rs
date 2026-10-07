@@ -103,7 +103,7 @@ impl super::Limiter {
     /// Deletes `cgroup_bucket_dl/ul[cgroup_id]` per requested
     /// direction and the combined stats entry when asked. The shared
     /// group buckets are deliberately untouched: their entries are
-    /// referenced by every cgroup of a strict-multi group, and no
+    /// referenced by every cgroup of a group-lane invocation, and no
     /// single removal may decide that lifecycle. Failures warn and
     /// never fail the surrounding removal — reclamation is
     /// bookkeeping, and the policies (the enforced contract) are
@@ -272,11 +272,11 @@ impl super::Limiter {
 
     /// Reclaim the shared buckets of DEAD groups (NIGHT-lts-7, the
     /// ultra-long-endurance budget's missing half). The group maps
-    /// hold hard 256 slots, every strict-multi invocation banks a
+    /// hold hard 256 slots, every group-lane invocation banks a
     /// FRESH quasi-random group id, and until now nothing ever
     /// deleted a group entry — the improve-10 reclaim deliberately
     /// skipped them ("no single removal may decide that
-    /// lifecycle"), so ~256 strict-multi invocations on a
+    /// lifecycle"), so ~256 group-lane invocations on a
     /// long-lived host filled the maps and the 257th's members
     /// silently enforced UNLIMITED (the fail-open bucket lookup).
     /// The lifecycle decision now sits where it belongs: with the

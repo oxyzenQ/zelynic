@@ -74,7 +74,7 @@
 //     that direction's long headers are the only place the
 //     policed direction's CID length is learnable — so the policed
 //     direction's short headers ride the cookie until a dual-leg
-//     policy (the strict-single default) or any traffic the
+//     policy (the single lane's default) or any traffic the
 //     policed side itself emits teaches it. The refusal is the
 //     documented residue of the pinned fast-path law, the same
 //     posture every other refusal here carries: coarser, never

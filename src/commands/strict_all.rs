@@ -182,7 +182,7 @@ pub(crate) fn handle_strict_all(
     // paths keep the no-silent-no-op contract exact.
     //
     // NIGHT-hunt-30: the lock's scope is the APPLY, not the probe
-    // (strict-single's dinner-28 contract, the sweep's own lane) —
+    // (the single lane's dinner-28 contract, the sweep's own lane) —
     // the probe mutates no policy state, so the lock drops before
     // the window opens.
     let mut limiter;
@@ -205,8 +205,8 @@ pub(crate) fn handle_strict_all(
             // no-match wording either (the apps ARE there; the ROOM is
             // not). Saturated==0 means every snapshot member resolved
             // to nothing between the walk and the write (the stale
-            // snapshot race) — the no-match contract strict-multi
-            // owns, dinner-11.
+            // snapshot race) — the no-match contract the group
+            // lane owns, dinner-11.
             if saturated > 0 {
                 return Err(super::target_no_match_error(
                     format!(

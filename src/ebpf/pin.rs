@@ -30,7 +30,7 @@ pub const PIN_LINK_UL: &str = "/sys/fs/bpf/zelynic/enforce_ul_link";
 /// shared slots when the LAST policy referencing it is gone (the
 /// improve-10 "no single removal may decide" rule now decides at
 /// the last reference — 256 slots, one fresh quasi-random group id
-/// per strict-multi invocation, previously never reclaimed).
+/// per group-lane invocation, previously never reclaimed).
 pub const PIN_MAP_POLICY_DL: &str = "/sys/fs/bpf/zelynic/cgroup_policy_dl";
 pub const PIN_MAP_POLICY_UL: &str = "/sys/fs/bpf/zelynic/cgroup_policy_ul";
 pub const PIN_MAP_BUCKET_DL: &str = "/sys/fs/bpf/zelynic/cgroup_bucket_dl";

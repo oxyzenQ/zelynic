@@ -311,7 +311,7 @@ other class already fenced:
   (`math::book`) the enforce() path rides, with the SMP-exactness
   pin (math_tests.rs: 8 threads x 25k booked drops, ledger exact to
   the packet and byte). Two more audit closes ride the same commit:
-  the strict-multi group-id derivation moved from
+  the group lane's group-id derivation moved from
   `pid*1000 + nanos%1000` (banded: same-pid ids lived inside one
   1000-wide window, colliding on pid-space wrap — two live groups
   then shared ONE bucket) to a splitmix64 mix over (pid, nanos)

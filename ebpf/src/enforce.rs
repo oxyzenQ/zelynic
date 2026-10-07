@@ -144,7 +144,7 @@ pub(crate) fn try_enforce(
     }
 
     // rate_bps == 0 means BLOCKED (drop all packets). Used by the
-    // block-single command. Schema v3: changed from allow to drop.
+    // block verb. Schema v3: changed from allow to drop.
     // Schema v5 (NIGHT-improve-14): the drop is BOOKED here, the
     // same packets_dropped/bytes_dropped accounting the enforce()
     // drop branch keeps. The pre-v5 verdict returned before the
@@ -265,7 +265,7 @@ pub(crate) fn try_enforce(
     // reclaim.rs) keeps the map from filling in the first place;
     // this fallback is the belt for whatever still slips through.
     if pol_sane.group_id != 0 {
-        // The strict-multi group lane keeps the legacy FCFS shape
+        // The group lane keeps the legacy FCFS shape
         // (documented scope): its members are enumerated by the
         // apply itself, so the fairness problem AMMSP has (unbounded
         // unknown leaves) does not exist here.

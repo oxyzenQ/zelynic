@@ -57,7 +57,7 @@
 //
 // The debt lives in its own LRU map (the leaf-bucket posture), keyed
 // by the generation-prefixed BUDGET key — the pool's root for the
-// DRR lane, the group id for the strict-multi lane (the repair-6
+// DRR lane, the group id for the group lane (the repair-6
 // discipline: a fresh budget never inherits the predecessor's debt,
 // stale entries age out through the LRU). The per-socket lane
 // carries the same law with its own shape (schema v21, the

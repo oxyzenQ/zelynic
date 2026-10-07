@@ -102,7 +102,7 @@ pub const MAX_ENFORCABLE_BURST: u64 = u64::MAX / (2 * 1_000_000_000);
 /// best-effort by their own design contract, so past this many
 /// live rows they admit what fits and warn about the rest, instead
 /// of aborting the whole fleet sweep the way the ATOMIC family
-/// (strict-multi's documented contract) refuses whole. Keep this
+/// (the group lane's documented contract) refuses whole. Keep this
 /// textually in sync with the eBPF-side map definitions — the
 /// burst-bound mirror's discipline, one capacity constant shared
 /// by every pinned map.
@@ -232,7 +232,7 @@ unsafe impl aya::Pod for LimiterStatsRaw {}
 
 // ━━ High-level API types ━━
 
-/// The strict-multi group-id derivation (NIGHT-master-3 hardening).
+/// The group lane's group-id derivation (NIGHT-master-3 hardening).
 ///
 /// The former derivation — `pid*1000 + nanos%1000` — had a
 /// STRUCTURED collision: two invocations collide exactly when pid
@@ -318,7 +318,7 @@ pub enum Target {
     /// A container reference (charger-core-2, TIER A #5):
     /// `docker://<name>` / `k8s://<ns>/<pod>` — resolved to the
     /// workload's cgroup id by identity::container; every
-    /// downstream surface is the strict-single machinery.
+    /// downstream surface is the single lane's machinery.
     Container(ContainerRef),
 }
 

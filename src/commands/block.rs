@@ -97,7 +97,7 @@ fn handle_block_single(
         during_spec.as_ref(),
     )?;
     if applied == 0 {
-        // NIGHT-dinner-11: the no-match hard error (strict-single's
+        // NIGHT-dinner-11: the no-match hard error (the single lane's
         // contract, the block family's wording). The hunt-10 colon
         // tip excludes the canonical cg: prefix — a miss on cg:<id>
         // is a dead id, not a list mistake.
@@ -196,8 +196,8 @@ fn handle_block_multi(
         during_spec.as_ref(),
     )?;
     if applied == 0 {
-        // NIGHT-dinner-11: the no-match hard error (block-single's
-        // contract, the multi's plural wording).
+        // NIGHT-dinner-11: the no-match hard error (the block
+        // family's single-lane contract, the multi's plural wording).
         return Err(super::target_no_match_error(
             format!("No cgroups found for any target in '{targets_str}' — nothing was blocked"),
             &[super::TIP_LIST_APPS.to_string()],
@@ -351,7 +351,7 @@ pub fn handle_block_all(force_this: bool, during: Option<&str>, verbose: bool) -
                      blocked, {saturated} left with access",
                     targets.len()
                 ),
-                &["run 'zelynic unstrict-all' to make room".to_string()],
+                &["run 'zelynic u --all' to make room".to_string()],
             ));
         }
         return Err(super::target_no_match_error(
@@ -363,7 +363,7 @@ pub fn handle_block_all(force_this: bool, during: Option<&str>, verbose: bool) -
         crate::output::eprintln_warn_labeled(&format!(
             "Policy ceiling saturated: {applied} app(s) blocked, {saturated} left with \
              access — the policy family's {POLICY_CAP}-row capacity is full; \
-             'zelynic unstrict-all' makes room."
+             'zelynic u --all' makes room."
         ));
     }
 
@@ -377,8 +377,8 @@ pub fn handle_block_all(force_this: bool, during: Option<&str>, verbose: bool) -
     }
 
     // NIGHT-improve-28: the whole-system block reverses with the
-    // sledgehammer — 'unstrict-all' (the epilogue carries the green
+    // sledgehammer — 'u --all' (the epilogue carries the green
     // OK. verdict and the follow-up commands).
-    super::apply_success_epilogue("zelynic unstrict-all", "restore access");
+    super::apply_success_epilogue("zelynic u --all", "restore access");
     Ok(())
 }

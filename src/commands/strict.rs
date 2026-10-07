@@ -379,7 +379,7 @@ fn handle_strict_multi(
     // Prevent concurrent operations (race condition elimination).
     //
     // NIGHT-hunt-30: the lock's scope is the APPLY, not the probe —
-    // strict-single's own dinner-28 contract, one lane over. The
+    // the single lane's own dinner-28 contract, one lane over. The
     // probe mutates no policy state (it reads the maps it was handed
     // and spawns its own transient cgroups), so the lock drops
     // before the window opens and a concurrent unstrict stays
@@ -411,7 +411,7 @@ fn handle_strict_multi(
         let applied =
             limiter.apply_group_atomic(&targets, &rates, &bracket, during_spec.as_ref())?;
         if applied == 0 {
-            // NIGHT-dinner-11: the no-match hard error (strict-single's
+            // NIGHT-dinner-11: the no-match hard error (the single lane's
             // contract, the multi's plural wording).
             return Err(super::target_no_match_error(
                 format!("No cgroups found for any target in '{targets_str}' — nothing was limited"),

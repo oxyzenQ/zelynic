@@ -149,7 +149,7 @@
 ///     rides bpf_get_socket_cookie, the observer's proven helper
 ///     (NIGHT-boost-26) — no tracepoint needed; a zero cookie
 ///     degrades to the DRR cgroup lane, still policed. The CLI
-///     surface is strict-single's --per-socket flag (the lane is
+///     surface is the single verb's --per-socket flag (the lane is
 ///     deliberately individual: a group policy IS the shared-budget
 ///     answer). One-time re-apply as ever.
 /// v16 (NIGHT-dinner-28, the learned-share draw): the DRR draw's
@@ -249,7 +249,7 @@
 ///     CE-marked instead of dropped, and its bytes charge a debt
 ///     word in the two new pinned LRU maps ecn_debt_dl/ul (keyed by
 ///     the generation-prefixed budget key: the pool's root on the
-///     DRR lane, the group id on the strict-multi lane — the
+///     DRR lane, the group id on the group lane — the
 ///     repair-6 discipline). Every DELIVERED packet on the lane pays
 ///     that debt from the budget's own token stream afterwards, out
 ///     of the leftover the delivery left behind (ebpf/src/ecn.rs
@@ -298,7 +298,7 @@
 ///     under the lane), and the quiet flow's protection is the
 ///     zero-stranding demand-sized take (taken == got, measured).
 ///     cookie == 0 (the hook's honest attribution limit) rides the
-///     leaf lane verbatim; the per-socket and strict-multi lanes are
+///     leaf lane verbatim; the per-socket and group lanes are
 ///     untouched by documented scope. Six new maps, all
 ///     datapath-internal (the leaf_bucket family's contract); the
 ///     bump forces pinned v19 programs to reload into the

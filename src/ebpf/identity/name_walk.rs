@@ -16,8 +16,9 @@ use std::fs;
 use super::{pid_cgroup_id, pid_comm};
 
 /// Resolve a SET of process names in ONE /proc walk: the answer to
-/// "strict-multi a:b:c with a thousand names costs a thousand full
-/// /proc walks". For every pid the walk reads exactly one comm
+/// "a `::` list with a thousand names costs a thousand full
+/// /proc walks" (the group lane's pre-improve-50 cost, when the
+/// verb still spelled itself strict-multi). For every pid the walk reads exactly one comm
 /// through the canonical boundary (NIGHT-optimized-1 — `pid_comm`,
 /// so a prctl-spoofed comm can never match one thing and display
 /// another); a pid whose comm matches a wanted name pays one more

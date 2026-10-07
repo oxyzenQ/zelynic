@@ -9,7 +9,7 @@
 //! - `format.rs`  — rate/duration parsing + formatting helpers
 //! - `parse.rs`   — the value parsers (the research-3 split)
 //! - `policy.rs`  — the apply family (unset-leg removal, improve-29)
-//! - `atomic.rs`  — the transactional strict-multi (charger-core-2)
+//! - `atomic.rs`  — the group lane's transactional write (charger-core-2)
 //! - `policy_lines.rs` — the policy surface's pure line formatters
 //! - `policy_write.rs` — the per-cgroup leg writer (improve-40 split)
 //! - `reclaim.rs` — the remove path (unstrict) + state reclamation
@@ -438,7 +438,7 @@ impl Limiter {
     ///
     /// Identity refresh is lazy — only triggered when `refresh_identity()`
     /// or `maybe_refresh_identity()` is called. This speeds up startup
-    /// for write operations (strict-single etc.) that don't need identity.
+    /// for write operations (`strict` etc.) that don't need identity.
     pub fn open_pinned(verbose: bool) -> Result<Self> {
         let limiter = Limiter {
             bpf: None, // No Ebpf object — using pinned maps directly

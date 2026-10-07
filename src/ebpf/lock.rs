@@ -5,9 +5,9 @@
 //!
 //! ## Why this exists
 //!
-//! zelynic is fire-and-forget: `strict-single` loads BPF, writes policy,
+//! zelynic is fire-and-forget: `strict` loads BPF, writes policy,
 //! and exits. If two operations run simultaneously (e.g., user runs
-//! `strict-single brave 100kb` in one terminal and `unstrict-all` in
+//! `strict brave 100kb` in one terminal and `u --all` in
 //! another), they can corrupt BPF state:
 //!
 //! 1. Terminal 1: `attach()` loads BPF + pins programs

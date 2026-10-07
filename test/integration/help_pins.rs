@@ -179,8 +179,10 @@ fn test_help_short_aliases_use_equals_pairing() {
 /// --help (NIGHT-hunt-12: the man page renderer is gone, so --help is
 /// the only pinned surface). NIGHT-blade-2: the one-command "limit"
 /// group is dissolved — limit-all joined the strict family as
-/// strict-all, so the strict group now carries single/multi/all and
-/// the retired heading must not linger.
+/// strict-all, so the strict group carried single/multi/all that
+/// era (improve-53/54 later merged the spellings into one `strict`
+/// verb with the `--all` lane) and the retired heading must not
+/// linger.
 #[test]
 fn test_help_groups_commands_by_verb() {
     const GROUPS: [&str; 5] = [
@@ -347,7 +349,7 @@ fn test_help_documents_every_target_form() {
 /// looking at: cumulative bytes since the limit was set, cleared on
 /// removal), and Target formats names the no-match contract — a
 /// target that resolves to nothing is a hard error, exit 1, never a
-/// silent no-op (with the one documented carve-out: unstrict-all on
+/// silent no-op (with the one documented carve-out: `u --all` on
 /// an already-clean system).
 #[test]
 fn test_help_documents_status_ledger_and_no_match_contract() {
