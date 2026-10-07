@@ -22,6 +22,21 @@
 //! are rendered and measured — the frame cost of socket detail is
 //! part of the A/B contract, not an unmeasured add-on.
 //!
+//! NIGHT-hunt-29 (the lts-7 residual closed): the fixture now
+//! RESOLVES synthetic cookies — every socket carries a kernel-shaped
+//! u64 (unique per socket, one dup'd-fd pair sharing a cookie, the
+//! shared-socket-table-row shape the dedup exists for) and every
+//! frame runs the monitor's exact join wiring: socket_cookies() (the
+//! deduped key set, the lts-7 HashSet path at frame cadence), a
+//! synthetic cookie-map result (the figures the loader's point
+//! lookups would return — lifetime counters, deterministic in
+//! (cookie, frame), never an LCG draw so the traffic stream the A/B
+//! protocol freezes stays untouched), and apply_socket_bytes (the
+//! install the renderers read). The cookie: None era's blind spot —
+//! a bench whose byte-exactness claims never covered the join lane —
+//! is closed: the dedup, the install, and the [dl X | ul Y] figure
+//! rendering are measured frame work now.
+//!
 //! NIGHT-improve-2 protocol extension: each captured frame carries
 //! BOTH the logical content (the lines the renderer produced — the
 //! visual-parity surface, directly comparable with pre-diff captures)
@@ -42,7 +57,7 @@ use crate::ebpf::connections::{
     CgroupConnections, ConnectionMap, ProcessDetail, Proto, SocketInfo,
 };
 use crate::ebpf::identity::{IdentityMap, ProcessIdentity};
-use crate::ebpf::loader::{CgroupDelta, CounterSummary};
+use crate::ebpf::loader::{CgroupDelta, CounterSummary, SocketBytes};
 use crate::terminal::DiffScreen;
 
 #[test]
@@ -130,12 +145,26 @@ fn frame_bench_eagle() {
         });
 
         if i % 3 == 0 {
+            // NIGHT-hunt-29: RESOLVED synthetic cookies, kernel-shaped
+            // u64s unique per socket across the fixture, plus ONE
+            // dup'd-fd pair (fd 3 holds fd 0's socket again — same
+            // remote, same cookie, the shared-socket-table-row shape
+            // the walk matches twice and the dedup absorbs). The
+            // cookie: None era was lts-7's documented residual: the
+            // join lane (dedup + install + figure rendering) never
+            // ran under this harness.
+            let cookie_base = 0x5EED_0000_u64 + 16 * i as u64;
             let socket = |idx: usize| SocketInfo {
                 proto: if idx == 2 { Proto::Udp } else { Proto::Tcp },
-                remote: remotes[idx % remotes.len()].to_string(),
+                remote: remotes[if idx == 3 { 0 } else { idx } % remotes.len()].to_string(),
                 state: if idx == 2 { "CLOSE" } else { "ESTABLISHED" },
                 queued: false,
-                cookie: None,
+                cookie: Some(match idx {
+                    // fd 3 is the dup'd fd: fd 0's socket, fd 0's
+                    // cookie — the dedup's collapse case.
+                    3 => cookie_base + 1,
+                    _ => cookie_base + 1 + idx as u64,
+                }),
             };
             conns.insert(
                 cg,
@@ -145,7 +174,7 @@ fn frame_bench_eagle() {
                         ProcessDetail {
                             pid: 4_000 + i as u32,
                             comm: "curl".to_string(),
-                            sockets: vec![socket(0), socket(1)],
+                            sockets: vec![socket(0), socket(1), socket(3)],
                         },
                         ProcessDetail {
                             pid: 5_000 + i as u32,
@@ -203,6 +232,31 @@ fn frame_bench_eagle() {
             }
         }
         frame_no += 1;
+
+        // The per-frame cookie join (NIGHT-hunt-29): the monitor
+        // loop's exact wiring on synthetic cookies — socket_cookies()
+        // for the deduped key set (the lts-7 HashSet path, now
+        // measured at frame cadence: 36 walked sockets, 27 distinct
+        // keys, the dup'd fd absorbed), a synthetic cookie-map result
+        // standing in for the loader's point-lookups (lifetime
+        // counters, a pure function of (cookie, frame) — NO LCG
+        // draws, so the traffic stream the A/B protocol freezes stays
+        // byte-identical and the only visual delta vs the cookie:
+        // None era is the figures themselves), and
+        // apply_socket_bytes for the install the renderers read.
+        let cookies = conns.socket_cookies();
+        let mut join = std::collections::HashMap::with_capacity(cookies.len());
+        for &cookie in &cookies {
+            let lane = (cookie % 97) + 1;
+            join.insert(
+                cookie,
+                SocketBytes {
+                    dl: lane * 78_000 + frame_no * lane * 12_000,
+                    ul: lane * 9_000 + frame_no * lane * 1_400,
+                },
+            );
+        }
+        conns.apply_socket_bytes(join);
 
         let mut cgroups = Vec::with_capacity(CGROUPS);
         for i in 0..CGROUPS {
