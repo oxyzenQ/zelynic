@@ -27,6 +27,46 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **fix(identity) + fix(limiter) + fix(commands): NIGHT-hunt-28 —
+  the name lists' O(N x /proc) resolution closed: one walk for the
+  whole list (hunt-27's named residual #1, owner-called).** The
+  class: improve-50 closed the numeric ids' quadratic (the multi
+  danger guard's one-walk sharing), but the NAME lane kept walking
+  /proc once per name, twice over — `resolve_target` per name in
+  the apply's resolve loop, `resolve_name` per name in the
+  root-catch-all guard — so `strict-multi` or `block-multi` with a
+  thousand names paid ~2000 full /proc walks before the first map
+  write ever ran (~16 million comm reads on the dense-server
+  shape improve-31 documents). The fix: the walk moved one layer
+  down — `identity::name_walk::resolve_name_set` is now the ONE
+  /proc walk every name resolution in the estate rides (canonical
+  pid_comm + pid_cgroup_id boundaries kept exactly), answering a
+  SET of names in one pass with the matched (pid, cgroup) pairs
+  per name (the trace evidence, the dedup-first-seen reduction
+  shared by every caller). The multi lanes resolve through
+  `resolve_target_list`, the batched twin: strict-multi's atomic
+  pre-flight and block-multi's group resolve walk once for the
+  whole list, per-target order and verbose traces byte-identical
+  to the loops they replace; the root-catch-all guard resolves
+  the whole name population in one snapshot (verdict order and
+  wording untouched, pure-id sweep lists still zero walks); the
+  eagle-eyes depth report resolves its '/'-separated names in one
+  snapshot; and `resolve_name` itself is a thin wrapper over the
+  walker, so the probe lane, `ss <name>`, and every batch lane
+  share one matching implementation — the no-drift law, pinned by
+  the single-vs-set agreement test. Single-target lanes keep
+  their exact one-walk cost (now through the shared walker).
+  Five new pins: the pure pair-to-id reduction, the live walk
+  against the test process's own comm (environment-guarded the
+  improve-50 way — the hybrid-v1 runner class asserts the honest
+  absence), the empty-list no-walk contract, the no-drift
+  agreement, and the guard's clean-multi-name friction-free pass.
+  The removal lane's shard (`unstrict-multi` still resolves per
+  name — N walks, no guard, human-scale) is left named in the hunt
+  record with the one-grep diagnosis, the same residual discipline
+  hunt-27 modeled. Full audit:
+  [docs/audits/NIGHT_HUNT_28_NAME_RESOLUTION_ONE_WALK_2026-10-07.md](docs/audits/NIGHT_HUNT_28_NAME_RESOLUTION_ONE_WALK_2026-10-07.md).
+
 - **fix(limiter) + fix(commands): NIGHT-hunt-27 — the sweeps
   saturate instead of refusing whole at the 1024 policy ceiling,
   and two silent-no-op holes close with them: the deep hunt's

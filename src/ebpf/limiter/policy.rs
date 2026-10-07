@@ -199,11 +199,14 @@ impl super::Limiter {
     /// nothing — the best-effort resolution shape apply_group has
     /// owned since its birth.
     fn resolve_group_ids(&mut self, targets: &[Target]) -> Result<Vec<u32>> {
-        // Resolve all targets to cgroup IDs (resolve_target prints
-        // its own trace, so an unresolved target needs no second skip line).
+        // Resolve all targets to cgroup IDs in ONE /proc walk
+        // (NIGHT-hunt-28: the per-target resolve_target loop was
+        // O(names x /proc), the residual hunt-27 named;
+        // resolve_target_list prints each name's own trace, so an
+        // unresolved target still needs no second skip line).
+        let ids_per_target = self.resolve_target_list(targets)?;
         let mut all_cgroup_ids: Vec<u32> = Vec::new();
-        for target in targets {
-            let ids = self.resolve_target(target)?;
+        for ids in ids_per_target {
             if ids.is_empty() {
                 continue;
             }
