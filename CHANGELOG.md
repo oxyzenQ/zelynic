@@ -1816,6 +1816,21 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **fix(docs): NIGHT-total-lts-8 — the audits index stopped at the
+  2026-10-03 Z10 row: twenty audit docs (both total-lts rounds, all
+  three mitigate rounds, both hunt-30 records, the depthbore
+  engine audit, the improve-46..50 arc, hunt-27/28/29, the krun
+  asymmetry, hunt-32's scripts disease, and Z11) were invisible in
+  the institutional-memory map.** Eighteen sessions shipped audit
+  docs without indexing them and nothing failed — no gate exists
+  for index completeness, and the stale-reference sweep lts-6 ran
+  checks whether a doc's path references resolve, not whether the
+  index covers the directory it maps. The fix re-indexes all
+  twenty rows newest-first, every one-liner grounded in the doc's
+  own header (title + scope block, never invented), the table now
+  complete with this round's own record included. The completeness
+  recipe (tracked docs minus index links must be empty) is
+  recorded in the lts-8 audit doc for the next round.
 - **fix(help): NIGHT-total-lts-9 — the `--print-json` reference
   line still advertised `restore` as the pair's fifth JSON surface
   after the total retirement (NIGHT-improve-55) removed the verb
