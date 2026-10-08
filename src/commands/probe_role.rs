@@ -347,7 +347,15 @@ fn cgroup_id_is_clean(limiter: &crate::ebpf::limiter::Limiter, id: u32) -> bool 
 /// id the policy maps key on) against both direction maps.
 fn dir_is_clean(limiter: &crate::ebpf::limiter::Limiter, path: &Path) -> bool {
     match std::fs::metadata(path) {
-        Ok(meta) => cgroup_id_is_clean(limiter, u32::try_from(meta.ino()).unwrap_or(0)),
+        // night-hunt-40: the identity lane keys its maps on the
+        // TRUNCATING spelling (`id64 as u32` — identity/mod.rs, the
+        // documented BPF map-key contract). This probe used
+        // u32::try_from(...).unwrap_or(0), which reads 0 where the
+        // policy row sits at the truncated id — on an inode past
+        // 2^32 the cleanliness check would consult the wrong row and
+        // could measure its window inside a policed chain. One
+        // spelling, the map key's own.
+        Ok(meta) => cgroup_id_is_clean(limiter, meta.ino() as u32),
         Err(_) => false,
     }
 }
