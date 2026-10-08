@@ -27,6 +27,30 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **audit(docs): NIGHT-total-lts-11 — the killer-features pass round
+  five, the first clean sheet.** The seven-commit delta since
+  lts-9's read point (the lts-8 family, audit-4's glossary, hunt-34
+  through hunt-38) hunted under the cross-cutting lenses no
+  self-audit applies: the lock-posture matrix across every new
+  orphan-census sweep call site (the TOCTOU window between a census
+  read and a delete does not exist — every apply-family lane
+  serializes under the same flock the sweep rides, the status visit
+  try-locks, recover locks at entry); the fold-ordering law
+  re-derived from source (absorb folds first, retire runs behind
+  the identity guard, note_frame shares the accumulator's own
+  admits gate so totals and peaks cannot disagree, and the
+  peak-rate law's zero-span guard plus saturating ceilings hold);
+  the help-mirror-vs-truth table re-checked after the masterclass
+  rewrite (JSON surface list, --focus 1s..30s, --interval 1s..60s,
+  --color-mode grammar — zero drift, the drift class lts-9 caught
+  once now guarded by pin plus read); the broken-pipe contract
+  sweep (zero raw println/eprintln anywhere in src); and the
+  underflow/division/indexing scans across the whole tree. Zero
+  finds; the battery green fresh at HEAD (837 + 53 / 0 failed), fmt
+  and clippy --all-targets clean; the A/B benchmark skipped by the
+  docs-only rule (no code changed — no B to measure). The
+  verification instruments are recorded in the audit doc so the
+  clean sheet reads as verification, not fatigue.
 - **monitor(eagle-eyes): NIGHT-hunt-38 — the max line's wobble and
   the cap that could hide the eater; improve-56's masterclass
   pass.** The owner's suspected d1/dl bug decoded first: zero `d1`
