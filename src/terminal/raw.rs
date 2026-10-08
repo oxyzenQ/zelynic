@@ -299,6 +299,17 @@ fn reply_front(bytes: &[u8]) -> Option<ReplyFront> {
         .iter()
         .position(|b| *b == 0x07 || *b == b'\x1b')
         .map(|i| i + OSC_REPLY_HEAD.len() + if body[i] == 0x07 { 1 } else { 2 })?;
+    // night-hunt-40: an ESC on the buffer's last byte is an ST whose
+    // backslash has not arrived yet — the reply is INCOMPLETE, not a
+    // span one byte past the end. The old math produced
+    // end = bytes.len() + 1 and `&bytes[..end]` panicked whenever a
+    // terminal, muxer, or pty split the terminator across input
+    // reads — exactly the split-answer shape absorb() exists to
+    // reassemble. Returning None parks the partial under the cap
+    // until the backslash lands (or the deadline/cap path drops it).
+    if end > bytes.len() {
+        return None;
+    }
     let color = parse_osc_11_rgb(&bytes[..end]);
     Some((end, color))
 }

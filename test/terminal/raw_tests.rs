@@ -93,6 +93,26 @@ fn reply_front_counts_the_st_terminator() {
     assert_eq!(color, Some((30, 44, 58)));
 }
 
+/// night-hunt-40: an ST split across input reads — the ESC lands as
+/// the buffer's final byte, its backslash still in flight — is an
+/// INCOMPLETE reply, not a span one byte past the end. The old math
+/// computed end = len + 1 and panicked on `&bytes[..end]` (a
+/// muxer/pty that splits the terminator kills the monitor mid-
+/// session); the fixed gate parks the partial for absorb() to
+/// finish, and the same bytes still parse once the backslash lands.
+#[test]
+fn reply_front_split_st_terminator_is_incomplete_not_a_panic() {
+    let head: Vec<u8> = b"\x1b]11;rgb:1e1e/2c2c/3a3a".to_vec();
+    let esc_only: Vec<u8> = head.iter().copied().chain([0x1b]).collect();
+    assert_eq!(reply_front(&esc_only), None, "backslash still in flight");
+
+    let mut complete = esc_only.clone();
+    complete.push(b'\\');
+    let (len, color) = reply_front(&complete).expect("complete once the backslash lands");
+    assert_eq!(len, complete.len());
+    assert_eq!(color, Some((30, 44, 58)));
+}
+
 /// An answer missing its terminator is NOT a reply yet: the tracker
 /// accumulates, the scan says None. A non-answer head (a title set,
 /// a CSI) is never a reply either.
