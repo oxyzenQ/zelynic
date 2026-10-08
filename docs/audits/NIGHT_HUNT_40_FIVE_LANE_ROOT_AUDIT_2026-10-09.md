@@ -57,6 +57,7 @@ output-identical).
 ## Lane 2 — code hygiene: the dragons found, the honest residue noted
 
 **Fixed this hunt:**
+
 - A stale `#[allow(dead_code)]` plus a contradicted doc on
   `RingReads::absent()` — production's own `read_pinned_rings()`
   returns that spelling on schema mismatch; the "test-facing
@@ -102,6 +103,7 @@ live object.
 ## Lane 4 — security hardening: 2 fixes, and the hardened inventory
 
 **Fixed:**
+
 - The docker lane's daemon strings now pass `sanitize_comm` at the
   parse choke point (Id, Names, State status) — the sanitize.rs
   contract ("every downstream consumer safe by construction")
