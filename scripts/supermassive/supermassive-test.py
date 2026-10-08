@@ -5084,6 +5084,34 @@ def realnet_band_gate(kind, need_bps):
     return True, got / REALNET_FRESH_GATE_WINDOW
 
 
+def realnet_under_band_reprobe(name, kind, rate_bps, measured_bps, band_str):
+    """NIGHT-hunt-37 followup rider: the one-sided post-fail re-probe.
+    A mid-window sag slips past the pre-window gate (bd8de0e's
+    followup run: a 5 MB/s gate, a 135 KB/s window, a recovered path
+    37 s later — the shared-runner egress oscillates at minute
+    scale). The rider runs ONLY on the under-band side, after the
+    policy is cleared: it re-measures the UNPOLICED path, and a path
+    that cannot feed 2x the band makes the row an instrument-floor
+    SKIP with both figures named — contention, never enforcement. A
+    path that feeds leaves the FAIL standing (band_check records it
+    next); the over-band side never re-probes at all — a real
+    over-delivery fails on the attempt that produced it, the
+    boost-27 one-sided law. Returns the SKIP-record verdict when the
+    path sagged, else None (the caller falls through to band_check).
+    """
+    reprobe_ok, reprobe_bps = realnet_band_gate(kind, rate_bps)
+    if reprobe_ok and reprobe_bps < 2 * rate_bps:
+        return record(
+            name,
+            "SKIP",
+            f"measured {fmt_bps(measured_bps)} under the {band_str} band; the "
+            f"unpoliced path re-probes at {fmt_bps(reprobe_bps)} — a mid-window "
+            "sag, contention, not enforcement (the weekly watch's busy-hour "
+            "residual)",
+        )
+    return None
+
+
 def stage_realnet_probe():
     """Walk the fallback chain; the first endpoint that feeds wins.
     Every miss is reported (a silent chain would hide a dead network
@@ -5215,17 +5243,28 @@ def stage_realnet_strict_download():
     if got is None:
         clear_all()
         return record(name, "FAIL", f"worker failed: {err}")
-    passed = band_check(
+    measured = got / REALNET_RATE_WINDOW
+    under = measured < REALNET_BAND_LO * REALNET_DL_RATE_BPS
+    # The proofs ride the live policy (drops + the accounting band,
+    # true measurements whatever the verdict lands as), then the
+    # policy clears BEFORE any re-probe — the re-probe must measure
+    # the unpoliced path.
+    enforcement_proofs("real internet strict", got)
+    clear_all()
+    if under:
+        sagged = realnet_under_band_reprobe(
+            name, "dl", REALNET_DL_RATE_BPS, measured, REALNET_DL_RATE_STR
+        )
+        if sagged is not None:
+            return sagged
+    return band_check(
         name,
-        got / REALNET_RATE_WINDOW,
+        measured,
         REALNET_DL_RATE_BPS,
         extra=f"via {DL_ENDPOINT[0]}",
         lo=REALNET_BAND_LO,
         hi=REALNET_BAND_HI,
     )
-    enforcement_proofs("real internet strict", got)
-    clear_all()
-    return passed
 
 
 def stage_realnet_strict_upload():
@@ -5252,16 +5291,23 @@ def stage_realnet_strict_upload():
     if got is None:
         clear_all()
         return record(name, "FAIL", f"worker failed: {err}")
-    passed = band_check(
+    measured = got / REALNET_RATE_WINDOW
+    under = measured < REALNET_BAND_LO * REALNET_UL_RATE_BPS
+    clear_all()
+    if under:
+        sagged = realnet_under_band_reprobe(
+            name, "ul", REALNET_UL_RATE_BPS, measured, REALNET_UL_RATE_STR
+        )
+        if sagged is not None:
+            return sagged
+    return band_check(
         name,
-        got / REALNET_RATE_WINDOW,
+        measured,
         REALNET_UL_RATE_BPS,
         extra=f"via {UL_ENDPOINT[0]}",
         lo=REALNET_BAND_LO,
         hi=REALNET_BAND_HI,
     )
-    clear_all()
-    return passed
 
 
 def stage_realnet_strict_all():
@@ -5308,9 +5354,16 @@ def stage_realnet_strict_all():
         got, err = realnet_download("a", REALNET_RATE_WINDOW)
         if got is None:
             return record(name, "FAIL", f"worker failed: {err}")
+        measured = got / REALNET_RATE_WINDOW
+        under = measured < REALNET_BAND_LO * 2_000_000
+        if under:
+            clear_all()
+            sagged = realnet_under_band_reprobe(name, "dl", 2_000_000, measured, "2mb")
+            if sagged is not None:
+                return sagged
         return band_check(
             name,
-            got / REALNET_RATE_WINDOW,
+            measured,
             2_000_000,
             extra=f"via {DL_ENDPOINT[0]}",
             lo=REALNET_BAND_LO,
