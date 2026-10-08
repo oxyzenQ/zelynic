@@ -27,6 +27,41 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **test(supermassive): NIGHT-hunt-36 — the thirteen-innovation
+  depth audit: two live-lane holes found and closed in the v1
+  matrix.** The owner's full-ledger ask (post private-research-4,
+  post the grammar merges): verify the supermassive estate's depth
+  coverage for every applied innovation. Eleven of the thirteen
+  carry their full three-slice depth (Rust pins, suite rows, live
+  lane) and stay at peak — the audit map re-verified them
+  post-merge (AMMSP and the DRR fair-share on the live matrix plus
+  the A/B battery; ECN-first on the policer rows, the claims
+  precision row, and the ect-probe; QUIC on the claims attribution
+  rows; the guarantee brackets on the v4 law ladder, the claims
+  floor rows, and the guarantee-probe; bypass detection's both
+  sides on the v2 shadow audit; self-proving on the VERIFIED rows
+  and the honest failure lane; container-native on the v3 battery
+  and the container workflow; the atomic multi-target lanes on the
+  `::` rows; the ring on the sustain/ladder windows, the
+  kill-battery, and the claims rows). The two holes, one root
+  cause class (pins-and-parse depth that never picked up the live
+  row the older enforcement features were born with): the
+  per-socket tier had ZERO live rows anywhere (no lane ever
+  enforced --per-socket on a real kernel) — closed by
+  test_per_socket_burst, the mirror of test_curl_burst with the
+  opposite sharing verdict (six connections, six buckets: the
+  ledger scale-up floor 2.5 where the shared lane caps at 1.60,
+  the per-connection cap and floor, the (N+1)-bucket exact
+  ceiling, and the download_per_socket JSON round-trip); and the
+  --during window's own expiry was never watched close — closed by
+  test_during_expiry (a 3s window: the row live under it, a plain
+  status visit lifting the expired row via the lazy sweep, and the
+  unpoliced-after measurement at 10x the retired cap). Both rows
+  ride the desktop matrix after the burst row they mirror; the
+  live green belongs to the next VM run, the estate's standing
+  division for root-gated rows. Empirical, fresh on this tree:
+  the full ebpf battery 834 + 53 passed, v4 147/0/0, every engine
+  self-test green.
 - **fix(cli): NIGHT-hunt-35 — the help masterclass: the --help
   reference goes symmetric, compact, and grey-tiered (the owner's
   three-defect audit).** Asymmetric columns: every flag table now
