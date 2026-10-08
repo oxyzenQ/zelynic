@@ -615,6 +615,14 @@ jobs:
       # a desktop machine has both one apt away, and the claims the
       # rows prove (no netfilter path, the kernel run-time cost) are
       # the claims a user buys the tool on.
+      # NIGHT-hunt-37 adds the QUIC client: aioquic + its wheel
+      # dependencies (cryptography, pylsqpack, ~10 MB) staged through
+      # the container's own python and survived past pip's purge —
+      # the v1 matrix's QUIC row (the hunt-36 residual, owner-
+      # approved) drives N real HTTP/3 connections through one
+      # listening socket on every leg; a lane without the stack
+      # SKIPs honestly, but the CI rootfs must never carry that
+      # skip, so the staging FAILS the leg instead.
       - name: Assemble the micro-VM rootfs
         run: |
           set -euo pipefail
@@ -677,6 +685,33 @@ jobs:
             test -n "$src" || { echo "FAIL: no bpftool inside the linux-tools chain ($pkg)"; exit 1; }
             install -m 0755 "$src" /usr/bin/bpftool
             rm -rf /tmp/bpx /tmp/linux-tools-*.deb
+          '
+          # NIGHT-hunt-37: the QUIC client rides the rootfs (the
+          # hunt-36 residual, owner-approved): aioquic + its wheel
+          # dependencies, staged through the CONTAINER'S OWN python
+          # so the compiled wheels (pylsqpack, cryptography) match
+          # the guest interpreter ABI — jammy's 3.10, noble's 3.12,
+          # aioquic's cp310-abi3 wheel covers both. pip itself is
+          # transient plumbing: installed, used, PURGED (autoremove
+          # takes its auto-dependencies), so only the ~10 MB of
+          # QUIC libraries ride the RAM-resident cpio. The PEP 668
+          # split: jammy's pip installs plain, noble's is
+          # externally-managed and needs --break-system-packages —
+          # the || fallback speaks both dialects. A staging failure
+          # FAILS the leg here on the runner, where retries are
+          # cheap (the improve-48 bpftool law): the in-VM QUIC row
+          # must never silently skip its proof.
+          docker exec floor-rootfs sh -ec '
+            apt-get install -y --no-install-recommends python3-pip >/dev/null
+            pip3 install --no-cache-dir aioquic >/dev/null 2>&1 \
+              || pip3 install --no-cache-dir --break-system-packages aioquic >/dev/null
+            python3 -c "import aioquic, cryptography, pylsqpack" \
+              || { echo "FAIL: the QUIC client stack did not import inside the rootfs"; exit 1; }
+            apt-get purge -y python3-pip >/dev/null
+            apt-get autoremove -y >/dev/null
+            python3 -c "import aioquic, cryptography, pylsqpack" \
+              || { echo "FAIL: the QUIC client stack did not survive the pip purge"; exit 1; }
+            echo "QUIC client staged: $(python3 -c "import aioquic; print(aioquic.__version__)")"
           '
           docker export floor-rootfs -o rootfs.tar
           mkdir -p rootfs
