@@ -14,6 +14,11 @@ pub(crate) mod cleanup;
 pub(crate) mod eagle;
 pub(crate) mod guarantee;
 pub(crate) mod help;
+// NIGHT-hunt-39: the flag estate (Global flags, Rate formats, Pro
+// mode) split from help.rs at the 600-line no-mercy cap — every
+// spelling surface one module, the flag_row tier law included.
+// Pure reference rendering (no eBPF dependency), like help.
+pub(crate) mod help_flags;
 #[cfg(feature = "ebpf")]
 pub(crate) mod list_apps;
 #[cfg(feature = "ebpf")]

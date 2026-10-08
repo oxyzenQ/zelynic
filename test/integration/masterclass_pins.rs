@@ -11,6 +11,10 @@
 //! first two contracts on the synopsis law (both lanes + the
 //! `[flags — see Pro mode]` pointer on one line) and added the
 //! grey-tier pin here — the tidy's own contracts live together.
+//! NIGHT-hunt-39 (the flag tier) added its pin beside them: every
+//! flag spelling renders the grey grammar tier, span-exact, with
+//! the one computed description column (19) across both flag
+//! tables and their continuations.
 
 use crate::zelynic_cmd;
 
@@ -141,6 +145,165 @@ fn test_help_synopsis_lines_render_grey_under_purple_headings() {
         !synopsis.contains("\x1b[1;38;5;135m") && !heading.contains("\x1b[38;5;245m"),
         "the grey synopsis and purple heading tiers must not bleed into each other"
     );
+}
+
+/// NIGHT-hunt-39 (the flag tier, owner mandate): every flag
+/// spelling on the reference renders in the calm-grey grammar tier
+/// — the flag tables' spelling columns AND the inline prose
+/// mentions (flags are grammar, the same tier the synopses ride,
+/// token-wise). Pinned at 256-color depth: grey = index 245, the
+/// span covering the spelling exactly (padding after the reset
+/// stays default; prose around an inline mention stays default).
+/// The description column is ONE law: 19 — the --reset-terminal /
+/// --interval SEC width, honored by the rows AND their
+/// continuations (hunt-35's one-column claim was 18/19-mixed in
+/// the rendered truth, three rows one wide of their own
+/// continuations; the column is computed in flag_row now, and
+/// this pin holds it closed). Boundaries: the example lines keep
+/// the solid green tier — zero grey bleed into boost-4's "this is
+/// what you type" tier. The NO_COLOR escape-free contract stays
+/// pinned in help_pins (the green-tier test).
+#[test]
+fn test_help_flag_spellings_render_grey_across_tables_and_prose() {
+    let mut cmd = zelynic_cmd();
+    cmd.arg("--help")
+        .env_remove("NO_COLOR")
+        .env_remove("CLICOLOR")
+        .env("CLICOLOR_FORCE", "1")
+        .env("TERM", "xterm-256color");
+    let colored = cmd
+        .output()
+        .expect("Failed to execute zelynic --help (flag-tier run)");
+    assert_eq!(colored.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&colored.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    let grey = "\x1b[38;5;245m";
+    let reset = "\x1b[0m";
+
+    // The owner's own --all row: the grey span wraps the spelling
+    // exactly; the padding after the reset stays default.
+    let all_row = lines
+        .iter()
+        .find(|l| l.contains("the lane that owns every user app"))
+        .expect("the --all row must exist");
+    assert!(
+        all_row.contains(&format!("{grey}--all{reset}")),
+        "the --all spelling must render calm grey (245), got: {all_row}"
+    );
+    // A Global flags row rides the same tier — the two tables
+    // share the law, and -h, --help carries both spellings in one
+    // span.
+    let help_row = lines
+        .iter()
+        .find(|l| l.contains("This end-to-end reference"))
+        .expect("the -h, --help row must exist");
+    assert!(
+        help_row.contains(&format!("{grey}-h, --help{reset}")),
+        "the -h, --help spelling must render calm grey (245), got: {help_row}"
+    );
+    // Inline prose mentions ride the tier too — the safety
+    // bullet's --force-this, mid-sentence, prose default on both
+    // sides of the span.
+    let safety = lines
+        .iter()
+        .find(|l| l.contains("One flag lifts every guard"))
+        .expect("the safety guard bullet must exist");
+    assert!(
+        safety.contains(&format!("guard: {grey}--force-this{reset}")),
+        "the inline --force-this mention must render calm grey, got: {safety}"
+    );
+    // The pure-spelling row (the per-direction family) greys its
+    // whole flag list — one span, four spellings, no prose.
+    let flag_list = lines
+        .iter()
+        .find(|l| l.contains("--floor-download"))
+        .expect("the per-direction spelling list must exist");
+    assert!(
+        flag_list.contains(&format!(
+            "{grey}--floor-download, --floor-upload, --ceil-download, --ceil-upload{reset}"
+        )),
+        "the pure spelling list must render as one grey span, got: {flag_list}"
+    );
+    // The column law: ONE description column across BOTH flag
+    // tables and their continuations — 19, computed by flag_row.
+    let col_after = |line: &str, token: &str| -> usize {
+        let stripped = strip_csi(line);
+        let start = stripped.find(token).expect("token present") + token.len();
+        start + (stripped[start..].len() - stripped[start..].trim_start_matches(' ').len())
+    };
+    let first_col = |line: &str| -> usize {
+        let stripped = strip_csi(line);
+        stripped.len() - stripped.trim_start_matches(' ').len()
+    };
+    let interval_row = lines
+        .iter()
+        .find(|l| l.contains("live monitor refresh"))
+        .expect("the --interval SEC row must exist");
+    assert_eq!(
+        col_after(all_row, "--all"),
+        19,
+        "the --all description column must be 19, got: {all_row}"
+    );
+    assert_eq!(
+        col_after(interval_row, "--interval SEC"),
+        19,
+        "the --interval SEC description column must be 19, got: {interval_row}"
+    );
+    assert_eq!(
+        col_after(help_row, "-h, --help"),
+        19,
+        "the Global table rides the same description column, got: {help_row}"
+    );
+    let pro_cont = lines
+        .iter()
+        .find(|l| l.contains("them all, block them all"))
+        .expect("the --all continuation must exist");
+    assert_eq!(
+        first_col(pro_cont),
+        19,
+        "the Pro mode continuation must sit at the description column, got: {pro_cont}"
+    );
+    let global_cont = lines
+        .iter()
+        .find(|l| l.contains("a kill -9 TUI death"))
+        .expect("the --reset-terminal continuation must exist");
+    assert_eq!(
+        first_col(global_cont),
+        19,
+        "the Global continuation must sit at the description column, got: {global_cont}"
+    );
+    // No bleed: the green example tier stays solid — the Pro mode
+    // --all example line carries green and zero grey.
+    let example_line = lines
+        .iter()
+        .find(|l| l.contains("sudo zelynic s --all 500kb") && l.contains('\x1b'))
+        .expect("the --all example must exist");
+    assert!(
+        example_line.contains("\x1b[38;5;84m") && !example_line.contains(grey),
+        "the example command stays the solid green tier, got: {example_line}"
+    );
+}
+
+/// Strip ANSI CSI SGR sequences (`\x1b[...m`) from one line — the
+/// flag-tier pin measures the DESCRIPTION COLUMN of colored rows,
+/// and the escapes would skew the count. Private to this file's
+/// tier pins (the hunt-35 synopsis pin matches spans directly and
+/// needs no stripping).
+fn strip_csi(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut chars = line.chars();
+    while let Some(c) = chars.next() {
+        if c == '\x1b' && chars.next() == Some('[') {
+            for c2 in chars.by_ref() {
+                if c2 == 'm' {
+                    break;
+                }
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }
 
 /// NIGHT-improve-53: the masterclass grammar's discovery path — the
