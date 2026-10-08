@@ -525,3 +525,43 @@ fn displayable_connected_udp_is_traffic() {
         cookie: None,
     }));
 }
+
+/// night-improve-57 pin: raw sockets (SOCK_RAW from /proc/net/raw{,6})
+/// are shown unconditionally. Raw sockets are not connection-oriented
+/// — the kernel reports the TCP-style sk_state (07=CLOSE for
+/// unconnected, 01=ESTABLISHED for connect()ed) but neither maps to
+/// a "moving bytes" verdict the way TCP's ESTABLISHED does. A raw
+/// socket can move bytes via sendto() without ever calling
+/// connect(), so the remote stays 0.0.0.0:0 in the table while the
+/// socket is actively sending — the same remote guard the UDP
+/// branch uses would hide exactly the traffic the raw tag exists to
+/// surface. The raw arm accepts every state (an unbound raw socket
+/// is rare in userland and worth surfacing; the byte suffix carries
+/// the activity signal). This pin mirrors the night-audit-6 UDP pin
+/// for the raw arm.
+#[test]
+fn displayable_raw_sockets_show_unconditionally() {
+    use crate::ebpf::connections::{Proto, SocketInfo};
+
+    let raw = |remote: &str, state: &'static str| SocketInfo {
+        proto: Proto::Raw,
+        remote: remote.to_string(),
+        state,
+        queued: false,
+        cookie: None,
+    };
+
+    // Connect()ed raw socket (state 01, real remote): the ping shape.
+    assert!(is_displayable(&raw("1.2.3.4:0", "ESTABLISHED")));
+    // Unconnected raw socket with no remote: the nmap/sendto shape.
+    // The remote is 0.0.0.0:0 but the socket is still worth surfacing.
+    assert!(is_displayable(&raw("0.0.0.0:0", "CLOSE")));
+    // Unconnected raw socket with a bound local address but no remote
+    // (some tools bind() but never connect()): still shown.
+    assert!(is_displayable(&raw("0.0.0.0:0", "ESTABLISHED")));
+    // An IPv6 raw socket with no remote: still shown.
+    assert!(is_displayable(&raw("[::]:0", "CLOSE")));
+    // A raw socket with the LISTEN state (rare, but the kernel can
+    // report it for a bound-but-not-active raw socket): still shown.
+    assert!(is_displayable(&raw("0.0.0.0:0", "LISTEN")));
+}

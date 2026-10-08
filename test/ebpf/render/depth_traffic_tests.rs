@@ -330,3 +330,112 @@ fn connected_udp_reaches_the_traffic_rows() {
     assert_eq!(udp_line.pid, 4242);
     assert_eq!(udp_line.dl, Some(5000));
 }
+
+/// night-improve-57 pin: a raw socket (SOCK_RAW from /proc/net/raw)
+/// reaches the depth report's traffic rows. Before this round the
+/// raw tables were not in the read_socket_tables walk, so a process
+/// using a raw socket showed its bytes in the cgroup total but no
+/// detail line in the eagle-eyes tree (the BPF observer is
+/// protocol-agnostic — keyed on cgroup + socket cookie — so the
+/// bytes were counted, just not attributed to an endpoint). This pin
+/// mirrors the night-audit-6 connected-UDP pin for the raw arm: a
+/// raw socket with a resolved cookie joins to its window bytes and
+/// renders with the `raw` tag. The remote may be `0.0.0.0:0` for an
+/// unconnected raw socket (sendto-based tools), so the row spells
+/// `0.0.0.0:0 raw CLOSE [dl X | ul Y]` honestly.
+#[test]
+fn raw_socket_reaches_the_traffic_rows() {
+    let mut conns = ConnectionMap::new();
+    let raw_sock = SocketInfo {
+        proto: Proto::Raw,
+        remote: "1.2.3.4:0".to_string(),
+        state: "ESTABLISHED",
+        queued: false,
+        cookie: Some(3001),
+    };
+    let tcp_sock = socket("93.184.216.34:443", Some(1001));
+    conns.insert(
+        1234,
+        CgroupConnections {
+            total_procs: 1,
+            socket_holders: vec![ProcessDetail {
+                pid: 4242,
+                comm: "ping".to_string(),
+                sockets: vec![tcp_sock, raw_sock],
+            }],
+        },
+    );
+    let mut bytes = join();
+    bytes.insert(1001, SocketBytes { dl: 300, ul: 100 });
+    bytes.insert(3001, SocketBytes { dl: 8000, ul: 200 });
+
+    let focus = traffic_focus(1234, 3, &[delta(1234, 100, 8000)], Some(&conns), &bytes);
+    let text = traffic_section_lines(&focus).join("\n");
+    assert!(
+        text.contains("1.2.3.4:0 raw ESTABLISHED [dl 8.0 KB | ul 200 B]"),
+        "the raw socket row renders with its figures, got: {text}"
+    );
+    // Movers-first: the raw socket out-ate the TCP one (8.3 KB vs
+    // 400 B), so it ranks first — the operator sees the raw socket
+    // at the top of the section, exactly the visibility the round
+    // opened.
+    let raw_line = focus
+        .endpoints
+        .iter()
+        .find(|e| e.proto == "raw")
+        .expect("the raw endpoint survives the census gate");
+    assert_eq!(raw_line.pid, 4242);
+    assert_eq!(raw_line.dl, Some(8000));
+    assert_eq!(raw_line.ul, Some(200));
+    // Movers-first ordering: the raw endpoint ranks above the TCP one.
+    assert_eq!(focus.endpoints[0].proto, "raw");
+    assert_eq!(focus.endpoints[1].proto, "tcp");
+}
+
+/// night-improve-57 pin: an UNCONNECTED raw socket (the sendto-based
+/// shape — nmap, custom IP tools) reaches the traffic rows too. The
+/// remote is `0.0.0.0:0` because the kernel reports no destination
+/// for a raw socket that hasn't called connect(), but the bytes ARE
+/// counted by the BPF observer and the cookie join attributes them
+/// to this socket. The row spells `0.0.0.0:0 raw CLOSE [dl X | ul Y]`
+/// — the honest shape: the operator sees "this process has a raw
+/// socket moving bytes" even when the destination is unknown to
+/// /proc/net/raw.
+#[test]
+fn unbound_raw_socket_reaches_the_traffic_rows() {
+    let mut conns = ConnectionMap::new();
+    let raw_sock = SocketInfo {
+        proto: Proto::Raw,
+        remote: "0.0.0.0:0".to_string(),
+        state: "CLOSE",
+        queued: false,
+        cookie: Some(3001),
+    };
+    conns.insert(
+        1234,
+        CgroupConnections {
+            total_procs: 1,
+            socket_holders: vec![ProcessDetail {
+                pid: 4242,
+                comm: "nmap".to_string(),
+                sockets: vec![raw_sock],
+            }],
+        },
+    );
+    let mut bytes = join();
+    bytes.insert(3001, SocketBytes { dl: 500, ul: 1500 });
+
+    let focus = traffic_focus(1234, 3, &[delta(1234, 1500, 500)], Some(&conns), &bytes);
+    let text = traffic_section_lines(&focus).join("\n");
+    assert!(
+        text.contains("0.0.0.0:0 raw CLOSE [dl 500 B | ul 1.5 KB]"),
+        "the unbound raw socket row renders with its figures, got: {text}"
+    );
+    let raw_line = focus
+        .endpoints
+        .iter()
+        .find(|e| e.proto == "raw")
+        .expect("the unbound raw endpoint survives the census gate");
+    assert_eq!(raw_line.remote, "0.0.0.0:0");
+    assert_eq!(raw_line.state, "CLOSE");
+}

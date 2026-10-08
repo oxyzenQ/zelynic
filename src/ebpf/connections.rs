@@ -58,6 +58,19 @@ const DEFAULT_REFRESH_TTL_SECS: u64 = 3;
 pub enum Proto {
     Tcp,
     Udp,
+    /// Raw IP sockets (SOCK_RAW) — /proc/net/raw, /proc/net/raw6.
+    /// night-improve-57: raw sockets are rare in userland (ping,
+    /// nmap, custom IP-level tools), but their bytes ARE counted by
+    /// the cgroup_skb observer (the BPF path is protocol-agnostic —
+    /// keyed on cgroup id + socket cookie, no L4 filtering). Before
+    /// this variant the per-endpoint attribution was invisible: a
+    /// process using a raw socket showed its bytes in the cgroup
+    /// total but no detail line in the eagle-eyes tree, because the
+    /// /proc walk only matched tcp/udp inodes. The raw table joins
+    /// the same fd-walk + SO_COOKIE plumbing the other two tables
+    /// already use, so the same per-socket byte maps now attribute
+    /// the raw socket's traffic too.
+    Raw,
 }
 
 impl Proto {
@@ -65,10 +78,13 @@ impl Proto {
     /// night-hunt-40 (the depth focus rows, the basic census
     /// fallback, and the JSON document each carried their own
     /// identical ternary; three future drift points become none).
+    /// night-improve-57 added the raw spelling — the same law (one
+    /// canonical spelling, one copy) extends to the third variant.
     pub fn as_str(self) -> &'static str {
         match self {
             Proto::Tcp => "tcp",
             Proto::Udp => "udp",
+            Proto::Raw => "raw",
         }
     }
 }
@@ -438,6 +454,17 @@ impl PidFd {
 }
 
 /// Read all four kernel socket tables into one inode-keyed map.
+///
+/// night-improve-57: the raw tables (/proc/net/raw, /proc/net/raw6)
+/// join the same inode-keyed map. The kernel formats them with the
+/// same column shape as tcp/udp (sl local rem st tx:rx tr:tm
+/// retrnsmt uid timeout inode ref pointer drops — the last three
+/// columns the parser ignores), so `parse_proc_net_line` is reused
+/// verbatim. Raw sockets report the IP-level port as 0000 (the
+/// `:port` suffix is always `:0000`), so the parsed remote is
+/// `IP:0` for unbound raw sockets — honest, the operator sees the
+/// socket exists even when sendto() destinations are not reflected
+/// in the table.
 fn read_socket_tables() -> HashMap<u64, SocketInfo> {
     let mut out = HashMap::new();
     for (file, proto) in [
@@ -445,10 +472,12 @@ fn read_socket_tables() -> HashMap<u64, SocketInfo> {
         ("/proc/net/tcp6", Proto::Tcp),
         ("/proc/net/udp", Proto::Udp),
         ("/proc/net/udp6", Proto::Udp),
+        ("/proc/net/raw", Proto::Raw),
+        ("/proc/net/raw6", Proto::Raw),
     ] {
         let content = match fs::read_to_string(file) {
             Ok(c) => c,
-            Err(_) => continue, // udp6 etc. may be absent — fine
+            Err(_) => continue, // raw6 / udp6 etc. may be absent — fine
         };
         for line in content.lines().skip(1) {
             if let Some((inode, info)) = parse::parse_proc_net_line(line, proto) {

@@ -238,4 +238,68 @@ mod tests {
         );
         assert!(parse_endpoint("nope").is_none());
     }
+
+    /// night-improve-57: /proc/net/raw rows parse with the same
+    /// parser the tcp/udp tables use — the kernel formats them with
+    /// the identical column shape (sl local rem st tx:rx tr:tm
+    /// retrnsmt uid timeout inode ref pointer drops — the last three
+    /// columns the parser ignores). The port is always 0 (raw sockets
+    /// are IP-level, no TCP/UDP port), the state is typically 07
+    /// (TCP_CLOSE) for unconnected raw sockets or 01 (TCP_ESTABLISHED)
+    /// for connect()ed ones. This pin uses a realistic row a ping
+    /// utility might produce: a raw socket connect()ed to 1.2.3.4
+    /// with queued ICMP bytes in flight. The hex address is
+    /// little-endian byte-swapped (04030201 -> 1.2.3.4), the same
+    /// law parse_ipv4_hex applies to every tcp/udp row.
+    #[test]
+    fn parses_raw_line() {
+        // Shape: "  0: 00000000:0000 04030201:0000 01 00000000:00000012 00:00000000 00000000  0  0 424242 1 0000000000000000 0"
+        // — the kernel prints raw sockets with the same column
+        // layout as tcp/udp; the parser reads the first 10 fields
+        // and ignores the trailing ref/pointer/drops. The remote
+        // hex `04030201` byte-swaps to `1.2.3.4`.
+        let line = "  0: 00000000:0000 04030201:0000 01 00000000:00000012 00:00000000 00000000  0  0 424242 1 0000000000000000 0";
+        let (inode, info) = parse_proc_net_line(line, Proto::Raw).expect("valid row");
+        assert_eq!(inode, 424242);
+        assert_eq!(info.remote, "1.2.3.4:0");
+        assert_eq!(info.state, "ESTABLISHED");
+        assert!(info.queued); // rx=0x12 nonzero
+        assert_eq!(info.proto, Proto::Raw);
+    }
+
+    /// night-improve-57: an unbound raw socket (no connect() called)
+    /// reports remote 0.0.0.0:0 — the parser produces that string
+    /// verbatim. The displayable gate (detail::is_displayable, pinned
+    /// in test/ebpf/render/detail_tests.rs) shows the row
+    /// unconditionally for the raw arm, so the operator sees the
+    /// socket exists even when the sendto() destinations are not
+    /// reflected in the table. This pin guards the parse shape: the
+    /// row is parsed, the remote is `0.0.0.0:0`, the state is CLOSE.
+    #[test]
+    fn parses_unbound_raw_line() {
+        let line = "  0: 00000000:0000 00000000:0000 07 00000000:00000000 00:00000000 00000000  0  0 11111 1 0000000000000000 0";
+        let (inode, info) = parse_proc_net_line(line, Proto::Raw).expect("valid row");
+        assert_eq!(inode, 11111);
+        assert_eq!(info.remote, "0.0.0.0:0");
+        assert_eq!(info.state, "CLOSE");
+        assert!(!info.queued);
+        assert_eq!(info.proto, Proto::Raw);
+    }
+
+    /// night-improve-57: raw6 rows parse with the same parser too —
+    /// the kernel formats IPv6 raw sockets with the 32-hex-char
+    /// address + `:0000` port suffix that parse_endpoint already
+    /// handles. The remote hex `00000000000000000000000001000000`
+    /// byte-swaps to `[::1]` (the last 32-bit group `01000000`
+    /// reverses to `00 00 00 01`, the trailing u32 of the IPv6
+    /// address). This pin guards the v6 path.
+    #[test]
+    fn parses_raw6_line() {
+        let line = "  0: 00000000000000000000000000000000:0000 00000000000000000000000001000000:0000 07 00000000:00000000 00:00000000 00000000  0  0 98765 1 0000000000000000 0";
+        let (inode, info) = parse_proc_net_line(line, Proto::Raw).expect("valid row");
+        assert_eq!(inode, 98765);
+        assert_eq!(info.remote, "[::1]:0");
+        assert_eq!(info.state, "CLOSE");
+        assert_eq!(info.proto, Proto::Raw);
+    }
 }
