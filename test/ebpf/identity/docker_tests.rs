@@ -145,6 +145,64 @@ fn parse_docker_reply_ok_and_non_200() {
     assert!(parse_docker_reply(bad).is_err(), "non-200 must be an error");
 }
 
+// ── night-hunt-40: the daemon-lane sanitizer contract ━━━━━━━━━━━
+
+/// Every daemon-supplied string passes sanitize_comm at the parse
+/// choke point: control characters in an Id, a Name, or a State
+/// status become '?' before any consumer (refusal line, ambiguous
+/// list, display label, cgroup matcher) can render them — the
+/// sanitize.rs contract extended to the docker lane. Honest strings
+/// ride the fast path byte-identical (the ok/non-200 pin above
+/// asserts the clean shape unchanged).
+#[test]
+fn daemon_supplied_strings_are_sanitized_at_the_choke_point() {
+    let value = serde_json::json!([{
+        "Id": "abc\u{1b}]52;p;SGVsbG8=\u{7}def1234567890",
+        "Names": ["/evil\u{a}nginx"],
+        "State": {"Status": "run\u{d}ning", "Running": true},
+    }]);
+    let body = serde_json::to_string(&value).unwrap();
+    let reply = format!("HTTP/1.0 200 OK\r\n\r\n{body}");
+    let entries = parse_docker_reply(reply.into_bytes()).expect("canned reply must parse");
+    let e = &entries[0];
+    assert!(
+        !e.id.contains('\u{1b}') && !e.id.contains('\u{7}'),
+        "ESC/BEL must not survive in the id: {:?}",
+        e.id
+    );
+    assert_eq!(e.names[0], "/evil?nginx");
+    assert_eq!(e.state, running_state(true, "run?ning"));
+}
+
+/// The short id is CHAR-boundary safe: a lying daemon's multi-byte
+/// Id never panics the slice (the old `&id[..12.min(len)]` did),
+/// and honest hex ids still truncate to their first 12 chars.
+#[test]
+fn short_id_is_char_boundary_safe() {
+    assert_eq!(short_id("abcdef1234567890"), "abcdef123456");
+    let multi = "\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}";
+    assert_eq!(short_id(multi).chars().count(), 12);
+}
+
+/// The ambiguous verdict rides the same char-safe truncation: two
+/// id-prefix-matched entries with NO names fall back to the short
+/// id — the old byte slice panicked when byte 12 fell mid-char.
+#[test]
+fn ambiguous_verdict_survives_a_multibyte_id() {
+    // The same 2-char (4-byte) prefix makes both ids match the typed
+    // prefix; the diverging byte keeps them distinct containers.
+    let a = "\u{3b1}\u{3b1}1\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}";
+    let b = "\u{3b1}\u{3b1}2\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}\u{3b1}";
+    let entries = [entry(a, &[]), entry(b, &[])];
+    match docker_match(&entries, "\u{3b1}\u{3b1}") {
+        DockerMatch::Ambiguous(names) => {
+            assert_eq!(names[0].chars().count(), 12);
+            assert_eq!(names[1].chars().count(), 12);
+        }
+        other => panic!("expected the ambiguous verdict, got {other:?}"),
+    }
+}
+
 // ── the liveness verdict (charger-core-2d) ━━━━━━━━━━━━━━━━━━━━━━━
 
 /// The State parser: the modern object shape (Running + Status),

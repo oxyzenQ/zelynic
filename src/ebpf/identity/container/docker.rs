@@ -14,6 +14,9 @@ use std::path::{Path, PathBuf};
 use anyhow::{anyhow, bail, Result};
 
 use super::{cgroup_id_of, find_cgroup_dir};
+// NIGHT-cybersecurity-2's always-compiled re-export — the output
+// lane module is private from here (the ebpf-lane compile pinned it).
+use crate::ebpf::identity::sanitize_comm;
 
 /// The docker Engine API endpoint and reply budget. The 4 MiB cap
 /// holds ~2000 containers at the API's entry size — beyond that the
@@ -44,7 +47,9 @@ pub(super) struct DockerEntry {
 pub(super) struct DockerState {
     pub(super) running: bool,
     /// The daemon's short status word ("running", "exited",
-    /// "created", ...) — the error's evidence, printed verbatim.
+    /// "created", ...) — the error's evidence, printed verbatim
+    /// (night-hunt-40: verbatim AFTER the parse-time sanitize —
+    /// control characters became '?' at the choke point).
     pub(super) status: String,
 }
 
@@ -55,17 +60,18 @@ pub(super) struct DockerState {
 /// caller keeps its old error instead of guessing.
 pub(super) fn docker_state_parse(state: &serde_json::Value) -> Option<DockerState> {
     if let Some(running) = state.get("Running").and_then(|v| v.as_bool()) {
-        let status = state
-            .get("Status")
-            .and_then(|v| v.as_str())
-            .unwrap_or(if running { "running" } else { "stopped" })
-            .to_string();
+        let status = sanitize_comm(
+            state
+                .get("Status")
+                .and_then(|v| v.as_str())
+                .unwrap_or(if running { "running" } else { "stopped" }),
+        );
         return Some(DockerState { running, status });
     }
     if let Some(status) = state.as_str() {
         return Some(DockerState {
             running: status == "running",
-            status: status.to_string(),
+            status: sanitize_comm(status),
         });
     }
     None
@@ -118,6 +124,16 @@ pub(super) fn docker_entry_matches(entry: &DockerEntry, typed: &str) -> bool {
         .any(|n| n.strip_prefix('/') == Some(typed))
 }
 
+/// The display short id: the first 12 CHARS, never a byte slice.
+/// night-hunt-40: `&id[..12.min(id.len())]` panicked when byte 12
+/// fell mid-UTF-8 on a daemon-supplied Id — docker ids are hex in
+/// practice, but this parser deliberately survives a lying daemon
+/// (non-200 → error, non-JSON → error, odd State → None), so
+/// char-boundary safety belongs to that same contract.
+fn short_id(id: &str) -> String {
+    id.chars().take(12).collect()
+}
+
 /// Pure: the whole-list verdict.
 pub(super) fn docker_match(entries: &[DockerEntry], typed: &str) -> DockerMatch {
     let matched: Vec<&DockerEntry> = entries
@@ -136,7 +152,7 @@ pub(super) fn docker_match(entries: &[DockerEntry], typed: &str) -> DockerMatch 
                     e.names
                         .first()
                         .map(|n| n.trim_start_matches('/').to_string())
-                        .unwrap_or_else(|| e.id[..12.min(e.id.len())].to_string())
+                        .unwrap_or_else(|| short_id(&e.id))
                 })
                 .collect(),
         ),
@@ -186,6 +202,16 @@ fn docker_http_get(socket: &Path) -> Result<Vec<u8>> {
 /// Split the HTTP reply at the header/body boundary and parse the
 /// entries. The status line must carry 200 (a 404/500 is a daemon
 /// answer, not a container miss — it surfaces as its own error).
+///
+/// night-hunt-40: every daemon-supplied string (Id, Names, State
+/// status) passes [`sanitize_comm`] at this one choke point — the
+/// sanitize.rs contract ("every downstream consumer safe by
+/// construction") applied to the docker lane, whose refusal lines,
+/// ambiguous lists, and display labels otherwise print daemon
+/// bytes the admin's terminal renders verbatim (OSC 52 clipboard
+/// writes, forged output rows, alt-screen corruption). Honest
+/// strings ride the fast path byte-identical, so matching and
+/// verdicts are unchanged.
 pub(super) fn parse_docker_reply(reply: Vec<u8>) -> Result<Vec<DockerEntry>> {
     let split = reply
         .windows(4)
@@ -210,17 +236,13 @@ pub(super) fn parse_docker_reply(reply: Vec<u8>) -> Result<Vec<DockerEntry>> {
         .ok_or_else(|| anyhow!("docker API reply is not a container list"))?;
     let mut entries = Vec::with_capacity(arr.len());
     for item in arr {
-        let id = item
-            .get("Id")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
+        let id = sanitize_comm(item.get("Id").and_then(|v| v.as_str()).unwrap_or(""));
         let names = item
             .get("Names")
             .and_then(|v| v.as_array())
             .map(|a| {
                 a.iter()
-                    .filter_map(|n| n.as_str().map(String::from))
+                    .filter_map(|n| n.as_str().map(sanitize_comm))
                     .collect()
             })
             .unwrap_or_default();
@@ -291,7 +313,7 @@ pub(super) fn resolve_docker(name: &str, verbose: bool) -> Result<Vec<u32>> {
         docker_cgroup_matches(p, &full_id)
     })
     .ok_or_else(|| {
-        let short = &full_id[..12.min(full_id.len())];
+        let short = short_id(&full_id);
         anyhow!(
             "container '{name}' (id {short}) has no cgroup under /sys/fs/cgroup — \
              unrecognized cgroup driver layout"
