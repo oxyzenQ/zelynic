@@ -293,16 +293,75 @@ fn two(cg_a: u32, dl_a: u64, ul_a: u64, cg_b: u32, dl_b: u64, ul_b: u64) -> Coun
 fn peaks_track_the_running_max_of_frame_deltas() {
     let mut session = SessionState::new();
     session.absorb(&frame(7, 100, 200));
-    session.note_frame(&frame(7, 100, 200), None);
+    session.note_frame(&frame(7, 100, 200), std::time::Duration::from_secs(1), None);
     session.absorb(&frame(7, 500, 50));
-    session.note_frame(&frame(7, 500, 50), None);
+    session.note_frame(&frame(7, 500, 50), std::time::Duration::from_secs(1), None);
     session.absorb(&frame(7, 10, 5));
-    session.note_frame(&frame(7, 10, 5), None);
+    session.note_frame(&frame(7, 10, 5), std::time::Duration::from_secs(1), None);
     assert_eq!(session.peaks(), (500, 200));
     // A quiet frame notes nothing and drags nothing down.
     session.absorb(&CounterSummary::default());
-    session.note_frame(&CounterSummary::default(), None);
+    session.note_frame(
+        &CounterSummary::default(),
+        std::time::Duration::from_secs(1),
+        None,
+    );
     assert_eq!(session.peaks(), (500, 200));
+}
+
+/// NIGHT-hunt-38 pin: the peak is the max of RATES, each delta
+/// divided by the span IT was measured over — not the max of raw
+/// bytes restated through some later frame's span. A 1000-byte
+/// frame over a SLOW 10s span ran at 100 B/s; a 500-byte frame
+/// over a clean 1s span ran at 500 B/s: the peak rate is 500, and
+/// the byte-heavier slow frame does not win on volume alone. The
+/// pre-hunt-38 form stored the byte max (1000) and divided by the
+/// CURRENT span at render time — on a later 1s frame it rendered
+/// 1000 B/s, overrating a 100 B/s moment by 10x.
+#[test]
+fn peaks_are_rates_at_their_own_spans_not_bytes() {
+    let mut session = SessionState::new();
+    session.absorb(&frame(7, 1000, 0));
+    session.note_frame(&frame(7, 1000, 0), std::time::Duration::from_secs(10), None);
+    assert_eq!(
+        session.peaks(),
+        (100, 0),
+        "1000 B over a 10s span ran at 100 B/s"
+    );
+    session.absorb(&frame(7, 500, 30));
+    session.note_frame(&frame(7, 500, 30), std::time::Duration::from_secs(1), None);
+    assert_eq!(
+        session.peaks(),
+        (500, 30),
+        "the faster rate wins even on half the bytes"
+    );
+}
+
+/// NIGHT-hunt-38 pin (the wobble): a frame that sets NO new peak
+/// cannot move the stored figure — the pre-hunt-38 footer divided
+/// the byte max by the CURRENT frame's span, so a jittery span
+/// restated the historical peak on every render. The stored rate
+/// is fixed at fold time; later spans do not reach it.
+#[test]
+fn a_quiet_slow_frame_never_restates_the_peak() {
+    let mut session = SessionState::new();
+    session.absorb(&frame(7, 600, 0));
+    session.note_frame(&frame(7, 600, 0), std::time::Duration::from_secs(1), None);
+    assert_eq!(session.peaks(), (600, 0));
+    // A quiet frame over a 10x span: nothing changes.
+    session.note_frame(
+        &CounterSummary::default(),
+        std::time::Duration::from_secs(10),
+        None,
+    );
+    assert_eq!(
+        session.peaks(),
+        (600, 0),
+        "the peak renders at the span it was measured on, never a later frame's"
+    );
+    // A zero span (the loading frame's shape) notes nothing at all.
+    session.note_frame(&frame(7, 100_000, 0), std::time::Duration::ZERO, None);
+    assert_eq!(session.peaks(), (600, 0), "a zero span divides nothing");
 }
 
 /// A filtered frame's peaks are the watched set's own: unwatched
@@ -313,13 +372,13 @@ fn peaks_follow_the_watched_set_not_the_whole_machine() {
     let mut session = SessionState::new();
     let summary = two(7, 100, 20, 8, 1000, 2000);
     session.absorb(&summary);
-    session.note_frame(&summary, None);
+    session.note_frame(&summary, std::time::Duration::from_secs(1), None);
     assert_eq!(session.peaks(), (1100, 2020), "unfiltered: all cgroups");
     // A fresh session watching only cg 7: cg 8's heavy traffic
     // is invisible to the peaks, exactly as it is to the board.
     let mut watched_session = SessionState::new();
     watched_session.absorb(&summary);
-    watched_session.note_frame(&summary, Some(&[7]));
+    watched_session.note_frame(&summary, std::time::Duration::from_secs(1), Some(&[7]));
     assert_eq!(
         watched_session.peaks(),
         (100, 20),
@@ -335,7 +394,7 @@ fn an_unresolved_watch_set_notes_nothing() {
     let mut session = SessionState::new();
     let summary = two(7, 100, 20, 8, 1000, 2000);
     session.absorb(&summary);
-    session.note_frame(&summary, Some(&[]));
+    session.note_frame(&summary, std::time::Duration::from_secs(1), Some(&[]));
     assert_eq!(session.peaks(), (0, 0), "an empty watch list notes nothing");
 }
 
@@ -350,12 +409,12 @@ fn peaks_respect_the_admission_bound() {
     for id in 1..=u32::try_from(MAX_TRACKED_CGROUPS).expect("cap fits u32") {
         session.absorb(&frame(id, 1, 1));
     }
-    session.note_frame(&frame(1, 1, 1), None);
+    session.note_frame(&frame(1, 1, 1), std::time::Duration::from_secs(1), None);
     assert_eq!(session.peaks(), (1, 1));
     // A fresh cgroup past the bound: huge delta, no fold, no peak.
     let outsider = frame(u32::MAX, 10_000_000, 10_000_000);
     session.absorb(&outsider);
-    session.note_frame(&outsider, None);
+    session.note_frame(&outsider, std::time::Duration::from_secs(1), None);
     assert_eq!(
         session.peaks(),
         (1, 1),
@@ -364,7 +423,7 @@ fn peaks_respect_the_admission_bound() {
     // A tracked cgroup inside the bound still raises it.
     let insider = frame(1, 500, 0);
     session.absorb(&insider);
-    session.note_frame(&insider, None);
+    session.note_frame(&insider, std::time::Duration::from_secs(1), None);
     assert_eq!(session.peaks(), (500, 1));
 }
 

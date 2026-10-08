@@ -57,15 +57,21 @@
 //! state at all.
 //!
 //! NIGHT-engrave-6 (the footer's speed pair): the session state also
-//! carries the running PEAKS of the watched set's per-frame deltas —
-//! the max figure the footer's `total max dl | ul` line renders as a
-//! rate. The peaks ride the same session horizon as the totals (they
-//! never reset while the monitor lives), the same admission rule (a
-//! delta the leaderboard cannot fold cannot raise the peak — the max
-//! line can never claim traffic the grand total cannot account for),
-//! and the same watched scope the render filter applies that frame
-//! (a filtered frame's peaks are the watched set's own, matching the
-//! filtered grand the same footer paragraph renders).
+//! carries the running PEAK RATES of the watched set's per-frame
+//! aggregates — the max figure the footer's `total max dl | ul` line
+//! renders. Since NIGHT-hunt-38 the peaks are tracked as RATES at
+//! fold time (each frame's aggregate divided by the span that frame
+//! was measured over): the pre-hunt-38 form stored the peak BYTES
+//! and converted with the CURRENT frame's span at render time, so a
+//! span jitter restated the historical peak — the max line wobbled
+//! on frames that set no new peak. The peaks ride the same session
+//! horizon as the totals (they never reset while the monitor
+//! lives), the same admission rule (a delta the leaderboard cannot
+//! fold cannot raise the peak — the max line can never claim
+//! traffic the grand total cannot account for), and the same
+//! watched scope the render filter applies that frame (a filtered
+//! frame's peaks are the watched set's own, matching the filtered
+//! grand the same footer paragraph renders).
 //!
 //! NIGHT-mitigate-1 (the data-explosion endurance audit's finding
 //! B): the leaderboard's dead rows now RETIRE. The old freeze —
@@ -87,9 +93,12 @@
 //! cgroups, USAGE limitation 11).
 
 use std::collections::HashMap;
+use std::time::Duration;
 
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::loader::CounterSummary;
+
+use super::rate_bps;
 
 /// Per-cgroup traffic accumulated since the monitor started.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -166,13 +175,18 @@ const RETIRE_GRACE_FRAMES: u32 = 3;
 #[derive(Debug, Default)]
 pub(crate) struct SessionState {
     acc: HashMap<u32, SessionAcc>,
-    /// The session's peak per-frame download delta (bytes in one
-    /// poll interval, the watched set's aggregate — NIGHT-engrave-6).
-    /// The footer converts it to a rate with the interval at render
-    /// time; the peak itself is scope- and horizon-honest by
-    /// construction (see `note_frame`).
+    /// The session's peak per-frame download RATE in B/s (the
+    /// watched set's aggregate, NIGHT-engrave-6; NIGHT-hunt-38 —
+    /// tracked as a RATE at fold time, the delta divided by the
+    /// span it was measured over, so the footer's max line never
+    /// wobbles with the CURRENT frame's span jitter: a peak set
+    /// on a slow frame renders at its own slow-frame rate forever,
+    /// exactly as loud as it was, and a later calm frame cannot
+    /// restate it). Scope- and horizon-honest by construction
+    /// (see `note_frame`).
     peak_dl: u64,
-    /// The session's peak per-frame upload delta — the mirror leg.
+    /// The session's peak per-frame upload rate — the mirror leg,
+    /// the same span-at-fold discipline.
     peak_ul: u64,
     /// Consecutive dead frames per tracked row (NIGHT-mitigate-1):
     /// an entry exists only while its row is a retirement candidate,
@@ -307,20 +321,29 @@ impl SessionState {
     }
 
     /// Note one frame's watched-set aggregate into the running
-    /// peaks (NIGHT-engrave-6 — the footer's `total max dl | ul`
-    /// line). `watched` is `None` on an unfiltered frame (every
-    /// cgroup aggregates — the default view's machine-wide scope)
-    /// and `Some(ids)` on a filtered one, the exact set the render
-    /// filter applies that frame, so the peaks and the filtered
-    /// grand the same paragraph renders tell ONE story. A `Some`
-    /// set that resolved to nothing (every name unmatched) notes
-    /// nothing — an empty watch list is a filter, not the absence
-    /// of one. The admission rule rides along (`admits`): a delta
-    /// the leaderboard cannot fold cannot raise the peak. Maxima
-    /// need no saturating arithmetic — `max` is already the honest
-    /// ceiling of the two operands — and like the totals, the
-    /// peaks never reset on a quiet frame: the session horizon.
-    pub(crate) fn note_frame(&mut self, summary: &CounterSummary, watched: Option<&[u32]>) {
+    /// peak RATES (NIGHT-engrave-6 — the footer's `total max dl | ul`
+    /// line; NIGHT-hunt-38 — the peak tracks the RATE, the delta
+    /// divided by the span IT was measured over). `watched` is
+    /// `None` on an unfiltered frame (every cgroup aggregates — the
+    /// default view's machine-wide scope) and `Some(ids)` on a
+    /// filtered one, the exact set the render filter applies that
+    /// frame, so the peaks and the filtered grand the same paragraph
+    /// renders tell ONE story. A `Some` set that resolved to nothing
+    /// (every name unmatched) notes nothing — an empty watch list is
+    /// a filter, not the absence of one. The admission rule rides
+    /// along (`admits`): a delta the leaderboard cannot fold cannot
+    /// raise the peak. A non-positive span notes nothing (the
+    /// loading frame's guard — `rate_bps` owns the zero-interval
+    /// law) and maxima need no saturating arithmetic — `max` is
+    /// already the honest ceiling of the two operands. Like the
+    /// totals, the peaks never reset on a quiet frame: the session
+    /// horizon.
+    pub(crate) fn note_frame(
+        &mut self,
+        summary: &CounterSummary,
+        span: Duration,
+        watched: Option<&[u32]>,
+    ) {
         let mut dl = 0u64;
         let mut ul = 0u64;
         for c in &summary.cgroups {
@@ -333,14 +356,14 @@ impl SessionState {
             dl = dl.saturating_add(c.ingress_bytes);
             ul = ul.saturating_add(c.bytes);
         }
-        self.peak_dl = self.peak_dl.max(dl);
-        self.peak_ul = self.peak_ul.max(ul);
+        self.peak_dl = self.peak_dl.max(rate_bps(dl, span));
+        self.peak_ul = self.peak_ul.max(rate_bps(ul, span));
     }
 
-    /// The session's peak per-frame deltas, per direction
-    /// (NIGHT-engrave-6): raw interval bytes — the footer converts
-    /// to a rate with the poll interval at render time, the same
-    /// `rate_bps` discipline the table's rate columns use.
+    /// The session's peak per-frame watched-set rates in B/s, per
+    /// direction (NIGHT-engrave-6; rates at fold since NIGHT-hunt-38):
+    /// the footer renders them through the same SI speed ladder the
+    /// table's rate columns use, no conversion at render time.
     #[must_use]
     pub(crate) fn peaks(&self) -> (u64, u64) {
         (self.peak_dl, self.peak_ul)

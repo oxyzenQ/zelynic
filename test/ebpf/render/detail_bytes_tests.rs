@@ -165,6 +165,92 @@ fn focus_ranks_endpoints_by_bytes() {
     );
 }
 
+/// NIGHT-hunt-38 pin: the RANKED view's capped tree ranks its
+/// endpoints bytes-desc too — the focus view's own law, applied
+/// where truncation makes it matter most. The fixture walks the
+/// eater LAST: without the ranking, the two-slot cap would show
+/// the two quiet walk-first endpoints and bury the answer; with
+/// it, the cap shows the hungriest two, the eater's figures on
+/// the first child line.
+#[test]
+fn the_ranked_tree_cap_shows_the_hungriest_endpoints() {
+    use crate::ebpf::connections::{
+        CgroupConnections, ConnectionMap, ProcessDetail, Proto, SocketInfo,
+    };
+    use crate::ebpf::loader::SocketBytes;
+    use std::collections::HashMap;
+
+    let socket = |remote: &str, cookie: Option<u64>| SocketInfo {
+        proto: Proto::Tcp,
+        remote: remote.to_string(),
+        state: "ESTABLISHED",
+        queued: false,
+        cookie,
+    };
+    let mut conns = ConnectionMap::new();
+    conns.insert(
+        7001,
+        CgroupConnections {
+            total_procs: 1,
+            socket_holders: vec![ProcessDetail {
+                pid: 4242,
+                comm: "brave".to_string(),
+                // Walk order: three quiet sockets first, the EATER
+                // last — the owner's own transcript shape (7
+                // sockets, the hungry one anywhere among them).
+                sockets: vec![
+                    socket("10.0.0.1:443", Some(1)),
+                    socket("10.0.0.2:443", Some(2)),
+                    socket("10.0.0.3:443", Some(3)),
+                    socket("47.239.88.7:443", Some(4)),
+                ],
+            }],
+        },
+    );
+    let mut bytes = HashMap::new();
+    bytes.insert(
+        1,
+        SocketBytes {
+            dl: 26_400,
+            ul: 25_200,
+        },
+    );
+    bytes.insert(2, SocketBytes { dl: 1_000, ul: 900 });
+    bytes.insert(3, SocketBytes { dl: 800, ul: 700 });
+    bytes.insert(
+        4,
+        SocketBytes {
+            dl: 126_600,
+            ul: 61_400,
+        },
+    );
+    conns.apply_socket_bytes(bytes);
+
+    let lines = detail_lines(Some(&conns), 7001);
+    let joined = lines.join("\n");
+    assert!(
+        joined.contains("brave (4242) 4 sockets:"),
+        "the header carries the honest count: {joined}"
+    );
+    // The two slots are the hungriest by joined bytes: the eater
+    // (188.0 KB joined) and the 51.6 KB sibling — the two quiet
+    // ones (1.9 KB, 1.5 KB) are what the cap hides.
+    let eater = joined
+        .find("47.239.88.7:443 [dl 126.6 KB | ul 61.4 KB]")
+        .expect("the walked-LAST eater renders first under the cap");
+    let sibling = joined
+        .find("10.0.0.1:443 [dl 26.4 KB | ul 25.2 KB]")
+        .expect("the second-hungriest takes the second slot");
+    assert!(
+        eater < sibling,
+        "the cap orders its two slots bytes-desc: {joined}"
+    );
+    assert!(
+        !joined.contains("10.0.0.2:443"),
+        "the byte-quiet walk-first sockets are what the cap hides: {joined}"
+    );
+}
+
 /// NIGHT-boost-26 pin: socket_cookies() is the deduped join key set
 /// the loader point-looks-up — every resolved cookie exactly once,
 /// cookie-less sockets absent.
