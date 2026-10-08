@@ -94,10 +94,22 @@ pub(crate) fn comm_from_label(label: &str) -> Option<String> {
 /// ARE bytes: a displayable-but-silent socket keeps its lean row,
 /// and a cookie-less socket (pidfd_getfd refused) renders exactly as
 /// before — absence is the honest no-figures signal.
+///
+/// night-improve-57: raw sockets are tagged `raw ` for the same
+/// reason UDP is tagged `udp ` — the lean TCP default hides the
+/// protocol spelling, but raw is rare enough in userland that the
+/// operator wants to see "this is an IP-level socket" at a glance
+/// (the byte figures alone do not signal "raw", since the depth
+/// report's row format is `<remote> <proto> <state> [figures]` and
+/// the live monitor's detail line is `<remote> [busy] [figures]` —
+/// the tag is the one place the proto reaches the eye).
 fn endpoint_text(socket: &SocketInfo, conns: Option<&ConnectionMap>) -> String {
     let mut out = String::new();
     if socket.proto == Proto::Udp {
         out.push_str("udp ");
+    }
+    if socket.proto == Proto::Raw {
+        out.push_str("raw ");
     }
     out.push_str(&socket.remote);
     if socket.queued {
@@ -151,6 +163,24 @@ fn socket_bytes_of<'a>(
 /// connected-UDP row out of the depth report and the live tree —
 /// exactly the QUIC-era traffic the udp tag exists to surface. The
 /// gate accepts both UDP states and keeps the remote guard.
+///
+/// night-improve-57 raw arm: raw sockets are NOT connection-
+/// oriented — the kernel reports the TCP-style sk_state (07=CLOSE
+/// for unconnected, 01=ESTABLISHED for connect()ed), but neither
+/// state maps to a "moving bytes" verdict the way TCP's ESTABLISHED
+/// does. A raw socket can move bytes via sendto() without ever
+/// calling connect(), so the remote stays 0.0.0.0:0 in the table
+/// while the socket is actively sending — the same remote guard
+/// the UDP branch uses would hide exactly the traffic the raw tag
+/// exists to surface. The raw arm shows every matched raw socket
+/// unconditionally: raw sockets are rare in userland (ping, nmap,
+/// custom IP-level tools), and their mere presence under a process
+/// is worth surfacing. The byte suffix carries the activity signal
+/// (a raw socket with 0 bytes is honestly idle; a raw socket with
+/// N bytes is the one the operator wants). The ranked view
+/// (movers-first) puts idle raw sockets at the bottom; the live
+/// monitor shows them as detail lines under the process — both
+/// honest placements.
 pub(crate) fn is_displayable(socket: &SocketInfo) -> bool {
     match socket.proto {
         Proto::Tcp => socket.state == "ESTABLISHED",
@@ -158,6 +188,7 @@ pub(crate) fn is_displayable(socket: &SocketInfo) -> bool {
             (socket.state == "CLOSE" || socket.state == "ESTABLISHED")
                 && !socket.remote.ends_with(":0")
         }
+        Proto::Raw => true,
     }
 }
 
