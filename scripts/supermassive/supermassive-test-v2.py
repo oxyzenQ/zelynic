@@ -399,11 +399,23 @@ CLI_DEPTH_CASES = [
     # NIGHT-improve-54: the renamed verification-skip flag parses on
     # the strict verb (the retired --no-probe redirects — its row
     # rides the removed-spelling family below).
+    # NIGHT-hunt-37: the needle moves to the wording a ROOT harness
+    # deterministically owns. This sweep runs as root — the table's
+    # own law, the "--check-update refuses root (the harness IS
+    # root)" section above — so the born-red "root required" needle
+    # (improve-54's row, first uncancelled run ee1cfe6's battery)
+    # could never appear: the root guard passes and the command
+    # walks the whole ladder to the target miss. The parse proof is
+    # that no-match wording: an unknown flag dies at clap's exit-2
+    # "unexpected argument" rung and never reaches target resolution,
+    # so reaching the miss IS the flag parsing — and the real
+    # scripted apply (rc 0 + the JSON row) rides the rate guard's
+    # --no-test rows above.
     (
         "--no-test parses on strict (scripted apply)",
         ["strict", "brave", "1mb", "--no-test"],
         "nonzero",
-        "root required",
+        "No cgroup found for 'brave'",
     ),
     (
         "removed --allow-dangerous spelling is refused",

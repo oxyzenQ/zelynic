@@ -2801,6 +2801,540 @@ def test_during_expiry(rate_bps, window_secs, baseline):
     return unpoliced_ok
 
 
+# ── NIGHT-hunt-37: the QUIC-aware lane's live N-connections row ─────────────
+#
+# The hunt-36 residual, owner-approved: the QUIC-aware attribution
+# (schema v22) carried pure-core pins (quic_tests) and QUIC-shaped
+# bench probes, but no live lane ever drove REAL QUIC through the
+# limiter — "a live N-HTTP/3-connections row would need a QUIC
+# client in the VM rootfs". The rootfs assembly now stages aioquic
+# (.github/workflows/supermassive.yml), and this row is the lane.
+#
+# The SHAPE is the discriminating one: N real HTTP/3 connections
+# demultiplexed through ONE listening UDP socket — the server twin
+# of the browser shape the schema docs name (Chromium's client
+# socket on one side, the QUIC server's single listener on the
+# other; aioquic gives the server half natively). One socket means
+# one socket cookie: the cookie-only attribution the QUIC-aware
+# lane refined would book all N connections into ONE per-socket
+# bucket, while the v22 flow-key books each by its 8-byte
+# connection ID (aioquic's default CID class). The verdicts are
+# the per-socket row's own arithmetic (hunt-36), transplanted onto
+# the CID-keyed shape:
+#
+#   - scale-up: ledger / (rate x span) >= 2.5 — N CID buckets
+#     flowing; a cookie-collapsed lane reads <= 1.60 (the curl
+#     burst row's sharing cap), so the gap discriminates by
+#     construction.
+#   - per-connection cap: every client <= (rate x window + burst)
+#     x 1.25 — the offered load (supply x window) sits under the
+#     cap, so this verdict can only break on a kernel over-admit.
+#   - per-connection floor: every client >= 0.50 x rate x window.
+#   - the standard enforcement proofs (drops engaged — the supply
+#     sits above the budget line so the policer MUST trim — and
+#     the kernel-vs-client accounting band).
+#
+# The SUPPLY law (the self-test pins it): the server paces each
+# connection at QUIC_SUPPLY x rate — a smooth overfeed, never a
+# loopback-speed blast. At the canonical geometry (1mb, 6s window)
+# the per-connection budget is burst(1s) + rate x age, so offered
+# exceeds budget from t ~ 4.3s on: drops are guaranteed by
+# arithmetic, not by congestion chaos, and the reno collapse a
+# blast would risk never happens (the loss ratio stays single-
+# digit percent).
+
+QUIC_WINDOW = 8.0
+QUIC_CLIENTS = 6
+QUIC_RATE = 1_000_000
+QUIC_SUPPLY = 1.35
+QUIC_TICK = 0.012
+QUIC_SETTLE = 0.5
+
+QUIC_SERVER_SCRIPT = r'''# -*- coding: utf-8 -*-
+"""The hunt-37 QUIC lane's h3 server (written to a tmpdir by
+supermassive-test.py's test_quic_connections and run INSIDE the
+policed cgroup): ONE aioquic listening socket, every client
+connection demultiplexed by its connection ID. Each request is
+answered with an unbounded, PACED stream at supply x rate — the
+smooth overfeed that engages the policer's drops without a
+congestion-control collapse."""
+import argparse
+import asyncio
+import sys
+import traceback
+
+from aioquic.asyncio import serve
+from aioquic.asyncio.protocol import QuicConnectionProtocol
+from aioquic.h3.connection import H3_ALPN, H3Connection
+from aioquic.h3.events import HeadersReceived
+from aioquic.quic.configuration import QuicConfiguration
+
+
+class H3Server(QuicConnectionProtocol):
+    def __init__(self, *args, rate=0, tick=0.012, supply=1.35, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._http = H3Connection(self._quic)
+        self._rate = rate
+        self._tick = tick
+        self._supply = supply
+        self._pumped = set()
+
+    def quic_event_received(self, event):
+        try:
+            for http_event in self._http.handle_event(event):
+                if (
+                    isinstance(http_event, HeadersReceived)
+                    and http_event.stream_id not in self._pumped
+                ):
+                    self._pumped.add(http_event.stream_id)
+                    self._http.send_headers(
+                        http_event.stream_id,
+                        [
+                            (b":status", b"200"),
+                            (b"content-type", b"application/octet-stream"),
+                        ],
+                        end_stream=False,
+                    )
+                    asyncio.ensure_future(self._pump(http_event.stream_id))
+        except Exception:
+            pass  # a dying connection's teardown is not the lane's verdict
+        self.transmit()
+
+    async def _pump(self, stream_id):
+        # The quantum rides whole 1200-byte datagrams (aioquic's own
+        # floor). The pace is DRIFT-FREE: every quantum is due at an
+        # absolute instant (start + sent / target-rate), so a loaded
+        # event loop's sleep overshoot never accumulates the way a
+        # naive sleep(interval) loop's does (the prototype measured
+        # 7.5% under nominal on an IDLE box — a loaded 1-vCPU leg
+        # would shave more, and the drop-guarantee arithmetic below
+        # leans on the supply being real). One bounded catch-up: a
+        # schedule behind by at most one tick sends immediately; a
+        # schedule behind by more RESYNCS, forgiving the debt — a
+        # catch-up blast is the congestion-collapse shape the lane
+        # refuses.
+        quantum = max(1200, int(self._rate * self._tick * self._supply // 1200) * 1200)
+        interval = quantum / (self._rate * self._supply)
+        start = self._loop.time()
+        sent = 0
+        while True:
+            try:
+                self._http.send_data(stream_id, b"z" * quantum, end_stream=False)
+                self.transmit()
+            except Exception:
+                return  # the client closed; this connection is done
+            sent += quantum
+            due = start + sent / (self._rate * self._supply)
+            now = self._loop.time()
+            if due > now:
+                await asyncio.sleep(due - now)
+            elif now - due > interval:
+                start = now - sent / (self._rate * self._supply)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--port", type=int, required=True)
+    ap.add_argument("--cert", required=True)
+    ap.add_argument("--key", required=True)
+    ap.add_argument("--rate", type=int, required=True)
+    ap.add_argument("--supply", type=float, default=1.35)
+    ap.add_argument("--tick", type=float, default=0.012)
+    ap.add_argument("--ready-file", required=True)
+    ap.add_argument("--error-file", required=True)
+    ap.add_argument("--lifetime", type=float, default=120.0)
+    args = ap.parse_args()
+
+    config = QuicConfiguration(is_client=False, alpn_protocols=H3_ALPN)
+    config.load_cert_chain(args.cert, args.key)
+
+    async def run():
+        await serve(
+            "127.0.0.1",
+            args.port,
+            configuration=config,
+            create_protocol=lambda *a, **kw: H3Server(
+                *a, rate=args.rate, tick=args.tick, supply=args.supply, **kw
+            ),
+        )
+        with open(args.ready_file, "w") as fh:
+            fh.write("bound")
+        # The belt: a row that dies before its kill never leaks a
+        # listener into the fleet's next stage.
+        await asyncio.sleep(args.lifetime)
+        sys.exit(0)
+
+    asyncio.run(run())
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except SystemExit:
+        raise
+    except BaseException:
+        with open(sys.argv[sys.argv.index("--error-file") + 1], "w") as fh:
+            fh.write(traceback.format_exc())
+        sys.exit(1)
+'''
+
+
+def test_quic_connections(window, clients, rate_bps, baseline):
+    """The QUIC-aware flow-key, measured live (NIGHT-hunt-37): N real
+    HTTP/3 connections through ONE socket (one cookie), each carrying
+    its own connection ID — the per-socket burst row's QUIC twin, the
+    hunt-36 residual closed. The client stack (aioquic + cryptography)
+    rides the VM rootfs; a lane without it SKIPs honestly, the pip
+    hint in the detail.
+    """
+    label = "quic connections"
+    try:
+        import asyncio
+        import datetime
+        import ipaddress
+
+        from aioquic.asyncio import connect
+        from aioquic.asyncio.protocol import QuicConnectionProtocol
+        from aioquic.h3.connection import H3_ALPN, H3Connection
+        from aioquic.h3.events import DataReceived, HeadersReceived
+        from aioquic.quic.configuration import QuicConfiguration
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from cryptography.x509.oid import NameOID
+    except ImportError as missing:
+        return record(
+            f"{label}: N HTTP/3 connections, one socket, every CID its own bucket",
+            "SKIP",
+            f"{missing} not importable — the VM rootfs stages aioquic (NIGHT-hunt-37); "
+            "a local lane gets it with: pip install aioquic",
+        )
+    if baseline and baseline < 2 * clients * rate_bps:
+        return record(
+            f"{label}: N HTTP/3 connections, one socket, every CID its own bucket",
+            "SKIP",
+            f"baseline {baseline / 1e6:.0f} MB/s too low to feed {clients} x {rate_bps / 1e6:.0f} MB/s",
+        )
+    rate_str = f"{round(rate_bps / 1e6)}mb" if rate_bps >= 1e6 else f"{round(rate_bps / 1e3)}kb"
+
+    # The lane's own TLS: a throwaway self-signed certificate (the
+    # cryptography stack aioquic already rides; the client verifies
+    # nothing — the lane proves attribution, not identity).
+    workdir = tempfile.mkdtemp(prefix="zelynic-quic-")
+    try:
+        key = ec.generate_private_key(ec.SECP256R1())
+        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, u"127.0.0.1")])
+        now = datetime.datetime.now(datetime.timezone.utc)
+        cert = (
+            x509.CertificateBuilder()
+            .subject_name(name)
+            .issuer_name(name)
+            .public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(now - datetime.timedelta(hours=1))
+            .not_valid_after(now + datetime.timedelta(days=1))
+            .add_extension(
+                x509.SubjectAlternativeName(
+                    [x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]
+                ),
+                critical=False,
+            )
+            .sign(key, hashes.SHA256())
+        )
+        cert_p = os.path.join(workdir, "cert.pem")
+        key_p = os.path.join(workdir, "key.pem")
+        with open(cert_p, "wb") as fh:
+            fh.write(cert.public_bytes(serialization.Encoding.PEM))
+        with open(key_p, "wb") as fh:
+            fh.write(
+                key.private_bytes(
+                    serialization.Encoding.PEM,
+                    serialization.PrivateFormat.PKCS8,
+                    serialization.NoEncryption(),
+                )
+            )
+        srv_p = os.path.join(workdir, "h3srv.py")
+        with open(srv_p, "w") as fh:
+            fh.write(QUIC_SERVER_SCRIPT)
+        ready = os.path.join(workdir, "ready")
+        errfile = os.path.join(workdir, "error")
+
+        # A free UDP port (the bind/close probe — nothing else binds
+        # concurrently inside the VM's loopback lane).
+        probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+        probe.close()
+
+        # The h3 server, INSIDE the policed cgroup — the one-socket
+        # shape the whole row exists to drive. The policy lands after
+        # the listener is bound (the handshake bytes ride the
+        # unlimited fast path; the data phase rides the buckets).
+        server = spawn_bg_in_cgroup_path(
+            CG.paths["a"],
+            [
+                sys.executable,
+                srv_p,
+                "--port",
+                str(port),
+                "--cert",
+                cert_p,
+                "--key",
+                key_p,
+                "--rate",
+                str(rate_bps),
+                "--supply",
+                str(QUIC_SUPPLY),
+                "--tick",
+                str(QUIC_TICK),
+                "--ready-file",
+                ready,
+                "--error-file",
+                errfile,
+                "--lifetime",
+                str(window + 90),
+            ],
+        )
+        if server is None:
+            record(
+                f"{label}: the h3 server settles into the cgroup",
+                "FAIL",
+                "the background spawn never reached residency",
+            )
+            clear_all()
+            return False
+        deadline = time.monotonic() + 15.0
+        while not os.path.exists(ready) and time.monotonic() < deadline:
+            if server.poll() is not None:
+                diag = ""
+                try:
+                    with open(errfile, encoding="utf-8") as fh:
+                        diag = fh.read().strip().splitlines()[-1][:160]
+                except OSError:
+                    pass
+                record(
+                    f"{label}: the h3 server settles into the cgroup",
+                    "FAIL",
+                    f"the server died before binding: {diag or 'no error file'}",
+                )
+                clear_all()
+                return False
+            time.sleep(0.05)
+        if not os.path.exists(ready):
+            record(
+                f"{label}: the h3 server settles into the cgroup",
+                "FAIL",
+                "the server never signalled ready inside 15 s",
+            )
+            server.kill()
+            clear_all()
+            return False
+        record(
+            f"{label}: the h3 server settles into the cgroup",
+            "PASS",
+            f"one listening UDP socket (127.0.0.1:{port}) inside cgroup a's fleet slot",
+        )
+
+        # The policy: the per-socket tier on BOTH directions (the
+        # data rides the server's upload; the client acks ride its
+        # download), at the row's rate.
+        t_apply = time.monotonic()
+        ok, payload = apply_single("a", rate_str, rate_bps, rate_bps, extra=("--per-socket",))
+        if not ok:
+            record(f"{label}: the per-socket policy applies", "FAIL", payload)
+            server.kill()
+            clear_all()
+            return False
+        entry = limit_entry(status_json(), CG.ids["a"])
+        tier_ok = bool((entry or {}).get("upload_per_socket")) and bool(
+            (entry or {}).get("download_per_socket")
+        )
+        record(
+            f"{label}: the per-socket policy applies (both directions)",
+            "PASS" if tier_ok else "FAIL",
+            f"strict {rate_str} --per-socket: upload_per_socket "
+            f"{(entry or {}).get('upload_per_socket')}, download_per_socket "
+            f"{(entry or {}).get('download_per_socket')} on the status row",
+        )
+        if not tier_ok:
+            server.kill()
+            clear_all()
+            return False
+        time.sleep(QUIC_SETTLE)
+
+        # The clients: N real QUIC handshakes from the harness's hq
+        # cgroup (unpoliced), each fetching the paced stream for the
+        # window and counting the 1-RTT data bytes it received.
+        class H3Client(QuicConnectionProtocol):
+            # Bound at class-creation time from the row's import scope
+            # (the module-level stdlib-only law stays intact).
+            _h3 = staticmethod(H3Connection)
+            _data_evt = DataReceived
+            _headers_evt = HeadersReceived
+
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.http = self._h3(self._quic)
+                self.recvd = 0
+                self.headers_done = None
+
+            def quic_event_received(self, event):
+                try:
+                    for http_event in self.http.handle_event(event):
+                        if isinstance(http_event, self._headers_evt):
+                            if self.headers_done is not None and not self.headers_done.done():
+                                self.headers_done.set_result(time.monotonic())
+                        elif isinstance(http_event, self._data_evt):
+                            self.recvd += len(http_event.data)
+                except Exception:
+                    pass
+                self.transmit()
+
+        def fetch_one(idx):
+            """One client thread's whole QUIC round trip. Returns
+            (bytes received, handshake lag seconds, None) or (None,
+            None, failure note) — the lag is the connect+headers span,
+            the budget headroom a slow envelope hands that client (its
+            bucket accrues from its own first packet, so the fetch's
+            own cap arithmetic needs the measured lag, never an
+            assumed one)."""
+
+            async def roundtrip():
+                t_start = time.monotonic()
+                config = QuicConfiguration(is_client=True, alpn_protocols=H3_ALPN)
+                config.verify_mode = 0  # ssl.CERT_NONE — the self-signed lane
+                async with connect(
+                    "127.0.0.1", port, configuration=config, create_protocol=H3Client
+                ) as proto:
+                    proto.headers_done = asyncio.get_running_loop().create_future()
+                    stream_id = proto._quic.get_next_available_stream_id()
+                    proto.http.send_headers(
+                        stream_id,
+                        [
+                            (b":method", b"GET"),
+                            (b":scheme", b"https"),
+                            (b":authority", b"127.0.0.1"),
+                            (b":path", b"/data"),
+                        ],
+                        end_stream=True,
+                    )
+                    proto.transmit()
+                    # The handshake itself (the connect context waited
+                    # for it) plus the response headers — bounded, so
+                    # a stalled server fails the row, never hangs it.
+                    await asyncio.wait_for(proto.headers_done, timeout=15.0)
+                    lag = proto.headers_done.result() - t_start
+                    await asyncio.sleep(window)
+                    return proto.recvd, lag
+
+            try:
+                got, lag = asyncio.run(
+                    asyncio.wait_for(roundtrip(), timeout=window + 30.0)
+                )
+                return got, lag, None
+            except BaseException as exc:  # noqa: BLE001 — any client failure, a
+                # cancelled roundtrip included (CancelledError rides
+                # BaseException), is a row verdict, never a thread crash
+                return None, None, f"client {idx}: {type(exc).__name__}: {exc}"[:120]
+
+        totals = [None] * clients
+        lags = [None] * clients
+        notes = [None] * clients
+
+        def worker(i):
+            totals[i], lags[i], notes[i] = fetch_one(i)
+
+        t0 = time.monotonic()
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(clients)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        span = time.monotonic() - t0
+        server.kill()
+        server.wait(timeout=10)
+        if any(v is None for v in totals):
+            fault = next((n for n in notes if n), None) or "unknown failure"
+            record(
+                f"{label}: N HTTP/3 connections, one socket, every CID its own bucket",
+                "FAIL",
+                f"a client never finished its fetch — {fault}",
+            )
+            clear_all()
+            return False
+        if span < window or span > window + 12.0:
+            record(
+                f"{label}: N HTTP/3 connections, one socket, every CID its own bucket",
+                "FAIL",
+                f"stage span {span:.2f} s outside [{window:.1f}, {window + 12.0:.1f}] — "
+                "handshake/teardown pathology",
+            )
+            clear_all()
+            return False
+
+        # The ledger read: one snapshot, one instant (the boost-27 law).
+        entry = limit_entry(status_json(), CG.ids["a"])
+        t_read = time.monotonic()
+        allowed = (entry or {}).get("bytes_allowed", 0)
+        live = t_read - t_apply
+        burst_bytes = lib.default_burst(rate_bps)
+        # The per-connection budget: each CID bucket starts FULL
+        # (one default_burst) at its connection's first policed
+        # packet and accrues at the rate — hunt-36's arithmetic,
+        # one bucket per CONNECTION ID instead of per socket. The
+        # +1 is the cgroup's own shared DRR bucket (the cookie-0
+        # fallback lane). The eps carries the QUIC ack flow (the
+        # clients' ACK-only packets ride the same buckets' download
+        # side) and the handshake flights.
+        ACK_EPS = 1.08
+        per_bucket_budget = live * rate_bps + burst_bytes
+        ledger_ceiling = (clients + 1) * per_bucket_budget * ACK_EPS
+        ledger_ratio = allowed / (rate_bps * span) if allowed else 0.0
+        ceiling_ok = allowed <= ledger_ceiling
+        SCALE_FLOOR = 2.5
+        scale_ok = ledger_ratio >= SCALE_FLOOR
+        # The per-connection cap, MEASURED per client: a connection's
+        # budget accrues from its own first packet, so a slow
+        # envelope's staggered handshakes hand the late connections
+        # more headroom — the cap rides each client's own lag, never
+        # an assumed one (the kernel admits at most burst + rate x
+        # age, so this verdict breaks only on a real over-admit).
+        cap_ok = all(
+            v <= (rate_bps * (window + l) + burst_bytes) * 1.25
+            for v, l in zip(totals, lags)
+        )
+        per_conn_floor = 0.50 * rate_bps * window
+        floor_ok = all(v >= per_conn_floor for v in totals)
+        worst_lag = max(lags)
+        passed = ceiling_ok and scale_ok and cap_ok and floor_ok
+        record(
+            f"{label}: {clients} HTTP/3 connections, one socket, every CID its own bucket",
+            "PASS" if passed else "FAIL",
+            (
+                f"kernel allowed {allowed / 1e6:.2f} MB = {ledger_ratio * 100:.1f}% of "
+                f"{rate_bps / 1e6:.0f} MB/s x span (scale floor {SCALE_FLOOR} — the "
+                f"cookie-collapsed lane caps at 1.60); per-bucket ceiling "
+                f"{per_bucket_budget / 1e6:.2f} MB x({clients}+1) x{ACK_EPS} = "
+                f"{ledger_ceiling / 1e6:.2f} MB; per-connection cap (window+lag)+burst x1.25 "
+                f"(worst client {max(totals) / 1e6:.2f} MB at lag {worst_lag:.1f}s), "
+                f"floor {per_conn_floor / 1e6:.2f} MB (weakest {min(totals) / 1e6:.2f} MB)"
+            ),
+            {
+                "allowed_bytes": allowed,
+                "ledger_ceiling_bytes": round(ledger_ceiling),
+                "ledger_ratio": round(ledger_ratio, 3),
+                "client_totals_bytes": totals,
+                "client_handshake_lags_s": [round(l, 3) for l in lags],
+                "supply": QUIC_SUPPLY,
+            },
+        )
+        enforcement_proofs(label, sum(totals))
+        clear_all()
+        return passed
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
 def curl_upload_ledger_rows(t0, window, sent, delivered):
     """The curl upload stage's kernel-side rows, the asymmetric
     stage's shape (NIGHT-dinner-13, the charger-core-1c best-gnu
@@ -4968,6 +5502,41 @@ def self_test():
         f"count {SERVER_FLEET_N}, sample {os.path.basename(fleet_paths[0])}",
     )
 
+    # NIGHT-hunt-37 pins: the QUIC lane's engine laws, rootless and
+    # aioquic-OPTIONAL (the row SKIPs honestly without the client
+    # stack — the VM rootfs stages it, the ci.yml runner never does,
+    # so the self-test must pass both ways). (1) The embedded h3
+    # server is valid python — a syntax slip would otherwise surface
+    # only inside a root VM run, as an opaque server-death FAIL. (2)
+    # The supply law: at the canonical geometry the offered load must
+    # EXCEED the per-connection budget line (burst + rate x window)
+    # by the window's end or the policer's drops can never engage —
+    # and it must stay under the CC-collapse line (a smooth overfeed,
+    # never a loopback blast). (3) The burst assumption the budget
+    # arithmetic rides: default_burst(QUIC_RATE) == QUIC_RATE (the
+    # 1-second bank between the 64 KiB floor and the 100 MB cap).
+    try:
+        compile(QUIC_SERVER_SCRIPT, "<h3srv>", "exec")
+        quic_script_ok = True
+    except SyntaxError:
+        quic_script_ok = False
+    burst_secs = lib.default_burst(QUIC_RATE) / QUIC_RATE
+    drop_line = QUIC_SETTLE + QUIC_WINDOW + burst_secs
+    quic_law_ok = (
+        quic_script_ok
+        and QUIC_SUPPLY * QUIC_WINDOW > drop_line
+        and QUIC_SUPPLY <= 1.5
+        and burst_secs == 1.0
+    )
+    record(
+        "engine: quic lane laws (server script, supply vs budget, 1s burst bank)",
+        "PASS" if quic_law_ok else "FAIL",
+        f"supply {QUIC_SUPPLY} x window {QUIC_WINDOW:.0f}s = {QUIC_SUPPLY * QUIC_WINDOW:.2f}s "
+        f"vs the budget line {drop_line:.2f}s (drops guaranteed), CC bound 1.50, "
+        f"burst bank {burst_secs:.1f}s; server script "
+        + ("compiles" if quic_script_ok else "SYNTAX ERROR"),
+    )
+
     # NIGHT-improve-15 pin: the ladder's high-rung floor is a MODEL
     # (cushion / min-RTO), anchored to constants that live on the
     # engine side (format.rs default_burst clamp, Linux TCP_RTO_MIN).
@@ -5585,6 +6154,11 @@ def run_heavy(baseline_window):
     # the burst row above (every connection its OWN bucket, the
     # scale-up verdict the shared row's sharing cap forbids).
     test_per_socket_burst(6.0, 6, 1_000_000, baseline)
+    # NIGHT-hunt-37: the QUIC-aware flow-key's live lane — the
+    # per-socket row's QUIC twin (the hunt-36 residual, owner-
+    # approved): N real HTTP/3 connections through ONE socket, the
+    # CID-finer buckets the cookie lane cannot see.
+    test_quic_connections(QUIC_WINDOW, QUIC_CLIENTS, QUIC_RATE, baseline)
     # NIGHT-hunt-36, find two: the --during window's own expiry,
     # watched live (the visit-lift and the unpoliced-after).
     test_during_expiry(1_000_000, 3, baseline)

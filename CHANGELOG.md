@@ -27,6 +27,53 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **test(supermassive): NIGHT-hunt-37 — the QUIC client rides the
+  VM rootfs and the QUIC-aware lane gains its first live
+  N-connections row.** The hunt-36 residual the owner approved
+  closing: aioquic 1.3.0 (+cryptography, pylsqpack, ~10 MB)
+  stages into every supermassive leg's rootfs through the
+  container's own python (ABI-true wheels for jammy's 3.10 and
+  noble's 3.12; pip installed, used, purged — only the libraries
+  ride the cpio; the PEP 668 split spoken by the `||` fallback; a
+  staging failure fails the leg on the runner, the improve-48
+  law). The new v1 row, `test_quic_connections`, drives N real
+  HTTP/3 connections through ONE listening UDP socket inside the
+  policed cgroup — the server twin of the browser shape — with
+  the per-socket row's verdict arithmetic on the CID-keyed shape:
+  the scale floor (>= 2.5 vs the cookie-collapsed lane's 1.60
+  cap), the per-connection cap measured against each client's own
+  handshake lag, the 0.50 floor, and the enforcement proofs. The
+  supply engineering: a drift-free pacer (absolute-instant
+  scheduling, debt forgiven past one tick — the naive
+  sleep-interval loop measured 7.5% under nominal on an idle
+  box), drops guaranteed by arithmetic (supply 1.35 x 8s window
+  > the 9.5s budget line), and a lane-local self-signed
+  certificate via the cryptography stack already riding along.
+  The engine self-test pins the laws rootless (the embedded
+  server compiles; supply vs budget; the 1s burst bank) and the
+  row SKIPs honestly with the pip hint on lanes without the
+  stack. The v1 engine self-test grows to 35 rows.
+
+### Fixed
+
+- **ci(supermassive): NIGHT-hunt-37 — the born-red `--no-test`
+  parse row re-needled, four red legs green again.** improve-54's
+  CLI-depth row expected the wording `root required` from
+  `strict brave 1mb --no-test`, but the v2 survival battery runs
+  as ROOT (the table's own law) — as root the command walks the
+  whole ladder and dies at the no-match hard error instead, so
+  the needle could never appear and the row was red on its first
+  uncancelled run (ee1cfe6) and every run since. The needle is
+  now the wording a root harness deterministically owns (`No
+  cgroup found for 'brave'`): reaching target resolution IS the
+  flag parsing (an unknown flag dies at clap's exit-2 rung), and
+  the real scripted apply rides the rate guard's `--no-test`
+  rows above. The table stays 106 cases; the full-sweep
+  invariant heals with the row (110/111 -> 111/111 by
+  construction).
+
+### Added
+
 - **test(supermassive): NIGHT-hunt-36 — the thirteen-innovation
   depth audit: two live-lane holes found and closed in the v1
   matrix.** The owner's full-ledger ask (post private-research-4,
