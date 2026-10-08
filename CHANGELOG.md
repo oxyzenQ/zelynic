@@ -27,6 +27,36 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **fix(cli): NIGHT-hunt-35 — the help masterclass: the --help
+  reference goes symmetric, compact, and grey-tiered (the owner's
+  three-defect audit).** Asymmetric columns: every flag table now
+  renders ONE description column with continuations aligned to it —
+  Pro mode's mixed 18/19/20 drift (the owner's own `--all` find)
+  collapses to the --interval SEC width, and Target formats' list
+  entry re-spells the token `<a>::<b>[::...]` to `<a>::<b>::<c>` so
+  it sits in the cg: column. Incomplete usage lines: every synopsis
+  carries the whole grammar — `strict <target> or
+  <target::target::target> [rate] [-d <rate>] [-u <rate>] [flags —
+  see Pro mode]`, the same law on block/unstrict/eagle-eyes — the
+  retired --per-socket-only enumeration replaced by the ONE pointer
+  token; Pro mode owns every flag's spelling (the ADVANCED_FLAGS pin
+  already fences that completeness). White synopsis strain: every
+  command synopsis renders in the calm-grey tier (#8B8B8B — the
+  eagle-eyes subordinate grey, un-gated to every build flavor
+  including half-life), so the hierarchy reads purple headings →
+  grey grammar → default prose → green examples. Compact cuts: the
+  strict description stops duplicating Pro mode's
+  --per-socket/--no-test prose, the strict and eagle example pairs
+  drop their short-alias and -u-alone redundancies, and the bottom
+  Examples section loses its `u --all` duplicate — NIGHT-hunt-15's
+  no-duplicate law, violated since improve-54 moved the sweep
+  examples into Pro mode. Pins: the grey-tier/heading split at
+  256-color depth (245 vs 135), the four-pointer count on the
+  flag-owning verbs, the re-pinned canonical synopses
+  (masterclass_pins re-based on the pointer law), the re-spelled
+  target-forms list line; USAGE.md's strict and eagle-eyes synopsis
+  mirrors ride the same shape.
+
 - **feat(cleanup): NIGHT-total-lts-8 — the legacy state sweep: the
   retired persistence pair's limits.json leaves upgraded hosts on
   the no-residue ladder.** The owner's policy call on lts-8's other

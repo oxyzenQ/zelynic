@@ -93,13 +93,14 @@ const SUGGESTION_RGB: (u8, u8, u8) = (220, 235, 255);
 #[cfg(all(test, feature = "ebpf"))] // referenced by the champion pin; source-of-truth documentation
 const HOT_RGB: (u8, u8, u8) = (255, 59, 48);
 
-/// Calm grey RGB: #8B8B8B (139,139,139) — the eagle-eyes subordinate
-/// tier (NIGHT-boost-14): subprocess usage lines and every footer
-/// line except the copyright. Dimmer than the data it annotates; no
-/// eye strain. 256-color fallback: index 245 (the nearest grey-ramp
-/// rung). Color16 fallback: bright black (90), the palette's only
-/// honest grey.
-#[cfg(all(test, feature = "ebpf"))] // referenced by the grey pin; source-of-truth documentation
+/// Calm grey RGB: #8B8B8B (139,139,139) — the subordinate tier
+/// (NIGHT-boost-14): eagle-eyes subprocess usage lines, every footer
+/// line except the copyright, and — since NIGHT-hunt-35 — every
+/// --help command synopsis (the owner's eye-strain call). Dimmer
+/// than the data it annotates; no eye strain. 256-color fallback:
+/// index 245 (the nearest grey-ramp rung). Color16 fallback: bright
+/// black (90), the palette's only honest grey.
+#[cfg(test)] // referenced by the grey pin (both lanes now); source-of-truth documentation
 const GREY_RGB: (u8, u8, u8) = (139, 139, 139);
 
 /// Terminal color capability, detected once and cached for the process.
@@ -448,19 +449,21 @@ pub fn hot(msg: &str) -> String {
 
 // ── Grey tier (NIGHT-boost-14) ────────────────────────────────────────
 //
-// The eagle-eyes subordinate tier: subprocess usage lines and every
-// pinned-footer line except the purple copyright. Grey says
+// The subordinate tier: eagle-eyes subprocess usage lines and every
+// pinned-footer line except the purple copyright — and, since
+// NIGHT-hunt-35, every --help command synopsis (the owner's
+// eye-strain call: the white usage lines under the purple headings
+// became the grey grammar tier). The tier therefore paints in EVERY
+// build flavor, not just the eagle-eyes graph. Grey says
 // "context, not content".
 
 /// Calm grey open sequence for the active theme, capability-aware.
-#[cfg(feature = "ebpf")] // only the eagle-eyes renderer paints the grey tier
 #[must_use]
 pub fn grey_open() -> &'static str {
     super::theme::escape(super::theme::Slot::Grey, false)
 }
 
 /// Wrap `msg` in calm grey. Plain text when off.
-#[cfg(feature = "ebpf")]
 #[must_use]
 pub fn grey(msg: &str) -> String {
     match capability() {

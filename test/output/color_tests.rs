@@ -66,7 +66,8 @@ fn champion_escapes_match_documented_rgb() {
 
 /// Grey tier (NIGHT-boost-14): the subordinate escape encodes its
 /// documented RGB — truecolor exact, 245 at 256, bright black 16.
-#[cfg(feature = "ebpf")]
+/// NIGHT-hunt-35: the pin runs in both lanes now — the --help
+/// synopses paint the tier in every build flavor.
 #[test]
 fn grey_escapes_match_documented_rgb() {
     assert_eq!("\x1b[38;2;139;139;139m", {

@@ -178,10 +178,10 @@ impl Theme {
     }
 }
 
-/// The semantic slots a theme paints. Hot and Grey exist only in
-/// the full build and the pins: their color-layer builders are
-/// ebpf-gated (the champion and subordinate tiers render solely
-/// inside the monitor).
+/// The semantic slots a theme paints. Hot exists only in the full
+/// build and the pins (the champion tier renders solely inside the
+/// monitor); Grey left the gate in NIGHT-hunt-35 — the --help
+/// synopses paint the subordinate tier in every build flavor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Slot {
     Brand,
@@ -189,7 +189,6 @@ pub(crate) enum Slot {
     Warn,
     #[cfg(any(feature = "ebpf", test))]
     Hot,
-    #[cfg(any(feature = "ebpf", test))]
     Grey,
 }
 
@@ -242,42 +241,36 @@ const fn table(theme: Theme, slot: Slot) -> SlotEncodings {
         (Theme::Netrunner, Slot::Warn) => slot!(255, 235, 60, 220, 33),
         #[cfg(any(feature = "ebpf", test))]
         (Theme::Netrunner, Slot::Hot) => slot!(255, 59, 48, 196, 91),
-        #[cfg(any(feature = "ebpf", test))]
         (Theme::Netrunner, Slot::Grey) => slot!(139, 139, 139, 245, 90),
         (Theme::NightCyber, Slot::Brand) => slot!(0, 229, 255, 45, 36),
         (Theme::NightCyber, Slot::Ok) => slot!(0, 255, 159, 49, 32),
         (Theme::NightCyber, Slot::Warn) => slot!(255, 200, 87, 221, 33),
         #[cfg(any(feature = "ebpf", test))]
         (Theme::NightCyber, Slot::Hot) => slot!(255, 46, 99, 197, 91),
-        #[cfg(any(feature = "ebpf", test))]
         (Theme::NightCyber, Slot::Grey) => slot!(107, 122, 143, 245, 90),
         (Theme::Forest, Slot::Brand) => slot!(124, 179, 66, 107, 92),
         (Theme::Forest, Slot::Ok) => slot!(105, 240, 174, 85, 32),
         (Theme::Forest, Slot::Warn) => slot!(253, 216, 53, 220, 33),
         #[cfg(any(feature = "ebpf", test))]
         (Theme::Forest, Slot::Hot) => slot!(216, 67, 21, 166, 91),
-        #[cfg(any(feature = "ebpf", test))]
         (Theme::Forest, Slot::Grey) => slot!(125, 139, 110, 245, 90),
         (Theme::Spaceflight, Slot::Brand) => slot!(79, 195, 247, 81, 36),
         (Theme::Spaceflight, Slot::Ok) => slot!(100, 255, 218, 86, 32),
         (Theme::Spaceflight, Slot::Warn) => slot!(255, 215, 64, 220, 33),
         #[cfg(any(feature = "ebpf", test))]
         (Theme::Spaceflight, Slot::Hot) => slot!(255, 82, 82, 203, 91),
-        #[cfg(any(feature = "ebpf", test))]
         (Theme::Spaceflight, Slot::Grey) => slot!(144, 164, 174, 245, 90),
         (Theme::Carbon, Slot::Brand) => slot!(214, 214, 214, 231, 37),
         (Theme::Carbon, Slot::Ok) => slot!(170, 255, 178, 157, 32),
         (Theme::Carbon, Slot::Warn) => slot!(245, 197, 24, 220, 33),
         #[cfg(any(feature = "ebpf", test))]
         (Theme::Carbon, Slot::Hot) => slot!(255, 77, 77, 203, 91),
-        #[cfg(any(feature = "ebpf", test))]
         (Theme::Carbon, Slot::Grey) => slot!(158, 158, 158, 245, 90),
         (Theme::Atomic, Slot::Brand) => slot!(255, 109, 0, 202, 93),
         (Theme::Atomic, Slot::Ok) => slot!(0, 230, 118, 42, 32),
         (Theme::Atomic, Slot::Warn) => slot!(255, 234, 0, 220, 33),
         #[cfg(any(feature = "ebpf", test))]
         (Theme::Atomic, Slot::Hot) => slot!(255, 23, 68, 197, 91),
-        #[cfg(any(feature = "ebpf", test))]
         (Theme::Atomic, Slot::Grey) => slot!(176, 190, 197, 245, 90),
         // NIGHT-engrave-7 additions — brand/ok on their NEAREST cube
         // match; warn/hot on the documented visibility precedents
@@ -288,35 +281,30 @@ const fn table(theme: Theme, slot: Slot) -> SlotEncodings {
         (Theme::Cafe, Slot::Warn) => slot!(232, 181, 77, 221, 33),
         #[cfg(any(feature = "ebpf", test))]
         (Theme::Cafe, Slot::Hot) => slot!(192, 57, 43, 196, 31),
-        #[cfg(any(feature = "ebpf", test))]
         (Theme::Cafe, Slot::Grey) => slot!(181, 168, 156, 245, 90),
         (Theme::Server, Slot::Brand) => slot!(110, 155, 197, 68, 94),
         (Theme::Server, Slot::Ok) => slot!(51, 209, 122, 78, 92),
         (Theme::Server, Slot::Warn) => slot!(242, 163, 60, 215, 33),
         #[cfg(any(feature = "ebpf", test))]
         (Theme::Server, Slot::Hot) => slot!(229, 72, 77, 167, 91),
-        #[cfg(any(feature = "ebpf", test))]
         (Theme::Server, Slot::Grey) => slot!(154, 165, 177, 245, 90),
         (Theme::Moonlight, Slot::Brand) => slot!(184, 204, 232, 152, 94),
         (Theme::Moonlight, Slot::Ok) => slot!(159, 216, 181, 151, 32),
         (Theme::Moonlight, Slot::Warn) => slot!(232, 212, 139, 186, 33),
         #[cfg(any(feature = "ebpf", test))]
         (Theme::Moonlight, Slot::Hot) => slot!(217, 138, 138, 174, 31),
-        #[cfg(any(feature = "ebpf", test))]
         (Theme::Moonlight, Slot::Grey) => slot!(166, 176, 194, 245, 90),
         (Theme::Hacker, Slot::Brand) => slot!(51, 255, 51, 83, 92),
         (Theme::Hacker, Slot::Ok) => slot!(0, 229, 168, 43, 36),
         (Theme::Hacker, Slot::Warn) => slot!(255, 225, 77, 220, 33),
         #[cfg(any(feature = "ebpf", test))]
         (Theme::Hacker, Slot::Hot) => slot!(255, 71, 87, 197, 91),
-        #[cfg(any(feature = "ebpf", test))]
         (Theme::Hacker, Slot::Grey) => slot!(143, 168, 143, 245, 90),
         (Theme::DepthSea, Slot::Brand) => slot!(31, 191, 173, 37, 36),
         (Theme::DepthSea, Slot::Ok) => slot!(95, 215, 138, 78, 32),
         (Theme::DepthSea, Slot::Warn) => slot!(232, 197, 106, 185, 33),
         #[cfg(any(feature = "ebpf", test))]
         (Theme::DepthSea, Slot::Hot) => slot!(255, 107, 107, 203, 31),
-        #[cfg(any(feature = "ebpf", test))]
         (Theme::DepthSea, Slot::Grey) => slot!(126, 154, 166, 245, 90),
         // NIGHT-dinner-30 addition — brand/ok on their NEAREST cube
         // match (129/85, the computed contract); warn on the khaki
@@ -329,7 +317,6 @@ const fn table(theme: Theme, slot: Slot) -> SlotEncodings {
         (Theme::Curiosity, Slot::Warn) => slot!(255, 196, 66, 221, 33),
         #[cfg(any(feature = "ebpf", test))]
         (Theme::Curiosity, Slot::Hot) => slot!(255, 42, 85, 197, 91),
-        #[cfg(any(feature = "ebpf", test))]
         (Theme::Curiosity, Slot::Grey) => slot!(148, 132, 168, 245, 90),
     }
 }

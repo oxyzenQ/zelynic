@@ -70,8 +70,11 @@ pub use color::{brand, brand_bold, error, error_bold, ok, ok_bold, suggestion, w
 // (NIGHT-boost-23 hunt fix).
 #[cfg(feature = "ebpf")]
 pub(crate) use color::{capability, ColorCapability};
-#[cfg(feature = "ebpf")] // champion + grey + warn tiers live under the eagle-eyes graph
-pub use color::{grey, hot, warn};
+// NIGHT-hunt-35: grey left the eagle-eyes graph — the --help command
+// synopses paint it in every build flavor (half-life included).
+pub use color::grey;
+#[cfg(feature = "ebpf")] // champion + warn tiers live under the eagle-eyes graph
+pub use color::{hot, warn};
 pub use color::{parse_color_mode, set_forced_capability};
 
 // ── Broken-pipe-safe println/eprintln (cosmostrix contract) ────────────────
