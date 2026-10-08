@@ -27,6 +27,27 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **audit(docs): NIGHT-total-lts-10 — the all-infra pass round three,
+  the loop closed.** The born-red fix verified on the runner itself:
+  all four Dragon Guard workflows (Supermassive, Gate-keepers,
+  Supermassive Container E2E, CI) completed `success` at 9b2b1d6,
+  the first post-fix tree — the empirical leg every prior round only
+  read. The false-green hunt over the new CI verdict logic: the
+  pressed-bucket law's SKIPs carry every number (contention named,
+  never a silent stand-down; a pressed window keeps its FAIL, the
+  over-band side never re-probes), the QUIC connections row's
+  five-gate arithmetic fails fast (ceiling, scale floor, per-lag
+  cap, per-connection floor, span bounds — and the CI rootfs
+  staging law makes the no-stack skip impossible on the runner),
+  and the v3 headroom law rides the PRECISION_ADAPT_MARGIN family's
+  own constant with the a11b8b1/bd8de0e shapes self-test-pinned.
+  The self-test battery fresh at 37/0/0 (14.5 s); the hygiene legs
+  clean (zero zombie files, zero broken links across 65 docs, zero
+  stale backtick paths in the newest audits, the index 42/42
+  machine-gated, the working tree's clone-artifact permissions
+  corrected by the gate's own fixer); py_compile and bash -n clean
+  on the three new scripts; the Rust battery green fresh at HEAD.
+  Zero new defects — the verification is the deliverable.
 - **audit(docs): NIGHT-total-lts-11 — the killer-features pass round
   five, the first clean sheet.** The seven-commit delta since
   lts-9's read point (the lts-8 family, audit-4's glossary, hunt-34
