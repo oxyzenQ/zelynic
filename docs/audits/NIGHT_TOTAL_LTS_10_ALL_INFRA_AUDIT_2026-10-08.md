@@ -8,8 +8,8 @@
 > the whole root repo, peak-skip and continue. Audited at 44abe20
 > (lts-11's tree, post 9b2b1d6). Method: the infra delta since lts-8's
 > read point (hunt-35's help masterclass CI surface, hunt-36's two
-> live-lane closures, hunt-37's born-red needle + QUIC rootfs staging
-> + capacity law + pressed-bucket law v2 + the under-band re-probe
+> live-lane closures, hunt-37's born-red needle + QUIC rootfs staging +
+> capacity law + pressed-bucket law v2 + the under-band re-probe
 > rider, hunt-38's pins) read fresh with the false-green lens — a CI
 > estate's defect class is not "red" but "red that lies" — plus the
 > empirical legs this host can reach: the live CI verdicts pulled
