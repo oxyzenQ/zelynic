@@ -453,9 +453,12 @@ pub fn hot(msg: &str) -> String {
 // pinned-footer line except the purple copyright — and, since
 // NIGHT-hunt-35, every --help command synopsis (the owner's
 // eye-strain call: the white usage lines under the purple headings
-// became the grey grammar tier). The tier therefore paints in EVERY
-// build flavor, not just the eagle-eyes graph. Grey says
-// "context, not content".
+// became the grey grammar tier), and since NIGHT-hunt-39 every flag
+// spelling on that reference too — table columns and inline
+// mentions alike (the owner's mandate: flags are grammar; the span
+// covers the spelling exactly, so piped bytes never move). The tier
+// therefore paints in EVERY build flavor, not just the eagle-eyes
+// graph. Grey says "context, not content".
 
 /// Calm grey open sequence for the active theme, capability-aware.
 #[must_use]

@@ -27,6 +27,33 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **fix(cli): NIGHT-hunt-39 — the flag tier: every flag spelling on
+  the --help reference renders calm grey.** The owner's ask, total:
+  flags are grammar, so --all and every spelling beside it rides the
+  same grey tier the synopses took in hunt-35 — the flag tables'
+  spelling columns (Global flags, Pro mode) and the inline prose
+  mentions alike (--depth's deep-inspection prose, --force-this's
+  bounds / safety / possessive lines, the --no-probe redirect note,
+  the quoted 'zelynic s --all 500kb' shape, the --print-json row's
+  own --depth). The grey span covers the spelling exactly — value
+  hints (DUR, RATE, SEC) ride inside it; padding, prose, and the
+  possessive 's never do — so piped output keeps its plain bytes.
+  Boundaries kept honest: the runnable examples stay the solid
+  green tier (boost-4's one-tier law, pinned zero-bleed), the
+  target-form tokens stay default prose (their angle-bracket shape
+  already reads as grammar, and the mandate is flags), and
+  NO_COLOR=1 stays default (an environment variable, not a flag).
+  The rider the tidy closed: hunt-35's one-column claim was
+  18/19-mixed in the rendered truth — --interval SEC, --per-socket,
+  and --force-this sat one wide of their own continuations; the Pro
+  estate now sits at the documented 19 (the --interval SEC width,
+  the same number the Global table's --reset-terminal width lands
+  on), and the new flag_row helper computes tier and column in one
+  place so neither can drift per row. Pins: the flag-tier pin in
+  masterclass_pins (245 spans, span-exact boundaries, the
+  description column at 19 across both tables and continuations,
+  zero bleed into the green example tier); the mono A/B held the
+  space-only law — 26 lines, one space each, zero text moves.
 - **audit(docs): NIGHT-total-lts-10 — the all-infra pass round three,
   the loop closed.** The born-red fix verified on the runner itself:
   all four Dragon Guard workflows (Supermassive, Gate-keepers,

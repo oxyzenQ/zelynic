@@ -181,7 +181,9 @@ impl Theme {
 /// The semantic slots a theme paints. Hot exists only in the full
 /// build and the pins (the champion tier renders solely inside the
 /// monitor); Grey left the gate in NIGHT-hunt-35 — the --help
-/// synopses paint the subordinate tier in every build flavor.
+/// synopses paint the subordinate tier in every build flavor, and
+/// NIGHT-hunt-39 joined every flag spelling on that reference to
+/// the same tier (table columns and inline mentions alike).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Slot {
     Brand,
