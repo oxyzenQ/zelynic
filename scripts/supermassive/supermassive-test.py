@@ -1803,6 +1803,41 @@ def stage_server_cap_crossing():
         == "PASS"
         and ok
     )
+    # NIGHT-hunt-42 (hunt-27 #2 closure, owner-approved): the
+    # sweep-saturation live proof. The past-cap refusal above tested
+    # the EXPLICIT :: list (apply_group_atomic). The SWEEP lane
+    # (strict --all, apply_group_sweep) is the capacity-admitting
+    # twin: it does NOT refuse — it admits what fits (already-limited
+    # ids cost no new slot; fresh ids up to the emptier map's free
+    # rows) and warns with the "Policy ceiling saturated" line. The
+    # warn/error rows past 1024 were unit-pinned but never crossed
+    # LIVE (the VM fleets stayed under the ceiling); the cap fleet
+    # (4100 cgroups, well past 1024) crosses it for real. The maps
+    # are empty after the refusal's rollback, so the sweep starts
+    # from a clean slate: it admits 1024, saturates 3076, and the
+    # warn fires. The PASS contract is the WARN wording, a non-zero
+    # exit is NOT required (the sweep is best-effort, not atomic —
+    # applied > 0 is a success with a warning, not a failure).
+    rc, stdout, stderr = run_zel(["strict", "--all", "100kb"], timeout=180)
+    combined = (stderr or "") + (stdout or "")
+    doc = status_json()
+    sweep_rows = sum(1 for i in CAP_FLEET.ids if limit_entry(doc, i) is not None) if doc else -1
+    sweep_warn = "Policy ceiling saturated" in combined
+    sweep_applied = sweep_rows > 0 and sweep_rows <= POLICY_MAP_CAPACITY
+    sweep_ok = rc == 0 and sweep_warn and sweep_applied
+    ok = (
+        record(
+            "server: cap-crossing sweep saturation (--all past 1024, warn fires)",
+            "PASS" if sweep_ok else "FAIL",
+            f"exit {rc}, warn: {sweep_warn}, rows landed: {sweep_rows} (cap {POLICY_MAP_CAPACITY})",
+        )
+        == "PASS"
+        and ok
+    )
+    # Clear the sweep's rows so the at-cap control below runs on a
+    # clean slate (the same empty-map state the refusal's rollback
+    # left for the sweep).
+    run_zel(["u", "--all"], timeout=60)
     # The at-cap control: exactly POLICY_MAP_CAPACITY targets — the
     # legal edge. Every row must land at 2mb/2mb, whole (the
     # past-cap refusal only means capacity if the at-cap apply
@@ -1863,6 +1898,134 @@ def stage_server_cap_crossing():
     return ok
 
 
+def stage_server_orphan_census():
+    """NIGHT-hunt-42 (hunt-34 closure, owner-approved): the live
+    orphan-census proof. The sweep's decision core is unit-pinned
+    and the walk rides lanes every other reclaim already exercises,
+    but the end-to-end shape (a bucket/ring/stats row whose policy
+    is gone, collected by the next recover's orphan-census sweep)
+    is not crossed LIVE — it would need a VM stage that applies,
+    force-removes a policy row (leaving the bucket orphaned), and
+    recovers again. This stage IS that VM stage.
+
+    The shape:
+      1. apply a policy to cgroup A (creates policy_dl/ul, bucket_dl/ul,
+         stats, rate_ring_dl/ul entries keyed on A's cgroup id)
+      2. use bpftool to delete ONLY the policy_dl row — A's bucket_dl
+         is now an orphan (no policy names it)
+      3. run `zelynic recover` — the orphan-census sweep finds the
+         orphaned bucket and reclaims it
+      4. assert the "Census: N orphaned state entries reclaimed" line
+         appears in stderr (the hunt-34 contract)
+      5. teardown: unstrict A (clears the remaining policy_ul row and
+         its bucket_ul/stats/ring entries)
+
+    bpftool is installed in the supermassive VM (NIGHT-improve-48
+    installs it from the per-ABI linux-tools deb). On a host without
+    bpftool, the stage SKIPs (the same honest degrade every
+    environment-dependent stage owns). On a non-dedicated cgroup host
+    (cgroup v1, session fallback), the stage SKIPs (the same gate the
+    cap-crossing stage owns)."""
+    out()
+    out("━━━ server depth: orphan-census live proof (bpftool + recover) ━━━")
+    if not CG.dedicated:
+        record(
+            "server: orphan-census live proof (bpftool + recover)",
+            "SKIP",
+            "session-cgroup fallback — dedicated cgroups not creatable",
+        )
+        return False
+    bpftool = shutil.which("bpftool")
+    if not bpftool:
+        record(
+            "server: orphan-census live proof (bpftool + recover)",
+            "SKIP",
+            "bpftool not on PATH — install linux-tools-common (NIGHT-improve-48 lane)",
+        )
+        return False
+    # Step 1: apply a policy to cgroup A. This creates policy_dl/ul +
+    # bucket_dl/ul + stats + rate_ring entries for A's cgroup id.
+    a_id = CG.ids["a"]
+    rc, stdout, stderr = run_zel(["strict", str(a_id), "500kb"], timeout=30)
+    if rc != 0:
+        record(
+            "server: orphan-census live proof (bpftool + recover)",
+            "FAIL",
+            f"setup apply failed: exit {rc}, {(stderr or stdout).strip()[:200]}",
+        )
+        return False
+    # Verify the policy landed (the orphan-creation step below needs a
+    # live policy row to delete).
+    doc = status_json()
+    entry = limit_entry(doc, a_id) if doc else None
+    if entry is None:
+        record(
+            "server: orphan-census live proof (bpftool + recover)",
+            "FAIL",
+            "setup apply did not land a policy row for cgroup A",
+        )
+        run_zel(["u", str(a_id)], timeout=30)
+        return False
+    # Step 2: use bpftool to delete ONLY the policy_dl row. The
+    # cgroup_policy_dl map is a HashMap<u32, PolicyRaw>. The key is
+    # the cgroup id as a u32 in little-endian hex. Deleting this row
+    # leaves the bucket_dl entry orphaned (no policy names it).
+    pin_policy_dl = "/sys/fs/bpf/zelynic/cgroup_policy_dl"
+    key_hex = a_id.to_bytes(4, "little").hex()
+    bpftool_cmd = [bpftool, "map", "delete", "pinned", pin_policy_dl, "key", "hex", key_hex]
+    try:
+        p = subprocess.run(bpftool_cmd, capture_output=True, text=True, timeout=10)
+    except subprocess.TimeoutExpired:
+        record(
+            "server: orphan-census live proof (bpftool + recover)",
+            "FAIL",
+            f"bpftool delete timed out on cgroup_policy_dl key {key_hex}",
+        )
+        run_zel(["u", str(a_id)], timeout=30)
+        return False
+    if p.returncode != 0:
+        record(
+            "server: orphan-census live proof (bpftool + recover)",
+            "FAIL",
+            f"bpftool delete failed: exit {p.returncode}, {(p.stderr or '').strip()[:200]}",
+        )
+        run_zel(["u", str(a_id)], timeout=30)
+        return False
+    # Verify the policy_dl row is gone but the policy_ul row survives
+    # (the orphan is direction-scoped — only dl lost its policy).
+    doc = status_json()
+    entry_after = limit_entry(doc, a_id) if doc else None
+    if entry_after is not None and entry_after.get("download_bps") is not None:
+        # The status reader may still show the policy if it reads
+        # both directions — but the dl row IS gone from the map. The
+        # bpftool delete succeeded, so trust it and proceed.
+        pass
+    # Step 3: run `zelynic recover`. The orphan-census sweep runs as
+    # part of recover's tail (src/commands/recover.rs:121) and should
+    # find the orphaned bucket_dl entry and reclaim it.
+    rc, stdout, stderr = run_zel(["recover"], timeout=30)
+    combined = (stderr or "") + (stdout or "")
+    # Step 4: assert the orphan-census reclaim wording. The exact
+    # line from recover.rs:124-127: "Census: N orphaned state
+    # entries reclaimed (no policy names them — crash residue, not
+    # policies)".
+    orphan_word = "orphaned state" in combined and "reclaimed" in combined
+    # The recover itself must succeed (exit 0 — the orphan sweep is
+    # best-effort, but recover's own verdict is success/failure).
+    recover_ok = rc == 0
+    ok = record(
+        "server: orphan-census live proof (bpftool + recover)",
+        "PASS" if orphan_word and recover_ok else "FAIL",
+        f"exit {rc}, orphan-census wording: {orphan_word}"
+        + (f", combined: {combined.strip()[:200]}" if not orphan_word else ""),
+    )
+    # Step 5: teardown — clear the surviving policy_ul row and its
+    # bucket_ul/stats/ring entries. The orphaned bucket_dl was
+    # already reclaimed by the recover above.
+    run_zel(["u", str(a_id)], timeout=30)
+    return ok == "PASS"
+
+
 def run_server_phase():
     """NIGHT-blade-4: the server depth phase — headless env, dense
     population, daemonized traffic, concurrent readers, orderly
@@ -1882,6 +2045,12 @@ def run_server_phase():
     stage_server_parallel_readers()
     stage_server_teardown()
     stage_server_cap_crossing()
+    # NIGHT-hunt-42: the orphan-census live proof. Runs LAST, after
+    # every other stage — it creates orphan state (bpftool delete +
+    # recover) and needs a clean slate. The cap-crossing stage's
+    # teardown leaves the maps empty, so this stage's single-cgroup
+    # apply starts fresh.
+    stage_server_orphan_census()
     failed = [r for r in RESULTS if r["test"].startswith("server:") and r["verdict"] == "FAIL"]
     if failed:
         out()

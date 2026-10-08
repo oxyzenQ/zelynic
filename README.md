@@ -32,6 +32,13 @@
 
 ## Demo
 
+<!-- Screenshot assets: the rendered TUI is capture-dependent (terminal
+     geometry, theme, live cgroup population). The text contract —
+     USAGE.md's sample blocks and the pinned test family — is the
+     source of truth; the screenshots follow at the next owner-host
+     capture session. The standing disclaimer rule (docs/README.md)
+     owns the class. -->
+
 <p align="center">
   <img src="assets/eagle-eyes.png"
        alt="zelynic eagle-eyes"

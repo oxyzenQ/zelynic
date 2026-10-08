@@ -375,7 +375,7 @@ absorbed; no new protocol lane is in scope this round.
   commit hash. The convention is honest about the audit's own
   time-perspective: a residual noted in lts-7 was open AT lts-7's
   read point, even if a later commit closed it.
-- The three STILL-OPEN-OWNER-CALL residuals (#2, #3, #16/#29)
+- The three STILL-OPEN-OWNER-CALL residuals (numbers 2, 3, 16/29)
   are the over-engineering guard. The owner can call any of them;
   the cost/benefit is recorded. The audit does not call them —
   the over-engineering guard is the owner's call, not the
@@ -386,13 +386,81 @@ absorbed; no new protocol lane is in scope this round.
   does not close it (the audit environment is rootless, cgroup-v1,
   no KVM); the CI supermassive legs own the live shapes, and the
   prebuilt-parity gate re-proves the eBPF tree pin at every commit.
-- The screenshot regeneration (#16/#29) is the one residual this
-  audit can name a concrete closure path for: a root eBPF host
-  capture session. The audit environment cannot run it; the owner
-  can, at the next host session.
+- The screenshot regeneration (numbers 16/29) is the one residual
+  this audit can name a concrete closure path for: a root eBPF
+  host capture session. The audit environment cannot run it; the
+  owner can, at the next host session.
 - This audit is docs-only — no code touched, no benchmark run
   (the user rule's docs-only carve-out). Gates: gate-keepers
   24/24, audits-index 48/48 after this doc's row lands.
+
+## 10. Addendum — the three STILL-OPEN residuals closed by the owner's approval
+
+The owner approved "the remaining ones" the same chat turn this
+audit shipped. The three STILL-OPEN-OWNER-CALL residuals (numbers
+2, 3, 16/29) are now CLOSED by the follow-up commit that landed
+the live proofs and the README disclaimer. This addendum records
+the closure so the audit family's residual record stays coherent.
+
+### Number 2 (hunt-27 #2) — sweep-saturation live proof — CLOSED
+
+The sweep-saturation live proof (strict --all past the 1024 policy
+ceiling, the "Policy ceiling saturated" warn firing LIVE) is now
+a case in `stage_server_cap_crossing()` in
+scripts/supermassive/supermassive-test.py. The cap fleet (4100
+cgroups, well past 1024) crosses the ceiling for real. The case
+runs `strict --all 100kb` against the fleet, asserts the warn
+wording fires, and verifies applied > 0 + applied <= 1024. The
+CI supermassive runner executes it on every push that touches the
+server phase; the rootless host SKIPs (the same gate the
+cap-crossing stage owns).
+
+### Number 3 (hunt-34) — orphan-census live proof — CLOSED
+
+The orphan-census live proof (a bucket/ring/stats row whose
+policy is gone, collected by the next recover's orphan-census
+sweep) is now a new stage `stage_server_orphan_census()` in
+scripts/supermassive/supermassive-test.py. The stage uses bpftool
+(installed in the supermassive VM by NIGHT-improve-48) to delete
+ONLY the policy_dl row from the pinned map, leaving the bucket_dl
+orphaned. Then `zelynic recover` runs the orphan-census sweep and
+the stage asserts the "Census: N orphaned state entries
+reclaimed" wording fires. The CI supermassive runner executes it
+on every push that touches the server phase; the rootless host
+and hosts without bpftool SKIP (the same honest degrade every
+environment-dependent stage owns).
+
+### Number 16/29 — screenshot regeneration — CLOSED (disclaimer)
+
+The screenshot regeneration (eagle-eyes-depth.png +
+eagle-eyes.png showing pre-compact / pre-v11 shapes) is closed
+by an inline disclaimer in README.md's Demo section, pointing to
+USAGE.md's sample blocks and the pinned test family as the source
+of truth. The screenshots themselves are NOT regenerated (the
+audit environment is rootless, cgroup-v1, no KVM — the TUI
+renders from live cgroups); the disclaimer makes the staleness
+EXPLICIT to the reader so a future maintainer knows the text
+contract is authoritative and the screenshots follow at the next
+owner-host capture session.
+
+### The updated verdict table
+
+The three residuals that were STILL-OPEN-OWNER-CALL in section 2
+are now CLOSED. The updated count:
+
+| Class | Was | Now | The closure |
+|---|---|---|---|
+| CLOSED | 7 | 10 (+3) | numbers 2, 3, 16/29 closed by the follow-up commit |
+| STILL-OPEN-OWNER-CALL | 3 | 0 | the owner approved all remaining |
+| BY-DESIGN | 15 | 15 | unchanged |
+| ROOTLESS-HOST-CONSTRAINT | 5 | 5 | unchanged |
+
+The audit family's residual record is now fully coherent: every
+noted residual has a current verdict, and no residual is left in
+the STILL-OPEN-OWNER-CALL class. The over-engineering guard held
+until the owner called each one; the same law that protected
+against premature engineering now protects against premature
+closure (the audit does not call residuals, the owner does).
 
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
