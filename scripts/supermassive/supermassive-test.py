@@ -2582,6 +2582,225 @@ def test_curl_burst(window, clients, rate_bps, baseline):
     return passed
 
 
+def test_per_socket_burst(window, clients, rate_bps, baseline):
+    """The per-socket tier's budget law, measured live (charger-core-3b).
+
+    The mirror of test_curl_burst: the same N-client burst machinery,
+    the OPPOSITE sharing verdict. The shared row proves ONE bucket
+    (ledger ratio <= 1.60); this row proves every connection its OWN
+    — NIGHT-hunt-36's find: the tier's depth lived in the Rust pins
+    (the natively-compiled socket_flow sims) and the v4 flag surface
+    alone, and no live lane ever enforced --per-socket on a real
+    kernel. The law is USAGE.md's own sentence: cap each connection
+    at the rate, and the cgroup total is rate x concurrent sockets,
+    NOT rate. Verdicts (the boost-27 discipline — ceilings ride the
+    kernel ledger, floors ride the client totals):
+
+    - scale-up: ledger / (rate x span) >= 2.5 — six buckets flowing;
+      a silently-shared bucket reads <= 1.60 (the burst row's own
+      cap), so the gap discriminates by construction.
+    - per-connection cap: every client <= (rate x window + burst) x
+      1.25 — the feature's headline, each connection feels the rate
+      (the client metric UNDERCOUNTS on drops, so an overread means
+      the kernel really let more through).
+    - per-connection floor: every client >= 0.50 x rate x window —
+      each bucket actually delivered; a silent degrade to the shared
+      lane reads ~rate/N per client and fails here.
+
+    The flag round-trip row rides alongside (download_per_socket
+    true on the status JSON), then the standard enforcement proofs.
+    Cookie-0 strays (no socket attribution on rare early-ingress
+    paths) fall to the cgroup's shared DRR bucket by design —
+    noise-level against the N-bucket arithmetic, covered by the
+    per-bucket eps.
+    """
+    label = "per-socket burst"
+    if not CURL:
+        return record(f"{label}: N connections, N buckets", "SKIP", "curl not found")
+    if baseline and baseline < 2 * clients * rate_bps:
+        return record(
+            f"{label}: N connections, N buckets",
+            "SKIP",
+            f"baseline {baseline / 1e6:.0f} MB/s too low to feed {clients} x {rate_bps / 1e6:.0f} MB/s",
+        )
+    rate_str = f"{round(rate_bps / 1e6)}mb" if rate_bps >= 1e6 else f"{round(rate_bps / 1e3)}kb"
+    t_apply = time.monotonic()
+    ok, payload = apply_single("a", rate_str, rate_bps, rate_bps, extra=("--per-socket",))
+    if not ok:
+        return record(f"{label}: N connections, N buckets", "FAIL", payload)
+    # The tier round-trip: the status row carries the per-socket
+    # booleans (display_json's own fields) beside the raw rate.
+    entry = limit_entry(status_json(), CG.ids["a"])
+    if not (entry or {}).get("download_per_socket"):
+        record(
+            f"{label}: status JSON carries the tier flag",
+            "FAIL",
+            f"download_per_socket missing/false on the limit row: {entry}",
+        )
+        clear_all()
+        return False
+    record(
+        f"{label}: status JSON carries the tier flag",
+        "PASS",
+        f"download_per_socket true at {rate_str}/socket (download_bps {entry.get('download_bps')})",
+    )
+    time.sleep(0.5)
+    totals = [None] * clients
+
+    def worker(i):
+        totals[i] = curl_in_cgroup("a", window)[0]
+
+    t0 = time.monotonic()
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(clients)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    span = time.monotonic() - t0
+    if any(v is None for v in totals):
+        record(f"{label}: N connections, N buckets", "FAIL", "a curl produced no metric")
+        clear_all()
+        return False
+    if span < window or span > window + 2.0:
+        record(
+            f"{label}: N connections, N buckets",
+            "FAIL",
+            f"stage span {span:.2f} s outside [{window:.1f}, {window + 2.0:.1f}] — spawn/teardown pathology",
+        )
+        clear_all()
+        return False
+    # The ledger read: one snapshot, one instant (the boost-27 law).
+    entry = limit_entry(status_json(), CG.ids["a"])
+    t_read = time.monotonic()
+    allowed = (entry or {}).get("bytes_allowed", 0)
+    live = t_read - t_apply
+    burst_bytes = lib.default_burst(rate_bps)
+    # Each of the N live sockets owns a full bucket: rate x live plus
+    # its own default_burst, the same arithmetic the shared row runs
+    # once — run per bucket here, the GSO eps per bucket. The +1 is
+    # the cgroup's own shared DRR bucket (the cookie-0 fallback lane
+    # every unattributed stray lands in) — counted so the ceiling is
+    # exact by construction, never a flake source.
+    GSO_EPS = 1.02
+    per_bucket_budget = live * rate_bps + burst_bytes
+    ledger_ceiling = (clients + 1) * per_bucket_budget * GSO_EPS
+    ledger_ratio = allowed / (rate_bps * span) if allowed else 0.0
+    ceiling_ok = allowed <= ledger_ceiling
+    # The discriminating floor: six own buckets flow ~clients x rate
+    # (span-diluted); the shared lane's own hard cap is 1.60.
+    SCALE_FLOOR = 2.5
+    scale_ok = ledger_ratio >= SCALE_FLOOR
+    per_conn_cap = (rate_bps * window + burst_bytes) * 1.25
+    cap_ok = all(v <= per_conn_cap for v in totals)
+    per_conn_floor = 0.50 * rate_bps * window
+    floor_ok = all(v >= per_conn_floor for v in totals)
+    passed = ceiling_ok and scale_ok and cap_ok and floor_ok
+    verdict = "PASS" if passed else "FAIL"
+    record(
+        f"{label}: {clients} parallel curls, every connection its own bucket",
+        verdict,
+        (
+            f"kernel allowed {allowed / 1e6:.2f} MB = {ledger_ratio * 100:.1f}% of "
+            f"{rate_bps / 1e6:.0f} MB/s x span (scale floor {SCALE_FLOOR} — the shared "
+            f"lane caps at 1.60); per-bucket ceiling {per_bucket_budget / 1e6:.2f} MB "
+            f"x({clients}+1) x1.02 = {ledger_ceiling / 1e6:.2f} MB; per-connection cap "
+            f"{per_conn_cap / 1e6:.2f} MB (worst client {max(totals) / 1e6:.2f} MB), "
+            f"floor {per_conn_floor / 1e6:.2f} MB (weakest {min(totals) / 1e6:.2f} MB)"
+        ),
+        {
+            "allowed_bytes": allowed,
+            "ledger_ceiling_bytes": round(ledger_ceiling),
+            "ledger_ratio": round(ledger_ratio, 3),
+            "client_totals_bytes": totals,
+        },
+    )
+    enforcement_proofs(label, sum(totals))
+    clear_all()
+    return passed
+
+
+def test_during_expiry(rate_bps, window_secs, baseline):
+    """The time-window's own expiry, watched live (night-during, v23).
+
+    NIGHT-hunt-36's second find, the same class as the per-socket
+    hole: the --during family's depth was the kernel window-math pins
+    (during_tests), the userspace bridge pins (during_user_tests),
+    the persist round-trips, and v4's grammar ladder — parse and
+    pure logic, all green — but no live lane ever watched a window
+    CLOSE. The design's own headline is a live-behavior claim ("the
+    KERNEL decides when the window is over — no daemon, no cron;
+    every zelynic visit re-stamps the clock bridge"), and this row
+    proves the whole sentence end to end on one target:
+
+    - under the window: the limit row is live at the rate (the
+      apply's own status read)
+    - past the window: a PLAIN status visit lifts the expired row
+      (the lazy sweep, monitor.rs's own visit law — the row is gone
+      from the JSON, no unstrict typed)
+    - past the window: the target is unpoliced (a measured download
+      reads an order of magnitude past the old cap — with the policy
+      row gone from the map, the datapath has nothing to enforce)
+    """
+    label = "during expiry"
+    if not CURL:
+        return record(f"{label}: the window lifts itself", "SKIP", "curl not found")
+    if baseline and baseline < 10 * rate_bps:
+        return record(
+            f"{label}: the window lifts itself",
+            "SKIP",
+            f"baseline {baseline / 1e6:.0f} MB/s too low to clear {rate_bps / 1e6:.0f} MB/s x10",
+        )
+    rate_str = f"{round(rate_bps / 1e6)}mb" if rate_bps >= 1e6 else f"{round(rate_bps / 1e3)}kb"
+    # 1. Under the window: the apply's own read is the proof (the
+    #    row exists at the rate, the window riding its metadata).
+    ok, entry = apply_single(
+        "a", rate_str, rate_bps, rate_bps, extra=("--during", f"{window_secs}s")
+    )
+    if not ok:
+        return record(f"{label}: the window lifts itself", "FAIL", entry)
+    record(
+        f"{label}: row live under a {window_secs}s window",
+        "PASS",
+        f"strict {rate_str} --during {window_secs}s applied, the status row present at the rate",
+    )
+    # 2. Past the window: span end + margin for the clock bridge,
+    #    then the plain status visit — the sweep's own visit law.
+    time.sleep(window_secs + 2.0)
+    entry = limit_entry(status_json(), CG.ids["a"])
+    if entry is not None:
+        record(
+            f"{label}: a plain status visit lifted the expired row",
+            "FAIL",
+            f"the row outlived its window: {entry}",
+        )
+        clear_all()
+        return False
+    record(
+        f"{label}: a plain status visit lifted the expired row",
+        "PASS",
+        f"no limit row for the target {window_secs + 2.0:.1f} s after the apply — the lazy sweep, no unstrict typed",
+    )
+    # 3. Unpoliced: the old cap could deliver rate_bps x window at
+    #    most; an order of magnitude past it means the policy is
+    #    truly gone from the datapath, not just hidden from status.
+    window = 5.0
+    got = curl_in_cgroup("a", window)[0]
+    cap = rate_bps * window
+    if got is None:
+        record(f"{label}: unpoliced after the lift", "FAIL", "curl produced no metric")
+        clear_all()
+        return False
+    unpoliced_ok = got >= 10 * cap
+    record(
+        f"{label}: unpoliced after the lift",
+        "PASS" if unpoliced_ok else "FAIL",
+        f"downloaded {got / 1e6:.2f} MB in {window:.0f} s vs the retired cap's "
+        f"{cap / 1e6:.2f} MB (x10 floor — the datapath has nothing to enforce)",
+    )
+    clear_all()
+    return unpoliced_ok
+
+
 def curl_upload_ledger_rows(t0, window, sent, delivered):
     """The curl upload stage's kernel-side rows, the asymmetric
     stage's shape (NIGHT-dinner-13, the charger-core-1c best-gnu
@@ -5362,6 +5581,13 @@ def run_heavy(baseline_window):
     test_block_single(4.0)
     test_unlock(4.0, baseline)
     test_curl_burst(6.0, 6, 1_000_000, baseline)
+    # NIGHT-hunt-36: the per-socket tier's live lane — the mirror of
+    # the burst row above (every connection its OWN bucket, the
+    # scale-up verdict the shared row's sharing cap forbids).
+    test_per_socket_burst(6.0, 6, 1_000_000, baseline)
+    # NIGHT-hunt-36, find two: the --during window's own expiry,
+    # watched live (the visit-lift and the unpoliced-after).
+    test_during_expiry(1_000_000, 3, baseline)
     test_curl_upload(5.0, baseline)
     test_multi_group(5.0, baseline)
     # NIGHT-private-research-2 (AMMSP): the subtree contract, measured
