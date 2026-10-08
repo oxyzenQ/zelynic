@@ -194,11 +194,7 @@ pub fn traffic_focus(
                     pid: holder.pid,
                     comm: holder.comm.clone(),
                     remote: socket.remote.clone(),
-                    proto: if socket.proto == crate::ebpf::connections::Proto::Tcp {
-                        "tcp"
-                    } else {
-                        "udp"
-                    },
+                    proto: socket.proto.as_str(),
                     state: socket.state,
                     dl: joined.map(|b| b.dl),
                     ul: joined.map(|b| b.ul),
@@ -219,18 +215,17 @@ pub fn traffic_focus(
     }
 }
 
-/// The report's network-traffic section (pure): the header line,
-/// the capped endpoint rows (movers first, each carrying its
-/// `[dl X | ul Y]` suffix), and the honest overflow note when the
-/// census outgrows the readable cap — the same SOCKET_LINES_CAP
-/// contract the basic listing carried (every row rides --print-json).
-pub(crate) fn traffic_section_lines(focus: &TrafficFocus) -> Vec<String> {
-    let mut lines = vec![focus.header()];
+/// The shared cap law of the two section arms (night-hunt-40
+/// dedupe): rows up to SOCKET_LINES_CAP render, the rest count
+/// toward one honest overflow note — the same --print-json promise,
+/// one spelling. Pure row-shaping; callers own their row strings.
+fn capped_rows<I: Iterator<Item = String>>(rows: I) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
     let mut shown = 0usize;
     let mut hidden = 0usize;
-    for endpoint in &focus.endpoints {
+    for row in rows {
         if shown < SOCKET_LINES_CAP {
-            lines.push(endpoint.row());
+            lines.push(row);
             shown += 1;
         } else {
             hidden += 1;
@@ -241,6 +236,19 @@ pub(crate) fn traffic_section_lines(focus: &TrafficFocus) -> Vec<String> {
             "   +{hidden} more — every endpoint rides the --print-json document"
         )));
     }
+    lines
+}
+
+/// The report's network-traffic section (pure): the header line,
+/// the capped endpoint rows (movers first, each carrying its
+/// `[dl X | ul Y]` suffix), and the honest overflow note when the
+/// census outgrows the readable cap — the same SOCKET_LINES_CAP
+/// contract the basic listing carried (every row rides --print-json).
+pub(crate) fn traffic_section_lines(focus: &TrafficFocus) -> Vec<String> {
+    let mut lines = vec![focus.header()];
+    lines.extend(capped_rows(
+        focus.endpoints.iter().map(TrafficEndpoint::row),
+    ));
     lines
 }
 
@@ -278,34 +286,19 @@ pub(crate) fn traffic_section(
     if let Some(reason) = traffic_note {
         lines.push(traffic_not_measured_line(reason));
     }
-    let mut shown = 0usize;
-    let mut hidden = 0usize;
-    for holder in &conns.socket_holders {
-        for socket in &holder.sockets {
-            if shown < SOCKET_LINES_CAP {
-                lines.push(format!(
-                    "   {} ({}) → {} {} {}",
-                    holder.comm,
-                    holder.pid,
-                    socket.remote,
-                    if socket.proto == crate::ebpf::connections::Proto::Tcp {
-                        "tcp"
-                    } else {
-                        "udp"
-                    },
-                    socket.state
-                ));
-                shown += 1;
-            } else {
-                hidden += 1;
-            }
-        }
-    }
-    if hidden > 0 {
-        lines.push(grey(&format!(
-            "   +{hidden} more — every endpoint rides the --print-json document"
-        )));
-    }
+    let rows = conns.socket_holders.iter().flat_map(|holder| {
+        holder.sockets.iter().map(move |socket| {
+            format!(
+                "   {} ({}) → {} {} {}",
+                holder.comm,
+                holder.pid,
+                socket.remote,
+                socket.proto.as_str(),
+                socket.state
+            )
+        })
+    });
+    lines.extend(capped_rows(rows));
     Some(lines)
 }
 

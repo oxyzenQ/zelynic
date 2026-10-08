@@ -63,11 +63,12 @@ pub struct RingReads {
 impl RingReads {
     /// The no-lens state: both directions unreadable/absent. The
     /// shape a pre-v14 pinned object or a torn-down pin dir yields,
-    /// and the shape the display tests use to pin the
-    /// field-omission contract. (Test-facing constructor, the
-    /// BucketRaw precedent: production reaches the same shape through
-    /// the reader, never through this spelling.)
-    #[allow(dead_code)]
+    /// the shape the display tests use to pin the field-omission
+    /// contract, and (night-hunt-40 doc correction) the shape
+    /// [`read_pinned_rings`] itself returns on a schema-version
+    /// mismatch — production does reach this spelling; the old
+    /// "test-facing constructor" note and its dead_code allowance
+    /// predate that call site.
     pub fn absent() -> Self {
         RingReads { dl: None, ul: None }
     }

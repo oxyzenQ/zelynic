@@ -409,29 +409,6 @@ def privdrop_prefix():
     return _PRIVDROP_PREFIX
 
 
-def run_zel_as_user(args, timeout=30):
-    """Run zelynic through the real-user drop (run_zel's own shape).
-
-    Returns (returncode, stdout, stderr) with the same conventions
-    as run_zel; rc 126 names the missing drop lane (setpriv
-    absent — the caller should treat it as the SKIP signal, not a
-    zelynic refusal). The dropped process inherits this harness's
-    environment minus nothing: NO_COLOR and friends ride along.
-    """
-    prefix = privdrop_prefix()
-    if prefix is None:
-        return 126, "", "setpriv unavailable — the real-user drop lane cannot run"
-    try:
-        p = subprocess.run(
-            prefix + [BINARY] + args, capture_output=True, text=True, timeout=timeout
-        )
-        return p.returncode, p.stdout, p.stderr
-    except subprocess.TimeoutExpired:
-        return 124, "", f"timeout after {timeout}s (dropped uid {PRIVDROP_UID})"
-    except OSError as e:
-        return 127, "", str(e)
-
-
 def status_json():
     rc, stdout, _ = run_zel(["status", "--print-json"])
     if rc != 0:

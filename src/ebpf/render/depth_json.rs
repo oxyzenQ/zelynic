@@ -321,11 +321,7 @@ pub fn depth_doc_json(
                             EndpointJson {
                                 pid: h.pid,
                                 comm: h.comm.clone(),
-                                proto: if s.proto == crate::ebpf::connections::Proto::Tcp {
-                                    "tcp"
-                                } else {
-                                    "udp"
-                                },
+                                proto: s.proto.as_str(),
                                 remote: s.remote.clone(),
                                 state: s.state,
                                 download_bytes: joined.map(|b| b.dl),
