@@ -480,3 +480,48 @@ fn detail_hides_and_cuts_on_narrow_frames() {
     );
     assert!(detail.contains('…'), "truncation marks itself: {detail}");
 }
+
+/// night-audit-6 pin: a CONNECTED UDP socket (the QUIC-client shape)
+/// is traffic, not noise. /proc/net/udp reports the sk_state
+/// verbatim — 01 (ESTABLISHED) for a connected socket, 07 (CLOSE)
+/// for an unconnected one (probe-verified live: connect() a UDP
+/// socket and its table row reads 01) — and the former gate accepted
+/// only CLOSE, which filtered every connected-UDP row out of the
+/// depth report and the live tree. The bound-only listener (the
+/// hunt-15 shape) stays hidden; the unconnected-with-remote row (the
+/// nc fixture shape) stays shown.
+#[test]
+fn displayable_connected_udp_is_traffic() {
+    use crate::ebpf::connections::{Proto, SocketInfo};
+
+    let udp = |remote: &str, state: &'static str| SocketInfo {
+        proto: Proto::Udp,
+        remote: remote.to_string(),
+        state,
+        queued: false,
+        cookie: None,
+    };
+
+    // Connected UDP (state 01, real remote): the QUIC-client shape.
+    assert!(is_displayable(&udp("142.250.191.78:443", "ESTABLISHED")));
+    // Unconnected with a real remote (state 07): the nc shape.
+    assert!(is_displayable(&udp("8.8.8.8:53", "CLOSE")));
+    // Bound-only listeners: noise either family — hidden.
+    assert!(!is_displayable(&udp("0.0.0.0:0", "CLOSE")));
+    assert!(!is_displayable(&udp("[::]:0", "CLOSE")));
+    // The TCP law is untouched.
+    assert!(is_displayable(&SocketInfo {
+        proto: Proto::Tcp,
+        remote: "10.90.170.143:443".to_string(),
+        state: "ESTABLISHED",
+        queued: false,
+        cookie: None,
+    }));
+    assert!(!is_displayable(&SocketInfo {
+        proto: Proto::Tcp,
+        remote: "0.0.0.0:22".to_string(),
+        state: "LISTEN",
+        queued: false,
+        cookie: None,
+    }));
+}
