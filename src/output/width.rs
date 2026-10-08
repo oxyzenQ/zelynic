@@ -40,8 +40,21 @@
 /// or an endpoint label can realistically carry.
 ///
 /// Zero (0 columns): combining diacriticals, zero-width
-/// space/joiner/non-joiner, BOM/dirmarks, variation selectors —
-/// they stack onto the preceding cell and never claim their own.
+/// space/joiner/non-joiner, BOM/dirmarks, the bidi
+/// embedding/override/isolate family, variation selectors — they
+/// stack onto the preceding cell or carry no glyph of their own.
+/// night-hunt-40 (white-hat extension): the bidi family
+/// U+202A..=U+202E (LRE, RLE, PDF, LRO, RLO) and
+/// U+2066..=U+2069 (LRI, RLI, FSI, PDI) and the BOM-as-ZWNBSP
+/// U+FEFF were missing from the zero-width list — they fell
+/// through to the default 1-column arm, so a comm carrying an RLO
+/// measured one extra column per bidi char and the label column
+/// padding over-painted. The fix mirrors the wcwidth spec (all
+/// Cf-format characters that claim no terminal cell). The
+/// sanitize_comm choke point strips these from any label that
+/// reaches a width call, so this is defense-in-depth — but a
+/// caller that bypasses sanitize and measures raw /proc bytes
+/// would otherwise still miscount.
 ///
 /// Everything else measures 1, including `…` (the truncation
 /// ellipsis) and every ASCII printable — the dominant case, kept
@@ -63,8 +76,11 @@ pub fn char_width(c: char) -> usize {
     if matches!(cp,
         0x0300..=0x036F       // combining diacriticals
         | 0x200B..=0x200F     // zero-width space, joiners, marks
+        | 0x202A..=0x202E     // bidi embedding/override (LRE, RLE, PDF, LRO, RLO)
         | 0x2060..=0x2064     // word joiner, invisible ops
+        | 0x2066..=0x2069     // bidi isolate (LRI, RLI, FSI, PDI)
         | 0xFE00..=0xFE0F     // variation selectors
+        | 0xFEFF             // BOM / zero-width no-break space
     ) {
         return 0;
     }
@@ -222,5 +238,36 @@ mod tests {
         assert_eq!(display_width(&pad_to_width("谷歌", 4)), 4);
         // Over-budget degrades through the ellipsis then pads.
         assert_eq!(display_width(&pad_to_width("谷歌浏览器", 6)), 6);
+    }
+
+    /// night-hunt-40 white-hat: the bidi embedding/override/isolate
+    /// family and the BOM-as-ZWNBSP carry no glyph of their own —
+    /// wcwidth gives them 0, and the label-column budget must agree.
+    /// Pre-fix they fell through to the default 1-column arm, so a
+    /// comm carrying an RLO measured one extra column per bidi char
+    /// and the label column padding over-painted by N columns for N
+    /// bidi chars in the label. The sanitize_comm choke point
+    /// strips these from any label that reaches a width call, so
+    /// this is defense-in-depth — but a caller that bypasses
+    /// sanitize and measures raw /proc bytes would otherwise still
+    /// miscount. Both the per-char and per-string APIs are pinned.
+    #[test]
+    fn bidi_format_chars_claim_zero_columns() {
+        // The embedding/override family U+202A..=U+202E.
+        assert_eq!(char_width('\u{202A}'), 0); // LRE
+        assert_eq!(char_width('\u{202B}'), 0); // RLE
+        assert_eq!(char_width('\u{202C}'), 0); // PDF
+        assert_eq!(char_width('\u{202D}'), 0); // LRO
+        assert_eq!(char_width('\u{202E}'), 0); // RLO
+                                               // The isolate family U+2066..=U+2069.
+        assert_eq!(char_width('\u{2066}'), 0); // LRI
+        assert_eq!(char_width('\u{2067}'), 0); // RLI
+        assert_eq!(char_width('\u{2068}'), 0); // FSI
+        assert_eq!(char_width('\u{2069}'), 0); // PDI
+                                               // BOM-as-ZWNBSP (not at start of text).
+        assert_eq!(char_width('\u{FEFF}'), 0); // ZWNBSP
+                                               // The realistic Trojan-Source comm: four ASCII chars + RLO +
+                                               // three ASCII chars = 7 columns (the RLO claims none).
+        assert_eq!(display_width("evil\u{202E}nwp"), 7);
     }
 }

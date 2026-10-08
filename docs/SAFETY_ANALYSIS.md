@@ -546,6 +546,20 @@ unprivileged attacker:
   fake table row with a wrong cgroup ID nudges an admin toward
   unstricting/blocking the wrong target.
 - **Escape sequences** corrupt the alt-screen monitor mid-render.
+- **Bidi formatting** (night-hunt-40 white-hat extension): the
+  Unicode Cf family that `char::is_control` does NOT catch — the
+  embedding/override set U+202A..=U+202E (LRE, RLE, PDF, LRO, RLO)
+  and the isolate set U+2066..=U+2069 (LRI, RLI, FSI, PDI) — flip
+  every following character's display direction in the admin's
+  terminal. A comm carrying RLO (`\u{202E}`) renders its suffix
+  reversed; the 15-byte comm budget admits three of these (each
+  is 3 UTF-8 bytes) plus six ASCII chars, enough to craft a label
+  that visually masquerades as a different name (the CVE-2021-42574
+  "Trojan Source" class applied to terminal rendering instead of
+  source code). The other Cf chars (ZWJ, ZWNJ, ZWSP, LRM, RLM, WJ,
+  BOM) are invisible but NOT display-direction-affecting and have
+  legitimate uses in some scripts and emoji, so they ride the fast
+  path; only the bidi family is the terminal-injection vector.
 
 Fix: `sanitize_comm()` (src/output/sanitize.rs) replaces every
 control character — Rust `char::is_control`, covering C0, DEL, and
@@ -553,17 +567,25 @@ the C1 range — with `?` at all THREE /proc read boundaries (identity
 walk, connection walk, and the resolve_target match walk), so every
 downstream consumer (display, JSON, matching, majority-vote tally)
 is safe by construction and matching operates on the same canonical
-label list-apps displays. procps-ng applies the same substitution to
-comm for the same reason. NIGHT-optimized-1 then consolidated the
-three boundaries into two canonical helpers — `pid_cgroup_id()` and
-`pid_comm()` (src/ebpf/identity/mod.rs) — that all three walks call,
-so sanitize and every future boundary fix apply once and can never
-drift between surfaces. The kernel quirk that a copied binary's
-basename becomes its comm gives the non-root depth suite a
-pure-shell spoofer: it plants hostile comms and asserts list-apps
-output (text and JSON) never carries a raw ESC byte; the sanitize
+label list-apps displays. The night-hunt-40 white-hat extension
+extends the same `?` substitution to the bidi formatting family
+(U+202A..=U+202E and U+2066..=U+2069) at the same choke point, after
+verifying against the repo's pinned toolchain (rustc 1.98.1) that
+`char::is_control` returns false for all nine. procps-ng applies
+the same C0/DEL/C1 substitution to comm for the same reason;
+the bidi extension is stricter than procps-ng. NIGHT-optimized-1
+then consolidated the three boundaries into two canonical helpers
+— `pid_cgroup_id()` and `pid_comm()` (src/ebpf/identity/mod.rs) —
+that all three walks call, so sanitize and every future boundary
+fix apply once and can never drift between surfaces. The kernel
+quirk that a copied binary's basename becomes its comm gives the
+non-root depth suite a pure-shell spoofer: it plants hostile comms
+and asserts list-apps output (text and JSON) never carries a raw
+ESC byte OR a raw bidi format char; the sanitize
 behavior itself is pinned by unit tests covering the OSC-52,
-forged-row, DEL, and C1 families plus the clean-pass fast path.
+forged-row, DEL, C1, and bidi-format families plus the clean-pass
+fast path and the other-Cf-untouched pin (ZWJ, ZWNJ, ZWSP, LRM,
+RLM, WJ, BOM ride the fast path on purpose).
 
 ### Finding 2 (fixed): u64 overflow in the BPF token refill
 
