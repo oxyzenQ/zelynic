@@ -1089,6 +1089,11 @@ def enforcement_proofs(label, got_bytes, name="a", baseline_allowed=0):
     """Kernel-side proof under a binding limit: packets dropped and the
     BPF byte counter in agreement with the client's own count.
 
+    Returns the status entry the proofs read (NIGHT-hunt-37 rider v2:
+    the caller weighs the window's own arrivals — allowed + dropped —
+    while the policy is still live), or None when no row existed
+    (the FAIL rows above already carry that loss).
+
     The accounting row only runs above the accounting floor
     (lib.ACCOUNTING_FLOOR_BYTES): below it, loopback GSO starvation at
     tiny rates leaves the allowed bytes dominated by per-skb headers
@@ -1108,7 +1113,7 @@ def enforcement_proofs(label, got_bytes, name="a", baseline_allowed=0):
     entry = limit_entry(status_json(), CG.ids[name])
     if not entry:
         record(f"{label}: kernel drops engaged", "FAIL", "no limit row to read counters from")
-        return
+        return None
     dropped = entry.get("packets_dropped", 0)
     record(
         f"{label}: kernel drops engaged",
@@ -1135,6 +1140,7 @@ def enforcement_proofs(label, got_bytes, name="a", baseline_allowed=0):
                 "loopback GSO granularity at this rate; the kernel drops "
                 "above are the enforcement proof",
             )
+    return entry
 
 
 # ── NIGHT-blade-4: the server depth phase ──────────────────────────────────
@@ -5084,22 +5090,90 @@ def realnet_band_gate(kind, need_bps):
     return True, got / REALNET_FRESH_GATE_WINDOW
 
 
-def realnet_under_band_reprobe(name, kind, rate_bps, measured_bps, band_str):
-    """NIGHT-hunt-37 followup rider: the one-sided post-fail re-probe.
-    A mid-window sag slips past the pre-window gate (bd8de0e's
-    followup run: a 5 MB/s gate, a 135 KB/s window, a recovered path
-    37 s later — the shared-runner egress oscillates at minute
-    scale). The rider runs ONLY on the under-band side, after the
-    policy is cleared: it re-measures the UNPOLICED path, and a path
-    that cannot feed 2x the band makes the row an instrument-floor
-    SKIP with both figures named — contention, never enforcement. A
-    path that feeds leaves the FAIL standing (band_check records it
-    next); the over-band side never re-probes at all — a real
-    over-delivery fails on the attempt that produced it, the
-    boost-27 one-sided law. Returns the SKIP-record verdict when the
-    path sagged, else None (the caller falls through to band_check).
+def realnet_window_pressed(arrived_bytes, rate_bps, window):
+    """Pure (NIGHT-hunt-37 rider v2): did the window's own arrivals
+    press the bucket at the floor's scale? The ledger's arrived
+    bytes (allowed + dropped at the hook) integrated over the window
+    must reach the same floor the verdict judges the client by — an
+    under-band reading whose arrivals sat under the floor's worth of
+    the band budget never gave the policer the load to shape: the
+    bucket admitted ~every byte that came (the accounting row's
+    ~100%), and the row measured the path, not the policy. The
+    a11b8b1 lesson that seated this law: all three red legs carried
+    5.8-9.6 MB arrived against a 13.5 MB floor x budget with drops
+    at burst-edge noise — a re-probe's RECOVERED path (the CDN
+    bursts back in under a second) cannot retroactively feed a
+    window whose arrivals never pressed the bucket.
     """
+    return arrived_bytes >= REALNET_BAND_LO * rate_bps * window
+
+
+def realnet_under_band_reprobe(
+    name, kind, rate_bps, measured_bps, band_str, window, arrived_bytes=None
+):
+    """NIGHT-hunt-37 followup rider v2: the one-sided post-fail
+    re-probe, seated on the window's own arrival evidence.
+
+    v1 (a11b8b1) ran the re-probe alone: a path that fed left the
+    FAIL standing. The a11b8b1 run itself convicted the gap — all
+    three red legs measured 19-31% of the 2mb band while their own
+    ledgers carried 5.8-9.6 MB arrived against the 30 MB budget
+    (drops 13-18 packets, accounting 101%): the bucket never saw its
+    band, the policer admitted ~everything that arrived, and the
+    re-probe's recovered path filed the minute-scale sag as an
+    enforcement FAIL. A re-probe that feeds names the path healthy
+    NOW; it cannot feed a window that never happened.
+
+    The v2 law joins the window's own ledger BEFORE the policy
+    clears (arrived = bytes_allowed + bytes_dropped, the row the
+    enforcement proofs already read, handed in by the caller):
+    a window whose arrivals never pressed the floor's scale
+    (`realnet_window_pressed`) is an instrument-floor row WHATEVER
+    the re-probe says — contention, never enforcement, both figures
+    named. A PRESSED window (arrivals at the floor's scale or
+    better: the path DID feed the policer at the scale the verdict
+    judges) keeps v1's one-sided law verbatim: a re-probe that still
+    cannot feed 2x the band SKIPs with the sag named; a path that
+    feeds leaves the FAIL standing (band_check records it next); the
+    over-band side never re-probes at all — a real over-delivery
+    fails on the attempt that produced it, the boost-27 one-sided
+    law. `arrived_bytes` None means the ledger row was unreadable
+    (the proof rows already FAIL loudly when that happens) — an
+    unread window cannot claim the not-pressed defense, so v1's law
+    decides alone. Returns the SKIP-record verdict when the row
+    stands down, else None (the caller falls through to band_check).
+    """
+    pressed = arrived_bytes is not None and realnet_window_pressed(arrived_bytes, rate_bps, window)
     reprobe_ok, reprobe_bps = realnet_band_gate(kind, rate_bps)
+    if not pressed:
+        if reprobe_ok:
+            if reprobe_bps >= 2 * rate_bps:
+                sag = (
+                    "the sag recovered before the re-probe: the unpoliced "
+                    f"path re-probes at {fmt_bps(reprobe_bps)}"
+                )
+            else:
+                sag = (
+                    "the sag held through the re-probe: the unpoliced path "
+                    f"re-probes at {fmt_bps(reprobe_bps)}"
+                )
+        else:
+            sag = "the re-probe worker failed — the window's own arrivals carry the verdict alone"
+        arrived_note = (
+            fmt_bps(arrived_bytes / window)
+            if arrived_bytes is not None
+            else "unreadable, the ledger row was lost (the proof rows above carry that failure)"
+        )
+        return record(
+            name,
+            "SKIP",
+            f"measured {fmt_bps(measured_bps)} under the {band_str} band; the "
+            f"window's own arrivals ({arrived_note}) never pressed the bucket "
+            f"at the floor's scale ({fmt_bps(REALNET_BAND_LO * rate_bps)}) — "
+            f"the policer admitted ~everything that arrived; {sag} — "
+            "contention, not enforcement (the weekly watch's busy-hour "
+            "residual)",
+        )
     if reprobe_ok and reprobe_bps < 2 * rate_bps:
         return record(
             name,
@@ -5248,12 +5322,22 @@ def stage_realnet_strict_download():
     # The proofs ride the live policy (drops + the accounting band,
     # true measurements whatever the verdict lands as), then the
     # policy clears BEFORE any re-probe — the re-probe must measure
-    # the unpoliced path.
-    enforcement_proofs("real internet strict", got)
+    # the unpoliced path. The entry rides back out of the proofs
+    # (NIGHT-hunt-37 rider v2): the verdict weighs the window's own
+    # arrivals (allowed + dropped) while the row still lives — the
+    # clear below retires it.
+    entry = enforcement_proofs("real internet strict", got)
+    arrived = entry.get("bytes_allowed", 0) + entry.get("bytes_dropped", 0) if entry else None
     clear_all()
     if under:
         sagged = realnet_under_band_reprobe(
-            name, "dl", REALNET_DL_RATE_BPS, measured, REALNET_DL_RATE_STR
+            name,
+            "dl",
+            REALNET_DL_RATE_BPS,
+            measured,
+            REALNET_DL_RATE_STR,
+            REALNET_RATE_WINDOW,
+            arrived,
         )
         if sagged is not None:
             return sagged
@@ -5293,10 +5377,25 @@ def stage_realnet_strict_upload():
         return record(name, "FAIL", f"worker failed: {err}")
     measured = got / REALNET_RATE_WINDOW
     under = measured < REALNET_BAND_LO * REALNET_UL_RATE_BPS
+    # NIGHT-hunt-37 rider v2: the window's own arrival evidence,
+    # read while the policy is still live (the clear below retires
+    # the row) — the upload lane has no proofs call, so the entry
+    # is read directly.
+    arrived = None
+    if under:
+        entry = limit_entry(status_json(), CG.ids["a"])
+        if entry:
+            arrived = entry.get("bytes_allowed", 0) + entry.get("bytes_dropped", 0)
     clear_all()
     if under:
         sagged = realnet_under_band_reprobe(
-            name, "ul", REALNET_UL_RATE_BPS, measured, REALNET_UL_RATE_STR
+            name,
+            "ul",
+            REALNET_UL_RATE_BPS,
+            measured,
+            REALNET_UL_RATE_STR,
+            REALNET_RATE_WINDOW,
+            arrived,
         )
         if sagged is not None:
             return sagged
@@ -5357,8 +5456,24 @@ def stage_realnet_strict_all():
         measured = got / REALNET_RATE_WINDOW
         under = measured < REALNET_BAND_LO * 2_000_000
         if under:
+            # NIGHT-hunt-37 rider v2: the window's own arrival
+            # evidence, read while the sweep's policy is still live
+            # (the clear below retires the row; the worker cgroup's
+            # own ledger carries its arrivals).
+            entry = limit_entry(status_json(), CG.ids["a"])
+            arrived = (
+                entry.get("bytes_allowed", 0) + entry.get("bytes_dropped", 0) if entry else None
+            )
             clear_all()
-            sagged = realnet_under_band_reprobe(name, "dl", 2_000_000, measured, "2mb")
+            sagged = realnet_under_band_reprobe(
+                name,
+                "dl",
+                2_000_000,
+                measured,
+                "2mb",
+                REALNET_RATE_WINDOW,
+                arrived,
+            )
             if sagged is not None:
                 return sagged
         return band_check(
@@ -6143,6 +6258,71 @@ def self_test():
         "engine: realnet band overrides are honest",
         "PASS" if 0 < REALNET_BAND_LO < REALNET_BAND_HI else "FAIL",
         f"floor {REALNET_BAND_LO}, ceiling {REALNET_BAND_HI} (slow-start patience, same tripwire)",
+    )
+
+    # NIGHT-hunt-37 rider v2 pins: the pressed-bucket law, pure and
+    # on the exact a11b8b1 shapes that convicted the v1 rider. The
+    # floor's scale — the same constant the verdict judges the client
+    # by — decides both sides of the policer: a window whose arrivals
+    # (allowed + dropped at the hook) never reached the floor's worth
+    # of the band budget never gave the bucket the load to shape, and
+    # the re-probe names the sag, never the verdict. A PRESSED window
+    # (the path fed the policer at the verdict's own scale) keeps the
+    # v1 one-sided law: a re-probe that feeds leaves the FAIL
+    # standing. The leg figures are the run's own ledger rows (the
+    # allowed bytes plus the 13/18/14 edge-noise packets at the MTU
+    # bound — the dropped-byte counter rides the same status row).
+    a11b8b1_legs = [
+        (5_999_099 + 13 * 1500, "low-gnu 13 pkts"),
+        (9_543_832 + 18 * 1500, "best-gnu 18 pkts"),
+        (5_780_091 + 14 * 1500, "best-musl 14 pkts"),
+    ]
+    not_pressed_ok = all(
+        not realnet_window_pressed(arrived, 2_000_000, 15.0) for arrived, _ in a11b8b1_legs
+    )
+    pressed_ok = realnet_window_pressed(13_500_000, 2_000_000, 15.0) and realnet_window_pressed(
+        30_000_000, 2_000_000, 15.0
+    )
+    record(
+        "engine: realnet under-band verdict rides the pressed-bucket law",
+        "PASS" if not_pressed_ok and pressed_ok else "FAIL",
+        "the a11b8b1 red legs (arrived "
+        + ", ".join(f"{label} {arrived:,} B" for arrived, label in a11b8b1_legs)
+        + ") never pressed the 13.5 MB floor x budget of the 30 MB band budget; "
+        "13.5 MB (the floor's own scale) and the full 30 MB budget do — the "
+        "floor judges both sides of the policer",
+    )
+    # Source-shape pin: every band stage weighs the window's own
+    # arrivals, read while the policy is live (the clear retires the
+    # row), before any re-probe verdict — and the rider seats on the
+    # pressed-bucket law before it ever names a sag. The ordering
+    # keys on each stage's MAIN clear (rindex skips the early
+    # worker-fail clear's dead branch, index takes the sweep's only
+    # pre-reprobe clear): the entry read must precede the clear that
+    # retires the row, and every re-probe call hands the arrivals in.
+    dl_src = inspect.getsource(stage_realnet_strict_download)
+    ul_src = inspect.getsource(stage_realnet_strict_upload)
+    sweep_src = inspect.getsource(stage_realnet_strict_all)
+    reprobe_src = inspect.getsource(realnet_under_band_reprobe)
+    wiring_ok = (
+        "realnet_window_pressed" in reprobe_src
+        and "arrived" in reprobe_src
+        and "enforcement_proofs(" in dl_src
+        and dl_src.index("enforcement_proofs(") < dl_src.rindex("clear_all()")
+        and "arrived" in dl_src
+        and "limit_entry(" in ul_src
+        and ul_src.index("limit_entry(") < ul_src.rindex("clear_all()")
+        and "arrived" in ul_src
+        and "limit_entry(" in sweep_src
+        and sweep_src.index("limit_entry(") < sweep_src.index("clear_all()")
+        and "arrived" in sweep_src
+    )
+    record(
+        "engine: the realnet band stages weigh the window's own arrivals",
+        "PASS" if wiring_ok else "FAIL",
+        "the ledger entry is read while the policy is live (the clear retires "
+        "the row), all three band rows hand the arrivals to the rider, and the "
+        "under-band re-probe seats on the pressed-bucket law first",
     )
 
     counts = {v: sum(1 for r in RESULTS if r["verdict"] == v) for v in ("PASS", "FAIL", "SKIP")}

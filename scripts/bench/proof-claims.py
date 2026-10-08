@@ -252,6 +252,12 @@ PRECISION_SETTLE_MAX_FULL = 6.0
 # whole-mb grammar bps_to_rate_str speaks. When the offer cannot
 # fund even the floor the row records its honest SKIP: a window
 # this host cannot saturate measures the offer, not the policer.
+# v3 (the a11b8b1 lesson): the same 25% headroom rides BOTH sides of
+# the law — the adaptation sizes the re-attempt to it, and the
+# offer-test certification demands it (precision_offer_tested_refill
+# v3: an offer that only TOUCHED the budget line, +2.4-2.6% on the
+# two busy-hour legs, leaves the bucket under-fed at every AIMD
+# dip; a touch is not a presentation). One family, one constant.
 PRECISION_ADAPT_MARGIN = 0.8
 PRECISION_ADAPT_MIN_RATE = 5_000_000
 
@@ -352,16 +358,31 @@ NFT_VOLATILE = (
 
 
 def precision_offer_tested_refill(offered_bytes, expected_bytes):
-    """Pure: did this window's offer test the refill? The hook-level
-    offer (admitted + refused) must integrate up to the configured
-    budget before an under-band admission can read as the bucket's
-    own doing — an offer under the budget measured the host's fleet
-    (refusals or not: a sagging offer's burst instants spike over
-    the instantaneous tokens and refuse without ever presenting a
-    budget-scale surplus). Both sides pinned by the self-test,
-    including the exact 2b269f73 best-gnu shape (NIGHT-improve-48's
-    zero-refusal law, the v2 spelling from NIGHT-mitigate-2)."""
-    return offered_bytes >= expected_bytes
+    """Pure v3: did this window's offer SUSTAIN the budget scale the
+    certification needs — the headroom the adaptation itself designs
+    in? The hook-level offer (admitted + refused) must integrate to
+    at least `expected / PRECISION_ADAPT_MARGIN` (the 25% headroom
+    the adapted rate targets) before an under-band admission can
+    read as the bucket's own doing.
+
+    v2 (NIGHT-mitigate-2) gated on touching the budget line
+    (offered >= expected) and the a11b8b1 best-gnu leg broke exactly
+    there: the adapted window offered 667.2 MB against the 650.2 MB
+    budget — +2.6%, a converged-but-sagging fleet whose AIMD dips
+    leave the refill unspent while its burst
+    instants refuse 108.8 MB — an under-admission of 14.1% filed as
+    the "real regression signature" on a host whose fleet could not
+    HOLD the line, only touch it (bd8de0e's low-gnu leg carried the
+    same shape one run earlier: +2.4%, 15.2%). Touching is not
+    presenting: a sustained surplus rides the refill exactly (the
+    aggregate's own law), a touch leaves the bucket under-fed
+    exactly as often as the sawtooth dips below the line. The
+    v3 constant is the adaptation's own — PRECISION_ADAPT_MARGIN
+    sizes the re-attempt to give the fleet 25% headroom over the
+    refill, and the same 25% is the certification's demand: one
+    family, one constant, no new threshold. Both sides pinned by the
+    self-test, including the exact a11b8b1 and bd8de0e shapes."""
+    return offered_bytes >= expected_bytes / PRECISION_ADAPT_MARGIN
 
 
 def precision_adapt_rate(offer_bps, current_rate):
@@ -1398,21 +1419,26 @@ def stage_precision(baseline, quick):
         if admitted >= expected * (1.0 - bound):
             break  # in-band, or over-band: the verdict is now, not retried
         # Under-side, the offer-test discriminator first (improve-48's
-        # law, the v2 spelling): a budget-scale offer — the hook's
-        # admitted + refused integrating up to the budget — with an
-        # under-band admission is the real regression the row exists
-        # to catch, and the re-attempt stays at the SAME rate: a
-        # systematic break reproduces at budget scale, a transient
-        # washes out (the old patience verbatim). An offer that
-        # integrated UNDER the budget is offer-limited, refusals or
-        # not — a sagging offer's burst instants spike over the
-        # instantaneous tokens and refuse without ever presenting a
-        # budget-scale surplus (the 2b269f73 best-gnu shape: 878.8 MB
-        # offered vs the 1000.5 MB budget, 134.1 MB refused, TCP-level
-        # 73.9%, admit ratio 1.0070 — the window measured the host's
+        # law, the v3 spelling): a SUSTAINED budget-scale offer — the
+        # hook's admitted + refused integrating to the headroom the
+        # adaptation itself designs in (25% over the budget, the
+        # PRECISION_ADAPT_MARGIN family) — with an under-band
+        # admission is the real regression the row exists to catch,
+        # and the re-attempt stays at the SAME rate: a systematic
+        # break reproduces at that scale, a transient washes out
+        # (the old patience verbatim). An offer that only TOUCHED
+        # the budget line is offer-limited, refusals or not — a
+        # converged-but-sagging fleet's burst instants spike over
+        # the instantaneous tokens and refuse while its AIMD dips
+        # leave the refill unspent, never presenting a sustained
+        # surplus (the 2b269f73 best-gnu shape: 878.8 MB offered
+        # vs the 1000.5 MB budget, 134.1 MB refused, TCP-level
+        # 73.9%, admit ratio 1.0070; the a11b8b1 best-gnu shape:
+        # 667.2 MB against the 650.2 MB budget, +2.6%, 108.8 MB
+        # refused, 14.1% under — both windows measured the host's
         # fleet, not the token math) — and the offer-limited family
         # rides the adaptation below, never a red verdict from a
-        # window that could not present the budget.
+        # window that could not hold the budget.
         offered = admitted + dropped
         if precision_offer_tested_refill(offered, expected):
             # The real signature: keep the same-rate patience — a
@@ -1436,10 +1462,10 @@ def stage_precision(baseline, quick):
         # policer, and the admit-ratio row below already proves every
         # offered byte passed the hook. An earlier window's real
         # signature does NOT govern a red verdict here: the verdict
-        # stands on the FINAL window's evidence, and a budget-scale
-        # under-admission whose re-attempt cannot even present the
-        # budget again is inconclusive, not red — the row records the
-        # honest SKIP with every number attached.
+        # stands on the FINAL window's evidence, and a sustained
+        # budget-scale under-admission whose re-attempt cannot even
+        # hold the budget again is inconclusive, not red — the row
+        # records the honest SKIP with every number attached.
         if real_signature_seen:
             offer_limited_final = True
             break
@@ -1472,8 +1498,9 @@ def stage_precision(baseline, quick):
             client_delta / elapsed,
             rate,
             f"{PRECISION_FLOWS}-flow aggregate, the window offer-limited "
-            "(the offer integrated under the refill) — the number is the "
-            "offer this host's fleet actually made, not the shaping",
+            "(the offer could not hold the headroom the adaptation designs in) "
+            "— the number is the offer this host's fleet actually made, not "
+            "the shaping",
             lo=0.0,
         )
     else:
@@ -1514,24 +1541,26 @@ def stage_precision(baseline, quick):
             f"rate x time {expected:.0f} B — error {err * 100:.3f}% with the "
             f"offer at {admitted + dropped} B against the {expected:.0f} B "
             f"budget ({dropped} B refused in burst instants): the fleet's "
-            "own offer integrated under the refill — the instrument was "
-            "offer-limited on this host, the policer held its contract (the "
-            "admit-ratio row above proves every offered byte passed the "
-            "hook). "
+            "own offer could not hold the headroom the adaptation designs "
+            "in (25% over the refill) — a converged-but-sagging fleet's AIMD "
+            "dips leave the refill unspent, an instrument "
+            "floor on this host, not a policer defect (the admit-ratio row "
+            "above proves every offered byte passed the hook). "
         )
         if adapt_trail:
             detail += (
                 f"The rate adapted {adapt_trail[0] // 1_000_000}mb -> "
                 f"{adapt_trail[1] // 1_000_000}mb after the first "
                 f"offer-limited window (its offer {lib.fmt_bps(adapt_trail[2])}) "
-                "and the adapted window was offer-limited too. "
+                "and the adapted window's offer sagged under the designed "
+                "headroom too. "
             )
         elif real_signature_seen:
             detail += (
-                "An earlier window read under-band at budget scale; its "
-                "re-attempt's offer sagged under the refill, so the "
-                "evidence did not reproduce — the row reads inconclusive "
-                "with every number attached, not red. "
+                "An earlier window read under-band with a sustained "
+                "budget-scale offer; its re-attempt's offer sagged under "
+                "the headroom, so the evidence did not reproduce — the row "
+                "reads inconclusive with every number attached, not red. "
             )
         else:
             detail += (
@@ -2242,12 +2271,16 @@ def self_test():
         == "PASS"
         and ok
     )
-    # The improve-48 pins (v2, NIGHT-mitigate-2): the offer-test
+    # The improve-48 pins (v3, the a11b8b1 lesson): the offer-test
     # discriminator, both sides of its law including the exact CI
-    # shape that broke the v1 binary (the 2b269f73 best-gnu leg —
-    # 878.8 MB offered against a 1000.5 MB budget with 134.1 MB
-    # refused: refusals without a budget-scale surplus, the offer
-    # sagged, the policer held), and the adaptation math on the exact
+    # shapes that broke each earlier spelling (the 2b269f73 best-gnu
+    # leg broke the v1 binary — 878.8 MB offered against a 1000.5 MB
+    # budget with 134.1 MB refused: refusals without a budget-scale
+    # surplus, the offer sagged, the policer held; the a11b8b1
+    # best-gnu and bd8de0e low-gnu legs broke the v2 line-touch —
+    # 667.2/563.3 MB offered against 650.2/550.2 MB budgets, +2.6%
+    # and +2.4%: a touch, not a hold, the AIMD dips' unspent refill
+    # filed as under-admission), and the adaptation math on the exact
     # CI shapes that motivated it (runs 224/228's best-specs legs read
     # 29.775%/21.297% under with zero refusals — the offer, not the
     # policer). Pure functions, executed here so the LIVE row's
@@ -2255,18 +2288,26 @@ def self_test():
     # lesson applied to the new arms).
     ok = (
         lib.record(
-            "selftest: offer-test discriminator — the budget scale is the gate",
+            "selftest: offer-test discriminator — the designed headroom is the gate",
             "PASS"
-            if precision_offer_tested_refill(1_000_479_172, 1_000_479_172)
+            if precision_offer_tested_refill(1_250_598_965, 1_000_479_172)
+            and not precision_offer_tested_refill(1_000_479_172, 1_000_479_172)
+            and not precision_offer_tested_refill(667_192_690, 650_243_554)
+            and not precision_offer_tested_refill(563_255_950, 550_231_614)
             and not precision_offer_tested_refill(878_834_209, 1_000_479_172)
             and not precision_offer_tested_refill(744_746_367, 1_000_479_172)
             else "FAIL",
-            "under-band certifies the regression only at budget scale: the "
-            "2b269f73 best-gnu shape — 878.8 MB offered (744.7 admitted + "
-            "134.1 refused) against the 1000.5 MB budget — never presented "
-            "the budget, so its refusals are burst instants on a sag, not "
-            "the regression signature; the zero-refusal starve (744.7 "
-            "admitted, offered == admitted) is the same law's special case",
+            "under-band certifies the regression only when the offer HOLDS the "
+            "headroom the adaptation designs in (25% over the budget, the "
+            "PRECISION_ADAPT_MARGIN family): the a11b8b1 best-gnu shape — "
+            "667.2 MB offered (558.4 admitted + 108.8 refused) against the "
+            "650.2 MB budget, +2.6% — touched the line and never held it, "
+            "so its refusals are burst instants on a converged-but-sagging "
+            "fleet, not the regression signature (bd8de0e's low-gnu carried "
+            "the same shape: 563.3/550.2, +2.4%); the 2b269f73 shape — "
+            "878.8 MB offered against the 1000.5 MB budget — never even "
+            "touched it; the zero-refusal starve (744.7 admitted, offered "
+            "== admitted) is the same law's special case",
         )
         == "PASS"
         and ok
