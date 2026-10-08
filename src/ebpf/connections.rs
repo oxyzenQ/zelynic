@@ -60,6 +60,19 @@ pub enum Proto {
     Udp,
 }
 
+impl Proto {
+    /// The row spelling every surface renders — one copy since
+    /// night-hunt-40 (the depth focus rows, the basic census
+    /// fallback, and the JSON document each carried their own
+    /// identical ternary; three future drift points become none).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Proto::Tcp => "tcp",
+            Proto::Udp => "udp",
+        }
+    }
+}
+
 /// One live socket endpoint, as the kernel sees it.
 #[derive(Debug, Clone)]
 pub struct SocketInfo {

@@ -55,7 +55,6 @@ pub(crate) use super::display_lines::{
 };
 
 /// Collect display data from policies + stats (+ the window join).
-#[allow(clippy::too_many_arguments)]
 pub(super) fn collect_display_data(
     dl_policies: &[(u32, PolicyRaw)],
     ul_policies: &[(u32, PolicyRaw)],
