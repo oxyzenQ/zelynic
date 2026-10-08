@@ -456,7 +456,14 @@ pub fn hot(msg: &str) -> String {
 // became the grey grammar tier), and since NIGHT-hunt-39 every flag
 // spelling on that reference too — table columns and inline
 // mentions alike (the owner's mandate: flags are grammar; the span
-// covers the spelling exactly, so piped bytes never move). The tier
+// covers the spelling exactly, so piped bytes never move). The
+// hunt-39 peak extension (owner approved) carries the tier past
+// the reference: the help's target-form tokens (help.rs
+// target_row), the error-lane footer's --help spelling
+// (cli/ux.rs), and clap's suggestion candidates (cli/styles.rs
+// valid rides the same #8B8B8B — the 245 rung at 256 depth,
+// clap's own escape per env) — grammar is grey wherever it
+// appears. The tier
 // therefore paints in EVERY build flavor, not just the eagle-eyes
 // graph. Grey says "context, not content".
 
