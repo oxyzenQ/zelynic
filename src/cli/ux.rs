@@ -33,6 +33,7 @@ use super::argv::drop_dishonest_escape_hatch;
 use super::rescue::{flag_vocabulary_rescue, rescue_shadowed_suggestion, top_level_flag_rescue};
 use super::suggestion::closest_long_flag_ci;
 use crate::cli::Cli;
+use crate::output::grey;
 
 // NIGHT-blade-4: the value-suggestion tip family moved to cli/tips.rs
 // (the 500-LOC cap split — see that file's header); re-exported so
@@ -49,7 +50,16 @@ pub(crate) use super::tips::{duration_tip, rate_tip};
 /// clap's own formatter only renders it when an ArgAction::Help argument
 /// exists, and zelynic's `--help` is intercepted manually instead
 /// (single-tier help surface, NIGHT-improve-3; cosmostrix lineage).
-const HELP_FOOTER: &str = "For more information, try '--help'.";
+///
+/// The hunt-39 peak extension (owner approved, the one-line tier
+/// decision): the `--help` spelling is a flag mention on the error
+/// lane, so it rides the calm-grey grammar tier — the same law
+/// flag_row set on the reference. The span covers the spelling
+/// exactly; the quotes, prose, and period stay default, so piped
+/// output keeps its plain bytes (grey is capability-aware).
+fn help_footer() -> String {
+    format!("For more information, try '{}'.", grey("--help"))
+}
 
 // ── Clap error bridge ──────────────────────────────────────────────────────
 
@@ -427,7 +437,7 @@ pub(crate) fn exit_clap_error(e: clap::Error) -> ! {
     let e = e.format(&mut cmd);
     let _ = e.print();
 
-    eprintln_safe!("\n{HELP_FOOTER}");
+    eprintln_safe!("\n{}", help_footer());
     std::process::exit(2);
 }
 
@@ -501,5 +511,5 @@ fn render_via_bridge(argv: &[&str]) -> String {
         err.insert(ContextKind::Usage, ContextValue::StyledStr(usage));
     }
     let rendered = err.format(&mut cmd).render().to_string();
-    format!("{rendered}\n{HELP_FOOTER}\n")
+    format!("{rendered}\n{}\n", help_footer())
 }

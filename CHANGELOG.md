@@ -54,6 +54,37 @@ NIGHT-hunt-18's git-history-only call.
   description column at 19 across both tables and continuations,
   zero bleed into the green example tier); the mono A/B held the
   space-only law — 26 lines, one space each, zero text moves.
+- **fix(cli): NIGHT-hunt-39 peak extension — the grey grammar tier
+  carried to the target forms and the error lane.** The owner
+  approved both one-line tier decisions (the law was already set in
+  flag_row): every target-form token on the reference now rides the
+  calm grey — the Target formats section's placeholder shapes
+  (`<process_name>`, `<cgroup_id>`, `<a>::<b>::<c>`) and the
+  `cg:<cgroup_id>` prefix through the new target_row helper
+  (flag_row's computed-column twin, the section's own 18), and the
+  strict block's container URI forms (`docker://<name>`,
+  `k8s://<namespace>/<pod>`) inline; concrete examples (brave,
+  73386, cg:73386) stay content. The error lane joins the law: the
+  canonical `For more information, try '--help'.` footer composes
+  its spelling grey (the ux bridge), and clap's suggestion
+  CANDIDATES — a similar argument's / subcommand's spelling, the
+  redirect successors (`zelynic --help`, `strict --all`) — ride the
+  grammar grey via the valid style (the same #8B8B8B the output
+  layer's grey slot rides; the 245 rung at 256-color depth, clap's
+  own escape per env — the pins record each lane's encoding).
+  Boundaries kept honest: the typed mistake keeps the
+  invalid yellow, VALUES keep their white suggestion tier (the
+  labeled renderer's law — values are content), the anyhow/warn
+  bodies stay single-semantic (the sanitize contract kills
+  smuggled ANSI; flag mentions there cannot carry spans by law),
+  and mono output stays byte-identical everywhere (grey is
+  capability-aware, clap strips at Auto). Pins: the target-tier pin
+  in masterclass_pins (245 spans, the 18 column across rows and
+  continuations, the row stripped byte-identical to the mono
+  contract) and three error-lane pins in cli_ux (the footer's grey
+  --help, the grey candidates with the typo never grey, the
+  redirect successor one grey span, the piped mono zero-escape
+  contract).
 - **audit(docs): NIGHT-total-lts-10 — the all-infra pass round three,
   the loop closed.** The born-red fix verified on the runner itself:
   all four Dragon Guard workflows (Supermassive, Gate-keepers,

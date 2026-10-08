@@ -41,7 +41,17 @@
 //! 600-line no-mercy cap's split: every spelling surface, one
 //! module): every flag spelling renders in the same calm grey the
 //! synopses ride, span-exact, with the examples staying solid
-//! green and NO_COLOR=1 staying default.
+//! green and NO_COLOR=1 staying default. The hunt-39 peak
+//! extension (owner approved, one-line tier decisions — the law
+//! was already set in flag_row) carries the tier to the OTHER
+//! grammar spellings: every target-form token — the placeholder
+//! shapes (<process_name>, <cgroup_id>, <a>::<b>::<c>), the
+//! cg:<cgroup_id> display prefix, and the container URI forms
+//! (docker://<name>, k8s://<namespace>/<pod>) — rides the same
+//! grey tier through the [`target_row`] helper, the target
+//! grammar's computed-column twin of flag_row. Grammar is grey;
+//! concrete examples (brave, 73386, cg:73386) and prose stay
+//! default.
 
 use crate::output::{brand_bold, grey, ok};
 
@@ -51,14 +61,17 @@ use crate::output::{brand_bold, grey, ok};
 /// Brand identity (cosmostrix help format): the banner and every
 /// section heading render in brand purple #A855F7 (bold); body text
 /// stays in the terminal default color so the reference remains
-/// readable and diff-friendly when piped. Three deliberate
+/// readable and diff-friendly when piped. Four deliberate
 /// exceptions shape the visual hierarchy: every command synopsis
 /// renders in calm grey #8B8B8B (NIGHT-hunt-35 — the white usage
 /// lines strained the owner's eyes; grammar is context, not
 /// content), every flag spelling renders in the same calm grey
 /// (NIGHT-hunt-39 — the owner's mandate: flags are grammar wherever
-/// they appear, table columns and inline mentions alike), and every
-/// runnable example line renders in status green #50FA7B
+/// they appear, table columns and inline mentions alike), every
+/// target-form token rides it too (the hunt-39 peak extension,
+/// owner approved — placeholder shapes, the cg: prefix form, the
+/// container URIs: target grammar is grammar, the target_row law),
+/// and every runnable example line renders in status green #50FA7B
 /// (NIGHT-boost-4 — the affirmative "this is what you type" tier).
 /// Purple headings, grey grammar — synopses whole-line, flag
 /// spellings token-wise — default prose, green examples: four tiers,
@@ -132,8 +145,18 @@ pub(crate) fn print_help() {
     // block (indent 4, the description column) — it is strict-family
     // content, not a stray block at the section margin.
     println_safe!("    Container targets resolve to the workload's cgroup:");
-    println_safe!("    docker://<name> (or id prefix) via the Engine API,");
-    println_safe!("    k8s://<namespace>/<pod> via the kubelet's pod log dirs.");
+    // The hunt-39 peak extension: the container URI forms are
+    // target-form tokens — grammar — so their spellings ride the
+    // grey tier inline (the same span-exact law the flag mentions
+    // carry; the prose around them stays default).
+    println_safe!(
+        "    {} (or id prefix) via the Engine API,",
+        grey("docker://<name>")
+    );
+    println_safe!(
+        "    {} via the kubelet's pod log dirs.",
+        grey("k8s://<namespace>/<pod>")
+    );
     println_safe!("    unstrict accepts the same references.");
     println_safe!();
     println_safe!("  {}", brand_bold("block — cut internet access"));
@@ -258,15 +281,29 @@ pub(crate) fn print_help() {
     crate::commands::help_flags::print_flag_tables();
     println_safe!();
     println_safe!("{}", brand_bold("Target formats:"));
-    println_safe!("  <process_name>  e.g., brave, firefox, curl");
-    println_safe!("  <cgroup_id>     e.g., 73386 (use 'zelynic list-apps' to find)");
+    // The hunt-39 peak extension (owner approved): every row rides
+    // target_row — the token in the grey grammar tier, the
+    // description in default prose, one computed description column
+    // (18) so the geometry cannot drift per row. Concrete examples
+    // (brave, 73386) are content and stay default; the placeholder
+    // shapes and the cg: prefix form are grammar and go grey.
+    target_row("  ", "<process_name>", "e.g., brave, firefox, curl");
+    target_row(
+        "  ",
+        "<cgroup_id>",
+        "e.g., 73386 (use 'zelynic list-apps' to find)",
+    );
     // NIGHT-dinner-10: the display prefix is a real third form, not a
     // decoration — every output surface prints cgroups as `cg:73386`
     // (the status table, the eagle-eyes footer, the unstrict echo),
     // and the eagle-eyes footer's suggested command carries it
     // verbatim. The grammar section must list what the tool itself
     // tells users to paste (NIGHT-boost-37's round-trip contract).
-    println_safe!("  cg:<cgroup_id>  the display prefix every surface prints (cg:73386) —");
+    target_row(
+        "  ",
+        "cg:<cgroup_id>",
+        "the display prefix every surface prints (cg:73386) —",
+    );
     println_safe!("                  paste it back: the same direct target as the bare ID");
     // NIGHT-improve-53: the masterclass list law — '::' separates
     // the members of a list (strict / block / unstrict all route on
@@ -276,7 +313,11 @@ pub(crate) fn print_help() {
     // to the concrete three-member shape (the synopsis' own
     // <target::target::target>) so it sits in the section's one
     // description column.
-    println_safe!("  <a>::<b>::<c>   list members for the group lane — the '::' separator");
+    target_row(
+        "  ",
+        "<a>::<b>::<c>",
+        "list members for the group lane — the '::' separator",
+    );
     println_safe!("                  cannot collide with the single ':' the cg: prefix and");
     println_safe!("                  the container URIs own");
     // NIGHT-dinner-11: the no-match contract rides the grammar
@@ -341,4 +382,21 @@ pub(crate) fn example(note: &str, cmd: &str) {
 /// flag's spelling.
 fn synopsis(line: &str) {
     println_safe!("  {}", grey(line));
+}
+
+/// One target grammar row (NIGHT-hunt-39 peak extension, owner
+/// approved): the target-form token — a placeholder shape
+/// (<process_name>, <cgroup_id>, <a>::<b>::<c>), the cg:<cgroup_id>
+/// display prefix — renders in the calm-grey grammar tier the flag
+/// spellings and synopses ride; the description stays default
+/// prose. The computed-column twin of help_flags' flag_row: THIS
+/// section's description column is 18 — the widest token
+/// (<process_name> and cg:<cgroup_id> at 14) plus the two-space
+/// indent and gap — computed here so the column cannot drift per
+/// row, and the concrete examples after the span (brave, 73386)
+/// stay content, not grammar. The grey span covers the token
+/// exactly, so piped output keeps its plain bytes.
+fn target_row(indent: &str, token: &str, desc: &str) {
+    let pad = 18usize.saturating_sub(indent.len() + token.len()).max(1);
+    println_safe!("{indent}{}{}{}", grey(token), " ".repeat(pad), desc);
 }

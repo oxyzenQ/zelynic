@@ -46,9 +46,22 @@ Usage surfaces:
 - `--help` banner and section headings — bold (single-tier help surface,
   NIGHT-improve-3: the former --help-all reference merged into --help);
   command group headings carry the same bold purple (NIGHT-improve-5:
-  strict / limit / block / unstrict / monitor / system)
+  strict / limit / block / unstrict / monitor / system). The reference's
+  GRAMMAR renders calm grey (NIGHT-hunt-35/39, the owner's tier law):
+  every command synopsis whole-line, every flag spelling token-wise
+  (table columns and inline prose, the flag_row law), and — the hunt-39
+  peak extension, owner approved — every target-form token (the
+  `<process_name>` / `<cgroup_id>` / `<a>::<b>::<c>` placeholder shapes,
+  the `cg:<cgroup_id>` prefix, the `docker://` and `k8s://` URI forms,
+  the target_row law). Runnable examples stay status green; concrete
+  examples and prose stay default
 - clap error rendering — headers and Usage in bold purple via
-  `clap_styles()` (`src/cli/mod.rs`); error labels bold red, tips white
+  `clap_styles()` (`src/cli/styles.rs`); error labels bold red. Since
+  the hunt-39 peak extension the suggestion CANDIDATES (a similar
+  argument's / subcommand's spelling, the redirect successors) ride
+  the grammar grey tier, the typed mistake keeps the invalid yellow,
+  and the canonical `For more information, try '--help'.` footer
+  composes its `--help` spelling grey (the ux bridge)
 - `status` / `eagle-eyes` / `recover` / `list-apps` banners — bold
   (NIGHT-dinner-23 closed the gap where recover's banner rendered
   plain while this list had always named it bold; the recover report
@@ -67,7 +80,8 @@ NIGHT-hunt-5 — cosmostrix S-master-HUNT-5 lineage):
 | Status green | `#50FA7B` | affirmative doctor verdicts (YES, SUPPORTED), up-to-date |
 | Error red | `#FF5A5A` | `error:` labels and error bodies |
 | Warning yellow | `#FFEB3C` | `!` warning labels, warnings, update-available |
-| Suggestion white | `#DCEBFF` | `tip:` / `hint:` / did-you-mean lines, distinct from the error they fix |
+| Suggestion white | `#DCEBFF` | `tip:` / `hint:` value suggestions and passive advice on the labeled (anyhow) error lane — content, not grammar |
+| Grammar grey | `#8B8B8B` | help synopses, flag spellings, and target-form tokens (flag_row / target_row); error-lane suggestion candidates, redirect successors, and the footer's `--help` (clap valid, hunt-39 peak law) |
 
 All styled output degrades to plain text when piped so ANSI codes never
 leak into scripts, logs, or JSON consumers. Every user-facing print goes

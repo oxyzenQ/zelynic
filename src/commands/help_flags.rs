@@ -9,7 +9,11 @@
 //! they all render through. The tier law (the owner's mandate):
 //! every spelling renders in the calm-grey grammar tier the
 //! synopses ride -- table columns AND inline prose mentions;
-//! flags are grammar. The grey span covers the spelling exactly
+//! flags are grammar. The hunt-39 peak extension (owner
+//! approved) carries the same tier to the target grammar's own
+//! spellings -- help.rs's target_row and its inline container
+//! URIs -- so every grammar token on the reference rides one
+//! grey law. The grey span covers the spelling exactly
 //! (a value hint like DUR or SEC rides inside it; the padding, a
 //! possessive 's, and the surrounding prose never do), so piped
 //! output keeps its plain bytes. Boundaries: the runnable

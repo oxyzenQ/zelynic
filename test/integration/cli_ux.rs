@@ -131,3 +131,105 @@ fn test_help_pipe_to_head_does_not_panic() {
         "EPIPE must truncate silently, not panic: {status}"
     );
 }
+
+/// NIGHT-hunt-39 peak extension (owner approved): the error lane's
+/// flag mentions ride the calm-grey grammar tier. The canonical
+/// footer's `--help` spelling composes grey in the ux bridge, and
+/// clap paints its did-you-mean candidates with the `valid` style —
+/// the same #8B8B8B the output layer's grey slot rides. Two escape
+/// laws at this pinned env (CLICOLOR_FORCE skips capability
+/// probing, so clap emits its RGB raw — truecolor — while the
+/// output layer still parses TERM for depth and lands on the 245
+/// rung): the footer carries `[38;5;245m`, the clap candidates
+/// carry `[38;2;139;139;139m` — same tier, same color, each lane's
+/// own encoding recorded here. The typed MISTAKE keeps the invalid
+/// yellow: it never rides a grey span.
+#[test]
+fn test_error_lane_flag_mentions_render_grey() {
+    let mut cmd = zelynic_cmd();
+    cmd.arg("--verbos")
+        .env_remove("NO_COLOR")
+        .env_remove("CLICOLOR")
+        .env("CLICOLOR_FORCE", "1")
+        .env("TERM", "xterm-256color");
+    let colored = cmd
+        .output()
+        .expect("Failed to execute zelynic --verbos (grey-tier run)");
+    assert_eq!(colored.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&colored.stderr);
+    // The output layer's lane: the footer's --help spelling rides
+    // the theme's 245 rung at 256-color depth — grey span, quotes
+    // and prose default (the span-exact law flag_row set).
+    let grey = "\x1b[38;5;245m";
+    let reset = "\x1b[0m";
+    assert!(
+        stderr.contains(&format!("try '{grey}--help{reset}'.")),
+        "the footer's --help mention must render calm grey (245), got:\n{stderr}"
+    );
+    // clap's lane: the did-you-mean candidate rides the valid style
+    // — #8B8B8B raw (truecolor escape under force), same tier.
+    let clap_grey = "\x1b[38;2;139;139;139m";
+    assert!(
+        stderr.contains(&format!("'{clap_grey}--verbose{reset}'")),
+        "the suggestion candidate must render calm grey (#8B8B8B), got:\n{stderr}"
+    );
+    // The typed mistake never greys — the invalid yellow owns it.
+    assert!(
+        !stderr.contains(&format!("{clap_grey}--verbos{reset}")),
+        "the typo stays the mistake tier, never grey, got:\n{stderr}"
+    );
+}
+
+/// The hunt-39 peak extension's redirect surface: a removed
+/// subcommand's successor renders as one valid span — command and
+/// flag spelling together, the grey grammar tier (`zelynic --help`,
+/// `strict --all`). The successor is what to type next: grammar.
+#[test]
+fn test_removed_subcommand_redirect_successor_renders_grey() {
+    let mut cmd = zelynic_cmd();
+    cmd.arg("help")
+        .env_remove("NO_COLOR")
+        .env_remove("CLICOLOR")
+        .env("CLICOLOR_FORCE", "1")
+        .env("TERM", "xterm-256color");
+    let colored = cmd
+        .output()
+        .expect("Failed to execute zelynic help (redirect grey-tier run)");
+    assert_eq!(colored.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&colored.stderr);
+    // clap's lane under force: the valid style's #8B8B8B rides its
+    // raw truecolor escape — same tier, the encoding law the
+    // footer/candidate pin above records.
+    let clap_grey = "\x1b[38;2;139;139;139m";
+    let reset = "\x1b[0m";
+    assert!(
+        stderr.contains(&format!("run '{clap_grey}zelynic --help{reset}'")),
+        "the redirect successor must render calm grey (#8B8B8B), got:\n{stderr}"
+    );
+}
+
+/// The mono contract of the peak extension: piped without color
+/// force, the same error render carries zero escapes — the footer,
+/// the candidates, and the typo all keep their plain bytes (grey is
+/// capability-aware, clap strips at Auto, the reference's piped
+/// contract holds on the error lane too).
+#[test]
+fn test_error_lane_mono_keeps_plain_bytes() {
+    let output = zelynic_cmd()
+        .arg("--verbos")
+        .env_remove("NO_COLOR")
+        .env_remove("CLICOLOR")
+        .env_remove("CLICOLOR_FORCE")
+        .output()
+        .expect("Failed to execute zelynic --verbos (mono run)");
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !stderr.contains('\x1b'),
+        "piped errors must stay plain (zero escapes), got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("try '--help'."),
+        "the mono footer keeps its canonical wording, got:\n{stderr}"
+    );
+}

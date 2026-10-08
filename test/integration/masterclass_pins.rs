@@ -333,3 +333,129 @@ fn test_help_documents_the_masterclass_list_grammar() {
         );
     }
 }
+
+/// NIGHT-hunt-39 peak extension (owner approved): every target-form
+/// token on the reference renders in the calm-grey grammar tier —
+/// the Target formats section's placeholder shapes and the cg:
+/// prefix form through the target_row law (flag_row's
+/// computed-column twin), and the strict block's container URI
+/// forms inline. Grammar is grey wherever it appears: the same tier
+/// the synopses (whole-line) and flag spellings (token-wise) ride.
+/// Pinned at 256-color depth: grey = index 245, the span covering
+/// the token exactly — the concrete e.g. examples after the reset
+/// stay default (content, not grammar). The geometry law rides
+/// too: ONE description column (18) across the section's rows and
+/// continuations, computed by target_row.
+#[test]
+fn test_help_target_form_tokens_render_grey_in_grammar_sections() {
+    let mut cmd = zelynic_cmd();
+    cmd.arg("--help")
+        .env_remove("NO_COLOR")
+        .env_remove("CLICOLOR")
+        .env("CLICOLOR_FORCE", "1")
+        .env("TERM", "xterm-256color");
+    let colored = cmd
+        .output()
+        .expect("Failed to execute zelynic --help (target-tier run)");
+    assert_eq!(colored.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&colored.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    let grey = "\x1b[38;5;245m";
+    let reset = "\x1b[0m";
+
+    // The Target formats rows: the grey span wraps the token
+    // exactly; the concrete e.g. examples after the reset stay
+    // default prose.
+    let name_row = lines
+        .iter()
+        .find(|l| l.contains("e.g., brave, firefox, curl"))
+        .expect("the <process_name> row must exist");
+    assert!(
+        name_row.contains(&format!("{grey}<process_name>{reset}")),
+        "the <process_name> token must render calm grey (245), got: {name_row}"
+    );
+    assert!(
+        name_row.contains(&format!("{reset}  e.g., brave")),
+        "the e.g. examples stay default after the span, got: {name_row}"
+    );
+    let cg_row = lines
+        .iter()
+        .find(|l| l.contains("the display prefix every surface prints"))
+        .expect("the cg:<cgroup_id> row must exist");
+    assert!(
+        cg_row.contains(&format!("{grey}cg:<cgroup_id>{reset}")),
+        "the cg:<cgroup_id> token must render calm grey (245), got: {cg_row}"
+    );
+    let id_row = lines
+        .iter()
+        .find(|l| l.contains("use 'zelynic list-apps' to find"))
+        .expect("the <cgroup_id> row must exist");
+    assert!(
+        id_row.contains(&format!("{grey}<cgroup_id>{reset}")),
+        "the <cgroup_id> token must render calm grey (245), got: {id_row}"
+    );
+    let list_row = lines
+        .iter()
+        .find(|l| l.contains("list members for the group lane"))
+        .expect("the <a>::<b>::<c> row must exist");
+    assert!(
+        list_row.contains(&format!("{grey}<a>::<b>::<c>{reset}")),
+        "the <a>::<b>::<c> token must render calm grey (245), got: {list_row}"
+    );
+    // The container URI forms ride the tier inline in the strict
+    // block's note — span-exact, the prose around them default.
+    let container = lines
+        .iter()
+        .find(|l| l.contains("via the Engine API"))
+        .expect("the container note must exist");
+    assert!(
+        container.contains(&format!("{grey}docker://<name>{reset}")),
+        "the docker://<name> token must render calm grey (245), got: {container}"
+    );
+    let k8s = lines
+        .iter()
+        .find(|l| l.contains("via the kubelet's pod log dirs"))
+        .expect("the k8s container note must exist");
+    assert!(
+        k8s.contains(&format!("{grey}k8s://<namespace>/<pod>{reset}")),
+        "the k8s://<namespace>/<pod> token must render calm grey (245), got: {k8s}"
+    );
+    // The column law: ONE description column (18) across the
+    // section's rows and continuations — target_row computes it,
+    // the same no-drift contract flag_row holds at 19.
+    let col_after = |line: &str, token: &str| -> usize {
+        let stripped = strip_csi(line);
+        let start = stripped.find(token).expect("token present") + token.len();
+        start + (stripped[start..].len() - stripped[start..].trim_start_matches(' ').len())
+    };
+    let first_col = |line: &str| -> usize {
+        let stripped = strip_csi(line);
+        stripped.len() - stripped.trim_start_matches(' ').len()
+    };
+    assert_eq!(
+        col_after(name_row, "<process_name>"),
+        18,
+        "the <process_name> description column must be 18, got: {name_row}"
+    );
+    assert_eq!(
+        col_after(cg_row, "cg:<cgroup_id>"),
+        18,
+        "the cg:<cgroup_id> description column must be 18, got: {cg_row}"
+    );
+    let cont = lines
+        .iter()
+        .find(|l| l.contains("paste it back"))
+        .expect("the cg row continuation must exist");
+    assert_eq!(
+        first_col(cont),
+        18,
+        "the Target formats continuation must sit at the description column, got: {cont}"
+    );
+    // No bleed into the concrete-example tier: the whole row,
+    // stripped, is the exact mono line (the e.g. prose default).
+    assert_eq!(
+        strip_csi(name_row),
+        "  <process_name>  e.g., brave, firefox, curl",
+        "the row's text must stay byte-identical to the mono contract, got: {name_row}"
+    );
+}
