@@ -106,6 +106,27 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
             );
         }
 
+        // NIGHT-hunt-34: the orphan-census sweep — the crash residue
+        // the window pass above cannot name: census-bounded state
+        // (buckets, rings, stats, windows) whose policy row is
+        // already gone, left behind by a failed or interrupted
+        // reclaim. Recover is its natural home: the hygiene command
+        // collects what the maps hold that reality no longer does,
+        // and an orphaned ring holds a 1024 slot while rendering a
+        // ghost "steady 0 B/s" row on the eagle-eyes baseline panel.
+        // Runs after the window pass (an ended span's unstrict may
+        // itself fail its state reclaim — this catches the residue)
+        // and before the orphan scan, so both paths below — the
+        // early "nothing to recover" return included — sweep it.
+        let census_swept = limiter.sweep_census_orphans();
+        if census_swept > 0 {
+            eprintln_safe!(
+                "  Census: {} orphaned state entr{} reclaimed (no policy names them — crash residue, not policies)",
+                crate::output::ok(&census_swept.to_string()),
+                if census_swept == 1 { "y" } else { "ies" }
+            );
+        }
+
         // NIGHT-master-4 (the honesty audit): the orphan scan's reads
         // PROPAGATE. The former unwrap_or_default() here folded a
         // failed map read into zero policies — and zero policies

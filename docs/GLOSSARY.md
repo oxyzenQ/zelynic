@@ -155,8 +155,10 @@ first-time reader, and this page pays it once, up front.
 - **Orphan**: a policy row whose cgroup no longer exists —
   `zelynic recover` finds and removes them.
 - **Reclaim**: the family that returns dead per-root state
-  (buckets, rings, stats, windows) to the maps on removal, keeping
-  the census-bounded claim true.
+  (buckets, rings, stats, windows) to the maps on removal — and,
+  since NIGHT-hunt-34, the orphan-census sweep that collects the
+  residue a failed or interrupted reclaim leaves behind, riding
+  the next mutation-capable CLI visit.
 - **The absent-lens contract**: a failed read of a MONITOR map (the
   rings) renders the field honestly absent — never a fabricated
   empty series, and never a failed enforcement report.

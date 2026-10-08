@@ -70,6 +70,12 @@ pub fn handle_status(verbose: bool, json: bool) -> Result<()> {
     let _sweep_lock = crate::ebpf::lock::acquire().ok();
     if _sweep_lock.is_some() {
         limiter.sweep_expired_windows_best_effort();
+        // NIGHT-hunt-34: the orphan-census sweep joins the visit —
+        // the census-bounded state a failed or interrupted reclaim
+        // left behind is collected by the same law (the rings feed
+        // the baseline panel; a ghost ring must not outlive the
+        // visit that could have swept it).
+        limiter.sweep_census_orphans();
     }
 
     if json {

@@ -11,6 +11,8 @@
 //! glob from policy.rs keeps them running against the moved
 //! definition).
 
+use std::collections::HashSet;
+
 use super::*;
 // The unstrict partial-failure pin (moved with its subject from
 // policy_tests.rs, NIGHT-improve-29's 500-LOC split): the survivor
@@ -92,5 +94,67 @@ fn group_reclaim_trace_line_singular_and_plural() {
         group_reclaim_trace_line(99, 2),
         "[limiter] group:99 reclaimed 2 shared-bucket slots — \
          the group's last reference is gone, slots returned to the 256-entry budget"
+    );
+}
+
+// ── the NIGHT-hunt-34 orphan-census sweep (the baseline panel's
+// retire_dead; the census-bounded families' crash-residue collector)
+
+/// The decision core's per-leg gates mirror reclaim_cgroup_state's
+/// own flags: a dl-live root keeps its dl bucket/ring but loses its
+/// ul state; the combined families (stats, window) survive on either
+/// leg; a root no leg names is an orphan in every family. The output
+/// is sorted for deterministic traces.
+#[test]
+fn census_orphans_mirror_the_reclaim_gates() {
+    let dl_live: HashSet<u32> = [10, 20].into_iter().collect();
+    let ul_live: HashSet<u32> = [20, 30].into_iter().collect();
+    // 10: dl-only live. 20: both live. 30: ul-only live. 40: dead.
+    let keys = [40, 30, 20, 10];
+
+    // The dl family (bucket_dl, ring_dl): only the dl row keeps it.
+    assert_eq!(
+        census_orphans(&keys, &dl_live, &ul_live, CensusLeg::Download),
+        vec![30, 40]
+    );
+    // The ul family (bucket_ul, ring_ul): only the ul row keeps it.
+    assert_eq!(
+        census_orphans(&keys, &dl_live, &ul_live, CensusLeg::Upload),
+        vec![10, 40]
+    );
+    // The combined family (stats, window): either leg keeps it.
+    assert_eq!(
+        census_orphans(&keys, &dl_live, &ul_live, CensusLeg::Either),
+        vec![40]
+    );
+    // Empty census (no policies at all): every key is an orphan —
+    // the crash-tail shape where the policy delete landed but the
+    // state delete never did, for every root at once.
+    let none: HashSet<u32> = HashSet::new();
+    assert_eq!(
+        census_orphans(&keys, &none, &none, CensusLeg::Either),
+        vec![10, 20, 30, 40]
+    );
+    // Empty family: the sweep is a no-op.
+    assert_eq!(
+        census_orphans(&[], &dl_live, &ul_live, CensusLeg::Either),
+        Vec::<u32>::new()
+    );
+}
+
+/// The orphan-census sweep's verbose trace names the census budget —
+/// the diagnostic that tells an owner why a visit after a crashed
+/// removal touched the state maps again (NIGHT-hunt-34).
+#[test]
+fn census_sweep_trace_line_singular_and_plural() {
+    assert_eq!(
+        census_sweep_trace_line("rate_ring_dl", 1),
+        "[limiter] rate_ring_dl: reclaimed 1 orphaned entry — no policy row names it, \
+         slot returned to the census budget"
+    );
+    assert_eq!(
+        census_sweep_trace_line("cgroup_limiter_stats", 3),
+        "[limiter] cgroup_limiter_stats: reclaimed 3 orphaned entries — no policy row names it, \
+         slot returned to the census budget"
     );
 }
