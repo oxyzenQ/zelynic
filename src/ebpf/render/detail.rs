@@ -125,8 +125,9 @@ fn socket_bytes_of<'a>(
         .and_then(|cookie| conns?.socket_bytes().get(&cookie))
 }
 
-/// Is this socket worth a detail line? Established TCP and connected
-/// UDP carry traffic; LISTEN/TIME_WAIT rows are noise.
+/// Is this socket worth a detail line? Established TCP and UDP
+/// sockets with a real remote endpoint carry traffic; LISTEN and
+/// TIME_WAIT rows are noise.
 ///
 /// NIGHT-private-research-3: pub(crate) — the depth report's
 /// network-traffic focus applies the exact same census gate to its
@@ -135,16 +136,28 @@ fn socket_bytes_of<'a>(
 /// second copy is how the two surfaces drift).
 ///
 /// The UDP branch needs the remote guard (NIGHT-hunt-15):
-/// /proc/net/udp reports state 07 (CLOSE) for connected AND
-/// unconnected sockets alike, so a bound-only listener (chronyd,
-/// systemd-resolved, mDNS) would otherwise render as `udp 0.0.0.0:0`
-/// noise under its cgroup row. A real remote endpoint never carries
-/// port 0, and both `0.0.0.0:0` and `[::]:0` end in `:0`.
+/// a bound-only listener (chronyd, systemd-resolved, mDNS) would
+/// otherwise render as `udp 0.0.0.0:0` noise under its cgroup row.
+/// A real remote endpoint never carries port 0, and both
+/// `0.0.0.0:0` and `[::]:0` end in `:0`.
+///
+/// night-audit-6 corrected the UDP state model: /proc/net/udp
+/// reports the sk_state verbatim — 01 (ESTABLISHED) for a CONNECTED
+/// socket (the QUIC-client shape, probe-verified live: connect() a
+/// UDP socket and its table row reads 01), 07 (CLOSE) for an
+/// unconnected one. Hunt-15's note claiming 07 for connected and
+/// unconnected alike was wrong about the connected case, and the
+/// wrong model (`state == "CLOSE"` only) filtered every
+/// connected-UDP row out of the depth report and the live tree —
+/// exactly the QUIC-era traffic the udp tag exists to surface. The
+/// gate accepts both UDP states and keeps the remote guard.
 pub(crate) fn is_displayable(socket: &SocketInfo) -> bool {
     match socket.proto {
         Proto::Tcp => socket.state == "ESTABLISHED",
-        // /proc/net/udp uses state 07 for a connected UDP socket.
-        Proto::Udp => socket.state == "CLOSE" && !socket.remote.ends_with(":0"),
+        Proto::Udp => {
+            (socket.state == "CLOSE" || socket.state == "ESTABLISHED")
+                && !socket.remote.ends_with(":0")
+        }
     }
 }
 

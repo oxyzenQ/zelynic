@@ -282,3 +282,51 @@ fn missing_delta_row_composes_zero_totals() {
     assert!(!focus.moved());
     assert!(focus.endpoints.is_empty(), "no census for cg 999, no rows");
 }
+
+/// night-audit-6 pin: a CONNECTED UDP socket (the QUIC-client shape,
+/// /proc/net/udp state 01) reaches the depth report's traffic rows —
+/// the former census gate accepted only CLOSE rows, which hid every
+/// connected-UDP endpoint from the focus window's text report while
+/// the JSON document kept carrying it. The row renders with the udp
+/// tag and its joined window figures when the cookie resolves.
+#[test]
+fn connected_udp_reaches_the_traffic_rows() {
+    let mut conns = ConnectionMap::new();
+    let udp_sock = SocketInfo {
+        proto: Proto::Udp,
+        remote: "142.250.191.78:443".to_string(),
+        state: "ESTABLISHED",
+        queued: false,
+        cookie: Some(2001),
+    };
+    let tcp_sock = socket("93.184.216.34:443", Some(1001));
+    conns.insert(
+        1234,
+        CgroupConnections {
+            total_procs: 1,
+            socket_holders: vec![ProcessDetail {
+                pid: 4242,
+                comm: "brave".to_string(),
+                sockets: vec![tcp_sock, udp_sock],
+            }],
+        },
+    );
+    let mut bytes = join();
+    bytes.insert(1001, SocketBytes { dl: 300, ul: 100 });
+    bytes.insert(2001, SocketBytes { dl: 5000, ul: 700 });
+
+    let focus = traffic_focus(1234, 3, &[delta(1234, 100, 5000)], Some(&conns), &bytes);
+    let text = traffic_section_lines(&focus).join("\n");
+    assert!(
+        text.contains("142.250.191.78:443 udp ESTABLISHED [dl 5.0 KB | ul 700 B]"),
+        "the connected-UDP row renders with its figures, got: {text}"
+    );
+    // Movers-first: the UDP socket out-ate the TCP one, so it ranks first.
+    let udp_line = focus
+        .endpoints
+        .iter()
+        .find(|e| e.proto == "udp")
+        .expect("the connected-UDP endpoint survives the census gate");
+    assert_eq!(udp_line.pid, 4242);
+    assert_eq!(udp_line.dl, Some(5000));
+}
