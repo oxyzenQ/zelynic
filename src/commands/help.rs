@@ -22,20 +22,39 @@
 //! read as visual noise. The [`example`] helper below is the one
 //! place that renders the pair, so the layout cannot drift per
 //! section.
+//!
+//! NIGHT-hunt-35 (the masterclass tidy, owner mandate — symmetric,
+//! compact, simple): the synopsis lines are their own tier — every
+//! command usage line renders through the [`synopsis`] helper in
+//! calm grey, one tier below the purple headings and one above the
+//! default prose (white usage lines strained the eyes; grey says
+//! "grammar, not content", the same tier law the eagle-eyes footer
+//! rides). Each synopsis carries the WHOLE grammar on one line —
+//! both lanes of the target (`<target> or <target::target::target>`)
+//! plus the ONE pointer token `[flags — see Pro mode]` instead of an
+//! in-synopsis flag enumeration; Pro mode owns every flag's
+//! spelling, and the help_pins ADVANCED_FLAGS fence holds that
+//! completeness. Flag tables render ONE description column per
+//! section (continuations aligned to it): Global flags at the
+//! --reset-terminal width, Pro mode at the --interval SEC width,
+//! Target formats at the cg:<cgroup_id> width.
 
-use crate::output::{brand_bold, ok};
+use crate::output::{brand_bold, grey, ok};
 
 /// Print the end-to-end reference: usage, commands, flags, formats,
 /// safety guards, and examples.
 ///
 /// Brand identity (cosmostrix help format): the banner and every
-/// section heading render in brand purple #A855F7 (bold); command
-/// syntax and body text stay in the terminal default color so the
-/// reference remains readable and diff-friendly when piped.
-/// Runnable example lines are the one deliberate exception
-/// (NIGHT-boost-4): they render in status green #50FA7B — the
-/// affirmative "this is what you type" tier, one step below the
-/// headings in the visual hierarchy.
+/// section heading render in brand purple #A855F7 (bold); body text
+/// stays in the terminal default color so the reference remains
+/// readable and diff-friendly when piped. Two deliberate exceptions
+/// shape the visual hierarchy: every command synopsis renders in
+/// calm grey #8B8B8B (NIGHT-hunt-35 — the white usage lines strained
+/// the owner's eyes; grammar is context, not content), and every
+/// runnable example line renders in status green #50FA7B
+/// (NIGHT-boost-4 — the affirmative "this is what you type" tier).
+/// Purple headings, grey grammar, default prose, green examples —
+/// four tiers, one law each.
 pub(crate) fn print_help() {
     println_safe!(
         "{}",
@@ -65,16 +84,23 @@ pub(crate) fn print_help() {
     // lane of each family verb, documented in the Pro mode section.
     println_safe!("  {}", brand_bold("strict — apply rate limits"));
     println_safe!();
-    println_safe!("  zelynic strict <target> [rate] [-d <rate>] [-u <rate>] [--per-socket]");
+    // NIGHT-hunt-35 (the synopsis law): one line, the whole grammar —
+    // both lanes of the target, the rate slots, and the ONE pointer
+    // token. The flag spellings live in Pro mode (their complete,
+    // pinned home); the old --per-socket-only enumeration was neither
+    // complete nor simple.
+    synopsis(
+        "zelynic strict <target> or <target::target::target> [rate] [-d <rate>] [-u <rate>] [flags — see Pro mode]",
+    );
     println_safe!("    Limit one app's network speed, or a '::'-separated list sharing");
     println_safe!("    ONE rate (group limit: if one member downloads at full rate,");
     println_safe!("    the others get nothing). 's' is the short alias.");
-    println_safe!("    --per-socket caps every connection at the rate (the single");
-    println_safe!("    target's server shape); --no-test skips the post-apply");
-    println_safe!("    verification loop for scripted use.");
+    // NIGHT-hunt-35 (compact): every example teaches exactly one
+    // thing — the -u-alone pair died (the both-rates example already
+    // types -u), and the short-alias pair died below (four other
+    // examples already type 's').
     example("both dl+ul = 100kb", "sudo zelynic strict brave 100kb");
     example("download only", "sudo zelynic strict brave -d 100kb");
-    example("upload only", "sudo zelynic strict brave -u 500kb");
     example(
         "both, different rates",
         "sudo zelynic strict firefox -d 1mb -u 500kb",
@@ -91,18 +117,20 @@ pub(crate) fn print_help() {
         "cgroup ids, list form",
         "sudo zelynic s cg:1234::1245 100kb",
     );
-    example("short alias form", "sudo zelynic s brave 100kb");
     example("docker container", "sudo zelynic s docker://nginx 100kb");
     example("kubernetes pod", "sudo zelynic s k8s://prod/web-abc 1mb");
     println_safe!();
-    println_safe!("  Container targets resolve to the workload's cgroup:");
-    println_safe!("  docker://<name> (or id prefix) via the Engine API,");
-    println_safe!("  k8s://<namespace>/<pod> via the kubelet's pod log dirs.");
-    println_safe!("  unstrict accepts the same references.");
+    // NIGHT-hunt-35: the container note nests INSIDE the strict
+    // block (indent 4, the description column) — it is strict-family
+    // content, not a stray block at the section margin.
+    println_safe!("    Container targets resolve to the workload's cgroup:");
+    println_safe!("    docker://<name> (or id prefix) via the Engine API,");
+    println_safe!("    k8s://<namespace>/<pod> via the kubelet's pod log dirs.");
+    println_safe!("    unstrict accepts the same references.");
     println_safe!();
     println_safe!("  {}", brand_bold("block — cut internet access"));
     println_safe!();
-    println_safe!("  zelynic block <target>");
+    synopsis("zelynic block <target> or <target::target::target> [flags — see Pro mode]");
     println_safe!("    Block one app from the internet entirely, or a");
     println_safe!("    '::'-separated list. 'b' is the short alias.");
     example("cut one app off", "sudo zelynic block brave");
@@ -110,19 +138,19 @@ pub(crate) fn print_help() {
     println_safe!();
     println_safe!("  {}", brand_bold("unstrict — remove limits & recover"));
     println_safe!();
-    println_safe!("  zelynic unstrict <target>");
+    synopsis("zelynic unstrict <target> or <target::target::target> [flags — see Pro mode]");
     println_safe!("    Remove the rate limit from one app or a '::'-separated list.");
     println_safe!("    'u' is the short alias.");
     example("remove one app's limit", "sudo zelynic unstrict brave");
     example("bulk removal", "sudo zelynic u brave::curl::pacman");
     println_safe!();
-    println_safe!("  zelynic recover");
+    synopsis("zelynic recover");
     println_safe!("    Clean orphaned BPF pins after a crash (SIGKILL, OOM, power loss).");
     println_safe!("    Safe to run anytime — does nothing if state is clean.");
     println_safe!();
     println_safe!("  {}", brand_bold("monitor — traffic visibility"));
     println_safe!();
-    println_safe!("  zelynic status");
+    synopsis("zelynic status");
     println_safe!("    Show active limits and watchdog status.");
     // NIGHT-dinner-11: the owner read "allowed 3.4gb / dropped 4.4 mb"
     // as a mystery — the pair's semantics belong ON the surface he
@@ -132,28 +160,28 @@ pub(crate) fn print_help() {
     println_safe!("    was set — allowed passed the budget, dropped exceeded it (the");
     println_safe!("    sender retries); removing the limit clears both.");
     println_safe!();
-    println_safe!("  zelynic list-apps");
+    synopsis("zelynic list-apps");
     println_safe!("    List apps with their cgroup IDs.");
     println_safe!();
-    println_safe!("  zelynic eagle-eyes [targets] [--interval <1s-60s>]");
-    println_safe!("    The unified live monitor (observe + top merged;");
-    println_safe!("    'ee' is the short alias).");
-    println_safe!("    Apps ranked by consumption — rank 1 eats the internet right now.");
-    println_safe!("    Rows follow the terminal height (no --limit): raise the window");
-    println_safe!("    to see more, the list runs high to low.");
-    println_safe!("    Exit with q (the only quit key).");
-    println_safe!("    Targets are autodetected: digits = cgroup ID (see list-apps),");
-    println_safe!("    the display prefix cg:73386 round-trips, a name = process —");
-    println_safe!("    one target opens the deep focus view");
-    println_safe!("    (per-direction deltas, rate, lifetime, socket endpoints).");
-    println_safe!("    One-shot deep inspection: --depth prints the");
-    println_safe!("    full report — package id/name, user, cgroup path, enforcement,");
-    println_safe!("    per-process census (type, perms, path, start time), the");
-    println_safe!("    network-traffic focus section — window totals plus");
-    println_safe!("    per-endpoint bytes, movers ranked first — then exits.");
-    println_safe!("    Pipe-friendly: --depth is the only spelling;");
-    println_safe!("    --print-json emits the machine-readable document;");
-    println_safe!("    --focus <1s-30s> tunes the traffic window (default 3s).");
+    synopsis("zelynic eagle-eyes [targets] [flags — see Pro mode]");
+    // NIGHT-hunt-35 (compact): the same contracts, four lines
+    // lighter — every pinned needle (the q-only quit key, --depth's
+    // single spelling, the one-shot report inventory) rides tighter
+    // prose, and the retired-vocabulary parentheticals stay gone.
+    println_safe!("    The unified live monitor (observe + top merged; 'ee' is the short");
+    println_safe!("    alias). Apps ranked by session accumulation — rank 1 eats the");
+    println_safe!("    internet right now; rows follow the terminal height, high to");
+    println_safe!("    low. Exit with q (the only quit key).");
+    println_safe!("    Targets are autodetected: digits = cgroup ID (see list-apps), the");
+    println_safe!("    display prefix cg:73386 round-trips, a name = process — one");
+    println_safe!("    target opens the deep focus view (per-direction deltas, rate,");
+    println_safe!("    lifetime, socket endpoints).");
+    println_safe!("    One-shot deep inspection: --depth prints the full report —");
+    println_safe!("    package id/name, user, cgroup path, enforcement, per-process");
+    println_safe!("    census, the traffic focus section — then exits. Pipe-friendly:");
+    println_safe!("    --depth is the only spelling; --print-json emits the");
+    println_safe!("    machine-readable document; --focus <1s-30s> tunes the traffic");
+    println_safe!("    window (default 3s).");
     example("all apps, ranked", "sudo zelynic eagle-eyes");
     example("one app, deep view", "sudo zelynic eagle-eyes brave");
     example(
@@ -161,7 +189,6 @@ pub(crate) fn print_help() {
         "sudo zelynic eagle-eyes 12345/brave/firefox",
     );
     example("calmer cadence", "sudo zelynic eagle-eyes --interval 3s");
-    example("short alias form", "sudo zelynic ee brave --interval 1s");
     example("deep report, one shot", "sudo zelynic ee cg:1234 --depth");
     example(
         "deep report, 5s traffic window",
@@ -174,7 +201,7 @@ pub(crate) fn print_help() {
     println_safe!();
     println_safe!("  {}", brand_bold("system — support"));
     println_safe!();
-    println_safe!("  zelynic doctor");
+    synopsis("zelynic doctor");
     println_safe!(
         "    Check host eBPF support and this binary's build flavor (full-life / half-life)."
     );
@@ -258,7 +285,11 @@ pub(crate) fn print_help() {
     // section is its one documented home (the retired -all verbs'
     // redirects name the family verbs).
     println_safe!("  Fleet sweeps (strict + block + unstrict):");
-    println_safe!("    --all          the lane that owns every user app at once: limit");
+    // NIGHT-hunt-35 (the column law, the owner's own --all find): one
+    // description column for the whole Pro mode estate — the
+    // --interval SEC width (flag + one space), continuations aligned
+    // to it. No mixed 19/20 drift beside the 18-law lines.
+    println_safe!("    --all         the lane that owns every user app at once: limit");
     println_safe!("                  them all, block them all, or tear every limit down.");
     println_safe!("                  System apps stay behind --force-this's guard by");
     println_safe!("                  default; the target is omitted (a lone positional on");
@@ -275,7 +306,7 @@ pub(crate) fn print_help() {
     example("emergency reset, every limit gone", "sudo zelynic u --all");
     println_safe!();
     println_safe!("  Time windows (strict family + block family):");
-    println_safe!("    --during DUR   auto-expire: the limit tears itself down when the window");
+    println_safe!("    --during DUR  auto-expire: the limit tears itself down when the window");
     println_safe!("                  passes. Units: s, m, h, d, mn, y — min 1s, max 10y");
     println_safe!("                  (20d = twenty days; months 30d, years 365d).");
     println_safe!("                  Duration only, one shape, no schedules.");
@@ -297,14 +328,14 @@ pub(crate) fn print_help() {
     );
     println_safe!();
     println_safe!("  Guaranteed share (strict family):");
-    println_safe!("    --floor RATE   the fair-share floor: a shaped cgroup's slice never falls");
+    println_safe!("    --floor RATE  the fair-share floor: a shaped cgroup's slice never falls");
     println_safe!("                  below it while it demands traffic (a priority, not a");
     println_safe!("                  reservation — absent leaves cost nothing).");
-    println_safe!("    --ceil RATE    the slice's hard cap, binding even a lone drawer; the");
+    println_safe!("    --ceil RATE   the slice's hard cap, binding even a lone drawer; the");
     println_safe!("                  ladder is floor <= ceil <= rate.");
     println_safe!("    --floor-download, --floor-upload, --ceil-download, --ceil-upload");
-    println_safe!("                    per-direction spellings, one per side: the");
-    println_safe!("                    both-directions flag and its twin refuse together.");
+    println_safe!("                  per-direction spellings, one per side: the");
+    println_safe!("                  both-directions flag and its twin refuse together.");
     example(
         "guaranteed floor under the cap",
         "sudo zelynic s firefox 1mb --floor 100kb",
@@ -317,7 +348,7 @@ pub(crate) fn print_help() {
     println_safe!("  Enforcement shape (strict):");
     println_safe!("    --per-socket   cap every connection at the rate (the server shape:");
     println_safe!("                  one process, many sockets).");
-    println_safe!("    --no-test      skip the post-apply verification loop (scripted use;");
+    println_safe!("    --no-test     skips the post-apply verification loop (scripted use;");
     println_safe!("                  the former --no-probe spelling redirects here).");
     example(
         "scripted apply, no verification loop",
@@ -330,10 +361,10 @@ pub(crate) fn print_help() {
     println_safe!("                  behind it by default — lifting is a choice).");
     println_safe!();
     println_safe!("  Deep inspection (eagle-eyes):");
-    println_safe!("    --depth        one-shot full report, no TUI: per-process census, the");
+    println_safe!("    --depth       one-shot full report, no TUI: per-process census, the");
     println_safe!("                  enforcement ledger, the traffic focus (JSON via");
     println_safe!("                  --print-json).");
-    println_safe!("    --focus SEC    the --depth traffic window: 1s..30s, default 3s (one");
+    println_safe!("    --focus SEC   the --depth traffic window: 1s..30s, default 3s (one");
     println_safe!("                  stderr note when ignored on the live monitor).");
     println_safe!("    --interval SEC live monitor refresh: 1s..60s, default 1s.");
     println_safe!();
@@ -352,8 +383,11 @@ pub(crate) fn print_help() {
     // the members of a list (strict / block / unstrict all route on
     // it); the single ':' belongs to the target's own grammar (the
     // cg: display prefix, the container URIs), which is why the
-    // list separator doubles it.
-    println_safe!("  <a>::<b>[::...]  list members for the group lane — the '::' separator");
+    // list separator doubles it. NIGHT-hunt-35: the token re-spells
+    // to the concrete three-member shape (the synopsis' own
+    // <target::target::target>) so it sits in the section's one
+    // description column.
+    println_safe!("  <a>::<b>::<c>   list members for the group lane — the '::' separator");
     println_safe!("                  cannot collide with the single ':' the cg: prefix and");
     println_safe!("                  the container URIs own");
     // NIGHT-dinner-11: the no-match contract rides the grammar
@@ -378,7 +412,10 @@ pub(crate) fn print_help() {
     // workflows whose blocks have no example lines, so every example
     // appears exactly once on the surface. Same annotated-pair format
     // as the group blocks (NIGHT-boost-4), at the section's own
-    // two-space indent.
+    // two-space indent. NIGHT-hunt-35: the 'u --all' pair died here —
+    // improve-54 had already given the sweep its Pro mode example,
+    // and one command teaches exactly once (the no-duplicate law
+    // restored after the merge drifted past it).
     println_safe!("  # Check what's limited (JSON for scripts)");
     println_safe!(
         "  {}",
@@ -387,9 +424,6 @@ pub(crate) fn print_help() {
     println_safe!();
     println_safe!("  # Recover from a crash (clean orphaned pins)");
     println_safe!("  {}", ok("sudo zelynic recover"));
-    println_safe!();
-    println_safe!("  # Emergency: remove all limits");
-    println_safe!("  {}", ok("sudo zelynic u --all"));
     println_safe!();
     println_safe!("  # Rescue a terminal broken by a kill -9 TUI death");
     println_safe!("  {}", ok("zelynic --reset-terminal"));
@@ -403,4 +437,16 @@ pub(crate) fn print_help() {
 fn example(note: &str, cmd: &str) {
     println_safe!("    # {note}");
     println_safe!("    {}", ok(cmd));
+}
+
+/// One command synopsis: the usage line in calm grey (NIGHT-hunt-35,
+/// the owner's eye-strain call — the white usage lines strained;
+/// grammar is context, not content, the same tier law the eagle-eyes
+/// footer rides). One helper so every verb's synopsis carries the
+/// same indent and the same tier, and the `[flags — see Pro mode]`
+/// pointer token rides the same law on every flag-owning verb —
+/// the synopsis teaches the grammar and points, Pro mode owns every
+/// flag's spelling.
+fn synopsis(line: &str) {
+    println_safe!("  {}", grey(line));
 }

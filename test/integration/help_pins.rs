@@ -332,7 +332,10 @@ fn test_help_documents_every_target_form() {
         // NIGHT-improve-53: the masterclass list law rides the
         // grammar section — the '::' separator and the reason it
         // doubles (the single ':' belongs to the prefix grammar).
-        "  <a>::<b>[::...]  list members for the group lane — the '::' separator",
+        // NIGHT-hunt-35: the token re-spells to the concrete
+        // three-member shape so it sits in the section's one
+        // description column (the symmetry law).
+        "  <a>::<b>::<c>   list members for the group lane — the '::' separator",
         "                  cannot collide with the single ':' the cg: prefix and",
         "                  the container URIs own",
     ] {

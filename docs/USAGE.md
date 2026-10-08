@@ -123,7 +123,7 @@ redirect contract, their tips naming the family verb — e.g.
 ### strict — limit one app, or a group sharing one rate
 
 ```bash
-sudo zelynic strict <target> [rate] [-d <rate>] [-u <rate>] [--per-socket] [--floor <rate>] [--ceil <rate>] [--floor-download <rate>] [--floor-upload <rate>] [--ceil-download <rate>] [--ceil-upload <rate>] [--during <duration>]
+sudo zelynic strict <target> or <target::target::target> [rate] [-d <rate>] [-u <rate>] [flags — documented below]
 sudo zelynic s brave::curl::pacman 1mb # the group lane: one shared rate
 ```
 
@@ -862,7 +862,7 @@ exit code stays 0.
 ### eagle-eyes — the unified live monitor
 
 ```bash
-sudo zelynic eagle-eyes [targets] [--interval <1s-60s>]
+sudo zelynic eagle-eyes [targets] [flags — documented below]
 sudo zelynic eagle-eyes <target> --depth [--print-json]
 ```
 
