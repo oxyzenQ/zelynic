@@ -73,8 +73,7 @@
 use std::time::Duration;
 
 use super::{
-    comm_from_label, format_uptime, label_with_count, rate_bps, rate_bps_wide, FrameGeometry,
-    SessionAcc,
+    comm_from_label, format_uptime, label_with_count, rate_bps_wide, FrameGeometry, SessionAcc,
 };
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
@@ -204,12 +203,13 @@ pub(super) struct FooterCensus {
     pub dl: u128,
     /// The session's accumulated upload bytes — the mirror leg.
     pub ul: u128,
-    /// The session's peak per-frame download delta in bytes
-    /// (NIGHT-engrave-6: the MAX line's figure — the session
-    /// state's running maximum, converted to a rate with the poll
-    /// interval at render time).
+    /// The session's peak per-frame download RATE in B/s
+    /// (NIGHT-engrave-6; NIGHT-hunt-38 — the peak is tracked as a
+    /// rate at fold time, the delta divided by the span it was
+    /// measured over, so the rendered max line never wobbles with
+    /// the current frame's span jitter).
     pub peak_dl: u64,
-    /// The session's peak per-frame upload delta — the mirror leg.
+    /// The session's peak per-frame upload rate — the mirror leg.
     pub peak_ul: u64,
     /// The session's accumulated packets (NIGHT-engrave-4: the same
     /// horizon as the bytes — one accumulator in the session state,
@@ -238,8 +238,8 @@ impl FooterCensus {
     /// on). All sums SATURATING (NIGHT-boost-16 lineage): saturated
     /// counters read as their honest ceilings, never panic or wrap.
     /// `peaks` is the session state's running maxima pair
-    /// (NIGHT-engrave-6) — raw interval bytes, converted to rates
-    /// by the builder that knows the poll interval.
+    /// (NIGHT-engrave-6) — RATES at fold since NIGHT-hunt-38, ready
+    /// to render with no conversion.
     #[must_use]
     pub(super) fn gather(
         tier: FooterTier,
@@ -349,19 +349,19 @@ fn session_rate(bps: u64) -> String {
 /// block is what the caller pins to the bottom.
 ///
 /// `interval` is the CONFIGURED cadence (the status line's "1s
-/// realtime" identity); `span` is the MEASURED poll-to-poll span
-/// (NIGHT-lts-3) the MAX figures convert with — the same honest
-/// denominator the table's rate columns divide by, not the nominal
-/// interval the beat scheduler only approximates (a render beat
-/// fires on the first 50ms wake past the cadence, so nominal-division
-/// overstated every rate by up to a wake plus the frame's own work
-/// time; the peaks were raw interval bytes in that era).
+/// realtime" identity). The MEASURED poll-to-poll span never
+/// reaches this builder anymore: since NIGHT-hunt-38 the MAX
+/// figures arrive as RATES at fold time (each peak divided by the
+/// span IT was measured over, in the session state's `note_frame`
+/// — the honest denominator the table's rate columns divide by,
+/// not the nominal interval the beat scheduler only approximates),
+/// so the builder renders the stored peaks directly and a later
+/// frame's span jitter can never restate a historical peak.
 #[must_use]
 pub(super) fn build_grip_footer(
     census: &FooterCensus,
     geo: FrameGeometry,
     interval: Duration,
-    span: Duration,
 ) -> Vec<String> {
     let tier = census.tier;
     let mut footer: Vec<String> = Vec::with_capacity(tier.lines());
@@ -410,22 +410,22 @@ pub(super) fn build_grip_footer(
     // family; Minimal is survival height, where the total row alone
     // carries the story): the owner's data-center lines, directly
     // below the title row they extend. MAX is the session's peak
-    // watched-set rate — the peaks are raw per-frame byte deltas, so
-    // the same `rate_bps` conversion the table's rate columns use
-    // turns them into figures, divided by the measured poll span
-    // (NIGHT-lts-3) instead of the nominal cadence. AVG derives per
-    // direction as the session leg divided by the session uptime —
-    // the same legs the grand totals and the same clock the total
-    // row renders, so the three lines of the paragraph can never
-    // disagree (a sub-second uptime renders honest zeroes via
-    // rate_bps's zero-interval guard — the loading frame and the
-    // first live frame agree byte-for-byte, the boost-25 morph
-    // contract).
+    // watched-set rate — since NIGHT-hunt-38 the session state
+    // tracks the peak as a RATE at fold time (the delta over the
+    // span IT was measured on), so the line renders the stored
+    // figure directly and never wobbles with the current frame's
+    // span jitter. AVG derives per direction as the session leg
+    // divided by the session uptime — the same legs the grand
+    // totals and the same clock the total row renders, so the three
+    // lines of the paragraph can never disagree (a sub-second
+    // uptime renders honest zeroes via rate_bps_wide's
+    // zero-interval guard — the loading frame and the first live
+    // frame agree byte-for-byte, the boost-25 morph contract).
     if matches!(tier, FooterTier::Full | FooterTier::Compact) {
         footer.push(grey(&format!(
             "  total max dl | ul = {} | {}",
-            session_rate(rate_bps(census.peak_dl, span)),
-            session_rate(rate_bps(census.peak_ul, span))
+            session_rate(census.peak_dl),
+            session_rate(census.peak_ul)
         )));
         footer.push(grey(&format!(
             "  total avg dl | ul = {} | {}",

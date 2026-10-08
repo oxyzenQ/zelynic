@@ -148,12 +148,31 @@ pub(crate) fn is_displayable(socket: &SocketInfo) -> bool {
     }
 }
 
+/// Rank one process's endpoints bytes-desc — the hungriest first
+/// (NIGHT-boost-26's 2.4 promise; NIGHT-hunt-38: the law now serves
+/// BOTH trees, extracted so the two can never drift). Stable within
+/// equals (Rust's sort_by is stable, so byteless endpoints keep the
+/// walk's established-first order behind the traffic-carriers).
+/// The ranked view needs this law MOST: its two-slot cap can hide
+/// the answer behind two quiet walk-first endpoints without it —
+/// truncation without ranking buries the very endpoint the owner
+/// opened the tree to find.
+fn rank_endpoints_by_bytes(endpoints: &mut [&SocketInfo], conns: Option<&ConnectionMap>) {
+    endpoints.sort_by_key(|s| {
+        let total = socket_bytes_of(s, conns).map_or(0, |b| b.dl.saturating_add(b.ul));
+        std::cmp::Reverse(total)
+    });
+}
+
 /// One process's eagle-eyes tree lines (NIGHT-boost-21): inline when
 /// it holds a single displayable endpoint, header plus capped
 /// children when more. The header carries the socket count, so a
 /// truncated expansion still says its scale. NIGHT-boost-26: each
 /// endpoint line carries its joined byte figures when the per-socket
-/// maps know them.
+/// maps know them. NIGHT-hunt-38: the children RANK bytes-desc
+/// (the focus view's own law, `rank_endpoints_by_bytes`) — the
+/// two-slot cap shows the hungriest endpoints, never two quiet
+/// walk-first ones with the eater hidden behind them.
 fn eagle_holder_lines(
     proc: &ProcessDetail,
     endpoints: &[&SocketInfo],
@@ -167,6 +186,8 @@ fn eagle_holder_lines(
             endpoint_text(endpoints[0], conns)
         )];
     }
+    let mut ranked = endpoints.to_vec();
+    rank_endpoints_by_bytes(&mut ranked, conns);
     let mut out = Vec::with_capacity(1 + ENDPOINT_SHOWN);
     out.push(format!(
         "    └ {} ({}) {} sockets:",
@@ -174,8 +195,8 @@ fn eagle_holder_lines(
         proc.pid,
         format_count(endpoints.len() as u64)
     ));
-    let shown = endpoints.len().min(ENDPOINT_SHOWN);
-    for (i, socket) in endpoints.iter().take(shown).enumerate() {
+    let shown = ranked.len().min(ENDPOINT_SHOWN);
+    for (i, socket) in ranked.iter().take(shown).enumerate() {
         let branch = if i + 1 == shown { "└" } else { "├" };
         out.push(format!("        {branch} {}", endpoint_text(socket, conns)));
     }
@@ -271,13 +292,10 @@ pub(crate) fn full_detail_lines(conns: Option<&ConnectionMap>, cgroup_id: u32) -
         if endpoints.is_empty() {
             continue;
         }
-        // Bytes-desc, stable within equals (Rust's sort_by is stable,
-        // so byteless endpoints keep the established-first walk order
-        // behind the traffic-carriers).
-        endpoints.sort_by_key(|s| {
-            let total = socket_bytes_of(s, Some(conns)).map_or(0, |b| b.dl.saturating_add(b.ul));
-            std::cmp::Reverse(total)
-        });
+        // Bytes-desc, stable within equals — the shared law
+        // (NIGHT-hunt-38: `rank_endpoints_by_bytes`, one copy for
+        // both trees).
+        rank_endpoints_by_bytes(&mut endpoints, Some(conns));
         if endpoints.len() == 1 {
             lines.push(format!(
                 "  └ {} ({}) → {}",

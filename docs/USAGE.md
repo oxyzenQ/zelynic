@@ -1164,8 +1164,13 @@ deep answer to "who exactly is talking inside this cgroup".
 Every endpoint line carries its own byte figures (NIGHT-boost-26,
 the 2.4 frontier closed): `└ curl (4242) → 142.250.185.78:443 [dl
 10.2 GB | ul 180.0 KB]` — the dl/ul vocabulary of the footer's
-speed pair, per-socket session totals with the same horizon as the
-table's TOTAL column. The kernel itself names the owning socket per
+speed pair (**dl** = download, **ul** = upload, lowercase L), the
+figures measured over THIS report's focus window (default 3s,
+`--focus` widens it) — the same suffix shape the live monitor
+carries, over the live monitor's own since-attach horizon instead;
+the two surfaces are one family, their horizons are their own
+(NIGHT-hunt-38: the glossary's `dl`/`ul` entry decodes the pair
+once for both). The kernel itself names the owning socket per
 packet (`bpf_get_socket_cookie` in both cgroup_skb hooks: the
 sender on upload, the receiver on download), the observer bumps a
 per-socket LRU byte map keyed by that cookie, and userspace joins
@@ -1175,8 +1180,9 @@ root-only syscall pair, degrading gracefully to figure-less rows
 when a host refuses it). The focus view also RANKS each process's
 endpoints by their bytes — the hungriest endpoint first, so a
 five-connection process answers WHICH connection is eating at a
-glance; the ranked table's capped expansions keep the walk order
-(the two shown children are still the live ones). Sockets that
+glance; the live monitor's capped tree expansions rank the same
+way (NIGHT-hunt-38 — what a two-slot cap hides is never the
+answer). Sockets that
 moved nothing since the monitor started render no suffix (a lean
 row, never a fabricated zero), and under extreme socket churn
 (4096+ warm sockets at once) the LRU may age a cold entry out —
@@ -1506,8 +1512,8 @@ The ranked table:
 | Row colors | The static traffic light: rank 1 champion red, rank 2 warning yellow, rank 3+ status green — takeover never blinks (eye-strain call). |
 | `download` / `upload` | LIVE per-direction rates: this frame's delta divided by the MEASURED poll-to-poll span (NIGHT-lts-3 — the honest denominator, not the nominal cadence the beat scheduler only approximates). A quiet app renders an em dash (`—`) — the observer measures, it does not judge (never "BLOCKED", which is a limiter verdict). |
 | `total` | Session-accumulated bytes for that cgroup (download + upload since the monitor started) — the ranking key. |
-| Label | The cgroup's identity: `cg:<id> (<comm>)`, with a `+N` suffix when more than one process holds sockets inside. |
-| Detail tree | The socket-holding processes inside the cgroup, grey: one displayable endpoint renders inline (`└ brave (4242) → 142.250.185.78:443`); a multi-socket process gets a header carrying its count (`└ firefox (4242) 3 sockets:`) with the two most-established endpoints as children. UDP endpoints are tagged (`udp`), saturated sockets carry `[busy]`. Established TCP and connected UDP only — listeners and TIME_WAIT are noise, filtered. Each endpoint carries its own byte figures when the join resolved them (`[dl X | ul Y]`, per-socket session totals, NIGHT-boost-26) — a socket that moved nothing keeps its lean row. |
+| Label | The cgroup's identity: `cg:<id> (<comm>)`, with a `+N` suffix when more than one process holds sockets inside — `(brave +22)` reads "the brave cgroup, 23 socket-holding processes: brave plus 22 more". |
+| Detail tree | The socket-holding processes inside the cgroup, grey: one displayable endpoint renders inline (`└ brave (4242) → 142.250.185.78:443`); a multi-socket process gets a header carrying its count (`└ firefox (4242) 3 sockets:`) with the two hungriest endpoints as children — the cap ranks bytes-desc (NIGHT-hunt-38), so what it hides is never the answer. UDP endpoints are tagged (`udp`), saturated sockets carry `[busy]`. Established TCP and connected UDP only — listeners and TIME_WAIT are noise, filtered. Each endpoint carries its own byte figures when the join resolved them (`[dl X | ul Y]` — **dl** = download, **ul** = upload, both lowercase L: the same two-letter vocabulary the rate columns and the footer's speed pair speak; the figures are that endpoint's bytes since the monitor started, NIGHT-boost-26) — a socket that moved nothing keeps its lean row. |
 | Hidden note | `(+N more hidden — raise the window)`: the window IS the budget (no `--limit`); the count rides the same SI compact ladder as the census. |
 
 The pinned footer — the frame's dashboard, in the owner's exact line
@@ -1518,7 +1524,7 @@ order. Every figure names its horizon and scope:
 | `top consumer is brave` | WHO is eating the network: the rank-1 cgroup's busiest process by the autodetect chain — socket detail first, the label's comm second, the raw label last (`cg:7001` when identity is unresolved) — so the headline never goes dark. Brand purple inside the grey block: the one living thing in the footer. |
 | `1.2K packets + 22 cgroups` | The session census. Packets: SESSION packets since the monitor started, both directions, the same horizon as the bytes. Cgroups: the board the frame watches — a filtered frame counts its filtered board. Both counts ride the SI compact ladder: small figures stay verbatim (`24 packets`), an eight-hour `2244843` reads `2.2M` — no raw u64 ever explodes the line. Every candidate counts, not just the rows the window showed. |
 | `total usage internet in 1h:20s = 11.1 GB` | The story in one line: session uptime and the grand total ALONE (the per-frame rates retired at the owner's call — only totals consume bandwidth). The grand sums the whole leaderboard, every candidate. The uptime ladder reads `45s` / `12m:34s` / `3h:7m` / `2d:5h`. |
-| `total max dl | ul = 24.6 MB/s \| 1.2 MB/s` | The session's PEAK per-direction rate: running maxima of the per-frame watched-set deltas, tracked in the session state beside the totals — never reset, the session horizon. Honest zeroes at rest (`0 B/s`). |
+| `total max dl | ul = 24.6 MB/s \| 1.2 MB/s` | The session's PEAK per-direction rate: running maxima of the per-frame watched-set rates, each peak divided by the span IT was measured over at fold time (NIGHT-hunt-38 — a historical peak renders at its own span forever; a later frame's span jitter can never restate it) — never reset, the session horizon. Honest zeroes at rest (`0 B/s`). |
 | `total avg dl | ul = 2.9 MB/s \| 143.6 KB/s` | The session's average per-direction rate: the same per-direction totals the grand sums, divided by the SAME uptime the total row renders — the three lines of the paragraph share their legs and their clock, so they can never disagree. |
 | `limit target with 'sudo zelynic s brave 100kb'` | The action: a ready-to-paste command for the consumer the headline just named — the `s` short alias, and the `100kb` engraved default (the one fixed suggestion value on a line whose every other fact is derived live). The command rides the ACTIVE theme's brand tier — the frame's two living accents, the thing to read and the thing to act on. |
 | status line | The legend: `1s realtime - theme netrunner - q quit - t theme` — the poll interval, the active theme's name, the quit key, the theme key. Rides every compression tier. |

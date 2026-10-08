@@ -178,8 +178,15 @@ pub(super) fn render_eagle_eyes_at(
     // a filtered one — and it notes BEFORE the focus branch returns,
     // so a focus episode's peaks track the focused cgroup too (the
     // peaks persist across the view switch, like every session
-    // figure; the max line renders on the ranked frames).
-    session.note_frame(summary, if tokens.is_empty() { None } else { Some(&ids) });
+    // figure; the max line renders on the ranked frames). Since
+    // NIGHT-hunt-38 the span rides along: the peak tracks the RATE
+    // (the delta over the span IT was measured on), so the max line
+    // never wobbles with a later frame's span jitter.
+    session.note_frame(
+        summary,
+        span,
+        if tokens.is_empty() { None } else { Some(&ids) },
+    );
 
     // Single token, single cgroup: the focus view (own border inset).
     if tokens.len() == 1 && ids.len() == 1 && unresolved.is_empty() {
@@ -260,7 +267,6 @@ pub(super) fn render_eagle_eyes_at(
         &FooterCensus::gather(tier, &board, identity, conns, uptime, session.peaks()),
         geo,
         interval,
-        span,
     );
     // The pin line: the footer's measured length fixes where the
     // frame's content must stop.

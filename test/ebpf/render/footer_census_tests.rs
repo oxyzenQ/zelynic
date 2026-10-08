@@ -145,7 +145,11 @@ fn the_census_total_can_read_zettabytes() {
     // and the session kept counting every byte of it.
     for _ in 0..55 {
         session.absorb(&frame(7001, u64::MAX, 0));
-        session.note_frame(&frame(7001, u64::MAX, 0), None);
+        session.note_frame(
+            &frame(7001, u64::MAX, 0),
+            std::time::Duration::from_secs(1),
+            None,
+        );
     }
     // A live identity entry for the counted cgroup (NIGHT-hunt-Z1's
     // dead-transient filter: an unnamed, unmoving row leaves the

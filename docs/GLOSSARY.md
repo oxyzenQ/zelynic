@@ -122,6 +122,26 @@ first-time reader, and this page pays it once, up front.
   truncation honesty line when a table outlives the terminal.
 - **Em-dash rate**: the rate cell of a quiet app — on the board
   with its totals, rates absent rather than zero-as-fact.
+- **`dl` / `ul`**: the monitor's two-letter direction tags —
+  **d**own**l**oad / **up**l**oad**, lowercase, the same vocabulary
+  the leaderboard's rate columns, the footer's speed pair, and the
+  endpoint suffix all speak (a lowercase L, never the digit one —
+  the font-confusable pair the owner's transcript caught; this line
+  is the decode). (USAGE.md, the eagle-eyes tables)
+- **The endpoint suffix**: `[dl X | ul Y]` on a tree line — the
+  BYTES that endpoint moved since the monitor attached, split by
+  direction (the live view's own horizon, the per-socket join
+  NIGHT-boost-26); the `--depth` report carries the same suffix
+  shape over ITS focus window instead.
+- **The `+N` label suffix**: `cg:7001 (brave +22)` — 23 processes
+  hold sockets inside the cgroup: the named one plus 22 more, the
+  label's honest scale.
+- **`[busy]`**: a tree endpoint's saturated-socket flag — the
+  socket's send queue is full (it is being policed hard, or its
+  peer is slow); a display fact, not a verdict.
+- **The `udp` tag**: a tree endpoint's protocol flag — the endpoint
+  rides a CONNECTED UDP socket (QUIC-era traffic lives there);
+  established TCP endpoints carry no tag.
 
 ## The state model (how the no-daemon design holds state)
 

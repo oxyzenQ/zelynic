@@ -25,7 +25,44 @@ NIGHT-hunt-18's git-history-only call.
 
 ## [Unreleased]
 
+### Fixed
+
+- **monitor(eagle-eyes): NIGHT-hunt-38 — the max line's wobble and
+  the cap that could hide the eater; improve-56's masterclass
+  pass.** The owner's suspected d1/dl bug decoded first: zero `d1`
+  in the tree and one format string behind every endpoint row —
+  the font-confusable lowercase-L vocabulary, not a render defect;
+  the confusion itself was the defect (undocumented vocabulary, so
+  now documented at every reach). The REAL finds: (1) the footer's
+  `total max dl | ul` stored the peak as raw bytes and converted
+  with the CURRENT frame's span — a span jitter restated the
+  historical peak on every render, and the byte-heaviest slow
+  frame could overstate its own rate 10x; the peak now tracks its
+  own RATE at fold time (`note_frame` takes the span, the footer
+  renders the stored figure), pinned by the rate-vs-bytes and
+  never-restate laws. (2) The ranked view's two-slot endpoint cap
+  selected by WALK order while the focus view ranked bytes-desc —
+  truncation without ranking could bury the eater behind two quiet
+  endpoints (the owner's own 7-sockets shape); the sort is
+  extracted (`rank_endpoints_by_bytes`) and both trees share it,
+  pinned by the walked-last-eater fixture. (3) USAGE's `--depth`
+  section labeled the endpoint suffix "session totals" — the
+  figures are the FOCUS WINDOW's bytes; the horizon split is now
+  named honestly on both surfaces.
+
 ### Added
+
+- **docs(glossary): NIGHT-hunt-38 — the monitor's on-screen
+  vocabulary decoded.** Five new entries: `dl`/`ul` (with the
+  lowercase-L-not-one decode the owner's transcript caught), the
+  endpoint suffix `[dl X | ul Y]` and its per-surface horizons,
+  the `+N` label suffix (23 processes: the named one plus 22
+  more), `[busy]`, and the `udp` tag — plus USAGE's inline decodes
+  at the ranked table, the depth report, and the footer's speed
+  pair.
+
+### Added
+
 
 - **test(supermassive): NIGHT-hunt-37 — the QUIC client rides the
   VM rootfs and the QUIC-aware lane gains its first live
