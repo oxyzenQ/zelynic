@@ -201,6 +201,25 @@ owns. A path that feeds and a policer that underdelivers still
 FAILs through band_check, untouched — the gate pardons
 contention, never enforcement.
 
+**Lesson 2's rider — the mid-window sag.** The followup run
+(8398b95's three red legs) proved the pre-window gate alone
+insufficient: low-gnu's timeline read a 5.0 MB/s harness
+baseline, a gate that fed, a 135 KB/s window, and a RECOVERED
+path 37 seconds later (the sweep row measured 66.6%, in band) —
+the shared-runner egress oscillates at minute scale, and a sag
+that STARTS mid-window slips past every pre-check. The rider is
+the one-sided post-fail re-probe, the boost-27 patience law's
+own shape: on an under-band window ONLY (the over-band side
+never re-probes — a real over-delivery fails on the attempt that
+produced it), the policy clears and the row re-measures the
+UNPOLICED path; a path that still cannot feed 2x the band makes
+the row an instrument-floor SKIP with both figures named —
+contention, never enforcement — while a path that feeds leaves
+the FAIL standing. The rider only SKIPs with POSITIVE evidence
+of sag (the unpoliced path itself still sagged); a recovered
+re-probe with a policer that underdelivered stays red, exactly
+as it must.
+
 ## 4. The verdict
 
 The CI's four red legs were one row born red — a needle written

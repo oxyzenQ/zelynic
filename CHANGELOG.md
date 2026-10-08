@@ -116,7 +116,15 @@ NIGHT-hunt-18's git-history-only call.
   harness baseline fed 4+ MB/s; the windows measured 20-37%). A
   path that cannot feed 2x the band SKIPs with the sag named; a
   path that feeds and a policer that underdelivers still FAILs —
-  the gate pardons contention, never enforcement. Also green now:
+  the gate pardons contention, never enforcement. The followup
+  run added the rider the pre-window gate alone could not cover:
+  a mid-window sag (a 5 MB/s gate, a 135 KB/s window, a
+  recovered path 37 s later) slips past every pre-check, so the
+  under-band side alone re-probes the UNPOLICED path after the
+  policy clears — still sagged reads as the instrument-floor
+  SKIP with both figures, recovered leaves the FAIL standing,
+  and the over-band side never re-probes (the boost-27 one-sided
+  law). Also green now:
   the wholesale lint gates (markdownlint pinned 0.18.1, ruff
   check + format) ran locally before this push — one markdown
   blank-line fix and one ambiguous-variable rename (ruff's own
