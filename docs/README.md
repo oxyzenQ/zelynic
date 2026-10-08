@@ -12,6 +12,7 @@ question well, and this page says which.
 | I want to... | Go to |
 |-------------|-------|
 | Understand what zelynic is | [README.md](../README.md) |
+| Learn usage end to end, basic vs advanced (the simplified walkthrough) | [GUIDE.md](GUIDE.md) |
 | Understand the design philosophy | [PHILOSOPHY.md](PHILOSOPHY.md) |
 | Install or use a command | [USAGE.md](USAGE.md) |
 | Get answers to common questions | [FAQ.md](FAQ.md) |

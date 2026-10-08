@@ -9,6 +9,11 @@ enforcement works, and — importantly — an honest list of what zelynic
 does **not** do. If you read one document before relying on zelynic,
 read this one. Build instructions live in the
 [README](../README.md); this guide starts after the binary works.
+New here and the wall of sections looks heavy: [GUIDE.md](GUIDE.md)
+is the simplified end-to-end walkthrough (the four-command flow, and
+exactly when plain `strict` is enough vs when `--floor`, `--ceil`,
+`--per-socket`, or `--during` earn their keep) — this page remains
+the complete reference.
 
 ---
 
