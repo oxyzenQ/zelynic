@@ -2845,7 +2845,20 @@ def test_during_expiry(rate_bps, window_secs, baseline):
 
 QUIC_WINDOW = 8.0
 QUIC_CLIENTS = 6
-QUIC_RATE = 1_000_000
+# NIGHT-hunt-37 followup (bd8de0e's first live run): 200kb, sized by
+# the CAPACITY LAW the run measured. Drops engage only when the
+# server's per-connection offer beats the budget rate x (1 + 1/window)
+# — 1.125 x rate at this window, whatever the supply constant says
+# (the supply only sets how LOUD the crossing is, never whether it
+# happens). The VM's python h3 server is CPU-bound: the four legs
+# delivered 0.53..1.03 MB/s per connection at the original 1mb rate
+# — three of four under the 1.125x line, zero drops, the row red.
+# At 200kb the line sits at 225 KB/s per connection: 2.35x under the
+# SLOWEST observed leg (530 KB/s), and every verdict scales with the
+# rate (the scale floor, the cap, the floor, the accounting band are
+# all ratios; the byte volume stays far above the 64 KiB accounting
+# floor at ~12 MB total).
+QUIC_RATE = 200_000
 QUIC_SUPPLY = 1.35
 QUIC_TICK = 0.012
 QUIC_SETTLE = 0.5
@@ -3023,7 +3036,7 @@ def test_quic_connections(window, clients, rate_bps, baseline):
     workdir = tempfile.mkdtemp(prefix="zelynic-quic-")
     try:
         key = ec.generate_private_key(ec.SECP256R1())
-        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, u"127.0.0.1")])
+        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "127.0.0.1")])
         now = datetime.datetime.now(datetime.timezone.utc)
         cert = (
             x509.CertificateBuilder()
@@ -3034,9 +3047,7 @@ def test_quic_connections(window, clients, rate_bps, baseline):
             .not_valid_before(now - datetime.timedelta(hours=1))
             .not_valid_after(now + datetime.timedelta(days=1))
             .add_extension(
-                x509.SubjectAlternativeName(
-                    [x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]
-                ),
+                x509.SubjectAlternativeName([x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]),
                 critical=False,
             )
             .sign(key, hashes.SHA256())
@@ -3228,9 +3239,7 @@ def test_quic_connections(window, clients, rate_bps, baseline):
                     return proto.recvd, lag
 
             try:
-                got, lag = asyncio.run(
-                    asyncio.wait_for(roundtrip(), timeout=window + 30.0)
-                )
+                got, lag = asyncio.run(asyncio.wait_for(roundtrip(), timeout=window + 30.0))
                 return got, lag, None
             except BaseException as exc:  # noqa: BLE001 — any client failure, a
                 # cancelled roundtrip included (CancelledError rides
@@ -3300,8 +3309,7 @@ def test_quic_connections(window, clients, rate_bps, baseline):
         # an assumed one (the kernel admits at most burst + rate x
         # age, so this verdict breaks only on a real over-admit).
         cap_ok = all(
-            v <= (rate_bps * (window + l) + burst_bytes) * 1.25
-            for v, l in zip(totals, lags)
+            v <= (rate_bps * (window + lag) + burst_bytes) * 1.25 for v, lag in zip(totals, lags)
         )
         per_conn_floor = 0.50 * rate_bps * window
         floor_ok = all(v >= per_conn_floor for v in totals)
@@ -3324,7 +3332,7 @@ def test_quic_connections(window, clients, rate_bps, baseline):
                 "ledger_ceiling_bytes": round(ledger_ceiling),
                 "ledger_ratio": round(ledger_ratio, 3),
                 "client_totals_bytes": totals,
-                "client_handshake_lags_s": [round(l, 3) for l in lags],
+                "client_handshake_lags_s": [round(lag, 3) for lag in lags],
                 "supply": QUIC_SUPPLY,
             },
         )
@@ -4892,6 +4900,16 @@ REALNET_RATE_WINDOW = 15.0
 REALNET_BASE_WINDOW = 10.0
 REALNET_BLOCK_WINDOW = 12.0
 REALNET_UL_SANITY_WINDOW = 5.0
+# NIGHT-hunt-37 followup: the fresh in-stage band gate's window. The
+# harness-start baseline is minutes stale by the time the strict rows
+# run (the overhead stage's own 2022-09-22 lesson, applied to the
+# realnet lane): a shared-runner egress can sag an order of magnitude
+# between the two, and the band row would file contention as an
+# enforcement FAIL. Each band row re-measures the UNPOLICED path
+# seconds before its own window; a path that cannot feed 2x the band
+# SKIPs with the sag named — the same honest instrument-floor SKIP
+# the harness-start baseline owns, just measured fresh.
+REALNET_FRESH_GATE_WINDOW = 5.0
 
 REALNET_DL_RATE_STR = "2mb"
 REALNET_DL_RATE_BPS = 2_000_000
@@ -5047,6 +5065,25 @@ def realnet_upload(name, window):
     return spawn_in_cgroup(name, realnet_ul_cmd(window, UL_ENDPOINT[1]), window + 25)
 
 
+def realnet_band_gate(kind, need_bps):
+    """NIGHT-hunt-37 followup: a FRESH unpoliced path measurement,
+    seconds before a band row's own window (the overhead stage's own
+    in-stage baseline law, brought to the realnet lane). Returns
+    (gate_ok, fresh_bps); the caller SKIPs — with the sag named — when
+    the fresh path cannot feed 2x the band. This is the instrument's
+    own floor, never an enforcement pardon: a path that feeds and a
+    policer that underdelivers still FAILs through band_check, exactly
+    as before. `kind` is "dl" or "ul".
+    """
+    if kind == "ul":
+        got, _err = realnet_upload("a", REALNET_FRESH_GATE_WINDOW)
+    else:
+        got, _err = realnet_download("a", REALNET_FRESH_GATE_WINDOW)
+    if got is None:
+        return False, 0.0
+    return True, got / REALNET_FRESH_GATE_WINDOW
+
+
 def stage_realnet_probe():
     """Walk the fallback chain; the first endpoint that feeds wins.
     Every miss is reported (a silent chain would hide a dead network
@@ -5157,6 +5194,19 @@ def stage_realnet_strict_download():
             f"realnet baseline {fmt_bps(REALNET_BASELINE_BPS)} too low to prove "
             f"a {REALNET_DL_RATE_STR} band",
         )
+    # NIGHT-hunt-37 followup: the fresh in-stage gate — the harness
+    # baseline is minutes stale; a sagged shared-runner egress is
+    # contention, not enforcement (bd8de0e's three-leg lesson: the
+    # harness baseline fed 4+ MB/s, the window measured 20-37%).
+    gate_ok, fresh_bps = realnet_band_gate("dl", REALNET_DL_RATE_BPS)
+    if not gate_ok or fresh_bps < 2 * REALNET_DL_RATE_BPS:
+        return record(
+            name,
+            "SKIP",
+            f"the path sagged to {fmt_bps(fresh_bps)} seconds before the window "
+            f"(harness baseline {fmt_bps(REALNET_BASELINE_BPS)}) — contention, "
+            "not enforcement; the weekly watch's busy-hour residual",
+        )
     ok, payload = apply_single("a", REALNET_DL_RATE_STR, REALNET_DL_RATE_BPS, None)
     if not ok:
         return record(name, "FAIL", payload)
@@ -5184,6 +5234,16 @@ def stage_realnet_strict_upload():
         return record(name, "SKIP", "no upload endpoint")
     if not REALNET_UL_USABLE:
         return record(name, "SKIP", "upload engine sanity did not pass")
+    # NIGHT-hunt-37 followup: the fresh in-stage gate, the download
+    # lane's own law (a sagged uplink is contention, not enforcement).
+    gate_ok, fresh_bps = realnet_band_gate("ul", REALNET_UL_RATE_BPS)
+    if not gate_ok or fresh_bps < 2 * REALNET_UL_RATE_BPS:
+        return record(
+            name,
+            "SKIP",
+            f"the path sagged to {fmt_bps(fresh_bps)} seconds before the window "
+            "— contention, not enforcement; the weekly watch's busy-hour residual",
+        )
     ok, payload = apply_single("a", REALNET_UL_RATE_STR, None, REALNET_UL_RATE_BPS)
     if not ok:
         return record(name, "FAIL", payload)
@@ -5217,6 +5277,18 @@ def stage_realnet_strict_all():
             name,
             "SKIP",
             f"realnet baseline {fmt_bps(REALNET_BASELINE_BPS)} too low to prove a 2mb band",
+        )
+    # NIGHT-hunt-37 followup: the fresh in-stage gate, the strict
+    # download lane's own law (the sweep row proves the same 2mb band
+    # the strict row does — a sagged path is contention here too).
+    gate_ok, fresh_bps = realnet_band_gate("dl", 2_000_000)
+    if not gate_ok or fresh_bps < 2 * 2_000_000:
+        return record(
+            name,
+            "SKIP",
+            f"the path sagged to {fmt_bps(fresh_bps)} seconds before the window "
+            f"(harness baseline {fmt_bps(REALNET_BASELINE_BPS)}) — contention, "
+            "not enforcement; the weekly watch's busy-hour residual",
         )
     spawned = [spawn_bg_in_cgroup(n, ["sleep", "30"]) for n in "abcde"]
     sleepers = [p for p in spawned if p is not None]

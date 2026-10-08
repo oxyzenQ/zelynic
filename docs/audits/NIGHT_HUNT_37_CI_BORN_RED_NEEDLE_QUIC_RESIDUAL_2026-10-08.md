@@ -38,8 +38,8 @@ cgroup rows APPLY real policies mid-sweep). As root, `strict brave
 1mb --no-test` walks the whole ladder — parse, rate, target
 validation, the root guard, attach, resolve — and dies at the
 no-match hard error instead: `No cgroup found for 'brave'`, exit
-1. The needle could never appear. The row was born red and stayed
-red: every supermassive run from improve-54's push until
+1 — so the needle could never appear. The row was born red and
+stayed red: every supermassive run from improve-54's push until
 ee1cfe6's first uncancelled battery failed on it (the run list
 between a75e4966 — the last green — and b39ba05 is a wall of
 `cancelled`, each newer push superseding the last before the VM
@@ -156,7 +156,52 @@ FAIL), the supply-vs-budget law and the CC bound hold at the
 canonical geometry, and the 1-second burst bank assumption
 (`default_burst(1mb) == 1mb`) the budget arithmetic rides.
 
-## 3. The verdict
+## 3. The first live run's lessons (bd8de0e, this followup)
+
+The needle fix held the moment it ran: the v2 survival battery
+PASSED on all four legs — the born-red row's first green
+supermassive run since improve-54 landed it. The QUIC row's first
+live run taught two lessons, both fixed in this followup:
+
+**Lesson 1 — the capacity law (the rate resize).** The row's core
+claim PASSED on every leg (the scale verdict read 334-674%, six
+CID-keyed buckets flowing; the accounting band 108-109%; the
+per-connection caps and floors all green) — but the drops row
+read ZERO on three of four legs. The arithmetic is unforgiving:
+drops engage only when the server's per-connection offer beats
+the budget rate x (1 + 1/window) = 1.125 x rate at this window —
+the SUPPLY constant sets how loud the crossing is, never whether
+it happens. The VM's python h3 server is CPU-bound (QUIC's AEAD
+is per-byte): the four legs delivered 0.53..1.03 MB/s per
+connection at the original 1mb rate — three of four under the
+1.125 line (low-gnu crossed it: 3720 drops, the full row green).
+The resize to 200kb moves the line to 225 KB/s per connection,
+2.35x under the slowest observed leg; every verdict is a ratio
+and rides along unchanged, and the byte volume (~12 MB total)
+stays far above the 64 KiB accounting floor. The rootless
+validation re-measured the shipped lane at the new geometry:
+2.16 MB per client over the 8s window, 100.1% of the 1.35x
+nominal — the drift-free pacer holds.
+
+**Lesson 2 — the realnet band rows' stale baseline.** The same
+run caught a busy-hour egress sag: the harness-start baseline
+fed 4+ MB/s, and minutes later the strict-download windows
+measured 20-37% of the 2mb band on three legs — contention filed
+as an enforcement FAIL (the low-gnu leg carried the sibling
+shape on the claims battery's precision row instead: 43 re-attempt
+windows, 15.2% over the 12% bound — the documented busy-hour
+residual, unchanged). The fix is the overhead stage's own
+2022-09-22 law brought to the realnet lane: each band row
+(strict download, strict upload, the s --all sweep) now pairs a
+FRESH five-second unpoliced baseline inside the stage, seconds
+before its own window — a path that cannot feed 2x the band
+SKIPs with the sag named (both figures in the detail), exactly
+the honest instrument-floor SKIP the harness-start baseline
+owns. A path that feeds and a policer that underdelivers still
+FAILs through band_check, untouched — the gate pardons
+contention, never enforcement.
+
+## 4. The verdict
 
 The CI's four red legs were one row born red — a needle written
 against a non-root reality the root-required v2 harness never

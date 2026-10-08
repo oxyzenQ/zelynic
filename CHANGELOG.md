@@ -93,6 +93,36 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **test(supermassive): NIGHT-hunt-37 followup — the QUIC lane
+  sized by the capacity law, and the realnet band rows pair a
+  fresh baseline inside the stage.** bd8de0e's first live run: the
+  needle fix held (v2 PASS on all four legs — the born-red row's
+  first green run), the QUIC row's core claim held everywhere
+  (the CID-keyed scale verdict 334-674% across legs), and two
+  lessons landed. (1) The capacity law: drops engage only when
+  the h3 server's per-connection offer beats budget-rate x (1 +
+  1/window) — 1.125x the rate at the 8s window, whatever the
+  supply constant says; the VM's CPU-bound python server delivered
+  0.53..1.03 MB/s per connection at the original 1mb rate, three
+  of four legs under the line, zero drops. The rate moves to
+  200kb (the line at 225 KB/s per connection, 2.35x under the
+  slowest observed leg); every verdict is a ratio and rides
+  unchanged, and the rootless validation re-measured the shipped
+  lane at 100.1% of nominal. (2) The realnet band rows (strict
+  download, strict upload, the s --all sweep) now re-measure the
+  unpoliced path five seconds before their own windows — the
+  overhead stage's own 2022-09-22 in-stage-baseline law, brought
+  to the lane the busy-hour sag caught red three-legs-wide (the
+  harness baseline fed 4+ MB/s; the windows measured 20-37%). A
+  path that cannot feed 2x the band SKIPs with the sag named; a
+  path that feeds and a policer that underdelivers still FAILs —
+  the gate pardons contention, never enforcement. Also green now:
+  the wholesale lint gates (markdownlint pinned 0.18.1, ruff
+  check + format) ran locally before this push — one markdown
+  blank-line fix and one ambiguous-variable rename (ruff's own
+  E741 catching the same lowercase-L ambiguity the owner's
+  transcript caught on the eagle-eyes screen).
+
 - **ci(supermassive): NIGHT-hunt-37 — the born-red `--no-test`
   parse row re-needled, four red legs green again.** improve-54's
   CLI-depth row expected the wording `root required` from
