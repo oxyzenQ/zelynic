@@ -119,6 +119,12 @@ impl super::Limiter {
         // retire under the same generation stamp.
         self.sweep_expired_windows_best_effort();
 
+        // NIGHT-hunt-34: the orphan-census sweep rides the same
+        // lazy tail — the census-bounded state a failed or
+        // interrupted reclaim left behind is collected by the
+        // visit that follows it (reclaim.rs owns the why).
+        self.sweep_census_orphans();
+
         // AMMSP memo invalidation (research-2 / perf-0): the fresh
         // policies may cover leaves whose cached resolution is
         // stale — the walk sees only the live map, so the generation
@@ -318,6 +324,10 @@ impl super::Limiter {
 
         // night-during: the lazy sweep (apply_single's note).
         self.sweep_expired_windows_best_effort();
+
+        // NIGHT-hunt-34: the orphan-census sweep, the tail's second
+        // collector (apply_single's note owns the law).
+        self.sweep_census_orphans();
 
         // AMMSP memo invalidation (NIGHT-private-research-2,
         // generation-stamped by NIGHT-perf-0) — same

@@ -22,6 +22,8 @@
 //! this file past the cap again), and the removal and reclamation
 //! semantics stay here.
 
+use std::collections::HashSet;
+
 use anyhow::{anyhow, Result};
 
 use super::lanes::map_error_means_absent;
@@ -53,6 +55,53 @@ fn group_reclaim_trace_line(group_id: u32, reclaimed: usize) -> String {
         "[limiter] group:{group_id} reclaimed {reclaimed} shared-bucket {} — \
          the group's last reference is gone, slots returned to the 256-entry budget",
         if reclaimed == 1 { "slot" } else { "slots" }
+    )
+}
+
+/// Which policy legs a census-bounded family's liveness rides
+/// (NIGHT-hunt-34): the per-direction state maps (bucket, ring)
+/// gate on their OWN direction's row — a `-d`-only removal kills
+/// the dl state and leaves the ul state standing — while the
+/// combined maps (stats, window) ride either leg, exactly the
+/// gates [`Self::reclaim_cgroup_state`] applies root by root.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum CensusLeg {
+    Download,
+    Upload,
+    Either,
+}
+
+/// The orphan-census decision core (NIGHT-hunt-34, pure so it is
+/// unit-pinned): from one family map's keys and the live policy
+/// keys per direction, the keys whose policy rows are all gone —
+/// the state a failed or interrupted reclaim left behind. The
+/// gates mirror `reclaim_cgroup_state`'s own per-family flags
+/// verbatim, so the sweep can never remove state a live leg still
+/// owns. The result is sorted for deterministic traces.
+fn census_orphans(
+    keys: &[u32],
+    dl_live: &HashSet<u32>,
+    ul_live: &HashSet<u32>,
+    leg: CensusLeg,
+) -> Vec<u32> {
+    let live = |k: &u32| match leg {
+        CensusLeg::Download => dl_live.contains(k),
+        CensusLeg::Upload => ul_live.contains(k),
+        CensusLeg::Either => dl_live.contains(k) || ul_live.contains(k),
+    };
+    let mut orphans: Vec<u32> = keys.iter().copied().filter(|k| !live(k)).collect();
+    orphans.sort_unstable();
+    orphans
+}
+
+/// Verbose trace line for one census family's orphan sweep
+/// (NIGHT-hunt-34): pure formatting so the wording is unit-pinned
+/// beside its siblings.
+fn census_sweep_trace_line(map_name: &str, reclaimed: usize) -> String {
+    format!(
+        "[limiter] {map_name}: reclaimed {reclaimed} orphaned {} — no policy row names it, \
+         slot returned to the census budget",
+        if reclaimed == 1 { "entry" } else { "entries" }
     )
 }
 
@@ -268,6 +317,144 @@ impl super::Limiter {
         })
         .ok()
         .flatten()
+    }
+
+    /// Sweep the census-bounded families' orphaned state
+    /// (NIGHT-hunt-34, the baseline panel's retire_dead). The four
+    /// per-policy-root state families — the dl/ul buckets, the dl/ul
+    /// rate rings, the stats ledger, the window rows — are plain
+    /// 1024-slot HashMaps whose occupancy claim is "bounded by the
+    /// policy census": every removal path reclaims its own rows
+    /// ([`Self::reclaim_cgroup_state`], NIGHT-hunt-Z4's rings
+    /// included), but a reclaim that FAILS (best-effort by
+    /// contract, a warned delete) or a crash between the policy
+    /// delete and the state delete leaves the row behind with no
+    /// policy naming it — invisible to every existing sweep
+    /// (`recover` walks orphan POLICIES; a ring whose policy is
+    /// already gone has no row to walk). The residue then does two
+    /// things: it renders as a permanent ghost row on the
+    /// eagle-eyes baseline panel (the TUI lane folds every key the
+    /// ring read carries; the status JSON joins by policy row, the
+    /// TUI does not), and it holds a 1024-slot until fresh roots'
+    /// rings silently fail to create — the userspace leaderboard
+    /// freeze mitigate-1 closed, un-mitigated on the kernel side.
+    ///
+    /// The sweep reads the policy census (both directions), then
+    /// walks each family for keys no live leg owns and deletes
+    /// them under the family's own gate. Fail-closed on proof: an
+    /// unreadable POLICY map proves nothing dead and stands the
+    /// whole sweep down (the `reclaim_dead_groups` posture); an
+    /// unreadable family map only skips that family — the sweep
+    /// warns and the next visit retries. Delete failures warn and
+    /// never fail the caller: the sweep rides apply-family tails,
+    /// the status visit, and recover, all under the operation
+    /// lock. Returns the number of entries actually deleted.
+    pub fn sweep_census_orphans(&mut self) -> usize {
+        // The census itself: an unreadable direction proves nothing
+        // orphan — keep every family's state (fail-closed for
+        // reclamation, the same conservative posture as the
+        // dead-group sweep's unreadable policy maps).
+        let (dl, ul) = (
+            self.read_policies_public(Direction::Download),
+            self.read_policies_public(Direction::Upload),
+        );
+        let (Ok(dl), Ok(ul)) = (dl, ul) else {
+            return 0;
+        };
+        let dl_live: HashSet<u32> = dl.iter().map(|(id, _)| *id).collect();
+        let ul_live: HashSet<u32> = ul.iter().map(|(id, _)| *id).collect();
+
+        let mut reclaimed = 0usize;
+        reclaimed += self.sweep_census_family::<BucketRaw>(
+            "cgroup_bucket_dl",
+            PIN_MAP_BUCKET_DL,
+            CensusLeg::Download,
+            &dl_live,
+            &ul_live,
+        );
+        reclaimed += self.sweep_census_family::<BucketRaw>(
+            "cgroup_bucket_ul",
+            PIN_MAP_BUCKET_UL,
+            CensusLeg::Upload,
+            &dl_live,
+            &ul_live,
+        );
+        reclaimed += self.sweep_census_family::<RateRingRaw>(
+            "rate_ring_dl",
+            PIN_MAP_RATE_RING_DL,
+            CensusLeg::Download,
+            &dl_live,
+            &ul_live,
+        );
+        reclaimed += self.sweep_census_family::<RateRingRaw>(
+            "rate_ring_ul",
+            PIN_MAP_RATE_RING_UL,
+            CensusLeg::Upload,
+            &dl_live,
+            &ul_live,
+        );
+        reclaimed += self.sweep_census_family::<LimiterStatsRaw>(
+            "cgroup_limiter_stats",
+            PIN_MAP_STATS,
+            CensusLeg::Either,
+            &dl_live,
+            &ul_live,
+        );
+        reclaimed += self.sweep_census_family::<PolicyWindowRaw>(
+            "policy_window",
+            PIN_MAP_POLICY_WINDOW,
+            CensusLeg::Either,
+            &dl_live,
+            &ul_live,
+        );
+        reclaimed
+    }
+
+    /// One family's half of the orphan-census sweep: read the keys,
+    /// hand them the pure decision core, delete what it names.
+    /// Read and delete both ride the ONE acquisition lane
+    /// (`with_u32_map` / `remove_map_entry` — the same lanes every
+    /// other reclaim in this file flows through). A delete miss
+    /// (`Ok(false)`, ENOENT) counts as landed-nothing: the state
+    /// was already gone, which is all the sweep ever wanted.
+    fn sweep_census_family<V: aya::Pod>(
+        &mut self,
+        map_name: &str,
+        pin_path: &str,
+        leg: CensusLeg,
+        dl_live: &HashSet<u32>,
+        ul_live: &HashSet<u32>,
+    ) -> usize {
+        let keys: Vec<u32> = match self.with_u32_map::<V, Vec<u32>>(map_name, pin_path, |map| {
+            Ok(map.iter().flatten().map(|(key, _)| key).collect())
+        }) {
+            Ok(keys) => keys,
+            Err(e) => {
+                // An unreadable family map cannot name its
+                // orphans — skip it, warn, let the next visit
+                // retry (best-effort beside every sweep sibling).
+                eprintln_safe!("[limiter] census sweep skipped {map_name}: {e}");
+                return 0;
+            }
+        };
+        let orphans = census_orphans(&keys, dl_live, ul_live, leg);
+        if orphans.is_empty() {
+            return 0;
+        }
+        let mut landed = 0usize;
+        for id in &orphans {
+            match self.remove_map_entry::<V>(map_name, pin_path, *id) {
+                Ok(true) => landed += 1,
+                Ok(false) => {}
+                Err(e) => {
+                    eprintln_safe!("[limiter] census sweep: {map_name} key {id} delete failed: {e}")
+                }
+            }
+        }
+        if self.verbose && landed > 0 {
+            eprintln_safe!("{}", census_sweep_trace_line(map_name, landed));
+        }
+        landed
     }
 
     /// Reclaim the shared buckets of DEAD groups (NIGHT-lts-7, the

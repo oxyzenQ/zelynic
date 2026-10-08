@@ -238,6 +238,9 @@ impl super::Limiter {
         // night-during (schema v23): the lazy sweep, the family's
         // own tail (apply_single's note owns the why).
         self.sweep_expired_windows_best_effort();
+        // NIGHT-hunt-34: the orphan-census sweep, the tail's second
+        // collector (reclaim.rs owns the why).
+        self.sweep_census_orphans();
         self.ammsp_memo_invalidate_best_effort();
 
         if self.verbose {
