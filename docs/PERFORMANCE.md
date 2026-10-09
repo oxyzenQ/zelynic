@@ -1830,3 +1830,84 @@ layout change compares like-for-like, both sides carrying the join.
 Determinism holds (frame 1 byte-identical across independent runs;
 the ±0.0001 gini/entropy drift across full runs is the
 frame-count-window noise class the lts-9 record documented).
+
+### NIGHT-engrave-11 A/B (the horizontal masterclass — the one-wave frame, 2026-10-09)
+
+The change is a paint-surface expansion on THREE render lines: the
+title bar's furniture, the table grid lines, and the closing floor
+now sweep the chroma method the vertical rails ride, ACROSS the
+columns (TrueColor in OKLab, Color256 on the legacy ramp quantized
+per column; Color16 and Mono keep their exact flat bytes). Two
+A/B pairs, both 10 s formal runs, A = e9b3b3b at HEAD~2, B = the
+engrave-11 tree. The harness runs piped (Mono) by default; the
+TrueColor pair forces the documented env control surface
+(`CLICOLOR_FORCE=1 COLORTERM=truecolor`, NO_COLOR unset). The
+release pair rides the same harness at `--release` (the lane the
+live monitor ships in), fps read from the harness's own META line.
+
+The Mono pair (the fallback contract — the flat rungs byte-for-byte):
+
+| Metric | before | after | Delta |
+|--------|--------|-------|-------|
+| fps | 5,098.1 | 5,109.3 | +0.2% (noise band) |
+| bytes/frame | 1,919.0 | 1,919.0 | +0.0% |
+| emit bytes/frame | 550.8 | 550.7 | -0.0% |
+| frame entropy | 3.2256 | 3.2287 | +0.1% |
+| density gini | 0.3417 | 0.3417 | -0.0% |
+| dirty cells/frame | 102.4 | 102.4 | -0.0% |
+
+Reading: byte-identical frames at the Mono rung — the flat rungs
+never touch the sweep (the capability ladder's own guarantee), so
+the strongest parity proof holds: a non-truecolor terminal renders
+the exact pre-engrave bytes.
+
+The TrueColor pair, dev profile (the changed path, debug cost):
+
+| Metric | before | after | Delta |
+|--------|--------|-------|-------|
+| fps | 4,580.6 | 3,204.9 | -30.0% (the byte volume's debug cost) |
+| bytes/frame | 3,219.8 | 8,158.0 | +153.4% (the sweep's own bytes) |
+| emit bytes/frame | 927.4 | 942.8 | +1.7% |
+| emit ratio | 0.29 | 0.12 | -59.9% |
+| frame entropy | 4.1616 | 4.1370 | -0.6% |
+| density gini | 0.1772 | 0.6361 | escape-mass artifact |
+| dirty cells/frame | 116.7 | 113.5 | -2.8% |
+
+The TrueColor pair, release profile (the shipping lane's honest price):
+
+| Metric | before (e9b3b3b) | after (engrave-11) | Delta |
+|--------|------------------|--------------------|-------|
+| fps | 21,928.2 | 18,504.2 | -15.6% |
+| bytes/frame | 3,209.6 | 8,153.6 | +154.0% |
+| emit bytes/frame | 1,127.9 | 1,130.2 | +0.2% |
+| emit ratio | 0.35 | 0.14 | -60.0% |
+| frame entropy | 4.1814 | 4.1467 | -0.8% |
+| dirty cells/frame | 125.4 | 125.4 | +0.0% |
+
+Reading: bytes/frame +154% IS the feature — per-column coloring
+writes ~24 escape bytes per column across ~234 horizontal columns,
+and those bytes then flow through the fit walk, the background
+re-open, and the diff screen every frame. That volume, not the
+color math, is the whole remaining price: the first implementation
+paid a second cost on top of it (per-column OKLab endpoint
+conversions; release fps -72%), and the landed tree removes it
+twice — the sweep's endpoints are run-invariant, so the two
+sRGB -> OKLab conversions hoist out of the column loop (the chroma
+module's own cost note), and the composed run is a pure function of
+(theme, capability, glyph, start, len, span, anchor), so the memo
+pays the blend work ONCE per shape and every later frame clones
+the bytes (a theme cycle, a resize, or a capability change misses
+once and re-fills; the drift-killer pin runs the hoisted walk
+against the per-cell rail_rgb walk byte for byte, both engines).
+What is left is the string volume: -15.6% release fps at a
+18,504 fps synthetic blast — about 6.3 us per frame, 0.0006% of
+the live monitor's one-second cadence — while the TERMINAL-side
+contract is untouched or better: emit bytes flat (+0.2%), dirty
+cells flat (125.4 = 125.4, the layout is stable frame over frame),
+and the emit ratio nearly halves (the sweep's lines are
+byte-stable between frames, so the diff engine has less to say
+about them). The gini jump is the metric counting escape mass on
+the three now-swept lines, not visual mass moving. The
+correctness surface is the border pins: the orientation-symmetry
+law, the exact-bytes composer wave, the flat-rung bytes, and the
+hoisted-vs-walked equality.

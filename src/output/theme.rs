@@ -61,7 +61,7 @@ use std::sync::atomic::{AtomicU8, Ordering};
 use super::color::{capability, ColorCapability};
 
 /// The monitor's themes, in cycle order. Index 0 is the default.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum Theme {
     /// The default: purple brand #A855F7, the pre-theme constants.
     Netrunner,

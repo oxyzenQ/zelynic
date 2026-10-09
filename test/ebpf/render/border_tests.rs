@@ -270,6 +270,29 @@ fn sweep_run_is_the_rails_method_across_the_columns() {
         ),
         "five columns of the sweep, no inner reset (dark, mid, brand, mid, dark)"
     );
+    // The drift killer: the hoisted composer must equal the
+    // per-cell rail_rgb + rail_escape walk byte for byte, every
+    // column of the span, both engines — the hoist moves the
+    // endpoint conversions out of the loop, never the math.
+    for (cap, anchor) in [
+        (ColorCapability::TrueColor, Some(chroma_dark)),
+        (ColorCapability::Color256, None),
+    ] {
+        let hoisted = sweep_run('─', 0, 12, 12, Theme::Netrunner, anchor, cap);
+        let mut walked = String::new();
+        for col in 0..12 {
+            walked.push_str(&rail_escape(
+                rail_rgb(Theme::Netrunner, anchor, col, 12, cap),
+                Theme::Netrunner,
+                cap,
+            ));
+            walked.push('─');
+        }
+        assert_eq!(
+            hoisted, walked,
+            "the hoisted sweep is the rails' own walk, byte for byte"
+        );
+    }
     // The flat rungs: the plain glyph run, the caller's SGR colors
     // it (Color16's flat brand, Mono's no-paint) — the exact bytes
     // those depths always rendered.
