@@ -207,7 +207,7 @@ pub(crate) fn grid_line(width: usize) -> String {
                     super::border::DARK_FACTOR,
                 )
             });
-            let mut line = super::border::sweep_run('─', 0, width, width, theme, anchor, cap);
+            let mut line = super::sweep::sweep_run('─', 0, width, width, theme, anchor, cap);
             line.push_str(super::border::RESET);
             line
         }
