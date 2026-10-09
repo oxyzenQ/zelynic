@@ -51,6 +51,23 @@
 //! Mono) — the port changes what TrueColor frames look like, and
 //! nothing else.
 //!
+//! NIGHT-engrave-11 (the horizontal masterclass): the gradient stops
+//! being the rails' private property — every HORIZONTAL line the
+//! frame draws (the title bar's top border, the table grid lines,
+//! the closing floor) now sweeps the SAME chroma method ACROSS the
+//! columns that the rails ride down the rows. The method is
+//! orientation-blind by construction (one blend at a position over
+//! a span, the triangle wave deciding where in the sweep the cell
+//! sits), so the horizontals call the very function the rails call
+//! with the column index in the position slot. The frame reads as
+//! one continuous wave on all four edges — dark corners, glowing
+//! center — instead of flat bright horizontals fighting their own
+//! gradient rails. The capability ladder rides along: TrueColor
+//! sweeps in OKLab, Color256 sweeps the legacy linear-light ramp
+//! quantized per column (exactly what the rails do at 256), and the
+//! flat rungs keep their exact bytes (Color16 cannot ramp within
+//! one hue — a flat line beats a noisy one; Mono never painted).
+//!
 //! NIGHT-engrave-8 (symmetric margins): the frame composes ONE
 //! column inside the terminal — a leading space column before the
 //! left rail and an unpainted final column after the right rail,
@@ -122,8 +139,10 @@ fn content_width(term_width: usize) -> usize {
 
 /// The SGR reset the flanked rows close with (the same constant the
 /// color layer's wrappers append — spelled here because the color
-/// module stays output-internal).
-const RESET: &str = "\x1b[0m";
+/// module stays output-internal). NIGHT-engrave-11: `pub(super)` —
+/// the swept bar composer and the swept grid line close their rows
+/// with the family's one spelling.
+pub(super) const RESET: &str = "\x1b[0m";
 
 /// The dark anchor's brightness factor: the gradient's floor sits at
 /// 42% of the brand color — dark enough to read as recession, bright
@@ -133,8 +152,12 @@ const RESET: &str = "\x1b[0m";
 /// OKLab LIGHTNESS (crate::output::chroma::scale_lightness — 42%
 /// perceived brightness, hue preserved), the legacy rungs keep the
 /// encoded-channel multiply the pre-port ramp carried (their bytes
-/// are the fallback contract, unchanged).
-const DARK_FACTOR: f32 = 0.42;
+/// are the fallback contract, unchanged). NIGHT-engrave-11: the
+/// factor is the whole sweep family's constant — the horizontal
+/// composers (the title bar, the grid line) share this one floor so
+/// both axes anchor at the same darkness; `pub(super)` for exactly
+/// that reach.
+pub(super) const DARK_FACTOR: f32 = 0.42;
 
 /// The content geometry a bordered frame composes into: the rails'
 /// two columns and the closing row's one line are budgeted BEFORE
@@ -198,9 +221,18 @@ fn lerp(a: (u8, u8, u8), b: (u8, u8, u8), t: f32) -> (u8, u8, u8) {
     (mix(a.0, b.0), mix(a.1, b.1), mix(a.2, b.2))
 }
 
-/// One rail's color: the theme's brand RGB swept by the triangle
-/// wave at the row's position down the whole bordered frame (`rows`
-/// counts the closing row too, so the wave spans the visible frame).
+/// One swept cell's color: the theme's brand RGB carried by the
+/// triangle wave at the cell's position along the span (`span`
+/// counts every painted position, the frame's closing row
+/// included, so the wave spans the visible extent).
+///
+/// NIGHT-engrave-11: the function is orientation-BLIND on purpose —
+/// the vertical rails call it with the row index over the frame's
+/// row count, the horizontal sweep with the column index over the
+/// line's column count; the method (anchor, wave, blend) is one
+/// and the same on both axes, which is the whole masterclass
+/// point. The `pos`/`span` names say position along a span, not
+/// row down a frame.
 ///
 /// NIGHT-improve-41: the ramp rides the chroma dragon engine at
 /// TrueColor — the dark anchor is the brand scaled to 42% OKLab
@@ -218,13 +250,13 @@ fn lerp(a: (u8, u8, u8), b: (u8, u8, u8), t: f32) -> (u8, u8, u8) {
 fn rail_rgb(
     theme: Theme,
     anchor: Option<(u8, u8, u8)>,
-    row: usize,
-    rows: usize,
+    pos: usize,
+    span: usize,
     cap: ColorCapability,
 ) -> (u8, u8, u8) {
     let brand = theme.brand_rgb();
-    let t = if rows > 1 {
-        row as f32 / (rows - 1) as f32
+    let t = if span > 1 {
+        pos as f32 / (span - 1) as f32
     } else {
         0.0
     };
@@ -271,6 +303,42 @@ fn rail_escape(rgb: (u8, u8, u8), theme: Theme, cap: ColorCapability) -> String 
             theme::escape_for(theme, theme::Slot::Brand, false, cap).to_string()
         }
         ColorCapability::Mono => String::new(),
+    }
+}
+
+/// The horizontal sweep's run composer (NIGHT-engrave-11): `len`
+/// copies of `glyph` at columns `start..start+len` of a `span`-wide
+/// line, each colored by [`rail_rgb`] at its own column — the exact
+/// method the vertical rails ride, run across the width.
+///
+/// TrueColor blends in OKLab per column; Color256 quantizes the
+/// legacy linear-light ramp per column (the rails' own 256
+/// behavior, one cube index per column); the flat rungs return the
+/// plain glyph run — the caller's open SGR colors it (Color16's
+/// flat brand, Mono's no-paint), the exact bytes those depths
+/// always rendered. No RESET inside the run: the caller opens
+/// once, closes once, and the terminal background (NIGHT-boost-26)
+/// rides the whole row unbroken.
+pub(super) fn sweep_run(
+    glyph: char,
+    start: usize,
+    len: usize,
+    span: usize,
+    theme: Theme,
+    anchor: Option<(u8, u8, u8)>,
+    cap: ColorCapability,
+) -> String {
+    match cap {
+        ColorCapability::TrueColor | ColorCapability::Color256 => {
+            let mut run = String::with_capacity(len * 24);
+            for col in start..start.saturating_add(len) {
+                let esc = rail_escape(rail_rgb(theme, anchor, col, span, cap), theme, cap);
+                run.push_str(&esc);
+                run.push(glyph);
+            }
+            run
+        }
+        _ => glyph.to_string().repeat(len),
     }
 }
 
@@ -399,21 +467,53 @@ pub(super) fn wrap(lines: &mut Vec<String>, width: usize) {
         }
         *line = row;
     }
-    // The closing row (BD-02: the bright anchor): the frame's
-    // foundation, visually anchored whatever the wave does above it.
+    // The closing row (NIGHT-engrave-11: the horizontal masterclass
+    // sweep — the BD-02 bright foundation is re-expressed as the
+    // sweep's bright midpoint: the same wave the vertical rails
+    // ride, run ACROSS the columns, so the frame reads as one
+    // continuous wave on all four edges, dark corners and a glowing
+    // center; the corners land at the rails' own bottom colors and
+    // the box finally closes on itself). One color open per column,
+    // no inner reset — the terminal background (NIGHT-boost-26)
+    // rides until the row's single closing reset. The flat rungs
+    // keep their exact bytes: Color16 renders the bright anchor SGR
+    // around a plain glyph run, Mono renders plain glyphs.
     let bright = rail_escape(theme.brand_rgb(), theme, cap);
-    let mut closing =
-        String::with_capacity(LEFT_INSET + width + bright.len() + bg.len() + RESET.len());
+    let swept = matches!(cap, ColorCapability::TrueColor | ColorCapability::Color256);
+    let span = content_w + BORDER_W;
+    let mut closing = String::with_capacity(
+        LEFT_INSET + width + if swept { span * 24 } else { bright.len() } + bg.len() + RESET.len(),
+    );
     // The closing row opens with the inset column like every other
     // row (NIGHT-engrave-8) and the terminal background
-    // (NIGHT-boost-26) — the foundation is bright, the floor it
-    // sits on is the terminal's own.
+    // (NIGHT-boost-26) — the floor it sits on is the terminal's
+    // own. The sweep-capable depths need no open SGR (every glyph
+    // carries its own column escape); the flat rungs open with the
+    // bright anchor exactly as they always have.
     closing.push(' ');
     closing.push_str(&bg);
-    closing.push_str(&bright);
-    closing.push('╰');
-    closing.push_str(&"─".repeat(content_w));
-    closing.push('╯');
+    if !swept {
+        closing.push_str(&bright);
+    }
+    closing.push_str(&sweep_run('╰', 0, 1, span, theme, chroma_anchor, cap));
+    closing.push_str(&sweep_run(
+        '─',
+        1,
+        content_w,
+        span,
+        theme,
+        chroma_anchor,
+        cap,
+    ));
+    closing.push_str(&sweep_run(
+        '╯',
+        content_w + 1,
+        1,
+        span,
+        theme,
+        chroma_anchor,
+        cap,
+    ));
     if !bright.is_empty() {
         closing.push_str(RESET);
     }

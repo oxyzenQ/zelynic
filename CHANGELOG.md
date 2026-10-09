@@ -1755,6 +1755,37 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **refactor(render): NIGHT-engrave-11 — the horizontal masterclass:
+  every horizontal line the frame draws now sweeps the chroma
+  gradient method the vertical rails ride.** The owner's ask, total:
+  the frame's horizontals (the title bar's top border, the table
+  grid lines, the closing floor) rendered FLAT while their own side
+  rails swept dark-bright-dark — a box whose edges fought its
+  edges. The method was already orientation-blind: rail_rgb blends
+  at a position over a span, so the horizontals call the very
+  function the rails call with the column index in the position
+  slot (the row/rows rename to pos/span names the law). A new
+  sweep_run composes one escape per column and never a RESET (the
+  caller's open/close own the row, the terminal background rides
+  unbroken); the title bar sweeps its furniture (corner, prefix
+  fill, width fill, cap) while the core label stays FLAT bold brand
+  (identity, not furniture — the dark anchor must never dim the
+  name) and the wave's positions advance THROUGH the label's
+  columns so the fill resumes exactly where the label leaves off;
+  the closing floor's BD-02 bright foundation is re-expressed as
+  the sweep's glowing center — dark corners, one continuous wave on
+  all four edges, the box finally closing on itself. The capability
+  ladder rides along: TrueColor sweeps in OKLab, Color256 sweeps
+  the legacy linear-light ramp quantized per column (exactly what
+  the rails do at 256), Color16 and Mono keep their exact flat
+  bytes. Pins: the orientation-symmetry pin (rail_rgb fed a column
+  index over the line's span reproduces the row triples, both
+  engines), the composer's exact-bytes pin (dark, perceptual mid,
+  brand, mid, dark across a five-column span, no inner reset), the
+  flat-rung pins. Docs: BRANDING's layout section, USAGE's frame
+  borders paragraph, and the three module headers now describe the
+  one-wave frame.
+
 - **ci: NIGHT-boost-10 — one trigger spelling for the whole push
   estate (the boost-9 one-glob law promoted estate-wide, the
   owner's simplify mandate).** The five push-triggered workflows

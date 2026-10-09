@@ -153,8 +153,8 @@ pub(crate) use footer::grid_line;
 pub(crate) use loading::loading_frame;
 
 use crate::ebpf::limiter::format_rate;
-use crate::output::brand_bold;
-use crate::output::display_width;
+use crate::output::theme;
+use crate::output::{brand_bold, capability, display_width, ColorCapability};
 
 // ── Geometry ────────────────────────────────────────────────────────────────
 
@@ -368,6 +368,18 @@ pub(crate) fn format_uptime(elapsed: std::time::Duration) -> String {
 /// only home is the footer's status line, which is why that row
 /// rides every compression tier.
 ///
+/// NIGHT-engrave-11 (the horizontal masterclass): at the
+/// sweep-capable depths the bar's furniture (the corner, the prefix
+/// fill, the width fill, the closing cap) paints per column with
+/// the SAME chroma method the vertical rails ride — the wave runs
+/// across the bar (dark edges, glowing center), while the core
+/// label stays FLAT bold brand (identity, not furniture: the
+/// sweep's dark anchor must never dim the name). The wave's
+/// positions advance THROUGH the label's columns, so the fill
+/// resumes exactly where the label leaves off. Color16 and Mono
+/// keep the exact flat bytes (sixteen colors cannot ramp within
+/// one hue; Mono never painted).
+///
 /// Shape: `╭─── <core> <fill> ─╮` (the corner cap degrades before the
 /// bar loses its fill on narrow frames). The two-column gutter
 /// behind the core matches every row, separator, and footer line —
@@ -408,8 +420,18 @@ pub(crate) fn title_bar(core: &str, width: usize) -> String {
     // frame stays rectangular on the narrowest terminals.
     if width <= prefix_len {
         let tail = if width >= cap_len { CAP } else { "" };
-        let fill = "─".repeat(width.saturating_sub(display_width(tail)));
-        return brand_bold(&format!("{fill}{tail}"));
+        let glyphs = format!(
+            "{}{}",
+            "─".repeat(width.saturating_sub(display_width(tail))),
+            tail
+        );
+        if matches!(
+            capability(),
+            ColorCapability::Mono | ColorCapability::Color16
+        ) {
+            return brand_bold(&glyphs);
+        }
+        return swept_bar(&glyphs, None, width);
     }
 
     // The cap closes the bar whenever the width can carry
@@ -432,7 +454,75 @@ pub(crate) fn title_bar(core: &str, width: usize) -> String {
     let used = prefix_len + 1 + fitted_len + if has_cap { cap_len } else { 0 };
     let fill = "─".repeat(width.saturating_sub(used));
 
-    brand_bold(&format!("{PREFIX}{fitted} {fill}{tail}"))
+    let glyphs = format!("{PREFIX}{fitted} {fill}{tail}");
+    if matches!(
+        capability(),
+        ColorCapability::Mono | ColorCapability::Color16
+    ) {
+        return brand_bold(&glyphs);
+    }
+    // The label's first column sits right after the prefix (its own
+    // trailing space is the gutter); its span is the RENDERED width
+    // (NIGHT-lts-1 — a CJK name paints two columns per char).
+    swept_bar(&glyphs, Some((prefix_len, fitted_len)), width)
+}
+
+/// NIGHT-engrave-11: the swept bar composer. `glyphs` is the bar's
+/// one-char-per-column row (corner, prefix fill, label, separator,
+/// width fill, cap); the wave runs across the whole `width`, each
+/// furniture glyph painted by the chroma method the vertical rails
+/// ride ([`border::sweep_run`] at its own column), while the
+/// `text` columns (start, rendered length) stay FLAT bold brand —
+/// the label is identity, the sweep is furniture. One bold open
+/// and one reset for the whole bar: no inner reset ever closes the
+/// terminal background the border wrap opens on row 0
+/// (NIGHT-boost-26); the per-column fg escapes replace the
+/// foreground only. Bare spaces (the prefix gutter, the separator)
+/// paint nothing — the background shows through exactly as the
+/// flat bar's brand-colored spaces read.
+fn swept_bar(glyphs: &str, text: Option<(usize, usize)>, width: usize) -> String {
+    let theme = theme::active();
+    let cap = capability();
+    // One anchor derivation for the whole bar (the border wrap's
+    // per-frame contract — the columns share it).
+    let anchor = crate::output::chroma::scale_lightness(theme.brand_rgb(), border::DARK_FACTOR);
+    let (text_start, text_end) = text.map_or((usize::MAX, usize::MAX), |(s, len)| {
+        (s, s.saturating_add(len))
+    });
+    let mut bar = String::with_capacity(width * 24 + 32);
+    // The render tree assembles its own escapes (the NIGHT-boost-20
+    // exception — the border gradient family builds its own ramp
+    // bytes; the color layer's wrappers stay the CLI surface's
+    // whole API). The bold open carries the brand fg the label
+    // inherits; the swept columns replace the fg only, so the bold
+    // weight spans the whole bar exactly as the flat bar's did.
+    bar.push_str(theme::escape(theme::Slot::Brand, true));
+    let mut col = 0usize;
+    for g in glyphs.chars() {
+        let in_text = col >= text_start && col < text_end;
+        if !in_text && g != ' ' {
+            bar.push_str(&border::sweep_run(
+                g,
+                col,
+                1,
+                width,
+                theme,
+                Some(anchor),
+                cap,
+            ));
+        } else {
+            bar.push(g);
+        }
+        // The same rendered-width walk the fit path carries (the
+        // ASCII fast path inlined at the call site).
+        col += if (g as u32) < 0x0300 {
+            1
+        } else {
+            crate::output::char_width(g)
+        };
+    }
+    bar.push_str(border::RESET);
+    bar
 }
 // NON_LATIN_FIXTURE: the CJK literal in the truncation pin below is
 // runtime width-measurement coverage, not prose (the same exemption

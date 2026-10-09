@@ -78,7 +78,8 @@ use super::{
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::{format_bytes, format_bytes_wide, format_count};
-use crate::output::{brand, grey, signature_footer};
+use crate::output::theme;
+use crate::output::{brand, capability, grey, signature_footer, ColorCapability};
 
 /// Top chrome above the table: the title bar, the NIGHT-boost-14
 /// breathing gap below it, the column header, and the purple grid
@@ -177,9 +178,40 @@ pub(super) fn plan_footer_tier(height: usize, extra: usize) -> FooterTier {
 /// render root — the status and list-apps tables (the report
 /// surfaces outside this module) borrow the exact same grid so
 /// every zelynic table answers to one border family.
+///
+/// NIGHT-engrave-11 (the horizontal masterclass): at the
+/// sweep-capable depths the grid paints per column with the SAME
+/// chroma method the vertical rails ride ([`super::border::sweep_run`]
+/// — the same wave the title bar and the closing floor sweep), so
+/// every horizontal line the frame draws speaks the one gradient.
+/// The flat rungs keep their exact bytes: Color16's flat brand SGR
+/// (sixteen colors cannot ramp within one hue — a flat line beats
+/// a noisy one) and Mono's plain glyphs. One trailing reset only:
+/// the flank loop re-opens the terminal background after the
+/// grid's single trailing reset exactly as it did before the
+/// sweep (the wrap row contract, unbroken).
 #[must_use]
 pub(crate) fn grid_line(width: usize) -> String {
-    brand(&"─".repeat(width)).to_string()
+    let cap = capability();
+    match cap {
+        ColorCapability::Mono => "─".repeat(width),
+        ColorCapability::Color16 => brand(&"─".repeat(width)),
+        ColorCapability::TrueColor | ColorCapability::Color256 => {
+            let theme = theme::active();
+            // One anchor derivation for the line (the border wrap's
+            // per-frame contract); the legacy rung's None lets
+            // rail_rgb derive its own encoded-channel anchor.
+            let anchor = (cap == ColorCapability::TrueColor).then(|| {
+                crate::output::chroma::scale_lightness(
+                    theme.brand_rgb(),
+                    super::border::DARK_FACTOR,
+                )
+            });
+            let mut line = super::border::sweep_run('─', 0, width, width, theme, anchor, cap);
+            line.push_str(super::border::RESET);
+            line
+        }
+    }
 }
 
 /// The census data the footer renders (NIGHT-boost-14; slimmed by
