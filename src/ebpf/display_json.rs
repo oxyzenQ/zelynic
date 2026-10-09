@@ -16,6 +16,7 @@ use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::rate_ring::{ring_series, RateRingRaw, RingReads, RATE_RING_SLOTS};
 use crate::ebpf::limiter::types::PolicyWindowRaw;
 use crate::ebpf::limiter::{monotonic_ns, wall_now_ns, LimiterStatsRaw, PolicyRaw};
+// wall_minus_mono/window_state: the window join's own vocabulary.
 use crate::ebpf::limiter::{wall_minus_mono, window_state};
 
 /// Print JSON status (for --print-json / scripting).
@@ -73,13 +74,24 @@ fn status_json(
     wall_now_ns: u64,
     mono_now_ns: u64,
 ) -> StatusJson {
+    // NIGHT-improve-65: one snapshot, one instant — the watchdog
+    // verdict, the window states, and the ring live-stamps all judge
+    // against the caller-passed mono_now_ns, never a fresh clock
+    // read. The builder was documented pure (hunt-22's
+    // unit-pinnable without capturing stdout) but silently read the
+    // monotonic clock TWICE more inside (the watchdog comparison
+    // and the ring series' now), so a deadline or ring boundary
+    // straddled by those reads could emit a document whose parts
+    // disagree about "now" (watchdog expired while a window from
+    // the earlier snapshot still reads active). Purity restored,
+    // coherence with it.
     let watchdog = match watchdog_deadline {
         Some(0) | None => "enforcing",
-        Some(d) if d > monotonic_ns() => "active",
+        Some(d) if d > mono_now_ns => "active",
         Some(_) => "expired",
     };
 
-    let now = monotonic_ns();
+    let now = mono_now_ns;
     let data = collect_display_data(dl_policies, ul_policies, stats, windows);
 
     let limits: Vec<LimitEntry> = data

@@ -164,10 +164,25 @@ fn status_json_watchdog_wording_pins_all_three_states() {
         "active"
     );
 
-    // Armed but past — monotonic_ns() is far beyond 1 by now.
+    // Armed but past — improve-65: the snapshot IS the clock here
+    // (mono_now 2 is beyond deadline 1; the boundary itself — a
+    // deadline exactly at the snapshot instant — reads expired,
+    // the deadline having been reached).
     assert_eq!(
-        status_json(&[], &[], &[], &id, Some(1), &RingReads::absent(), &[], 0, 0).watchdog,
+        status_json(&[], &[], &[], &id, Some(1), &RingReads::absent(), &[], 0, 2).watchdog,
         "expired"
+    );
+    // The boundary pinned, not just stated: deadline exactly AT the
+    // snapshot instant reads expired (d > now is false at equality —
+    // the deadline was reached, not still pending).
+    assert_eq!(
+        status_json(&[], &[], &[], &id, Some(5), &RingReads::absent(), &[], 0, 5).watchdog,
+        "expired"
+    );
+    // And one nanosecond before the deadline: still pending (active).
+    assert_eq!(
+        status_json(&[], &[], &[], &id, Some(5), &RingReads::absent(), &[], 0, 4).watchdog,
+        "active"
     );
 }
 
@@ -253,16 +268,19 @@ fn rate_ring_field_is_omitted_when_the_lens_is_absent() {
 /// (fresh policy, no traffic yet) stays lean.
 #[test]
 fn rate_ring_field_joins_series_by_cgroup() {
-    use crate::ebpf::limiter::rate_ring::{RateRingRaw, RateSlotRaw, RATE_RING_SLOTS};
+    use crate::ebpf::limiter::rate_ring::{
+        RateRingRaw, RateSlotRaw, RATE_RING_SLOTS, RATE_RING_WINDOW_NS,
+    };
     let dl = vec![(1, policy(10)), (2, policy(20))];
 
-    // Window math pinned to a fixed 'now': status_json samples its
-    // own monotonic now, so the ring is stamped for windows that are
-    // live under ANY now the builder samples (window 0 of a long-ago
-    // boot is always stale -> the derivation reads it as zero; the
-    // pin therefore asserts the join and the field's SHAPE, with the
-    // series math itself pinned in rate_ring_tests.rs against fixed
-    // clocks).
+    // Window math pinned to a fixed now (improve-65: the builder
+    // honors the caller's mono snapshot, so the pin no longer
+    // leans on "any real now" — the passed now IS the now). At
+    // now = 8 windows the series describes windows 1..8: the
+    // window-0 stamp below is stale (not in range), the window-1
+    // stamp is the oldest live window, and the join, shape, live
+    // count, and completed-window peak are all exact.
+    let now_ns = 8 * RATE_RING_WINDOW_NS;
     let mut ring = RateRingRaw {
         slots: [RateSlotRaw {
             window: 0,
@@ -272,6 +290,10 @@ fn rate_ring_field_joins_series_by_cgroup() {
     ring.slots[0] = RateSlotRaw {
         window: 0,
         bytes: 1234,
+    };
+    ring.slots[1] = RateSlotRaw {
+        window: 1,
+        bytes: 5678,
     };
     let rings = RingReads {
         dl: Some(vec![(1, ring)]),
@@ -286,7 +308,7 @@ fn rate_ring_field_joins_series_by_cgroup() {
         &rings,
         &[],
         0,
-        0,
+        now_ns,
     );
 
     // Cgroup 1: dl ring present (ul absent -> None), the dl series
@@ -304,9 +326,21 @@ fn rate_ring_field_joins_series_by_cgroup() {
     assert!(rr.upload.is_none());
     let dl_series = rr.download.as_ref().unwrap();
     assert_eq!(dl_series.bytes.len(), RATE_RING_SLOTS);
+    // Deterministic under the pinned now: the window-1 stamp is the
+    // oldest live window (bytes[0], counted, and completed so it
+    // rides the peak); the window-0 stamp is stale — zero bytes, not
+    // counted, never double-booked onto the current window.
     assert_eq!(
-        dl_series.live, 0,
-        "window 0 stamps are stale under any real now"
+        dl_series.bytes[0], 5678,
+        "the window-1 stamp is the oldest live window"
+    );
+    assert_eq!(
+        dl_series.peak_bytes, 5678,
+        "the completed window's bytes are the peak"
+    );
+    assert_eq!(
+        dl_series.live, 1,
+        "window 0 stamps are stale under the pinned now of eight windows"
     );
 
     let without = json.limits.iter().find(|l| l.cgroup_id == 2).unwrap();
