@@ -329,7 +329,10 @@ fn json_carries_the_traffic_focus_window() {
     let doc = depth_doc_json(&[report], &[], None);
     let text = serde_json::to_string(&doc).expect("serializes");
     for field in [
-        "\"traffic\":{\"window_secs\":3,\"download_bytes\":10000000,\"upload_bytes\":300000}",
+        // NIGHT-improve-63: the traffic object carries the window's
+        // own ranked endpoint attribution — movers first (the 10 MB
+        // join leads), the byteless rows behind it, nulls honest.
+        "\"traffic\":{\"window_secs\":3,\"download_bytes\":10000000,\"upload_bytes\":300000,\"endpoints\":[{\"pid\":4242,\"comm\":\"curl\",\"proto\":\"tcp\",\"remote\":\"142.250.191.78:443\",\"state\":\"ESTABLISHED\",\"download_bytes\":10000000,\"upload_bytes\":300000},{\"pid\":4242,\"comm\":\"curl\",\"proto\":\"tcp\",\"remote\":\"93.184.216.34:443\",\"state\":\"ESTABLISHED\",\"download_bytes\":null,\"upload_bytes\":null},{\"pid\":4242,\"comm\":\"curl\",\"proto\":\"tcp6\",\"remote\":\"[2001:db8::1]:443\",\"state\":\"ESTABLISHED\",\"download_bytes\":null,\"upload_bytes\":null}]}",
         "\"remote\":\"142.250.191.78:443\"",
         "\"download_bytes\":10000000",
         "\"upload_bytes\":300000",
@@ -345,6 +348,26 @@ fn json_carries_the_traffic_focus_window() {
             "the private-research-3 JSON contract must carry {field}, got:\n{text}"
         );
     }
+    // The ranking contract, pinned positionally: inside the traffic
+    // object the byte mover leads and the byteless rows follow (the
+    // same order the text focus view renders).
+    let traffic_start = text
+        .find("\"traffic\":{\"window_secs\":3")
+        .expect("the traffic object rides the document");
+    let traffic_end = text[traffic_start..]
+        .find("},\"procs\"")
+        .map_or(text.len(), |i| traffic_start + i);
+    let traffic = &text[traffic_start..traffic_end];
+    let mover = traffic
+        .find("142.250.191.78:443")
+        .expect("the mover row rides the window ranking");
+    let quiet = traffic
+        .find("93.184.216.34:443")
+        .expect("the byteless row rides the window ranking");
+    assert!(
+        mover < quiet,
+        "movers first: the window ranking leads with the byte mover, got:\n{traffic}"
+    );
 }
 
 /// NIGHT-blade-5: the ledger and the controller's resource view ride

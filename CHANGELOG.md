@@ -155,6 +155,29 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **feat(json): NIGHT-improve-63 — the traffic object carries its
+  own ranked endpoint attribution (`targets[0].traffic.endpoints`).**
+  The owner's find, total: the depth document's `traffic` object
+  carried the focus window's kernel totals while the window's own
+  ranked endpoint rows — already assembled in `TrafficFocus` for
+  the text focus view, movers first, bytes descending — never
+  crossed into the JSON, so the natural frontend query
+  `jq '.targets[0].traffic.endpoints'` answered null and a script
+  had to re-derive the cookie join from the census rows. The
+  ranking now rides the object additively (the stable v11 contract
+  untouched: the field list at the target level keeps its shape,
+  scripts predating the field ignore the addition), each row
+  mapped onto the shared endpoint shape with the window's dl/ul
+  figures — null where the join resolved nothing, the honest
+  absence. The target-level `endpoints` array stays the full live
+  socket census: the two arrays answer different questions (who
+  moved the window's bytes vs what sockets exist now), and the doc
+  words the split. Pins: the exact serialized traffic object (the
+  mover leading, the byteless rows behind it, the v6 family
+  spelled), the positional movers-first pin, the null-honesty
+  fields. Docs: USAGE's JSON reference (the example document and
+  the traffic paragraph now carry the field).
+
 - **docs(glossary): NIGHT-hunt-38 — the monitor's on-screen
   vocabulary decoded.** Five new entries: `dl`/`ul` (with the
   lowercase-L-not-one decode the owner's transcript caught), the
