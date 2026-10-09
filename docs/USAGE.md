@@ -1345,8 +1345,13 @@ rounded box — the title bar's corners connect to its own purple fill
 as the top border, every content row wears gradient-colored side
 rails (the active theme's brand color sweeping dark to bright and
 back down the frame — the cosmostrix msg-border triangle-wave
-contract), and the frame closes on a full-width floor row in the
-bright anchor color. Since NIGHT-improve-41 the rails ride the
+contract), and the frame closes on a full-width floor row that
+sweeps the same wave ACROSS the columns (NIGHT-engrave-11, the
+horizontal masterclass: every horizontal line the frame draws —
+top border, grid lines, closing floor — rides the one chroma
+method the rails ride, dark corners, glowing center, one
+continuous wave on all four edges). Since NIGHT-improve-41 the
+sweeps ride the
 chroma dragon engine on truecolor terminals — the OKLab polar
 interpolation ported from cosmostrix (the perceptual color space
 where midpoints stay clean, lightness steps read even, and the

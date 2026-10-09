@@ -104,7 +104,10 @@ numerics, and no per-cell noise (values are never packed as
   connecting to the bar's own fill; identity only, the full-width
   fill owning both corners since NIGHT-engrave-3 retired the
   top-right key hint (the legend lives in the footer's status line
-  alone).
+  alone). NIGHT-engrave-11: at the sweep-capable depths the bar's
+  furniture (corner, fills, cap) sweeps the frame's wave ACROSS
+  the columns while the core label stays flat bold brand —
+  identity never dims; the flat rungs keep the flat bytes.
 - Column headers: `top process  download  upload  total`, regular
   purple (NIGHT-engrave-1: lowercase, the owner's exact titles).
   NIGHT-engrave-4: the `top process` title spans the whole identity
@@ -114,11 +117,14 @@ numerics, and no per-cell noise (values are never packed as
   two-column right gutter, the mirror of the left: the table's
   figures end two columns before the right rail on BOTH edges,
   symmetric air (the owner's border-gap audit).
-- Frame borders (NIGHT-boost-20; margins NIGHT-engrave-8): gradient
-  side rails and a bright closing floor row — the active theme's
-  brand color sweeping dark-bright-dark down the frame (the
-  cosmostrix msg-border BD-02 triangle-wave contract,
-  bright-anchored at the bottom). The box sits ONE column inside the
+- Frame borders (NIGHT-boost-20; margins NIGHT-engrave-8; the
+  horizontal masterclass NIGHT-engrave-11): gradient side rails
+  and a closing floor row that sweeps the same wave across the
+  columns — the active theme's brand color sweeping dark-bright-dark
+  down the frame AND across its horizontals (the cosmostrix
+  msg-border BD-02 triangle-wave contract, the floor's bright
+  foundation re-expressed as the sweep's glowing center: dark
+  corners, one continuous wave on all four edges). The box sits ONE column inside the
   terminal on each side — both rails exactly one column from the
   edges, the final terminal column never painted (terminal physics:
   a row that paints the last column leaves the cursor pending-wrap,
