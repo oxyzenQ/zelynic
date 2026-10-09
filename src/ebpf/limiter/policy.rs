@@ -119,6 +119,16 @@ impl super::Limiter {
         // retire under the same generation stamp.
         self.sweep_expired_windows_best_effort();
 
+        // NIGHT-hunt-43: the zombie-policy sweep rides the same
+        // lazy tail — a root whose cgroup died with its policy
+        // standing is the one residue the census sweep's own gate
+        // keeps (zombie.rs owns the two-signal why), and this
+        // apply's fresh policy is the census room the retirement
+        // frees. Ordered before the census sweep: a FAILED zombie
+        // reclaim's orphaned state is then collected by the pass
+        // below in the same visit.
+        self.sweep_zombie_policies();
+
         // NIGHT-hunt-34: the orphan-census sweep rides the same
         // lazy tail — the census-bounded state a failed or
         // interrupted reclaim left behind is collected by the
@@ -325,7 +335,13 @@ impl super::Limiter {
         // night-during: the lazy sweep (apply_single's note).
         self.sweep_expired_windows_best_effort();
 
-        // NIGHT-hunt-34: the orphan-census sweep, the tail's second
+        // NIGHT-hunt-43: the zombie-policy sweep, the tail's
+        // second collector (apply_single's note owns the law; the
+        // two-signal walk and the census-belt order live in
+        // zombie.rs).
+        self.sweep_zombie_policies();
+
+        // NIGHT-hunt-34: the orphan-census sweep, the tail's third
         // collector (apply_single's note owns the law).
         self.sweep_census_orphans();
 
