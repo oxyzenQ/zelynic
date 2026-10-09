@@ -355,12 +355,13 @@ pub fn handle_eagle_eyes(
         baseline.refresh();
         // NIGHT-hunt-34: the panel's retire_dead, the render twin
         // of the session board's own law — a policy root with no
-        // identity entry for a 3-frame grace hides its verdict row
-        // (display-only; render/baseline.rs owns the why). Rides
-        // AFTER the refresh so the streaks judge the read's own
-        // key set, and beside the observer's identity, which the
-        // poll above lazily refreshed this frame.
-        baseline.retire_dead(observer.identity());
+        // identity entry AND no window traffic for a 3-frame grace
+        // hides its verdict row (display-only; render/baseline.rs
+        // owns the why). Rides AFTER the refresh so the streaks
+        // judge the read's own key set, fed by the frame's summary
+        // and the observer's identity, which the poll above lazily
+        // refreshed this frame.
+        baseline.retire_dead(observer.identity(), &summary);
         render_eagle_eyes(
             lines,
             &summary,

@@ -63,12 +63,15 @@
 //! ── THE PANEL'S RETIRE_DEAD (NIGHT-hunt-34, the render twin) ────
 //!
 //! A verdict row renders only while its policy root is OBSERVABLY
-//! alive: no identity entry for a 3-frame grace retires the row
-//! from the PANEL — display-only, the session board's own
-//! retire_dead law restated for this lane (a dead cgroup's ghost,
-//! the `cg:NNN steady 0 B/s` row the ring read still carries
-//! between the death and the next mutation visit's zombie sweep,
-//! is the same lie the board's freeze told). The retirement
+//! alive: no identity entry AND no window traffic for a 3-frame
+//! grace retires the row from the PANEL — display-only, the session
+//! board's own retire_dead predicate restated for this lane (a
+//! dead cgroup's ghost, the `cg:NNN steady 0 B/s` row the ring
+//! read still carries between the death and the next mutation
+//! visit's zombie sweep, is the same lie the board's freeze told).
+//! The traffic leg is the same belt the board's law rides: an
+//! unresolvable-but-delivering root keeps its verdict — identity
+//! is one life signal, not the only one. The retirement
 //! deliberately does NOT delete the learned state: the ring read
 //! re-seeds a dropped key the very next frame (the kernel twin
 //! still stands), so a deletion would only reset the ghost's EMA —
@@ -84,6 +87,7 @@ use crate::ebpf::limiter::monotonic_ns;
 use crate::ebpf::limiter::rate_ring::{
     read_pinned_rings, ring_series, RateRingRaw, RATE_RING_SLOTS, RATE_RING_WINDOW_NS,
 };
+use crate::ebpf::loader::CounterSummary;
 use crate::output::{grey, pad_to_width, warn};
 
 // ── The constants (every figure a pinned contract) ─────────────────
@@ -322,23 +326,32 @@ impl BaselineLane {
 
     /// Retire the panel's dead rows (NIGHT-hunt-34, the render
     /// twin of the session board's own law — the module header
-    /// owns the full contract). A row is dead ONLY by identity
-    /// (the walk names every cgroup a live process sits in, so a
-    /// root with no entry has no process left — no socket can
-    /// originate from it, no verdict it renders can be true), and
+    /// owns the full contract). A row is dead ONLY by the board
+    /// filter's own predicate — no identity entry AND no window
+    /// traffic (that filter's exact two signals, the identity
+    /// lookup first so the happy path builds no active set) — and
     /// only a [`BASELINE_RETIRE_GRACE_FRAMES`]-frame streak of
-    /// such frames hides it; a live frame clears the streak. The
-    /// signal guard: an EMPTY identity map is a failed walk, never
-    /// proof of universal death — the pass stands down entirely.
-    pub(crate) fn retire_dead(&mut self, identity: &IdentityMap) {
+    /// such frames hides it; a live frame (identity, or traffic)
+    /// clears the streak. The signal guard: an EMPTY identity map
+    /// is a failed walk, never proof of universal death — the
+    /// pass stands down entirely.
+    pub(crate) fn retire_dead(&mut self, identity: &IdentityMap, summary: &CounterSummary) {
         if identity.is_empty() {
             return;
         }
         let mut keys: Vec<u32> = self.dl.keys().chain(self.ul.keys()).copied().collect();
         keys.sort_unstable();
         keys.dedup();
+        // The lazy active set (the board filter's own discipline:
+        // the vast majority of roots are live and identity resolves
+        // them — the set builds only on the first miss).
+        let mut active = None;
         for id in keys {
-            if identity.get(id).is_some() {
+            if identity.get(id).is_some()
+                || active
+                    .get_or_insert_with(|| super::focus::window_active(summary))
+                    .contains(&id)
+            {
                 self.retire_streaks.remove(&id);
             } else {
                 *self.retire_streaks.entry(id).or_insert(0) += 1;
