@@ -122,12 +122,12 @@ pub(crate) use scroll::ScrollState;
 pub(crate) use baseline::BaselineLane;
 
 // NIGHT-master-1: the eagle-eyes --depth report — composition only,
-// pure over assembled facts (fixture-pinned in report_tests.rs).
-// NIGHT-blade-5: the JSON half lives in the depth_json sibling (the
-// split that holds both under the 500-LOC cap) and keeps its stable
-// scripting shape, plus the ledger and controller-resource fields.
+// pure over assembled facts. NIGHT-blade-5: the JSON half lives in
+// the depth_json sibling and keeps its stable scripting shape.
 pub use depth_json::depth_doc_json;
-pub use report::{depth_report_lines, package_name, DepthReport, Enforcement};
+pub use report::{
+    depth_report_lines, package_name, window_dropped_bytes, DepthReport, Enforcement,
+};
 
 // NIGHT-upgrade-charger-core-1-a: the bypass audit's report section
 // — the machine-scope shadow verdict the depth handler prints after

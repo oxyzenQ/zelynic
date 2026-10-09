@@ -9,14 +9,26 @@
 //! cap — one file per contract, the footer tree's own split
 //! discipline. Wired into `src/ebpf/render/detail.rs` via #[path]
 //! (cosmostrix Pattern C).
+//!
+//! night-private-research-7: the figures are now ARRIVAL RATES — the
+//! fixtures install a frame's movers directly (the differencing the
+//! monitor loop owns is upstream of this map) and the assertions
+//! read per-second spellings over the one-second fixture window.
 
 use super::*;
+
+/// The fixtures' frame window (night-private-research-7): one second,
+/// the monitor's default cadence — every rate the pins assert against
+/// divides by exactly this.
+const WINDOW: Duration = Duration::from_secs(1);
+
 /// NIGHT-boost-26 pin: the per-endpoint byte join rides the tree —
 /// a socket whose cookie joined renders `[dl X | ul Y]` (the footer
-/// speed pair's vocabulary, SI one-decimal), while a byteless
-/// sibling keeps its lean row: the suffix appears only when there
-/// ARE bytes, and absence — not a fabricated zero — is the honest
-/// no-figures signal.
+/// speed pair's vocabulary, SI one-decimal, per-second since
+/// night-private-research-7), while a byteless sibling keeps its
+/// lean row: the suffix appears only when there ARE bytes, and
+/// absence — not a fabricated zero — is the honest no-figures
+/// signal.
 #[test]
 fn endpoint_bytes_ride_the_tree_lines() {
     use crate::ebpf::connections::{
@@ -41,9 +53,10 @@ fn endpoint_bytes_ride_the_tree_lines() {
                 ProcessDetail {
                     pid: 4242,
                     comm: "curl".to_string(),
-                    // Cookie 100 has bytes; cookie 200 moved nothing
-                    // since attach; the third socket resolved no
-                    // cookie (the pidfd_getfd-refused shape) and the
+                    // Cookie 100 is this frame's mover; cookie 200
+                    // moved nothing this frame (the differenced join
+                    // carries movers only); the third socket resolved
+                    // no cookie (the pidfd_getfd-refused shape) and the
                     // eagle cap shows the two walk-first children.
                     sockets: vec![
                         socket("142.250.185.78:443", Some(100)),
@@ -71,7 +84,7 @@ fn endpoint_bytes_ride_the_tree_lines() {
     );
     conns.apply_socket_bytes(bytes);
 
-    let lines = detail_lines(Some(&conns), 7001);
+    let lines = detail_lines(Some(&conns), 7001, WINDOW);
     assert_eq!(
         lines.len(),
         4,
@@ -82,8 +95,8 @@ fn endpoint_bytes_ride_the_tree_lines() {
         "the header still carries the socket count: {lines:?}"
     );
     assert!(
-        lines[1].contains("142.250.185.78:443 [dl 10.2 GB | ul 180.0 KB]"),
-        "the joined endpoint carries its own byte figures: {}",
+        lines[1].contains("142.250.185.78:443 [dl 10.2 GB/s | ul 180.0 KB/s]"),
+        "the joined endpoint carries its own arrival rates: {}",
         lines[1]
     );
     assert!(
@@ -146,10 +159,10 @@ fn focus_ranks_endpoints_by_bytes() {
             ul: 500_000,
         },
     );
-    // Cookie 3 joined nothing: moved zero bytes since attach.
+    // Cookie 3 joined nothing: moved zero bytes this frame.
     conns.apply_socket_bytes(bytes);
 
-    let lines = full_detail_lines(Some(&conns), 7001);
+    let lines = full_detail_lines(Some(&conns), 7001, WINDOW);
     let joined = lines.join("\n");
     let bravo = joined.find("10.0.0.2:443").expect("bravo renders");
     let alpha = joined.find("10.0.0.1:443").expect("alpha renders");
@@ -160,7 +173,7 @@ fn focus_ranks_endpoints_by_bytes() {
         "bytes-desc first (bravo 10.0 MB), byteless keeping walk order: {joined}"
     );
     assert!(
-        joined.contains("10.0.0.2:443 [dl 9.5 MB | ul 500.0 KB]"),
+        joined.contains("10.0.0.2:443 [dl 9.5 MB/s | ul 500.0 KB/s]"),
         "the ranking figure rides the line: {joined}"
     );
 }
@@ -226,7 +239,7 @@ fn the_ranked_tree_cap_shows_the_hungriest_endpoints() {
     );
     conns.apply_socket_bytes(bytes);
 
-    let lines = detail_lines(Some(&conns), 7001);
+    let lines = detail_lines(Some(&conns), 7001, WINDOW);
     let joined = lines.join("\n");
     assert!(
         joined.contains("brave (4242) 4 sockets:"),
@@ -236,10 +249,10 @@ fn the_ranked_tree_cap_shows_the_hungriest_endpoints() {
     // (188.0 KB joined) and the 51.6 KB sibling — the two quiet
     // ones (1.9 KB, 1.5 KB) are what the cap hides.
     let eater = joined
-        .find("47.239.88.7:443 [dl 126.6 KB | ul 61.4 KB]")
+        .find("47.239.88.7:443 [dl 126.6 KB/s | ul 61.4 KB/s]")
         .expect("the walked-LAST eater renders first under the cap");
     let sibling = joined
-        .find("10.0.0.1:443 [dl 26.4 KB | ul 25.2 KB]")
+        .find("10.0.0.1:443 [dl 26.4 KB/s | ul 25.2 KB/s]")
         .expect("the second-hungriest takes the second slot");
     assert!(
         eater < sibling,

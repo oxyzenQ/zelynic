@@ -1003,7 +1003,7 @@ question a bare `cg:1234` row leaves open — WHAT is this:
   ────────────────────────────────────────────────────────────────
   run from:         uid 1000 (cat) · /home/cat
   cgroup:           /sys/fs/cgroup/cat-test
-  enforcement:      limited — dl 100.0 KB/s · ul 100.0 KB/s
+  enforcement:      limited (shaping) — dl 100.0 KB/s · ul 100.0 KB/s
   accounting:       1.4 GB let through, 6.2 MB dropped (0.44% of what arrived)
   resources:        12.5 MB memory · 1m:2s cpu
   started:          10m:20s ago
@@ -1012,8 +1012,8 @@ question a bare `cg:1234` row leaves open — WHAT is this:
   pid     name                 type    perm  st  thr  rss      started  exe
   1234    cat-test             binary  755   S   4    1.3 MB   10m:20s  /home/cat/cat-test
   ────────────────────────────────────────────────────────────────
-  network traffic (3s focus): dl 12.4 MB · ul 340.0 KB
-   curl (4242) → 142.250.185.78:443 tcp ESTABLISHED [dl 12.4 MB | ul 300.0 KB]
+  network traffic (3s focus · arrival): dl 4.1 MB/s · ul 113.3 KB/s
+   curl (4242) → 142.250.185.78:443 tcp ESTABLISHED [dl 4.1 MB/s | ul 100.0 KB/s]
    curl (4242) → 93.184.216.34:443 tcp ESTABLISHED
   ────────────────────────────────────────────────────────────────
   act:  zelynic strict cg:1234 500kb
@@ -1104,6 +1104,35 @@ package identity), user and exe directory merged into one `run
 from` line, the controller's memory/cpu pair merged into one
 `resources` line, every filler blank line retired, and the act tail
 lost its header (the commands name their own verbs).
+
+NIGHT-private-research-7 (the arrival-rates pass — the owner's own
+transcript drove it): every dl/ul figure on both eagle-eyes surfaces
+is now a per-second ARRIVAL rate, so a figure can be compared
+against the policy two lines above it with no mental math. The
+depth report's traffic header carries the `arrival` label
+(`network traffic (30s focus · arrival): dl 40.0 KB/s · ul 1.1 KB/s`)
+and every endpoint suffix divides by the window's own seconds
+(`[dl 40.0 KB/s | ul 940 B/s]`) — the owner once read `[dl 1.2 MB]`
+over an invisible 30s window as a rate and concluded a 200 KB/s
+policy was bypassed (it was not: the arrival rate was 40 KB/s and
+the drops were booked the whole time). `arrival` itself is the
+honesty label: these are PRE-VERDICT figures — what reached the
+cgroup, including what the limit then dropped; `status`'s
+allowed/dropped ledger is the twin that splits them. The enforcement
+line completes the answer with the `(shaping)` tag — when the
+window's bracketing ledger reads saw the dropped counter MOVE,
+`limited (shaping) — dl 200.0 KB/s · ul 200.0 KB/s` says the limit
+was actively biting during the window, on the line itself, with no
+`status` round-trip. The live monitor's endpoint suffixes joined the
+same vocabulary: the per-socket cookie counters are differenced
+frame over frame (the join carries THIS FRAME's movers), and each
+figure divides by the measured poll-to-poll span — the same honest
+denominator the download/upload columns use, the same per-second
+vocabulary the footer's speed pair speaks. A connected-but-quiet
+socket keeps its lean row: absence is the "quiet now" signal. The
+footer's session speed pair carries the arrival label too
+(`peak arrival dl | ul`, `avg arrival dl | ul`) — a peak above the
+policy is the demand the limit absorbed, not a bypass.
 
 The same honesty contracts ride the focus window as every ledger
 in this document: the cgroup window totals are the KERNEL's own
@@ -1246,13 +1275,16 @@ session uptime and the grand total ALONE — SI decimal, the same
 ladder every byte figure rides — with the per-frame rates retired
 at the owner's "only total consume bandwidth" call), the
 session speed pair (NIGHT-engrave-6, directly below the total row —
-the owner's data-center spec: `total max dl | ul = 20.2 GB/s | 1.0
-GB/s`, the session's peak per-direction rates, tracked as running
+the owner's data-center spec: `peak arrival dl | ul = 20.2 GB/s | 1.0
+GB/s`, the session's peak per-direction arrival rates, tracked as running
 maxima of the per-frame watched-set deltas in the session state
-beside the totals; and `total avg dl | ul = 10.2 GB/s | 1.1 MB/s`,
+beside the totals; and `avg arrival dl | ul = 10.2 GB/s | 1.1 MB/s`,
 the per-direction session totals divided by the SAME uptime the
 total row renders — the three lines of the paragraph share their
-legs and their clock, so they can never disagree. Both render
+legs and their clock, so they can never disagree. Both speak the
+ARRIVAL label (night-private-research-7): they count what REACHED
+the interface, pre-verdict — a peak above the policy is the demand
+the limit absorbed, not a bypass. Both render
 honest zeroes (`0 B/s`, never the limiter's BLOCKED verdict — the
 observer measures, it does not judge), both ride the same watched
 scope as the grand — a filtered frame's pair describes the watched
@@ -1507,19 +1539,19 @@ with what the renderer draws.
 │  top process                                 download     upload      total  │
 │──────────────────────────────────────────────────────────────────────────────│
 │   1  cg:7001 (brave)                         2.1 MB/s   180 KB/s    10.2 GB  │
-│    └ brave (4242) → 142.250.185.78:443 [dl 9.8 GB | ul 466.0 MB]             │
+│    └ brave (4242) → 142.250.185.78:443 [dl 2.0 MB/s | ul 88.0 KB/s]          │
 │   2  cg:73402 (firefox +1)                   3.4 MB/s   210 KB/s     901 MB  │
 │    └ firefox (4242) 3 sockets:                                               │
-│        ├ 104.18.32.7:443 [dl 620.4 MB | ul 31.2 MB]                          │
-│        └ 104.18.32.115:443 [dl 190.1 MB | ul 14.8 MB]                        │
+│        ├ 104.18.32.7:443 [dl 3.1 MB/s | ul 174.0 KB/s]                       │
+│        └ 104.18.32.115:443 [dl 296.0 KB/s | ul 36.0 KB/s]                    │
 │   3  cg:73511 (curl)                                —          —     4.2 MB  │
 │  (+19 more — ↑↓ scroll)                                                     │
 │──────────────────────────────────────────────────────────────────────────────│
 │  top consumer is brave                                                      │
 │  1.2K packets + 22 cgroups                                                  │
 │  total usage internet in 1h:20s = 11.1 GB                                   │
-│  total max dl | ul = 24.6 MB/s | 1.2 MB/s                                   │
-│  total avg dl | ul = 2.9 MB/s | 143.6 KB/s                                  │
+│  peak arrival dl | ul = 24.6 MB/s | 1.2 MB/s                                │
+│  avg arrival dl | ul = 2.9 MB/s | 143.6 KB/s                                │
 │  limit target with 'sudo zelynic s brave 100kb'                             │
 │                                                                              │
 │  1s realtime - theme netrunner - q quit - t theme - ↑↓ scroll - ←→ section  │
@@ -1546,7 +1578,7 @@ The ranked table:
 | `download` / `upload` | LIVE per-direction rates: this frame's delta divided by the MEASURED poll-to-poll span (NIGHT-lts-3 — the honest denominator, not the nominal cadence the beat scheduler only approximates). A quiet app renders an em dash (`—`) — the observer measures, it does not judge (never "BLOCKED", which is a limiter verdict). |
 | `total` | Session-accumulated bytes for that cgroup (download + upload since the monitor started) — the ranking key. |
 | Label | The cgroup's identity: `cg:<id> (<comm>)`, with a `+N` suffix when more than one process holds sockets inside — `(brave +22)` reads "the brave cgroup, 23 socket-holding processes: brave plus 22 more". |
-| Detail tree | The socket-holding processes inside the cgroup, grey: one displayable endpoint renders inline (`└ brave (4242) → 142.250.185.78:443`); a multi-socket process gets a header carrying its count (`└ firefox (4242) 3 sockets:`) with the two hungriest endpoints as children — the cap ranks bytes-desc (NIGHT-hunt-38), so what it hides is never the answer. UDP endpoints are tagged (`udp`), saturated sockets carry `[busy]`. Established TCP and connected UDP only — listeners and TIME_WAIT are noise, filtered. Each endpoint carries its own byte figures when the join resolved them (`[dl X | ul Y]` — **dl** = download, **ul** = upload, both lowercase L: the same two-letter vocabulary the rate columns and the footer's speed pair speak; the figures are that endpoint's bytes since the monitor started, NIGHT-boost-26) — a socket that moved nothing keeps its lean row. |
+| Detail tree | The socket-holding processes inside the cgroup, grey: one displayable endpoint renders inline (`└ brave (4242) → 142.250.185.78:443`); a multi-socket process gets a header carrying its count (`└ firefox (4242) 3 sockets:`) with the two hungriest endpoints as children — the cap ranks bytes-desc (NIGHT-hunt-38), so what it hides is never the answer. UDP endpoints are tagged (`udp`), saturated sockets carry `[busy]`. Established TCP and connected UDP only — listeners and TIME_WAIT are noise, filtered. Each endpoint carries its own arrival rate when the join resolved it (`[dl X | ul Y]` — **dl** = download, **ul** = upload, both lowercase L: the same two-letter vocabulary the rate columns and the footer's speed pair speak; the figures are that endpoint's per-second ARRIVAL rate over the measured span — the per-socket counters differenced frame over frame, night-private-research-7 completing NIGHT-boost-26) — a socket that moved nothing this frame keeps its lean row (absence is the "quiet now" signal). |
 | Scroll note | `(-N above · )+M more — ↑↓ scroll` (night-improve-58): the window IS the budget (no `--limit`) and the arrows walk it — the counts name the rows above the window and the rows the room cut; the count rides the same SI compact ladder as the census. |
 
 The pinned footer — the frame's dashboard, in the owner's exact line
@@ -1557,8 +1589,8 @@ order. Every figure names its horizon and scope:
 | `top consumer is brave` | WHO is eating the network: the rank-1 cgroup's busiest process by the autodetect chain — socket detail first, the label's comm second, the raw label last (`cg:7001` when identity is unresolved) — so the headline never goes dark. Brand purple inside the grey block: the one living thing in the footer. |
 | `1.2K packets + 22 cgroups` | The session census. Packets: SESSION packets since the monitor started, both directions, the same horizon as the bytes. Cgroups: the board the frame watches — a filtered frame counts its filtered board. Both counts ride the SI compact ladder: small figures stay verbatim (`24 packets`), an eight-hour `2244843` reads `2.2M` — no raw u64 ever explodes the line. Every candidate counts, not just the rows the window showed. |
 | `total usage internet in 1h:20s = 11.1 GB` | The story in one line: session uptime and the grand total ALONE (the per-frame rates retired at the owner's call — only totals consume bandwidth). The grand sums the whole leaderboard, every candidate. The uptime ladder reads `45s` / `12m:34s` / `3h:7m` / `2d:5h`. |
-| `total max dl | ul = 24.6 MB/s \| 1.2 MB/s` | The session's PEAK per-direction rate: running maxima of the per-frame watched-set rates, each peak divided by the span IT was measured over at fold time (NIGHT-hunt-38 — a historical peak renders at its own span forever; a later frame's span jitter can never restate it) — never reset, the session horizon. Honest zeroes at rest (`0 B/s`). |
-| `total avg dl | ul = 2.9 MB/s \| 143.6 KB/s` | The session's average per-direction rate: the same per-direction totals the grand sums, divided by the SAME uptime the total row renders — the three lines of the paragraph share their legs and their clock, so they can never disagree. |
+| `peak arrival dl | ul = 24.6 MB/s \| 1.2 MB/s` | The session's PEAK per-direction ARRIVAL rate: running maxima of the per-frame watched-set rates, each peak divided by the span IT was measured over at fold time (NIGHT-hunt-38 — a historical peak renders at its own span forever; a later frame's span jitter can never restate it) — never reset, the session horizon. Arrival means pre-verdict: what REACHED the interface, including what a limit then dropped — a peak above the policy is the demand the limit absorbed, not a bypass (night-private-research-7 relabeled the line for exactly that read). Honest zeroes at rest (`0 B/s`). |
+| `avg arrival dl | ul = 2.9 MB/s \| 143.6 KB/s` | The session's average per-direction arrival rate: the same per-direction totals the grand sums, divided by the SAME uptime the total row renders — the three lines of the paragraph share their legs and their clock, so they can never disagree. |
 | `limit target with 'sudo zelynic s brave 100kb'` | The action: a ready-to-paste command for the consumer the headline just named — the `s` short alias, and the `100kb` engraved default (the one fixed suggestion value on a line whose every other fact is derived live). The command rides the ACTIVE theme's brand tier — the frame's two living accents, the thing to read and the thing to act on. |
 | status line | The legend: `1s realtime - theme netrunner - q quit - t theme - ↑↓ scroll - ←→ section` — the poll interval, the active theme's name, and the whole six-key map (night-improve-58): quit, theme, the scroll arrows, the section arrows. Rides every compression tier. |
 | Build stamp | `v11.0.0-beta.1 (a1b2c3d) by oxyzenQ` — version, git hash, author, brand purple: the frame's quiet closing paragraph. |
@@ -1901,9 +1933,10 @@ zero, so the figure is ~0 at rest and carries no information —
 max + average are the session pair that does. The single
 sanctioned frontier item — per-endpoint byte attribution (which
 socket is consuming, not just which sockets exist) — shipped as
-NIGHT-boost-26: every endpoint line carries its own `[dl | ul]`
-byte figures, and the focus view ranks a process's endpoints by
-their bytes (the closing design is documented in
+NIGHT-boost-26 and speaks per-second arrival rates since
+night-private-research-7: every endpoint line carries its own
+`[dl | ul]` rate figures, and the focus view ranks a process's
+endpoints by their bytes (the closing design is documented in
 [docs/RESEARCH_TOOLCHAIN_AND_MONITORING.md](RESEARCH_TOOLCHAIN_AND_MONITORING.md)
 2.4, with the kernel-side verification trail).
 

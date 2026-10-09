@@ -22,8 +22,10 @@
 
 use crate::ebpf::connections::{ConnectionMap, ProcessDetail, Proto, SocketInfo};
 use crate::ebpf::identity::IdentityMap;
-use crate::ebpf::limiter::{format_bytes, format_count};
+use crate::ebpf::limiter::{format_count, format_rate};
 use crate::ebpf::loader::SocketBytes;
+
+use std::time::Duration;
 
 /// Total detail lines one eagle-eyes row may grow (NIGHT-boost-21):
 /// the flat contract spent three process lines plus one summary; the
@@ -87,13 +89,24 @@ pub(crate) fn comm_from_label(label: &str) -> Option<String> {
 /// One detail line's endpoint text: UDP is tagged (QUIC-era traffic
 /// lives there), busy sockets are flagged. NIGHT-boost-26: when the
 /// join resolved this socket's bytes, the endpoint carries its own
-/// byte figures — `[dl X | ul Y]`, the footer speed pair's dl/ul
-/// vocabulary — so a five-connection process finally answers WHICH
-/// endpoint is eating (the 2.4 frontier: "the socket that MAKAN, not
-/// just the ones that exist"). The suffix appears only when there
-/// ARE bytes: a displayable-but-silent socket keeps its lean row,
-/// and a cookie-less socket (pidfd_getfd refused) renders exactly as
-/// before — absence is the honest no-figures signal.
+/// figures — the dl/ul vocabulary the footer speed pair speaks — so
+/// a five-connection process finally answers WHICH endpoint is
+/// eating (the 2.4 frontier: "the socket that MAKAN, not just the
+/// ones that exist").
+///
+/// night-private-research-7 (arrival rates): the suffix is now a
+/// RATE — the cookie map's ABSOLUTE counters are differenced frame
+/// over frame by the monitor loop (the join it installs carries
+/// THIS FRAME's movers only), and this renderer divides each leg by
+/// the same measured window the rate columns use. A reader comparing
+/// `[dl 257 KB/s]` against a 200 KB/s policy reads the comparison
+/// directly — the owner's own transcript had to mentally divide
+/// `[dl 771.1 KB]` by the window to discover the 257 KB/s arrival
+/// rate it always meant. A both-zero entry renders no suffix (the
+/// lean-row contract: a connected-but-quiet socket keeps its lean
+/// row — absence IS the "quiet now" signal, the movers-only map's
+/// display twin); a cookie-less socket (pidfd_getfd refused) renders
+/// exactly as before.
 ///
 /// night-improve-57: raw sockets are tagged `raw ` for the same
 /// reason UDP is tagged `udp ` — the lean TCP default hides the
@@ -103,7 +116,7 @@ pub(crate) fn comm_from_label(label: &str) -> Option<String> {
 /// report's row format is `<remote> <proto> <state> [figures]` and
 /// the live monitor's detail line is `<remote> [busy] [figures]` —
 /// the tag is the one place the proto reaches the eye).
-fn endpoint_text(socket: &SocketInfo, conns: Option<&ConnectionMap>) -> String {
+fn endpoint_text(socket: &SocketInfo, conns: Option<&ConnectionMap>, window: Duration) -> String {
     let mut out = String::new();
     if socket.proto == Proto::Udp {
         out.push_str("udp ");
@@ -116,18 +129,24 @@ fn endpoint_text(socket: &SocketInfo, conns: Option<&ConnectionMap>) -> String {
         out.push_str(" [busy]");
     }
     if let Some(b) = socket_bytes_of(socket, conns) {
-        out.push_str(&format!(
-            " [dl {} | ul {}]",
-            format_bytes(b.dl),
-            format_bytes(b.ul)
-        ));
+        if b.dl > 0 || b.ul > 0 {
+            out.push_str(&format!(
+                " [dl {} | ul {}]",
+                format_rate(super::rate_bps(b.dl, window)),
+                format_rate(super::rate_bps(b.ul, window))
+            ));
+        }
     }
     out
 }
 
 /// The joined bytes for one socket, if any (NIGHT-boost-26): the
-/// cookie's entry in the ConnectionMap's per-frame join result — a
-/// socket without a cookie or without bytes renders no figures.
+/// cookie's entry in the ConnectionMap's per-frame join result. The
+/// map carries THIS FRAME's movers (night-private-research-7): the
+/// monitor loop differences the cookie maps' absolute counters
+/// against the previous folded join and installs only the sockets
+/// that moved — a socket without a cookie, or one that moved
+/// nothing this frame, renders no figures.
 fn socket_bytes_of<'a>(
     socket: &SocketInfo,
     conns: Option<&'a ConnectionMap>,
@@ -221,13 +240,14 @@ fn eagle_holder_lines(
     proc: &ProcessDetail,
     endpoints: &[&SocketInfo],
     conns: Option<&ConnectionMap>,
+    window: Duration,
 ) -> Vec<String> {
     if endpoints.len() == 1 {
         return vec![format!(
             "    └ {} ({}) → {}",
             proc.comm,
             proc.pid,
-            endpoint_text(endpoints[0], conns)
+            endpoint_text(endpoints[0], conns, window)
         )];
     }
     let mut ranked = endpoints.to_vec();
@@ -242,7 +262,10 @@ fn eagle_holder_lines(
     let shown = ranked.len().min(ENDPOINT_SHOWN);
     for (i, socket) in ranked.iter().take(shown).enumerate() {
         let branch = if i + 1 == shown { "└" } else { "├" };
-        out.push(format!("        {branch} {}", endpoint_text(socket, conns)));
+        out.push(format!(
+            "        {branch} {}",
+            endpoint_text(socket, conns, window)
+        ));
     }
     out
 }
@@ -254,7 +277,11 @@ fn eagle_holder_lines(
 /// NIGHT-boost-26: the endpoint figures ride the ConnectionMap's
 /// per-frame byte join (see [`ConnectionMap::socket_bytes`]).
 #[must_use]
-pub(crate) fn detail_lines(conns: Option<&ConnectionMap>, cgroup_id: u32) -> Vec<String> {
+pub(crate) fn detail_lines(
+    conns: Option<&ConnectionMap>,
+    cgroup_id: u32,
+    window: Duration,
+) -> Vec<String> {
     let mut lines = Vec::new();
     let Some(conns) = conns else {
         return lines;
@@ -290,7 +317,7 @@ pub(crate) fn detail_lines(conns: Option<&ConnectionMap>, cgroup_id: u32) -> Vec
         if lines.len() + cost + summary_slot > DETAIL_LINE_CAP {
             break;
         }
-        lines.extend(eagle_holder_lines(proc, endpoints, Some(conns)));
+        lines.extend(eagle_holder_lines(proc, endpoints, Some(conns), window));
         shown += 1;
     }
     let remaining = holders.len().saturating_sub(shown);
@@ -314,7 +341,11 @@ pub(crate) fn detail_lines(conns: Option<&ConnectionMap>, cgroup_id: u32) -> Vec
 /// endpoints within a cgroup"); byteless endpoints keep the walk's
 /// established-first order behind them.
 #[must_use]
-pub(crate) fn full_detail_lines(conns: Option<&ConnectionMap>, cgroup_id: u32) -> Vec<String> {
+pub(crate) fn full_detail_lines(
+    conns: Option<&ConnectionMap>,
+    cgroup_id: u32,
+    window: Duration,
+) -> Vec<String> {
     let mut lines = Vec::new();
     let Some(conns) = conns else {
         return lines;
@@ -345,7 +376,7 @@ pub(crate) fn full_detail_lines(conns: Option<&ConnectionMap>, cgroup_id: u32) -
                 "  └ {} ({}) → {}",
                 proc.comm,
                 proc.pid,
-                endpoint_text(endpoints[0], Some(conns))
+                endpoint_text(endpoints[0], Some(conns), window)
             ));
         } else {
             lines.push(format!(
@@ -359,7 +390,7 @@ pub(crate) fn full_detail_lines(conns: Option<&ConnectionMap>, cgroup_id: u32) -
                 let branch = if i == last { "└" } else { "├" };
                 lines.push(format!(
                     "      {branch} {}",
-                    endpoint_text(socket, Some(conns))
+                    endpoint_text(socket, Some(conns), window)
                 ));
             }
         }

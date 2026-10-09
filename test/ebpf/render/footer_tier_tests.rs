@@ -129,10 +129,10 @@ fn footer_tiers_degrade_in_the_engraved_order() {
     // The speed pair rides Compact (the census family's member).
     assert!(compact
         .iter()
-        .any(|l| l.contains("total max dl | ul = 500.0 KB/s | 5.0 KB/s")));
+        .any(|l| l.contains("peak arrival dl | ul = 500.0 KB/s | 5.0 KB/s")));
     assert!(compact
         .iter()
-        .any(|l| l.contains("total avg dl | ul = 7.1 KB/s | 71 B/s")));
+        .any(|l| l.contains("avg arrival dl | ul = 7.1 KB/s | 71 B/s")));
     // Footer spans the block below the table territory: rows 5..15.
     let footer_rows = &compact[5..15];
     let blank_row = format!(" │{}│", " ".repeat(76));
@@ -158,8 +158,8 @@ fn footer_tiers_degrade_in_the_engraved_order() {
         .any(|l| l.contains("top consumer is alacritty")));
     assert!(!minimal.iter().any(|l| l.contains("packets +")));
     assert!(!minimal.iter().any(|l| l.contains("limit target")));
-    assert!(!minimal.iter().any(|l| l.contains("total max dl")));
-    assert!(!minimal.iter().any(|l| l.contains("total avg dl")));
+    assert!(!minimal.iter().any(|l| l.contains("peak arrival dl")));
+    assert!(!minimal.iter().any(|l| l.contains("avg arrival dl")));
     assert!(minimal
         .iter()
         .any(|l| l.contains("total usage internet in")));
@@ -171,8 +171,8 @@ fn footer_tiers_degrade_in_the_engraved_order() {
     assert_eq!(tiny.len(), 10);
     assert!(!tiny.iter().any(|l| l.contains("top consumer")));
     assert!(!tiny.iter().any(|l| l.contains("packets +")));
-    assert!(!tiny.iter().any(|l| l.contains("total max dl")));
-    assert!(!tiny.iter().any(|l| l.contains("total avg dl")));
+    assert!(!tiny.iter().any(|l| l.contains("peak arrival dl")));
+    assert!(!tiny.iter().any(|l| l.contains("avg arrival dl")));
     assert!(tiny.iter().any(|l| l.contains("total usage internet in")));
     assert!(tiny.iter().any(|l| l.contains("1s realtime")));
     assert!(tiny.iter().any(|l| l.contains(") by oxyzenQ")));

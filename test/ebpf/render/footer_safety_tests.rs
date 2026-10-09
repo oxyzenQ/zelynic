@@ -122,11 +122,11 @@ fn saturated_session_renders_without_panic() {
     // documented discipline). No wrap, no BLOCKED verdict, no ragged
     // five-digit tier.
     assert!(
-        joined.contains("total max dl | ul = 18.4 EB/s | 18.4 EB/s"),
+        joined.contains("peak arrival dl | ul = 18.4 EB/s | 18.4 EB/s"),
         "the saturated max renders the honest ceiling per direction: {joined}"
     );
     assert!(
-        joined.contains("total avg dl | ul = 263.5 PB/s | 263.5 PB/s"),
+        joined.contains("avg arrival dl | ul = 263.5 PB/s | 263.5 PB/s"),
         "the saturated avg divides the ceiling by the uptime without panic: {joined}"
     );
 }

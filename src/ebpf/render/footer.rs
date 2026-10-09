@@ -17,8 +17,8 @@
 //!   top consumer is curl                     <- grey + brand purple name (engrave-4)
 //!   478 packets + 1 cgroups                  <- grey (engrave-4: session horizon)
 //!   total usage internet in 1h:20s = 10.2 GB <- grey (engrave-3: `= total`, SI)
-//!   total max dl | ul = 20.2 GB/s | 1.0 GB/s <- grey (engrave-6: the session peak)
-//!   total avg dl | ul = 10.2 GB/s | 1.1 MB/s <- grey (engrave-6: total / uptime)
+//!   peak arrival dl | ul = 20.2 GB/s | 1.0 GB/s <- grey (engrave-6: the session peak)
+//!   avg arrival dl | ul = 10.2 GB/s | 1.1 MB/s <- grey (engrave-6: total / uptime)
 //!   limit target with 'sudo zelynic s curl 100kb'  <- grey + brand command (engrave-7)
 //!
 //!   1s realtime - theme netrunner - q quit - t theme  <- grey (engrave-2)
@@ -414,7 +414,7 @@ pub(super) fn build_grip_footer(
     // The NIGHT-engrave-6 speed pair (Full/Compact — the census
     // family; Minimal is survival height, where the total row alone
     // carries the story): the owner's data-center lines, directly
-    // below the title row they extend. MAX is the session's peak
+    // below the title row they extend. PEAK is the session's peak
     // watched-set rate — since NIGHT-hunt-38 the session state
     // tracks the peak as a RATE at fold time (the delta over the
     // span IT was measured on), so the line renders the stored
@@ -426,14 +426,21 @@ pub(super) fn build_grip_footer(
     // uptime renders honest zeroes via rate_bps_wide's
     // zero-interval guard — the loading frame and the first live
     // frame agree byte-for-byte, the boost-25 morph contract).
+    // night-private-research-7: both lines speak the ARRIVAL label —
+    // the pair counts what REACHED the interface (pre-verdict,
+    // retransmits included), so a peak above the policy is the
+    // demand the limit absorbed, not a bypass; the dropped ledger
+    // (status) is where the difference went. The owner's transcript
+    // read a `max dl = 1.1 MB/s` against a 100 KB/s policy and
+    // asked why — the label now answers before the question forms.
     if matches!(tier, FooterTier::Full | FooterTier::Compact) {
         footer.push(grey(&format!(
-            "  total max dl | ul = {} | {}",
+            "  peak arrival dl | ul = {} | {}",
             session_rate(census.peak_dl),
             session_rate(census.peak_ul)
         )));
         footer.push(grey(&format!(
-            "  total avg dl | ul = {} | {}",
+            "  avg arrival dl | ul = {} | {}",
             session_rate(rate_bps_wide(census.dl, census.uptime)),
             session_rate(rate_bps_wide(census.ul, census.uptime))
         )));

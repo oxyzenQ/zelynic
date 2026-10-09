@@ -191,7 +191,6 @@ fn frame_bench_eagle() {
     // Re-stamp socket busy flags per frame (fixtures stay
     // deterministic: pure function of the frame counter).
     let mut frame_no: u64 = 0;
-
     // NIGHT-improve-2: the diff engine + a real write sink. /dev/null
     // keeps the one-syscall-per-frame write cost in the timing without
     // polluting the marker protocol (the emitted ANSI stream contains
@@ -210,6 +209,12 @@ fn frame_bench_eagle() {
     // the TOTAL column and the session ranking are part of the
     // measured render path, not an unmeasured add-on.
     let mut session = SessionState::new();
+    // night-private-research-7: the previous frame's ABSOLUTE join —
+    // the differencing baseline the arrival fold below subtracts
+    // (the monitor loop's own join_prev twin, so the bench measures
+    // the fold's per-frame cost).
+    let mut join_prev: std::collections::HashMap<u64, SocketBytes> =
+        std::collections::HashMap::new();
     // night-improve-58: the resting scroll state (the harness
     // renders the pre-scroll layout, A/B-comparable).
     let mut scroll = ScrollState::new();
@@ -242,12 +247,17 @@ fn frame_bench_eagle() {
         // for the deduped key set (the lts-7 HashSet path, now
         // measured at frame cadence: 36 walked sockets, 27 distinct
         // keys, the dup'd fd absorbed), a synthetic cookie-map result
-        // standing in for the loader's point-lookups (lifetime
+        // standing in for the loader's point-lookups (absolute
         // counters, a pure function of (cookie, frame) — NO LCG
         // draws, so the traffic stream the A/B protocol freezes stays
         // byte-identical and the only visual delta vs the cookie:
-        // None era is the figures themselves), and
-        // apply_socket_bytes for the install the renderers read.
+        // None era is the figures themselves).
+        // night-private-research-7: the monitor's EXACT arrival fold
+        // rides here too — the absolutes are differenced against the
+        // previous frame's join (join_prev below) and only the
+        // frame's movers install, so the A/B measures the differencing
+        // pass as real frame work (the renderers then divide by the
+        // span, the per-second vocabulary the suffix pins froze).
         let cookies = conns.socket_cookies();
         let mut join = std::collections::HashMap::with_capacity(cookies.len());
         for &cookie in &cookies {
@@ -260,7 +270,19 @@ fn frame_bench_eagle() {
                 },
             );
         }
-        conns.apply_socket_bytes(join);
+        let movers: std::collections::HashMap<u64, SocketBytes> = join
+            .iter()
+            .filter_map(|(cookie, now)| {
+                let prev = join_prev.get(cookie).copied().unwrap_or_default();
+                let frame = SocketBytes {
+                    dl: now.dl.saturating_sub(prev.dl),
+                    ul: now.ul.saturating_sub(prev.ul),
+                };
+                (frame.dl > 0 || frame.ul > 0).then_some((*cookie, frame))
+            })
+            .collect();
+        conns.apply_socket_bytes(movers);
+        join_prev = join;
 
         let mut cgroups = Vec::with_capacity(CGROUPS);
         for i in 0..CGROUPS {

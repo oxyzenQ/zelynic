@@ -63,6 +63,7 @@ fn report_fixture(enforcement: Enforcement) -> DepthReport {
         enforcement,
         enforcement_stats: None,
         conns: None,
+        window_dropped: 0,
         traffic: None,
         traffic_note: None,
     }

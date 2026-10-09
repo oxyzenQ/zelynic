@@ -203,7 +203,7 @@ pub fn render_eagle_focus(
         // hold them: the cap counts one honest "more hidden" note
         // (NIGHT-boost-14 adaptive compact), and degenerate heights
         // drop the block entirely.
-        let mut details = super::full_detail_lines(conns, cgroup_id);
+        let mut details = super::full_detail_lines(conns, cgroup_id, span);
         let room = geo.height.saturating_sub(FOCUS_CHROME);
         if details.len() > room {
             if room == 0 {

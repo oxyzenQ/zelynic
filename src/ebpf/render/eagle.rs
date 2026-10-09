@@ -176,7 +176,7 @@ pub(super) fn render_eagle_eyes_at(
 
     // The session peaks (NIGHT-engrave-6): one more fold pass over
     // the same summary, noting the watched set's aggregate into the
-    // running maxima the footer's `total max dl | ul` line renders.
+    // running maxima the footer's `peak arrival dl | ul` line renders.
     // The scope matches the board filter exactly — `None` on an
     // unfiltered frame (the machine-wide aggregate), `Some(ids)` on
     // a filtered one — and it notes BEFORE the focus branch returns,
@@ -359,7 +359,7 @@ pub(super) fn render_eagle_eyes_at(
             // it, so a long process/endpoint string can never wrap
             // the frame or shift the pinned footer.
             let mut details = if cols.show_total {
-                detail_lines(conns, *cgroup_id)
+                detail_lines(conns, *cgroup_id, span)
             } else {
                 Vec::new()
             };

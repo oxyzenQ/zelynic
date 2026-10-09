@@ -68,6 +68,7 @@ fn report_fixture(enforcement: Enforcement) -> DepthReport {
         enforcement,
         enforcement_stats: None,
         conns: None,
+        window_dropped: 0,
         traffic: None,
         traffic_note: None,
     }
@@ -89,25 +90,35 @@ fn package_name_ladder_comm_then_basename_then_unknown() {
 }
 
 /// The enforcement vocabulary: unlimited / blocked / limited, with
-/// the summary sentence carrying per-direction truth.
+/// the summary sentence carrying per-direction truth. Since
+/// night-private-research-7 the sentence takes the window's SHAPING
+/// verdict — the `(shaping)` tag rides the mixed limited arm only.
 #[test]
 fn enforcement_words_and_sentences_match_the_verdicts() {
     assert_eq!(enforcement_word(&Enforcement::Unlimited), "unlimited");
-    assert_eq!(enforcement_sentence(&Enforcement::Unlimited), "unlimited");
+    assert_eq!(
+        enforcement_sentence(&Enforcement::Unlimited, true),
+        "unlimited",
+        "unlimited never carries the shaping tag"
+    );
 
     let blocked = Enforcement::Limited {
         download: policy(0),
         upload: policy(0),
     };
     assert_eq!(enforcement_word(&blocked), "blocked");
-    assert_eq!(enforcement_sentence(&blocked), "blocked");
+    assert_eq!(
+        enforcement_sentence(&blocked, true),
+        "blocked",
+        "blocked drops by definition — the tag would be noise"
+    );
 
     let mixed = Enforcement::Limited {
         download: policy(100_000),
         upload: policy(0),
     };
     assert_eq!(enforcement_word(&mixed), "limited");
-    let sentence = enforcement_sentence(&mixed);
+    let sentence = enforcement_sentence(&mixed, false);
     assert!(sentence.starts_with("limited — dl "), "got: {sentence}");
     assert!(sentence.contains("ul blocked"), "got: {sentence}");
 
@@ -115,7 +126,21 @@ fn enforcement_words_and_sentences_match_the_verdicts() {
         download: policy(100_000),
         upload: None,
     };
-    assert!(enforcement_sentence(&one_sided).contains("ul unlimited"));
+    assert!(enforcement_sentence(&one_sided, false).contains("ul unlimited"));
+
+    // night-private-research-7: the shaping tag — the window's
+    // bracket reads saw the dropped counter MOVE, so "limited"
+    // arrives with its active-consequence marker on the one arm
+    // that can carry it (the mixed limited verdict).
+    let shaping = enforcement_sentence(&one_sided, true);
+    assert!(
+        shaping.starts_with("limited (shaping) — dl "),
+        "the tag rides the verdict word, got: {shaping}"
+    );
+    assert!(
+        enforcement_sentence(&one_sided, false).starts_with("limited — dl "),
+        "no window drops, no tag"
+    );
 
     // charger-core-3c: a per-socket policy's figure names its unit —
     // an unmarked rate would read as the cgroup cap the policy does
@@ -131,7 +156,7 @@ fn enforcement_words_and_sentences_match_the_verdicts() {
         }),
         upload: None,
     };
-    let sentence = enforcement_sentence(&per_socket);
+    let sentence = enforcement_sentence(&per_socket, false);
     assert!(
         sentence.contains("dl 500.0 KB/s /socket"),
         "the per-socket unit is named, got: {sentence}"
@@ -267,6 +292,72 @@ fn socket_section_lists_endpoints_and_caps_overflow() {
 // contract lives in depth_json_tests.rs since the NIGHT-blade-5
 // split (same fixtures, same vocabulary, plus the ledger and
 // controller-resource fields).
+
+/// night-private-research-7: the window's shaping verdict — the
+/// ledger's dropped counter across the window's bracketing reads.
+/// A moved counter is the window's own drops; a missing row on
+/// either side counts as zero booked; a swept-and-reborn counter
+/// (restarted at a lower value) reads zero, never negative.
+#[test]
+fn window_dropped_bytes_is_the_bracket_delta() {
+    let baseline = LimiterStatsRaw {
+        packets_allowed: 900,
+        packets_dropped: 100,
+        bytes_allowed: 900_000,
+        bytes_dropped: 100_000,
+    };
+    let mut closing = baseline;
+    closing.bytes_dropped = 171_000;
+    assert_eq!(
+        window_dropped_bytes(Some(&closing), Some(&baseline)),
+        71_000,
+        "the window killed exactly the counter's movement"
+    );
+    assert_eq!(
+        window_dropped_bytes(Some(&baseline), Some(&baseline)),
+        0,
+        "a still counter is a quiet window — no tag"
+    );
+    assert_eq!(
+        window_dropped_bytes(None, Some(&baseline)),
+        0,
+        "a swept closing row booked nothing"
+    );
+    assert_eq!(
+        window_dropped_bytes(Some(&closing), None),
+        171_000,
+        "a fresh pin mid-window books its first drops whole"
+    );
+    let mut reborn = baseline;
+    reborn.bytes_dropped = 40_000; // swept and re-pinned below baseline
+    assert_eq!(
+        window_dropped_bytes(Some(&reborn), Some(&baseline)),
+        0,
+        "a restarted counter never reads negative"
+    );
+}
+
+/// night-private-research-7: the report wires the verdict — a
+/// window_dropped above zero tags the enforcement line, zero does
+/// not, and the unlimited verdict stays tagless either way.
+#[test]
+fn report_lines_tag_the_shaping_window() {
+    let mut report = report_fixture(Enforcement::Limited {
+        download: policy(100_000),
+        upload: policy(100_000),
+    });
+    let quiet = depth_report_lines(&[report.clone()], 100).join("\n");
+    assert!(
+        quiet.contains("limited — dl 100.0 KB/s"),
+        "a quiet window carries no tag, got:\n{quiet}"
+    );
+    report.window_dropped = 71_000;
+    let shaping = depth_report_lines(&[report], 100).join("\n");
+    assert!(
+        shaping.contains("limited (shaping) — dl 100.0 KB/s"),
+        "the window's drops tag the verdict, got:\n{shaping}"
+    );
+}
 
 /// NIGHT-blade-5: the accounting line — the kernel's ledger as one
 /// glance. The drop share is of everything that ARRIVED (allowed +
