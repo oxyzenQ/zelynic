@@ -10,8 +10,10 @@
 > residual to its root, land the closure, then hunt the landings
 > — and the hunt found the biggest thing either audit had missed:
 > the supermassive workflow has been RED since run 281 (044ca58,
-> 2026-10-08 20:25 UTC), every push failing through run 292, its
-> three causes sitting in plain sight the whole time.
+> 2026-10-08 20:25 UTC) through run 296 — sixteen runs, every
+> push failing — its five causes sitting in plain sight the whole
+> time, one layer under the next, each repair exposing the one
+> below it until run 297 came home green on all four legs.
 
 ## 1. Residual #2 — the alive-unresolvable-quiet root (closed, twice)
 
@@ -69,11 +71,11 @@ pinned until the next u/recover/apply-era (eec4042).
 
 The CI history the session opened: run 280 (77940e9, pre-hunt-42)
 green; run 281 (044ca58, hunt-42's HEAD) red; every push since
-red or cancelled through run 292 (075551e). The previous night's
+red or cancelled through run 296. The previous night's
 "live CI proof" never actually landed — the hunt-43 series runs
 (282-286) were all cancelled mid-flight by the next push, and
-every later run inherited the failure. Three causes, one per
-landing:
+every later run inherited the failure. Five causes, each
+repair exposing the next layer:
 
 1. **The orphan-census stage harvested its own proof** (born
    044ca58). The stage's `status_json()` verification visit
@@ -103,8 +105,38 @@ landing:
    rides the census: directory gone from a complete walk.
 
 All three repairs landed in one push (b284eec + eec4042 +
-d579d44); the workflow's verdict is the record this audit will
-point at.
+d579d44).
+
+4. **The orphan stage's bpftool key grammar** (born 044ca58,
+   under layers 1-3). Run 295 — the first run with the first
+   three repaired — failed ONLY here: `Error: key expected 4
+   bytes got 1`. bpftool's `key hex` grammar takes ONE
+   SPACE-SEPARATED TOKEN PER BYTE; the stage passed the u32 as
+   one contiguous 8-char token and the delete was refused from
+   the stage's very first run. The key is now four tokens
+   (ecb3026).
+
+5. **The zombie stage's death bed consumed the matrix's bed**
+   (born d579d44, this audit's own third repair — the night
+   hunting its landing one layer deeper). Run 296: the server
+   phase green for the first time, the desktop matrix ran for
+   the first time since run 280, and its four failures shared
+   one root cause — the stage's bed-'e' rmdir (the scope-cleanup
+   shape) removed a cgroup the desktop matrix reuses (block
+   d::e's row retired by the verification visit's own sweep: the
+   directory was gone, the death proof fired on a live test's
+   target; mixed's block e the same; both s --all residency
+   barriers found 1/5 beds missing). The stage now creates and
+   destroys a DEDICATED death bed (30a9518), dropped on every
+   exit path — a stage that consumes its bed consumes the matrix.
+
+The verdict: run 297 (30a9518) GREEN on all four legs —
+low/best x gnu/musl — the first green supermassive since run
+280, the red era closed after sixteen failing runs. The server
+phase's every stage passes under the death-proof law and the
+status visit's new unpin ladder (both proven live in the same
+battery), and the desktop matrix passes with the steady rate
+fields and the => legend riding its status views.
 
 ## 4. The night hunting its own landing
 
