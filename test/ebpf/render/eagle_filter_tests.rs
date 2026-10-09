@@ -19,6 +19,7 @@ use crate::ebpf::loader::{CgroupDelta, CounterSummary};
 use crate::ebpf::render::eagle::render_eagle_eyes_at;
 use crate::ebpf::render::focus::window_active;
 use crate::ebpf::render::BaselineLane;
+use crate::ebpf::render::ScrollState;
 use crate::ebpf::render::{FrameGeometry, SessionState};
 use std::time::Duration;
 
@@ -113,6 +114,7 @@ fn name_targets_expand_and_misses_note() {
         &BaselineLane::new(),
         Duration::from_secs(70),
         classic(),
+        &mut ScrollState::new(),
     );
     let joined = lines.join("\n");
     assert!(
@@ -312,6 +314,7 @@ fn dead_transients_leave_the_board_but_active_unnamed_rows_stay() {
         &BaselineLane::new(),
         Duration::from_secs(70),
         classic(),
+        &mut ScrollState::new(),
     );
     let joined = lines.join("\n");
     assert!(

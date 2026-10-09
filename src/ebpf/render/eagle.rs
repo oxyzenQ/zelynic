@@ -48,9 +48,11 @@
 
 use std::time::Duration;
 
-use super::baseline::{render_panel, BaselineLane};
+use super::baseline::BaselineLane;
+use super::baseline_panel::render_panel;
 use super::border;
 use super::footer::{build_grip_footer, grid_line, plan_footer_tier, FooterCensus, TOP_CHROME};
+use super::scroll::{scroll_note, ScrollState, Section};
 use super::{
     detail_lines, focus::board_rows, focus::render_eagle_focus, format_rate_or_dash,
     label_with_count, plan_eagle_columns, rate_bps, title_bar, truncate_label, EagleColumns,
@@ -59,7 +61,6 @@ use super::{
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::format_bytes_wide;
-use crate::ebpf::limiter::format_count;
 use crate::ebpf::limiter::Target;
 use crate::ebpf::loader::CounterSummary;
 use crate::output::{brand, grey, hot, ok, warn};
@@ -122,10 +123,12 @@ pub fn render_eagle_eyes(
     session: &mut SessionState,
     baseline: &BaselineLane,
     uptime: Duration,
+    scroll: &mut ScrollState,
 ) {
     let geo = FrameGeometry::probe();
     render_eagle_eyes_at(
         lines, summary, tokens, identity, conns, interval, span, session, baseline, uptime, geo,
+        scroll,
     );
 }
 
@@ -145,6 +148,7 @@ pub(super) fn render_eagle_eyes_at(
     baseline: &BaselineLane,
     uptime: Duration,
     geo: FrameGeometry,
+    scroll: &mut ScrollState,
 ) {
     // NIGHT-boost-20: compose into the bordered inset (render/border.rs).
     let full_width = geo.width;
@@ -189,6 +193,11 @@ pub(super) fn render_eagle_eyes_at(
     );
 
     // Single token, single cgroup: the focus view (own border inset).
+    // night-improve-58: the scroll state is INERT here by design —
+    // the focus view renders one cgroup's own deep detail, no
+    // ranked sections to steer; the arrow keys drain as actions
+    // and move nothing (the six-key surface stays the same key
+    // count, the focus frame just holds nothing scrollable).
     if tokens.len() == 1 && ids.len() == 1 && unresolved.is_empty() {
         render_eagle_focus(
             lines, summary, identity, conns, baseline, ids[0], interval, span, uptime, geo,
@@ -284,11 +293,28 @@ pub(super) fn render_eagle_eyes_at(
     // The table needs room for its own chrome (header + grid) plus at
     // least one data row; below that the footer carries the story.
     if show_table && table_room >= TOP_CHROME - 1 {
+        // night-improve-58: the table's scroll window, clamped to
+        // the rows the board holds this frame (a shrunken board
+        // snaps the window back; the clamp writes home so the next
+        // arrow step rides it). The champion rule below survives
+        // the offset intact: the FIRST VISIBLE row takes the trim
+        // role the champion owned at rest — the table never renders
+        // empty while a row exists to show.
+        let offset = scroll.table_window(board.len());
+        // The focus gutter marker (night-improve-58): the focused
+        // section's header carries `▸ ` in the 2-column gutter every
+        // row shares — the one-column answer to "which section do
+        // the arrows steer", no column shifts, any width.
+        let gutter = if scroll.focused() == Section::TopProcess {
+            "▸ "
+        } else {
+            "  "
+        };
         // The identity span the header's title cell covers.
         let title_w = cols.label_w + RANK_SPAN;
         if cols.show_total {
             lines.push(brand(&format!(
-                "  {:<w0$} {:>w1$} {:>w2$} {:>w3$}",
+                "{gutter}{:<w0$} {:>w1$} {:>w2$} {:>w3$}",
                 truncate_label("top process", title_w),
                 "download",
                 "upload",
@@ -300,7 +326,7 @@ pub(super) fn render_eagle_eyes_at(
             )));
         } else {
             lines.push(brand(&format!(
-                "  {:<w0$} {:>w1$} {:>w2$}",
+                "{gutter}{:<w0$} {:>w1$} {:>w2$}",
                 truncate_label("top process", title_w),
                 "download",
                 "upload",
@@ -315,11 +341,14 @@ pub(super) fn render_eagle_eyes_at(
         // plus its lines fit as a unit, within what remains after
         // the top chrome and the pinned footer (--limit and the cap
         // are gone, NIGHT-boost-1: the window IS the budget;
-        // NIGHT-boost-14 made the footer's claim explicit).
+        // NIGHT-boost-14 made the footer's claim explicit;
+        // night-improve-58: the window is the budget, the SCROLL is
+        // the window's walk — the rank column still carries the
+        // board's true rank, never the window's position).
         let row_room = footer_start.saturating_sub(lines.len());
         let mut used = 0usize;
         let mut emitted = 0usize;
-        for (i, (cgroup_id, acc)) in board.iter().enumerate() {
+        for (i, (cgroup_id, acc)) in board.iter().enumerate().skip(offset) {
             // Adaptive subprocess detail (NIGHT-boost-14): grey, and
             // width-aware — hidden below the TOTAL-column boundary
             // (the column ladder IS the threshold since NIGHT-engrave-4:
@@ -374,14 +403,24 @@ pub(super) fn render_eagle_eyes_at(
             used += 1 + shown_details;
             emitted += 1;
         }
-        if board.len() > emitted {
-            lines.push(format!(
-                "  {}",
-                grey(&format!(
-                    "(+{} more hidden — raise the window)",
-                    format_count((board.len() - emitted) as u64)
-                ))
-            ));
+        // night-improve-58: the scroll-position note replaces the
+        // old "raise the window" advice — the owner's whole point:
+        // the window stays the terminal it is, the arrows walk it.
+        // `above` counts the rows the offset skipped, `below` the
+        // rows the room cut; no note when the frame holds the
+        // whole board (the clean read it always was). The note
+        // rides the same budget the rows ride: when the room filled
+        // exactly, the LAST data row yields its line to the note
+        // (the position readout outranks one row of content —
+        // without it a walked window reads as frozen, the pin that
+        // caught this very shape).
+        let above = offset;
+        let below = board.len().saturating_sub(offset + emitted);
+        if let Some(note) = scroll_note(above, below) {
+            if emitted > 0 && lines.len() >= footer_start {
+                lines.pop();
+            }
+            lines.push(format!("  {}", grey(&note)));
         }
     }
 
@@ -414,6 +453,7 @@ pub(super) fn render_eagle_eyes_at(
         panel_filter,
         panel_room,
         geo.width,
+        scroll,
     );
     // The dock (NIGHT-engrave-10): pad to the panel's floor, then
     // land the block — the pin below tops the frame off.
@@ -516,3 +556,10 @@ mod eagle_width_tests;
 #[cfg(test)]
 #[path = "../../../test/ebpf/render/eagle_dock_tests.rs"]
 mod eagle_dock_tests;
+
+// night-improve-58: the scroll-integration pins — the arrows
+// walking the real render path (split from eagle_tests at the
+// 600-LOC owner cap, one file per contract).
+#[cfg(test)]
+#[path = "../../../test/ebpf/render/eagle_scroll_tests.rs"]
+mod eagle_scroll_tests;

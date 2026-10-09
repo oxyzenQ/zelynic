@@ -395,7 +395,9 @@ fn quit_is_q_first_byte_only() {
 /// payload or an escape body never cycles anything, and every other
 /// byte (the retired uppercase twin included) stays inert.
 /// 'q' still wins the routing (the quit decision delegates through
-/// the pinned quit_from_chunk primitive).
+/// the pinned quit_from_chunk primitive). night-improve-58: the
+/// four arrows are the scroll contract now (their own pin below) —
+/// the standalone ESC and every non-arrow sequence stay inert here.
 #[test]
 fn theme_keys_route_first_byte_only() {
     use super::{input_action_from_chunk, InputAction};
@@ -406,14 +408,13 @@ fn theme_keys_route_first_byte_only() {
     assert_eq!(input_action_from_chunk(b"q"), InputAction::Quit);
     assert_eq!(input_action_from_chunk(b"quit"), InputAction::Quit);
     // Everything else is inert: the retired uppercase twin,
-    // uppercase-lowercase neighbors, Ctrl+C, standalone ESC,
-    // escape-sequence heads.
+    // uppercase-lowercase neighbors, Ctrl+C, standalone ESC.
     assert_eq!(input_action_from_chunk(b"T"), InputAction::None);
     assert_eq!(input_action_from_chunk(b"Q"), InputAction::None);
     assert_eq!(input_action_from_chunk(b"r"), InputAction::None);
     assert_eq!(input_action_from_chunk(&[0x03]), InputAction::None);
     assert_eq!(input_action_from_chunk(&[0x1b]), InputAction::None);
-    assert_eq!(input_action_from_chunk(b"\x1b[A"), InputAction::None);
+    assert_eq!(input_action_from_chunk(b"\x1b[A"), InputAction::ScrollUp);
     assert_eq!(
         input_action_from_chunk(b"\x1b[<0;10;10M"),
         InputAction::None
@@ -423,6 +424,51 @@ fn theme_keys_route_first_byte_only() {
     assert_eq!(input_action_from_chunk(b"\x1bt"), InputAction::None);
     // Empty chunk: nothing drained, nothing asked.
     assert_eq!(input_action_from_chunk(b""), InputAction::None);
+}
+
+/// The arrow keys, night-improve-58's scroll contract: both
+/// spellings (CSI `ESC [ A..D` and the application-keypad SS3
+/// `ESC O A..D`) classify as the four actions, and the
+/// leading-sequence law keeps everything that merely STARTS like
+/// an arrow inert — mouse SGR (`ESC [ <`), OSC replies (`ESC ]`),
+/// the parameterized CSI a Shift+Up rides (`ESC [ 1;2A` — its
+/// third byte is a digit, not the arrow letter), and a split
+/// prefix (`ESC [` alone) that stands for nothing yet. A trailing
+/// `q` behind an arrow rides the sequence body's own business —
+/// the head speaks, never the tail (the quit law's own shape).
+#[test]
+fn arrow_keys_classify_both_spellings_and_nothing_else() {
+    use super::{input_action_from_chunk, InputAction};
+
+    // The CSI spelling every mainstream terminal sends.
+    assert_eq!(input_action_from_chunk(b"\x1b[A"), InputAction::ScrollUp);
+    assert_eq!(input_action_from_chunk(b"\x1b[B"), InputAction::ScrollDown);
+    assert_eq!(input_action_from_chunk(b"\x1b[C"), InputAction::SectionNext);
+    assert_eq!(input_action_from_chunk(b"\x1b[D"), InputAction::SectionPrev);
+    // The SS3 spelling (application keypad mode, some muxers).
+    assert_eq!(input_action_from_chunk(b"\x1bOA"), InputAction::ScrollUp);
+    assert_eq!(input_action_from_chunk(b"\x1bOB"), InputAction::ScrollDown);
+    assert_eq!(input_action_from_chunk(b"\x1bOC"), InputAction::SectionNext);
+    assert_eq!(input_action_from_chunk(b"\x1bOD"), InputAction::SectionPrev);
+    // A key repeat in one drain: the leading sequence speaks.
+    assert_eq!(
+        input_action_from_chunk(b"\x1b[B\x1b[B"),
+        InputAction::ScrollDown
+    );
+    // The inert near-misses.
+    assert_eq!(input_action_from_chunk(b"\x1b["), InputAction::None);
+    assert_eq!(input_action_from_chunk(b"\x1b[1;2A"), InputAction::None);
+    assert_eq!(
+        input_action_from_chunk(b"\x1b[<0;10;10M"),
+        InputAction::None
+    );
+    assert_eq!(
+        input_action_from_chunk(b"\x1b]11;rgb:1/2/3\x1b\\"),
+        InputAction::None
+    );
+    // A 'q' riding behind an arrow is the sequence body's own
+    // business — the head speaks, never the tail.
+    assert_eq!(input_action_from_chunk(b"\x1b[Bq"), InputAction::ScrollDown);
 }
 
 // ── the NIGHT-lts-7 beat-epoch floor (the boot-edge panic) ─────────────────

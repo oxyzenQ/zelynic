@@ -118,8 +118,10 @@ first-time reader, and this page pays it once, up front.
 - **Doctor**: `zelynic doctor` — the kernel/dist capability check;
   reports the build flavor (full-life / half-life, see
   [FAQ.md](FAQ.md)).
-- **The hidden note**: `(+N more hidden — raise the window)` — the
-  truncation honesty line when a table outlives the terminal.
+- **The scroll note**: `(-N above · )+M more — ↑↓ scroll` — the
+  truncation honesty line when a section outlives the terminal
+  (night-improve-58: the arrows walk the rows the frame cut; the
+  window is the budget, the scroll is the window's walk).
 - **Em-dash rate**: the rate cell of a quiet app — on the board
   with its totals, rates absent rather than zero-as-fact.
 - **`dl` / `ul`**: the monitor's two-letter direction tags —

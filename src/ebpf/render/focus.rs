@@ -469,10 +469,8 @@ mod tests {
         assert!(lines.iter().any(|l| l.contains("no traffic for cg:73386")));
         assert_eq!(
             lines[19],
-            format!(
-                " │  1s realtime - theme netrunner - q quit - t theme{}│",
-                " ".repeat(26)
-            ),
+            " │  1s realtime - theme netrunner - q quit - t theme - ↑↓ scroll - ←→ section │"
+                .to_string(),
             "status line above the focus copyright (NIGHT-engrave-2, \
              engrave-8 inset): {}",
             lines[19]

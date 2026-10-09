@@ -12,6 +12,7 @@ use crate::ebpf::identity::{IdentityMap, ProcessIdentity};
 use crate::ebpf::loader::{CgroupDelta, CounterSummary};
 use crate::ebpf::render::eagle::render_eagle_eyes_at;
 use crate::ebpf::render::BaselineLane;
+use crate::ebpf::render::ScrollState;
 use crate::ebpf::render::{FrameGeometry, SessionState};
 use std::time::Duration;
 
@@ -78,6 +79,7 @@ fn footer_census_packets_ride_the_si_compact_ladder() {
         &BaselineLane::new(),
         Duration::from_secs(3600),
         classic(),
+        &mut ScrollState::new(),
     );
     let joined = lines.join("\n");
     assert!(
@@ -98,6 +100,7 @@ fn footer_census_packets_ride_the_si_compact_ladder() {
         &BaselineLane::new(),
         Duration::from_secs(2),
         classic(),
+        &mut ScrollState::new(),
     );
     assert!(
         fresh.join("\n").contains("2 packets + 1 cgroups"),
@@ -173,6 +176,7 @@ fn the_census_total_can_read_zettabytes() {
         &BaselineLane::new(),
         Duration::from_secs(20_113_100), // ~233 days: 1 ZB at 1 Tbps
         classic(),
+        &mut ScrollState::new(),
     );
     let joined = lines.join("\n");
     assert!(

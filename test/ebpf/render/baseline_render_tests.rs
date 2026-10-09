@@ -11,6 +11,8 @@
 use super::*;
 use crate::ebpf::identity::ProcessIdentity;
 use crate::ebpf::limiter::rate_ring::RATE_RING_WINDOW_NS;
+use super::super::baseline_panel::render_panel;
+use crate::ebpf::render::ScrollState;
 use crate::output::brand;
 
 // ── Fixtures (the fold sibling's shapes, self-contained — the
@@ -169,7 +171,15 @@ fn panel_shapes_filter_and_trim() {
         comm: "nginx".to_string(),
     });
     let mut lines = Vec::new();
-    render_panel(&mut lines, &lane, &identity, None, 10, 40);
+    render_panel(
+        &mut lines,
+        &lane,
+        &identity,
+        None,
+        10,
+        40,
+        &mut ScrollState::new(),
+    );
     let joined = lines.join("\n");
     // The ruled opener (NIGHT-engrave-9): air, then the grid at the
     // passed width — the same rule the table's header closes on —
@@ -197,17 +207,33 @@ fn panel_shapes_filter_and_trim() {
     );
     // The filter: a watched set that names key 9 drops the others.
     let mut filtered = Vec::new();
-    render_panel(&mut filtered, &lane, &identity, Some(&[9]), 10, 40);
+    render_panel(
+        &mut filtered,
+        &lane,
+        &identity,
+        Some(&[9]),
+        10,
+        40,
+        &mut ScrollState::new(),
+    );
     assert!(filtered.join("\n").contains("cg:9"));
     assert!(!filtered.join("\n").contains("nginx"));
     // The trim: room for the separator's chrome plus header plus 1
     // row of the three, plus the honest hidden note for the other
     // two — the budget moved two rows down with the opener.
     let mut trimmed = Vec::new();
-    render_panel(&mut trimmed, &lane, &identity, None, 5, 40);
+    render_panel(
+        &mut trimmed,
+        &lane,
+        &identity,
+        None,
+        5,
+        40,
+        &mut ScrollState::new(),
+    );
     let t = trimmed.join("\n");
     assert!(
-        t.contains("steady 3.1 MB/s") && t.contains("(+2 more hidden — raise the window)"),
+        t.contains("steady 3.1 MB/s") && t.contains("(+2 more — ↑↓ scroll)"),
         "the honest trim: {t}"
     );
     // Below the separator's own budget (chrome plus one verdict row)
@@ -215,7 +241,15 @@ fn panel_shapes_filter_and_trim() {
     // opener: three rows of room once trimmed a panel, now renders
     // nothing (a header with nothing under it is noise).
     let mut tiny = Vec::new();
-    render_panel(&mut tiny, &lane, &identity, None, 3, 40);
+    render_panel(
+        &mut tiny,
+        &lane,
+        &identity,
+        None,
+        3,
+        40,
+        &mut ScrollState::new(),
+    );
     assert!(tiny.is_empty(), "a header with nothing under it is noise");
 }
 
@@ -229,10 +263,77 @@ fn absent_lane_renders_nothing() {
     assert!(lane.panel_rows().is_empty());
     assert!(lane.focus_pair(1).is_none());
     let mut lines = Vec::new();
-    render_panel(&mut lines, &lane, &IdentityMap::new(), None, 40, 40);
+    render_panel(
+        &mut lines,
+        &lane,
+        &IdentityMap::new(),
+        None,
+        40,
+        40,
+        &mut ScrollState::new(),
+    );
     render_focus_row(&mut lines, &lane, 1);
     assert!(
         lines.is_empty(),
         "the absent lens renders nothing, honestly"
+    );
+}
+
+/// night-improve-58: the panel is the second scrollable section
+/// (the baseline police) — the right arrow's focus lands its marker
+/// in the panel header's gutter, and the window walks the verdict
+/// rows with the note naming the row the offset skipped (the
+/// heaviest-first weight order is the panel's own law; the window
+/// walks it, never re-sorts it).
+#[test]
+fn the_panel_carries_the_focus_marker_and_walks_its_window() {
+    let mut lane = BaselineLane::new();
+    let horizon = |l: u64| (94..=100).map(|w| (w, l)).collect::<Vec<_>>();
+    fold_call_multi(
+        &mut lane.dl,
+        &[(7, &horizon(98_000)), (8, &horizon(3_100_000))],
+        100,
+    );
+    fold_call_multi(
+        &mut lane.dl,
+        &[(7, &[(101, 98_000)]), (8, &[(101, 3_100_000)])],
+        101,
+    );
+    fold_call_multi(&mut lane.ul, &[(9, &horizon(1_400_000))], 100);
+    fold_call_multi(&mut lane.ul, &[(9, &[(101, 1_400_000)])], 101);
+    let identity = IdentityMap::new();
+
+    // The right arrow's focus: the marker rides the panel header's
+    // gutter (the table's header keeps its plain two-space gutter —
+    // the marker is the one-column answer to "which section do the
+    // arrows steer").
+    let mut scroll = ScrollState::new();
+    scroll.apply(crate::terminal::InputAction::SectionNext);
+    let mut lines = Vec::new();
+    render_panel(&mut lines, &lane, &identity, None, 10, 40, &mut scroll);
+    assert!(
+        lines[2].starts_with("▸ baseline · policy aggregate"),
+        "the focused panel's header carries the gutter marker: {:?}",
+        lines[2]
+    );
+
+    // The window walks the weight order: one down skips the
+    // heaviest verdict (cg:8), the note names it above, and the
+    // remaining rows render in their own order.
+    scroll.apply(crate::terminal::InputAction::ScrollDown);
+    let mut walked = Vec::new();
+    render_panel(&mut walked, &lane, &identity, None, 5, 40, &mut scroll);
+    let w = walked.join("\n");
+    assert!(
+        !w.contains("steady 3.1 MB/s"),
+        "the skipped row stays above the window: {w}"
+    );
+    assert!(
+        w.contains("cg:9") && w.contains("cg:7"),
+        "the window's own rows render: {w}"
+    );
+    assert!(
+        w.contains("(-1 above — ↑↓ scroll"),
+        "the note names the row the offset skipped: {w}"
     );
 }

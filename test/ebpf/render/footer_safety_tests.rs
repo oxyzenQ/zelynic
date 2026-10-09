@@ -15,6 +15,7 @@ use crate::ebpf::identity::{IdentityMap, ProcessIdentity};
 use crate::ebpf::loader::{CgroupDelta, CounterSummary};
 use crate::ebpf::render::eagle::render_eagle_eyes_at;
 use crate::ebpf::render::BaselineLane;
+use crate::ebpf::render::ScrollState;
 use crate::ebpf::render::{FrameGeometry, SessionState};
 use std::time::Duration;
 
@@ -84,6 +85,7 @@ fn saturated_session_renders_without_panic() {
         &BaselineLane::new(),
         Duration::from_secs(70),
         classic(),
+        &mut ScrollState::new(),
     );
     assert_eq!(lines.len(), 24, "the pin holds at saturation");
     let joined = lines.join("\n");

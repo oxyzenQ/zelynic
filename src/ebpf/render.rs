@@ -85,6 +85,7 @@
 //!   and focus)
 
 mod baseline;
+mod baseline_panel;
 mod border;
 mod bypass;
 mod depth_json;
@@ -96,6 +97,10 @@ mod footer;
 mod loading;
 mod rank;
 mod report;
+// night-improve-58: the eagle-eyes scroll state — the six-key
+// interactive contract (q, t, up/down, left/right) the ranked
+// frame's two sections answer to.
+mod scroll;
 mod session;
 mod targets;
 
@@ -108,6 +113,11 @@ mod targets;
 mod bench;
 
 pub use eagle::render_eagle_eyes;
+
+// night-improve-58: the scroll state the eagle-eyes handler's
+// render closure owns (the handler constructs it, the renderers
+// clamp it).
+pub(crate) use scroll::ScrollState;
 
 // NIGHT-improve-1a (EAGLE EYES V2): the ring lens + learned state
 // the eagle renderer renders (pub(crate) like SessionState).

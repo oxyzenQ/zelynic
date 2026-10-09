@@ -543,7 +543,7 @@ slightly easier to maintain.
 
 ### What zelynic will NEVER be
 
-- No TUI (terminal user interface)
+- No Bloat TUI (minimal TUI only for focus monitoring)
 - No systemd service dependency
 - No `config.toml` (CLI flags only)
 - No daemon mode

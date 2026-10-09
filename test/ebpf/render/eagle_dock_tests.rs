@@ -12,6 +12,7 @@
 
 use super::*;
 use crate::ebpf::loader::CgroupDelta;
+use crate::ebpf::render::ScrollState;
 
 /// One traffic frame for `cg` with the given per-frame deltas (the
 /// eagle_tests fixture, carried self-contained — Pattern C's rule).
@@ -58,6 +59,7 @@ fn baseline_panel_docks_flush_above_the_footer() {
             &lane,
             Duration::from_secs(70),
             FrameGeometry { width: 80, height },
+            &mut ScrollState::new(),
         );
         assert_eq!(lines.len(), height, "the frame stays pinned to the height");
         let joined = lines.join("\n");

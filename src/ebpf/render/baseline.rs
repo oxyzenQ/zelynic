@@ -80,7 +80,6 @@
 
 use std::collections::HashMap;
 
-use super::footer::grid_line;
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::format_rate;
 use crate::ebpf::limiter::monotonic_ns;
@@ -88,7 +87,7 @@ use crate::ebpf::limiter::rate_ring::{
     read_pinned_rings, ring_series, RateRingRaw, RATE_RING_SLOTS, RATE_RING_WINDOW_NS,
 };
 use crate::ebpf::loader::CounterSummary;
-use crate::output::{grey, pad_to_width, warn};
+use crate::output::{grey, warn};
 
 // ── The constants (every figure a pinned contract) ─────────────────
 
@@ -485,7 +484,7 @@ fn phrase(word: Option<BaselineWord>) -> String {
 }
 
 /// Both directions on one line, ` · ` between when both render.
-fn pair_phrase(dl: Option<BaselineWord>, ul: Option<BaselineWord>) -> String {
+pub(super) fn pair_phrase(dl: Option<BaselineWord>, ul: Option<BaselineWord>) -> String {
     let dl_phrase = phrase(dl);
     let ul_phrase = phrase(ul);
     match (dl.is_none(), ul.is_none()) {
@@ -508,65 +507,6 @@ pub(crate) fn render_focus_row(lines: &mut Vec<String>, lane: &BaselineLane, cgr
         if !body.is_empty() {
             lines.push(format!("  baseline  {body}"));
         }
-    }
-}
-
-/// The ranked view's baseline panel: one line per policy root the
-/// lane holds (filtered to the watched set — a filter is a
-/// filter), under a grey header naming the lens. Since
-/// NIGHT-engrave-9 the section OPENS with a ruled separator (air,
-/// then the table's own grid at `width`), so the verdict rows stop
-/// reading as the table's last rows; since NIGHT-engrave-10 the
-/// caller DOCKS the block flush against the pinned footer (the
-/// slack rides above the panel). `room` is the rows the panel may
-/// occupy; it skips below separator plus header plus one verdict
-/// row, and a truncating panel carries the `+N more hidden` note.
-pub(crate) fn render_panel(
-    lines: &mut Vec<String>,
-    lane: &BaselineLane,
-    identity: &IdentityMap,
-    filter: Option<&[u32]>,
-    room: usize,
-    width: usize,
-) {
-    let mut rows = lane.panel_rows();
-    if let Some(ids) = filter {
-        rows.retain(|(k, _, _)| ids.contains(k));
-    }
-    // Rows with nothing to say (both directions pre-first-fold) are
-    // noise, not information.
-    rows.retain(|(_, dl, ul)| dl.is_some() || ul.is_some());
-    // Chrome budget (NIGHT-engrave-9): air + grid + header are three
-    // rows before the first verdict; the skip floor lives in `usable`.
-    let fit = room.saturating_sub(3);
-    let usable = if rows.len() > fit {
-        fit.saturating_sub(1) // hold one row back for the hidden note
-    } else {
-        rows.len()
-    };
-    if usable == 0 {
-        return;
-    }
-    // The ruled separator: a section, not the table's tail.
-    lines.push(String::new());
-    lines.push(grid_line(width));
-    lines.push(format!(
-        "  {}",
-        grey("baseline · policy aggregate (8s ring)")
-    ));
-    for (key, dl, ul) in rows.iter().take(usable) {
-        let label = pad_to_width(&super::truncate_label(&identity.label(*key), 24), 24);
-        let body = pair_phrase(*dl, *ul);
-        lines.push(format!("  {label}  {body}"));
-    }
-    if rows.len() > usable {
-        lines.push(format!(
-            "  {}",
-            grey(&format!(
-                "(+{} more hidden — raise the window)",
-                rows.len() - usable
-            ))
-        ));
     }
 }
 

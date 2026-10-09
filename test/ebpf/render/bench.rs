@@ -50,6 +50,7 @@
 //! fallback probe.
 
 use super::BaselineLane;
+use crate::ebpf::render::ScrollState;
 use std::time::{Duration, Instant};
 
 use super::{render_eagle_eyes, SessionState};
@@ -209,6 +210,9 @@ fn frame_bench_eagle() {
     // the TOTAL column and the session ranking are part of the
     // measured render path, not an unmeasured add-on.
     let mut session = SessionState::new();
+    // night-improve-58: the resting scroll state (the harness
+    // renders the pre-scroll layout, A/B-comparable).
+    let mut scroll = ScrollState::new();
 
     let start = Instant::now();
     let mut frames: u64 = 0;
@@ -304,6 +308,7 @@ fn frame_bench_eagle() {
             // captures stay byte-comparable across layout changes —
             // a live clock would drift the footer text between runs.
             Duration::from_secs(90),
+            &mut scroll,
         );
         println_safe!("###FRAME###");
         for line in &lines {
