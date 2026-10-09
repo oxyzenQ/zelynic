@@ -312,6 +312,11 @@ impl FooterCensus {
 /// subordinate block. Rides every tier: it carries the quit key and
 /// the active theme's name, and the theme slot makes every `t`
 /// press readable — one grey row repaints through the diff engine.
+/// night-improve-58 completes the legend with the four arrow keys
+/// (the six-key interactive contract: up/down scroll the focused
+/// section, left/right switch it) — the whole key map on the row
+/// that already owned it, one spelling, the same place the
+/// engrave-3 law pinned it (the legend's ONLY home).
 #[must_use]
 pub(super) fn status_line(interval: Duration) -> String {
     let realtime = if interval.as_secs() >= 1 {
@@ -322,7 +327,7 @@ pub(super) fn status_line(interval: Duration) -> String {
     format!(
         "  {}",
         grey(&format!(
-            "{realtime} - theme {} - q quit - t theme",
+            "{realtime} - theme {} - q quit - t theme - ↑↓ scroll - ←→ section",
             crate::output::theme::active().name()
         ))
     )

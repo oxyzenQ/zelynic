@@ -910,19 +910,26 @@ rates and its accumulated TOTAL — no more collapsing to "waiting
 for traffic..." once traffic has been seen), with per-cgroup detail
 lines naming the processes and remote endpoints inside.
 
-**No TUI — on purpose (NIGHT-dinner-29).** A TUI is an interactive
-application: menus to walk, a cursor to steer, screens inside the
-screen, commands to memorize — an interface you operate. zelynic
-wants none of that. The live monitor is a REPORT that draws itself:
-one ranked frame, refreshed on the interval, honest at every
-refresh. The word "interactive" above means exactly one thing — the
-session needs a live terminal for its two keys (`q` quit, `t`
-theme), not an interface to play. Nothing to navigate, nothing to
-select, nothing to configure mid-session: watching is reading, not
-playing. The moment you want to ACT on what the frame shows, that
-is another command in another terminal — `strict`, `block`,
-`rates` — the monitor's job is to show the data, the CLI's job is
-to move it, and the display never becomes the game.
+**No BLOAT TUI — on purpose (NIGHT-dinner-29, re-cut by
+night-improve-58).** A bloat TUI is an interactive application:
+menus to walk, a cursor to steer, screens inside the screen,
+commands to memorize — an interface you operate. zelynic refuses
+the genre, not the keyboard: the live monitor is a REPORT that
+draws itself — one ranked frame, refreshed on the interval, honest
+at every refresh — with exactly six keys (night-improve-58): `q`
+quit, `t` theme, up/down scroll the focused section, left/right
+switch it (left is always the `top process` table, right always the
+baseline police panel — the `▸` gutter marker names the section the
+arrows steer). The scroll is the owner's own call: on a server or
+desktop with a standard-height terminal, "raise the window" was the
+old advice for rows the frame cut — the arrows walk them instead,
+the terminal keeps the space it has. Nothing to navigate beyond
+that, nothing to select, nothing to configure mid-session: watching
+is still reading, not playing. The moment you want to ACT on what
+the frame shows, that is another command in another terminal —
+`strict`, `block`, `rates` — the monitor's job is to show the data,
+the CLI's job is to move it, and the display never becomes the
+game.
 
 #### The baseline lane (NIGHT-improve-1a, EAGLE EYES V2)
 
@@ -1251,7 +1258,7 @@ the `s` short alias the CLI already carries, and
 the engraved default rate — a named, documented constant, the one
 fixed suggestion value on a line whose every other fact is derived
 live), one blank of air, the status line — the frame's legend `1s
-realtime - theme netrunner - q quit - t theme` (NIGHT-engrave-2),
+realtime - theme netrunner - q quit - t theme - ↑↓ scroll - ←→ section` (NIGHT-engrave-2, completed by night-improve-58),
 grey, riding every compression tier — the owner's NIGHT-engrave-3
 gap, and the signature copyright as the frame's last row. The
 census, the consumer autodetect, and the limit suggestion retired
@@ -1326,7 +1333,7 @@ NIGHT-engrave-7 frontier five: `cafe`, `server`, `moonlight`,
 masterclass purple `curiosity`), the
 cosmostrix cycle contract. A theme change repaints within the same
 50ms wake and the footer's status line names the active theme
-(`1s realtime - theme atomic - q quit - t theme`, NIGHT-engrave-2's
+(`1s realtime - theme atomic - q quit - t theme - ↑↓ scroll - ←→ section`, NIGHT-engrave-2's
 relocated legend — and since NIGHT-engrave-3 the title bar's
 top-right hint is retired, so the status line is the legend's ONLY
 home); the theme lives
@@ -1497,7 +1504,7 @@ with what the renderer draws.
 │        ├ 104.18.32.7:443 [dl 620.4 MB | ul 31.2 MB]                          │
 │        └ 104.18.32.115:443 [dl 190.1 MB | ul 14.8 MB]                        │
 │   3  cg:73511 (curl)                                —          —     4.2 MB  │
-│  (+19 more hidden — raise the window)                                       │
+│  (+19 more — ↑↓ scroll)                                                     │
 │──────────────────────────────────────────────────────────────────────────────│
 │  top consumer is brave                                                      │
 │  1.2K packets + 22 cgroups                                                  │
@@ -1506,7 +1513,7 @@ with what the renderer draws.
 │  total avg dl | ul = 2.9 MB/s | 143.6 KB/s                                  │
 │  limit target with 'sudo zelynic s brave 100kb'                             │
 │                                                                              │
-│  1s realtime - theme netrunner - q quit - t theme                           │
+│  1s realtime - theme netrunner - q quit - t theme - ↑↓ scroll - ←→ section  │
 │                                                                              │
 │  v11.0.0-beta.1 (a1b2c3d) by oxyzenQ                                        │
 ╰──────────────────────────────────────────────────────────────────────────────╯
@@ -1531,7 +1538,7 @@ The ranked table:
 | `total` | Session-accumulated bytes for that cgroup (download + upload since the monitor started) — the ranking key. |
 | Label | The cgroup's identity: `cg:<id> (<comm>)`, with a `+N` suffix when more than one process holds sockets inside — `(brave +22)` reads "the brave cgroup, 23 socket-holding processes: brave plus 22 more". |
 | Detail tree | The socket-holding processes inside the cgroup, grey: one displayable endpoint renders inline (`└ brave (4242) → 142.250.185.78:443`); a multi-socket process gets a header carrying its count (`└ firefox (4242) 3 sockets:`) with the two hungriest endpoints as children — the cap ranks bytes-desc (NIGHT-hunt-38), so what it hides is never the answer. UDP endpoints are tagged (`udp`), saturated sockets carry `[busy]`. Established TCP and connected UDP only — listeners and TIME_WAIT are noise, filtered. Each endpoint carries its own byte figures when the join resolved them (`[dl X | ul Y]` — **dl** = download, **ul** = upload, both lowercase L: the same two-letter vocabulary the rate columns and the footer's speed pair speak; the figures are that endpoint's bytes since the monitor started, NIGHT-boost-26) — a socket that moved nothing keeps its lean row. |
-| Hidden note | `(+N more hidden — raise the window)`: the window IS the budget (no `--limit`); the count rides the same SI compact ladder as the census. |
+| Scroll note | `(-N above · )+M more — ↑↓ scroll` (night-improve-58): the window IS the budget (no `--limit`) and the arrows walk it — the counts name the rows above the window and the rows the room cut; the count rides the same SI compact ladder as the census. |
 
 The pinned footer — the frame's dashboard, in the owner's exact line
 order. Every figure names its horizon and scope:
@@ -1544,7 +1551,7 @@ order. Every figure names its horizon and scope:
 | `total max dl | ul = 24.6 MB/s \| 1.2 MB/s` | The session's PEAK per-direction rate: running maxima of the per-frame watched-set rates, each peak divided by the span IT was measured over at fold time (NIGHT-hunt-38 — a historical peak renders at its own span forever; a later frame's span jitter can never restate it) — never reset, the session horizon. Honest zeroes at rest (`0 B/s`). |
 | `total avg dl | ul = 2.9 MB/s \| 143.6 KB/s` | The session's average per-direction rate: the same per-direction totals the grand sums, divided by the SAME uptime the total row renders — the three lines of the paragraph share their legs and their clock, so they can never disagree. |
 | `limit target with 'sudo zelynic s brave 100kb'` | The action: a ready-to-paste command for the consumer the headline just named — the `s` short alias, and the `100kb` engraved default (the one fixed suggestion value on a line whose every other fact is derived live). The command rides the ACTIVE theme's brand tier — the frame's two living accents, the thing to read and the thing to act on. |
-| status line | The legend: `1s realtime - theme netrunner - q quit - t theme` — the poll interval, the active theme's name, the quit key, the theme key. Rides every compression tier. |
+| status line | The legend: `1s realtime - theme netrunner - q quit - t theme - ↑↓ scroll - ←→ section` — the poll interval, the active theme's name, and the whole six-key map (night-improve-58): quit, theme, the scroll arrows, the section arrows. Rides every compression tier. |
 | Build stamp | `v11.0.0-beta.1 (a1b2c3d) by oxyzenQ` — version, git hash, author, brand purple: the frame's quiet closing paragraph. |
 | `(identities unresolved — labels show raw cgroup IDs)` | The rare honesty note: the /proc walk found no identities this frame, so labels render raw IDs. It rides only when true. |
 
@@ -1637,7 +1644,7 @@ sudo zelynic strict firefox -d 5mb -u 500kb
 **Focus a noisy background updater:**
 
 ```bash
-sudo zelynic eagle-eyes               # ranked; raise the window for more
+sudo zelynic eagle-eyes               # ranked; ↑/↓ scrolls, ←/→ switches section
 sudo zelynic eagle-eyes 8066          # zoom in, see endpoints (q to quit)
 sudo zelynic ee 8066 --depth          # who runs it, from where, since when
 sudo zelynic strict 8066 50kb          # target the cgroup id directly

@@ -145,7 +145,7 @@ pub fn handle_eagle_eyes(
     use crate::ebpf::limiter::Target;
     use crate::ebpf::loader::Observer;
     use crate::ebpf::render::{
-        loading_frame, render_eagle_eyes, BaselineLane, FrameGeometry, SessionState,
+        loading_frame, render_eagle_eyes, BaselineLane, FrameGeometry, ScrollState, SessionState,
     };
     use crate::terminal;
     use std::time::Duration;
@@ -314,7 +314,17 @@ pub fn handle_eagle_eyes(
     // by a double-wide span — the nominal-interval era doubled the
     // very spike it was recovering from.
     let mut last_poll = std::time::Instant::now();
-    monitor.run(interval, |lines| {
+    // night-improve-58: the scroll state — the six-key interactive
+    // contract's memory (which section the arrows steer, each
+    // section's window). Owned HERE, outside the render closure:
+    // the loop's classified actions arrive as the closure's second
+    // argument, the closure steps the state, the renderers clamp
+    // the windows against the rows the frame actually holds. The
+    // resting state (top process focused, both windows at their
+    // tops) renders the same frame the pre-scroll monitor owned,
+    // plus the focus marker the key map earns.
+    let mut scroll = ScrollState::new();
+    monitor.run(interval, |lines, action| {
         // One-frame tolerance, not a swallow bug (NIGHT-optimized-2
         // audit): the opening poll below hard-failed on any broken
         // map, so an Err here is a transient read. unwrap_or_default
@@ -362,6 +372,11 @@ pub fn handle_eagle_eyes(
         // and the observer's identity, which the poll above lazily
         // refreshed this frame.
         baseline.retire_dead(observer.identity(), &summary);
+        // night-improve-58: the classified action steps the scroll
+        // state BEFORE the render (the loop forced this beat for
+        // exactly this action — the scroll answers at the wake
+        // cadence, not the interval's).
+        scroll.apply(action);
         render_eagle_eyes(
             lines,
             &summary,
@@ -373,6 +388,7 @@ pub fn handle_eagle_eyes(
             &mut session,
             &baseline,
             started.elapsed(),
+            &mut scroll,
         );
     });
 

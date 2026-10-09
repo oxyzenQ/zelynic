@@ -11,6 +11,7 @@
 //! title bar and the pinned footer are byte-identical).
 
 use super::*;
+use crate::ebpf::render::ScrollState;
 
 /// Both frames the morph pin compares carry the status line, whose
 /// theme slot follows the process-global theme — other pins
@@ -163,6 +164,7 @@ fn the_first_live_frame_morphs_only_the_note_row() {
             &crate::ebpf::render::BaselineLane::new(),
             Duration::ZERO,
             geo,
+            &mut ScrollState::new(),
         );
         let loading = loading_frame(interval, geo);
         (loading, live)

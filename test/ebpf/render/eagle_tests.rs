@@ -18,6 +18,7 @@
 use super::*;
 use crate::ebpf::identity::ProcessIdentity;
 use crate::ebpf::loader::CgroupDelta;
+use crate::ebpf::render::ScrollState;
 use std::time::Duration;
 
 fn identity_with(comms: &[(&str, u32)]) -> IdentityMap {
@@ -115,6 +116,7 @@ fn header_and_total_column_carry_symmetric_air() {
         &BaselineLane::new(),
         Duration::from_secs(70),
         classic(),
+        &mut ScrollState::new(),
     );
     let joined = lines.join("\n");
     // The header: title at the canonical text column (rail + the
@@ -124,7 +126,7 @@ fn header_and_total_column_carry_symmetric_air() {
         .find(|l| l.contains("top process"))
         .unwrap_or_else(|| panic!("no header row in: {joined}"));
     assert!(
-        header.starts_with(" │  top process"),
+        header.starts_with(" │▸ top process"),
         "engrave-4: the title starts at the canonical text column          (inset + rail + gutter, NIGHT-engrave-8): {header}"
     );
     // The header's TOTAL title closes at the right gutter's edge —
@@ -212,6 +214,7 @@ fn rank_is_the_session_accumulation() {
         &BaselineLane::new(),
         Duration::from_secs(70),
         classic(),
+        &mut ScrollState::new(),
     );
     let joined = lines.join("\n");
     // cg:7001 moved 995 KB this frame vs cg:7002's 15 KB — rank 1
@@ -266,6 +269,7 @@ fn quiet_frame_holds_the_board() {
         &BaselineLane::new(),
         Duration::from_secs(70),
         classic(),
+        &mut ScrollState::new(),
     );
     assert!(lines.iter().any(|l| l.contains("cg:7001")));
 
@@ -283,6 +287,7 @@ fn quiet_frame_holds_the_board() {
         &BaselineLane::new(),
         Duration::from_secs(70),
         classic(),
+        &mut ScrollState::new(),
     );
     let quiet_row = quiet
         .iter()
@@ -327,6 +332,7 @@ fn takeover_recrowns_rank1() {
         &BaselineLane::new(),
         Duration::from_secs(70),
         classic(),
+        &mut ScrollState::new(),
     );
     // B accumulates past A.
     let mut lines = Vec::new();
@@ -342,6 +348,7 @@ fn takeover_recrowns_rank1() {
         &BaselineLane::new(),
         Duration::from_secs(70),
         classic(),
+        &mut ScrollState::new(),
     );
     let rank1 = lines
         .iter()
@@ -395,6 +402,7 @@ fn single_resolved_target_takes_focus_view() {
         &BaselineLane::new(),
         Duration::from_secs(70),
         classic(),
+        &mut ScrollState::new(),
     );
     let joined = lines.join("\n");
     assert!(
@@ -450,6 +458,7 @@ fn rate_columns_divide_by_the_measured_span_not_the_cadence() {
             &BaselineLane::new(),
             Duration::from_secs(70),
             classic(),
+            &mut ScrollState::new(),
         );
         let joined = lines.join("\n");
         let rank1 = lines

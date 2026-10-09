@@ -101,13 +101,15 @@ Everything else about the output is aggressively boring: deterministic
 layouts, terminal state restored through layered reset contracts with
 an emergency five-layer `--reset-terminal` behind them, and no
 animation on paths an operator might script. The live monitor holds
-the same line from the other side (NIGHT-dinner-29): it is not a
-TUI, because a TUI is an interactive application — menus, cursor
-navigation, screens inside the screen — and zelynic refuses the
-genre; the monitor simply shows the data, it is not a game the
-operator plays (the whole interactive surface is two keys, `q` and
-`t`; acting on what the frame shows is another CLI verb, never an
-in-app gesture). Terminal corruption is the one bug class a
+the same line from the other side (NIGHT-dinner-29, re-cut by
+night-improve-58): it is no BLOAT TUI, because a bloat TUI is an
+interactive application — menus, cursor navigation, screens inside
+the screen — and zelynic refuses the genre; the monitor simply
+shows the data, it is not a game the operator plays (the whole
+interactive surface is six keys — `q`, `t`, and the four arrows
+that scroll the focused section and switch it, the minimal TUI
+focus monitoring earns; acting on what the frame shows is another
+CLI verb, never an in-app gesture). Terminal corruption is the one bug class a
 monitoring tool cannot apologize its way out of.
 
 ## 7. Gates Are the Culture

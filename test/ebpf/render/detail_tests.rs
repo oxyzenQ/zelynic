@@ -8,6 +8,7 @@
 
 use super::*;
 use crate::ebpf::render::BaselineLane;
+use crate::ebpf::render::ScrollState;
 
 /// Label enrichment (NIGHT-hunt-8): multi-tenant cgroups say so.
 #[test]
@@ -434,6 +435,7 @@ fn detail_hides_and_cuts_on_narrow_frames() {
             width: 50,
             height: 24,
         },
+        &mut ScrollState::new(),
     );
     assert!(
         !narrow.iter().any(|l| l.contains("└")),
@@ -466,6 +468,7 @@ fn detail_hides_and_cuts_on_narrow_frames() {
             width: 57,
             height: 24,
         },
+        &mut ScrollState::new(),
     );
     let detail = snug
         .iter()

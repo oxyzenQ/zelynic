@@ -10,6 +10,7 @@
 use super::*;
 use crate::ebpf::render::eagle::render_eagle_eyes_at;
 use crate::ebpf::render::BaselineLane;
+use crate::ebpf::render::ScrollState;
 use crate::ebpf::render::{FrameGeometry, SessionState};
 use crate::output::theme::Theme;
 use std::time::Duration;
@@ -293,6 +294,7 @@ fn full_frame_wears_the_border() {
             width: 80,
             height: 24,
         },
+        &mut ScrollState::new(),
     );
     assert_eq!(
         lines.len(),
@@ -342,6 +344,7 @@ fn full_frame_wears_the_border() {
             width: 80,
             height: 24,
         },
+        &mut ScrollState::new(),
     );
     crate::output::theme::set(Theme::Netrunner);
     // The rails follow the ACTIVE theme: cycling repaints color and

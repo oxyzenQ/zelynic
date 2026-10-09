@@ -20,6 +20,7 @@ use crate::ebpf::identity::{IdentityMap, ProcessIdentity};
 use crate::ebpf::loader::{CgroupDelta, CounterSummary};
 use crate::ebpf::render::eagle::render_eagle_eyes_at;
 use crate::ebpf::render::BaselineLane;
+use crate::ebpf::render::ScrollState;
 use crate::ebpf::render::{FrameGeometry, SessionState};
 use std::time::Duration;
 
@@ -91,6 +92,7 @@ fn eagle_frame_builds_lines() {
         &BaselineLane::new(),
         Duration::from_secs(70),
         classic(),
+        &mut ScrollState::new(),
     );
     assert_eq!(lines.len(), 24, "the frame is pinned to the height");
     assert!(
@@ -179,7 +181,7 @@ fn eagle_frame_builds_lines() {
     );
     assert_eq!(
         lines[20],
-        flanked("  1s realtime - theme netrunner - q quit - t theme"),
+        flanked("  1s realtime - theme netrunner - q quit - t theme - ↑↓ scroll - ←→ section",),
         "status line (NIGHT-engrave-2), the legend's only home since the engrave-3 title trim"
     );
     assert_eq!(
@@ -237,6 +239,7 @@ fn footer_layout_pins_to_the_bottom() {
         &BaselineLane::new(),
         Duration::from_secs(70),
         classic(),
+        &mut ScrollState::new(),
     );
     let joined = lines.join("\n");
     // The owner's engrave-4 order, as positions: headline, census,
@@ -329,7 +332,7 @@ fn footer_layout_pins_to_the_bottom() {
     );
     assert_eq!(
         lines[20],
-        flanked("  1s realtime - theme netrunner - q quit - t theme"),
+        flanked("  1s realtime - theme netrunner - q quit - t theme - ↑↓ scroll - ←→ section",),
         "status line (NIGHT-engrave-2)"
     );
     assert_eq!(
@@ -409,6 +412,7 @@ fn footer_discovery_pair_renders_with_the_autodetect_name() {
         &BaselineLane::new(),
         Duration::from_secs(70),
         classic(),
+        &mut ScrollState::new(),
     );
     let joined = lines.join("\n");
     assert!(

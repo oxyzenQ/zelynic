@@ -13,6 +13,7 @@ use crate::ebpf::identity::{IdentityMap, ProcessIdentity};
 use crate::ebpf::loader::{CgroupDelta, CounterSummary};
 use crate::ebpf::render::eagle::render_eagle_eyes_at;
 use crate::ebpf::render::BaselineLane;
+use crate::ebpf::render::ScrollState;
 use crate::ebpf::render::{FrameGeometry, SessionState};
 use std::time::Duration;
 
@@ -105,6 +106,7 @@ fn footer_tiers_degrade_in_the_engraved_order() {
             &BaselineLane::new(),
             Duration::from_secs(70),
             FrameGeometry { width: 80, height },
+            &mut ScrollState::new(),
         );
         lines
     };

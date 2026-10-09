@@ -152,9 +152,17 @@ pub(crate) fn quit_from_chunk(buf: &[u8]) -> bool {
 /// What one drained input chunk asks the monitor to do
 /// (NIGHT-boost-18; the uppercase twin retired by NIGHT-engrave-2):
 /// 'q' quits, 't' cycles the theme forward — one key, one
-/// direction, modulo wraparound. Everything else is inert, on the
-/// same first-byte-only contract as the quit decision: a 't' riding
-/// inside a mouse SGR payload never cycles anything.
+/// direction, modulo wraparound. night-improve-58 adds the four
+/// arrow keys, both spellings (CSI `ESC [ A..D` and the
+/// application-keypad SS3 `ESC O A..D`): up/down scroll the
+/// focused section, left/right are the section keys — left is
+/// ALWAYS the top process table, right ALWAYS the baseline police
+/// panel, idempotent (the owner's exact key map — six keys total:
+/// q, t, up/down, left/right). Everything else is inert, on the
+/// same leading-sequence contract as the quit decision: a 't'
+/// riding inside a mouse SGR payload never cycles anything, and a
+/// lone ESC (indistinguishable from the head of every longer
+/// sequence, the hunt-16 law) never scrolls.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum InputAction {
     /// Nothing asked — drain and carry on.
@@ -163,17 +171,36 @@ pub(crate) enum InputAction {
     Quit,
     /// 't': cycle the theme one step forward.
     ThemeNext,
+    /// Up arrow: scroll the focused section one row up.
+    ScrollUp,
+    /// Down arrow: scroll the focused section one row down.
+    ScrollDown,
+    /// Left arrow: focus the top process table (idempotent).
+    SectionPrev,
+    /// Right arrow: focus the baseline police panel (idempotent).
+    SectionNext,
 }
 
-/// Classify one drained input chunk by its leading byte. The quit
-/// decision delegates to the pinned [`quit_from_chunk`] primitive —
-/// one contract, one place, both pinned.
+/// Classify one drained input chunk by its leading sequence. The
+/// quit decision delegates to the pinned [`quit_from_chunk`]
+/// primitive — one contract, one place, both pinned. The arrow
+/// arms match the WHOLE leading sequence, never the lone ESC head:
+/// mouse SGR (`ESC [ <`), OSC replies (`ESC ]`), and every
+/// parameterized CSI (a Shift+Up rides `ESC [ 1;2A` — its third
+/// byte is a digit, not the arrow letter) stay inert; the plain
+/// keys keep their first-byte law (a chunk led by 'q' quits, one
+/// led by 't' cycles, whatever rides behind is the sequence
+/// body's own business).
 pub(crate) fn input_action_from_chunk(buf: &[u8]) -> InputAction {
     if quit_from_chunk(buf) {
         return InputAction::Quit;
     }
-    match buf.first() {
-        Some(b't') => InputAction::ThemeNext,
+    match buf {
+        [b't', ..] => InputAction::ThemeNext,
+        [0x1b, b'[', b'A', ..] | [0x1b, b'O', b'A', ..] => InputAction::ScrollUp,
+        [0x1b, b'[', b'B', ..] | [0x1b, b'O', b'B', ..] => InputAction::ScrollDown,
+        [0x1b, b'[', b'C', ..] | [0x1b, b'O', b'C', ..] => InputAction::SectionNext,
+        [0x1b, b'[', b'D', ..] | [0x1b, b'O', b'D', ..] => InputAction::SectionPrev,
         _ => InputAction::None,
     }
 }
@@ -222,7 +249,10 @@ pub(crate) fn drain_input(ask: &mut raw::BgAsk) -> (InputAction, bool) {
 }
 
 /// The monitor loop shared by every session shape (NIGHT-boost-25
-/// lifted it out of `run_alt`): q-only quit, t theme cycle, 50ms
+/// lifted it out of `run_alt`): q-only quit, t theme cycle, the
+/// night-improve-58 arrows (the render closure receives every
+/// action and owns what it means — the scroll state is the
+/// eagle-eyes domain, the terminal layer only classifies), 50ms
 /// wakes with the resize-reactive force render, the guard beats,
 /// the diff-based emission, the live background follow
 /// (NIGHT-boost-32) — and the quiet death on a dead sink
@@ -230,7 +260,7 @@ pub(crate) fn drain_input(ask: &mut raw::BgAsk) -> (InputAction, bool) {
 /// loop breaks, the alt screen restores via Drop), so a piped
 /// monitor whose reader left can never spin forever holding root,
 /// eBPF, and a /proc walk cadence.
-fn run_loop<F: FnMut(&mut Vec<String>)>(
+fn run_loop<F: FnMut(&mut Vec<String>, InputAction)>(
     screen: &mut DiffScreen,
     lines: &mut Vec<String>,
     guard: bool,
@@ -267,17 +297,29 @@ fn run_loop<F: FnMut(&mut Vec<String>)>(
     let mut bg_ask = raw::BgAsk::new();
     let mut last_ask = crate::terminal::beat_epoch(raw::BG_ASK_INTERVAL);
     loop {
-        // NIGHT-boost-18: one drain, two recognized keys — q
+        // NIGHT-boost-18: one drain, six recognized keys — q
         // quits, t cycles the theme (the uppercase twin retired
-        // by NIGHT-engrave-2). The cycle result and the live
-        // background answer both feed the beat scheduler's force
-        // flag below: same-wake repaint.
+        // by NIGHT-engrave-2), and the night-improve-58 arrows
+        // reach the render closure as actions (the closure owns
+        // the scroll state they move — the terminal layer
+        // classifies, the app decides). The cycle result, the
+        // live background answer, and every scroll action feed
+        // the beat scheduler's force flag below: same-wake
+        // repaint, the scroll answers at the wake cadence.
         let (action, bg_switched) = drain_input(&mut bg_ask);
+        let mut scrolled = false;
         let theme_switched = match action {
             InputAction::Quit => break,
             InputAction::ThemeNext => {
                 crate::output::theme::cycle(1);
                 true
+            }
+            InputAction::ScrollUp
+            | InputAction::ScrollDown
+            | InputAction::SectionPrev
+            | InputAction::SectionNext => {
+                scrolled = true;
+                false
             }
             InputAction::None => false,
         };
@@ -286,11 +328,11 @@ fn run_loop<F: FnMut(&mut Vec<String>)>(
         // for one wake — the screen holds its last frame until the
         // probe recovers, no forced wrong-size render.
         let geo = winsize().or(last_geo);
-        let force = geo != last_geo || theme_switched || bg_switched;
+        let force = geo != last_geo || theme_switched || bg_switched || scrolled;
         match next_beat(last_render, last_guard, refresh_interval, guard, force) {
             Beat::Render => {
                 lines.clear();
-                render(lines);
+                render(lines, action);
                 let mut stdout = RawStdout;
                 screen.emit(lines, &mut stdout);
                 // The quiet death (NIGHT-ultimate-2): a failed
@@ -435,9 +477,18 @@ impl Monitor {
     /// Run the live loop. Consumes the session; the alt screen
     /// restores when it drops. Same contract the monitor loop always
     /// carried: exits on q (the ONLY quit key, NIGHT-hunt-16), t
-    /// cycles the theme, and the render closure refills the line
-    /// vector each beat — the diff engine emits only what changed.
-    pub fn run<F: FnMut(&mut Vec<String>)>(mut self, refresh_interval: Duration, render: F) {
+    /// cycles the theme, and since night-improve-58 the render
+    /// closure receives every classified [`InputAction`] — the
+    /// arrows ride to the app, which owns what they move (the
+    /// eagle-eyes scroll state: up/down scroll the focused section,
+    /// left/right switch it, six keys total) — and the render
+    /// closure refills the line vector each beat, the diff engine
+    /// emitting only what changed.
+    pub fn run<F: FnMut(&mut Vec<String>, InputAction)>(
+        mut self,
+        refresh_interval: Duration,
+        render: F,
+    ) {
         run_loop(
             &mut self.screen,
             &mut self.lines,
