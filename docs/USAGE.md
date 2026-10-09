@@ -664,7 +664,7 @@ the owner's duration-only revision): a blocked row with a window
 lifts itself — `b shorts --during 8h` blocks for eight hours
 and stands down when they are over (no daemon, no cron; the same
 one-shape grammar the strict family takes: `<N><unit>`, units
-s m h d mn y, bounds 1s..10y). The KERNEL decides when the window
+s m h d mn y, bounds 1s..5y). The KERNEL decides when the window
 is over; the ROW is collected by the next zelynic visit — every
 apply, and since NIGHT-hunt-30 the read visits too (`status`,
 `recover`: the commands the owner actually runs to check state),
@@ -1999,6 +1999,64 @@ Field shapes:
 {"watchdog":"enforcing","active_limits":2,"limits":[{"cgroup_id":18571,"label":"brave","download_bps":100000,"upload_bps":100000,"packets_allowed":232,"packets_dropped":4718,"bytes_allowed":29520,"bytes_dropped":8031234}]}
 ```
 
+The complete field reference (night-improve-60 — the owner read
+`window_secs: 8` against a `--during 5h` policy and could not tell
+which number owned the expiry; every field a limit row can carry,
+one table, script-facing):
+
+| field | shape | what it is |
+|-------|-------|------------|
+| `watchdog` | `"enforcing"` \| `"active"` \| `"expired"` | the BPF auto-expiry deadline's state: `enforcing` when no deadline is armed (limits without `--during` never expire), `active` while the deadline is in the future, `expired` once it passed |
+| `active_limits` | number | how many limit ROWS follow (one per policed cgroup — a cgroup with both directions policed is still one row) |
+| `limits[].cgroup_id` | number | the cgroup v2 id the policy is pinned to |
+| `limits[].label` | string | the resolved identity, majority vote over the live processes inside the cgroup (`cg:89976 (brave)`) |
+| `limits[].download_bps` / `upload_bps` | number \| `null` | the enforced rate per direction; `null` when that direction is unlimited (never a fabricated zero) |
+| `limits[].download_per_socket` / `upload_per_socket` | boolean | present only when the direction was applied `--per-socket`: the rate names a PER-CONNECTION budget, not the cgroup cap |
+| `limits[].floor_bps` / `ceil_bps` | number | the per-subprocess guarantee pair, present when both directions carry the SAME pair |
+| `limits[].download_floor_bps` / `download_ceil_bps` / `upload_floor_bps` / `upload_ceil_bps` | number | the per-subprocess pair when the directions DIFFER (the split shape; the merged pair above is then absent) |
+| `limits[].packets_allowed` / `packets_dropped` | number | cumulative packet counts under the limit (both directions booked into one row) |
+| `limits[].bytes_allowed` / `bytes_dropped` | number | cumulative BYTES: what passed enforcement, what the token bucket discarded. Lifetime counters — re-applying `strict` keeps them continuous; `unstrict` reclaims the row |
+| `limits[].rate_ring` | object | the last eight seconds' per-second delivered bytes, per direction — a traffic MONITOR, not the policy window (see the callout below) |
+| `limits[].window` | object | the row's `--during` policy window — the thing that expires (see the callout below) |
+
+**`rate_ring.window_secs` is not the policy window — read this
+before scripting against it.** The two `window` words live in
+different objects and own different clocks:
+
+- `limits[].rate_ring.window_secs` is ALWAYS `8` — the SPAN of the
+  traffic history: eight one-second byte slots, oldest first. It
+  never counts down, never expires anything, and reads `8` whether
+  the policy lives 5 minutes or 5 hours. A `--during 5h` policy
+  that shows `"window_secs": 8` is NOT expired or shortened — the
+  field simply has nothing to do with the policy's lifetime (it is
+  the denominator for `sum(bytes) / window_secs`, the row's average
+  delivered rate over the last eight seconds).
+- `limits[].window` is the policy's own clock: `kind` (`"span"`),
+  `state` (`"active"` / `"dormant"` / `"outside"` / `"expired"` —
+  `active` means the policy is enforcing NOW), and the WALL instants
+  `start_wall_ns` / `end_wall_ns` (nanoseconds since the epoch —
+  the same pair the human table's `window: until ... (5h left)`
+  line renders). The remaining lifetime is
+  `end_wall_ns` minus now; nothing in `rate_ring` changes it.
+
+jq recipes for the two clocks (the seconds-left readout the human
+table prints, and the ring's average rate):
+
+```bash
+# Seconds left on every windowed policy (the "(5h left)" line, scripted).
+sudo zelynic status --print-json | jq '
+  .limits[] | select(.window != null) |
+  {label, kind: .window.kind, state: .window.state,
+   seconds_left: ((.window.end_wall_ns / 1e9) - now | floor)}'
+
+# Average delivered rate over the ring's own horizon, per direction.
+sudo zelynic status --print-json | jq '
+  .limits[] | select(.rate_ring != null) |
+  {label,
+   avg_dl_bps: ((.rate_ring.download.bytes // [] | add // 0) / .rate_ring.window_secs),
+   avg_ul_bps: ((.rate_ring.upload.bytes   // [] | add // 0) / .rate_ring.window_secs)}'
+```
+
 `rate_ring` (NIGHT-upgrade-charger-core-3a, EAGLE EYES V1) joins a
 limit row when the pinned object keeps a time-series ring for its
 cgroup AND that cgroup has booked traffic under the policy — the
@@ -2113,7 +2171,7 @@ report does (`4755` for a setuid binary).
 `doctor --print-json` reports the capability check fields (kernel,
 cgroup v2, BPF fs, pins). Run it once to see the shape on your distro.
 
-A missing limit list with `"active_limits": 0` and `watchdog: "clean"`
+A missing limit list with `"active_limits": 0` and `watchdog: "enforcing"`
 means exactly that: nothing is limited right now.
 
 ---

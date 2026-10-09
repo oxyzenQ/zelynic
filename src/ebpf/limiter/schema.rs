@@ -399,7 +399,7 @@
 ///     under-enforce by at most the margin, never over-enforce).
 ///     The grammar (owner decision, design brief section 8, then
 ///     revised duration-only): --during 2h 20d (duration, s m h
-///     d mn y, 1s..10y) — the window and date forms the first
+///     d mn y, 1s..5y) — the window and date forms the first
 ///     decision carried are gone from the flag, but the row kinds
 ///     stay readable (older builds' pinned rows and the restore
 ///     lane's state files still carry them; a grammar change

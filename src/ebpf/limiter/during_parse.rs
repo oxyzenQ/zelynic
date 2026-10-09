@@ -11,7 +11,7 @@
 //! section 8 record):
 //!
 //!   --during 2h / 20d      a duration from apply: s m h d mn y,
-//!                           1s floor, 10y ceiling, one value one
+//!                           1s floor, 5y ceiling, one value one
 //!                           unit; months are 30 days and years
 //!                           365 — the fixed-calendar translation a
 //!                           daemonless CLI can make with no tzdata
@@ -35,9 +35,12 @@ use anyhow::{anyhow, bail, Result};
 /// Duration floor: 1 second (the owner's grammar bound).
 pub const DURING_MIN_NS: u64 = 1_000_000_000;
 
-/// Duration ceiling: 10 years (the owner's grammar bound) — ten
-/// fixed 365-day years, the same calendar the units below use.
-pub const DURING_MAX_NS: u64 = 10 * 365 * 86_400 * 1_000_000_000;
+/// Duration ceiling: 5 years (the owner's night-improve-60 trim,
+/// was 10y) — five fixed 365-day years, the same calendar the
+/// units below use. A longer promise is a forever-limit wearing a
+/// date; `--during` is for trials and time-boxes, and the block
+/// lane's own suggestion carries the forever spelling.
+pub const DURING_MAX_NS: u64 = 5 * 365 * 86_400 * 1_000_000_000;
 
 pub(super) const NS_PER_SEC: u64 = 1_000_000_000;
 pub(super) const NS_PER_DAY: u64 = 86_400 * NS_PER_SEC;
@@ -62,7 +65,7 @@ pub enum DuringSpec {
 /// family so one spelling teaches the whole flag (pure, pinned).
 fn grammar_help() -> &'static str {
     "the --during grammar is: <N><unit> — a duration from the apply instant \
-     (units s, m, h, d, mn, y; bounds 1s..10y)"
+     (units s, m, h, d, mn, y; bounds 1s..5y)"
 }
 
 /// Parse one --during argument. Pure (no clock read — a duration
@@ -97,8 +100,8 @@ pub fn parse_during(spec: &str) -> Result<DuringSpec> {
     parse_duration(s)
 }
 
-/// `2h` / `20d` / `6mn` / `45s` / `10y` — one value, one unit,
-/// bounds 1s..10y. `mn` is checked before `m` (month vs minute);
+/// `2h` / `20d` / `6mn` / `45s` / `5y` — one value, one unit,
+/// bounds 1s..5y. `mn` is checked before `m` (month vs minute);
 /// combined units (`1h30m`) are refused — the grammar stays one
 /// token wide, the masterclass simplicity the owner asked for.
 /// The flag's only shape.
@@ -141,7 +144,7 @@ fn parse_duration(s: &str) -> Result<DuringSpec> {
     }
     if ns > DURING_MAX_NS {
         bail!(
-            "Invalid --during '{s}': the ceiling is 10y — a longer promise \
+            "Invalid --during '{s}': the ceiling is 5y — a longer promise \
              is a forever-limit wearing a date"
         );
     }

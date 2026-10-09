@@ -159,25 +159,36 @@ pub(crate) fn active_limits_line(dl: usize, ul: usize) -> String {
 }
 
 /// A compact human duration for the "(N left)" suffix (pure,
-/// night-during): one unit, floored — 45s, 47m, 3h, 20d, 10y; the
+/// night-during): one unit, CEILED — 45s, 47m, 3h, 20d, 5y; the
 /// sub-minute shapes print seconds so a short trial reads its own
-/// countdown.
+/// countdown. night-improve-60 (the owner's 5h find): a countdown
+/// never understates what remains — a `--during 5h` checked seconds
+/// after apply floored to "4h left" and read like an hour had been
+/// lost, so every tier now rounds UP to the unit it still holds
+/// (4h59m reads "5h", the promise it was set as; an exact 3h reads
+/// "3h").
 pub(crate) fn format_duration_compact(ns: u64) -> String {
     const S: u64 = 1_000_000_000;
     const M: u64 = 60 * S;
     const H: u64 = 60 * M;
     const D: u64 = 24 * H;
     const Y: u64 = 365 * D;
+    /// Ceiling division: the honest countdown rounds the remainder
+    /// up, never away (7s of remainder still buys the next unit);
+    /// saturating so a u64-extreme input can never panic in debug.
+    fn ceil_div(value: u64, unit: u64) -> u64 {
+        value.saturating_add(unit - 1) / unit
+    }
     if ns < M {
-        format!("{}s", ns / S)
+        format!("{}s", ceil_div(ns, S))
     } else if ns < H {
-        format!("{}m", ns / M)
+        format!("{}m", ceil_div(ns, M))
     } else if ns < D {
-        format!("{}h", ns / H)
+        format!("{}h", ceil_div(ns, H))
     } else if ns < Y {
-        format!("{}d", ns / D)
+        format!("{}d", ceil_div(ns, D))
     } else {
-        format!("{}y", ns / Y)
+        format!("{}y", ceil_div(ns, Y))
     }
 }
 

@@ -48,7 +48,7 @@ fn duration_parses_every_unit() {
         ("2h", 7200 * NS_PER_SEC),
         ("20d", 20 * NS_PER_DAY),
         ("6mn", 6 * 30 * NS_PER_DAY),
-        ("10y", 10 * 365 * NS_PER_DAY),
+        ("5y", 5 * 365 * NS_PER_DAY),
     ] {
         assert_eq!(
             parse_during(input).unwrap(),
@@ -138,6 +138,8 @@ fn grammar_refusals_carry_the_block() {
         "500ms",
         "10y1s",
         "10000000000y",
+        "6y",
+        "5y1s",
     ] {
         let err = parse_during(bad)
             .err()
@@ -155,15 +157,15 @@ fn duration_bounds_are_pinned() {
     assert_eq!(DURING_MIN_NS, NS_PER_SEC, "the floor is 1s");
     assert_eq!(
         DURING_MAX_NS,
-        10 * 365 * NS_PER_DAY,
-        "the ceiling is 10 fixed years"
+        5 * 365 * NS_PER_DAY,
+        "the ceiling is 5 fixed years (night-improve-60, was 10)"
     );
     // 0.5s rounds below the floor: refused (not clamped — a clamp
     // would silently mean "not limited").
     assert!(parse_during("0s").is_err());
-    // 10y parses; 11y refuses.
-    assert!(parse_during("10y").is_ok());
-    assert!(parse_during("11y").is_err());
+    // 5y parses; 6y refuses.
+    assert!(parse_during("5y").is_ok());
+    assert!(parse_during("6y").is_err());
     // 1s parses; 999ms is not in the grammar at all.
     assert!(parse_during("1s").is_ok());
 }
