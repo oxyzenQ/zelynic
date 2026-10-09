@@ -2133,10 +2133,17 @@ sockets), never the cgroup cap:
 scan resolved — including any whose comm was unreadable at scan
 time and therefore has no row — while `apps[]` carries the named
 rows, so the pair can differ by the unnamed few; every row's fields
-are complete):
+are complete). night-improve-64 joined the census's second number
+and its honesty flag (additive, trailing): `socket_cgroups` is the
+"M with live sockets" figure the human census line carries beside
+`total`, and `census_complete` is the machine form of the
+partial-census note — `false` when unprivileged, because the socket
+census is per-pid privilege-gated and rows may under-read (other
+users' sockets count zero; the stderr note rides beside the JSON
+for humans, stdout stays byte-clean either way):
 
 ```json
-{"total":142,"apps":[{"process":"brave","cgroup_id":18571,"uid":1000,"processes":4,"sockets":9}]}
+{"total":142,"apps":[{"process":"brave","cgroup_id":18571,"uid":1000,"processes":4,"sockets":9}],"socket_cgroups":57,"census_complete":true}
 ```
 
 `eagle-eyes <target> --depth --print-json` (NIGHT-master-1): one
@@ -2186,8 +2193,25 @@ binary was replaced or removed after the process started. The
 `permission` string carries the special bits the same way the text
 report does (`4755` for a setuid binary).
 
-`doctor --print-json` reports the capability check fields (kernel,
-cgroup v2, BPF fs, pins). Run it once to see the shape on your distro.
+`doctor --print-json` reports the capability check fields — the
+system facts (`system.kernel`, `system.cgroup_v2`,
+`system.cgroup2_mount_path`, `system.bpf_fs_mounted`,
+`system.is_root`), the binary's own verdicts (`build_flavor`:
+`"full-life"` / `"half-life"`; `ebpf_lane`: `"source-built"` /
+`"registry-prebuilt"` / `"dormant (not compiled)"`), the
+`warnings` array, and — night-improve-64, additive — the BPF pin
+lattice's verdict under `pins`: `{"state":"clean"|"active"|"stale","files":N}`
+(the same verdict the human report's "Pins:" line renders —
+`active` means the four enforcement pins are all present, `stale`
+is the partial lattice the `zelynic recover` hint applies to).
+The field is ABSENT where it cannot speak honestly: a half-life
+build owns no lattice, an unprivileged run must not audit root's
+pins, and an unreadable directory is absent too — never a
+fabricated verdict:
+
+```json
+{"system":{"kernel":"6.18.0","cgroup_v2":true,"cgroup2_mount_path":"/sys/fs/cgroup","bpf_fs_mounted":true,"is_root":true},"ebpf_supported":true,"build_flavor":"full-life","ebpf_lane":"source-built","warnings":[],"pins":{"state":"active","files":4}}
+```
 
 A missing limit list with `"active_limits": 0` and `watchdog: "enforcing"`
 means exactly that: nothing is limited right now.

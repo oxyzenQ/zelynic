@@ -62,17 +62,26 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
         // tree (one allocation per node) for the biggest document the
         // CLI emits. Field names and order are the pinned scripting
         // contract (docs/USAGE.md JSON reference).
-        let apps: Vec<AppEntryJson> = entries
-            .iter()
-            .map(|e| AppEntryJson {
-                process: e.comm.clone(),
-                cgroup_id: e.cgroup_id,
-                uid: e.uid,
-                processes: conns.proc_count(e.cgroup_id),
-                sockets: conns.socket_count(e.cgroup_id),
-            })
-            .collect();
-        print_json(&ListAppsJson { total: count, apps });
+        //
+        // night-improve-64: the census's TWO numbers and its honesty
+        // flag join the document (additive, the improve-63 rule) — the
+        // human census line always spoke "N cgroups resolved, M with
+        // live sockets" while the JSON carried only `total`, and the
+        // partial-census disclosure stayed human-only on stderr: a
+        // frontend polling the JSON on a non-root host saw `sockets:
+        // 0` rows with no machine-readable hint that the census is
+        // degraded. `socket_cgroups` carries the second number;
+        // `census_complete` is the machine form of the stderr note
+        // (false = unprivileged, other users' socket counts may read
+        // zero).
+        let json_doc = list_apps_json(
+            &entries,
+            count,
+            socket_cgroups,
+            nix::unistd::geteuid().is_root(),
+            &conns,
+        );
+        print_json(&json_doc);
         return Ok(());
     }
 
@@ -136,6 +145,38 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
 // JSON reference); serialization rides the unified
 // [`crate::output::print_json`] writer.
 
+/// Assemble the list-apps JSON document (pure, night-improve-64:
+/// extracted so the scripting contract — field names, census
+/// semantics, the honesty flag — is unit-pinnable without capturing
+/// stdout, the hunt-22 pattern status_json set). Additive fields ride
+/// the improve-63 rule: they join the END of the document, older
+/// consumers parse the prefix untouched.
+#[cfg(feature = "ebpf")]
+fn list_apps_json(
+    entries: &[&crate::ebpf::identity::ProcessIdentity],
+    total: usize,
+    socket_cgroups: usize,
+    census_complete: bool,
+    conns: &crate::ebpf::connections::ConnectionMap,
+) -> ListAppsJson {
+    let apps: Vec<AppEntryJson> = entries
+        .iter()
+        .map(|e| AppEntryJson {
+            process: e.comm.clone(),
+            cgroup_id: e.cgroup_id,
+            uid: e.uid,
+            processes: conns.proc_count(e.cgroup_id),
+            sockets: conns.socket_count(e.cgroup_id),
+        })
+        .collect();
+    ListAppsJson {
+        total,
+        apps,
+        socket_cgroups,
+        census_complete,
+    }
+}
+
 /// One `apps[]` row of the `list-apps --print-json` document.
 #[cfg(feature = "ebpf")]
 #[derive(serde::Serialize)]
@@ -147,12 +188,24 @@ struct AppEntryJson {
     sockets: usize,
 }
 
-/// The `list-apps --print-json` document: `{"total": N, "apps": []}`.
+/// The `list-apps --print-json` document:
+/// `{"total": N, "apps": [], "socket_cgroups": M, "census_complete": bool}`
+/// (night-improve-64 added the trailing pair, additive).
 #[cfg(feature = "ebpf")]
 #[derive(serde::Serialize)]
 struct ListAppsJson {
     total: usize,
     apps: Vec<AppEntryJson>,
+    /// The census's second number — cgroups with at least one live
+    /// socket — the figure the human table's grey census line has
+    /// always carried beside `total`. night-improve-64, additive.
+    socket_cgroups: usize,
+    /// The machine form of the partial-census disclosure
+    /// (night-improve-64): false when unprivileged — the socket
+    /// census is per-pid privilege-gated, so rows may under-read
+    /// (other users' sockets count zero). The stderr note rides
+    /// beside it for humans; stdout stays byte-clean either way.
+    census_complete: bool,
 }
 
 /// The partial-census note's wording (pure, NIGHT-master-4) — the

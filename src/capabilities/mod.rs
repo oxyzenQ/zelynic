@@ -42,6 +42,94 @@ pub struct CapabilityReport {
     /// (`--no-default-features`).
     pub ebpf_lane: String,
     pub warnings: Vec<String>,
+    /// The BPF pin lattice's verdict (night-improve-64, additive):
+    /// what the human report's "Pins:" line renders, machine-scope —
+    /// `clean` (nothing pinned), `active` (the four enforcement pins
+    /// all present), `stale` (partial — the recover hint applies).
+    /// Absent when it cannot speak honestly: a half-life build owns
+    /// no lattice, and an unprivileged run must not audit a root's
+    /// pins (the human report skips it for the same reason); an
+    /// unreadable directory is absent too — never a fabricated
+    /// verdict. `default` keeps the additive rule: older JSON
+    /// without the field still deserializes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pins: Option<PinState>,
+}
+
+/// The BPF pin lattice's machine verdict (night-improve-64): the
+/// shape `doctor --print-json` carries under `pins`, one object for
+/// the state the human report renders as its "Pins:" line.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PinState {
+    /// "clean" (no pins under the directory — nothing is active),
+    /// "active" (the four enforcement pins all present — BPF is
+    /// live), or "stale" (partial — the recovery hint applies).
+    pub state: String,
+    /// The file count under the pin directory (0 when clean — the
+    /// figure the human line renders beside the verdict).
+    pub files: usize,
+}
+
+/// The pin directory — one name, the human printer and the JSON
+/// collector read the same lattice (a split constant is how the two
+/// surfaces drift).
+#[cfg(feature = "ebpf")]
+const PIN_DIR: &str = "/sys/fs/bpf/zelynic";
+
+/// The pin verdict vocabulary (night-improve-64): the three states
+/// the JSON contract and the human line share.
+#[cfg(feature = "ebpf")]
+const PIN_STATE_CLEAN: &str = "clean";
+#[cfg(feature = "ebpf")]
+const PIN_STATE_ACTIVE: &str = "active";
+#[cfg(feature = "ebpf")]
+const PIN_STATE_STALE: &str = "stale";
+
+/// The pure verdict core (night-improve-64): file count plus the
+/// four-pin lattice check decide the state. Extracted so the JSON
+/// contract is unit-pinnable without a real /sys/fs/bpf (the
+/// hunt-22 pure-builder pattern).
+#[cfg(feature = "ebpf")]
+#[must_use]
+fn pin_verdict(files: usize, all_valid: bool) -> &'static str {
+    if files == 0 {
+        PIN_STATE_CLEAN
+    } else if all_valid {
+        PIN_STATE_ACTIVE
+    } else {
+        PIN_STATE_STALE
+    }
+}
+
+/// Collect the pin lattice's verdict (night-improve-64), the pure
+/// core [`print_pin_state`] renders and the doctor JSON serializes.
+/// `None` when the directory exists but cannot be read — the one
+/// state the report refuses to fabricate (the former human path
+/// mapped an unreadable directory to "clean", a verdict nothing
+/// backed; both surfaces now answer honestly, JSON by absence, the
+/// line by UNKNOWN).
+#[cfg(feature = "ebpf")]
+fn collect_pin_state() -> Option<PinState> {
+    let pin_dir = std::path::Path::new(PIN_DIR);
+    if !pin_dir.exists() {
+        return Some(PinState {
+            state: PIN_STATE_CLEAN.to_string(),
+            files: 0,
+        });
+    }
+    let files = std::fs::read_dir(pin_dir).ok()?.count();
+    let all_valid = [
+        "enforce_dl",
+        "enforce_ul",
+        "enforce_dl_link",
+        "enforce_ul_link",
+    ]
+    .iter()
+    .all(|p| pin_dir.join(p).exists());
+    Some(PinState {
+        state: pin_verdict(files, all_valid).to_string(),
+        files,
+    })
 }
 
 /// NIGHT-dinner-3: the full-life verdict — the `ebpf` feature is
@@ -104,12 +192,26 @@ pub fn detect() -> CapabilityReport {
         warnings.push("Not running as root. eBPF operations require root.".to_string());
     }
 
+    // night-improve-64: the pin lattice's verdict joins the report —
+    // audited only where it CAN be audited (a full-life build running
+    // as root, the same gate the human printer's line rides); every
+    // other context stays honestly absent.
+    #[cfg(feature = "ebpf")]
+    let pins = if system.is_root {
+        collect_pin_state()
+    } else {
+        None
+    };
+    #[cfg(not(feature = "ebpf"))]
+    let pins = None;
+
     CapabilityReport {
         system,
         ebpf_supported,
         build_flavor: build_flavor.to_string(),
         ebpf_lane,
         warnings,
+        pins,
     }
 }
 
@@ -323,45 +425,37 @@ fn print_report(report: &CapabilityReport) {
 }
 
 /// Print BPF pin state — checks /sys/fs/bpf/zelynic/ for active/stale pins.
+///
+/// night-improve-64: the line renders the SAME verdict the JSON's
+/// `pins` object carries ([`collect_pin_state`]) — one collector, two
+/// surfaces, no drift. The previously-reachable wordings are byte-
+/// identical; the one change is honesty: a directory that exists but
+/// cannot be read used to print "clean (empty directory)" — a verdict
+/// nothing backed — and now prints UNKNOWN.
 #[cfg(feature = "ebpf")]
 fn print_pin_state() {
     use crate::output::{ok_bold, warn_bold};
 
-    let pin_dir = std::path::Path::new("/sys/fs/bpf/zelynic");
-
-    if !pin_dir.exists() {
-        println_safe!("  Pins:       {} (no limits active)", ok_bold("clean"));
-        return;
-    }
-
-    let entries: Vec<_> = std::fs::read_dir(pin_dir)
-        .map(|d| d.filter_map(|e| e.ok()).collect())
-        .unwrap_or_default();
-
-    if entries.is_empty() {
-        println_safe!("  Pins:       {} (empty directory)", ok_bold("clean"));
-        return;
-    }
-
-    // Check if all 4 critical pins exist (valid state).
-    let has_dl_prog = pin_dir.join("enforce_dl").exists();
-    let has_ul_prog = pin_dir.join("enforce_ul").exists();
-    let has_dl_link = pin_dir.join("enforce_dl_link").exists();
-    let has_ul_link = pin_dir.join("enforce_ul_link").exists();
-    let all_valid = has_dl_prog && has_ul_prog && has_dl_link && has_ul_link;
-
-    if all_valid {
-        println_safe!(
+    match collect_pin_state() {
+        None => println_safe!(
+            "  Pins:       {} (could not read {})",
+            warn_bold("UNKNOWN"),
+            PIN_DIR
+        ),
+        Some(ps) if ps.state == PIN_STATE_ACTIVE => println_safe!(
             "  Pins:       {} ({} files, BPF active)",
             ok_bold("active"),
-            entries.len()
-        );
-    } else {
-        println_safe!(
+            ps.files
+        ),
+        Some(ps) if ps.state == PIN_STATE_STALE => println_safe!(
             "  Pins:       {} ({} files, partial — run 'zelynic recover')",
             warn_bold("STALE"),
-            entries.len()
-        );
+            ps.files
+        ),
+        Some(_) if std::path::Path::new(PIN_DIR).exists() => {
+            println_safe!("  Pins:       {} (empty directory)", ok_bold("clean"))
+        }
+        Some(_) => println_safe!("  Pins:       {} (no limits active)", ok_bold("clean")),
     }
 }
 
@@ -451,6 +545,7 @@ mod tests {
             build_flavor: BUILD_FLAVOR_FULL_LIFE.to_string(),
             ebpf_lane: "source-built".to_string(),
             warnings: vec![],
+            pins: None,
         };
         let json = serde_json::to_string(&report).unwrap();
         assert!(json.contains("cgroup_v2"));
@@ -461,6 +556,59 @@ mod tests {
         assert!(json.contains("build_flavor"));
         assert!(json.contains("full-life"));
         assert!(json.contains("ebpf_lane"));
+        // night-improve-64: a None verdict serializes as ABSENCE —
+        // the additive rule (never a fabricated "clean").
+        assert!(!json.contains("pins"));
+    }
+
+    /// night-improve-64: the pin verdict vocabulary — file count and
+    /// the four-pin lattice decide the state, the exact law the JSON
+    /// `pins` object and the human "Pins:" line share.
+    #[cfg(feature = "ebpf")]
+    #[test]
+    fn pin_verdict_law() {
+        assert_eq!(pin_verdict(0, false), PIN_STATE_CLEAN);
+        assert_eq!(pin_verdict(0, true), PIN_STATE_CLEAN);
+        assert_eq!(pin_verdict(4, true), PIN_STATE_ACTIVE);
+        // Partial lattice (or foreign files): stale — the recover
+        // hint applies, never a fabricated active.
+        assert_eq!(pin_verdict(2, false), PIN_STATE_STALE);
+        assert_eq!(pin_verdict(7, false), PIN_STATE_STALE);
+    }
+
+    /// night-improve-64: a populated verdict serializes under `pins`
+    /// with the state/files pair, and the report round-trips through
+    /// Deserialize with the additive default (old JSON without the
+    /// field still parses).
+    #[test]
+    fn pin_state_serializes_and_defaults() {
+        let report = CapabilityReport {
+            system: SystemInfo {
+                kernel: "6.18.0".to_string(),
+                cgroup_v2: true,
+                cgroup2_mount_path: Some("/sys/fs/cgroup".to_string()),
+                bpf_fs_mounted: true,
+                is_root: true,
+            },
+            ebpf_supported: true,
+            build_flavor: BUILD_FLAVOR_FULL_LIFE.to_string(),
+            ebpf_lane: "source-built".to_string(),
+            warnings: vec![],
+            pins: Some(PinState {
+                state: "active".to_string(),
+                files: 4,
+            }),
+        };
+        let json = serde_json::to_string(&report).unwrap();
+        assert!(json.contains("\"pins\":{\"state\":\"active\",\"files\":4}"));
+        let back: CapabilityReport = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.pins.as_ref().unwrap().files, 4);
+
+        // The additive rule: a document from before the field parses
+        // untouched, the verdict honestly absent.
+        let legacy = r#"{"system":{"kernel":"6.18.0","cgroup_v2":true,"cgroup2_mount_path":null,"bpf_fs_mounted":true,"is_root":false},"ebpf_supported":true,"build_flavor":"full-life","ebpf_lane":"source-built","warnings":[]}"#;
+        let old: CapabilityReport = serde_json::from_str(legacy).unwrap();
+        assert!(old.pins.is_none());
     }
 
     /// NIGHT-dinner-3: a half-life report carries the install-path
@@ -480,6 +628,7 @@ mod tests {
             build_flavor: BUILD_FLAVOR_HALF_LIFE.to_string(),
             ebpf_lane: "dormant (not compiled)".to_string(),
             warnings: vec![],
+            pins: None,
         };
         let json = serde_json::to_string(&report).unwrap();
         assert!(json.contains("half-life"));
