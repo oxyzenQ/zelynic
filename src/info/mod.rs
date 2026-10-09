@@ -5,7 +5,21 @@
 ///
 /// Build metadata is embedded at compile time using env! macros.
 /// For custom builds, set these via cargo build flags or build.rs.
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+///
+/// night-improve-66: the build-facts lane — the canonical label
+/// chain (build_target/build_string/build_label), the git-sha and
+/// build-time stamps, and the doctor's BUILD block ([`BuildInfo`])
+/// — lives in the [`build`] sibling (the theme.rs → terminal_bg.rs
+/// split precedent: this file rode the 600-line law's ceiling the
+/// moment the BUILD block joined). The version report consumes
+/// that lane through the re-exports below; the capability doctor
+/// serializes [`BuildInfo`] directly.
+mod build;
+
+pub use build::BuildInfo;
+pub use build::VERSION;
+use build::{build_hash, build_label, build_time};
+
 pub const NAME: &str = "zelynic";
 pub const COPYRIGHT: &str = "(c) 2026 rezky_nightky (oxyzenQ)";
 pub const REPOSITORY: &str = "https://github.com/oxyzenQ/zelynic";
@@ -51,76 +65,6 @@ const SIGNATURE_LINE: &str =
 /// honest claim swapped in.
 const SIGNATURE_DORMANT_LINE: &str =
     "Signature: eBPF dormant — Official Build by rezky_nightky (oxyzenQ)";
-
-pub fn build_target() -> &'static str {
-    // Dynamic build target label: detects arch + libc env at compile time.
-    // Returns e.g. "amd64-gnu" (glibc, dynamic) or "amd64-musl" (static)
-    // for x86_64 Linux builds. Other arches pass through with env suffix.
-    if cfg!(target_env = "musl") {
-        if cfg!(target_arch = "x86_64") {
-            "amd64-musl"
-        } else if cfg!(target_arch = "aarch64") {
-            "aarch64-musl"
-        } else {
-            std::env::consts::ARCH
-        }
-    } else if cfg!(target_env = "gnu") {
-        if cfg!(target_arch = "x86_64") {
-            "amd64-gnu"
-        } else if cfg!(target_arch = "aarch64") {
-            "aarch64-gnu"
-        } else {
-            std::env::consts::ARCH
-        }
-    } else {
-        match std::env::consts::ARCH {
-            "x86_64" => "amd64",
-            other => other,
-        }
-    }
-}
-
-/// Get the build target string (architecture + OS).
-fn build_string() -> String {
-    format!("{}-{}", std::env::consts::OS, build_target())
-}
-
-/// Canonical build label for the `Build:` line of the version report
-/// (cosmostrix `canonical_build_label()` lineage).
-///
-/// Source of truth: the `ZELYNIC_BUILD` env var forwarded at compile
-/// time by build.rs — set by the cargo aliases `pro-native-gnu` /
-/// `pro-native-musl` (labels `local-native-gnu` / `local-native-musl`,
-/// see .cargo/config.toml), the arch-baseline aliases
-/// `pro-linux-amd64-v3-gnu` / `pro-linux-amd64-v4-gnu` /
-/// `pro-linux-amd64-v3-musl` / `pro-linux-amd64-v4-musl` (labels
-/// `local-linux-amd64-v3-gnu` etc., the release matrix platform id
-/// under the `local-` marker, NIGHT-boost-30), or by CI/release
-/// scripts (the platform id verbatim, e.g. `linux-amd64-v3-gnu`).
-/// When unset (plain `cargo build`), it falls back to the
-/// compile-time arch+libc detection, e.g. `linux-amd64-gnu`.
-fn build_label() -> String {
-    match option_env!("ZELYNIC_BUILD") {
-        Some(label) if !label.is_empty() => label.to_string(),
-        _ => build_string(),
-    }
-}
-
-/// Get the git commit hash injected at build time by build.rs.
-fn build_hash() -> &'static str {
-    option_env!("GIT_HASH").unwrap_or("unknown")
-}
-
-/// Get the build timestamp injected at build time by build.rs.
-///
-/// Computed by Howard Hinnant's civil_from_days algorithm inside
-/// build.rs (NIGHT-hunt-6, cosmostrix lineage) — `M/D/YYYY HH:MM (UTC)`
-/// — so no time crate (chrono and friends) is needed anywhere in the
-/// dependency tree. Falls back to "unknown" only when the build script
-/// could not read the system clock (pre-UNIX_EPOCH host clock).
-fn build_time() -> &'static str {
-    option_env!("ZELYNIC_BUILD_TIME").unwrap_or("unknown")
-}
 
 /// The eBPF object lane this binary was built through (NIGHT-ask-2),
 /// stamped by build.rs as `ZELYNIC_EBPF_LANE`:
@@ -242,34 +186,6 @@ pub fn print_version_report() {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// Fallback contract: in a plain `cargo test` build ZELYNIC_BUILD is
-    /// not forwarded by build.rs, so the canonical label must equal the
-    /// compile-time arch+libc detection. The override path (alias builds
-    /// reporting `local-native-gnu` / `local-native-musl`) is verified
-    /// live by building with the aliases and reading `zelynic -V`.
-    #[test]
-    fn build_label_falls_back_to_detected_target_when_env_unset() {
-        match option_env!("ZELYNIC_BUILD") {
-            Some(_) => { /* alias/CI build: override path, verified live */ }
-            None => assert_eq!(build_label(), build_string()),
-        }
-    }
-
-    /// The detected fallback label must stay lowercase and carry the
-    /// arch-libc shape the docs promise (`linux-amd64-gnu` style), so a
-    /// drift in build_target() cannot silently reshape the Build: line.
-    #[test]
-    fn detected_build_label_shape_is_os_arch_libc() {
-        let label = build_string();
-        assert!(label.contains('-'), "label must be dash-joined: {label}");
-        assert!(
-            !label.contains(char::is_whitespace),
-            "label must be a single token: {label}"
-        );
-        assert_eq!(label, label.to_lowercase());
-    }
-
     /// NIGHT-blade-4 contract: the license line exists as ONE
     /// contiguous literal (LICENSE_LINE) — the release pipeline's
     /// AVX-512 legs grep exactly those bytes out of `strings` on

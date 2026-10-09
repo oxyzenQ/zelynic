@@ -1643,6 +1643,17 @@ real mounted bpf filesystem (statfs), not merely a directory that
 happens to exist (NIGHT-hunt-28) — the kernel creates that directory
 on every system, so existence alone says nothing.
 
+The BUILD block under the `Build:` flavor verdict (night-improve-66)
+carries the exact artifact facts: `Version` (crate version), `Commit`
+(git sha), `Variant` (the canonical build label — the release matrix
+platform id, or the detected arch-libc for plain builds), `Built`
+(UTC stamp), `Rustc` (the toolchain that compiled this binary), and
+`Profile` (the optimization verdict — release builds state the full
+`opt-level=3, lto=fat, codegen-units=1, panic=unwind, strip=yes`
+contract; a development build says so and never claims the release
+contract). `--print-json` mirrors the same six facts under the
+`build` object, field-for-field with the text lines.
+
 ---
 
 ## Global flags
@@ -2207,10 +2218,21 @@ is the partial lattice the `zelynic recover` hint applies to).
 The field is ABSENT where it cannot speak honestly: a half-life
 build owns no lattice, an unprivileged run must not audit root's
 pins, and an unreadable directory is absent too — never a
-fabricated verdict:
+fabricated verdict. night-improve-66 adds the `build` object —
+the artifact identity the human report's BUILD block renders:
+`version` (raw semver, no `v`), `git_sha`, `variant` (the
+canonical build label), `build_time` (UTC), `rustc_version` (the
+toolchain that compiled the binary), and `profile` (the
+optimization verdict — `"release, opt-level=3, lto=fat,
+codegen-units=1, panic=unwind, strip=yes"` for shipping builds; a
+development build states its mode and never claims the release
+contract). The same additive rule holds both directions: every
+field the new binary emits is populated, and a pre-improve-66
+document (no `build` key) still parses — the block is honestly
+absent, never fabricated:
 
 ```json
-{"system":{"kernel":"6.18.0","cgroup_v2":true,"cgroup2_mount_path":"/sys/fs/cgroup","bpf_fs_mounted":true,"is_root":true},"ebpf_supported":true,"build_flavor":"full-life","ebpf_lane":"source-built","warnings":[],"pins":{"state":"active","files":4}}
+{"system":{"kernel":"6.18.0","cgroup_v2":true,"cgroup2_mount_path":"/sys/fs/cgroup","bpf_fs_mounted":true,"is_root":true},"ebpf_supported":true,"build_flavor":"full-life","ebpf_lane":"source-built","build":{"version":"50.0.0-beta.1","git_sha":"83375c3","variant":"linux-amd64-v3-gnu","build_time":"10/9/2026 19:40 (UTC)","rustc_version":"rustc 1.98.1 (48a229cea 2026-09-01)","profile":"release, opt-level=3, lto=fat, codegen-units=1, panic=unwind, strip=yes"},"warnings":[],"pins":{"state":"active","files":4}}
 ```
 
 A missing limit list with `"active_limits": 0` and `watchdog: "enforcing"`

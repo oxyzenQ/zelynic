@@ -247,7 +247,7 @@ pub(crate) fn print_help() {
     println_safe!();
     synopsis("zelynic doctor");
     println_safe!(
-        "    Check host eBPF support and this binary's build flavor (full-life / half-life)."
+        "    Check host eBPF support and this binary's build facts — the flavor verdict leads, the BUILD block (version, commit, variant, rustc, profile) follows."
     );
     println_safe!();
     // NIGHT-improve-25: the two-letter aliases — every enforcement

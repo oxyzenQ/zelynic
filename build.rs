@@ -53,6 +53,11 @@ fn main() {
     // inputs change (cargo's standard build-script caching).
     let build_time = format_build_time_utc();
     println!("cargo:rustc-env=ZELYNIC_BUILD_TIME={build_time}");
+
+    // night-improve-66: the doctor's BUILD block identity — the rustc
+    // that compiled this binary plus the profile facts — lives in
+    // build/identity.rs (the 600-line split; a pure move).
+    identity::stamp_identity();
 }
 
 ///
@@ -460,6 +465,8 @@ fn format_unix_secs_as_build_time(total_secs: i64) -> String {
 // new dependencies.
 #[path = "build/flags.rs"]
 mod flags;
+#[path = "build/identity.rs"]
+mod identity;
 #[path = "build/preflight.rs"]
 mod preflight;
 #[path = "build/validate.rs"]
