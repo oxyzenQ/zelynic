@@ -262,11 +262,25 @@ fn frame_bench_eagle() {
         let mut join = std::collections::HashMap::with_capacity(cookies.len());
         for &cookie in &cookies {
             let lane = (cookie % 97) + 1;
+            // night-improve-59 (the fixture's own blind spot,
+            // closed): the absolutes now step their per-frame
+            // deltas on a 3-frame cycle — the real-world shape the
+            // arrival fold actually sees (mover deltas that CHANGE
+            // frame to frame, rates crossing SI tiers), which the
+            // constant-delta era could not measure at all: a
+            // steady-rate-column layout change was invisible to the
+            // harness (the rates never changed, so the suffixes
+            // never churned) and the whole measured delta was the
+            // busy-toggle shift on wider suffixes. Still a pure
+            // function of (cookie, frame) — the A/B stream stays
+            // frozen for before/after comparisons.
+            let dl_step = 12_000 + (frame_no % 3) * 6_000;
+            let ul_step = 1_400 + (frame_no % 3) * 900;
             join.insert(
                 cookie,
                 SocketBytes {
-                    dl: lane * 78_000 + frame_no * lane * 12_000,
-                    ul: lane * 9_000 + frame_no * lane * 1_400,
+                    dl: lane * 78_000 + frame_no * lane * dl_step,
+                    ul: lane * 9_000 + frame_no * lane * ul_step,
                 },
             );
         }
