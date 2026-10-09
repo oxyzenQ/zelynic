@@ -1013,7 +1013,7 @@ question a bare `cg:1234` row leaves open — WHAT is this:
   1234    cat-test             binary  755   S   4    1.3 MB   10m:20s  /home/cat/cat-test
   ────────────────────────────────────────────────────────────────
   network traffic (3s focus · arrival): dl 4.1 MB/s · ul 113.3 KB/s
-   curl (4242) → 142.250.185.78:443 tcp ESTABLISHED [dl 4.1 MB/s | ul 100.0 KB/s]
+   curl (4242) → 142.250.185.78:443 tcp ESTABLISHED [dl   4.1 MB/s | ul  100.0 KB/s]
    curl (4242) → 93.184.216.34:443 tcp ESTABLISHED
   ────────────────────────────────────────────────────────────────
   act:  zelynic strict cg:1234 500kb
@@ -1112,7 +1112,7 @@ against the policy two lines above it with no mental math. The
 depth report's traffic header carries the `arrival` label
 (`network traffic (30s focus · arrival): dl 40.0 KB/s · ul 1.1 KB/s`)
 and every endpoint suffix divides by the window's own seconds
-(`[dl 40.0 KB/s | ul 940 B/s]`) — the owner once read `[dl 1.2 MB]`
+(`[dl  40.0 KB/s | ul    940 B/s]`) — the owner once read `[dl 1.2 MB]`
 over an invisible 30s window as a rate and concluded a 200 KB/s
 policy was bypassed (it was not: the arrival rate was 40 KB/s and
 the drops were booked the whole time). `arrival` itself is the
@@ -1299,7 +1299,7 @@ the `s` short alias the CLI already carries, and
 the engraved default rate — a named, documented constant, the one
 fixed suggestion value on a line whose every other fact is derived
 live), one blank of air, the status line — the frame's legend `1s
-realtime - theme netrunner - q quit - t theme - ↑↓ scroll - ←→ section` (NIGHT-engrave-2, completed by night-improve-58),
+realtime - theme netrunner - q quit - t theme - ↑↓ scroll - => section` (NIGHT-engrave-2, completed by night-improve-58),
 grey, riding every compression tier — the owner's NIGHT-engrave-3
 gap, and the signature copyright as the frame's last row. The
 census, the consumer autodetect, and the limit suggestion retired
@@ -1374,7 +1374,7 @@ NIGHT-engrave-7 frontier five: `cafe`, `server`, `moonlight`,
 masterclass purple `curiosity`), the
 cosmostrix cycle contract. A theme change repaints within the same
 50ms wake and the footer's status line names the active theme
-(`1s realtime - theme atomic - q quit - t theme - ↑↓ scroll - ←→ section`, NIGHT-engrave-2's
+(`1s realtime - theme atomic - q quit - t theme - ↑↓ scroll - => section`, NIGHT-engrave-2's
 relocated legend — and since NIGHT-engrave-3 the title bar's
 top-right hint is retired, so the status line is the legend's ONLY
 home); the theme lives
@@ -1539,11 +1539,11 @@ with what the renderer draws.
 │  top process                                 download     upload      total  │
 │──────────────────────────────────────────────────────────────────────────────│
 │   1  cg:7001 (brave)                         2.1 MB/s   180 KB/s    10.2 GB  │
-│    └ brave (4242) → 142.250.185.78:443 [dl 2.0 MB/s | ul 88.0 KB/s]          │
+│    └ brave (4242) → 142.250.185.78:443 [dl   2.0 MB/s | ul  88.0 KB/s]       │
 │   2  cg:73402 (firefox +1)                   3.4 MB/s   210 KB/s     901 MB  │
 │    └ firefox (4242) 3 sockets:                                               │
-│        ├ 104.18.32.7:443 [dl 3.1 MB/s | ul 174.0 KB/s]                       │
-│        └ 104.18.32.115:443 [dl 296.0 KB/s | ul 36.0 KB/s]                    │
+│        ├ 104.18.32.7:443 [dl   3.1 MB/s | ul 174.0 KB/s]                     │
+│        └ 104.18.32.115:443 [dl 296.0 KB/s | ul  36.0 KB/s]                   │
 │   3  cg:73511 (curl)                                —          —     4.2 MB  │
 │  (+19 more — ↑↓ scroll)                                                     │
 │──────────────────────────────────────────────────────────────────────────────│
@@ -1554,7 +1554,7 @@ with what the renderer draws.
 │  avg arrival dl | ul = 2.9 MB/s | 143.6 KB/s                                │
 │  limit target with 'sudo zelynic s brave 100kb'                             │
 │                                                                              │
-│  1s realtime - theme netrunner - q quit - t theme - ↑↓ scroll - ←→ section  │
+│  1s realtime - theme netrunner - q quit - t theme - ↑↓ scroll - => section  │
 │                                                                              │
 │  v11.0.0-beta.1 (a1b2c3d) by oxyzenQ                                        │
 ╰──────────────────────────────────────────────────────────────────────────────╯
@@ -1592,7 +1592,7 @@ order. Every figure names its horizon and scope:
 | `peak arrival dl | ul = 24.6 MB/s \| 1.2 MB/s` | The session's PEAK per-direction ARRIVAL rate: running maxima of the per-frame watched-set rates, each peak divided by the span IT was measured over at fold time (NIGHT-hunt-38 — a historical peak renders at its own span forever; a later frame's span jitter can never restate it) — never reset, the session horizon. Arrival means pre-verdict: what REACHED the interface, including what a limit then dropped — a peak above the policy is the demand the limit absorbed, not a bypass (night-private-research-7 relabeled the line for exactly that read). Honest zeroes at rest (`0 B/s`). |
 | `avg arrival dl | ul = 2.9 MB/s \| 143.6 KB/s` | The session's average per-direction arrival rate: the same per-direction totals the grand sums, divided by the SAME uptime the total row renders — the three lines of the paragraph share their legs and their clock, so they can never disagree. |
 | `limit target with 'sudo zelynic s brave 100kb'` | The action: a ready-to-paste command for the consumer the headline just named — the `s` short alias, and the `100kb` engraved default (the one fixed suggestion value on a line whose every other fact is derived live). The command rides the ACTIVE theme's brand tier — the frame's two living accents, the thing to read and the thing to act on. |
-| status line | The legend: `1s realtime - theme netrunner - q quit - t theme - ↑↓ scroll - ←→ section` — the poll interval, the active theme's name, and the whole six-key map (night-improve-58): quit, theme, the scroll arrows, the section arrows. Rides every compression tier. |
+| status line | The legend: `1s realtime - theme netrunner - q quit - t theme - ↑↓ scroll - => section` — the poll interval, the active theme's name, and the whole six-key map (night-improve-58): quit, theme, the scroll arrows, the section arrows. Rides every compression tier. |
 | Build stamp | `v11.0.0-beta.1 (a1b2c3d) by oxyzenQ` — version, git hash, author, brand purple: the frame's quiet closing paragraph. |
 | `(identities unresolved — labels show raw cgroup IDs)` | The rare honesty note: the /proc walk found no identities this frame, so labels render raw IDs. It rides only when true. |
 

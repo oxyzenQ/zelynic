@@ -181,7 +181,7 @@ fn eagle_frame_builds_lines() {
     );
     assert_eq!(
         lines[20],
-        flanked("  1s realtime - theme netrunner - q quit - t theme - ↑↓ scroll - ←→ section",),
+        flanked("  1s realtime - theme netrunner - q quit - t theme - ↑↓ scroll - => section",),
         "status line (NIGHT-engrave-2), the legend's only home since the engrave-3 title trim"
     );
     assert_eq!(
@@ -332,7 +332,7 @@ fn footer_layout_pins_to_the_bottom() {
     );
     assert_eq!(
         lines[20],
-        flanked("  1s realtime - theme netrunner - q quit - t theme - ↑↓ scroll - ←→ section",),
+        flanked("  1s realtime - theme netrunner - q quit - t theme - ↑↓ scroll - => section",),
         "status line (NIGHT-engrave-2)"
     );
     assert_eq!(
