@@ -8,10 +8,10 @@
 //! lineage). #[path]-wired from src/ebpf/render/baseline.rs beside
 //! its fold sibling, so `super::` reaches the lane exactly the same.
 
+use super::super::baseline_panel::render_panel;
 use super::*;
 use crate::ebpf::identity::ProcessIdentity;
 use crate::ebpf::limiter::rate_ring::RATE_RING_WINDOW_NS;
-use super::super::baseline_panel::render_panel;
 use crate::ebpf::render::ScrollState;
 use crate::output::brand;
 

@@ -570,8 +570,12 @@ is no live workload to target. A policy left behind against a
 dead cgroup is collected automatically by the next
 mutation-capable visit (night-hunt-43's zombie sweep — the
 two-signal walk: no identity entry, no ring traffic for the 8s
-horizon); `zelynic recover` remains the manual, reported override
-for stale epochs. Container targets
+horizon; a stale pin epoch where the rings cannot be read rides
+the cgroupfs death proof instead — the root's directory gone from
+a complete walk, 0c3ba04); `zelynic recover` remains the manual,
+reported override for the shapes the automatic walk cannot
+conclude (a cgroupfs census past its bounds, a view that cannot
+see the root's branch). Container targets
 ride the single lane: a `::` list cannot carry them (the group lane
 shares ONE bucket across its members — a container workload owns
 its own apply), so `s docker://a:nginx::brave` is refused with the
@@ -717,8 +721,13 @@ this command — the zombie sweep rides every mutation-capable visit
 (`status`, every apply), retiring a root whose identity entry is
 gone and whose rings have been silent for the full 8s horizon (the
 two-signal law; `-v` traces each retirement). `recover` remains the
-manual, REPORTED override — and the only collector for a stale pin
-epoch, where the rings cannot be read and silence stays unproven.
+manual, REPORTED override — and for a stale pin epoch (the rings
+unreadable, silence unproven) the sweep rides the cgroupfs death
+proof: a root whose directory is gone from a COMPLETE walk of the
+mount retires without the silence read (death is the stronger
+verdict, 0c3ba04); recover stays the tool for the census's own
+inconclusive shapes (a tree past the walk's bounds, a cgroup
+namespace that cannot see the root's branch).
 
 NIGHT-hunt-30: recover also runs the WINDOW-DEATH pass before its
 orphan scan — an expired `--during` row is not crash residue (its
