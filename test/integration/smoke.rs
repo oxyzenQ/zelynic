@@ -90,6 +90,30 @@ fn test_doctor_print_json_is_one_compact_line() {
         parsed.get("ebpf_lane").is_some(),
         "ebpf_lane must ride the JSON contract, got: {doc}"
     );
+    // night-improve-66: the BUILD block is first-class JSON — the
+    // cosmostrix-diagnostics completeness (version, git_sha, variant,
+    // build_time, rustc_version, profile) rides one additive object,
+    // field-for-field with the human report's lines, so machine
+    // consumers identify the exact artifact without re-deriving
+    // anything from the version report.
+    let build = parsed
+        .get("build")
+        .and_then(|v| v.as_object())
+        .unwrap_or_else(|| panic!("the build object must ride the JSON contract, got: {doc}"));
+    for key in [
+        "version",
+        "git_sha",
+        "variant",
+        "build_time",
+        "rustc_version",
+        "profile",
+    ] {
+        let value = build.get(key).and_then(|v| v.as_str()).unwrap_or_default();
+        assert!(
+            !value.is_empty(),
+            "build.{key} must be populated (never empty), got: {doc}"
+        );
+    }
     // The honoring side of the NIGHT-boost-24 contract: doctor is a
     // JSON surface, so no ignored-note may ride stderr — the flag did
     // its job, silence is the honest answer.

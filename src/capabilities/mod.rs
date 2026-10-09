@@ -44,6 +44,17 @@ pub struct CapabilityReport {
     /// ebpf-prebuilt/), or `dormant (not compiled)`
     /// (`--no-default-features`).
     pub ebpf_lane: String,
+    /// night-improve-66: the BUILD facts the mature cosmostrix
+    /// diagnostics report carries — version, git_sha, variant,
+    /// build_time, rustc_version, the profile verdict — every one
+    /// compile-time truth assembled by
+    /// [`crate::info::BuildInfo::collect`] (no runtime probing, no
+    /// new dependencies). Additive per the pins precedent: new
+    /// output always carries it (detect() always collects), older
+    /// JSON without the field still deserializes — honestly absent,
+    /// never fabricated.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub build: Option<crate::info::BuildInfo>,
     pub warnings: Vec<String>,
     /// The BPF pin lattice's verdict (night-improve-64, additive):
     /// what the human report's "Pins:" line renders, machine-scope —
@@ -137,6 +148,7 @@ pub fn detect() -> CapabilityReport {
         ebpf_supported,
         build_flavor: build_flavor.to_string(),
         ebpf_lane,
+        build: Some(crate::info::BuildInfo::collect()),
         warnings,
         pins,
     }
@@ -280,6 +292,23 @@ fn print_report(report: &CapabilityReport) {
         )
     };
     println_safe!("  Build:      {}", flavor_line);
+    // night-improve-66: the BUILD block the doctor was missing — the
+    // cosmostrix diagnostics completeness (version, git_sha, variant,
+    // rustc, profile) in zelynic's lean single-column shape, rendered
+    // from the same BuildInfo the JSON surface serializes (the two
+    // surfaces cannot drift). Every fact is compile-time truth; the
+    // "v" prefix is the report's own brand addition over the raw
+    // semver the machine scope carries. The if-let keeps the honest
+    // absence: a deserialized pre-improve-66 report skips the block
+    // instead of fabricating one.
+    if let Some(build) = &report.build {
+        println_safe!("  Version:    v{}", build.version);
+        println_safe!("  Commit:     {}", build.git_sha);
+        println_safe!("  Variant:    {}", build.variant);
+        println_safe!("  Built:      {}", build.build_time);
+        println_safe!("  Rustc:      {}", build.rustc_version);
+        println_safe!("  Profile:    {}", build.profile);
+    }
     println_safe!();
     println_safe!("  Kernel:     {}", report.system.kernel);
     println_safe!(
@@ -366,6 +395,16 @@ mod tests {
         // populated — no environment can produce an empty answer.
         assert!(!report.build_flavor.is_empty());
         assert!(!report.ebpf_lane.is_empty());
+        // night-improve-66: the BUILD block is always complete —
+        // every field populated, never an empty string (the degraded
+        // "unknown" lanes are honest values, not absences).
+        let build = report.build.as_ref().expect("detect always collects");
+        assert!(!build.version.is_empty());
+        assert!(!build.git_sha.is_empty());
+        assert!(!build.variant.is_empty());
+        assert!(!build.build_time.is_empty());
+        assert!(!build.rustc_version.is_empty());
+        assert!(!build.profile.is_empty());
     }
 
     /// NIGHT-dinner-3: the flavor verdict is compile-time truth — it
@@ -433,6 +472,7 @@ mod tests {
             ebpf_supported: true,
             build_flavor: BUILD_FLAVOR_FULL_LIFE.to_string(),
             ebpf_lane: "source-built".to_string(),
+            build: Some(crate::info::BuildInfo::collect()),
             warnings: vec![],
             pins: None,
         };
@@ -445,6 +485,21 @@ mod tests {
         assert!(json.contains("build_flavor"));
         assert!(json.contains("full-life"));
         assert!(json.contains("ebpf_lane"));
+        // night-improve-66: the BUILD block rides the JSON with the
+        // same six keys the human report renders — machine consumers
+        // get version/git_sha/variant/build_time/rustc_version/profile
+        // without re-deriving them from the version report.
+        assert!(json.contains("\"build\""));
+        for key in [
+            "\"version\"",
+            "\"git_sha\"",
+            "\"variant\"",
+            "\"build_time\"",
+            "\"rustc_version\"",
+            "\"profile\"",
+        ] {
+            assert!(json.contains(key), "BUILD key {key} must ride: {json}");
+        }
         // night-improve-64: a None verdict serializes as ABSENCE —
         // the additive rule (never a fabricated "clean").
         assert!(!json.contains("pins"));
@@ -466,6 +521,7 @@ mod tests {
             ebpf_supported: true,
             build_flavor: BUILD_FLAVOR_HALF_LIFE.to_string(),
             ebpf_lane: "dormant (not compiled)".to_string(),
+            build: Some(crate::info::BuildInfo::collect()),
             warnings: vec![],
             pins: None,
         };

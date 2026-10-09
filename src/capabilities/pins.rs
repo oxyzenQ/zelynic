@@ -160,6 +160,7 @@ mod tests {
             ebpf_supported: true,
             build_flavor: BUILD_FLAVOR_FULL_LIFE.to_string(),
             ebpf_lane: "source-built".to_string(),
+            build: Some(crate::info::BuildInfo::collect()),
             warnings: vec![],
             pins: Some(PinState {
                 state: "active".to_string(),
@@ -172,9 +173,13 @@ mod tests {
         assert_eq!(back.pins.as_ref().unwrap().files, 4);
 
         // The additive rule: a document from before the field parses
-        // untouched, the verdict honestly absent.
+        // untouched, the verdict honestly absent. The same rule holds
+        // for the night-improve-66 build object: a pre-improve-66
+        // doctor document parses with the block honestly absent —
+        // never fabricated, never a parse failure.
         let legacy = r#"{"system":{"kernel":"6.18.0","cgroup_v2":true,"cgroup2_mount_path":null,"bpf_fs_mounted":true,"is_root":false},"ebpf_supported":true,"build_flavor":"full-life","ebpf_lane":"source-built","warnings":[]}"#;
         let old: CapabilityReport = serde_json::from_str(legacy).unwrap();
         assert!(old.pins.is_none());
+        assert!(old.build.is_none());
     }
 }

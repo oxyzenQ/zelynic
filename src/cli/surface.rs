@@ -338,7 +338,12 @@ pub enum Commands {
         depth: bool,
     },
 
-    /// Check host eBPF support and this binary's build flavor (full-life / half-life).
+    /// Check host eBPF support and this binary's build facts.
+    ///
+    /// The flavor verdict (full-life / half-life) and the eBPF lane
+    /// lead; since night-improve-66 the BUILD block follows —
+    /// version, commit, variant, build time, the rustc that
+    /// compiled this binary, and the optimization profile.
     #[command(name = "doctor")]
     Doctor,
 

@@ -130,6 +130,9 @@ question too: the `Build:` line reports whether the binary itself is
 (userspace-only build — every eBPF surface, the live monitor included,
 answers its honest refusal; only doctor and help run), so a
 downloaded or `cargo install`ed binary identifies itself in one command
+— and since night-improve-66 the BUILD block under it names the exact
+artifact: version, commit, variant, build time, the rustc that
+compiled it, and the optimization profile
 ([Kernel Compatibility](docs/KERNEL_COMPATIBILITY.md) has the full
 matrix and troubleshooting).
 
