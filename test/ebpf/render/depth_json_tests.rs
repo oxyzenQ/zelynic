@@ -288,6 +288,17 @@ fn json_carries_the_traffic_focus_window() {
                         queued: false,
                         cookie: Some(1002),
                     },
+                    // night-improve-62: the v6 family reaches the JSON
+                    // document — the endpoints array spells `tcp6`, the
+                    // ss/netstat vocabulary, the same as_str the trees
+                    // and the depth rows speak.
+                    SocketInfo {
+                        proto: Proto::Tcp6,
+                        remote: "[2001:db8::1]:443".to_string(),
+                        state: "ESTABLISHED",
+                        queued: false,
+                        cookie: Some(4001),
+                    },
                 ],
             }],
         },
@@ -323,6 +334,9 @@ fn json_carries_the_traffic_focus_window() {
         "\"download_bytes\":10000000",
         "\"upload_bytes\":300000",
         "\"remote\":\"93.184.216.34:443\"",
+        "\"proto\":\"tcp\"",
+        "\"proto\":\"tcp6\"",
+        "\"remote\":\"[2001:db8::1]:443\"",
         "\"download_bytes\":null",
         "\"upload_bytes\":null",
     ] {

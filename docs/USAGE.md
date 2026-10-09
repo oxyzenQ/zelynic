@@ -1015,7 +1015,7 @@ question a bare `cg:1234` row leaves open — WHAT is this:
   ────────────────────────────────────────────────────────────────
   network traffic (3s focus · arrival): dl 4.1 MB/s · ul 113.3 KB/s
    curl (4242) → 142.250.185.78:443 tcp ESTABLISHED [dl 4.1 MB/s | ul 100.0 KB/s]
-   curl (4242) → 93.184.216.34:443 tcp ESTABLISHED
+   curl (4242) → [2607:f8b0:400a::]:443 tcp6 ESTABLISHED
   ────────────────────────────────────────────────────────────────
   act:  zelynic strict cg:1234 500kb
         zelynic block cg:1234
@@ -1233,7 +1233,10 @@ figures measured over THIS report's focus window (default 3s,
 carries, over the live monitor's own since-attach horizon instead;
 the two surfaces are one family, their horizons are their own
 (NIGHT-hunt-38: the glossary's `dl`/`ul` entry decodes the pair
-once for both). The kernel itself names the owning socket per
+once for both). The tag itself carries the family since
+night-improve-62: a v6 socket reads `tcp6 [2001:db8::1]:443` — the
+ss/netstat spelling, the family at the tag instead of only through
+the bracketed remote. The kernel itself names the owning socket per
 packet (`bpf_get_socket_cookie` in both cgroup_skb hooks: the
 sender on upload, the receiver on download), the observer bumps a
 per-socket LRU byte map keyed by that cookie, and userspace joins
@@ -1579,7 +1582,7 @@ The ranked table:
 | `download` / `upload` | LIVE per-direction rates: this frame's delta divided by the MEASURED poll-to-poll span (NIGHT-lts-3 — the honest denominator, not the nominal cadence the beat scheduler only approximates). A quiet app renders an em dash (`—`) — the observer measures, it does not judge (never "BLOCKED", which is a limiter verdict). |
 | `total` | Session-accumulated bytes for that cgroup (download + upload since the monitor started) — the ranking key. |
 | Label | The cgroup's identity: `cg:<id> (<comm>)`, with a `+N` suffix when more than one process holds sockets inside — `(brave +22)` reads "the brave cgroup, 23 socket-holding processes: brave plus 22 more". |
-| Detail tree | The socket-holding processes inside the cgroup, grey: one displayable endpoint renders inline (`└ brave (4242) → tcp 142.250.185.78:443`); a multi-socket process gets a header carrying its count (`└ firefox (4242) 3 sockets:`) with the two hungriest endpoints as children — the cap ranks bytes-desc (NIGHT-hunt-38), so what it hides is never the answer. Every endpoint names its protocol (`tcp` / `udp` / `raw`, night-improve-61: the owner's find — only UDP carried a tag, so the one protocol most rows speak read like the unnamed default), saturated sockets carry `[busy]`. Established TCP and connected UDP only — listeners and TIME_WAIT are noise, filtered. Each endpoint carries its own arrival rate when the join resolved it (`[dl X | ul Y]` — **dl** = download, **ul** = upload, both lowercase L: the same two-letter vocabulary the rate columns and the footer's speed pair speak; the figures are that endpoint's per-second ARRIVAL rate over the measured span — the per-socket counters differenced frame over frame, night-private-research-7 completing NIGHT-boost-26) — a socket that moved nothing this frame keeps its lean row (absence is the "quiet now" signal). |
+| Detail tree | The socket-holding processes inside the cgroup, grey: one displayable endpoint renders inline (`└ brave (4242) → tcp 142.250.185.78:443`); a multi-socket process gets a header carrying its count (`└ firefox (4242) 3 sockets:`) with the two hungriest endpoints as children — the cap ranks bytes-desc (NIGHT-hunt-38), so what it hides is never the answer. Every endpoint names its protocol and family (`tcp` / `tcp6` / `udp` / `udp6` / `raw` / `raw6`, night-improve-61: the owner's find — only UDP carried a tag, so the one protocol most rows speak read like the unnamed default; night-improve-62: the v6 tables stopped collapsing into the v4 spellings, so a dual-stack host's rows read their family at the tag — the ss/netstat vocabulary, `[::1]:443` alone no longer carries the hint), saturated sockets carry `[busy]`. Established TCP and connected UDP only — listeners and TIME_WAIT are noise, filtered. Each endpoint carries its own arrival rate when the join resolved it (`[dl X | ul Y]` — **dl** = download, **ul** = upload, both lowercase L: the same two-letter vocabulary the rate columns and the footer's speed pair speak; the figures are that endpoint's per-second ARRIVAL rate over the measured span — the per-socket counters differenced frame over frame, night-private-research-7 completing NIGHT-boost-26) — a socket that moved nothing this frame keeps its lean row (absence is the "quiet now" signal). |
 | Scroll note | `(-N above · )+M more — ↑↓ scroll` (night-improve-58): the window IS the budget (no `--limit`) and the arrows walk it — the counts name the rows above the window and the rows the room cut; the count rides the same SI compact ladder as the census. |
 
 The pinned footer — the frame's dashboard, in the owner's exact line
@@ -2137,7 +2140,7 @@ are complete):
 (multi-target specs only; a full miss exits 1 with the text error):
 
 ```json
-{"targets":[{"target":"cg:1234","cgroup_id":1234,"name":"cat-test","cgroup_path":"/sys/fs/cgroup/cat-test","uid":1000,"user":"cat","enforcement":"limited","download_bps":100000,"upload_bps":100000,"group_id":0,"oldest_started_secs":620,"processes":1,"socket_holders":1,"sockets":2,"traffic":{"window_secs":3,"download_bytes":12400000,"upload_bytes":340000},"procs":[{"pid":1234,"comm":"cat-test","uid":1000,"user":"cat","ppid":1,"state":"S (sleeping)","threads":4,"rss_kb":1234,"exe":"/home/cat/cat-test","exe_deleted":false,"kind":"binary","script":null,"permission":"755","cwd":"/home/cat","cmdline":"./cat-test --serve","started_ago_secs":620,"started_epoch":1758900000}],"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000}]}],"bypass_audit":{"window_secs":3,"nic_tx_bytes":12900000,"nic_rx_bytes":13000000,"bpf_tx_bytes":340000,"bpf_rx_bytes":12450000,"shadow_tx_bytes":12560000,"shadow_rx_bytes":550000,"verdict":"bypassed_tx"}}
+{"targets":[{"target":"cg:1234","cgroup_id":1234,"name":"cat-test","cgroup_path":"/sys/fs/cgroup/cat-test","uid":1000,"user":"cat","enforcement":"limited","download_bps":100000,"upload_bps":100000,"group_id":0,"oldest_started_secs":620,"processes":1,"socket_holders":1,"sockets":2,"traffic":{"window_secs":3,"download_bytes":12400000,"upload_bytes":340000},"procs":[{"pid":1234,"comm":"cat-test","uid":1000,"user":"cat","ppid":1,"state":"S (sleeping)","threads":4,"rss_kb":1234,"exe":"/home/cat/cat-test","exe_deleted":false,"kind":"binary","script":null,"permission":"755","cwd":"/home/cat","cmdline":"./cat-test --serve","started_ago_secs":620,"started_epoch":1758900000}],"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null}]}],"bypass_audit":{"window_secs":3,"nic_tx_bytes":12900000,"nic_rx_bytes":13000000,"bpf_tx_bytes":340000,"bpf_rx_bytes":12450000,"shadow_tx_bytes":12560000,"shadow_rx_bytes":550000,"verdict":"bypassed_tx"}}
 ```
 
 `enforcement` is `"unlimited"` | `"blocked"` | `"limited"`; an

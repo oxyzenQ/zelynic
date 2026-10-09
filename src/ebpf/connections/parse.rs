@@ -302,4 +302,19 @@ mod tests {
         assert_eq!(info.state, "CLOSE");
         assert_eq!(info.proto, Proto::Raw);
     }
+
+    /// night-improve-62: the six spellings the one as_str speaks —
+    /// the family suffix the kernel's own table names carry
+    /// (/proc/net/{tcp6,udp6,raw6}), the ss and netstat vocabulary.
+    /// One pin, six spellings, the law (one canonical spelling, one
+    /// copy) held at the unit level so every surface inherits it.
+    #[test]
+    fn as_str_spells_the_v6_family() {
+        assert_eq!(Proto::Tcp.as_str(), "tcp");
+        assert_eq!(Proto::Tcp6.as_str(), "tcp6");
+        assert_eq!(Proto::Udp.as_str(), "udp");
+        assert_eq!(Proto::Udp6.as_str(), "udp6");
+        assert_eq!(Proto::Raw.as_str(), "raw");
+        assert_eq!(Proto::Raw6.as_str(), "raw6");
+    }
 }

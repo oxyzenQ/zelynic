@@ -124,17 +124,18 @@ pub(crate) fn comm_from_label(label: &str) -> Option<String> {
 /// Every displayable socket now names its proto (`tcp ` / `udp ` /
 /// `raw `), the depth report's `<remote> <proto> <state> [figures]`
 /// vocabulary complete on the live monitor's detail line.
+///
+/// night-improve-62 (the family suffix): the tag renders through
+/// `Proto::as_str` alone — the 61-era three-if chain retired here
+/// the same day the v6 spellings landed, because a fourth branch
+/// per new family would have been a drift point born the same day
+/// (six spellings, one call). A v6 socket's line reads its family
+/// at the tag now (`tcp6 [2001:db8::1]:443 [busy]`), not only
+/// through the bracketed remote.
 fn endpoint_text(socket: &SocketInfo, conns: Option<&ConnectionMap>, window: Duration) -> String {
     let mut out = String::new();
-    if socket.proto == Proto::Tcp {
-        out.push_str("tcp ");
-    }
-    if socket.proto == Proto::Udp {
-        out.push_str("udp ");
-    }
-    if socket.proto == Proto::Raw {
-        out.push_str("raw ");
-    }
+    out.push_str(socket.proto.as_str());
+    out.push(' ');
     out.push_str(&socket.remote);
     if socket.queued {
         out.push_str(" [busy]");
@@ -236,14 +237,22 @@ fn socket_bytes_of<'a>(
 /// (movers-first) puts idle raw sockets at the bottom; the live
 /// monitor shows them as detail lines under the process — both
 /// honest placements.
+///
+/// night-improve-62 v6 arms: the family changes nothing here — the
+/// gates are per transport, and the suffix rides along. The v6
+/// remote guard is already covered by the same `:0` law: an
+/// unbound v6 socket's remote is `[::]:0` (or `[::ffff:...]:0` for
+/// a mapped listener), both end in `:0`, so the UDP branch's guard
+/// filters the v6 listeners with zero new code — the comment at
+/// the UDP branch said exactly this shape back in hunt-15.
 pub(crate) fn is_displayable(socket: &SocketInfo) -> bool {
     match socket.proto {
-        Proto::Tcp => socket.state == "ESTABLISHED",
-        Proto::Udp => {
+        Proto::Tcp | Proto::Tcp6 => socket.state == "ESTABLISHED",
+        Proto::Udp | Proto::Udp6 => {
             (socket.state == "CLOSE" || socket.state == "ESTABLISHED")
                 && !socket.remote.ends_with(":0")
         }
-        Proto::Raw => true,
+        Proto::Raw | Proto::Raw6 => true,
     }
 }
 
@@ -448,3 +457,10 @@ mod detail_tests;
 #[cfg(test)]
 #[path = "../../../test/ebpf/render/detail_bytes_tests.rs"]
 mod detail_bytes_tests;
+
+// night-improve-62: the displayable-census pins took their own file
+// the same way when the v6 arms pushed detail_tests.rs past the cap —
+// the boost-26 precedent, one file per contract, a pure move.
+#[cfg(test)]
+#[path = "../../../test/ebpf/render/detail_census_tests.rs"]
+mod detail_census_tests;
