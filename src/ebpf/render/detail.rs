@@ -132,12 +132,34 @@ fn endpoint_text(socket: &SocketInfo, conns: Option<&ConnectionMap>, window: Dur
         if b.dl > 0 || b.ul > 0 {
             out.push_str(&format!(
                 " [dl {} | ul {}]",
-                format_rate(super::rate_bps(b.dl, window)),
-                format_rate(super::rate_bps(b.ul, window))
+                steady_rate_field(super::rate_bps(b.dl, window)),
+                steady_rate_field(super::rate_bps(b.ul, window))
             ));
         }
     }
     out
+}
+
+/// The steady rate field (night-improve-59, the Bloomberg cut):
+/// the one canonical renderer for the `[dl X | ul Y]` suffix
+/// figures BOTH eagle-eyes surfaces speak — right-aligned in the
+/// estate's fixed 10-column RATE budget (improve-13's own law:
+/// "999.9 KB/s" is the widest the SI ladder renders, so every
+/// figure lands in the same columns every frame — the shifting
+/// widths of the arrival-rates landing cost -7.7% fps and +7.4%
+/// dirty cells to no one's benefit, a whole-frame column jitter
+/// every time a rate crossed a tier), and a zero leg renders the
+/// honest `0 B/s`, never `format_rate`'s "BLOCKED" (the footer's
+/// own law: a policy verdict is not a traffic observation — the
+/// observer does not judge, and a mover that moved nothing on one
+/// leg this frame is a ZERO, not a blocked lane).
+pub(crate) fn steady_rate_field(rate: u64) -> String {
+    let figure = if rate == 0 {
+        "0 B/s".to_string()
+    } else {
+        format_rate(rate)
+    };
+    format!("{figure:>10}")
 }
 
 /// The joined bytes for one socket, if any (NIGHT-boost-26): the

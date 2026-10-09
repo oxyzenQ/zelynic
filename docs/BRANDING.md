@@ -360,7 +360,7 @@ The capability ladder itself auto-falls-back (truecolor -> 256 cube
 (NIGHT-boost-23, the cosmostrix contract: 0/16/8|256/24|32) forces a
 depth for terminals whose environment lies about truecolor — see
 USAGE.md. A cycled frame names its theme in the footer's
-status line (`1s realtime - theme atomic - q quit - t theme - ↑↓ scroll - ←→ section`, the
+status line (`1s realtime - theme atomic - q quit - t theme - ↑↓ scroll - => section`, the
 NIGHT-engrave-2 legend) — and since NIGHT-engrave-3 that row is the
 key hints' only home (the title's top-right hint retired then and
 stayed retired through the engrave-4 footer rebuild); a theme

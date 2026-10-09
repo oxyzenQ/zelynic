@@ -45,6 +45,7 @@ use crate::output::grey;
 use std::collections::HashMap;
 use std::time::Duration;
 
+use super::detail::steady_rate_field;
 use super::rate_bps;
 use super::report::SOCKET_LINES_CAP;
 
@@ -90,18 +91,22 @@ impl TrafficEndpoint {
     /// lines above it (the owner's transcript had to divide
     /// `[dl 1.2 MB]` by an invisible 30 to discover the 40 KB/s it
     /// always meant). Empty for a byteless row (the lean-row
-    /// contract, detail::endpoint_text).
+    /// contract, detail::endpoint_text). night-improve-59: the
+    /// figures ride the same steady 10-column rate field the live
+    /// view renders (detail::steady_rate_field — one canonical
+    /// renderer, both surfaces, no drift).
     fn bytes_suffix(&self, window_secs: u64) -> String {
+        let dur = Duration::from_secs(window_secs.max(1));
         match (self.dl, self.ul) {
             (Some(dl), Some(ul)) => {
                 format!(
                     " [dl {} | ul {}]",
-                    window_rate(dl, window_secs),
-                    window_rate(ul, window_secs)
+                    steady_rate_field(rate_bps(dl, dur)),
+                    steady_rate_field(rate_bps(ul, dur))
                 )
             }
-            (Some(dl), None) => format!(" [dl {}]", window_rate(dl, window_secs)),
-            (None, Some(ul)) => format!(" [ul {}]", window_rate(ul, window_secs)),
+            (Some(dl), None) => format!(" [dl {}]", steady_rate_field(rate_bps(dl, dur))),
+            (None, Some(ul)) => format!(" [ul {}]", steady_rate_field(rate_bps(ul, dur))),
             (None, None) => String::new(),
         }
     }
