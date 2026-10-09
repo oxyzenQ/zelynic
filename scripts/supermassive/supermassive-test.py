@@ -2026,6 +2026,119 @@ def stage_server_orphan_census():
     return ok == "PASS"
 
 
+def stage_server_zombie_sweep():
+    """night-hunt-43: the live zombie-policy proof. The sweep's
+    decision core is unit-pinned and the retirement rides the same
+    lanes recover's own scan exercises, but the end-to-end shape (a
+    policy whose cgroup DIED, collected by the next mutation visit
+    instead of a manual 'zelynic recover') is not crossed LIVE —
+    this stage IS that crossing, the orphan-census stage's twin one
+    collector over.
+
+    The shape (the DELIVERED zombie — the shape that exercises the
+    full two-signal law: traffic, then death, then the horizon's
+    rotation, then the retirement):
+      1. apply a policy to dedicated bed 'e' (strict creates the
+         policy rows; the ring rows do not exist yet — rings are
+         created lazily, at the first ALLOWED packet)
+      2. run a 2s download client inside bed 'e' — the traffic
+         flows UNDER the policy, so the ring rows get created and
+         stamped (dl books the payload, ul books the ACKs)
+      3. the client exits — bed 'e' is empty, the identity walk no
+         longer names the cgroup: the policy row is now a zombie
+      4. sleep the ring horizon + margin (10s — the last delivered
+         second rotates out of the 8s window set, the sweep's own
+         grace window)
+      5. run 'zelynic status -v --print-json' — the visit's zombie
+         sweep retires the dead policy (no identity entry, both
+         rings silent past the horizon)
+      6. assert the sweep's verbose trace fires AND the status JSON
+         no longer carries the policy
+      7. teardown: 'zelynic u --all' — the idempotent reset that
+         unpins the empty skeleton the sweep leaves behind (the
+         sweep has no unpin ladder of its own; the status visit
+         never did), keeping the pin slate clean for the desktop
+         phase. Exit 0 either way (the already-clean carve-out).
+
+    On a non-dedicated cgroup host (cgroup v1, session fallback),
+    the stage SKIPs (the same gate every dedicated-cgroup stage
+    owns)."""
+    out()
+    out("━━━ server depth: zombie-sweep live proof (die + status visit) ━━━")
+    if not CG.dedicated:
+        record(
+            "server: zombie-sweep live proof (die + status visit)",
+            "SKIP",
+            "session-cgroup fallback — dedicated cgroups not creatable",
+        )
+        return False
+    e_id = CG.ids["e"]
+    # Step 1: the policy. The rate is generous (1mb) — the stage
+    # proves the retirement, not the enforcement band.
+    rc, stdout, stderr = run_zel(["strict", str(e_id), "1mb"], timeout=30)
+    if rc != 0:
+        record(
+            "server: zombie-sweep live proof (die + status visit)",
+            "FAIL",
+            f"setup apply failed: exit {rc}, {(stderr or stdout).strip()[:200]}",
+        )
+        return False
+    doc = status_json()
+    if doc is None or limit_entry(doc, e_id) is None:
+        record(
+            "server: zombie-sweep live proof (die + status visit)",
+            "FAIL",
+            "setup apply did not land a policy row for cgroup E",
+        )
+        run_zel(["u", "--all"], timeout=30)
+        return False
+    # Step 2: the delivered traffic. The 2s client downloads under
+    # the policy — both rings stamp (payload + ACKs). A metric of
+    # zero bytes means the client never delivered and the ring rows
+    # may not exist (the never-delivered shape still retires, but
+    # this stage's contract is the DELIVERED zombie).
+    metric, err = spawn_in_cgroup("e", [sys.executable, "-c", _PY_DL_CLIENT, str(SERVER.port), "2.0"], 30)
+    if metric is None or metric <= 0:
+        record(
+            "server: zombie-sweep live proof (die + status visit)",
+            "FAIL",
+            f"traffic client delivered nothing (metric={metric}, err={err})",
+        )
+        run_zel(["u", str(e_id)], timeout=30)
+        return False
+    # Step 3: the client has exited — bed 'e' holds no process, the
+    # identity walk cannot name it. Step 4: the horizon rotation.
+    time.sleep(10)
+    # Step 5: the mutation visit. One call, both surfaces: the
+    # verbose trace lands on stderr, the JSON verdict on stdout.
+    rc, stdout, stderr = run_zel(["status", "-v", "--print-json"], timeout=60)
+    combined = (stderr or "") + (stdout or "")
+    # Step 6a: the sweep's own trace (zombie.rs's
+    # zombie_sweep_trace_line): "[limiter] zombie sweep: retired N
+    # dead-cgroup polic(y|ies) — ...".
+    trace_ok = "zombie sweep: retired" in combined and "dead-cgroup polic" in combined
+    # Step 6b: the JSON no longer carries the policy (the sweep ran
+    # before the status print in the same visit — the row the owner
+    # used to need 'sudo zelynic recover' to clear).
+    row_gone = False
+    try:
+        doc = json.loads(stdout or "{}")
+        row_gone = limit_entry(doc, e_id) is None
+    except json.JSONDecodeError:
+        pass
+    ok = record(
+        "server: zombie-sweep live proof (die + status visit)",
+        "PASS" if trace_ok and row_gone and rc == 0 else "FAIL",
+        f"exit {rc}, trace: {trace_ok}, row gone: {row_gone}"
+        + (f", combined: {combined.strip()[:200]}" if not (trace_ok and row_gone) else ""),
+    )
+    # Step 7: the idempotent reset — unpins the empty skeleton on
+    # the PASS path (exit 0, "no residue"), clears a survivor on
+    # the FAIL path. Either way the pin slate is clean after.
+    run_zel(["u", "--all"], timeout=30)
+    return ok == "PASS"
+
+
 def run_server_phase():
     """NIGHT-blade-4: the server depth phase — headless env, dense
     population, daemonized traffic, concurrent readers, orderly
@@ -2051,6 +2164,11 @@ def run_server_phase():
     # teardown leaves the maps empty, so this stage's single-cgroup
     # apply starts fresh.
     stage_server_orphan_census()
+    # night-hunt-43: the zombie-sweep live proof. Runs after the
+    # orphan stage — the same clean slate its 'u' teardown leaves,
+    # and the sweep under proof retires its own policy before this
+    # stage's own teardown runs.
+    stage_server_zombie_sweep()
     failed = [r for r in RESULTS if r["test"].startswith("server:") and r["verdict"] == "FAIL"]
     if failed:
         out()
