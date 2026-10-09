@@ -28,10 +28,10 @@
 //! unverified lane), unreadable directories are skipped, never
 //! fatal, and only real subdirectories of the mount are followed.
 
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fs;
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// The visit ceiling: a one-shot CLI walk must stay bounded on a
 /// huge tree (a container host with thousands of cgroups). Past
@@ -125,32 +125,27 @@ fn rel_path_of(dir: &Path) -> String {
 // The cgroupfs id census (the zombie sweep's death proof, the
 // absent-lens residual's own lane) lives beside the resolver — same
 // family, same bounds, one contract harder: the census proves a
-// NEGATIVE, so its walk must be COMPLETE or nothing. night-audit-8
-// grew the values from ids to id -> PATH: the sweep's liveness belt
-// (cgroup.events) needs the directory itself, not just its name.
+// NEGATIVE, so its walk must be COMPLETE or nothing.
 
-/// The cgroupfs id-to-path census (NIGHT-hunt-43's absent-lens
-/// residual, owner-approved; night-audit-8's belt values): ONE
-/// bounded walk of the mount collecting every directory's id AND
-/// the path it lives at. `Some(map)` means the walk was COMPLETE —
-/// the whole tree enumerated within the bounds, not one read or
-/// stat failed — so an id absent from the map names no cgroup the
-/// mount holds: kernel-proven death (the kernel destroys a cgroup
-/// only after its last process left, so nothing can ever deliver
-/// from it again — a STRONGER verdict than the ring's silence,
-/// which only proves it did not). An id PRESENT names the very
-/// directory whose `cgroup.events` the belt reads. `None` is
-/// inconclusive — a tree past the bounds, an unreadable directory —
-/// never "empty": the caller must veto exactly as it would without
-/// the census (fail-closed for reclamation, the sweep's own
-/// posture).
+/// The cgroupfs id census (NIGHT-hunt-43's absent-lens residual,
+/// owner-approved): ONE bounded walk of the mount collecting the id
+/// of every directory it admits. `Some(set)` means the walk was
+/// COMPLETE — the whole tree enumerated within the bounds, not one
+/// read or stat failed — so an id absent from the set names no
+/// cgroup the mount holds: kernel-proven death (the kernel destroys
+/// a cgroup only after its last process left, so nothing can ever
+/// deliver from it again — a STRONGER verdict than the ring's
+/// silence, which only proves it did not). `None` is inconclusive —
+/// a tree past the bounds, an unreadable directory — never "empty":
+/// the caller must veto exactly as it would without the census
+/// (fail-closed for reclamation, the sweep's own posture).
 ///
 /// The census trusts the walker's own cgroupfs view, the same view
 /// every identity resolution in this family already reads — a
 /// cgroup-namespace reader sees its subtree, not the host's whole
 /// hierarchy (the named residual in the hunt-43 audit's terms).
-pub fn cgroupfs_id_path_census() -> Option<HashMap<u32, PathBuf>> {
-    collect_id_paths(Path::new("/sys/fs/cgroup"), MAX_VISITS, MAX_DEPTH)
+pub fn cgroupfs_id_census() -> Option<HashSet<u32>> {
+    collect_id_set(Path::new("/sys/fs/cgroup"), MAX_VISITS, MAX_DEPTH)
 }
 
 /// The census walk core, generic over root and bounds so the pins
@@ -158,32 +153,27 @@ pub fn cgroupfs_id_path_census() -> Option<HashMap<u32, PathBuf>> {
 /// without touching the live mount. Every failure is total (None):
 /// a skipped directory could be the target's hiding place, and a
 /// negative cannot be proven by a walk that did not finish.
-fn collect_id_paths(
-    dir: &Path,
-    max_visits: usize,
-    max_depth: usize,
-) -> Option<HashMap<u32, PathBuf>> {
-    let mut ids = HashMap::new();
-    walk_id_paths(dir, 0, &mut 0, max_visits, max_depth, &mut ids)?;
+fn collect_id_set(dir: &Path, max_visits: usize, max_depth: usize) -> Option<HashSet<u32>> {
+    let mut ids = HashSet::new();
+    walk_id_set(dir, 0, &mut 0, max_visits, max_depth, &mut ids)?;
     Some(ids)
 }
 
-fn walk_id_paths(
+fn walk_id_set(
     dir: &Path,
     depth: usize,
     visits: &mut usize,
     max_visits: usize,
     max_depth: usize,
-    ids: &mut HashMap<u32, PathBuf>,
+    ids: &mut HashSet<u32>,
 ) -> Option<()> {
     if depth > max_depth || *visits >= max_visits {
         return None;
     }
     *visits += 1;
     // The directory's own kernfs inode — the same numbering
-    // pid_cgroup_id truncates to the u32 the maps key on — beside
-    // the path the belt's cgroup.events read needs.
-    ids.insert(fs::metadata(dir).ok()?.ino() as u32, dir.to_path_buf());
+    // pid_cgroup_id truncates to the u32 the maps key on.
+    ids.insert(fs::metadata(dir).ok()?.ino() as u32);
     let entries = fs::read_dir(dir).ok()?;
     for entry in entries {
         let entry = entry.ok()?;
@@ -191,35 +181,9 @@ fn walk_id_paths(
         if !meta.is_dir() {
             continue;
         }
-        walk_id_paths(&entry.path(), depth + 1, visits, max_visits, max_depth, ids)?;
+        walk_id_set(&entry.path(), depth + 1, visits, max_visits, max_depth, ids)?;
     }
     Some(())
-}
-
-/// The kernel's own subtree-liveness verdict (night-audit-8's belt,
-/// the alive-unresolvable-quiet residual's closure): cgroup v2
-/// publishes `populated <0|1>` in every directory's cgroup.events —
-/// 1 while the cgroup OR ANY DESCENDANT holds a live process, 0
-/// when the whole subtree is memberless. This is the one signal
-/// the identity walk's blind spot cannot hide behind: a process
-/// that entered a cgroup namespace after its apply vanishes from
-/// the host-path lane of /proc/<pid>/cgroup, but the kernel never
-/// stops counting it here. `None` on any read or parse failure —
-/// the caller vetoes on it (fail-closed, the census's own
-/// posture).
-pub fn cgroup_events_populated(dir: &Path) -> Option<bool> {
-    let content = fs::read_to_string(dir.join("cgroup.events")).ok()?;
-    for line in content.lines() {
-        let mut fields = line.split_whitespace();
-        if fields.next() == Some("populated") {
-            return match fields.next() {
-                Some("0") => Some(false),
-                Some("1") => Some(true),
-                _ => None,
-            };
-        }
-    }
-    None
 }
 
 // The pathwalk pins live under the single test/ tree (cosmostrix

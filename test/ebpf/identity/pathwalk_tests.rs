@@ -6,14 +6,11 @@
 //! walk must agree on), the mount-relative path shape, and the
 //! never-panic contract of the bounded walk itself — plus the live
 //! lane the fleet beds ride: the mount root resolves by inode with
-//! no member process anywhere in sight. The cgroupfs id-to-path
-//! census (the zombie sweep's death proof and belt evidence, the
-//! values grown id -> path by night-audit-8) pins beside its
-//! resolver sibling: the live walk admits the mount, and the
-//! synthetic trees pin the complete-or-nothing law — a census that
-//! did not finish proves nothing. The belt's own reader
-//! (cgroup.events `populated`) pins beside them: the kernel's
-//! verdict parses exactly, and every unprovable shape reads None.
+//! no member process anywhere in sight. The cgroupfs id census
+//! (the zombie sweep's death proof) pins beside its resolver
+//! sibling: the live walk admits the mount, and the synthetic
+//! trees pin the complete-or-nothing law — a census that did not
+//! finish proves nothing.
 
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
@@ -62,7 +59,7 @@ fn walk_resolves_the_mount_root_by_inode() {
     assert_eq!(got.as_deref(), Some("/"));
 }
 
-// ── the cgroupfs id-to-path census (the death proof and belt) ────
+// ── the cgroupfs id census (the death proof) ───────────────────────
 
 /// A unique scratch tree for one pin — created empty, removed
 /// best-effort on drop (the tests that use it never assert on
@@ -100,54 +97,44 @@ impl Drop for ScratchTree {
 
 /// The live census admits the mount: the walk completes on every
 /// supported host (cgroup v2 is the limiter's own prerequisite)
-/// and the map carries the mount root's own inode — the id the
-/// resolver pin above resolves — mapped to the mount path itself,
-/// plus a full subtree's worth of real cgroups, none fabricated.
+/// and the set carries the mount root's own inode — the id the
+/// resolver pin above resolves — plus a full subtree's worth of
+/// real cgroups, none fabricated.
 #[test]
 fn census_admits_the_live_mount() {
-    let map = cgroupfs_id_path_census().expect("census must complete on a supported host");
+    let set = cgroupfs_id_census().expect("census must complete on a supported host");
     let meta = std::fs::metadata("/sys/fs/cgroup")
         .expect("cgroup v2 mount absent — the limiter's own prerequisite");
-    assert_eq!(
-        map.get(&(meta.ino() as u32)).map(PathBuf::as_path),
-        Some(Path::new("/sys/fs/cgroup")),
-        "the mount root maps to itself"
-    );
+    assert!(set.contains(&(meta.ino() as u32)));
     // A real hierarchy always carries more than the mount root
     // (the boot's own init.scope et al); the census sees them all.
-    assert!(map.len() > 1);
+    assert!(set.len() > 1);
 }
 
 /// The complete-or-nothing law, synthetic edition: the census
 /// names every DIRECTORY in a finished walk (the truncating u32
-/// numbering the maps key on) mapped to its own path, and never a
-/// file — cgroup.procs and friends are not cgroups. The PATH is
-/// the belt's whole point (night-audit-8): the map must hand back
-/// the very directory whose cgroup.events the sweep reads.
+/// numbering the maps key on) and never a file — cgroup.procs and
+/// friends are not cgroups.
 #[test]
-fn census_names_every_directory_and_its_path() {
+fn census_names_every_directory_and_no_file() {
     let tree = ScratchTree::new("complete");
     let root_ino = std::fs::metadata(&tree.0).unwrap().ino() as u32;
-    let a = tree.dir("bed-a");
-    let ab = tree.dir("bed-a/nested");
-    let b = tree.dir("bed-b");
-    let a_ino = std::fs::metadata(&a).unwrap().ino() as u32;
-    let ab_ino = std::fs::metadata(&ab).unwrap().ino() as u32;
-    let b_ino = std::fs::metadata(&b).unwrap().ino() as u32;
+    let a_ino = std::fs::metadata(tree.dir("bed-a")).unwrap().ino() as u32;
+    let ab_ino = std::fs::metadata(tree.dir("bed-a/nested")).unwrap().ino() as u32;
+    let b_ino = std::fs::metadata(tree.dir("bed-b")).unwrap().ino() as u32;
     let file_ino = std::fs::metadata(tree.file("cgroup.procs")).unwrap().ino() as u32;
 
-    let map = collect_id_paths(&tree.0, 4096, 32)
-        .expect("bounded walk must complete on the scratch tree");
-    assert_eq!(map.len(), 4, "exactly the four directories, files skipped");
-    assert_eq!(map.get(&root_ino), Some(&tree.0), "the root maps to itself");
-    assert_eq!(map.get(&a_ino), Some(&a), "the directory's own path");
-    assert_eq!(map.get(&ab_ino), Some(&ab), "the nested directory's path");
-    assert_eq!(map.get(&b_ino), Some(&b), "the sibling's path");
-    assert!(!map.contains_key(&file_ino), "files are never cgroup ids");
+    let set =
+        collect_id_set(&tree.0, 4096, 32).expect("bounded walk must complete on the scratch tree");
+    assert_eq!(set.len(), 4, "exactly the four directories, files skipped");
+    for ino in [root_ino, a_ino, ab_ino, b_ino] {
+        assert!(set.contains(&ino), "directory inode {ino} must be censused");
+    }
+    assert!(!set.contains(&file_ino), "files are never cgroup ids");
 }
 
 /// The bounds are part of the proof: a tree past the visit ceiling
-/// is INCONCLUSIVE (None), never a partial map — a negative cannot
+/// is INCONCLUSIVE (None), never a partial set — a negative cannot
 /// be proven by a walk that did not finish, the death proof's own
 /// fail-closed floor.
 #[test]
@@ -157,8 +144,8 @@ fn census_past_the_bounds_is_inconclusive() {
         tree.dir(&format!("bed-{i}"));
     }
     // A ceiling that cannot admit the whole tree: None, and no
-    // partial map leaks.
-    assert!(collect_id_paths(&tree.0, 4, 32).is_none());
+    // partial set leaks.
+    assert!(collect_id_set(&tree.0, 4, 32).is_none());
     // The depth ceiling holds the same law for a deep tree.
     let deep = ScratchTree::new("deep");
     let mut path = deep.0.clone();
@@ -166,41 +153,7 @@ fn census_past_the_bounds_is_inconclusive() {
         path = path.join("down");
         std::fs::create_dir_all(&path).expect("scratch dir");
     }
-    assert!(collect_id_paths(&deep.0, 4096, 3).is_none());
+    assert!(collect_id_set(&deep.0, 4096, 3).is_none());
     // And a ceiling that DOES admit the tree completes.
-    assert!(collect_id_paths(&tree.0, 4096, 32).is_some());
-}
-
-// ── the belt's reader (cgroup.events populated) ───────────────────
-
-/// The kernel's verdict parses exactly: `populated 0` and
-/// `populated 1` are the only two spellings that conclude, and the
-/// belt pins both — the alive root's veto and the memberless
-/// subtree's pass — on the scratch tree the synthetic census pins
-/// already ride. (No live-mount pin here on purpose: cgroup.events
-/// is a v2 file and the dev container mounts v1, so the unit tree
-/// pins every parse branch synthetically and the LIVE proof rides
-/// the supermassive zombie stage, which retires real zombies
-/// through the real belt on CI's v2 hosts.)
-#[test]
-fn cgroup_events_populated_parses_the_kernel_verdict() {
-    let tree = ScratchTree::new("events");
-    let alive = tree.dir("alive");
-    std::fs::write(alive.join("cgroup.events"), b"populated 1\nfrozen 0\n").expect("events file");
-    let empty = tree.dir("empty");
-    std::fs::write(empty.join("cgroup.events"), b"populated 0\nfrozen 0\n").expect("events file");
-    assert_eq!(cgroup_events_populated(&alive), Some(true));
-    assert_eq!(cgroup_events_populated(&empty), Some(false));
-
-    // The unprovable shapes, one line each: garbage values, a
-    // missing populated line, a missing file — None, the veto the
-    // caller owns (fail-closed, the census's own posture).
-    let garbage = tree.dir("garbage");
-    std::fs::write(garbage.join("cgroup.events"), b"populated yes\n").expect("events file");
-    let frozen_only = tree.dir("frozen-only");
-    std::fs::write(frozen_only.join("cgroup.events"), b"frozen 0\n").expect("events file");
-    let missing = tree.dir("missing");
-    assert_eq!(cgroup_events_populated(&garbage), None);
-    assert_eq!(cgroup_events_populated(&frozen_only), None);
-    assert_eq!(cgroup_events_populated(&missing), None);
+    assert!(collect_id_set(&tree.0, 4096, 32).is_some());
 }
