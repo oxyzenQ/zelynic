@@ -1815,6 +1815,26 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **refactor(structure): NIGHT-total-lts-14 — the 600-line law is
+  green again: render.rs, border.rs, and capabilities/mod.rs each
+  shed their cohesive module.** The audit's honest find: HEAD's own
+  gate-keepers ran red — render.rs (728) and border.rs (646) had
+  crossed the NIGHT-improve-44 cap when the engrave-11 sweep landed,
+  and this session's improve-64 pins pushed capabilities/mod.rs
+  (636) over the same line — three files over a zero-allowance law.
+  Pure moves, no logic touched: the title bar composer (the centered
+  `title_bar` + `swept_bar` + their exact-bytes pins) split into
+  render/title.rs; the swept-run engine (`sweep_run`, its memo, and
+  the drift-killer pin) into render/sweep.rs beside the wave math it
+  borrows; the pin lattice (the `PinState` verdict, the pure
+  `pin_verdict` law, the collector, and the human "Pins:" line)
+  into capabilities/pins.rs. The dormant lane (--no-default-features)
+  is where the split bit: an ungated re-export of the ebpf-gated
+  collector compiled in the full build and broke the half-life lane
+  the local gate tests explicitly — the calls now route through the
+  module path and the stub carries its own visibility, both lanes
+  compile, and the 0-over-600 law holds repo-wide.
+
 - **refactor(render): NIGHT-engrave-12 — the title rides the middle:
   the eagle-eyes title bar centers its core.** The owner's ask,
   total: the title hugged the top-left corner behind a fixed
