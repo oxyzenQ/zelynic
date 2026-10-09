@@ -62,8 +62,18 @@
 //! family owns: silence must be PROVEN, never assumed — and a
 //! direction whose lens cannot be READ (the absent-lens contract,
 //! a stale pin epoch) proves nothing. Every root in that
-//! direction waits, and the manual `recover` scan (identity-only,
-//! reported before it cleans) remains the tool for stale epochs.
+//! direction waits — UNLESS the cgroupfs census can prove the
+//! stronger verdict: the root's directory is GONE from a complete
+//! walk of the mount (the owner-approved absent-lens residual,
+//! see [`crate::ebpf::identity::pathwalk::cgroupfs_id_census`]).
+//! Death is a stronger proof than silence — the kernel destroys a
+//! cgroup only after its last process left, so nothing can ever
+//! deliver from it again — and a zombie that dies on a stale pin
+//! epoch now retires at the next visit instead of waiting for the
+//! manual `recover` scan (which remains the tool for the shapes
+//! the census cannot conclude: an inconclusive walk, a tree past
+//! the bounds, a cgroup-namespace view that cannot see the root's
+//! branch of the host hierarchy).
 //!
 //! ── Placement — the visit law, one more collector ────────────────
 //!
@@ -107,21 +117,31 @@ pub(crate) enum RingProof {
     /// The direction's lens is absent (a stale pin epoch — the
     /// map could not be read at all): silence is unproven, and
     /// retirement is vetoed (fail-closed for reclamation, the
-    /// posture every sweep in the family owns).
+    /// posture every sweep in the family owns) — UNLESS the
+    /// cgroupfs census proves the root's directory itself is
+    /// gone, the one verdict stronger than silence (death needs
+    /// no silence read; see the decision core's `fs_gone` leg).
     Unknown,
 }
 
 /// The zombie decision core (NIGHT-hunt-43, pure so it is
 /// unit-pinned): from one policy root's evidence — the identity
-/// verdict and the ring proof per direction it holds a policy in —
-/// the retirement verdict. `None` per direction means the root
-/// holds no policy leg there, so the lens has nothing to prove
-/// about it (a stray row in that direction is census residue, the
-/// census sweep's own subject, not this root's life signal). A
-/// root retires only when no identity entry stands AND every
-/// policed direction proved SILENT — the session board's
-/// retire_dead predicate, the two-signal law in the module header.
-fn zombie(identity_hit: bool, dl: Option<RingProof>, ul: Option<RingProof>) -> bool {
+/// verdict, the ring proof per direction it holds a policy in,
+/// and the cgroupfs death proof — the retirement verdict. `None`
+/// per direction means the root holds no policy leg there, so the
+/// lens has nothing to prove about it (a stray row in that
+/// direction is census residue, the census sweep's own subject,
+/// not this root's life signal). A root retires only when no
+/// identity entry stands AND every policed direction proved
+/// SILENT — the session board's retire_dead predicate, the
+/// two-signal law in the module header — with one rescue: a
+/// direction whose lens is absent (Unknown) still passes when
+/// `fs_gone` says the cgroupfs census PROVED the root's directory
+/// gone (the absent-lens residual's death proof, a stronger
+/// verdict than the silence the lens could not read). Traffic
+/// vetoes unconditionally — the belt never rides on which proof
+/// the other legs found.
+fn zombie(identity_hit: bool, dl: Option<RingProof>, ul: Option<RingProof>, fs_gone: bool) -> bool {
     if identity_hit {
         return false;
     }
@@ -130,19 +150,38 @@ fn zombie(identity_hit: bool, dl: Option<RingProof>, ul: Option<RingProof>) -> b
         // at all (the walk only names roots the policy maps carry;
         // the core stays defensive — no leg, no retirement).
         (None, None) => false,
-        _ => [dl, ul]
-            .into_iter()
-            .flatten()
-            .all(|p| p == RingProof::Silent),
+        _ => [dl, ul].into_iter().flatten().all(|p| match p {
+            RingProof::Silent => true,
+            // The absent lens's one rescue: the root itself is
+            // kernel-proven gone, so the silence this leg
+            // could not read is moot — nothing can deliver
+            // from a destroyed cgroup.
+            RingProof::Unknown => fs_gone,
+            RingProof::Traffic => false,
+        }),
     }
 }
 
 /// Verbose trace line for the zombie sweep (NIGHT-hunt-43): pure
 /// formatting so the wording is unit-pinned beside its siblings.
-fn zombie_sweep_trace_line(retired: usize, state_reclaimed: usize) -> String {
+/// The evidence clause names which proof retired the rows — the
+/// ring silence the healthy lens reads, the cgroupfs death proof
+/// the absent lens falls back to, or both when one visit collected
+/// each class (the honest surface: a death-proof retirement never
+/// reads as a silence it never read).
+fn zombie_sweep_trace_line(retired: usize, state_reclaimed: usize, fs_proven: usize) -> String {
+    let silence_proven = retired.saturating_sub(fs_proven);
+    let evidence = match (silence_proven, fs_proven) {
+        (_, 0) => "no ring traffic for the horizon",
+        (0, _) => {
+            "the cgroupfs death proof — the root's directory gone \
+             from a complete walk (the absent lens's own lane)"
+        }
+        _ => "no ring traffic for the horizon and the cgroupfs death proof",
+    };
     format!(
         "[limiter] zombie sweep: retired {retired} dead-cgroup polic{} — \
-         no identity entry, no ring traffic for the horizon; {state_reclaimed} state {} \
+         no identity entry, {evidence}; {state_reclaimed} state {} \
          returned to the census budget",
         if retired == 1 { "y" } else { "ies" },
         if state_reclaimed == 1 {
@@ -203,11 +242,13 @@ impl Limiter {
     /// family's own ladder: an unreadable policy map or an EMPTY
     /// identity map (a failed walk, the signal guard) stands the
     /// whole sweep down; an absent ring lens vetoes every root in
-    /// that direction (nothing retires on a silence the lens could
-    /// not read); a failed delete warns and the root waits for
-    /// the next visit. Retirement is the full recover shape per
-    /// root: group ids captured read-before-delete, both policy
-    /// legs deleted (an uncertain leg keeps the state,
+    /// that direction unless the cgroupfs census proves the root's
+    /// directory gone (the death proof, the module header's rescue
+    /// — death is a stronger verdict than the silence the lens
+    /// could not read); a failed delete warns and the root waits
+    /// for the next visit. Retirement is the full recover shape
+    /// per root: group ids captured read-before-delete, both
+    /// policy legs deleted (an uncertain leg keeps the state,
     /// conservative like every removal here), the state reclaimed
     /// once both legs are confirmed gone, and the captured groups
     /// swept for dead shared buckets at the end. Returns the
@@ -257,6 +298,20 @@ impl Limiter {
         let dl_census = ring_census(reads.dl.as_deref(), now);
         let ul_census = ring_census(reads.ul.as_deref(), now);
 
+        // The absent lens's death proof (the owner-approved
+        // residual): the cgroupfs census is built ONLY when a lens
+        // is absent — the healthy host (both lenses readable)
+        // never pays the walk, and the stale-epoch host pays one
+        // bounded walk per visit, the same shape the lazy identity
+        // load above already owns. A census that could not
+        // complete reads as None and every absent-lens root keeps
+        // its veto (fail-closed, the walk's own contract).
+        let fs_census = if dl_census.is_none() || ul_census.is_none() {
+            crate::ebpf::identity::pathwalk::cgroupfs_id_census()
+        } else {
+            None
+        };
+
         // The walk: every root either direction names, sorted for
         // deterministic traces (HashMap iteration order is random;
         // the verbose log and the pinned pins both deserve one
@@ -272,14 +327,37 @@ impl Limiter {
 
         let mut retired = 0usize;
         let mut state_reclaimed = 0usize;
+        let mut fs_proven = 0usize;
         let mut captured_groups: Vec<u32> = Vec::new();
         for id in roots {
             let has_dl = dl.iter().any(|(k, _)| *k == id);
             let has_ul = ul.iter().any(|(k, _)| *k == id);
             let dl_proof = has_dl.then(|| ring_proof(dl_census.as_ref(), id));
             let ul_proof = has_ul.then(|| ring_proof(ul_census.as_ref(), id));
-            if !zombie(self.identity().get(id).is_some(), dl_proof, ul_proof) {
+            // The root's death-proof bit: true only when the census
+            // COMPLETED and the root's directory is absent from it
+            // — kernel-proven gone. A root the census still names
+            // (alive, or an id a recycled directory inherited), or
+            // a census that could not conclude, keeps the bit false
+            // and the absent lens keeps its veto.
+            let fs_gone = fs_census.as_ref().is_some_and(|set| !set.contains(&id));
+            if !zombie(
+                self.identity().get(id).is_some(),
+                dl_proof,
+                ul_proof,
+                fs_gone,
+            ) {
                 continue;
+            }
+            // A retirement with an absent-lens leg rode the death
+            // proof to its verdict — the trace's evidence clause
+            // must never call it a silence the lens never read.
+            if [dl_proof, ul_proof]
+                .into_iter()
+                .flatten()
+                .any(|p| p == RingProof::Unknown)
+            {
+                fs_proven += 1;
             }
             // The retirement, recover's own shape per root: capture
             // the group ids read-before-delete, delete both legs,
@@ -330,7 +408,10 @@ impl Limiter {
         self.reclaim_dead_groups(&captured_groups);
 
         if self.verbose && retired > 0 {
-            eprintln_safe!("{}", zombie_sweep_trace_line(retired, state_reclaimed));
+            eprintln_safe!(
+                "{}",
+                zombie_sweep_trace_line(retired, state_reclaimed, fs_proven)
+            );
         }
         retired
     }
