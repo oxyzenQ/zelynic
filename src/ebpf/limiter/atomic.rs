@@ -238,7 +238,12 @@ impl super::Limiter {
         // night-during (schema v23): the lazy sweep, the family's
         // own tail (apply_single's note owns the why).
         self.sweep_expired_windows_best_effort();
-        // NIGHT-hunt-34: the orphan-census sweep, the tail's second
+        // NIGHT-hunt-43: the zombie-policy sweep, the tail's second
+        // collector (zombie.rs owns the two-signal why; ordered
+        // before the census pass so a FAILED zombie reclaim's
+        // orphaned state is collected in the same visit).
+        self.sweep_zombie_policies();
+        // NIGHT-hunt-34: the orphan-census sweep, the tail's third
         // collector (reclaim.rs owns the why).
         self.sweep_census_orphans();
         self.ammsp_memo_invalidate_best_effort();

@@ -70,6 +70,16 @@ pub fn handle_status(verbose: bool, json: bool) -> Result<()> {
     let _sweep_lock = crate::ebpf::lock::acquire().ok();
     if _sweep_lock.is_some() {
         limiter.sweep_expired_windows_best_effort();
+        // NIGHT-hunt-43: the zombie-policy sweep joins the visit —
+        // a cgroup that died with its policy standing is collected
+        // by the same law (the policy census sweep keeps state a
+        // LIVE policy names; the zombie's policy is exactly that
+        // proof, so the two-signal walk here is the only automatic
+        // collector it will ever meet — until now its ghost row
+        // waited for a manual 'zelynic recover'). Ordered before
+        // the census sweep: the census pass then also mops up any
+        // state a FAILED zombie reclaim just orphaned.
+        limiter.sweep_zombie_policies();
         // NIGHT-hunt-34: the orphan-census sweep joins the visit —
         // the census-bounded state a failed or interrupted reclaim
         // left behind is collected by the same law (the rings feed
