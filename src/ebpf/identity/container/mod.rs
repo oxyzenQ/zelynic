@@ -35,7 +35,7 @@ mod docker;
 
 use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 
 /// The cgroup-walk bounds: a hostile or enormous tree cannot wedge a
 /// CLI invocation — depth 10 covers every driver layout this

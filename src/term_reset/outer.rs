@@ -156,10 +156,10 @@ pub(crate) fn outer_tty_from_proc(
     // sudo (no use_pty), the monitor's fd 0 IS our own terminal —
     // same device, nothing to discover, today's five layers
     // already target the right tty.
-    if let Some(own) = own_tty {
-        if name == own {
-            return None;
-        }
+    if let Some(own) = own_tty
+        && name == own
+    {
+        return None;
     }
     Some(target)
 }

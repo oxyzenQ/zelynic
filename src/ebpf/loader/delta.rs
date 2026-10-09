@@ -56,11 +56,7 @@ pub(super) fn wrap_coherent_delta(cur: u64, prev: u64) -> u64 {
     // The half-space discriminator (NIGHT-total-lts-5): past the
     // coherence bound the only reachable reading is the eviction
     // restart — the fresh accumulator IS the honest delta.
-    if delta >= HALF_SPACE {
-        cur
-    } else {
-        delta
-    }
+    if delta >= HALF_SPACE { cur } else { delta }
 }
 
 /// The coherence band's ceiling: deltas at or past half the u64

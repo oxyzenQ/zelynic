@@ -125,7 +125,7 @@ pub(super) fn print_pin_state() {}
 
 #[cfg(test)]
 mod tests {
-    use super::super::{CapabilityReport, SystemInfo, BUILD_FLAVOR_FULL_LIFE};
+    use super::super::{BUILD_FLAVOR_FULL_LIFE, CapabilityReport, SystemInfo};
     use super::*;
 
     /// night-improve-64: the pin verdict vocabulary — file count and

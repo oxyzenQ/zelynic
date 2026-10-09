@@ -11,7 +11,7 @@
 //! directions so the two tables cannot drift apart.
 
 use super::scope::print_json_ignored_note;
-use super::{command_honors_print_json, Commands};
+use super::{Commands, command_honors_print_json};
 
 /// The note's exact shape: the flag name, the word "ignored", the
 /// parenthesized surface list. A script owner reads this line once

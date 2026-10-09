@@ -280,7 +280,9 @@ fn limiter_map_mutation_has_one_acquisition_path() {
     );
     // The helper's own file is the implementation, not a caller: the
     // site inside lanes.rs is the acquisition itself.
-    assert!(Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("src/ebpf/limiter/lanes.rs")
-        .exists());
+    assert!(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src/ebpf/limiter/lanes.rs")
+            .exists()
+    );
 }

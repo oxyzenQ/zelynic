@@ -55,7 +55,7 @@
 //! a beat no selection outlives.
 
 use super::{
-    beat_epoch, beat_epoch_at, next_beat, Beat, ALT_ENTER, ALT_EXIT, SELECTION_GUARD_BEAT,
+    ALT_ENTER, ALT_EXIT, Beat, SELECTION_GUARD_BEAT, beat_epoch, beat_epoch_at, next_beat,
 };
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -400,7 +400,7 @@ fn quit_is_q_first_byte_only() {
 /// the standalone ESC and every non-arrow sequence stay inert here.
 #[test]
 fn theme_keys_route_first_byte_only() {
-    use super::{input_action_from_chunk, InputAction};
+    use super::{InputAction, input_action_from_chunk};
 
     // The one cycle key.
     assert_eq!(input_action_from_chunk(b"t"), InputAction::ThemeNext);
@@ -438,7 +438,7 @@ fn theme_keys_route_first_byte_only() {
 /// the head speaks, never the tail (the quit law's own shape).
 #[test]
 fn arrow_keys_classify_both_spellings_and_nothing_else() {
-    use super::{input_action_from_chunk, InputAction};
+    use super::{InputAction, input_action_from_chunk};
 
     // The CSI spelling every mainstream terminal sends.
     assert_eq!(input_action_from_chunk(b"\x1b[A"), InputAction::ScrollUp);

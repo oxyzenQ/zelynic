@@ -24,7 +24,7 @@
 //! honest); the Array twin serves the ammsp_generation counter
 //! (NIGHT-perf-0) the memo invalidation bumps.
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use aya::maps::{Array as BpfArray, HashMap as BpfHashMap, MapData, MapError};
 
 use crate::ebpf::pin;

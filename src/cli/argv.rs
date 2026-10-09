@@ -27,8 +27,8 @@
 
 use std::ffi::OsString;
 
-use clap::error::{ContextKind, ContextValue};
 use clap::Parser;
+use clap::error::{ContextKind, ContextValue};
 
 use crate::cli::Cli;
 
@@ -100,10 +100,10 @@ pub(crate) fn failing_subcommand(
     // name — the parser takes it as the value, never the command).
     let mut color_mode_value_pending = false;
     for (i, arg) in argv.iter().enumerate().skip(1) {
-        if let Some(stop) = stop_at {
-            if i >= stop {
-                break;
-            }
+        if let Some(stop) = stop_at
+            && i >= stop
+        {
+            break;
         }
         let Some(word) = arg.to_str() else {
             break; // non-UTF-8 cannot name a subcommand

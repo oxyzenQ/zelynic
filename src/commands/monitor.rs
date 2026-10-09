@@ -12,7 +12,7 @@ use anyhow::Result;
 #[cfg(feature = "ebpf")]
 pub fn handle_status(verbose: bool, json: bool) -> Result<()> {
     use crate::ebpf::display::{status_clean_lines, status_stale_lines};
-    use crate::ebpf::limiter::{pin_dir_has_files, terminal_width, Limiter};
+    use crate::ebpf::limiter::{Limiter, pin_dir_has_files, terminal_width};
 
     super::ensure_root()?;
 
@@ -161,7 +161,7 @@ pub fn handle_eagle_eyes(
     use crate::ebpf::limiter::Target;
     use crate::ebpf::loader::{Observer, SocketBytes};
     use crate::ebpf::render::{
-        loading_frame, render_eagle_eyes, BaselineLane, FrameGeometry, ScrollState, SessionState,
+        BaselineLane, FrameGeometry, ScrollState, SessionState, loading_frame, render_eagle_eyes,
     };
     use crate::terminal;
     use std::collections::HashMap;
@@ -397,22 +397,22 @@ pub fn handle_eagle_eyes(
         // pass exists so the family never shows a fake burst above
         // the policy.
         let cookies = conns.socket_cookies();
-        if !cookies.is_empty() {
-            if let Ok(bytes) = observer.socket_bytes(&cookies) {
-                let movers: HashMap<u64, SocketBytes> = bytes
-                    .iter()
-                    .filter_map(|(cookie, now)| {
-                        let prev = join_prev.get(cookie).copied().unwrap_or_default();
-                        let frame = SocketBytes {
-                            dl: now.dl.saturating_sub(prev.dl),
-                            ul: now.ul.saturating_sub(prev.ul),
-                        };
-                        (frame.dl > 0 || frame.ul > 0).then_some((*cookie, frame))
-                    })
-                    .collect();
-                conns.apply_socket_bytes(movers);
-                join_prev = bytes;
-            }
+        if !cookies.is_empty()
+            && let Ok(bytes) = observer.socket_bytes(&cookies)
+        {
+            let movers: HashMap<u64, SocketBytes> = bytes
+                .iter()
+                .filter_map(|(cookie, now)| {
+                    let prev = join_prev.get(cookie).copied().unwrap_or_default();
+                    let frame = SocketBytes {
+                        dl: now.dl.saturating_sub(prev.dl),
+                        ul: now.ul.saturating_sub(prev.ul),
+                    };
+                    (frame.dl > 0 || frame.ul > 0).then_some((*cookie, frame))
+                })
+                .collect();
+            conns.apply_socket_bytes(movers);
+            join_prev = bytes;
         }
         // The lane refresh rides the same frame as the observer
         // poll: two pin opens and a schema check per frame, trivial

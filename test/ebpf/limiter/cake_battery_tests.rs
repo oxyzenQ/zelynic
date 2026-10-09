@@ -10,8 +10,8 @@
 //! machinery live in the parent.
 
 use super::super::ebpf_drr::quantum;
-use super::run_flow_shape;
 use super::Shape;
+use super::run_flow_shape;
 
 // ── THE PINS ──────────────────────────────────────────────────────────
 //

@@ -40,8 +40,8 @@
 //! one concern, re-exported so the `#[command(styles = ...)]`
 //! attribute resolves unchanged.
 
-use clap::builder::styling::{Color, Effects, RgbColor, Style};
 use clap::builder::Styles;
+use clap::builder::styling::{Color, Effects, RgbColor, Style};
 
 #[must_use]
 pub(crate) fn clap_styles() -> Styles {

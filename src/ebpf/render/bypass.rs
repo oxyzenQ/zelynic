@@ -19,7 +19,7 @@
 //! (`depth_json::bypass_audit_json`) carries the same fields for
 //! scripts.
 
-use crate::ebpf::bypass::{shadow_percent, ShadowAudit, ShadowVerdict};
+use crate::ebpf::bypass::{ShadowAudit, ShadowVerdict, shadow_percent};
 use crate::ebpf::limiter::{format_bytes, format_rate};
 use crate::output::warn_bold;
 

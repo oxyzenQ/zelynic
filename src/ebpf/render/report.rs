@@ -35,10 +35,10 @@ use std::time::Duration;
 use crate::ebpf::connections::CgroupConnections;
 use crate::ebpf::identity::depth::{CgroupDepth, ProcessFacts};
 use crate::ebpf::limiter::types::POLICY_FLAG_PER_SOCKET;
-use crate::ebpf::limiter::{format_bytes, format_count, format_rate, LimiterStatsRaw, PolicyRaw};
+use crate::ebpf::limiter::{LimiterStatsRaw, PolicyRaw, format_bytes, format_count, format_rate};
 use crate::output::{fit_to_width, grey, ok, pad_to_width};
 
-use super::depth_traffic::{traffic_section, TrafficFocus};
+use super::depth_traffic::{TrafficFocus, traffic_section};
 use super::{format_uptime, grid_line, title_bar};
 
 /// The enforcement state of the target cgroup, as the pinned policy
@@ -104,15 +104,15 @@ pub struct DepthReport {
 /// cgroup seen only as a bare id stays honestly "unknown".
 #[must_use]
 pub fn package_name(comm: Option<&str>, rel_path: Option<&str>) -> String {
-    if let Some(comm) = comm {
-        if !comm.is_empty() {
-            return comm.to_string();
-        }
+    if let Some(comm) = comm
+        && !comm.is_empty()
+    {
+        return comm.to_string();
     }
-    if let Some(path) = rel_path {
-        if let Some(base) = path.rsplit('/').find(|seg| !seg.is_empty()) {
-            return base.to_string();
-        }
+    if let Some(path) = rel_path
+        && let Some(base) = path.rsplit('/').find(|seg| !seg.is_empty())
+    {
+        return base.to_string();
     }
     "unknown".to_string()
 }
@@ -492,15 +492,15 @@ pub fn depth_report_lines(reports: &[DepthReport], width: usize) -> Vec<String> 
         // failed, not the report forgetting). Both arms live in the
         // depth_traffic sibling (the section's one concern, one
         // module).
-        if report.traffic.is_some() || report.conns.is_some() {
-            if let Some(section) = traffic_section(
+        if (report.traffic.is_some() || report.conns.is_some())
+            && let Some(section) = traffic_section(
                 report.traffic.as_ref(),
                 report.conns.as_ref(),
                 report.traffic_note.as_deref(),
-            ) {
-                lines.push(grid_line(width));
-                lines.extend(section);
-            }
+            )
+        {
+            lines.push(grid_line(width));
+            lines.extend(section);
         }
 
         // NIGHT-blade-5: the act-on-this tail — the user-friendly half

@@ -84,7 +84,7 @@ use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::format_rate;
 use crate::ebpf::limiter::monotonic_ns;
 use crate::ebpf::limiter::rate_ring::{
-    read_pinned_rings, ring_series, RateRingRaw, RATE_RING_SLOTS, RATE_RING_WINDOW_NS,
+    RATE_RING_SLOTS, RATE_RING_WINDOW_NS, RateRingRaw, read_pinned_rings, ring_series,
 };
 use crate::ebpf::loader::CounterSummary;
 use crate::output::{grey, warn};

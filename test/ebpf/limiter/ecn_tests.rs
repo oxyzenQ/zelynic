@@ -38,9 +38,9 @@
 #[path = "../../../ebpf/src/ecn.rs"]
 pub(super) mod ebpf_ecn;
 
-use self::ebpf_ecn::{debt_charge, debt_pay, ECN_DEBT_CAP};
+use self::ebpf_ecn::{ECN_DEBT_CAP, debt_charge, debt_pay};
 use super::drr_tests::ebpf_drr::GSO_ADMIT_FLOOR;
-use super::math_tests::ebpf_math::{book, book_rescue, LimiterStats};
+use super::math_tests::ebpf_math::{LimiterStats, book, book_rescue};
 
 /// One arbitration pair: a token word and a debt word, the two words
 /// the pure core arbitrates (the raw-pointer contract the wiring

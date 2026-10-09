@@ -57,7 +57,7 @@ pub use parse::{
     parse_focus_window, parse_monitor_interval, parse_rate, parse_time_duration, validate_rate,
 };
 pub use types::{
-    BracketPair, BracketSpec, Direction, LimiterStatsRaw, PolicyRaw, RateSpec, Target, LIMITER_ELF,
+    BracketPair, BracketSpec, Direction, LIMITER_ELF, LimiterStatsRaw, PolicyRaw, RateSpec, Target,
 };
 // night-during (schema v23): the --during surfaces the command
 // layer consumes (the display join rides the re-exports). The
@@ -69,23 +69,23 @@ pub use during::{dormancy_note, format_wall_utc, wall_minus_mono, wall_now_ns, w
 pub use during_parse::parse_during;
 
 pub use crate::ebpf::pin::{
-    pin_dir_has_files, read_pinned_schema_version, unpin_all, PIN_DIR, PIN_LINK_DL, PIN_LINK_UL,
-    PIN_PROG_DL, PIN_PROG_UL,
+    PIN_DIR, PIN_LINK_DL, PIN_LINK_UL, PIN_PROG_DL, PIN_PROG_UL, pin_dir_has_files,
+    read_pinned_schema_version, unpin_all,
 };
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use aya::{
+    Ebpf, EbpfLoader,
     maps::Array as BpfArray,
     programs::{CgroupAttachMode, CgroupSkb, CgroupSkbAttachType},
-    Ebpf, EbpfLoader,
 };
 use std::fs::File;
 use std::os::fd::{AsFd, AsRawFd};
 use std::path::PathBuf;
 
 use crate::ebpf::bpf_syscall::{
-    create_and_pin_link, kernel_release, kernel_supports_bpf_link, load_with_verifier_verdict,
-    BPF_CGROUP_INET_EGRESS, BPF_CGROUP_INET_INGRESS,
+    BPF_CGROUP_INET_EGRESS, BPF_CGROUP_INET_INGRESS, create_and_pin_link, kernel_release,
+    kernel_supports_bpf_link, load_with_verifier_verdict,
 };
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::trace;

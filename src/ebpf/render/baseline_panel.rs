@@ -8,9 +8,9 @@
 //! The lane's fold/state/retire contracts stay one home over; this
 //! file owns only what the ranked frame paints.
 
-use super::baseline::{pair_phrase, BaselineLane};
+use super::baseline::{BaselineLane, pair_phrase};
 use super::footer::grid_line;
-use super::scroll::{scroll_note, ScrollState, Section};
+use super::scroll::{ScrollState, Section, scroll_note};
 use crate::ebpf::identity::IdentityMap;
 use crate::output::{grey, pad_to_width};
 

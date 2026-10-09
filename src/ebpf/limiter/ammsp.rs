@@ -39,7 +39,7 @@
 //! re-memoizes under the new generation — correct by re-reading the
 //! only authority, the live policy map.
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use aya::maps::{Array as BpfArray, HashMap as BpfHashMap, MapData};
 
 use super::lanes::map_error_means_absent;

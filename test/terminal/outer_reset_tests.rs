@@ -53,8 +53,8 @@
 //! not exist).
 
 use super::{
-    apply_rescue_to_path, cure_output_lane, outer_tty_from_proc, output_lane_broken,
-    POLL_BUDGET_MS, POLL_SLICE_MS, SETTLE_MS,
+    POLL_BUDGET_MS, POLL_SLICE_MS, SETTLE_MS, apply_rescue_to_path, cure_output_lane,
+    outer_tty_from_proc, output_lane_broken,
 };
 
 /// One allocated pty pair: the master fd plus the slave's device

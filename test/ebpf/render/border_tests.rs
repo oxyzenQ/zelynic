@@ -8,9 +8,9 @@
 //! widths, through the REAL render path at the classic 80x24.
 
 use super::*;
-use crate::ebpf::render::eagle::render_eagle_eyes_at;
 use crate::ebpf::render::BaselineLane;
 use crate::ebpf::render::ScrollState;
+use crate::ebpf::render::eagle::render_eagle_eyes_at;
 use crate::ebpf::render::{FrameGeometry, SessionState};
 use crate::output::theme::Theme;
 use std::time::Duration;

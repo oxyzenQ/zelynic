@@ -25,7 +25,7 @@
 //! The pin file keeps the link alive in kernel even after the fd is
 //! closed and the process exits. Removing the pin file detaches the link.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use aya::programs::{CgroupSkb, ProgramError};
 use std::os::fd::RawFd;
 

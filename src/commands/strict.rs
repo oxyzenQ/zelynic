@@ -109,7 +109,7 @@ fn handle_strict_single(
     during: Option<&str>,
     verbose: bool,
 ) -> Result<()> {
-    use crate::ebpf::limiter::{parse_during, Limiter, Target};
+    use crate::ebpf::limiter::{Limiter, Target, parse_during};
 
     // Input validation first (fail-fast, no privileges needed): rate
     // strings and the dangerous-target blocklist are pure parsing, so
@@ -270,10 +270,10 @@ fn handle_strict_single(
     // unstrict lane: exit stayed 1 but the failure block's needles
     // never printed, and the supermassive FAILED row could only
     // name the missing shape.
-    if let Some(outcome) = &probe_outcome {
-        if outcome.verdict == probe_report::ProbeVerdict::Failed {
-            return Err(probe_report::failure_error(target_str, outcome));
-        }
+    if let Some(outcome) = &probe_outcome
+        && outcome.verdict == probe_report::ProbeVerdict::Failed
+    {
+        return Err(probe_report::failure_error(target_str, outcome));
     }
     // The dinner-16 parity at the NEW boundary: pins torn down DURING
     // the window are caught here, before any success surface prints —
@@ -317,7 +317,7 @@ fn handle_strict_multi(
     during: Option<&str>,
     verbose: bool,
 ) -> Result<()> {
-    use crate::ebpf::limiter::{parse_during, Limiter, Target};
+    use crate::ebpf::limiter::{Limiter, Target, parse_during};
 
     // Input validation first (fail-fast, no privileges needed) — same
     // parse-before-execute ladder as handle_strict_single. NIGHT-improve-30:
@@ -455,10 +455,10 @@ fn handle_strict_multi(
     // is the louder, more specific truth — its block names the
     // enforcement failure with the measured numbers attached, while
     // the pin guard below names only a class.
-    if let Some(outcome) = &probe_outcome {
-        if outcome.verdict == probe_report::ProbeVerdict::Failed {
-            return Err(probe_report::failure_error(&segments[0], outcome));
-        }
+    if let Some(outcome) = &probe_outcome
+        && outcome.verdict == probe_report::ProbeVerdict::Failed
+    {
+        return Err(probe_report::failure_error(&segments[0], outcome));
     }
     // The dinner-16 parity at the probe boundary: pins torn down
     // DURING the window are caught here, before any success surface

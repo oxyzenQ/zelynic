@@ -16,7 +16,7 @@
 
 use super::*;
 use crate::ebpf::identity::{IdentityMap, ProcessIdentity};
-use crate::ebpf::limiter::rate_ring::{RateRingRaw, RATE_RING_SLOTS, RATE_RING_WINDOW_NS};
+use crate::ebpf::limiter::rate_ring::{RATE_RING_SLOTS, RATE_RING_WINDOW_NS, RateRingRaw};
 use crate::ebpf::loader::{CgroupDelta, CounterSummary};
 
 /// Identity map naming exactly the given ids (every other cgroup is

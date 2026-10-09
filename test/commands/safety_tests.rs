@@ -369,10 +369,10 @@ fn the_multi_danger_guard_batches_without_changing_the_verdicts() {
     // cgroup — both must pass exactly as the single arm passes them.
     let dead = "4294967295"; // u32::MAX, effectively never a kernfs id
     let mut segments = vec![dead.to_string()];
-    if let Some(cg) = crate::ebpf::identity::pid_cgroup_id(std::process::id()) {
-        if cg != root {
-            segments.push(cg.to_string());
-        }
+    if let Some(cg) = crate::ebpf::identity::pid_cgroup_id(std::process::id())
+        && cg != root
+    {
+        segments.push(cg.to_string());
     }
     check_dangerous_targets_multi(&segments, false)
         .expect("the clean numeric list passes the batched guard");

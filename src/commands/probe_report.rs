@@ -34,7 +34,7 @@
 //! flow itself measured nothing, and a silent ledger under a
 //! starved flow stays UNVERIFIED with a reason that names its shape.
 
-use crate::ebpf::limiter::{format_bytes, format_rate, format_rate_exact, Direction};
+use crate::ebpf::limiter::{Direction, format_bytes, format_rate, format_rate_exact};
 use crate::output::{ok, warn};
 
 // ── The verdict family (pure, unit-pinned) ─────────────────────

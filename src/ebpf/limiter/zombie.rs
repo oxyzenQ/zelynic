@@ -118,9 +118,9 @@
 
 use std::collections::HashSet;
 
-use super::rate_ring::{ring_series, RateRingRaw};
-use super::types::Direction;
 use super::Limiter;
+use super::rate_ring::{RateRingRaw, ring_series};
+use super::types::Direction;
 
 /// What the ring lens proved about one candidate root, one
 /// direction (NIGHT-hunt-43, pure so the decision core below is

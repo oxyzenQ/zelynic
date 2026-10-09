@@ -25,8 +25,8 @@
 //! forensics — the escape-hatch honesty probe (NIGHT-boost-13) and
 //! the failing-command discovery — live in `cli/argv.rs`.
 
-use clap::error::{ContextKind, ContextValue};
 use clap::CommandFactory;
+use clap::error::{ContextKind, ContextValue};
 use std::ffi::OsString;
 
 use super::argv::drop_dishonest_escape_hatch;

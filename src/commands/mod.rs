@@ -70,8 +70,8 @@ mod dispatch_common;
 pub(crate) use dispatch_common::ebpf_disabled;
 #[cfg(feature = "ebpf")]
 pub(crate) use dispatch_common::{
-    apply_success_epilogue, ensure_root, target_no_match_error, unpin_all_bpf, TIP_LIST_APPS,
-    TIP_STATUS,
+    TIP_LIST_APPS, TIP_STATUS, apply_success_epilogue, ensure_root, target_no_match_error,
+    unpin_all_bpf,
 };
 
 /// Top-level CLI dispatch.

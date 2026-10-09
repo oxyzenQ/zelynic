@@ -28,7 +28,7 @@
 #[path = "../../../ebpf/src/math.rs"]
 pub(super) mod ebpf_math;
 
-use self::ebpf_math::{enforce, Bucket, LimiterStats, Policy, MAX_ENFORCABLE_BURST, NS_PER_SEC};
+use self::ebpf_math::{Bucket, LimiterStats, MAX_ENFORCABLE_BURST, NS_PER_SEC, Policy, enforce};
 
 pub(super) fn pol(rate: u64, burst: u64) -> Policy {
     Policy {

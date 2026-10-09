@@ -53,7 +53,7 @@ use super::BaselineLane;
 use crate::ebpf::render::ScrollState;
 use std::time::{Duration, Instant};
 
-use super::{render_eagle_eyes, SessionState};
+use super::{SessionState, render_eagle_eyes};
 use crate::ebpf::connections::{
     CgroupConnections, ConnectionMap, ProcessDetail, Proto, SocketInfo,
 };

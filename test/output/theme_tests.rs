@@ -12,7 +12,7 @@
 //! CI dead-code fix: their only other callers sit behind the ebpf
 //! feature).
 
-use super::{active, cycle_from, escape_for, set, Slot, Theme, THEMES};
+use super::{Slot, THEMES, Theme, active, cycle_from, escape_for, set};
 use crate::output::color::ColorCapability;
 
 /// The netrunner regression row: every cell of the default table is

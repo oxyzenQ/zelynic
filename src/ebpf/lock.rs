@@ -47,7 +47,7 @@
 //! descriptor is closed (on process exit, including crash/panic/SIGKILL).
 //! This is simpler and more robust than PID files.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::fs::OpenOptions;
 use std::os::unix::io::AsRawFd;
 

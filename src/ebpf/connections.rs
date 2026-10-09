@@ -379,10 +379,10 @@ impl ConnectionMap {
         for detail in self.cache.values() {
             for proc in &detail.socket_holders {
                 for socket in &proc.sockets {
-                    if let Some(cookie) = socket.cookie {
-                        if seen.insert(cookie) {
-                            out.push(cookie);
-                        }
+                    if let Some(cookie) = socket.cookie
+                        && seen.insert(cookie)
+                    {
+                        out.push(cookie);
                     }
                 }
             }

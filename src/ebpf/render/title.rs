@@ -8,7 +8,7 @@
 //! pins. The module map lives in the render root; this file owns
 //! one shape: `╭──…── <core> ──…──╮`, the core riding the middle.
 
-use super::{border, capability, display_width, theme, truncate_label, ColorCapability};
+use super::{ColorCapability, border, capability, display_width, theme, truncate_label};
 use crate::output::brand_bold;
 
 /// Render the title bar — the frame's TOP BORDER (NIGHT-boost-20):

@@ -24,7 +24,7 @@ use std::io::Write;
 /// ioctl succeeds and reports a non-degenerate size; None otherwise
 /// (not a TTY — piped output, tests, benchmark harnesses).
 pub(crate) fn winsize() -> Option<(u16, u16)> {
-    use libc::{ioctl, winsize, STDOUT_FILENO, TIOCGWINSZ};
+    use libc::{STDOUT_FILENO, TIOCGWINSZ, ioctl, winsize};
     let mut ws: winsize = winsize {
         ws_row: 0,
         ws_col: 0,
@@ -247,11 +247,11 @@ impl BgAsk {
     ) -> (super::InputAction, Option<(u8, u8, u8)>) {
         // Expired patience: the partial is garbage by now — drop
         // it and classify this chunk fresh.
-        if let Some(deadline) = self.deadline {
-            if now > deadline {
-                self.partial.clear();
-                self.deadline = None;
-            }
+        if let Some(deadline) = self.deadline
+            && now > deadline
+        {
+            self.partial.clear();
+            self.deadline = None;
         }
         // A chunk continues a pending answer; a fresh chunk starts
         // one only when it leads with the reply head. Anything

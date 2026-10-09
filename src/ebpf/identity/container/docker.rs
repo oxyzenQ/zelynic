@@ -11,7 +11,7 @@ use std::io::{Read, Write};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 
 use super::{cgroup_id_of, find_cgroup_dir};
 // NIGHT-cybersecurity-2's always-compiled re-export — the output

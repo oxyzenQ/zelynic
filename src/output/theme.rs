@@ -58,7 +58,7 @@
 
 use std::sync::atomic::{AtomicU8, Ordering};
 
-use super::color::{capability, ColorCapability};
+use super::color::{ColorCapability, capability};
 
 /// The monitor's themes, in cycle order. Index 0 is the default.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -384,7 +384,7 @@ fn test_enforce_math_total_for_corrupt_policy() {
 /// object must never be asked to read).
 #[test]
 fn policy_raw_flags_layout_is_pinned() {
-    use crate::ebpf::limiter::types::{PolicyRaw, POLICY_FLAG_PER_SOCKET};
+    use crate::ebpf::limiter::types::{POLICY_FLAG_PER_SOCKET, PolicyRaw};
 
     assert_eq!(core::mem::size_of::<PolicyRaw>(), 40);
     assert_eq!(core::mem::offset_of!(PolicyRaw, floor_bps), 16);

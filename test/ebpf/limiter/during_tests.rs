@@ -33,8 +33,8 @@
 pub(super) mod ebpf_during;
 
 use self::ebpf_during::{
-    daily_active, span_dormant, span_ended, wall_of_day_ns, window_active, PolicyWindow,
-    FIRE_EARLY_NS, NS_PER_DAY, WINDOW_KIND_DAILY, WINDOW_KIND_SPAN,
+    FIRE_EARLY_NS, NS_PER_DAY, PolicyWindow, WINDOW_KIND_DAILY, WINDOW_KIND_SPAN, daily_active,
+    span_dormant, span_ended, wall_of_day_ns, window_active,
 };
 
 /// Seconds-of-day to ns-of-day (the comparator's input domain).

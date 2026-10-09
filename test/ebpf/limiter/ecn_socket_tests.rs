@@ -31,7 +31,7 @@
 // ecn_tests' single inclusion (one copy per test binary, the
 // duplicate-mod law — the drr_tests/math_tests precedent): reached
 // through the sibling wiring, `pub(super)`'s widened view.
-use super::ecn_tests::ebpf_ecn::{debt_charge, debt_pay, ECN_DEBT_CAP};
+use super::ecn_tests::ebpf_ecn::{ECN_DEBT_CAP, debt_charge, debt_pay};
 
 /// One arbitration pair, the ecn_tests Lane verbatim: a token word
 /// and a debt word, the two words the pure core arbitrates (the

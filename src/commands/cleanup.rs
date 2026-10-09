@@ -70,20 +70,19 @@ fn handle_unstrict_single(target_str: &str, verbose: bool) -> Result<()> {
     // count — an unreadable map prints no claim (the unpin decision
     // below warns).
     let mut tip = super::TIP_STATUS.to_string();
-    if removed == 0 {
-        if let Ok(remaining) = count_remaining_policies(&limiter) {
-            if remaining > 0 {
-                tip = format!(
-                    "{remaining} other {} still active — 'zelynic status' lists them; \
+    if removed == 0
+        && let Ok(remaining) = count_remaining_policies(&limiter)
+        && remaining > 0
+    {
+        tip = format!(
+            "{remaining} other {} still active — 'zelynic status' lists them; \
                      'zelynic recover' removes dead-cgroup orphans",
-                    if remaining == 1 {
-                        "policy is"
-                    } else {
-                        "policies are"
-                    }
-                );
+            if remaining == 1 {
+                "policy is"
+            } else {
+                "policies are"
             }
-        }
+        );
     }
 
     // The no-residue ladder runs BEFORE the no-match verdict
@@ -149,20 +148,19 @@ fn handle_unstrict_multi(targets_str: &str, verbose: bool) -> Result<()> {
     // white tip line, and no claim comes from a read that failed —
     // unpin_if_no_policies prints the warning instead.
     let mut tip = super::TIP_STATUS.to_string();
-    if removed == 0 {
-        if let Ok(remaining) = count_remaining_policies(&limiter) {
-            if remaining > 0 {
-                tip = format!(
-                    "{remaining} other {} still active — 'zelynic status' lists them; \
+    if removed == 0
+        && let Ok(remaining) = count_remaining_policies(&limiter)
+        && remaining > 0
+    {
+        tip = format!(
+            "{remaining} other {} still active — 'zelynic status' lists them; \
                      'zelynic recover' removes dead-cgroup orphans",
-                    if remaining == 1 {
-                        "policy is"
-                    } else {
-                        "policies are"
-                    }
-                );
+            if remaining == 1 {
+                "policy is"
+            } else {
+                "policies are"
             }
-        }
+        );
     }
 
     // The no-residue ladder before the verdict (dinner-11 move, same
@@ -280,12 +278,10 @@ pub fn handle_unstrict_all(verbose: bool) -> Result<()> {
     // NIGHT-hunt-9: verbose lists exactly which pin files are being torn
     // down before the wipe — the same evidence recover() prints for its
     // stale-state branch. Previously this handler discarded the flag.
-    if verbose {
-        if let Ok(entries) = std::fs::read_dir(crate::ebpf::limiter::PIN_DIR) {
-            for entry in entries.flatten() {
-                if let Some(name) = entry.file_name().to_str() {
-                    eprintln_safe!("  - {name}");
-                }
+    if verbose && let Ok(entries) = std::fs::read_dir(crate::ebpf::limiter::PIN_DIR) {
+        for entry in entries.flatten() {
+            if let Some(name) = entry.file_name().to_str() {
+                eprintln_safe!("  - {name}");
             }
         }
     }

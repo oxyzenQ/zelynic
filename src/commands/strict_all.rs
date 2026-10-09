@@ -50,7 +50,7 @@ pub(crate) fn handle_strict_all(
     verbose: bool,
 ) -> Result<()> {
     use crate::ebpf::identity::IdentityMap;
-    use crate::ebpf::limiter::{parse_during, Limiter, Target};
+    use crate::ebpf::limiter::{Limiter, Target, parse_during};
 
     // Input validation first (fail-fast, no privileges needed) — same
     // parse-before-execute ladder as the other strict handlers.
@@ -280,10 +280,10 @@ pub(crate) fn handle_strict_all(
     // NIGHT-repair-1 ordering (the single's own law): a FAILED probe
     // is the louder, more specific truth — its block names the
     // enforcement failure with the measured numbers attached.
-    if let Some(outcome) = &probe_outcome {
-        if outcome.verdict == probe_report::ProbeVerdict::Failed {
-            return Err(probe_report::failure_error(&user_apps[0], outcome));
-        }
+    if let Some(outcome) = &probe_outcome
+        && outcome.verdict == probe_report::ProbeVerdict::Failed
+    {
+        return Err(probe_report::failure_error(&user_apps[0], outcome));
     }
     // The dinner-16 parity at the probe boundary: pins torn down
     // DURING the window are caught here, before any success surface

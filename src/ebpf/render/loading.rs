@@ -35,8 +35,8 @@
 use std::time::Duration;
 
 use super::border;
-use super::footer::{build_grip_footer, plan_footer_tier, FooterCensus};
-use super::{title_bar, FrameGeometry};
+use super::footer::{FooterCensus, build_grip_footer, plan_footer_tier};
+use super::{FrameGeometry, title_bar};
 use crate::output::grey;
 
 /// Compose the opening frame: the chrome, the one honest note, and

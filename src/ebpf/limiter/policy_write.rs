@@ -11,7 +11,7 @@
 //! policy.rs; everything here is one rung lower: shape the raw row,
 //! route the map, record the mutation ledger entries.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use aya::maps::{HashMap as BpfHashMap, MapData};
 
 use super::atomic::PolicyMutation;
@@ -19,7 +19,7 @@ use super::during_map::WindowMutation;
 use super::format::default_burst;
 use super::policy_lines::policy_write_line;
 use super::types::{
-    BracketSpec, Direction, PolicyRaw, PolicyWindowRaw, RateSpec, MAX_ENFORCABLE_BURST,
+    BracketSpec, Direction, MAX_ENFORCABLE_BURST, PolicyRaw, PolicyWindowRaw, RateSpec,
 };
 
 impl super::Limiter {

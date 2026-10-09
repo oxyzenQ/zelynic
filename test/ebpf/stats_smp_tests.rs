@@ -46,7 +46,7 @@
 #[path = "../../ebpf/src/stats.rs"]
 pub(super) mod ebpf_stats;
 
-use self::ebpf_stats::{book_packet, bump_socket_bytes, CgroupStats};
+use self::ebpf_stats::{CgroupStats, book_packet, bump_socket_bytes};
 use std::thread::scope;
 
 /// The shared-map-value reality, boxed and handed to threads as raw

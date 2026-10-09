@@ -21,7 +21,7 @@
 //! table may hold either). The one documented exception is carbon's
 //! brand, pinned separately with its tier-hierarchy rationale.
 
-use super::{escape_for, Slot, Theme, THEMES};
+use super::{Slot, THEMES, Theme, escape_for};
 use crate::output::color::ColorCapability;
 
 /// The xterm 6x6x6 cube cell levels (xterm's own stair: 0, 95, 135,

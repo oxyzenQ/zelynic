@@ -9,7 +9,7 @@
 
 use anyhow::Result;
 
-use crate::ebpf::limiter::{parse_during, BracketSpec, Limiter, RateSpec, Target};
+use crate::ebpf::limiter::{BracketSpec, Limiter, RateSpec, Target, parse_during};
 // NIGHT-hunt-27: the block sweep's saturation wording names the
 // policy family's capacity — the userspace mirror of the eBPF-side
 // map size (types.rs keeps it textually in sync with the pinned

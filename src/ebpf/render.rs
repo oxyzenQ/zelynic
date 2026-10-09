@@ -133,7 +133,7 @@ pub(crate) use baseline::BaselineLane;
 // the depth_json sibling and keeps its stable scripting shape.
 pub use depth_json::depth_doc_json;
 pub use report::{
-    depth_report_lines, package_name, window_dropped_bytes, DepthReport, Enforcement,
+    DepthReport, Enforcement, depth_report_lines, package_name, window_dropped_bytes,
 };
 
 // NIGHT-upgrade-charger-core-1-a: the bypass audit's report section
@@ -162,7 +162,7 @@ pub(crate) use title::title_bar;
 
 use crate::ebpf::limiter::format_rate;
 use crate::output::theme;
-use crate::output::{capability, display_width, ColorCapability};
+use crate::output::{ColorCapability, capability, display_width};
 
 // ── Geometry ────────────────────────────────────────────────────────────────
 

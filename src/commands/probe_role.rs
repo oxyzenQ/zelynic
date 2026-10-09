@@ -8,7 +8,7 @@
 //! parent parses (PROBE-PORT / PROBE-BYTES), never touch BPF, and
 //! exit when their window or their peer ends them.
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use std::io::{BufRead, BufReader};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};

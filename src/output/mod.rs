@@ -69,7 +69,7 @@ pub use color::{brand, brand_bold, error, error_bold, ok, ok_bold, suggestion, w
 // have no external consumer and the import must not warn
 // (NIGHT-boost-23 hunt fix).
 #[cfg(feature = "ebpf")]
-pub(crate) use color::{capability, ColorCapability};
+pub(crate) use color::{ColorCapability, capability};
 // NIGHT-hunt-35: grey left the eagle-eyes graph — the --help command
 // synopses paint it in every build flavor (half-life included).
 pub use color::grey;
