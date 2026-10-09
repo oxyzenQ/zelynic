@@ -153,10 +153,13 @@ first-time reader, and this page pays it once, up front.
 - **`[busy]`**: a tree endpoint's saturated-socket flag — the
   socket's send queue is full (it is being policed hard, or its
   peer is slow); a display fact, not a verdict.
-- **The proto tags (`tcp` / `udp` / `raw`)**: a tree endpoint's
-  protocol flag — every displayable endpoint names its protocol
-  (night-improve-61: only UDP carried a tag once, and the owner
-  read the untagged TCP rows as the unnamed default); `udp` is the
+- **The proto tags (`tcp` / `tcp6` / `udp` / `udp6` / `raw` / `raw6`)**: a tree endpoint's
+  protocol and family flag — every displayable endpoint names its
+  protocol (night-improve-61: only UDP carried a tag once, and the
+  owner read the untagged TCP rows as the unnamed default);
+  night-improve-62 split the family out of the walk, so the v6
+  tables stop collapsing into the v4 spellings — the suffix is the
+  one ss and netstat already speak. `udp` is the
   CONNECTED-UDP shape (QUIC-era traffic lives there), `raw` the
   rare IP-level socket.
 

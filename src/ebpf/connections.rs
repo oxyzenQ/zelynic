@@ -10,9 +10,10 @@
 //! anything else launched inside that terminal. The row says
 //! "alacritty"; the truth is "curl to 1.2.3.4:443". This layer closes
 //! that gap userspace-only, with zero BPF changes: it joins the
-//! kernel's own socket tables (/proc/net/{tcp,tcp6,udp,udp6}) with
-//! per-PID file descriptors (/proc/<pid>/fd/*) and the cgroup
-//! resolution from identity/.
+//! kernel's own socket tables (/proc/net/{tcp,tcp6,udp,udp6,raw,
+//! raw6} — the raw tables joined in night-improve-57, the module
+//! header caught up here) with per-PID file descriptors
+//! (/proc/<pid>/fd/*) and the cgroup resolution from identity/.
 //!
 //! What it produces per cgroup:
 //! - the total process count (the "(alacritty +3)" label suffix — a
@@ -53,11 +54,27 @@ use crate::ebpf::loader::SocketBytes;
 /// is the expensive part.
 const DEFAULT_REFRESH_TTL_SECS: u64 = 3;
 
-/// Transport protocol a socket row was read from.
+/// Transport protocol a socket row was read from. Six variants,
+/// six kernel tables, one-for-one: night-improve-62 split the
+/// family suffix out of the walk. Before it, the v6 tables
+/// collapsed into the v4 spellings at `read_socket_tables`, so an
+/// IPv6 socket read `tcp` and the family reached the eye only
+/// through the bracketed remote (`[::1]:443`), never through the
+/// tag — a dual-stack deployment's two kinds of 443 were tagged
+/// identically. The suffix spelling (`tcp6` / `udp6` / `raw6`) is
+/// the one ss and netstat already speak — the operator's existing
+/// vocabulary, not a new dialect.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Proto {
     Tcp,
+    /// The /proc/net/tcp6 spelling of TCP — same transport, v6
+    /// family; the tag carries the family the table already knows.
+    Tcp6,
     Udp,
+    /// The /proc/net/udp6 spelling of UDP — QUIC rides both
+    /// families; the suffix tells the operator which one this
+    /// socket speaks.
+    Udp6,
     /// Raw IP sockets (SOCK_RAW) — /proc/net/raw, /proc/net/raw6.
     /// night-improve-57: raw sockets are rare in userland (ping,
     /// nmap, custom IP-level tools), but their bytes ARE counted by
@@ -71,6 +88,10 @@ pub enum Proto {
     /// already use, so the same per-socket byte maps now attribute
     /// the raw socket's traffic too.
     Raw,
+    /// The /proc/net/raw6 spelling of raw — rare squared (a v6
+    /// raw socket is a specialist's specialist), but the family
+    /// law carves no exceptions: the table name is the tag.
+    Raw6,
 }
 
 impl Proto {
@@ -80,11 +101,19 @@ impl Proto {
     /// identical ternary; three future drift points become none).
     /// night-improve-57 added the raw spelling — the same law (one
     /// canonical spelling, one copy) extends to the third variant.
+    /// night-improve-62 added the three v6 spellings — and the
+    /// chain's third step: the tag surfaces now render through this
+    /// one function alone (endpoint_text's three-if chain retired
+    /// in the same task — a fourth copy would have been a drift
+    /// point born the same day).
     pub fn as_str(self) -> &'static str {
         match self {
             Proto::Tcp => "tcp",
+            Proto::Tcp6 => "tcp6",
             Proto::Udp => "udp",
+            Proto::Udp6 => "udp6",
             Proto::Raw => "raw",
+            Proto::Raw6 => "raw6",
         }
     }
 }
@@ -462,7 +491,7 @@ impl PidFd {
     }
 }
 
-/// Read all four kernel socket tables into one inode-keyed map.
+/// Read all six kernel socket tables into one inode-keyed map.
 ///
 /// night-improve-57: the raw tables (/proc/net/raw, /proc/net/raw6)
 /// join the same inode-keyed map. The kernel formats them with the
@@ -474,15 +503,23 @@ impl PidFd {
 /// `IP:0` for unbound raw sockets — honest, the operator sees the
 /// socket exists even when sendto() destinations are not reflected
 /// in the table.
+///
+/// night-improve-62: the walk maps six tables to six protos
+/// one-for-one. The 57-era cut collapsed the family at exactly this
+/// array (`tcp6` -> `Tcp`, `udp6` -> `Udp`, `raw6` -> `Raw`), so the
+/// suffix was unrecoverable downstream — the table knew, the tag
+/// didn't. The rows below now read like the kernel's own table
+/// list; the family rides the proto to every surface through the
+/// one as_str spelling.
 fn read_socket_tables() -> HashMap<u64, SocketInfo> {
     let mut out = HashMap::new();
     for (file, proto) in [
         ("/proc/net/tcp", Proto::Tcp),
-        ("/proc/net/tcp6", Proto::Tcp),
+        ("/proc/net/tcp6", Proto::Tcp6),
         ("/proc/net/udp", Proto::Udp),
-        ("/proc/net/udp6", Proto::Udp),
+        ("/proc/net/udp6", Proto::Udp6),
         ("/proc/net/raw", Proto::Raw),
-        ("/proc/net/raw6", Proto::Raw),
+        ("/proc/net/raw6", Proto::Raw6),
     ] {
         let content = match fs::read_to_string(file) {
             Ok(c) => c,

@@ -478,3 +478,58 @@ fn window_figures_divide_by_the_windows_own_seconds() {
         "the endpoint rides the same denominator (28_200/30 = 940 B/s), got: {text}"
     );
 }
+
+/// night-improve-62 pin: the v6 family speaks at the row tag — the
+/// same lane the udp (audit-6) and raw (improve-57) tags were pinned
+/// in. Before the split, a /proc/net/tcp6 row read `tcp` at the tag
+/// and the family reached the eye only through the bracketed remote;
+/// now the row reads its family at the tag (`tcp6`), the ss and
+/// netstat spelling. The census fallback row (the no-focus listing)
+/// carries the same suffix — both surfaces speak through the one
+/// as_str spelling.
+#[test]
+fn v6_sockets_reach_the_traffic_rows_with_their_family_tag() {
+    let mut conns = ConnectionMap::new();
+    let tcp6_sock = SocketInfo {
+        proto: Proto::Tcp6,
+        remote: "[2001:db8::1]:443".to_string(),
+        state: "ESTABLISHED",
+        queued: false,
+        cookie: Some(4001),
+    };
+    conns.insert(
+        1234,
+        CgroupConnections {
+            total_procs: 1,
+            socket_holders: vec![ProcessDetail {
+                pid: 4242,
+                comm: "curl".to_string(),
+                sockets: vec![tcp6_sock],
+            }],
+        },
+    );
+    let mut bytes = join();
+    bytes.insert(4001, SocketBytes { dl: 9000, ul: 300 });
+
+    let focus = traffic_focus(1234, 3, &[delta(1234, 300, 9000)], Some(&conns), &bytes);
+    let text = traffic_section_lines(&focus).join("\n");
+    assert!(
+        text.contains("[2001:db8::1]:443 tcp6 ESTABLISHED [dl 3.0 KB/s | ul 100 B/s]"),
+        "the tcp6 row renders with its family at the tag (9000/3 = 3.0 KB/s), got: {text}"
+    );
+    let tcp6_line = focus
+        .endpoints
+        .iter()
+        .find(|e| e.proto == "tcp6")
+        .expect("the tcp6 endpoint survives the census gate");
+    assert_eq!(tcp6_line.remote, "[2001:db8::1]:443");
+    // The census fallback (no focus window) carries the same suffix.
+    let fallback =
+        traffic_section(None, conns.get(1234), None).expect("the fallback section renders");
+    assert!(
+        fallback
+            .join("\n")
+            .contains("curl (4242) → [2001:db8::1]:443 tcp6 ESTABLISHED"),
+        "the census fallback row spells the family too, got: {fallback:?}"
+    );
+}
