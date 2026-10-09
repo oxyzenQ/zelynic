@@ -104,8 +104,8 @@ repair exposing the next layer:
    job ends), so the death proof can fire and the retirement
    rides the census: directory gone from a complete walk.
 
-All three repairs landed in one push (b284eec + eec4042 +
-d579d44).
+   All three repairs landed in one push (b284eec + eec4042 +
+   d579d44).
 
 4. **The orphan stage's bpftool key grammar** (born 044ca58,
    under layers 1-3). Run 295 — the first run with the first

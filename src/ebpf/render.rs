@@ -191,10 +191,8 @@ impl FrameGeometry {
 
 /// Eagle-eyes column layout derived from the frame width.
 ///
-/// Degradation ladder (the 7-column rank reserve — the 3-column
-/// focus-marker lane plus 2 rank digits plus a 2-column gap, the
-/// lane re-cut by night-improve-61 — 1-column gaps, and the
-/// 2-column right gutter of NIGHT-engrave-4):
+/// Degradation ladder (the 7-column rank reserve of night-improve-61
+/// — its 3-column `=> ` marker lane — engrave-4's 2-column right gutter):
 /// - width >= 54: (rank) | top process | download | upload | total
 /// - width >= 43: (rank) | top process | download | upload (total dropped)
 /// - width  < 43: (rank) | top process (min 12) | download | upload at 9-wide
@@ -239,12 +237,9 @@ pub(crate) fn plan_eagle_columns(width: usize) -> EagleColumns {
     const NUM_W_TIGHT: usize = 9;
     const LABEL_MIN: usize = 12;
     // The symmetric right gutter (NIGHT-engrave-4): the two columns
-    // of air after the TOTAL column, mirroring the air the rank
-    // enjoys after the left marker lane (night-improve-61: the
-    // lane itself is the `=> ` marker's estate, three columns, so
-    // the rails keep their breathing pair on the right). Narrow-
-    // floor frames drop it first — survival outranks harmony below
-    // the ladder.
+    // of air after the TOTAL column (the left lane is the `=> `
+    // marker's estate since night-improve-61). Narrow-floor frames
+    // drop it first — survival outranks harmony below the ladder.
     const RIGHT_GUTTER: usize = 2;
 
     // Full layout: rank + label + 3 numeric columns (dl, ul, total).
