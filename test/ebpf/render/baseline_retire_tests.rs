@@ -17,6 +17,7 @@
 use super::*;
 use crate::ebpf::identity::{IdentityMap, ProcessIdentity};
 use crate::ebpf::limiter::rate_ring::{RateRingRaw, RATE_RING_SLOTS, RATE_RING_WINDOW_NS};
+use crate::ebpf::loader::{CgroupDelta, CounterSummary};
 
 /// Identity map naming exactly the given ids (every other cgroup is
 /// identity-absent — the miss shape the retirement discriminates).
@@ -62,6 +63,33 @@ fn panel_keys(lane: &BaselineLane) -> Vec<u32> {
     keys
 }
 
+/// A frame's summary with NO cgroup traffic (the quiet frame the
+/// retirement's traffic leg must read as dead).
+fn quiet_summary() -> CounterSummary {
+    CounterSummary::default()
+}
+
+/// A frame's summary carrying one cgroup's delivered bytes (the
+/// traffic leg's veto — a delta the board filter's own
+/// window_active would count).
+fn traffic_summary(cg: u32, bytes: u64) -> CounterSummary {
+    CounterSummary {
+        total_packets: 1,
+        total_bytes: bytes,
+        total_ingress_packets: 0,
+        total_ingress_bytes: 0,
+        cgroups: vec![CgroupDelta {
+            cgroup_id: cg,
+            packets: 1,
+            bytes,
+            total_bytes: bytes,
+            ingress_packets: 0,
+            ingress_bytes: 0,
+            ingress_total_bytes: 0,
+        }],
+    }
+}
+
 /// The grace itself: two dead frames keep the row on the panel,
 /// the third hides it — and only the dead root hides (the live
 /// sibling never flaps).
@@ -70,8 +98,8 @@ fn retire_dead_hides_only_past_the_grace() {
     let mut lane = lane_of(&[7, 9]);
     let live = identity_of(&[7]);
     // Frame one and two: the streak builds, the panel holds both.
-    lane.retire_dead(&live);
-    lane.retire_dead(&live);
+    lane.retire_dead(&live, &quiet_summary());
+    lane.retire_dead(&live, &quiet_summary());
     assert_eq!(
         panel_keys(&lane),
         vec![7, 9],
@@ -79,7 +107,7 @@ fn retire_dead_hides_only_past_the_grace() {
     );
     // Frame three: the streak reaches the grace, the dead root
     // hides, the live one never does.
-    lane.retire_dead(&live);
+    lane.retire_dead(&live, &quiet_summary());
     assert_eq!(
         panel_keys(&lane),
         vec![7],
@@ -96,14 +124,14 @@ fn retire_dead_live_frame_clears_the_streak() {
     // Two dead frames (the walk names some other cgroup), then the
     // root returns: the streak resets to zero.
     let others = identity_of(&[8]);
-    lane.retire_dead(&others);
-    lane.retire_dead(&others);
-    lane.retire_dead(&identity_of(&[9]));
+    lane.retire_dead(&others, &quiet_summary());
+    lane.retire_dead(&others, &quiet_summary());
+    lane.retire_dead(&identity_of(&[9]), &quiet_summary());
     // Two dead frames after the flap: streak 2, still inside the
     // grace — the row survives what would have been the third and
     // fourth had the streak compounded across the live frame.
-    lane.retire_dead(&others);
-    lane.retire_dead(&others);
+    lane.retire_dead(&others, &quiet_summary());
+    lane.retire_dead(&others, &quiet_summary());
     assert_eq!(
         panel_keys(&lane),
         vec![9],
@@ -119,7 +147,7 @@ fn retire_dead_empty_identity_stands_down() {
     let mut lane = lane_of(&[7, 9]);
     let failed_walk = IdentityMap::new();
     for _ in 0..6 {
-        lane.retire_dead(&failed_walk);
+        lane.retire_dead(&failed_walk, &quiet_summary());
     }
     assert_eq!(
         panel_keys(&lane),
@@ -138,7 +166,7 @@ fn retire_dead_hides_without_deleting_the_state() {
     let mut lane = lane_of(&[9]);
     let others = identity_of(&[8]);
     for _ in 0..3 {
-        lane.retire_dead(&others);
+        lane.retire_dead(&others, &quiet_summary());
     }
     assert_eq!(
         panel_keys(&lane),
@@ -151,11 +179,54 @@ fn retire_dead_hides_without_deleting_the_state() {
     );
     // The root returns (a live frame): the streak clears and the
     // row re-renders with the state it kept, not a fresh learn.
-    lane.retire_dead(&identity_of(&[9]));
+    lane.retire_dead(&identity_of(&[9]), &quiet_summary());
     assert_eq!(
         panel_keys(&lane),
         vec![9],
         "a returning root re-renders immediately"
+    );
+}
+
+/// The traffic leg (the board filter's own second signal): an
+/// unresolvable-but-delivering root keeps its verdict — a cgroup
+/// whose processes the identity walk cannot see, still passing
+/// packets under its policy, is alive by every signal the frame
+/// carries. Identity is one life signal, not the only one.
+#[test]
+fn retire_dead_traffic_vetoes_without_identity() {
+    let mut lane = lane_of(&[9]);
+    let others = identity_of(&[8]);
+    // Far past the grace in dead frames, but every frame carries
+    // the root's delivered bytes: the row never hides.
+    for _ in 0..6 {
+        lane.retire_dead(&others, &traffic_summary(9, 4096));
+    }
+    assert_eq!(
+        panel_keys(&lane),
+        vec![9],
+        "a delivering root keeps its verdict without identity"
+    );
+    // The traffic stops: NOW the streak builds, and the grace
+    // counts from zero — three quiet frames later the row hides.
+    for _ in 0..3 {
+        lane.retire_dead(&others, &quiet_summary());
+    }
+    assert_eq!(
+        panel_keys(&lane),
+        Vec::<u32>::new(),
+        "quiet frames after the veto still need the full grace"
+    );
+    // A zero-byte delta is NOT traffic (the board filter's own
+    // window_active law — only moved bytes count): the streak
+    // builds on a zero-delta frame.
+    let mut lane = lane_of(&[9]);
+    for _ in 0..3 {
+        lane.retire_dead(&others, &traffic_summary(9, 0));
+    }
+    assert_eq!(
+        panel_keys(&lane),
+        Vec::<u32>::new(),
+        "a zero-byte delta is a quiet frame, not a veto"
     );
 }
 
@@ -168,7 +239,7 @@ fn retire_dead_streak_rides_the_lane_key_set() {
     let mut lane = lane_of(&[9]);
     let others = identity_of(&[8]);
     for _ in 0..3 {
-        lane.retire_dead(&others);
+        lane.retire_dead(&others, &quiet_summary());
     }
     assert!(
         lane.retire_streaks.contains_key(&9),
@@ -177,7 +248,7 @@ fn retire_dead_streak_rides_the_lane_key_set() {
     // The ring row leaves the read — the lane's fold drops the
     // state, and the next pass drops the streak with it.
     lane.dl.remove(&9);
-    lane.retire_dead(&others);
+    lane.retire_dead(&others, &quiet_summary());
     assert!(
         lane.retire_streaks.is_empty(),
         "a key whose ring row left takes its streak with it"
