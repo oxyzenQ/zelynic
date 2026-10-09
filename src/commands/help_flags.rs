@@ -166,7 +166,7 @@ pub(crate) fn print_flag_tables() {
         "--during DUR",
         "auto-expire: the limit tears itself down when the window",
     );
-    println_safe!("                   passes. Units: s, m, h, d, mn, y — min 1s, max 10y");
+    println_safe!("                   passes. Units: s, m, h, d, mn, y — min 1s, max 5y");
     println_safe!("                   (20d = twenty days; months 30d, years 365d).");
     println_safe!("                   Duration only, one shape, no schedules.");
     // NIGHT-improve-52: the Pro mode block carried every flag's

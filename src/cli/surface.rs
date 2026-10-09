@@ -95,7 +95,7 @@ pub enum Commands {
         /// Auto-expire this row (night-during, schema v23; the
         /// owner's duration-only revision): `--during 2h` — a
         /// duration from the apply instant (units s, m, h, d, mn,
-        /// y; bounds 1s..10y). After the duration the row lifts
+        /// y; bounds 1s..5y). After the duration the row lifts
         /// itself.
         ///
         /// The KERNEL decides when the window is over — no daemon,
@@ -188,7 +188,7 @@ pub enum Commands {
 
         /// Auto-expire the block (night-during, schema v23; the
         /// owner's duration-only revision): a duration from the
-        /// apply instant (s m h d mn y, 1s..10y) — the block
+        /// apply instant (s m h d mn y, 1s..5y) — the block
         /// lifts itself, no daemon.
         #[arg(long = "during", value_name = "DURATION")]
         during: Option<String>,

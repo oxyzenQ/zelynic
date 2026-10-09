@@ -229,7 +229,7 @@ type it.
 `--during 2h` auto-expires the row after a duration — and the KERNEL
 decides when the window is over (no daemon, no cron; every zelynic
 visit re-stamps the clock bridge). Units: `s m h d mn y`, bounds 1s to
-10y. It rides any strict or block lane, so a time-boxed block is
+5y. It rides any strict or block lane, so a time-boxed block is
 `zelynic b discord --during 2h` and nothing else.
 
 ---

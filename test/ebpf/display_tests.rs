@@ -286,18 +286,30 @@ fn status_branch_frames_carry_the_flagship_chrome() {
 // ── night-during, schema v23: the window lifetime line pins ───────
 
 /// The compact duration renderer (the "(N left)" suffix): one unit,
-/// floored, sub-minute in seconds so a short trial reads its own
-/// countdown.
+/// CEILED (night-improve-60, the owner's 5h find — a countdown
+/// never understates what remains), sub-minute in seconds so a
+/// short trial reads its own countdown; the 4h59m59s pin is the
+/// owner's own transcript shape, a `--during 5h` checked seconds
+/// after apply that must never read "4h".
 #[test]
-fn format_duration_compact_one_unit_floored() {
-    assert_eq!(format_duration_compact(45_000_000_000), "45s");
-    assert_eq!(format_duration_compact(47 * 60 * 1_000_000_000), "47m");
-    assert_eq!(format_duration_compact(3 * 3600 * 1_000_000_000), "3h");
-    assert_eq!(format_duration_compact(20 * 86_400 * 1_000_000_000), "20d");
-    assert_eq!(
-        format_duration_compact(10 * 365 * 86_400 * 1_000_000_000),
-        "10y"
-    );
+fn format_duration_compact_one_unit_ceiled() {
+    const S: u64 = 1_000_000_000;
+    const M: u64 = 60 * S;
+    const H: u64 = 60 * M;
+    const D: u64 = 24 * H;
+    const Y: u64 = 365 * D;
+    // Exact units read themselves.
+    assert_eq!(format_duration_compact(45 * S), "45s");
+    assert_eq!(format_duration_compact(47 * M), "47m");
+    assert_eq!(format_duration_compact(3 * H), "3h");
+    assert_eq!(format_duration_compact(20 * D), "20d");
+    assert_eq!(format_duration_compact(5 * Y), "5y");
+    // The remainder rounds UP to the unit it still holds: the
+    // owner's find (5h minus a breath), the sub-second tail, and
+    // the tier's own edge.
+    assert_eq!(format_duration_compact(5 * H - S), "5h");
+    assert_eq!(format_duration_compact(45 * S + 500_000_000), "46s");
+    assert_eq!(format_duration_compact(59 * S + S / 2), "60s");
 }
 
 /// The five lifetime shapes a row with a window renders, pinned to
