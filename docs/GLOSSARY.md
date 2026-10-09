@@ -153,9 +153,12 @@ first-time reader, and this page pays it once, up front.
 - **`[busy]`**: a tree endpoint's saturated-socket flag — the
   socket's send queue is full (it is being policed hard, or its
   peer is slow); a display fact, not a verdict.
-- **The `udp` tag**: a tree endpoint's protocol flag — the endpoint
-  rides a CONNECTED UDP socket (QUIC-era traffic lives there);
-  established TCP endpoints carry no tag.
+- **The proto tags (`tcp` / `udp` / `raw`)**: a tree endpoint's
+  protocol flag — every displayable endpoint names its protocol
+  (night-improve-61: only UDP carried a tag once, and the owner
+  read the untagged TCP rows as the unnamed default); `udp` is the
+  CONNECTED-UDP shape (QUIC-era traffic lives there), `raw` the
+  rare IP-level socket.
 
 ## The state model (how the no-daemon design holds state)
 

@@ -317,11 +317,12 @@ impl FooterCensus {
 /// section, left/right switch it) — the whole key map on the row
 /// that already owned it, one spelling, the same place the
 /// engrave-3 law pinned it (the legend's ONLY home).
-/// night-improve-59 (the owner's exact glyph): the section-switch
-/// affordance is `=>`, not the `←→` arrow pair — the left/right
-/// arrows rendered as unreadable dots on the owner's terminal, and
-/// the ASCII pair carries the "this leads to the other section"
-/// reading on every font ever shipped.
+/// night-improve-61 (the revert): the section-switch affordance is
+/// the `←→` arrow pair again — night-improve-59's `=>` re-spelling
+/// landed on the wrong surface (the owner meant the SECTION HEADER
+/// gutter marker, not this legend row), so the legend carries its
+/// improve-58 spelling back; the `=>` glyph now lives where the
+/// owner pointed it, the focused section's header lane.
 #[must_use]
 pub(super) fn status_line(interval: Duration) -> String {
     let realtime = if interval.as_secs() >= 1 {
@@ -332,7 +333,7 @@ pub(super) fn status_line(interval: Duration) -> String {
     format!(
         "  {}",
         grey(&format!(
-            "{realtime} - theme {} - q quit - t theme - ↑↓ scroll - => section",
+            "{realtime} - theme {} - q quit - t theme - ↑↓ scroll - ←→ section",
             crate::output::theme::active().name()
         ))
     )

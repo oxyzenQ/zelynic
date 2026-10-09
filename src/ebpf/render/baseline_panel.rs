@@ -64,14 +64,16 @@ pub(crate) fn render_panel(
     if usable == 0 {
         return;
     }
-    // The focus gutter marker (night-improve-58): the focused
-    // section's header carries `▸ ` in the shared 2-column gutter —
-    // the right arrow's landing is visible at a glance, no column
-    // shifts.
+    // The focus gutter marker (night-improve-58; re-cut by
+    // night-improve-61): the focused section's header carries `=> `
+    // in the shared 3-column marker lane — the owner's exact glyph
+    // ("=> baseline · policy aggregate", the `▸` triangle rendered
+    // as an unreadable dot on his terminal), the right arrow's
+    // landing visible at a glance, no column shifts.
     let gutter = if scroll.focused() == Section::BaselinePolice {
-        "▸ "
+        "=> "
     } else {
-        "  "
+        "   "
     };
     // The ruled separator: a section, not the table's tail.
     lines.push(String::new());
@@ -83,12 +85,12 @@ pub(crate) fn render_panel(
     for (key, dl, ul) in rows.iter().skip(offset).take(usable) {
         let label = pad_to_width(&super::truncate_label(&identity.label(*key), 24), 24);
         let body = pair_phrase(*dl, *ul);
-        lines.push(format!("  {label}  {body}"));
+        lines.push(format!("   {label}  {body}"));
     }
     // The scroll-position note (night-improve-58): the rows above
     // the window and the rows the room cut, one spelling shared
     // with the table's own note — no note when everything fits.
     if let Some(note) = scroll_note(offset, visible_total - usable) {
-        lines.push(format!("  {}", grey(&note)));
+        lines.push(format!("   {}", grey(&note)));
     }
 }

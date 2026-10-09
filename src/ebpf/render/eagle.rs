@@ -230,7 +230,9 @@ pub(super) fn render_eagle_eyes_at(
     // A watched name with no live cgroup says so — the empty-table
     // lie is exactly what the discovery stage must not tell.
     for name in &unresolved {
-        lines.push(format!("  no app named '{name}' — see 'zelynic list-apps'"));
+        lines.push(format!(
+            "   no app named '{name}' — see 'zelynic list-apps'"
+        ));
     }
 
     // The leaderboard: session-accumulated per cgroup, consumption-
@@ -251,9 +253,9 @@ pub(super) fn render_eagle_eyes_at(
     // pinned footer; once traffic HAS been seen this branch is dead
     // (the board holds every live row; transients retire).
     if session.is_empty() {
-        lines.push("  waiting for traffic…".to_string());
+        lines.push("   waiting for traffic…".to_string());
     } else if !tokens.is_empty() && board.is_empty() {
-        lines.push("  no traffic for the watched targets yet".to_string());
+        lines.push("   no traffic for the watched targets yet".to_string());
     }
 
     // Footer planning FIRST (NIGHT-boost-14): the pinned footer is
@@ -301,14 +303,20 @@ pub(super) fn render_eagle_eyes_at(
         // role the champion owned at rest — the table never renders
         // empty while a row exists to show.
         let offset = scroll.table_window(board.len());
-        // The focus gutter marker (night-improve-58): the focused
-        // section's header carries `▸ ` in the 2-column gutter every
-        // row shares — the one-column answer to "which section do
-        // the arrows steer", no column shifts, any width.
+        // The focus gutter marker (night-improve-58; re-cut by
+        // night-improve-61): the focused section's header carries
+        // `=> ` in the 3-column marker lane every table row shares —
+        // the owner's exact glyph and reading ("=> top process"):
+        // the `▸` triangle rendered as an unreadable dot on his
+        // terminal, and the ASCII arrow pair plus its air column is
+        // what he asked the marker to say. The lane widened by one
+        // column (2 -> 3) so the marker never crowds the title; the
+        // rank reserve moved with it (render::plan_eagle_columns),
+        // so no column ever shifts between header and rows.
         let gutter = if scroll.focused() == Section::TopProcess {
-            "▸ "
+            "=> "
         } else {
-            "  "
+            "   "
         };
         // The identity span the header's title cell covers.
         let title_w = cols.label_w + RANK_SPAN;
@@ -420,7 +428,7 @@ pub(super) fn render_eagle_eyes_at(
             if emitted > 0 && lines.len() >= footer_start {
                 lines.pop();
             }
-            lines.push(format!("  {}", grey(&note)));
+            lines.push(format!("   {}", grey(&note)));
         }
     }
 
@@ -506,7 +514,7 @@ fn render_eagle_row(
         crate::output::pad_to_width(&label_with_count(identity, conns, cgroup_id), cols.label_w);
     let body = if cols.show_total {
         format!(
-            "  {:>2}  {} {:>w1$} {:>w2$} {:>w3$}",
+            "   {:>2}  {} {:>w1$} {:>w2$} {:>w3$}",
             rank,
             label,
             format_rate_or_dash(dl_rate),
@@ -518,7 +526,7 @@ fn render_eagle_row(
         )
     } else {
         format!(
-            "  {:>2}  {} {:>w1$} {:>w2$}",
+            "   {:>2}  {} {:>w1$} {:>w2$}",
             rank,
             label,
             format_rate_or_dash(dl_rate),

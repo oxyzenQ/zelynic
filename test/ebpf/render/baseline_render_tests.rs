@@ -312,7 +312,7 @@ fn the_panel_carries_the_focus_marker_and_walks_its_window() {
     let mut lines = Vec::new();
     render_panel(&mut lines, &lane, &identity, None, 10, 40, &mut scroll);
     assert!(
-        lines[2].starts_with("▸ baseline · policy aggregate"),
+        lines[2].starts_with("=> baseline · policy aggregate"),
         "the focused panel's header carries the gutter marker: {:?}",
         lines[2]
     );

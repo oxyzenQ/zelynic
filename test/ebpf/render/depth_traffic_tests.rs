@@ -203,7 +203,7 @@ fn traffic_section_renders_the_window_and_ranked_rows() {
     );
     assert!(
         text.contains(
-            "curl (4242) → 142.250.191.78:443 tcp ESTABLISHED [dl   2.0 MB/s | ul  60.0 KB/s]"
+            "curl (4242) → 142.250.191.78:443 tcp ESTABLISHED [dl 2.0 MB/s | ul 60.0 KB/s]"
         ),
         "the mover's row carries the rate vocabulary, got: {text}"
     );
@@ -323,7 +323,7 @@ fn connected_udp_reaches_the_traffic_rows() {
     let focus = traffic_focus(1234, 3, &[delta(1234, 100, 5000)], Some(&conns), &bytes);
     let text = traffic_section_lines(&focus).join("\n");
     assert!(
-        text.contains("142.250.191.78:443 udp ESTABLISHED [dl   1.7 KB/s | ul    233 B/s]"),
+        text.contains("142.250.191.78:443 udp ESTABLISHED [dl 1.7 KB/s | ul 233 B/s]"),
         "the connected-UDP row renders with its figures over the 3s window (5000/3 rounds 1667 B/s), got: {text}"
     );
     // Movers-first: the UDP socket out-ate the TCP one, so it ranks first.
@@ -377,7 +377,7 @@ fn raw_socket_reaches_the_traffic_rows() {
     let focus = traffic_focus(1234, 3, &[delta(1234, 100, 8000)], Some(&conns), &bytes);
     let text = traffic_section_lines(&focus).join("\n");
     assert!(
-        text.contains("1.2.3.4:0 raw ESTABLISHED [dl   2.7 KB/s | ul     67 B/s]"),
+        text.contains("1.2.3.4:0 raw ESTABLISHED [dl 2.7 KB/s | ul 67 B/s]"),
         "the raw socket row renders with its figures over the 3s window (8000/3 rounds 2667 B/s), got: {text}"
     );
     // Movers-first: the raw socket out-ate the TCP one (8.3 KB vs
@@ -433,7 +433,7 @@ fn unbound_raw_socket_reaches_the_traffic_rows() {
     let focus = traffic_focus(1234, 3, &[delta(1234, 1500, 500)], Some(&conns), &bytes);
     let text = traffic_section_lines(&focus).join("\n");
     assert!(
-        text.contains("0.0.0.0:0 raw CLOSE [dl    167 B/s | ul    500 B/s]"),
+        text.contains("0.0.0.0:0 raw CLOSE [dl 167 B/s | ul 500 B/s]"),
         "the unbound raw socket row renders with its figures over the 3s window (500/3 rounds 167 B/s), got: {text}"
     );
     let raw_line = focus
@@ -474,7 +474,7 @@ fn window_figures_divide_by_the_windows_own_seconds() {
         "1.2 MB over 30s is 40 KB/s — the owner's own transcript math, got: {text}"
     );
     assert!(
-        text.contains("142.250.191.78:443 tcp ESTABLISHED [dl  40.0 KB/s | ul    940 B/s]"),
+        text.contains("142.250.191.78:443 tcp ESTABLISHED [dl 40.0 KB/s | ul 940 B/s]"),
         "the endpoint rides the same denominator (28_200/30 = 940 B/s), got: {text}"
     );
 }

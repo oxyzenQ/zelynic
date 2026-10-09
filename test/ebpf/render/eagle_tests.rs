@@ -68,38 +68,42 @@ fn classic() -> FrameGeometry {
 /// — a full row ends two columns short of the content inset (the
 /// border's fit() pads them), the mirror of the left gutter; the
 /// fourth column is TOTAL (session-accumulated), not the old
-/// combined RATE.
+/// combined RATE. night-improve-61: the rank reserve grew to 7 —
+/// the `=> ` focus-marker lane took the extra column.
 #[test]
 fn eagle_columns_full_width() {
     let cols = plan_eagle_columns(100);
     assert!(cols.show_total);
     assert_eq!(cols.dl_w, 10);
-    assert_eq!(cols.label_w, 100 - 6 - 3 * 11 - 2);
+    assert_eq!(cols.label_w, 100 - 7 - 3 * 11 - 2);
 }
 
 /// TOTAL is the first column to go on narrow frames (full layout
-/// starts at width 53 since NIGHT-engrave-4: 6 rank + 12 label +
-/// 3 x (gap + numeric) + 2 right gutter; it was 51 before the
-/// gutter — the boundary moved with the air it buys).
+/// starts at width 54 since night-improve-61: 7 rank — the
+/// `=> ` marker lane plus the rank cell and gap — + 12 label +
+/// 3 x (gap + numeric) + 2 right gutter; it was 53 when the lane
+/// was two columns wide, 51 before the gutter existed at all —
+/// the boundary moved with the air it buys).
 #[test]
-fn eagle_columns_drop_total_below_53() {
-    // The exact boundary: 53 carries the TOTAL column.
-    let cols = plan_eagle_columns(53);
+fn eagle_columns_drop_total_below_54() {
+    // The exact boundary: 54 carries the TOTAL column.
+    let cols = plan_eagle_columns(54);
     assert!(cols.show_total);
-    assert_eq!(cols.label_w, 53 - 6 - 3 * 11 - 2);
+    assert_eq!(cols.label_w, 54 - 7 - 3 * 11 - 2);
     // One column short: TOTAL drops, the label re-absorbs.
-    let cols = plan_eagle_columns(52);
+    let cols = plan_eagle_columns(53);
     assert!(!cols.show_total);
-    assert_eq!(cols.label_w, 52 - 6 - 2 * 11 - 2);
+    assert_eq!(cols.label_w, 53 - 7 - 2 * 11 - 2);
 }
 
 /// NIGHT-engrave-4's symmetric-rails contract, pinned on a rendered
 /// frame: the header's `top process` title starts at the frame's
-/// CANONICAL text column — the same two-column gutter every footer
-/// and note line uses — instead of floating six columns past the
-/// blank rank cell; the TOTAL column's figures end with the same
-/// two columns of air before the right rail that the left gutter
-/// gives the rank; and the data rows keep the classic rank shape
+/// CANONICAL text column — the marker lane every table row and note
+/// line shares (three columns since night-improve-61, the `=> `
+/// focus marker's estate) — instead of floating past the blank rank
+/// cell; the TOTAL column's figures end with the same two columns
+/// of air before the right rail that the rank enjoys after the
+/// marker lane; and the data rows keep the classic rank shape
 /// (rank digits over their cell, 2-gap, label over its column).
 #[test]
 fn header_and_total_column_carry_symmetric_air() {
@@ -126,7 +130,7 @@ fn header_and_total_column_carry_symmetric_air() {
         .find(|l| l.contains("top process"))
         .unwrap_or_else(|| panic!("no header row in: {joined}"));
     assert!(
-        header.starts_with(" │▸ top process"),
+        header.starts_with(" │=> top process"),
         "engrave-4: the title starts at the canonical text column          (inset + rail + gutter, NIGHT-engrave-8): {header}"
     );
     // The header's TOTAL title closes at the right gutter's edge —
@@ -139,7 +143,7 @@ fn header_and_total_column_carry_symmetric_air() {
     // `  │` but never `   │`), and the classic rank shape unchanged.
     let rank1 = lines
         .iter()
-        .find(|l| l.starts_with(" │   1  "))
+        .find(|l| l.starts_with(" │    1  "))
         .unwrap_or_else(|| panic!("no rank-1 row in: {joined}"));
     assert!(
         rank1.ends_with("  │") && !rank1.ends_with("   │"),
@@ -221,7 +225,7 @@ fn rank_is_the_session_accumulation() {
     // (a single frame: the accumulation IS the frame).
     let rank1 = lines
         .iter()
-        .find(|l| l.starts_with(" │   1  "))
+        .find(|l| l.starts_with(" │    1  "))
         .unwrap_or_else(|| panic!("no rank-1 row in: {joined}"));
     assert!(
         rank1.contains("cg:7001"),
@@ -229,7 +233,7 @@ fn rank_is_the_session_accumulation() {
     );
     let rank2 = lines
         .iter()
-        .find(|l| l.starts_with(" │   2  "))
+        .find(|l| l.starts_with(" │    2  "))
         .unwrap_or_else(|| panic!("no rank-2 row in: {joined}"));
     assert!(rank2.contains("cg:7002"), "rank 2 follows: {rank2}");
 }
@@ -291,7 +295,7 @@ fn quiet_frame_holds_the_board() {
     );
     let quiet_row = quiet
         .iter()
-        .find(|l| l.starts_with(" │   1  "))
+        .find(|l| l.starts_with(" │    1  "))
         .expect("the board holds its rank-1 row through the quiet frame");
     assert!(
         quiet_row.contains("cg:7001"),
@@ -352,7 +356,7 @@ fn takeover_recrowns_rank1() {
     );
     let rank1 = lines
         .iter()
-        .find(|l| l.starts_with(" │   1  "))
+        .find(|l| l.starts_with(" │    1  "))
         .expect("rank-1 row after the takeover");
     assert!(
         rank1.contains("cg:7002"),
@@ -360,7 +364,7 @@ fn takeover_recrowns_rank1() {
     );
     let rank2 = lines
         .iter()
-        .find(|l| l.starts_with(" │   2  "))
+        .find(|l| l.starts_with(" │    2  "))
         .expect("rank-2 row after the takeover");
     assert!(
         rank2.contains("cg:7001"),
@@ -463,7 +467,7 @@ fn rate_columns_divide_by_the_measured_span_not_the_cadence() {
         let joined = lines.join("\n");
         let rank1 = lines
             .iter()
-            .find(|l| l.starts_with(" │   1  "))
+            .find(|l| l.starts_with(" │    1  "))
             .unwrap_or_else(|| panic!("no rank-1 row at span {span:?}: {joined}"));
         assert!(
             rank1.contains(dl_rate),

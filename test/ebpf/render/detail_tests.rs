@@ -175,8 +175,8 @@ fn detail_lines_tree_eagle_eyes() {
         lines,
         vec![
             "    └ curl (4242) 2 sockets:".to_string(),
-            "        ├ 10.90.170.143:443 [busy]".to_string(),
-            "        └ 1.1.1.1:443".to_string(),
+            "        ├ tcp 10.90.170.143:443 [busy]".to_string(),
+            "        └ tcp 1.1.1.1:443".to_string(),
             "    └ +3 more socket-holding processes".to_string(),
         ]
     );
@@ -231,9 +231,9 @@ fn detail_lines_tree_budget() {
         detail_lines(Some(&conns), 7001, WINDOW),
         vec![
             "    └ curl (4242) 2 sockets:".to_string(),
-            "        ├ 10.90.170.143:443".to_string(),
-            "        └ 1.1.1.1:443".to_string(),
-            "    └ wget (4243) → 93.184.216.34:80".to_string(),
+            "        ├ tcp 10.90.170.143:443".to_string(),
+            "        └ tcp 1.1.1.1:443".to_string(),
+            "    └ wget (4243) → tcp 93.184.216.34:80".to_string(),
         ]
     );
 
@@ -252,9 +252,9 @@ fn detail_lines_tree_budget() {
     assert_eq!(
         detail_lines(Some(&conns), 7002, WINDOW),
         vec![
-            "    └ app (5000) → 10.0.0.0:443".to_string(),
-            "    └ app (5001) → 10.0.0.1:443".to_string(),
-            "    └ app (5002) → 10.0.0.2:443".to_string(),
+            "    └ app (5000) → tcp 10.0.0.0:443".to_string(),
+            "    └ app (5001) → tcp 10.0.0.1:443".to_string(),
+            "    └ app (5002) → tcp 10.0.0.2:443".to_string(),
             "    └ +2 more socket-holding processes".to_string(),
         ]
     );
@@ -275,8 +275,8 @@ fn detail_lines_tree_budget() {
         detail_lines(Some(&conns), 7003, WINDOW),
         vec![
             "    └ curl (4242) 2 sockets:".to_string(),
-            "        ├ 10.90.170.143:443".to_string(),
-            "        └ 1.1.1.1:443".to_string(),
+            "        ├ tcp 10.90.170.143:443".to_string(),
+            "        └ tcp 1.1.1.1:443".to_string(),
         ]
     );
 }
@@ -294,11 +294,11 @@ fn full_detail_lines_tree() {
         vec![
             "  processes with sockets (4 total processes):".to_string(),
             "  └ curl (4242) 2 sockets:".to_string(),
-            "      ├ 10.90.170.143:443 [busy]".to_string(),
-            "      └ 1.1.1.1:443".to_string(),
-            "  └ wget (4243) → 93.184.216.34:80".to_string(),
+            "      ├ tcp 10.90.170.143:443 [busy]".to_string(),
+            "      └ tcp 1.1.1.1:443".to_string(),
+            "  └ wget (4243) → tcp 93.184.216.34:80".to_string(),
             "  └ nc (5000) → udp 8.8.8.8:53".to_string(),
-            "  └ vim (7000) → 9.9.9.9:22".to_string(),
+            "  └ vim (7000) → tcp 9.9.9.9:22".to_string(),
         ]
     );
 
@@ -345,8 +345,8 @@ fn detail_lines_three_endpoints() {
         detail_lines(Some(&conns), 7001, WINDOW),
         vec![
             "    └ firefox (4242) 3 sockets:".to_string(),
-            "        ├ 142.250.191.78:443".to_string(),
-            "        └ 172.217.16.14:443".to_string(),
+            "        ├ tcp 142.250.191.78:443".to_string(),
+            "        └ tcp 172.217.16.14:443".to_string(),
         ]
     );
     assert_eq!(
@@ -354,9 +354,9 @@ fn detail_lines_three_endpoints() {
         vec![
             "  processes with sockets (1 total processes):".to_string(),
             "  └ firefox (4242) 3 sockets:".to_string(),
-            "      ├ 142.250.191.78:443".to_string(),
-            "      ├ 172.217.16.14:443".to_string(),
-            "      └ 8.8.8.8:53".to_string(),
+            "      ├ tcp 142.250.191.78:443".to_string(),
+            "      ├ tcp 172.217.16.14:443".to_string(),
+            "      └ tcp 8.8.8.8:53".to_string(),
         ]
     );
 }
@@ -451,9 +451,10 @@ fn detail_hides_and_cuts_on_narrow_frames() {
 
     // Comfortable width (NIGHT-boost-20 + engrave-8: the rails,
     // the leading inset, and the never-painted margin claim four
-    // terminal columns, so the frame needs 57 for the 53-column
+    // terminal columns, so the frame needs 58 for the 54-column
     // content inset - the TOTAL-column boundary since
-    // NIGHT-engrave-4's right gutter moved it up from 51): the
+    // night-improve-61's `=> ` marker lane moved it up from 53
+    // (engrave-4's right gutter had moved it up from 51): the
     // detail line shows, trimmed to the inset - a long process or
     // endpoint string can never wrap the frame or shift the pinned
     // footer.
@@ -470,7 +471,7 @@ fn detail_hides_and_cuts_on_narrow_frames() {
         &BaselineLane::new(),
         Duration::from_secs(70),
         FrameGeometry {
-            width: 57,
+            width: 58,
             height: 24,
         },
         &mut ScrollState::new(),
@@ -478,12 +479,12 @@ fn detail_hides_and_cuts_on_narrow_frames() {
     let detail = snug
         .iter()
         .find(|l| l.contains("curl ("))
-        .expect("detail line at width 57");
+        .expect("detail line at width 58");
     assert!(
         // NIGHT-engrave-8: the frame composes one column short of the
-        // terminal — 56 at a width-57 terminal, inset and rails
+        // terminal — 57 at a width-58 terminal, inset and rails
         // included.
-        detail.chars().count() <= 56,
+        detail.chars().count() <= 57,
         "detail trimmed to the frame width (inset and rails included): {detail}"
     );
     assert!(detail.contains('…'), "truncation marks itself: {detail}");

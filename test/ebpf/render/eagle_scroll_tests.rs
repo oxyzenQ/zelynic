@@ -41,9 +41,10 @@ fn flat_identity(ids: &[u32]) -> IdentityMap {
 /// column keeps the board's TRUE rank (never the window's
 /// position), the scroll note names both directions (the rows the
 /// offset skipped AND the rows the room cut), and the focus marker
-/// rides the focused section's header gutter: `▸` on the table at
-/// rest, gone the moment the right arrow moves the focus to the
-/// panel.
+/// rides the focused section's header lane: `=>` on the table at
+/// rest (night-improve-61: the ASCII pair the owner asked for, the
+/// `▸` triangle read as a dot on his terminal), gone the moment the
+/// right arrow moves the focus to the panel.
 #[test]
 fn arrow_scroll_walks_the_table_window() {
     let identity = flat_identity(&(1..=12u32).map(|i| 70000 + i).collect::<Vec<_>>());
@@ -89,7 +90,7 @@ fn arrow_scroll_walks_the_table_window() {
     );
     let joined = lines.join("\n");
     assert!(
-        lines.iter().any(|l| l.starts_with(" │   1  ")),
+        lines.iter().any(|l| l.starts_with(" │    1  ")),
         "rank 1 leads the resting window: {joined}"
     );
     assert!(
@@ -119,11 +120,11 @@ fn arrow_scroll_walks_the_table_window() {
     );
     let w = walked.join("\n");
     assert!(
-        !walked.iter().any(|l| l.starts_with(" │   1  ")),
+        !walked.iter().any(|l| l.starts_with(" │    1  ")),
         "rank 1 sits above the walked window: {w}"
     );
     assert!(
-        walked.iter().any(|l| l.starts_with(" │   3  ")),
+        walked.iter().any(|l| l.starts_with(" │    3  ")),
         "rank 3 leads the walked window (the TRUE rank, never the position): {w}"
     );
     assert!(
@@ -155,7 +156,7 @@ fn arrow_scroll_walks_the_table_window() {
         .find(|l| l.contains("top process"))
         .unwrap_or_else(|| panic!("no header row in: {refocused:?}"));
     assert!(
-        header.starts_with(" │  top process"),
+        header.starts_with(" │   top process"),
         "the unfocused table's header keeps its plain gutter: {header}"
     );
 }
