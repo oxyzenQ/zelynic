@@ -2064,15 +2064,20 @@ def stage_server_zombie_sweep():
       2. run a 2s download client inside bed 'e' — the traffic
          flows UNDER the policy, so the ring rows get created and
          stamped (dl books the payload, ul books the ACKs)
-      3. the client exits and the harness removes bed 'e' — the
-         systemd-scope shape of a job's death: the scope cgroup is
-         DESTROYED when the job ends (systemd rmdirs it), so the
+      3. the client exits and the harness removes the death bed —
+         the systemd-scope shape of a job's death: the scope cgroup
+         is DESTROYED when the job ends (systemd rmdirs it), so the
          identity walk no longer names the cgroup AND the directory
          itself is gone: the policy row is now a zombie the
          cgroupfs census can prove dead (night-audit-8's belt —
          the death proof is the one retirement law; a standing
          directory would keep the policy, the pre-provisioned bed's
-         own case)
+         own case). The bed is a DEDICATED one the stage creates
+         and destroys itself — the run 296 repair: the first cut
+         rmdir'd bed 'e' and the desktop matrix's every later
+         bed-e test (block d::e, mixed's block e, both s --all
+         residency barriers) found no cgroup. A stage that
+         consumes its bed consumes the matrix
       4. sleep the ring horizon + margin (10s — the last delivered
          second rotates out of the 8s window set, the sweep's own
          grace window)
@@ -2100,7 +2105,42 @@ def stage_server_zombie_sweep():
             "session-cgroup fallback — dedicated cgroups not creatable",
         )
         return False
-    e_id = CG.ids["e"]
+    # The dedicated death bed (night-audit-8's run-296 repair): the
+    # stage creates and destroys its own cgroup — the rmdir that
+    # proves death must never consume one of the matrix's a..e beds
+    # (the first cut's bed-'e' rmdir broke the desktop matrix: block
+    # d::e, mixed's block e, and both s --all residency barriers all
+    # found the bed missing).
+    death_bed = f"{CGROUP_ROOT}/zelynic-supermassive-zombie"
+
+    def _drop_death_bed():
+        for _ in range(3):
+            if not os.path.isdir(death_bed):
+                return
+            try:
+                os.rmdir(death_bed)
+                return
+            except OSError:
+                time.sleep(0.3)
+
+    try:
+        os.mkdir(death_bed)
+    except OSError as exc:
+        record(
+            "server: zombie-sweep live proof (die + status visit)",
+            "FAIL",
+            f"the death bed could not be created: {exc}",
+        )
+        return False
+    e_id = CgroupSet._read_id(death_bed)
+    if e_id is None:
+        record(
+            "server: zombie-sweep live proof (die + status visit)",
+            "FAIL",
+            "the death bed's cgroup id is unresolvable (stat failed)",
+        )
+        _drop_death_bed()
+        return False
     # Step 1: the policy. The rate is generous (1mb) — the stage
     # proves the retirement, not the enforcement band.
     rc, stdout, stderr = run_zel(["strict", str(e_id), "1mb"], timeout=30)
@@ -2110,14 +2150,16 @@ def stage_server_zombie_sweep():
             "FAIL",
             f"setup apply failed: exit {rc}, {(stderr or stdout).strip()[:200]}",
         )
+        _drop_death_bed()
         return False
     doc = status_json()
     if doc is None or limit_entry(doc, e_id) is None:
         record(
             "server: zombie-sweep live proof (die + status visit)",
             "FAIL",
-            "setup apply did not land a policy row for cgroup E",
+            "setup apply did not land a policy row for the death bed",
         )
+        _drop_death_bed()
         run_zel(["u", "--all"], timeout=30)
         return False
     # Step 2: the delivered traffic. The 2s client downloads under
@@ -2125,8 +2167,8 @@ def stage_server_zombie_sweep():
     # zero bytes means the client never delivered and the ring rows
     # may not exist (the never-delivered shape still retires, but
     # this stage's contract is the DELIVERED zombie).
-    metric, err = spawn_in_cgroup(
-        "e", [sys.executable, "-c", _PY_DL_CLIENT, str(SERVER.port), "2.0"], 30
+    metric, err = spawn_in_cgroup_path(
+        death_bed, [sys.executable, "-c", _PY_DL_CLIENT, str(SERVER.port), "2.0"], 30
     )
     if metric is None or metric <= 0:
         record(
@@ -2134,6 +2176,7 @@ def stage_server_zombie_sweep():
             "FAIL",
             f"traffic client delivered nothing (metric={metric}, err={err})",
         )
+        _drop_death_bed()
         run_zel(["u", str(e_id)], timeout=30)
         return False
     # Step 3: the client has exited — bed 'e' holds no process, the
@@ -2147,13 +2190,14 @@ def stage_server_zombie_sweep():
     # every apply). An rmdir failure fails the stage honestly —
     # without the destroyed cgroup there is no death to prove.
     try:
-        os.rmdir(CG.paths["e"])
+        os.rmdir(death_bed)
     except OSError as exc:
         record(
             "server: zombie-sweep live proof (die + status visit)",
             "FAIL",
-            f"bed 'e' rmdir failed (the scope-cleanup shape): {exc}",
+            f"the death bed rmdir failed (the scope-cleanup shape): {exc}",
         )
+        _drop_death_bed()
         run_zel(["u", "--all"], timeout=30)
         return False
     # Step 4: the horizon rotation.
@@ -5084,7 +5128,12 @@ def test_mixed(window, baseline):
     ok_bl, payload_bl = block_target("block", ["e"])
     if not (ok_a and ok_g and ok_bl):
         clear_all()
-        return record(name, "FAIL", payload or payload_g or payload_bl)
+        # The FIRST FAILING helper's payload, not the first truthy
+        # one (run 296's diagnosis: apply_single's success payload is
+        # the entry dict — truthy — and it masked the real failure
+        # message from the later helpers).
+        fail_payload = payload if not ok_a else (payload_g if not ok_g else payload_bl)
+        return record(name, "FAIL", fail_payload)
     time.sleep(0.5)
     got_a = py_download(window)
     solo = band_check("mixed: strict member at 500kb", got_a / window, 500_000)
