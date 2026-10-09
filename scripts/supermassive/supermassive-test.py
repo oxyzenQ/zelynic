@@ -1970,9 +1970,26 @@ def stage_server_orphan_census():
     # cgroup_policy_dl map is a HashMap<u32, PolicyRaw>. The key is
     # the cgroup id as a u32 in little-endian hex. Deleting this row
     # leaves the bucket_dl entry orphaned (no policy names it).
+    # night-audit-8 (the red era's fourth and deepest layer): the
+    # `key hex` grammar takes ONE SPACE-SEPARATED TOKEN PER BYTE
+    # (`key hex 1f 00 00 00`) — the contiguous 8-char token parsed
+    # as a single byte and bpftool refused with "key expected 4
+    # bytes got 1", failing the stage from its very first run
+    # (under the self-harvest and death-proof layers the same
+    # session peeled).
     pin_policy_dl = "/sys/fs/bpf/zelynic/cgroup_policy_dl"
-    key_hex = a_id.to_bytes(4, "little").hex()
-    bpftool_cmd = [bpftool, "map", "delete", "pinned", pin_policy_dl, "key", "hex", key_hex]
+    key_bytes = [f"{b:02x}" for b in a_id.to_bytes(4, "little")]
+    key_hex = " ".join(key_bytes)
+    bpftool_cmd = [
+        bpftool,
+        "map",
+        "delete",
+        "pinned",
+        pin_policy_dl,
+        "key",
+        "hex",
+        *key_bytes,
+    ]
     try:
         p = subprocess.run(bpftool_cmd, capture_output=True, text=True, timeout=10)
     except subprocess.TimeoutExpired:
