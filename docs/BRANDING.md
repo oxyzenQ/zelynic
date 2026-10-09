@@ -105,7 +105,8 @@ numerics, and no per-cell noise (values are never packed as
   both corners since NIGHT-engrave-3 retired the top-right key
   hint (the legend lives in the footer's status line alone).
   NIGHT-engrave-12: the title rides the MIDDLE of the bar — the
-  former fixed `╭─── ` prefix hugged it to the top-left; the
+  former fixed `╭───` prefix (one trailing space) hugged it to the
+  top-left; the
   leftover columns now flank it as two balanced dash runs around
   one gutter each side (the floor left, the remainder right, the
   `{:^}` convention). NIGHT-engrave-11: at the sweep-capable depths
