@@ -24,7 +24,7 @@
 
 use std::collections::HashSet;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 use super::lanes::map_error_means_absent;
 use super::rate_ring::RateRingRaw;

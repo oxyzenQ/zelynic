@@ -31,8 +31,8 @@
 pub(super) mod ebpf_ammsp;
 
 use self::ebpf_ammsp::{
-    cache_verdict, memo_gen, memo_root, memo_value, walk_queries, AmmspWalk, CacheVerdict,
-    AMMSP_MAX_DEPTH,
+    AMMSP_MAX_DEPTH, AmmspWalk, CacheVerdict, cache_verdict, memo_gen, memo_root, memo_value,
+    walk_queries,
 };
 
 /// The nearest-root contract, straight case: one policy on the chain

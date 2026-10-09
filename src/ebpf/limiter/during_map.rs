@@ -13,7 +13,7 @@
 //! file past the 500-LOC cap; the pure-logic/plumbing seam is the
 //! boundary the file already wore — the bpf_syscall precedent).
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use aya::maps::HashMap as BpfHashMap;
 
 use super::during::{during_to_window, wall_minus_mono, wall_now_ns};
@@ -229,9 +229,9 @@ pub(super) fn stamp_offset_on_pinned(verbose: bool) {
                         .map_err(|e| anyhow!("failed to stamp: {e}"))
                 })
         });
-    if let Err(e) = stamp {
-        if verbose {
-            eprintln_safe!("[limiter] wall_clock_offset refresh skipped: {e}");
-        }
+    if let Err(e) = stamp
+        && verbose
+    {
+        eprintln_safe!("[limiter] wall_clock_offset refresh skipped: {e}");
     }
 }

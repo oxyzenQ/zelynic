@@ -25,7 +25,7 @@
 //! of the find itself — the exact numbers the CI row measured.
 
 use super::ebpf_drr::{
-    draw_size, epoch_allowance, epoch_refill, fair_draw_size, quantum, take_size, GSO_ADMIT_FLOOR,
+    GSO_ADMIT_FLOOR, draw_size, epoch_allowance, epoch_refill, fair_draw_size, quantum, take_size,
 };
 
 /// The find's own arithmetic (the CI row, restated as numbers):

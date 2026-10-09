@@ -34,10 +34,22 @@
 # 2026-09 aya-template workspace). The crate is nightly-only by
 # design and must never enter the root crate's rust-version-sync
 # contract (gate 10 reads the ROOT manifest only).
+#
+# NIGHT-improve-67: the version field follows the ROOT crate's
+# version — scripts/dev/version-to.sh writes this manifest and
+# ebpf/Cargo.lock in the same breath as the root pair (the crate
+# ships inside the binary's objects, so drifting version labels
+# were a provenance hole: a 0.1.0 object riding a v50 binary). The
+# rust-version-sync contract above is untouched: that gate pins
+# TOOLCHAINS (channel pins), this field pins a package version —
+# different axes, same discipline. Edition 2024 is now also the
+# root crate's edition (the all-package consistency contract), so
+# the aya-pairing note above reads as "matches upstream AND the
+# repo".
 
 [package]
 name = "zelynic-ebpf"
-version = "0.1.0"
+version = "50.0.0-beta.1"
 edition = "2024"
 publish = false
 

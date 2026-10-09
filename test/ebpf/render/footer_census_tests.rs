@@ -10,9 +10,9 @@
 
 use crate::ebpf::identity::{IdentityMap, ProcessIdentity};
 use crate::ebpf::loader::{CgroupDelta, CounterSummary};
-use crate::ebpf::render::eagle::render_eagle_eyes_at;
 use crate::ebpf::render::BaselineLane;
 use crate::ebpf::render::ScrollState;
+use crate::ebpf::render::eagle::render_eagle_eyes_at;
 use crate::ebpf::render::{FrameGeometry, SessionState};
 use std::time::Duration;
 

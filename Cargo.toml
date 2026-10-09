@@ -4,7 +4,16 @@
 [package]
 name = "zelynic"
 version = "50.0.0-beta.1"
-edition = "2021"
+# NIGHT-improve-67: edition 2024 across ALL packages — the root crate
+# joins ebpf/Cargo.toml (2024 since the aya-ebpf 0.2.1 pairing) so the
+# repo speaks one edition. Migration verified clean: the 2024 hard
+# errors (unsafe attributes, unsafe extern blocks, static mut refs)
+# have zero call sites in src/, build.rs, build/ or test/ — the eBPF
+# sources already rode 2024 via #[unsafe(no_mangle)]. toolchain 1.98
+# (rust-version below) is far above the 2024 floor of 1.85, and gate
+# 10's toolchain contract is untouched (edition and channel are
+# different axes).
+edition = "2024"
 description = "Per-app network rate limiter and traffic monitor for Linux. Pure eBPF. Boring and silent but killer."
 authors = ["rezky_nightky (oxyzenQ) <with dot rezky at gmail dot com>"]
 license = "GPL-3.0-only"

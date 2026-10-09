@@ -148,17 +148,17 @@ mod tests {
         assert_eq!(sanitize_comm("\u{202C}"), "?"); // PDF
         assert_eq!(sanitize_comm("\u{202D}"), "?"); // LRO
         assert_eq!(sanitize_comm("\u{202E}"), "?"); // RLO
-                                                    // The isolate family U+2066..=U+2069.
+        // The isolate family U+2066..=U+2069.
         assert_eq!(sanitize_comm("\u{2066}"), "?"); // LRI
         assert_eq!(sanitize_comm("\u{2067}"), "?"); // RLI
         assert_eq!(sanitize_comm("\u{2068}"), "?"); // FSI
         assert_eq!(sanitize_comm("\u{2069}"), "?"); // PDI
-                                                    // A realistic Trojan-Source comm: RLO flips the suffix
-                                                    // direction so "evil\u{202E}nwp" would render as "evil" + RLO
-                                                    // + "pwn" (visually "nwp" reversed). The `?` substitution
-                                                    // makes the bidi visible AND neutralizes the override — the
-                                                    // admin sees "evil?nwp", the matching lane compares the
-                                                    // sanitized bytes, and the terminal never sees the RLO.
+        // A realistic Trojan-Source comm: RLO flips the suffix
+        // direction so "evil\u{202E}nwp" would render as "evil" + RLO
+        // + "pwn" (visually "nwp" reversed). The `?` substitution
+        // makes the bidi visible AND neutralizes the override — the
+        // admin sees "evil?nwp", the matching lane compares the
+        // sanitized bytes, and the terminal never sees the RLO.
         assert_eq!(sanitize_comm("evil\u{202E}nwp"), "evil?nwp");
         // An LRO + RLO stack — the kind a careful attacker piles on
         // to break out of a defender's halfway fix that only strips

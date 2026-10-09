@@ -16,10 +16,10 @@ use super::resolve_targets;
 use crate::ebpf::identity::{IdentityMap, ProcessIdentity};
 use crate::ebpf::limiter::Target;
 use crate::ebpf::loader::{CgroupDelta, CounterSummary};
-use crate::ebpf::render::eagle::render_eagle_eyes_at;
-use crate::ebpf::render::focus::window_active;
 use crate::ebpf::render::BaselineLane;
 use crate::ebpf::render::ScrollState;
+use crate::ebpf::render::eagle::render_eagle_eyes_at;
+use crate::ebpf::render::focus::window_active;
 use crate::ebpf::render::{FrameGeometry, SessionState};
 use std::time::Duration;
 
@@ -134,9 +134,9 @@ fn name_targets_expand_and_misses_note() {
         "the title names the watched breadth: {joined}"
     );
     assert!(
-    joined.contains("11 packets + 1 cgroups"),
-    "engrave-4: filtered frames carry their OWN census — the filtered board's session packets (1 ul + 10 dl) and its one cgroup: {joined}"
-);
+        joined.contains("11 packets + 1 cgroups"),
+        "engrave-4: filtered frames carry their OWN census — the filtered board's session packets (1 ul + 10 dl) and its one cgroup: {joined}"
+    );
     // NIGHT-engrave-6: the speed pair carries the same filtered
     // scope — MAX is the watched set's peak (cg 7001's own deltas,
     // 5000 dl / 100 ul at interval 1s; cg 7004's traffic is invisible

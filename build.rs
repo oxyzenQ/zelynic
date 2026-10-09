@@ -374,14 +374,14 @@ fn run_nested_ebpf_build(ebpf_dir: &std::path::Path) {
 /// current depends on the parent build's rustflags environment.
 fn delete_damaged_artifact(release_dir: &std::path::Path, name: &str) {
     let published = release_dir.join(name);
-    if let Err(e) = std::fs::remove_file(&published) {
-        if e.kind() != std::io::ErrorKind::NotFound {
-            panic!(
-                "failed to delete the damaged eBPF object {}: {e} — cannot \
+    if let Err(e) = std::fs::remove_file(&published)
+        && e.kind() != std::io::ErrorKind::NotFound
+    {
+        panic!(
+            "failed to delete the damaged eBPF object {}: {e} — cannot \
                  force a clean rebuild around this",
-                published.display()
-            );
-        }
+            published.display()
+        );
     }
     let canonical_pkg = release_dir.join("build").join("zelynic-ebpf");
     let canonical_name = name.replace('-', "_");
@@ -389,15 +389,15 @@ fn delete_damaged_artifact(release_dir: &std::path::Path, name: &str) {
         Ok(hashes) => {
             for hash in hashes.flatten() {
                 let out = hash.path().join("out").join(&canonical_name);
-                if let Err(e) = std::fs::remove_file(&out) {
-                    if e.kind() != std::io::ErrorKind::NotFound {
-                        panic!(
-                            "failed to delete the damaged canonical eBPF \
+                if let Err(e) = std::fs::remove_file(&out)
+                    && e.kind() != std::io::ErrorKind::NotFound
+                {
+                    panic!(
+                        "failed to delete the damaged canonical eBPF \
                              artifact {}: {e} — cannot force a clean rebuild \
                              around this",
-                            out.display()
-                        );
-                    }
+                        out.display()
+                    );
                 }
             }
         }

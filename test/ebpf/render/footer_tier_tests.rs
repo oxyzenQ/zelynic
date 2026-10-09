@@ -8,12 +8,12 @@
 //! cap (cosmostrix Pattern C: one file per contract, #[path]-wired
 //! from src/ebpf/render/footer.rs exactly like the composition pins).
 
-use super::{plan_footer_tier, FooterTier};
+use super::{FooterTier, plan_footer_tier};
 use crate::ebpf::identity::{IdentityMap, ProcessIdentity};
 use crate::ebpf::loader::{CgroupDelta, CounterSummary};
-use crate::ebpf::render::eagle::render_eagle_eyes_at;
 use crate::ebpf::render::BaselineLane;
 use crate::ebpf::render::ScrollState;
+use crate::ebpf::render::eagle::render_eagle_eyes_at;
 use crate::ebpf::render::{FrameGeometry, SessionState};
 use std::time::Duration;
 
@@ -118,21 +118,29 @@ fn footer_tiers_degrade_in_the_engraved_order() {
     // that one.
     let compact = render(16);
     assert_eq!(compact.len(), 16, "pinned to the terminal height");
-    assert!(compact
-        .iter()
-        .any(|l| l.contains("top consumer is alacritty")));
+    assert!(
+        compact
+            .iter()
+            .any(|l| l.contains("top consumer is alacritty"))
+    );
     assert!(compact.iter().any(|l| l.contains("packets + 1 cgroups")));
     assert!(compact.iter().any(|l| l.contains("limit target with")));
-    assert!(compact
-        .iter()
-        .any(|l| l.contains("total usage internet in")));
+    assert!(
+        compact
+            .iter()
+            .any(|l| l.contains("total usage internet in"))
+    );
     // The speed pair rides Compact (the census family's member).
-    assert!(compact
-        .iter()
-        .any(|l| l.contains("peak arrival dl | ul = 500.0 KB/s | 5.0 KB/s")));
-    assert!(compact
-        .iter()
-        .any(|l| l.contains("avg arrival dl | ul = 7.1 KB/s | 71 B/s")));
+    assert!(
+        compact
+            .iter()
+            .any(|l| l.contains("peak arrival dl | ul = 500.0 KB/s | 5.0 KB/s"))
+    );
+    assert!(
+        compact
+            .iter()
+            .any(|l| l.contains("avg arrival dl | ul = 7.1 KB/s | 71 B/s"))
+    );
     // Footer spans the block below the table territory: rows 5..15.
     let footer_rows = &compact[5..15];
     let blank_row = format!(" │{}│", " ".repeat(76));
@@ -153,16 +161,20 @@ fn footer_tiers_degrade_in_the_engraved_order() {
     // drop; the consumer headline and the roof grid survive.
     let minimal = render(11);
     assert_eq!(minimal.len(), 11);
-    assert!(minimal
-        .iter()
-        .any(|l| l.contains("top consumer is alacritty")));
+    assert!(
+        minimal
+            .iter()
+            .any(|l| l.contains("top consumer is alacritty"))
+    );
     assert!(!minimal.iter().any(|l| l.contains("packets +")));
     assert!(!minimal.iter().any(|l| l.contains("limit target")));
     assert!(!minimal.iter().any(|l| l.contains("peak arrival dl")));
     assert!(!minimal.iter().any(|l| l.contains("avg arrival dl")));
-    assert!(minimal
-        .iter()
-        .any(|l| l.contains("total usage internet in")));
+    assert!(
+        minimal
+            .iter()
+            .any(|l| l.contains("total usage internet in"))
+    );
 
     // Tiny (rendered height 10, ladder sees 9): the survival floor —
     // the grid and the headline go too; the total row, the status

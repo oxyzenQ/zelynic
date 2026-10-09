@@ -12,8 +12,8 @@
 
 use aya::maps::{HashMap as BpfHashMap, Map};
 
-use super::types::Direction;
 use super::Limiter;
+use super::types::Direction;
 use crate::ebpf::pin::{self, PIN_MAP_RATE_RING_DL, PIN_MAP_RATE_RING_UL};
 
 /// How many one-second windows the ring keeps (the shared core's

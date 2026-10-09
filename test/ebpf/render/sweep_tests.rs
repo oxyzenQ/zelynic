@@ -10,8 +10,8 @@
 
 use super::sweep_run;
 use crate::ebpf::render::border::{rail_escape, rail_rgb};
-use crate::output::theme::Theme;
 use crate::output::ColorCapability;
+use crate::output::theme::Theme;
 
 #[test]
 fn sweep_run_is_the_rails_method_across_the_columns() {

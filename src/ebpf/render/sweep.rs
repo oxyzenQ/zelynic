@@ -10,9 +10,9 @@
 //! bar, the grid lines, the closing floor, and the rails' own
 //! closing row all speak through here.
 
-use super::border::{from_linear, to_linear, wave, DARK_FACTOR};
-use crate::output::theme::Theme;
+use super::border::{DARK_FACTOR, from_linear, to_linear, wave};
 use crate::output::ColorCapability;
+use crate::output::theme::Theme;
 use std::collections::HashMap;
 use std::sync::Mutex;
 

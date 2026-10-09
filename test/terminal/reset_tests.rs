@@ -29,7 +29,7 @@
 //!    the transformation never clears anything on an already-sane
 //!    terminal.
 
-use super::{sane_cooked, TERMINAL_RESET_SEQUENCE, TERMINAL_RESTORE_SEQUENCE};
+use super::{TERMINAL_RESET_SEQUENCE, TERMINAL_RESTORE_SEQUENCE, sane_cooked};
 
 /// Extract every DEC private mode and its direction from an escape
 /// byte sequence: the digits following each `ESC[?` prefix plus the

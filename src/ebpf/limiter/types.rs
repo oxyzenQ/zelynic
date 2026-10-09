@@ -250,11 +250,7 @@ pub(crate) fn group_id_from(pid: u32, nanos: u64) -> u32 {
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
     let mixed = (z ^ (z >> 31)) as u32;
-    if mixed == 0 {
-        1
-    } else {
-        mixed
-    }
+    if mixed == 0 { 1 } else { mixed }
 }
 
 #[derive(Debug, Clone, PartialEq)]

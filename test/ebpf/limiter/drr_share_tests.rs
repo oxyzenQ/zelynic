@@ -43,14 +43,14 @@
 //! budget (the DRR doc's own lo bound).
 
 use super::ebpf_drr::{
-    draw_size, epoch_allowance, epoch_refill, fair_draw_size, ledger_carry, ledger_epoch,
-    ledger_note, ledger_pack, ledger_room, pool_share_last, pool_share_note, pool_share_pack,
-    pool_share_peak, pool_share_running, quantum, share_epoch_ns, PEAK_DECAY_EPOCHS,
+    PEAK_DECAY_EPOCHS, draw_size, epoch_allowance, epoch_refill, fair_draw_size, ledger_carry,
+    ledger_epoch, ledger_note, ledger_pack, ledger_room, pool_share_last, pool_share_note,
+    pool_share_pack, pool_share_peak, pool_share_running, quantum, share_epoch_ns,
 };
 // The math copy rides drr_tests' parent inclusion (one per test
 // binary, the duplicate-mod law) — reached through the grandparent,
 // the limiter mod, where math_tests lives.
-use super::super::math_tests::ebpf_math::{draw_stamp_take, tokens_fetch_add, tokens_read, Bucket};
+use super::super::math_tests::ebpf_math::{Bucket, draw_stamp_take, tokens_fetch_add, tokens_read};
 
 /// The sim's GRO super-packet (the hook's view — the admit floor).
 const PKT: u64 = 65_536;

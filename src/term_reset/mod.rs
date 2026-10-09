@@ -362,10 +362,10 @@ fn spawn_rescue_util(name: &str, arg: Option<&str>, stdin_tty: Option<&std::path
     if let Some(a) = arg {
         cmd.arg(a);
     }
-    if let Some(tty) = stdin_tty {
-        if let Ok(f) = std::fs::File::open(tty) {
-            cmd.stdin(f);
-        }
+    if let Some(tty) = stdin_tty
+        && let Ok(f) = std::fs::File::open(tty)
+    {
+        cmd.stdin(f);
     }
     if nix::unistd::geteuid().is_root() {
         cmd.env("PATH", RESCUE_SYSTEM_PATH);

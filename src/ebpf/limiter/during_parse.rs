@@ -28,7 +28,7 @@
 //! so the enum stays the restore family's vocabulary — only the
 //! FLAG can no longer create them.
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 
 // ━━ The grammar ━━
 

@@ -37,7 +37,7 @@
 pub(super) mod ebpf_quic;
 
 use self::ebpf_quic::{
-    classify, flow_key, hint_confirmed, hint_key, hint_learn, hint_len, hint_word, Classify,
+    Classify, classify, flow_key, hint_confirmed, hint_key, hint_learn, hint_len, hint_word,
 };
 
 /// The socket cookie the sims multiplex over (the kernel assigns

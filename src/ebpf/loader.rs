@@ -14,11 +14,11 @@
 //! the "BPF object file not found" error class is structurally
 //! impossible now.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use aya::{
+    Ebpf,
     maps::{HashMap as BpfHashMap, MapError},
     programs::{CgroupAttachMode, CgroupSkb, CgroupSkbAttachType},
-    Ebpf,
 };
 use std::fs::File;
 use std::path::PathBuf;
@@ -270,7 +270,7 @@ impl Observer {
                 Err(MapError::KeyNotFound) => 0,
                 Err(e) => {
                     return Err(anyhow::Error::new(e)
-                        .context(format!("socket_counters lookup for cookie {cookie} failed")))
+                        .context(format!("socket_counters lookup for cookie {cookie} failed")));
                 }
             };
             let dl = match dl_map.get(&cookie, 0) {
@@ -279,7 +279,7 @@ impl Observer {
                 Err(e) => {
                     return Err(anyhow::Error::new(e).context(format!(
                         "socket_counters_ingress lookup for cookie {cookie} failed"
-                    )))
+                    )));
                 }
             };
             if dl != 0 || ul != 0 {

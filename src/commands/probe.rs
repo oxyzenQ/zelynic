@@ -50,23 +50,23 @@
 
 use crate::ebpf::identity::pathwalk;
 use crate::ebpf::limiter::{
-    default_burst, format_bytes, format_bytes_exact, format_rate_exact, Direction, Limiter,
-    RateSpec, Target,
+    Direction, Limiter, RateSpec, Target, default_burst, format_bytes, format_bytes_exact,
+    format_rate_exact,
 };
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use std::io::BufReader;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 
 use super::eagle::resolve_name;
 use super::probe_report::{
-    combined_verdict, ledger_verdict, starved_notes, LedgerVerdict, ProbeOutcome, ProbeVerdict,
-    ProofBasis,
+    LedgerVerdict, ProbeOutcome, ProbeVerdict, ProofBasis, combined_verdict, ledger_verdict,
+    starved_notes,
 };
 use super::probe_role::{
-    enter_cgroup, kill_and_reap, ledger_snapshots, mkdir_quiet, our_chain_is_clean,
+    LeafDelta, enter_cgroup, kill_and_reap, ledger_snapshots, mkdir_quiet, our_chain_is_clean,
     policy_still_stands, probe_cgroup_name, read_metric_line, read_metric_line_from,
-    root_cgroup_is_clean, wait_resident, wait_with_deadline, window_dormancy_note, LeafDelta,
+    root_cgroup_is_clean, wait_resident, wait_with_deadline, window_dormancy_note,
 };
 
 /// The measured window (seconds): long enough that the refill term
@@ -391,16 +391,16 @@ pub(crate) fn run_enforcement_probe(
     // counter-direction bookings inflate the gap by construction,
     // and the note would name a cause the dual-lane starvation rows
     // already carry honestly.
-    if counter_rate_bps.is_none() {
-        if let Some(first) = deltas.first() {
-            let gap = first.allowed.saturating_sub(client_bytes);
-            if gap > client_bytes.saturating_mul(3) / 2 + super::probe_report::CEILING_SLACK_BYTES {
-                notes.push(
-                    "the target had concurrent traffic during the window (the kernel \
+    if counter_rate_bps.is_none()
+        && let Some(first) = deltas.first()
+    {
+        let gap = first.allowed.saturating_sub(client_bytes);
+        if gap > client_bytes.saturating_mul(3) / 2 + super::probe_report::CEILING_SLACK_BYTES {
+            notes.push(
+                "the target had concurrent traffic during the window (the kernel \
                      ledger counts it beside the probe's own flow)"
-                        .to_string(),
-                );
-            }
+                    .to_string(),
+            );
         }
     }
     // The multi-leaf note: a name that resolved to several cgroups
@@ -432,16 +432,16 @@ pub(crate) fn run_enforcement_probe(
     // actually had (the owner's re-apply find: a fresh rate on a
     // spent bucket). Both figures render exact (Z7's config-exact
     // rule: the bucket state is the kernel's own integer).
-    if let Some(tokens) = pool_tokens {
-        if tokens < burst {
-            notes.push(format!(
-                "the bucket held {} of its {} burst at window start (spent by the \
+    if let Some(tokens) = pool_tokens
+        && tokens < burst
+    {
+        notes.push(format!(
+            "the bucket held {} of its {} burst at window start (spent by the \
                  target's own history — tokens refill at {})",
-                format_bytes_exact(tokens),
-                format_bytes_exact(burst),
-                format_rate_exact(rate_bps)
-            ));
-        }
+            format_bytes_exact(tokens),
+            format_bytes_exact(burst),
+            format_rate_exact(rate_bps)
+        ));
     }
 
     let mut outcome = ProbeOutcome {

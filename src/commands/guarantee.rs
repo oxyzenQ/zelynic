@@ -47,7 +47,7 @@
 // anyhow imports ride the same gate (a module-level unused import
 // breaks the no-default-features leg's -D warnings).
 #[cfg(feature = "ebpf")]
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 // improve-40: the wording pins live under the single test/ tree
 // (cosmostrix Pattern C), #[path]-wired exactly like the rates
@@ -108,7 +108,7 @@ pub(crate) fn resolve_guarantee(
     force_this: bool,
     per_socket: bool,
 ) -> Result<crate::ebpf::limiter::BracketSpec> {
-    use crate::ebpf::limiter::{parse_rate, validate_rate, BracketPair, BracketSpec};
+    use crate::ebpf::limiter::{BracketPair, BracketSpec, parse_rate, validate_rate};
 
     // The scope call first (before any parsing: the combination is
     // rejected whatever the values would have been — the

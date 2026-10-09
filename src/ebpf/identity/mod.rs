@@ -66,7 +66,7 @@ pub mod container;
 // runs in BOTH feature graphs — reuses the one canonical terminal
 // sanitizer instead of a copy.
 use crate::output::sanitize_comm;
-use tally::{pick_representative, CommStat};
+use tally::{CommStat, pick_representative};
 
 /// Default refresh interval: rebuild the identity map every 10 seconds.
 const DEFAULT_REFRESH_TTL_SECS: u64 = 10;

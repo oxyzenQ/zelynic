@@ -379,10 +379,10 @@ pub(crate) fn check_dangerous_cgroup_id(id: u32, force_this: bool) -> Result<()>
             if crate::ebpf::identity::pid_cgroup_id(pid) != Some(id) {
                 continue;
             }
-            if let Some(comm) = crate::ebpf::identity::pid_comm(pid) {
-                if !members.iter().any(|m| m == &comm) {
-                    members.push(comm);
-                }
+            if let Some(comm) = crate::ebpf::identity::pid_comm(pid)
+                && !members.iter().any(|m| m == &comm)
+            {
+                members.push(comm);
             }
         }
     }
@@ -450,27 +450,27 @@ pub(crate) fn check_dangerous_targets_multi(segments: &[String], force_this: boo
     // (first occurrence wins, order kept for the verdict's
     // first-member determinism).
     let mut members_by_id: HashMap<u32, Vec<String>> = HashMap::new();
-    if !ids.is_empty() {
-        if let Ok(entries) = std::fs::read_dir("/proc") {
-            for entry in entries.flatten() {
-                let Some(pid) = entry
-                    .file_name()
-                    .to_str()
-                    .and_then(|s| s.parse::<u32>().ok())
-                else {
-                    continue;
-                };
-                let Some(cid) = crate::ebpf::identity::pid_cgroup_id(pid) else {
-                    continue;
-                };
-                if !ids.contains(&cid) {
-                    continue;
-                }
-                if let Some(comm) = crate::ebpf::identity::pid_comm(pid) {
-                    let members = members_by_id.entry(cid).or_default();
-                    if !members.iter().any(|m| m == &comm) {
-                        members.push(comm);
-                    }
+    if !ids.is_empty()
+        && let Ok(entries) = std::fs::read_dir("/proc")
+    {
+        for entry in entries.flatten() {
+            let Some(pid) = entry
+                .file_name()
+                .to_str()
+                .and_then(|s| s.parse::<u32>().ok())
+            else {
+                continue;
+            };
+            let Some(cid) = crate::ebpf::identity::pid_cgroup_id(pid) else {
+                continue;
+            };
+            if !ids.contains(&cid) {
+                continue;
+            }
+            if let Some(comm) = crate::ebpf::identity::pid_comm(pid) {
+                let members = members_by_id.entry(cid).or_default();
+                if !members.iter().any(|m| m == &comm) {
+                    members.push(comm);
                 }
             }
         }

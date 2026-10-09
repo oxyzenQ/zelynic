@@ -34,7 +34,7 @@ use super::ebpf_drr::{
 };
 // The math copy rides drr_tests' parent inclusion (the duplicate-mod
 // law), reached through the limiter mod where math_tests lives.
-use super::super::math_tests::ebpf_math::{draw_stamp_take, tokens_fetch_add, tokens_read, Bucket};
+use super::super::math_tests::ebpf_math::{Bucket, draw_stamp_take, tokens_fetch_add, tokens_read};
 
 /// The sim's GRO super-packet (the hook's view — the admit floor).
 pub(super) const PKT: u64 = 65_536;

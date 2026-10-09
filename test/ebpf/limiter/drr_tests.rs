@@ -31,12 +31,12 @@
 pub(super) mod ebpf_drr;
 
 use super::math_tests::ebpf_math::{
-    draw_stamp_take, gen_stamp_read, gen_stamp_write, tokens_cas, tokens_fetch_add, tokens_read,
-    Bucket,
+    Bucket, draw_stamp_take, gen_stamp_read, gen_stamp_write, tokens_cas, tokens_fetch_add,
+    tokens_read,
 };
 
 use ebpf_drr::{
-    draw_admitted, draw_size, leaf_inflight_bound, quantum, DRR_WINDOW_MS, DRR_WINDOW_NS,
+    DRR_WINDOW_MS, DRR_WINDOW_NS, draw_admitted, draw_size, leaf_inflight_bound, quantum,
 };
 
 /// A zeroed leaf bucket (the datapath's init shape).

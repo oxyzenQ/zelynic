@@ -20,7 +20,7 @@
 use std::collections::HashSet;
 
 use super::*;
-use crate::ebpf::limiter::rate_ring::{RateRingRaw, RateSlotRaw, RATE_RING_SLOTS};
+use crate::ebpf::limiter::rate_ring::{RATE_RING_SLOTS, RateRingRaw, RateSlotRaw};
 
 const SEC: u64 = crate::ebpf::limiter::rate_ring::RATE_RING_WINDOW_NS;
 

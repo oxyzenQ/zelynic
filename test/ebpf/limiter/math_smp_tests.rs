@@ -37,7 +37,7 @@
 // lint clippy -D warnings rejects two inclusions of the same file).
 use super::math_tests::{ebpf_math, pol};
 
-use self::ebpf_math::{enforce, refill_credits, Bucket, LimiterStats, Policy, NS_PER_SEC};
+use self::ebpf_math::{Bucket, LimiterStats, NS_PER_SEC, Policy, enforce, refill_credits};
 use std::ptr;
 use std::thread;
 
@@ -312,9 +312,9 @@ fn smp_refill_never_double_credits() {
     const T0: u64 = 1_000_000_000;
     let total_ticks = THREADS * STEPS;
     let span_credit = total_ticks; // 1 byte per tick, exact
-                                   // +2: the shared fraction bank may hold at most one carried
-                                   // byte at quiesce (stalled windows credit floor() and bank the
-                                   // remainder; the bank is part of the true total, paid late).
+    // +2: the shared fraction bank may hold at most one carried
+    // byte at quiesce (stalled windows credit floor() and bank the
+    // remainder; the bank is part of the true total, paid late).
     let ceiling = BURST + span_credit + 2;
     let policy = pol(RATE, BURST);
     let mut shared = Shared {

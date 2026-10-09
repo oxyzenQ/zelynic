@@ -147,10 +147,10 @@ pub fn parse_cpu_usage_usec(content: &str) -> Option<u64> {
 pub fn user_name_from(passwd: &str, uid: u32) -> Option<String> {
     for line in passwd.lines() {
         let mut fields = line.split(':');
-        if let (Some(name), Some(id)) = (fields.next(), fields.nth(2)) {
-            if id.parse::<u32>() == Ok(uid) {
-                return Some(name.to_string());
-            }
+        if let (Some(name), Some(id)) = (fields.next(), fields.nth(2))
+            && id.parse::<u32>() == Ok(uid)
+        {
+            return Some(name.to_string());
         }
     }
     None
@@ -270,12 +270,11 @@ pub fn classify_exe(
                 } else {
                     cwd.map(|c| format!("{c}/{arg}"))
                 };
-                if let Some(path) = candidate {
-                    if let Some(head) = read_magic(&path) {
-                        if is_shebang(&head) {
-                            return (Some("script"), Some(path));
-                        }
-                    }
+                if let Some(path) = candidate
+                    && let Some(head) = read_magic(&path)
+                    && is_shebang(&head)
+                {
+                    return (Some("script"), Some(path));
                 }
             }
             (Some("binary"), None)
@@ -321,11 +320,7 @@ fn read_link_split_deleted(path: &str) -> Option<(String, bool)> {
 /// helpers keeps a refused sysconf honest rather than wrong.
 pub(super) fn clock_ticks() -> f64 {
     let ticks = unsafe { libc::sysconf(libc::_SC_CLK_TCK) };
-    if ticks > 0 {
-        ticks as f64
-    } else {
-        100.0
-    }
+    if ticks > 0 { ticks as f64 } else { 100.0 }
 }
 
 /// Seconds since boot from /proc/uptime's first field.
@@ -394,15 +389,15 @@ pub(super) fn process_facts(
         facts.rss_kb = rss_kb.unwrap_or(0);
     }
 
-    if let Ok(stat) = fs::read_to_string(format!("/proc/{pid}/stat")) {
-        if let Some((ppid, starttime)) = parse_proc_stat(&stat) {
-            facts.ppid = ppid;
-            if let Some(up) = uptime {
-                facts.started_ago_secs = elapsed_secs(starttime, up, hz);
-            }
-            if let Some(boot) = btime {
-                facts.started_epoch = started_epoch(boot, starttime, hz);
-            }
+    if let Ok(stat) = fs::read_to_string(format!("/proc/{pid}/stat"))
+        && let Some((ppid, starttime)) = parse_proc_stat(&stat)
+    {
+        facts.ppid = ppid;
+        if let Some(up) = uptime {
+            facts.started_ago_secs = elapsed_secs(starttime, up, hz);
+        }
+        if let Some(boot) = btime {
+            facts.started_epoch = started_epoch(boot, starttime, hz);
         }
     }
 

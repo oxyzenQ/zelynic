@@ -136,17 +136,17 @@ pub fn check_update(current_version: &str) -> Result<(), String> {
         std::env::var("XDG_RUNTIME_DIR").ok().as_deref(),
         nix::unistd::geteuid().as_raw(),
     );
-    if let Some(last_fetch) = read_stamp(&stamp) {
-        if let Some(remaining) = cooldown_remaining(now_secs, last_fetch) {
-            println_safe!("{}", brand_bold("━━━ zelynic Update Check ━━━"));
-            println_safe!(
-                "Status:  {} — the hourly window closes in {} minute(s)",
-                warn_bold("throttled"),
-                remaining.div_ceil(60)
-            );
-            println_safe!("Source:  {RELEASES_URL}");
-            return Ok(());
-        }
+    if let Some(last_fetch) = read_stamp(&stamp)
+        && let Some(remaining) = cooldown_remaining(now_secs, last_fetch)
+    {
+        println_safe!("{}", brand_bold("━━━ zelynic Update Check ━━━"));
+        println_safe!(
+            "Status:  {} — the hourly window closes in {} minute(s)",
+            warn_bold("throttled"),
+            remaining.div_ceil(60)
+        );
+        println_safe!("Source:  {RELEASES_URL}");
+        return Ok(());
     }
 
     let output = Command::new("curl")

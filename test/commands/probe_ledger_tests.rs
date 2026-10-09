@@ -236,16 +236,18 @@ fn the_flow_band_keeps_its_own_authority() {
 #[test]
 fn starved_notes_stack_every_cause() {
     // A flow that made its band carries no starvation rows.
-    assert!(starved_notes(
-        200_000,
-        100_000,
-        PROBE_SECS,
-        Some(50_000),
-        crate::ebpf::limiter::Direction::Download,
-        300_000,
-        0,
-    )
-    .is_empty());
+    assert!(
+        starved_notes(
+            200_000,
+            100_000,
+            PROBE_SECS,
+            Some(50_000),
+            crate::ebpf::limiter::Direction::Download,
+            300_000,
+            0,
+        )
+        .is_empty()
+    );
     // The dual-limit starvation: the counter-direction row.
     let dual = starved_notes(
         0,

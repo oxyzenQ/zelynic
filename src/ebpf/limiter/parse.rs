@@ -9,7 +9,7 @@
 //! the format sibling; the re-export surface in limiter/mod.rs is
 //! unchanged, so every consumer import stays byte-identical.
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 use super::types::{MAX_RATE, MIN_RATE};
 

@@ -96,7 +96,7 @@ mod screen;
 // Beat enum, next_beat — lives in beat.rs; the names stay
 // resolvable from this module (the path-wired mouse pins import
 // them from `super::`, and run_loop uses them below).
-pub(crate) use beat::{beat_epoch, next_beat, Beat};
+pub(crate) use beat::{Beat, beat_epoch, next_beat};
 // The beat constant itself is beat.rs-internal on the runtime path
 // (only next_beat reads it); the mouse pins assert it, so the name
 // rides this module only in test builds.

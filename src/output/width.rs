@@ -259,15 +259,15 @@ mod tests {
         assert_eq!(char_width('\u{202C}'), 0); // PDF
         assert_eq!(char_width('\u{202D}'), 0); // LRO
         assert_eq!(char_width('\u{202E}'), 0); // RLO
-                                               // The isolate family U+2066..=U+2069.
+        // The isolate family U+2066..=U+2069.
         assert_eq!(char_width('\u{2066}'), 0); // LRI
         assert_eq!(char_width('\u{2067}'), 0); // RLI
         assert_eq!(char_width('\u{2068}'), 0); // FSI
         assert_eq!(char_width('\u{2069}'), 0); // PDI
-                                               // BOM-as-ZWNBSP (not at start of text).
+        // BOM-as-ZWNBSP (not at start of text).
         assert_eq!(char_width('\u{FEFF}'), 0); // ZWNBSP
-                                               // The realistic Trojan-Source comm: four ASCII chars + RLO +
-                                               // three ASCII chars = 7 columns (the RLO claims none).
+        // The realistic Trojan-Source comm: four ASCII chars + RLO +
+        // three ASCII chars = 7 columns (the RLO claims none).
         assert_eq!(display_width("evil\u{202E}nwp"), 7);
     }
 }

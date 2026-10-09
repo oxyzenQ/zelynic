@@ -22,11 +22,11 @@
 
 use std::time::Duration;
 
-use super::baseline::{render_focus_row, BaselineLane};
+use super::baseline::{BaselineLane, render_focus_row};
 use super::footer::status_line;
 use super::{
-    format_rate_or_dash, format_uptime, label_with_count, rate_bps, title_bar, FrameGeometry,
-    SessionAcc,
+    FrameGeometry, SessionAcc, format_rate_or_dash, format_uptime, label_with_count, rate_bps,
+    title_bar,
 };
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;

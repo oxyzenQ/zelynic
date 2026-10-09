@@ -44,7 +44,7 @@
 //! prebuilt lane's tree pin proves it).
 
 use super::drr_sim::{run_kernel_shape, v17_cfg, verdict_for};
-use super::ebpf_drr::{pool_share_peak, quantum, PEAK_DECAY_EPOCHS};
+use super::ebpf_drr::{PEAK_DECAY_EPOCHS, pool_share_peak, quantum};
 
 /// The policy both shapes run: the many24 trickle-hard rate — the
 /// allowance banks a 64 KiB admit over ~15 epochs, the deepest

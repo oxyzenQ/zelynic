@@ -44,7 +44,7 @@ use super::cleanup::unpin_if_no_policies;
 /// a success the filesystem did not grant.
 #[cfg(feature = "ebpf")]
 pub fn handle_recover(verbose: bool) -> Result<()> {
-    use crate::ebpf::limiter::{pin_dir_has_files, unpin_all, Limiter};
+    use crate::ebpf::limiter::{Limiter, pin_dir_has_files, unpin_all};
 
     super::ensure_root()?;
 
@@ -372,12 +372,10 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
     eprintln_safe!("  Cause: likely crash, SIGKILL, OOM, or partial upgrade");
     eprintln_safe!("  Action: removing all pin files...");
 
-    if verbose {
-        if let Ok(entries) = std::fs::read_dir(pin_dir) {
-            for entry in entries.flatten() {
-                if let Some(name) = entry.file_name().to_str() {
-                    eprintln_safe!("    - {name}");
-                }
+    if verbose && let Ok(entries) = std::fs::read_dir(pin_dir) {
+        for entry in entries.flatten() {
+            if let Some(name) = entry.file_name().to_str() {
+                eprintln_safe!("    - {name}");
             }
         }
     }

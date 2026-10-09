@@ -32,11 +32,11 @@
 //! in policy.rs, shared by apply_single and apply_group so the
 //! rollback upgrade is uniform across the apply family.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
-use super::during_map::{translate_now, WindowMutation};
+use super::during_map::{WindowMutation, translate_now};
 use super::policy::{group_apply_lines, partial_apply_failure_line, policy_survivor_line};
-use super::types::{group_id_from, Direction, PolicyRaw, RateSpec, Target};
+use super::types::{Direction, PolicyRaw, RateSpec, Target, group_id_from};
 
 /// One policy mutation this invocation made, carrying the leg's
 /// PRE-APPLY state so the rollback can restore it exactly.

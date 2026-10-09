@@ -204,7 +204,7 @@ mod tests {
         v[58..60].copy_from_slice(&64u16.to_le_bytes()); // e_shentsize
         v[60..62].copy_from_slice(&2u16.to_le_bytes()); // e_shnum = 2
         v[62..64].copy_from_slice(&1u16.to_le_bytes()); // e_shstrndx = 1
-                                                        // Shdr1 at 64 + 64 = 128: SHT_STRTAB (3) spanning 192..193.
+        // Shdr1 at 64 + 64 = 128: SHT_STRTAB (3) spanning 192..193.
         v[128 + 4..128 + 8].copy_from_slice(&3u32.to_le_bytes());
         v[128 + 24..128 + 32].copy_from_slice(&192u64.to_le_bytes());
         v[128 + 32..128 + 40].copy_from_slice(&1u64.to_le_bytes());
@@ -242,35 +242,45 @@ mod tests {
     fn ebpf_object_validator_rejects_wrong_identity_fields() {
         let mut host_binary = synthetic_ebpf_elf();
         host_binary[18..20].copy_from_slice(&62u16.to_le_bytes()); // x86-64
-        assert!(validate_ebpf_object(&host_binary)
-            .unwrap_err()
-            .contains("not an eBPF object"));
+        assert!(
+            validate_ebpf_object(&host_binary)
+                .unwrap_err()
+                .contains("not an eBPF object")
+        );
 
         let mut class32 = synthetic_ebpf_elf();
         class32[4] = 1;
-        assert!(validate_ebpf_object(&class32)
-            .unwrap_err()
-            .contains("ELFCLASS64"));
+        assert!(
+            validate_ebpf_object(&class32)
+                .unwrap_err()
+                .contains("ELFCLASS64")
+        );
 
         let mut executable = synthetic_ebpf_elf();
         executable[16..18].copy_from_slice(&2u16.to_le_bytes()); // ET_EXEC
-        assert!(validate_ebpf_object(&executable)
-            .unwrap_err()
-            .contains("relocatable"));
+        assert!(
+            validate_ebpf_object(&executable)
+                .unwrap_err()
+                .contains("relocatable")
+        );
 
         let mut no_strtab_index = synthetic_ebpf_elf();
         no_strtab_index[62..64].copy_from_slice(&0u16.to_le_bytes());
-        assert!(validate_ebpf_object(&no_strtab_index)
-            .unwrap_err()
-            .contains("string table index"));
+        assert!(
+            validate_ebpf_object(&no_strtab_index)
+                .unwrap_err()
+                .contains("string table index")
+        );
     }
 
     #[test]
     fn ebpf_object_validator_rejects_garbage_and_emptiness() {
         assert!(validate_ebpf_object(b"").unwrap_err().contains("too short"));
-        assert!(validate_ebpf_object(b"hello build")
-            .unwrap_err()
-            .contains("too short"));
+        assert!(
+            validate_ebpf_object(b"hello build")
+                .unwrap_err()
+                .contains("too short")
+        );
         // Magic present, everything else zeroed: rejected by the first
         // identity row — never waved through on magic alone.
         let mut magic_only = vec![0u8; 64];

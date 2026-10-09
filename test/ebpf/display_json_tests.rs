@@ -269,7 +269,7 @@ fn rate_ring_field_is_omitted_when_the_lens_is_absent() {
 #[test]
 fn rate_ring_field_joins_series_by_cgroup() {
     use crate::ebpf::limiter::rate_ring::{
-        RateRingRaw, RateSlotRaw, RATE_RING_SLOTS, RATE_RING_WINDOW_NS,
+        RATE_RING_SLOTS, RATE_RING_WINDOW_NS, RateRingRaw, RateSlotRaw,
     };
     let dl = vec![(1, policy(10)), (2, policy(20))];
 
@@ -450,7 +450,9 @@ fn per_socket_fields_serialize_only_when_set() {
     assert!(row_doc.get("upload_per_socket").is_none());
     let per_socket_doc = serde_json::to_value(&json).unwrap();
     assert_eq!(per_socket_doc["limits"][0]["download_per_socket"], true);
-    assert!(per_socket_doc["limits"][0]
-        .get("upload_per_socket")
-        .is_none());
+    assert!(
+        per_socket_doc["limits"][0]
+            .get("upload_per_socket")
+            .is_none()
+    );
 }

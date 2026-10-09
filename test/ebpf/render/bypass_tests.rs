@@ -10,7 +10,7 @@
 use super::*;
 
 use crate::ebpf::bypass::{
-    shadow_audit, NicTotals, ShadowVerdict, SHADOW_RX_FLOOR_BYTES, SHADOW_TX_FLOOR_BYTES,
+    NicTotals, SHADOW_RX_FLOOR_BYTES, SHADOW_TX_FLOOR_BYTES, ShadowVerdict, shadow_audit,
 };
 
 /// A clean window renders ONE line that says the check ran and agrees,

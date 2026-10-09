@@ -121,16 +121,14 @@ fn strip_host_poison(value: &str, sep: &str) -> Option<String> {
             continue;
         }
         // Pair spelling: "-C" followed by the flag with an "=" payload.
-        if tokens[i] == "-C" {
-            if let Some(next) = tokens.get(i + 1) {
-                if next.starts_with("target-cpu=")
-                    || next.starts_with("target-feature=")
-                    || next.starts_with("link-arg=")
-                {
-                    i += 2;
-                    continue;
-                }
-            }
+        if tokens[i] == "-C"
+            && let Some(next) = tokens.get(i + 1)
+            && (next.starts_with("target-cpu=")
+                || next.starts_with("target-feature=")
+                || next.starts_with("link-arg="))
+        {
+            i += 2;
+            continue;
         }
         kept.push(tokens[i]);
         i += 1;

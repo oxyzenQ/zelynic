@@ -15,7 +15,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 
 use super::depth::{
-    boot_epoch, clock_ticks, process_facts, uptime_secs, CgroupDepth, CgroupResources,
+    CgroupDepth, CgroupResources, boot_epoch, clock_ticks, process_facts, uptime_secs,
 };
 use super::pid_cgroup_id;
 

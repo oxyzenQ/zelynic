@@ -17,7 +17,7 @@
 //! here went with the snapshot/restore pair when the owner retired
 //! the feature whole — the wall form had no reader left.
 
-use crate::ebpf::limiter::during_parse::{parse_during, DuringSpec, DURING_MAX_NS, DURING_MIN_NS};
+use crate::ebpf::limiter::during_parse::{DURING_MAX_NS, DURING_MIN_NS, DuringSpec, parse_during};
 use crate::ebpf::limiter::types::{PolicyWindowRaw, WINDOW_KIND_DAILY, WINDOW_KIND_SPAN};
 
 const NS_PER_SEC: u64 = 1_000_000_000;

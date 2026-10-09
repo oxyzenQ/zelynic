@@ -25,9 +25,9 @@
 #[path = "../../../ebpf/src/rate_ring.rs"]
 mod ebpf_rate_ring;
 
-use self::ebpf_rate_ring::{ring_book, RateRing, RING_SLOTS, RING_WINDOW_NS};
+use self::ebpf_rate_ring::{RING_SLOTS, RING_WINDOW_NS, RateRing, ring_book};
 use crate::ebpf::limiter::rate_ring::{
-    ring_series, RateRingRaw, RateSlotRaw, RATE_RING_SLOTS, RATE_RING_WINDOW_NS,
+    RATE_RING_SLOTS, RATE_RING_WINDOW_NS, RateRingRaw, RateSlotRaw, ring_series,
 };
 
 const SEC: u64 = RING_WINDOW_NS;

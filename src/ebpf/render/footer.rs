@@ -73,13 +73,13 @@
 use std::time::Duration;
 
 use super::{
-    comm_from_label, format_uptime, label_with_count, rate_bps_wide, FrameGeometry, SessionAcc,
+    FrameGeometry, SessionAcc, comm_from_label, format_uptime, label_with_count, rate_bps_wide,
 };
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::{format_bytes, format_bytes_wide, format_count};
 use crate::output::theme;
-use crate::output::{brand, capability, grey, signature_footer, ColorCapability};
+use crate::output::{ColorCapability, brand, capability, grey, signature_footer};
 
 /// Top chrome above the table: the title bar, the NIGHT-boost-14
 /// breathing gap below it, the column header, and the purple grid
@@ -418,10 +418,10 @@ pub(super) fn build_grip_footer(
     // block (the engrave-1 contract: the consumer is the one living
     // thing in the footer, the hint to act on). Rides every tier
     // down to Minimal; Tiny has no room for headlines.
-    if tier != FooterTier::Tiny {
-        if let Some(name) = census.top_proc_name.as_deref() {
-            footer.push(format!("  {} {}", grey("top consumer is"), brand(name)));
-        }
+    if tier != FooterTier::Tiny
+        && let Some(name) = census.top_proc_name.as_deref()
+    {
+        footer.push(format!("  {} {}", grey("top consumer is"), brand(name)));
     }
     // The census (Full/Compact): the session's packets and the
     // board's cgroup count, one flat grey line — the frame's scale.
@@ -492,14 +492,14 @@ pub(super) fn build_grip_footer(
     // headline just introduced. The command joins the consumer's
     // name in the brand tier — the frame's two living accents, the
     // thing to read and the thing to act on.
-    if matches!(tier, FooterTier::Full | FooterTier::Compact) {
-        if let Some(name) = census.top_proc_name.as_deref() {
-            footer.push(format!(
-                "  {} {}",
-                grey("limit target with"),
-                brand(&format!("'sudo zelynic s {name} {SUGGESTED_LIMIT}'"))
-            ));
-        }
+    if matches!(tier, FooterTier::Full | FooterTier::Compact)
+        && let Some(name) = census.top_proc_name.as_deref()
+    {
+        footer.push(format!(
+            "  {} {}",
+            grey("limit target with"),
+            brand(&format!("'sudo zelynic s {name} {SUGGESTED_LIMIT}'"))
+        ));
     }
     if census.identities_unresolved {
         footer.push(format!(

@@ -68,8 +68,8 @@ pub(crate) fn resolve_rates(
         if let Some(r) = rate {
             use crate::ebpf::limiter::parse_rate;
             parse_rate(r)?; // parse only: the shadowed value applies
-                            // nowhere, so the 1kb floor is not its
-                            // question — a typo is (the tip ladder).
+            // nowhere, so the 1kb floor is not its
+            // question — a typo is (the tip ladder).
             crate::output::eprintln_warn_labeled(&format!(
                 "positional rate '{r}' ignored — -d/-u flags take priority \
                  (pass -d and -u together for both directions)"

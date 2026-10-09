@@ -10,7 +10,7 @@
 //! owns the resolve-plus-remove half, unchanged in behavior, the
 //! multi lane now resolving through the one-walk batcher).
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 use super::policy_lines::policy_survivor_line;
 use super::reclaim::unstrict_partial_failure_line;

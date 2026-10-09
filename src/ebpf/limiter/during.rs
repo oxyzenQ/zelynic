@@ -35,7 +35,7 @@
 //! twin answers exactly what the kernel would with a freshly
 //! stamped bridge — the drift-freedom the twin exists to prove.
 
-use super::during_parse::{civil_from_days, DuringSpec, NS_PER_DAY, NS_PER_SEC};
+use super::during_parse::{DuringSpec, NS_PER_DAY, NS_PER_SEC, civil_from_days};
 use super::types::{PolicyWindowRaw, WINDOW_KIND_DAILY, WINDOW_KIND_SPAN};
 
 // ━━ The clocks and the translation ━━

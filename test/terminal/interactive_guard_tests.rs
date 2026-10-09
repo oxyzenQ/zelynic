@@ -17,7 +17,7 @@
 //! the exercised one — the TTY branch is the owner-host battery's
 //! lane (the same discipline the kill-tui rows carry).
 
-use super::{require_interactive, AltScreen};
+use super::{AltScreen, require_interactive};
 
 /// The gate refuses a piped stdout with the teaching message: the
 /// refusal must name the monitor, the stream, and the scripted

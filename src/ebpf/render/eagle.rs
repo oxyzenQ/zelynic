@@ -51,17 +51,17 @@ use std::time::Duration;
 use super::baseline::BaselineLane;
 use super::baseline_panel::render_panel;
 use super::border;
-use super::footer::{build_grip_footer, grid_line, plan_footer_tier, FooterCensus, TOP_CHROME};
-use super::scroll::{scroll_note, ScrollState, Section};
+use super::footer::{FooterCensus, TOP_CHROME, build_grip_footer, grid_line, plan_footer_tier};
+use super::scroll::{ScrollState, Section, scroll_note};
 use super::{
-    detail_lines, focus::board_rows, focus::render_eagle_focus, format_rate_or_dash,
-    label_with_count, plan_eagle_columns, rate_bps, title_bar, truncate_label, EagleColumns,
-    FrameGeometry, SessionAcc, SessionState,
+    EagleColumns, FrameGeometry, SessionAcc, SessionState, detail_lines, focus::board_rows,
+    focus::render_eagle_focus, format_rate_or_dash, label_with_count, plan_eagle_columns, rate_bps,
+    title_bar, truncate_label,
 };
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
-use crate::ebpf::limiter::format_bytes_wide;
 use crate::ebpf::limiter::Target;
+use crate::ebpf::limiter::format_bytes_wide;
 use crate::ebpf::loader::CounterSummary;
 use crate::output::{brand, grey, hot, ok, warn};
 

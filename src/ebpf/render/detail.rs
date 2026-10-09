@@ -140,14 +140,14 @@ fn endpoint_text(socket: &SocketInfo, conns: Option<&ConnectionMap>, window: Dur
     if socket.queued {
         out.push_str(" [busy]");
     }
-    if let Some(b) = socket_bytes_of(socket, conns) {
-        if b.dl > 0 || b.ul > 0 {
-            out.push_str(&format!(
-                " [dl {} | ul {}]",
-                steady_rate_field(super::rate_bps(b.dl, window)),
-                steady_rate_field(super::rate_bps(b.ul, window))
-            ));
-        }
+    if let Some(b) = socket_bytes_of(socket, conns)
+        && (b.dl > 0 || b.ul > 0)
+    {
+        out.push_str(&format!(
+            " [dl {} | ul {}]",
+            steady_rate_field(super::rate_bps(b.dl, window)),
+            steady_rate_field(super::rate_bps(b.ul, window))
+        ));
     }
     out
 }

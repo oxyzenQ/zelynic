@@ -93,7 +93,7 @@
 use super::FrameGeometry;
 use crate::output::terminal_bg;
 use crate::output::theme::{self, Theme};
-use crate::output::{capability, ColorCapability};
+use crate::output::{ColorCapability, capability};
 
 /// Columns the border claims: one rail each side.
 pub(super) const BORDER_W: usize = 2;
@@ -176,11 +176,7 @@ pub(super) fn content_geo(geo: FrameGeometry) -> FrameGeometry {
 /// dark -> bright -> dark across t in [0, 1] — the midpoint glows,
 /// the edges recede, neither side dominates.
 pub(super) fn wave(t: f32) -> f32 {
-    if t <= 0.5 {
-        t * 2.0
-    } else {
-        2.0 - t * 2.0
-    }
+    if t <= 0.5 { t * 2.0 } else { 2.0 - t * 2.0 }
 }
 
 /// sRGB electro-optical decode, the exact IEC 61966-2-1 piecewise

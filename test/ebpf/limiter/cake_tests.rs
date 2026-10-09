@@ -24,8 +24,8 @@
 // of ebpf/src/drr.rs, the duplicate-mod law — one copy per test
 // binary serves these pins too).
 use super::ebpf_drr::{
-    epoch_refill, flow_allowance, flow_is_sparse, flow_leaf_budget, flow_take, quantum,
-    share_epoch_ns, GSO_ADMIT_FLOOR,
+    GSO_ADMIT_FLOOR, epoch_refill, flow_allowance, flow_is_sparse, flow_leaf_budget, flow_take,
+    quantum, share_epoch_ns,
 };
 
 /// The interactive flow's packet (the DNS-ish shape the find starves).
@@ -121,9 +121,9 @@ fn the_sparse_take_is_demand_sized() {
     let q = 1_000_000u64; // an arbitrary rich quantum
     let rich_leaf = 10 * q;
     let allowance = 250_000u64; // an engaged lane
-                                // The reserved small quantum: the interactive flow's 200-byte
-                                // query draws exactly 200 — never a stockpile it would strand
-                                // in a bucket the LRU may age out before it spends.
+    // The reserved small quantum: the interactive flow's 200-byte
+    // query draws exactly 200 — never a stockpile it would strand
+    // in a bucket the LRU may age out before it spends.
     assert_eq!(
         flow_take(true, SPARSE_PKT, q, 2, allowance, u64::MAX, rich_leaf),
         200
@@ -165,9 +165,9 @@ fn the_sparse_take_is_demand_sized() {
 fn the_dense_take_is_quantum_sized() {
     let rich_leaf = 10_000_000u64;
     let allowance = 250_000u64; // an engaged lane
-                                // The bulk cadence amortizes the draw: a dense flow's take is
-                                // the quantum, never the packet (a draw per packet would CAS
-                                // the share word per packet).
+    // The bulk cadence amortizes the draw: a dense flow's take is
+    // the quantum, never the packet (a draw per packet would CAS
+    // the share word per packet).
     assert_eq!(
         flow_take(false, SPARSE_PKT, 7_000, 2, allowance, u64::MAX, rich_leaf),
         7_000

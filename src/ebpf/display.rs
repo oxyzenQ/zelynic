@@ -8,8 +8,8 @@
 use std::collections::HashMap;
 
 use crate::ebpf::identity::IdentityMap;
-use crate::ebpf::limiter::types::{BracketPair, PolicyWindowRaw, POLICY_FLAG_PER_SOCKET};
-use crate::ebpf::limiter::{monotonic_ns, terminal_width, wall_now_ns, LimiterStatsRaw, PolicyRaw};
+use crate::ebpf::limiter::types::{BracketPair, POLICY_FLAG_PER_SOCKET, PolicyWindowRaw};
+use crate::ebpf::limiter::{LimiterStatsRaw, PolicyRaw, monotonic_ns, terminal_width, wall_now_ns};
 use crate::ebpf::render::{grid_line, title_bar};
 use crate::output::{grey, signature_footer, suggestion, warn};
 

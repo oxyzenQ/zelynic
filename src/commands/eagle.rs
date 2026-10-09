@@ -34,13 +34,13 @@ use crate::ebpf::bypass::{self, ShadowAudit};
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::{
-    parse_focus_window, pin_dir_has_files, terminal_width, Direction, Limiter, LimiterStatsRaw,
-    PolicyRaw, Target,
+    Direction, Limiter, LimiterStatsRaw, PolicyRaw, Target, parse_focus_window, pin_dir_has_files,
+    terminal_width,
 };
 use crate::ebpf::loader::{CgroupDelta, Observer, SocketBytes};
 use crate::ebpf::render::{
-    bypass_section, depth_doc_json, depth_report_lines, package_name, traffic_focus,
-    window_dropped_bytes, DepthReport, Enforcement,
+    DepthReport, Enforcement, bypass_section, depth_doc_json, depth_report_lines, package_name,
+    traffic_focus, window_dropped_bytes,
 };
 use crate::output::{grey, print_json};
 

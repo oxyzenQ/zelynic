@@ -4,7 +4,7 @@
 //! Status readers — policy/stats/watchdog map access, status printing
 //! (human + JSON), and identity accessors.
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use aya::maps::{Array as BpfArray, HashMap as BpfHashMap};
 
 use super::types::{BucketRaw, Direction, LimiterStatsRaw, PolicyRaw};

@@ -141,7 +141,7 @@ fn json_document_shape_is_the_scripting_contract() {
 #[test]
 fn json_carries_the_bypass_audit() {
     use crate::ebpf::bypass::{
-        shadow_audit, NicTotals, ShadowVerdict, SHADOW_RX_FLOOR_BYTES, SHADOW_TX_FLOOR_BYTES,
+        NicTotals, SHADOW_RX_FLOOR_BYTES, SHADOW_TX_FLOOR_BYTES, ShadowVerdict, shadow_audit,
     };
 
     let clean = shadow_audit(
@@ -263,7 +263,7 @@ fn json_carries_the_deleted_exe_flag() {
 fn json_carries_the_traffic_focus_window() {
     use crate::ebpf::connections::{CgroupConnections, ProcessDetail, Proto, SocketInfo};
     use crate::ebpf::loader::{CgroupDelta, SocketBytes};
-    use crate::ebpf::render::depth_traffic::{traffic_focus, TrafficFocus};
+    use crate::ebpf::render::depth_traffic::{TrafficFocus, traffic_focus};
 
     let mut conns = crate::ebpf::connections::ConnectionMap::new();
     conns.insert(

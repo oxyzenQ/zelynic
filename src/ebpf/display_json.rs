@@ -13,9 +13,9 @@ use anyhow::Result;
 
 use super::display::collect_display_data;
 use crate::ebpf::identity::IdentityMap;
-use crate::ebpf::limiter::rate_ring::{ring_series, RateRingRaw, RingReads, RATE_RING_SLOTS};
+use crate::ebpf::limiter::rate_ring::{RATE_RING_SLOTS, RateRingRaw, RingReads, ring_series};
 use crate::ebpf::limiter::types::PolicyWindowRaw;
-use crate::ebpf::limiter::{monotonic_ns, wall_now_ns, LimiterStatsRaw, PolicyRaw};
+use crate::ebpf::limiter::{LimiterStatsRaw, PolicyRaw, monotonic_ns, wall_now_ns};
 // wall_minus_mono/window_state: the window join's own vocabulary.
 use crate::ebpf::limiter::{wall_minus_mono, window_state};
 

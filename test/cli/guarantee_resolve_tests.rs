@@ -10,7 +10,7 @@
 //! setting one, the zero sentinel for unset sides, the force-this
 //! override riding the rate family's ladder).
 
-use super::{resolve_guarantee, BracketFlags};
+use super::{BracketFlags, resolve_guarantee};
 use crate::ebpf::limiter::{BracketPair, RateSpec};
 
 /// A both-directions spec at the given rates.

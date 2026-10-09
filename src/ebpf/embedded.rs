@@ -87,11 +87,7 @@ impl<const N: usize> AlignedElf<N> {
 /// multi-day hunt through a healthy artifact.
 pub fn misalignment(bytes: &[u8]) -> Option<usize> {
     let m = bytes.as_ptr() as usize % 8;
-    if m == 0 {
-        None
-    } else {
-        Some(m)
-    }
+    if m == 0 { None } else { Some(m) }
 }
 
 /// NIGHT-hunt-30: the load-path preflight built on
