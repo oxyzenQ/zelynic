@@ -89,8 +89,10 @@ fn zombie_traffic_vetoes_even_without_identity() {
 }
 
 /// Fail-closed for reclamation: an unprovable silence (the absent
-/// lens, or a ring row that never existed) vetoes retirement —
-/// silence must be PROVEN, never assumed.
+/// LENS — a stale pin epoch the reader cannot open) vetoes
+/// retirement — silence must be READ, never assumed. The absent
+/// ROW is not this pin's subject: the lazy-creation law makes it
+/// the never-delivered verdict (Silent), pinned below.
 #[test]
 fn zombie_unknown_silence_vetoes_retirement() {
     assert!(!zombie(
@@ -111,12 +113,46 @@ fn zombie_unknown_silence_vetoes_retirement() {
     assert!(!zombie(true, None, None));
 }
 
+/// The block lane's shape (the design's own find, caught before
+/// the stage ever ran it): a rate-0 direction delivers nothing by
+/// contract, so its ring row never exists — the absent row reads
+/// as the never-delivered SILENCE, and a blocked-then-dead root
+/// retires like any other zombie (a no-row veto would have frozen
+/// every block-lane ghost and every one-way stream's quiet leg
+/// forever).
+#[test]
+fn zombie_block_lane_never_delivered_still_retires() {
+    // Both legs present, neither ring ever existed: the
+    // never-delivered zombie retires.
+    assert!(zombie(
+        false,
+        Some(RingProof::Silent),
+        Some(RingProof::Silent)
+    ));
+    // Traffic in ANY policed direction still vetoes — the belt
+    // holds for the direction that IS delivering (the ring stamps
+    // while packets flow, row or no row in the quiet leg).
+    assert!(!zombie(
+        false,
+        Some(RingProof::Traffic),
+        Some(RingProof::Silent)
+    ));
+    assert!(!zombie(
+        false,
+        Some(RingProof::Silent),
+        Some(RingProof::Traffic)
+    ));
+}
+
 // ── the ring census (the three-state verdict) ──────────────────────
 
-/// The census derives traffic and presence from live stamps: a row
+/// The census derives the traffic set from live stamps: a row
 /// with a stamp inside the horizon is TRAFFIC, a row whose stamps
-/// rotated out is SILENT, a root with no row is UNKNOWN, and an
-/// absent lens (None census) is UNKNOWN for every root.
+/// rotated out is SILENT, a root with no row at all is SILENT TOO
+/// (the lazy-creation law — the ring exists only after a first
+/// delivered packet, so an absent row is the never-delivered
+/// verdict, the block lane's own shape), and an absent lens (None
+/// census) is UNKNOWN for every root.
 #[test]
 fn ring_census_separates_traffic_silent_and_unknown() {
     // Mid window 100: windows 93..100 are the horizon.
@@ -129,14 +165,14 @@ fn ring_census_separates_traffic_silent_and_unknown() {
     let census = ring_census(Some(rows.as_slice()), now).expect("present census must resolve");
 
     let traffic: HashSet<u32> = [7u32, 8].into_iter().collect();
-    let present: HashSet<u32> = [7u32, 8, 9].into_iter().collect();
-    assert_eq!(census.0, traffic);
-    assert_eq!(census.1, present);
+    assert_eq!(census, traffic);
 
-    // The three verdicts, one line each.
+    // The verdicts, one line each.
     assert_eq!(ring_proof(Some(&census), 7), RingProof::Traffic);
     assert_eq!(ring_proof(Some(&census), 9), RingProof::Silent);
-    assert_eq!(ring_proof(Some(&census), 42), RingProof::Unknown);
+    // No row at all: the never-delivered verdict, not an unknown
+    // (the block lane retires like any other zombie).
+    assert_eq!(ring_proof(Some(&census), 42), RingProof::Silent);
     // The absent lens proves nothing about any root.
     assert_eq!(ring_proof(None, 7), RingProof::Unknown);
     assert_eq!(ring_census(None, now), None);

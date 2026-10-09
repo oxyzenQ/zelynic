@@ -40,24 +40,30 @@
 //!
 //! 2. **No ring traffic for the horizon.** The ring stamps a slot
 //!    only when the kernel DELIVERS a packet under the policy, so
-//!    `ring_series(...).live == 0` proves the root moved nothing
+//!    a direction with no live stamp proves the root moved nothing
 //!    for the full 8s window set — the grace window rides the
 //!    ring's own rotation (windows age out by time, not by
 //!    packets), so a root that died mid-traffic is skipped until
-//!    its last delivered second rotates out. The belt is load
-//!    bearing: an alive-but-unresolvable root (a process that
-//!    entered a cgroup namespace after its policy was applied —
-//!    the one shape where signal 1 lies) still stamps its ring,
-//!    and traffic vetoes retirement. Enforcement is never lost to
-//!    a resolution blind spot the ring can see through.
+//!    its last delivered second rotates out. A direction with NO
+//!    ring row at all is the same verdict, not a weaker one: the
+//!    ring is created lazily, at the first ALLOWED packet
+//!    (enforce_helpers' get_ring_ptr), so an absent row is the
+//!    never-delivered verdict — the block lane's rate-0 direction
+//!    books nothing by contract, a one-way stream books nothing on
+//!    its quiet leg, and those zombies retire like any other. The
+//!    belt is load bearing either way: an alive-but-unresolvable
+//!    root (a process that entered a cgroup namespace after its
+//!    policy was applied — the one shape where signal 1 lies)
+//!    still stamps its ring while it delivers, and traffic vetoes
+//!    retirement. Enforcement is never lost to a resolution blind
+//!    spot the ring can see through.
 //!
 //! Fail-closed for reclamation, the posture every sweep in the
-//! family owns: silence must be PROVEN, never assumed. A direction
-//! whose lens cannot be read (the absent-lens contract — a stale
-//! pin epoch) or a root with no ring row at all (a ring whose
-//! creation failed on a full map) leaves silence unproven, and the
-//! root waits — the manual `recover` scan (identity-only, reported
-//! before it cleans) remains the tool for those corners.
+//! family owns: silence must be PROVEN, never assumed — and a
+//! direction whose lens cannot be READ (the absent-lens contract,
+//! a stale pin epoch) proves nothing. Every root in that
+//! direction waits, and the manual `recover` scan (identity-only,
+//! reported before it cleans) remains the tool for stale epochs.
 //!
 //! ── Placement — the visit law, one more collector ────────────────
 //!
@@ -88,13 +94,20 @@ pub(crate) enum RingProof {
     /// at least one live window stamp — kernel-side delivery inside
     /// the horizon. Life, against the retirement.
     Traffic,
-    /// The read succeeded, the row exists, and no slot is live:
-    /// the full horizon delivered nothing. Silence, proven.
+    /// The direction proved quiet: either the row exists with no
+    /// live stamp (the full horizon delivered nothing) or NO row
+    /// exists at all — and the ring is created lazily, at the
+    /// first ALLOWED packet (enforce_helpers' get_ring_ptr), so an
+    /// absent row is the never-delivered verdict, not an unknown:
+    /// a block lane's rate-0 direction books nothing by contract,
+    /// a one-way stream books nothing on its quiet leg, and a
+    /// root that never talked books nothing at all. Silence,
+    /// proven either way.
     Silent,
-    /// Neither could be proven — the direction's lens is absent
-    /// (stale pin epoch) or the root holds no ring row (a ring
-    /// whose creation failed on a full map). Silence is unproven;
-    /// retirement is vetoed (fail-closed for reclamation).
+    /// The direction's lens is absent (a stale pin epoch — the
+    /// map could not be read at all): silence is unproven, and
+    /// retirement is vetoed (fail-closed for reclamation, the
+    /// posture every sweep in the family owns).
     Unknown,
 }
 
@@ -141,38 +154,31 @@ fn zombie_sweep_trace_line(retired: usize, state_reclaimed: usize) -> String {
 }
 
 /// The per-direction ring census a sweep needs: the roots whose
-/// rows carry a live stamp (traffic) and every root that holds a
-/// row at all (presence — the row's absence is `Unknown`, never
-/// silence). `None` in, `None` out: an absent lens proves nothing
-/// about any root in that direction.
-fn ring_census(
-    rows: Option<&[(u32, RateRingRaw)]>,
-    now: u64,
-) -> Option<(HashSet<u32>, HashSet<u32>)> {
+/// rows carry a live stamp (traffic). `None` in, `None` out: an
+/// absent lens proves nothing about any root in that direction.
+fn ring_census(rows: Option<&[(u32, RateRingRaw)]>, now: u64) -> Option<HashSet<u32>> {
     let rows = rows?;
     let mut traffic = HashSet::new();
-    let mut present = HashSet::new();
     for (root, raw) in rows {
-        present.insert(*root);
         if ring_series(raw, now).live > 0 {
             traffic.insert(*root);
         }
     }
-    Some((traffic, present))
+    Some(traffic)
 }
 
 /// One root's proof from a direction's census (the three-state
-/// verdict above; a `None` census is the absent lens).
-fn ring_proof(census: Option<&(HashSet<u32>, HashSet<u32>)>, root: u32) -> RingProof {
+/// verdict above; a `None` census is the absent lens — the only
+/// `Unknown` left, since an absent ROW is the lazy-creation law's
+/// own never-delivered verdict).
+fn ring_proof(census: Option<&HashSet<u32>>, root: u32) -> RingProof {
     match census {
         None => RingProof::Unknown,
-        Some((traffic, present)) => {
+        Some(traffic) => {
             if traffic.contains(&root) {
                 RingProof::Traffic
-            } else if present.contains(&root) {
-                RingProof::Silent
             } else {
-                RingProof::Unknown
+                RingProof::Silent
             }
         }
     }
@@ -196,12 +202,12 @@ impl Limiter {
     /// Fail-closed on proof, best-effort on collection, the
     /// family's own ladder: an unreadable policy map or an EMPTY
     /// identity map (a failed walk, the signal guard) stands the
-    /// whole sweep down; an absent ring lens only widens `Unknown`
-    /// to every root in that direction (nothing retires on an
-    /// unprovable silence); a failed delete warns and the root
-    /// waits for the next visit. Retirement is the full recover
-    /// shape per root: group ids captured read-before-delete, both
-    /// policy legs deleted (an uncertain leg keeps the state,
+    /// whole sweep down; an absent ring lens vetoes every root in
+    /// that direction (nothing retires on a silence the lens could
+    /// not read); a failed delete warns and the root waits for
+    /// the next visit. Retirement is the full recover shape per
+    /// root: group ids captured read-before-delete, both policy
+    /// legs deleted (an uncertain leg keeps the state,
     /// conservative like every removal here), the state reclaimed
     /// once both legs are confirmed gone, and the captured groups
     /// swept for dead shared buckets at the end. Returns the
