@@ -28,6 +28,7 @@
 //! unverified lane), unreadable directories are skipped, never
 //! fatal, and only real subdirectories of the mount are followed.
 
+use std::collections::HashSet;
 use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
@@ -119,6 +120,70 @@ fn rel_path_of(dir: &Path) -> String {
     } else {
         format!("/{rendered}")
     }
+}
+
+// The cgroupfs id census (the zombie sweep's death proof, the
+// absent-lens residual's own lane) lives beside the resolver — same
+// family, same bounds, one contract harder: the census proves a
+// NEGATIVE, so its walk must be COMPLETE or nothing.
+
+/// The cgroupfs id census (NIGHT-hunt-43's absent-lens residual,
+/// owner-approved): ONE bounded walk of the mount collecting the id
+/// of every directory it admits. `Some(set)` means the walk was
+/// COMPLETE — the whole tree enumerated within the bounds, not one
+/// read or stat failed — so an id absent from the set names no
+/// cgroup the mount holds: kernel-proven death (the kernel destroys
+/// a cgroup only after its last process left, so nothing can ever
+/// deliver from it again — a STRONGER verdict than the ring's
+/// silence, which only proves it did not). `None` is inconclusive —
+/// a tree past the bounds, an unreadable directory — never "empty":
+/// the caller must veto exactly as it would without the census
+/// (fail-closed for reclamation, the sweep's own posture).
+///
+/// The census trusts the walker's own cgroupfs view, the same view
+/// every identity resolution in this family already reads — a
+/// cgroup-namespace reader sees its subtree, not the host's whole
+/// hierarchy (the named residual in the hunt-43 audit's terms).
+pub fn cgroupfs_id_census() -> Option<HashSet<u32>> {
+    collect_id_set(Path::new("/sys/fs/cgroup"), MAX_VISITS, MAX_DEPTH)
+}
+
+/// The census walk core, generic over root and bounds so the pins
+/// can drive complete-vs-bounded semantics against synthetic trees
+/// without touching the live mount. Every failure is total (None):
+/// a skipped directory could be the target's hiding place, and a
+/// negative cannot be proven by a walk that did not finish.
+fn collect_id_set(dir: &Path, max_visits: usize, max_depth: usize) -> Option<HashSet<u32>> {
+    let mut ids = HashSet::new();
+    walk_id_set(dir, 0, &mut 0, max_visits, max_depth, &mut ids)?;
+    Some(ids)
+}
+
+fn walk_id_set(
+    dir: &Path,
+    depth: usize,
+    visits: &mut usize,
+    max_visits: usize,
+    max_depth: usize,
+    ids: &mut HashSet<u32>,
+) -> Option<()> {
+    if depth > max_depth || *visits >= max_visits {
+        return None;
+    }
+    *visits += 1;
+    // The directory's own kernfs inode — the same numbering
+    // pid_cgroup_id truncates to the u32 the maps key on.
+    ids.insert(fs::metadata(dir).ok()?.ino() as u32);
+    let entries = fs::read_dir(dir).ok()?;
+    for entry in entries {
+        let entry = entry.ok()?;
+        let meta = entry.metadata().ok()?;
+        if !meta.is_dir() {
+            continue;
+        }
+        walk_id_set(&entry.path(), depth + 1, visits, max_visits, max_depth, ids)?;
+    }
+    Some(())
 }
 
 // The pathwalk pins live under the single test/ tree (cosmostrix
