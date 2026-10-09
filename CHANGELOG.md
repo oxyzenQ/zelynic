@@ -189,6 +189,43 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **feat(json): NIGHT-improve-64 — the status-family JSON surfaces
+  speak their full census: list-apps carries both numbers and the
+  honesty flag, doctor carries the pin lattice's verdict.** The
+  owner's approved continuation of the improve-63 audit (the same
+  gap class, the next three surfaces), total: the `list-apps` human
+  census line always spoke TWO numbers ("N cgroups resolved, M with
+  live sockets") while the JSON carried only `total`, and the
+  partial-census disclosure stayed human-only on stderr — a frontend
+  polling the JSON on a non-root host saw `sockets: 0` rows with no
+  machine-readable hint the census is degraded. The document now
+  carries `socket_cgroups` (the second census number) and
+  `census_complete` (false when unprivileged — the machine form of
+  the stderr note), additive and trailing, the improve-63 rule; the
+  assembly moved into the pure `list_apps_json` builder so the
+  contract is unit-pinnable without stdout capture (the hunt-22
+  pattern). The `doctor` report's pin lattice — the human line's
+  "clean / active / STALE (+ file count)" verdict, the one
+  actionable failure mode the doctor exists to surface — never
+  reached the JSON at all (the docs even over-promised it: "reports
+  the capability check fields (kernel, cgroup v2, BPF fs, pins)").
+  A pure `pin_verdict` + `collect_pin_state` collector now feeds
+  BOTH surfaces: `doctor --print-json` carries
+  `pins: {"state":"clean"|"active"|"stale","files":N}` (absent where
+  it cannot speak honestly — half-life build, unprivileged run,
+  unreadable directory; the additive `default` keeps old JSON
+  deserializing), the human line renders the same verdict byte for
+  byte, and the one honesty fix rides along: a directory that
+  exists but cannot be read used to print "clean (empty directory)"
+  — a verdict nothing backed — and now prints UNKNOWN, with the
+  JSON answering by absence. `status` was audited for the same gap
+  and stands at peak: every field the human table renders (the
+  columns, the per-direction floors/ceilings, the per-socket
+  markers, the rate ring, the window) already serializes with the
+  honest-absence semantics the charger-core/improve-40 lineage
+  built. Pinned: the list-apps document shape (both census numbers,
+  the flag, the additive trailing order) and the pin verdict law
+  (count + lattice decide the state, never a fabricated verdict).
 
 - **test(supermassive): NIGHT-hunt-37 — the QUIC client rides the
   VM rootfs and the QUIC-aware lane gains its first live
