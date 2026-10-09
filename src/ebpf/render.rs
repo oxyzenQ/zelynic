@@ -191,11 +191,13 @@ impl FrameGeometry {
 
 /// Eagle-eyes column layout derived from the frame width.
 ///
-/// Degradation ladder (6-column rank reserve, 1-column gaps, and
-/// the 2-column right gutter of NIGHT-engrave-4):
-/// - width >= 53: (rank) | top process | download | upload | total
-/// - width >= 42: (rank) | top process | download | upload (total dropped)
-/// - width  < 42: (rank) | top process (min 12) | download | upload at 9-wide
+/// Degradation ladder (the 7-column rank reserve — the 3-column
+/// focus-marker lane plus 2 rank digits plus a 2-column gap, the
+/// lane re-cut by night-improve-61 — 1-column gaps, and the
+/// 2-column right gutter of NIGHT-engrave-4):
+/// - width >= 54: (rank) | top process | download | upload | total
+/// - width >= 43: (rank) | top process | download | upload (total dropped)
+/// - width  < 43: (rank) | top process (min 12) | download | upload at 9-wide
 ///
 /// Download and upload carry per-frame RATES (delta / interval —
 /// "what is moving right now"); total carries the session-accumulated
@@ -232,14 +234,17 @@ pub(crate) struct EagleColumns {
 /// Plan the eagle-eyes column layout for a given terminal width.
 #[must_use]
 pub(crate) fn plan_eagle_columns(width: usize) -> EagleColumns {
-    const RANK_W: usize = 6; // 2 gutter + 2 rank digits + 2 gap
+    const RANK_W: usize = 7; // 3 marker lane + 2 rank digits + 2 gap
     const NUM_W: usize = 10;
     const NUM_W_TIGHT: usize = 9;
     const LABEL_MIN: usize = 12;
     // The symmetric right gutter (NIGHT-engrave-4): the two columns
-    // of air after the TOTAL column, mirroring the two the left
-    // gutter gives the rank. Narrow-floor frames drop it first —
-    // survival outranks harmony below the ladder.
+    // of air after the TOTAL column, mirroring the air the rank
+    // enjoys after the left marker lane (night-improve-61: the
+    // lane itself is the `=> ` marker's estate, three columns, so
+    // the rails keep their breathing pair on the right). Narrow-
+    // floor frames drop it first — survival outranks harmony below
+    // the ladder.
     const RIGHT_GUTTER: usize = 2;
 
     // Full layout: rank + label + 3 numeric columns (dl, ul, total).

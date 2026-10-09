@@ -103,7 +103,7 @@ fn baseline_panel_docks_flush_above_the_footer() {
         );
         let rank1 = lines
             .iter()
-            .position(|l| l.starts_with(" │   1  "))
+            .position(|l| l.starts_with(" │    1  "))
             .unwrap_or_else(|| panic!("height {height}: no rank-1 row in: {joined}"));
         let slack = (rank1 + 1..row - 3).filter(|i| blank(&lines[*i])).count();
         assert!(

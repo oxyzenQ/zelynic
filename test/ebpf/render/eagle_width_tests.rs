@@ -92,7 +92,7 @@ fn cjk_label_keeps_the_rails_straight() {
     // the label budget by RENDERED columns, never past it).
     let rank1 = lines
         .iter()
-        .find(|l| l.starts_with(" │   1  "))
+        .find(|l| l.starts_with(" │    1  "))
         .unwrap_or_else(|| panic!("no rank-1 row in: {joined}"));
     assert!(
         rank1.contains("谷歌"),

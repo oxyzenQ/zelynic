@@ -142,8 +142,9 @@ numerics, and no per-cell noise (values are never packed as
   expands its endpoints as indented children under a count-carrying
   header: `└ firefox (4242) 3 sockets:` with `├`/`└` endpoint
   children (two shown in the ranked table, all of them in the focus
-  view). UDP endpoints are tagged
-  (`udp 8.8.8.8:53`), busy sockets flagged `[busy]`; remaining
+  view). Endpoints name their protocol
+  (`tcp 142.250.185.78:443`, `udp 8.8.8.8:53` — every proto since
+  night-improve-61), busy sockets flagged `[busy]`; remaining
   holders collapse into `+N more socket-holding processes`. Detail
   lines count against the height budget so frames never scroll.
 - Footer block (NIGHT-engrave-4, the owner's dashboard rebuild; the
@@ -360,7 +361,7 @@ The capability ladder itself auto-falls-back (truecolor -> 256 cube
 (NIGHT-boost-23, the cosmostrix contract: 0/16/8|256/24|32) forces a
 depth for terminals whose environment lies about truecolor — see
 USAGE.md. A cycled frame names its theme in the footer's
-status line (`1s realtime - theme atomic - q quit - t theme - ↑↓ scroll - => section`, the
+status line (`1s realtime - theme atomic - q quit - t theme - ↑↓ scroll - ←→ section`, the
 NIGHT-engrave-2 legend) — and since NIGHT-engrave-3 that row is the
 key hints' only home (the title's top-right hint retired then and
 stayed retired through the engrave-4 footer rebuild); a theme

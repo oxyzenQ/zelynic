@@ -95,7 +95,7 @@ fn endpoint_bytes_ride_the_tree_lines() {
         "the header still carries the socket count: {lines:?}"
     );
     assert!(
-        lines[1].contains("142.250.185.78:443 [dl  10.2 GB/s | ul 180.0 KB/s]"),
+        lines[1].contains("142.250.185.78:443 [dl 10.2 GB/s | ul 180.0 KB/s]"),
         "the joined endpoint carries its own arrival rates: {}",
         lines[1]
     );
@@ -173,7 +173,7 @@ fn focus_ranks_endpoints_by_bytes() {
         "bytes-desc first (bravo 10.0 MB), byteless keeping walk order: {joined}"
     );
     assert!(
-        joined.contains("10.0.0.2:443 [dl   9.5 MB/s | ul 500.0 KB/s]"),
+        joined.contains("10.0.0.2:443 [dl 9.5 MB/s | ul 500.0 KB/s]"),
         "the ranking figure rides the line: {joined}"
     );
 }
@@ -249,10 +249,10 @@ fn the_ranked_tree_cap_shows_the_hungriest_endpoints() {
     // (188.0 KB joined) and the 51.6 KB sibling — the two quiet
     // ones (1.9 KB, 1.5 KB) are what the cap hides.
     let eater = joined
-        .find("47.239.88.7:443 [dl 126.6 KB/s | ul  61.4 KB/s]")
+        .find("47.239.88.7:443 [dl 126.6 KB/s | ul 61.4 KB/s]")
         .expect("the walked-LAST eater renders first under the cap");
     let sibling = joined
-        .find("10.0.0.1:443 [dl  26.4 KB/s | ul  25.2 KB/s]")
+        .find("10.0.0.1:443 [dl 26.4 KB/s | ul 25.2 KB/s]")
         .expect("the second-hungriest takes the second slot");
     assert!(
         eater < sibling,
@@ -410,39 +410,42 @@ fn socket_cookies_dense_fixture_stays_exact() {
     );
 }
 
-// ── the steady rate field (night-improve-59, the Bloomberg cut) ────
+// ── the steady rate field (night-improve-59; compact since 61) ────
 
-/// The field law: every figure lands right-aligned in the fixed
-/// 10-column RATE budget (improve-13's own width — "999.9 KB/s"
-/// is the widest the SI ladder renders), so the columns never
-/// shift when a rate crosses a tier, and a zero leg renders the
-/// honest "0 B/s" — never the limiter's BLOCKED verdict (the
-/// footer's own law: the observer does not judge).
+/// The field law (night-improve-61, the owner's compact cut): every
+/// figure renders at its own natural SI width, no padding — the
+/// suffix is not a table column (the remote endpoint before it
+/// varies per row, so a fixed budget bought dead air, not
+/// alignment), and a zero leg renders the honest "0 B/s" — never
+/// the limiter's BLOCKED verdict (the footer's own law: the
+/// observer does not judge).
 #[test]
-fn steady_rate_field_lands_in_the_ten_column_budget() {
-    // The honest zero, in budget.
-    assert_eq!(steady_rate_field(0), "     0 B/s");
-    // The B tier pads to the budget.
-    assert_eq!(steady_rate_field(500), "   500 B/s");
-    // The full-width figure: zero pad, the budget's own edge.
+fn steady_rate_field_renders_compact() {
+    // The honest zero, bare.
+    assert_eq!(steady_rate_field(0), "0 B/s");
+    // The B tier renders as it reads.
+    assert_eq!(steady_rate_field(500), "500 B/s");
+    // The KB tier keeps its one-decimal shape.
     assert_eq!(steady_rate_field(257_000), "257.0 KB/s");
-    // The tier-promotion edge renders the next unit, still in
-    // budget (999,950 B/s promotes to "1.0 MB/s", never the
-    // ragged "1000.0 KB/s").
-    assert_eq!(steady_rate_field(999_950), "  1.0 MB/s");
-    // Every figure is exactly 10 columns — the jitter-free
-    // contract the whole cut exists for.
-    for rate in [
-        0,
-        7,
-        999,
-        1_000,
-        257_000,
-        999_949,
-        999_950,
-        18_400_000_000_000_000_000,
+    // The tier-promotion edge renders the next unit (999,950 B/s
+    // promotes to "1.0 MB/s", never the ragged "1000.0 KB/s").
+    assert_eq!(steady_rate_field(999_950), "1.0 MB/s");
+    // Every figure is exactly its own width — the compact contract
+    // (a padded field would carry a leading space; the owner's own
+    // transcript circled the dead air twice).
+    for (rate, width) in [
+        (0, 5),
+        (7, 5),
+        (999, 7),
+        (1_000, 8),
+        (257_000, 10),
+        (999_949, 10),
+        (999_950, 8),
+        (18_400_000_000_000_000_000, 9),
     ] {
-        assert_eq!(steady_rate_field(rate).chars().count(), 10, "rate {rate}");
+        let field = steady_rate_field(rate);
+        assert_eq!(field.chars().count(), width, "rate {rate}: {field:?}");
+        assert!(!field.starts_with(' '), "no leading air: {field:?}");
     }
 }
 
@@ -489,7 +492,7 @@ fn the_quiet_leg_renders_an_honest_zero_never_blocked() {
     let lines = detail_lines(Some(&conns), 7001, WINDOW);
     let joined = lines.join("\n");
     assert!(
-        joined.contains("1.1.1.1:53 [dl 257.0 KB/s | ul      0 B/s]"),
+        joined.contains("1.1.1.1:53 [dl 257.0 KB/s | ul 0 B/s]"),
         "the quiet leg renders the honest zero in budget: {joined}"
     );
     assert!(

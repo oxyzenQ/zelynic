@@ -109,15 +109,26 @@ pub(crate) fn comm_from_label(label: &str) -> Option<String> {
 /// exactly as before.
 ///
 /// night-improve-57: raw sockets are tagged `raw ` for the same
-/// reason UDP is tagged `udp ` — the lean TCP default hides the
-/// protocol spelling, but raw is rare enough in userland that the
-/// operator wants to see "this is an IP-level socket" at a glance
-/// (the byte figures alone do not signal "raw", since the depth
-/// report's row format is `<remote> <proto> <state> [figures]` and
-/// the live monitor's detail line is `<remote> [busy] [figures]` —
-/// the tag is the one place the proto reaches the eye).
+/// reason UDP is tagged `udp ` — the rare protocol wants its
+/// "this is an IP-level socket" at a glance (the byte figures
+/// alone do not signal "raw", since the depth report's row format
+/// is `<remote> <proto> <state> [figures]` and the live monitor's
+/// detail line is `<remote> [busy] [figures]` — the tag is the one
+/// place the proto reaches the eye).
+///
+/// night-improve-61 (the owner's find, "only udp, never tcp"):
+/// TCP rows carry their `tcp ` tag too — the lean-TCP default hid
+/// the protocol spelling on the one protocol most rows speak, so a
+/// QUIC-era browser showed tagged `udp` endpoints beside untagged
+/// TCP ones, reading like UDP was the only protocol worth naming.
+/// Every displayable socket now names its proto (`tcp ` / `udp ` /
+/// `raw `), the depth report's `<remote> <proto> <state> [figures]`
+/// vocabulary complete on the live monitor's detail line.
 fn endpoint_text(socket: &SocketInfo, conns: Option<&ConnectionMap>, window: Duration) -> String {
     let mut out = String::new();
+    if socket.proto == Proto::Tcp {
+        out.push_str("tcp ");
+    }
     if socket.proto == Proto::Udp {
         out.push_str("udp ");
     }
@@ -140,26 +151,29 @@ fn endpoint_text(socket: &SocketInfo, conns: Option<&ConnectionMap>, window: Dur
     out
 }
 
-/// The steady rate field (night-improve-59, the Bloomberg cut):
-/// the one canonical renderer for the `[dl X | ul Y]` suffix
-/// figures BOTH eagle-eyes surfaces speak — right-aligned in the
-/// estate's fixed 10-column RATE budget (improve-13's own law:
-/// "999.9 KB/s" is the widest the SI ladder renders, so every
-/// figure lands in the same columns every frame — the shifting
-/// widths of the arrival-rates landing cost -7.7% fps and +7.4%
-/// dirty cells to no one's benefit, a whole-frame column jitter
-/// every time a rate crossed a tier), and a zero leg renders the
+/// The steady rate field (night-improve-59's Bloomberg cut, re-cut
+/// by night-improve-61 at the owner's direction): the one canonical
+/// renderer for the `[dl X | ul Y]` suffix figures BOTH eagle-eyes
+/// surfaces speak — now COMPACT, the figure at its own natural SI
+/// width, never padded (`[dl 166 B/s | ul 8 B/s]`, not the 10-column
+/// estate `[dl    166 B/s | ul      8 B/s]`). The owner's call on
+/// the 59-era fixed budget: the suffix is not a table column — the
+/// remote endpoint before it already varies per row, so the padded
+/// figures bought no alignment a reader could use, only dead air
+/// the owner's own transcript circled twice; a zero leg renders the
 /// honest `0 B/s`, never `format_rate`'s "BLOCKED" (the footer's
 /// own law: a policy verdict is not a traffic observation — the
 /// observer does not judge, and a mover that moved nothing on one
-/// leg this frame is a ZERO, not a blocked lane).
+/// leg this frame is a ZERO, not a blocked lane). The table's rate
+/// COLUMNS keep their fixed cells (improve-13's law lives there,
+/// where every row shares the column); this field is the inline
+/// suffix family.
 pub(crate) fn steady_rate_field(rate: u64) -> String {
-    let figure = if rate == 0 {
+    if rate == 0 {
         "0 B/s".to_string()
     } else {
         format_rate(rate)
-    };
-    format!("{figure:>10}")
+    }
 }
 
 /// The joined bytes for one socket, if any (NIGHT-boost-26): the
