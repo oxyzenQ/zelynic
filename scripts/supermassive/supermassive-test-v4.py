@@ -552,10 +552,10 @@ DURING_CASES = [
         True,
     ),
     (
-        ["s", "brave", "1mb", "--during", "10y"],
+        ["s", "brave", "1mb", "--during", "5y"],
         ["root required"],
         [],
-        "max bound 10y parses",
+        "max bound 5y parses",
         True,
     ),
     (
@@ -623,8 +623,8 @@ DURING_CASES = [
         False,
     ),
     (
-        ["s", "brave", "1mb", "--during", "11y"],
-        ["ceiling is 10y"],
+        ["s", "brave", "1mb", "--during", "6y"],
+        ["ceiling is 5y"],
         [],
         "above-max names the ceiling",
         False,
