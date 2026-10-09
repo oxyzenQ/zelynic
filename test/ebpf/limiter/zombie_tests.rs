@@ -7,12 +7,14 @@
 //! the two-signal decision core (identity hit vetoes; every
 //! policed direction must PROVE silence — traffic or an unprovable
 //! lens vetoes, with the cgroupfs death proof as the absent lens's
-//! one rescue), the ring census's three-state verdict (traffic /
-//! silent / unknown from live stamps, present rows, and absent
-//! lenses), and the verbose trace wording. The map-walking sweep
-//! itself rides the same lanes every reclaim already exercises
-//! (`with_u32_map` / `remove_map_entry`), pinned through the
-//! family's existing contract trees.
+//! one rescue) wearing night-audit-8's cgroup.events belt (a root
+//! retires only when the kernel itself says the subtree is
+//! memberless or the directory gone), the ring census's three-state
+//! verdict (traffic / silent / unknown from live stamps, present
+//! rows, and absent lenses), and the verbose trace wording. The
+//! map-walking sweep itself rides the same lanes every reclaim
+//! already exercises (`with_u32_map` / `remove_map_entry`), pinned
+//! through the family's existing contract trees.
 
 use std::collections::HashSet;
 
@@ -47,7 +49,9 @@ fn stale_ring(old_window: u64) -> RateRingRaw {
 
 /// The law itself: a root retires only when no identity entry
 /// stands AND every direction it holds a policy in PROVED ring
-/// silence. Each leg of the matrix pinned by name.
+/// silence AND the kernel's own verdict says the subtree is
+/// memberless (night-audit-8's belt). Each leg of the matrix
+/// pinned by name.
 #[test]
 fn zombie_requires_identity_miss_plus_proven_silence() {
     // The live root: identity says alive, silence irrelevant.
@@ -55,18 +59,37 @@ fn zombie_requires_identity_miss_plus_proven_silence() {
         true,
         Some(RingProof::Silent),
         Some(RingProof::Silent),
-        true
+        Life::Memberless
     ));
-    // The textbook zombie: no identity, both directions proven silent.
+    // The textbook zombie: no identity, both directions proven
+    // silent, the kernel says the subtree is memberless.
     assert!(zombie(
         false,
         Some(RingProof::Silent),
         Some(RingProof::Silent),
-        false
+        Life::Memberless
     ));
     // One-leg zombie: only the policed direction constrains.
-    assert!(zombie(false, None, Some(RingProof::Silent), false));
-    assert!(zombie(false, Some(RingProof::Silent), None, false));
+    assert!(zombie(
+        false,
+        None,
+        Some(RingProof::Silent),
+        Life::Memberless
+    ));
+    assert!(zombie(
+        false,
+        Some(RingProof::Silent),
+        None,
+        Life::Memberless
+    ));
+    // The death proof retires the same shapes: the directory gone
+    // is the stronger verdict (the belt's Gone lane).
+    assert!(zombie(
+        false,
+        Some(RingProof::Silent),
+        Some(RingProof::Silent),
+        Life::Gone
+    ));
 }
 
 /// The belt: kernel-side traffic vetoes retirement even when
@@ -80,18 +103,23 @@ fn zombie_traffic_vetoes_even_without_identity() {
         false,
         Some(RingProof::Traffic),
         Some(RingProof::Silent),
-        false
+        Life::Memberless
     ));
     assert!(!zombie(
         false,
         Some(RingProof::Silent),
         Some(RingProof::Traffic),
-        false
+        Life::Memberless
     ));
     // Traffic in a direction the root holds no policy in is census
     // residue's own traffic, not the root's life signal — the leg
     // is None and does not constrain.
-    assert!(zombie(false, None, Some(RingProof::Silent), false));
+    assert!(zombie(
+        false,
+        None,
+        Some(RingProof::Silent),
+        Life::Memberless
+    ));
     // The belt outranks the death proof too: the readable leg says
     // the root DELIVERS (pre-death residue at worst — the belt
     // cannot know), so the root waits a visit.
@@ -99,13 +127,67 @@ fn zombie_traffic_vetoes_even_without_identity() {
         false,
         Some(RingProof::Traffic),
         Some(RingProof::Unknown),
-        true
+        Life::Gone
     ));
     assert!(!zombie(
         false,
         Some(RingProof::Unknown),
         Some(RingProof::Traffic),
-        true
+        Life::Gone
+    ));
+}
+
+/// The cgroupfs belt (night-audit-8, the alive-unresolvable-quiet
+/// residual's own pin): a root whose subtree the kernel says is
+/// POPULATED — processes live in it or a descendant, whatever the
+/// walking lanes can see — never retires, and neither does one
+/// whose liveness the census or the events read could not prove
+/// (fail-closed, the family's posture: enforcement preserved over
+/// bookkeeping). Only the memberless subtree or the gone
+/// directory passes.
+#[test]
+fn zombie_cgroup_events_belt_holds_the_alive_root() {
+    // The residual's exact shape: no identity (the namespace took
+    // the members out of the walk's view), both legs silent (a
+    // quiet app), the kernel says populated 1 — the policy STANDS.
+    assert!(!zombie(
+        false,
+        Some(RingProof::Silent),
+        Some(RingProof::Silent),
+        Life::Alive
+    ));
+    // The fail-closed twin: census inconclusive or cgroup.events
+    // unreadable — liveness unproven, the root waits.
+    assert!(!zombie(
+        false,
+        Some(RingProof::Silent),
+        Some(RingProof::Silent),
+        Life::Unknown
+    ));
+    // Alive outranks the absent lens's rescue too: the directory
+    // standing with live processes holds even an Unknown leg.
+    assert!(!zombie(
+        false,
+        Some(RingProof::Unknown),
+        Some(RingProof::Unknown),
+        Life::Alive
+    ));
+    // The lingering empty scope directory (systemd keeps the dir,
+    // the kernel says populated 0): silence from both sides —
+    // retires.
+    assert!(zombie(
+        false,
+        Some(RingProof::Silent),
+        Some(RingProof::Silent),
+        Life::Memberless
+    ));
+    // The one-leg shapes ride the same belt.
+    assert!(!zombie(false, None, Some(RingProof::Silent), Life::Alive));
+    assert!(zombie(
+        false,
+        None,
+        Some(RingProof::Silent),
+        Life::Memberless
     ));
 }
 
@@ -120,21 +202,26 @@ fn zombie_unknown_silence_vetoes_retirement() {
         false,
         Some(RingProof::Unknown),
         Some(RingProof::Silent),
-        false
+        Life::Memberless
     ));
     assert!(!zombie(
         false,
         Some(RingProof::Silent),
         Some(RingProof::Unknown),
-        false
+        Life::Memberless
     ));
-    assert!(!zombie(false, Some(RingProof::Unknown), None, false));
+    assert!(!zombie(
+        false,
+        Some(RingProof::Unknown),
+        None,
+        Life::Memberless
+    ));
     // A root no direction polices is not the sweep's subject at
     // all — the defensive floor (even the death proof cannot
     // reach it — no leg, no retirement).
-    assert!(!zombie(false, None, None, true));
+    assert!(!zombie(false, None, None, Life::Gone));
     // ... and identity alone cannot reach it either.
-    assert!(!zombie(true, None, None, true));
+    assert!(!zombie(true, None, None, Life::Gone));
     // The identity belt outranks the death proof: a stale identity
     // entry (the map's 10s TTL) keeps the root until the next
     // visit's refresh — conservative in every direction.
@@ -142,7 +229,7 @@ fn zombie_unknown_silence_vetoes_retirement() {
         true,
         Some(RingProof::Unknown),
         Some(RingProof::Unknown),
-        true
+        Life::Gone
     ));
 }
 
@@ -152,8 +239,9 @@ fn zombie_unknown_silence_vetoes_retirement() {
 /// silence read, because death is the stronger verdict (the
 /// kernel destroys a cgroup only after its last process left;
 /// nothing can deliver from it ever again). The rescue needs the
-/// proof bit: without it (no census, an inconclusive walk, or the
-/// directory still standing) the veto holds verbatim.
+/// proof state: without it (no census, an inconclusive walk, or
+/// the directory still standing — even memberless) the veto holds
+/// verbatim.
 #[test]
 fn zombie_absent_lens_rescue_requires_the_fs_death_proof() {
     // The residual's own shape: both lenses absent, root proven gone.
@@ -161,15 +249,17 @@ fn zombie_absent_lens_rescue_requires_the_fs_death_proof() {
         false,
         Some(RingProof::Unknown),
         Some(RingProof::Unknown),
-        true
+        Life::Gone
     ));
-    // Same shape without the proof bit: the veto holds (an
-    // inconclusive census, or the directory still standing).
+    // Same shape with the directory still standing — even a
+    // MEMBERLESS one: the unreadable lens proves nothing, and the
+    // belt's emptiness verdict is not the death proof the rescue
+    // requires (the root waits for a readable lens or death).
     assert!(!zombie(
         false,
         Some(RingProof::Unknown),
         Some(RingProof::Unknown),
-        false
+        Life::Memberless
     ));
     // Mixed lenses: the readable leg proved silence, the absent
     // leg rides the death proof.
@@ -177,17 +267,17 @@ fn zombie_absent_lens_rescue_requires_the_fs_death_proof() {
         false,
         Some(RingProof::Unknown),
         Some(RingProof::Silent),
-        true
+        Life::Gone
     ));
     assert!(zombie(
         false,
         Some(RingProof::Silent),
         Some(RingProof::Unknown),
-        true
+        Life::Gone
     ));
     // One-leg shapes ride the rescue too.
-    assert!(zombie(false, None, Some(RingProof::Unknown), true));
-    assert!(zombie(false, Some(RingProof::Unknown), None, true));
+    assert!(zombie(false, None, Some(RingProof::Unknown), Life::Gone));
+    assert!(zombie(false, Some(RingProof::Unknown), None, Life::Gone));
 }
 
 /// The block lane's shape (the design's own find, caught before
@@ -200,12 +290,13 @@ fn zombie_absent_lens_rescue_requires_the_fs_death_proof() {
 #[test]
 fn zombie_block_lane_never_delivered_still_retires() {
     // Both legs present, neither ring ever existed: the
-    // never-delivered zombie retires.
+    // never-delivered zombie retires (the belt agreeing: the
+    // subtree memberless).
     assert!(zombie(
         false,
         Some(RingProof::Silent),
         Some(RingProof::Silent),
-        false
+        Life::Memberless
     ));
     // Traffic in ANY policed direction still vetoes — the belt
     // holds for the direction that IS delivering (the ring stamps
@@ -214,13 +305,13 @@ fn zombie_block_lane_never_delivered_still_retires() {
         false,
         Some(RingProof::Traffic),
         Some(RingProof::Silent),
-        false
+        Life::Memberless
     ));
     assert!(!zombie(
         false,
         Some(RingProof::Silent),
         Some(RingProof::Traffic),
-        false
+        Life::Memberless
     ));
 }
 
@@ -278,23 +369,25 @@ fn ring_census_oldest_live_window_is_still_traffic() {
 // ── the verbose trace wording ──────────────────────────────────────
 
 /// The trace names both axes singular/plural aware and its
-/// EVIDENCE honestly — the silence clause for the rows the lens
-/// read, the death-proof clause for the rows the census proved,
-/// never one wearing the other's name. The diagnostic surface
-/// that tells an owner why a visit retired rows it never asked
-/// about.
+/// EVIDENCE honestly — the silence-and-memberless clause for the
+/// rows the lens read and the belt verified, the death-proof
+/// clause for the rows the census proved gone, never one wearing
+/// the other's name. The diagnostic surface that tells an owner
+/// why a visit retired rows it never asked about.
 #[test]
 fn zombie_sweep_trace_line_singular_and_plural() {
     assert_eq!(
         zombie_sweep_trace_line(1, 2, 0),
         "[limiter] zombie sweep: retired 1 dead-cgroup policy — \
-         no identity entry, no ring traffic for the horizon; 2 state entries \
+         no identity entry, no ring traffic for the horizon and a memberless \
+         subtree (cgroup.events populated 0); 2 state entries \
          returned to the census budget"
     );
     assert_eq!(
         zombie_sweep_trace_line(3, 1, 0),
         "[limiter] zombie sweep: retired 3 dead-cgroup policies — \
-         no identity entry, no ring traffic for the horizon; 1 state entry \
+         no identity entry, no ring traffic for the horizon and a memberless \
+         subtree (cgroup.events populated 0); 1 state entry \
          returned to the census budget"
     );
 }
@@ -309,22 +402,43 @@ fn zombie_sweep_trace_line_names_the_death_proof_evidence() {
         zombie_sweep_trace_line(2, 2, 2),
         "[limiter] zombie sweep: retired 2 dead-cgroup policies — \
          no identity entry, the cgroupfs death proof — the root's directory gone \
-         from a complete walk (the absent lens's own lane); 2 state entries \
+         from a complete walk; 2 state entries \
          returned to the census budget"
     );
     // One of each class: the visit names both kinds of evidence.
     assert_eq!(
         zombie_sweep_trace_line(2, 1, 1),
         "[limiter] zombie sweep: retired 2 dead-cgroup policies — \
-         no identity entry, no ring traffic for the horizon and the cgroupfs \
-         death proof; 1 state entry returned to the census budget"
+         no identity entry, no ring traffic for the horizon, a memberless \
+         subtree, and the cgroupfs death proof; 1 state entry \
+         returned to the census budget"
     );
     // The singular death-proof retirement.
     assert_eq!(
         zombie_sweep_trace_line(1, 1, 1),
         "[limiter] zombie sweep: retired 1 dead-cgroup policy — \
          no identity entry, the cgroupfs death proof — the root's directory gone \
-         from a complete walk (the absent lens's own lane); 1 state entry \
+         from a complete walk; 1 state entry \
          returned to the census budget"
+    );
+}
+
+/// The belt's hold line (night-audit-8): the diagnosis the
+/// hunt-43 audit promised would be "one grep away" — a root the
+/// two-signal walk named but the kernel's liveness verdict kept,
+/// singular and plural.
+#[test]
+fn zombie_sweep_held_line_names_the_belt() {
+    assert_eq!(
+        zombie_sweep_held_line(1),
+        "[limiter] zombie sweep: 1 candidate held — the cgroup subtree \
+         still holds processes, or the census could not conclude (fail-closed; \
+         the policy stands)"
+    );
+    assert_eq!(
+        zombie_sweep_held_line(2),
+        "[limiter] zombie sweep: 2 candidates held — the cgroup subtree \
+         still holds processes, or the census could not conclude (fail-closed; \
+         the policy stands)"
     );
 }
