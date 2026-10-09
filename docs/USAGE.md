@@ -2145,7 +2145,7 @@ are complete):
 (multi-target specs only; a full miss exits 1 with the text error):
 
 ```json
-{"targets":[{"target":"cg:1234","cgroup_id":1234,"name":"cat-test","cgroup_path":"/sys/fs/cgroup/cat-test","uid":1000,"user":"cat","enforcement":"limited","download_bps":100000,"upload_bps":100000,"group_id":0,"oldest_started_secs":620,"processes":1,"socket_holders":1,"sockets":2,"traffic":{"window_secs":3,"download_bytes":12400000,"upload_bytes":340000},"procs":[{"pid":1234,"comm":"cat-test","uid":1000,"user":"cat","ppid":1,"state":"S (sleeping)","threads":4,"rss_kb":1234,"exe":"/home/cat/cat-test","exe_deleted":false,"kind":"binary","script":null,"permission":"755","cwd":"/home/cat","cmdline":"./cat-test --serve","started_ago_secs":620,"started_epoch":1758900000}],"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null}]}],"bypass_audit":{"window_secs":3,"nic_tx_bytes":12900000,"nic_rx_bytes":13000000,"bpf_tx_bytes":340000,"bpf_rx_bytes":12450000,"shadow_tx_bytes":12560000,"shadow_rx_bytes":550000,"verdict":"bypassed_tx"}}
+{"targets":[{"target":"cg:1234","cgroup_id":1234,"name":"cat-test","cgroup_path":"/sys/fs/cgroup/cat-test","uid":1000,"user":"cat","enforcement":"limited","download_bps":100000,"upload_bps":100000,"group_id":0,"oldest_started_secs":620,"processes":1,"socket_holders":1,"sockets":2,"traffic":{"window_secs":3,"download_bytes":12400000,"upload_bytes":340000,"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null}]},"procs":[{"pid":1234,"comm":"cat-test","uid":1000,"user":"cat","ppid":1,"state":"S (sleeping)","threads":4,"rss_kb":1234,"exe":"/home/cat/cat-test","exe_deleted":false,"kind":"binary","script":null,"permission":"755","cwd":"/home/cat","cmdline":"./cat-test --serve","started_ago_secs":620,"started_epoch":1758900000}],"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null}]}],"bypass_audit":{"window_secs":3,"nic_tx_bytes":12900000,"nic_rx_bytes":13000000,"bpf_tx_bytes":340000,"bpf_rx_bytes":12450000,"shadow_tx_bytes":12560000,"shadow_rx_bytes":550000,"verdict":"bypassed_tx"}}
 ```
 
 `enforcement` is `"unlimited"` | `"blocked"` | `"limited"`; an
@@ -2156,12 +2156,21 @@ the JSON (charger-core-3c, the same marker the status table owns —
 an unmarked rate would read as the cgroup cap the policy does not
 carry).
 `traffic` (NIGHT-private-research-3) is the focus window's kernel
-totals — `{"window_secs":3,"download_bytes":...,"upload_bytes":...}`
+totals — `{"window_secs":3,"download_bytes":...,"upload_bytes":...,"endpoints":[...]}`
 when a window ran, `null` when it could not (observer attach or
 poll failure — distinguishable from a zero-traffic window, which
 serializes with zero totals); each endpoint row's
 `download_bytes`/`upload_bytes` carry that socket's window bytes,
 `null` when the join resolved nothing for it.
+The traffic object's own `endpoints` array (night-improve-63,
+additive) is the window's ranked attribution — the same rows the
+text focus view renders, movers first (bytes descending), the
+byteless behind them — so `jq '.targets[0].traffic.endpoints'`
+answers "who moved the window's bytes" straight from the object
+that owns the window, without re-deriving the cookie join from the
+census rows (the target-level `endpoints` array stays the full
+live socket census, untouched — the two arrays answer different
+questions).
 `bypass_audit` (NIGHT-upgrade-charger-core-1-a) is the focus
 window's interface-vs-hooks shadow verdict, machine-scope:
 `{"window_secs":3,"nic_tx_bytes":...,"nic_rx_bytes":...,"bpf_tx_bytes":...,"bpf_rx_bytes":...,"shadow_tx_bytes":...,"shadow_rx_bytes":...,"verdict":"clean"}`

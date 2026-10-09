@@ -83,6 +83,18 @@ pub struct EndpointJson {
 /// sit below these totals (sockets that died mid-window stay booked
 /// in the kernel maps but leave the /proc census), both numbers are
 /// true, they answer different questions.
+///
+/// NIGHT-improve-63: the window's own ranked endpoint rows ride the
+/// object too (`endpoints` — the exact [`TrafficFocus`] ranking the
+/// text focus view renders: movers first, bytes descending, the
+/// byteless behind them in the walk's established-first order),
+/// each row's dl/ul the window figures with null for a join that
+/// resolved no entry — absence, never zero-as-fact. ADDITIVE under
+/// the stable v11 contract (scripts predating the field ignore it;
+/// the field list at the target level is untouched): a frontend
+/// reads `targets[0].traffic.endpoints` and gets the window's
+/// who-moved-what answer without re-deriving the cookie join from
+/// the census rows.
 #[derive(serde::Serialize)]
 pub struct TrafficJson {
     /// The measured focus window in seconds.
@@ -91,6 +103,13 @@ pub struct TrafficJson {
     pub download_bytes: u64,
     /// Upload bytes the cgroup moved in the window (kernel truth).
     pub upload_bytes: u64,
+    /// The window's ranked endpoint attribution (NIGHT-improve-63):
+    /// movers first, bytes descending — the focus view's own
+    /// ranking contract, carried whole so the sums a frontend
+    /// derives reconcile against the totals above (minus the
+    /// sockets that died mid-window, the doc'd absence the null
+    /// dl/ul rows carry).
+    pub endpoints: Vec<EndpointJson>,
 }
 
 /// The kernel's enforcement ledger for one cgroup (NIGHT-blade-5):
@@ -222,12 +241,28 @@ fn stats_json(stats: &Option<LimiterStatsRaw>) -> Option<EnforcementStatsJson> {
 }
 
 /// The focus-window object as JSON (None stays null — the honest
-/// absence, never a fabricated zero-traffic window).
+/// absence, never a fabricated zero-traffic window). NIGHT-improve-63:
+/// the window's own endpoint ranking rides along — the same rows the
+/// text focus view renders, mapped onto the shared [`EndpointJson`]
+/// shape so one struct answers both surfaces.
 fn traffic_json(focus: &Option<TrafficFocus>) -> Option<TrafficJson> {
     focus.as_ref().map(|f| TrafficJson {
         window_secs: f.window_secs,
         download_bytes: f.dl_bytes,
         upload_bytes: f.ul_bytes,
+        endpoints: f
+            .endpoints
+            .iter()
+            .map(|e| EndpointJson {
+                pid: e.pid,
+                comm: e.comm.clone(),
+                proto: e.proto,
+                remote: e.remote.clone(),
+                state: e.state,
+                download_bytes: e.dl,
+                upload_bytes: e.ul,
+            })
+            .collect(),
     })
 }
 
