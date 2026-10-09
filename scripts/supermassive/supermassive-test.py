@@ -1991,15 +1991,18 @@ def stage_server_orphan_census():
         )
         run_zel(["u", str(a_id)], timeout=30)
         return False
-    # Verify the policy_dl row is gone but the policy_ul row survives
-    # (the orphan is direction-scoped — only dl lost its policy).
-    doc = status_json()
-    entry_after = limit_entry(doc, a_id) if doc else None
-    if entry_after is not None and entry_after.get("download_bps") is not None:
-        # The status reader may still show the policy if it reads
-        # both directions — but the dl row IS gone from the map. The
-        # bpftool delete succeeded, so trust it and proceed.
-        pass
+    # night-audit-8 (the red-era repair): NO status visit between
+    # the bpftool delete and the recover below. The visit IS a
+    # collector (hunt-30/hunt-34's law: every mutation-capable
+    # visit reaps what the maps say is dead) — the census sweep
+    # riding this very verification harvested the orphaned
+    # bucket_dl before the recover step could report it, so
+    # recover's "Census: N orphaned state entries reclaimed" line
+    # never fired and the stage failed at its own assertion from
+    # the day it landed (run 281, the red era's first failure).
+    # The bpftool delete's own exit code (checked above) is the
+    # row-gone truth; the recover step is the collector under
+    # proof.
     # Step 3: run `zelynic recover`. The orphan-census sweep runs as
     # part of recover's tail (src/commands/recover.rs:121) and should
     # find the orphaned bucket_dl entry and reclaim it.
@@ -2044,14 +2047,22 @@ def stage_server_zombie_sweep():
       2. run a 2s download client inside bed 'e' — the traffic
          flows UNDER the policy, so the ring rows get created and
          stamped (dl books the payload, ul books the ACKs)
-      3. the client exits — bed 'e' is empty, the identity walk no
-         longer names the cgroup: the policy row is now a zombie
+      3. the client exits and the harness removes bed 'e' — the
+         systemd-scope shape of a job's death: the scope cgroup is
+         DESTROYED when the job ends (systemd rmdirs it), so the
+         identity walk no longer names the cgroup AND the directory
+         itself is gone: the policy row is now a zombie the
+         cgroupfs census can prove dead (night-audit-8's belt —
+         the death proof is the one retirement law; a standing
+         directory would keep the policy, the pre-provisioned bed's
+         own case)
       4. sleep the ring horizon + margin (10s — the last delivered
          second rotates out of the 8s window set, the sweep's own
          grace window)
       5. run 'zelynic status -v --print-json' — the visit's zombie
          sweep retires the dead policy (no identity entry, both
-         rings silent past the horizon)
+         rings silent past the horizon, the directory gone from a
+         complete census walk)
       6. assert the sweep's verbose trace fires AND the status JSON
          no longer carries the policy
       7. teardown: 'zelynic u --all' — the idempotent reset that
@@ -2109,7 +2120,26 @@ def stage_server_zombie_sweep():
         run_zel(["u", str(e_id)], timeout=30)
         return False
     # Step 3: the client has exited — bed 'e' holds no process, the
-    # identity walk cannot name it. Step 4: the horizon rotation.
+    # identity walk cannot name it. The harness now removes the bed
+    # itself: the systemd-scope shape of a job's death (the scope
+    # cgroup is destroyed when the job ends), and night-audit-8's
+    # belt demands exactly that — the death proof, the directory
+    # GONE from a complete census walk, is the one retirement law
+    # (a standing directory would keep the policy: the
+    # pre-provisioned bed's own case, the supermassive fleet's
+    # every apply). An rmdir failure fails the stage honestly —
+    # without the destroyed cgroup there is no death to prove.
+    try:
+        os.rmdir(CG.paths["e"])
+    except OSError as exc:
+        record(
+            "server: zombie-sweep live proof (die + status visit)",
+            "FAIL",
+            f"bed 'e' rmdir failed (the scope-cleanup shape): {exc}",
+        )
+        run_zel(["u", "--all"], timeout=30)
+        return False
+    # Step 4: the horizon rotation.
     time.sleep(10)
     # Step 5: the mutation visit. One call, both surfaces: the
     # verbose trace lands on stderr, the JSON verdict on stdout.
