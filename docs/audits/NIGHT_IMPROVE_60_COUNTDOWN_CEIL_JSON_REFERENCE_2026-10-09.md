@@ -8,7 +8,7 @@
 > checked minutes after apply read "(4h left)", the `status
 > --print-json` output needed complete documentation (the owner read
 > `window_secs: 8` against the 5-hour policy and could not tell
-> which number owned the expiry), and the `--during` ceiling trims
+> which number owned the expiry), and the `--during` ceiling cuts
 > from 10y to 5y. Method: reproduce the arithmetic from the
 > transcript first, fix at the root, pin the boundary, then document
 > the scripting surface field-by-field so the confusion has nowhere
@@ -37,7 +37,7 @@ second) plus the tier edges (45.5s reads "46s", 59.5s reads
 worded lifetime shapes re-ran unchanged: their pins use exact
 units, which ceil maps to themselves.
 
-## 2. The 10y ceiling trims to 5y
+## 2. The 10y ceiling cuts to 5y
 
 The owner's call, one constant: `DURING_MAX_NS` is now five fixed
 365-day years (was ten). A longer promise is a forever-limit
@@ -87,3 +87,20 @@ row detail), and a frame benchmark that never renders the changed
 code would measure noise. The pin battery (`display_tests`,
 `during_user_tests`, `display_json_tests`) is the verification
 lane; fmt and clippy the hygiene lane.
+<!-- ZELYNIC-DISCLAIMER -->
+<!--
+  Documentation Disclaimer — read before relying on any data point.
+
+  This document may contain stale data, hardcoded counts, or outdated
+  file paths and symbol names. Maintainers update source code but may
+  forget to sync every doc — perfect sync across every .md file is a
+  known maintenance burden with diminishing returns.
+
+  Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
+  truth. Always cross-check against the actual source files before
+  relying on any specific number (target count, LOC, rate bound),
+  file path, function name, or config key.
+
+  If you find a discrepancy, please open a PR — the doc is wrong, not
+  the source.
+-->

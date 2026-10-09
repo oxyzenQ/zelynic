@@ -23,11 +23,11 @@ improve-58 spelling `↑↓ scroll - ←→ section`, and the `=>` glyph
 lives where he actually pointed it: the marker beside the focused
 section's title. One spelling per surface, both pinned.
 
-## 2. The marker lane (`▸ ` → `=> `, two columns → three)
+## 2. The marker lane (the triangle glyph to `=>`, two columns to three)
 
 The focus marker the owner circled — the glyph at the left of
 `top process` / `baseline · policy aggregate` that moved with the
-left/right arrows — was `▸ `, a single-width triangle that his
+left/right arrows — was the `▸` triangle, single-width, that his
 terminal renders as an unreadable dot. The owner's exact reading:
 `=> top process`. The honest cut widens the shared marker lane to
 THREE columns (`=>` plus its air column, `   ` when unfocused) —
@@ -48,7 +48,7 @@ everything that shares the lane moves with it:
 
 The pins: the boundary pins (54/53, label arithmetic `- 7 -`),
 the header pins (`│=> top process` focused, `│   top process`
-not), the row pins (`│    1  `), the dock pin, the snug-frame
+not), the row pins (`│    1`), the dock pin, the snug-frame
 detail test (width 58 now — the TOTAL boundary moved under it),
 the placeholder pin, and the baseline panel's focused-header pin.
 
@@ -72,12 +72,12 @@ assumed away.
 
 ## 4. The `tcp` tag (the unnamed default, named)
 
-The live monitor's endpoint lines tagged `udp ` and `raw ` but
+The live monitor's endpoint lines tagged udp and raw but
 left TCP — the protocol most rows speak — untagged (the lean-TCP
 default). The owner's find, his own transcript: a QUIC-era browser
 showed `udp 32.189.222.32:443` beside bare TCP remotes, reading
 like UDP was the only protocol worth naming. Every displayable
-endpoint now names its proto (`tcp ` / `udp ` / `raw `), the depth
+endpoint now names its proto (tcp / udp / raw, each followed by its air column), the depth
 report's `<remote> <proto> <state> [figures]` vocabulary complete
 on the live tree. The tag family's pins gained the TCP spellings
 across the eagle tree, the focus view, and the compact fixture.
@@ -102,3 +102,20 @@ the status line) — the marker lane is the TABLE's estate; the
 focus view's detail indentation (its own family); the depth
 report's row format (already spoke the proto); the JSON surfaces
 (no field changed); the version (the owner's call alone).
+<!-- ZELYNIC-DISCLAIMER -->
+<!--
+  Documentation Disclaimer — read before relying on any data point.
+
+  This document may contain stale data, hardcoded counts, or outdated
+  file paths and symbol names. Maintainers update source code but may
+  forget to sync every doc — perfect sync across every .md file is a
+  known maintenance burden with diminishing returns.
+
+  Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
+  truth. Always cross-check against the actual source files before
+  relying on any specific number (target count, LOC, rate bound),
+  file path, function name, or config key.
+
+  If you find a discrepancy, please open a PR — the doc is wrong, not
+  the source.
+-->
