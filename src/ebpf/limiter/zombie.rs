@@ -65,7 +65,7 @@
 //! direction waits — UNLESS the cgroupfs census can prove the
 //! stronger verdict: the root's directory is GONE from a complete
 //! walk of the mount (the owner-approved absent-lens residual,
-//! see [`crate::ebpf::identity::pathwalk::cgroupfs_id_path_census`]).
+//! see [`crate::ebpf::identity::pathwalk::cgroupfs_id_census`]).
 //! Death is a stronger proof than silence — the kernel destroys a
 //! cgroup only after its last process left, so nothing can ever
 //! deliver from it again — and a zombie that dies on a stale pin
@@ -79,22 +79,28 @@
 //!
 //! The two-signal law's named residual, closed: an alive root
 //! whose processes all entered a cgroup namespace after its apply
-//! is observationally identical to a dead one on BOTH signals
-//! (the namespaced /proc view hides its members from signal 1; a
-//! quiet app hides it from signal 2) — and used to retire with
-//! the dead, taking its standing policy with it. The belt reads
-//! the kernel's own verdict instead of inferring one:
-//! `cgroup.events` publishes `populated 1` while the root OR ANY
-//! DESCENDANT holds a live process, immune to the namespace trick
-//! that blinds both walking lanes. A root now retires only when
-//! the kernel says the subtree is memberless (`populated 0`, the
-//! lingering empty scope directory) or the directory itself is
-//! gone from a complete census walk — death or emptiness, PROVEN,
-//! never assumed. Enforcement is never lost to a resolution blind
-//! spot again: the estate's fail-open posture, completed. The
-//! fail-closed floor is unchanged: a census that cannot conclude
-//! or an events file that cannot be read holds the root for the
-//! next visit (the manual `recover` scan keeps its lane).
+//! is observationally identical to a dead one on both signals
+//! (the namespaced /proc view hides its members; a quiet app hides
+//! its traffic) — and used to retire with the dead, taking its
+//! standing policy with it. The belt closes the class by making
+//! the DEATH PROOF the one retirement law: a root retires only
+//! when a complete census walk proves its directory GONE — the
+//! cgroup object itself destroyed, nothing can ever join it or
+//! deliver from it again. A STANDING directory keeps the policy
+//! whatever its state — the alive-unresolvable root (its
+//! processes live, namespaced out of the walk's view), the
+//! pre-provisioned bed (a limit armed before its service spawns —
+//! the supermassive fleet's own shape), the kept scope directory:
+//! enforcement is preserved over bookkeeping, the estate's
+//! fail-open posture completed. The first cut of this belt
+//! (075551e) also retired memberless standing directories on a
+//! cgroup.events read — the second cut retracts that lane: an
+//! empty-but-kept cgroup is a policy the owner armed on purpose,
+//! and the kernel destroying the directory (systemd's scope
+//! cleanup, the container exit) is the only death the sweep can
+//! prove. Fail-closed unchanged: a census that cannot conclude
+//! holds every candidate for the next visit (the manual `recover`
+//! scan keeps its lane).
 //!
 //! ── Placement — the visit law, one more collector ────────────────
 //!
@@ -110,10 +116,7 @@
 //! diagnostic report in front of it, and a silent sweep running
 //! first would empty the very report its human came for.
 
-use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
-
-use crate::ebpf::identity::pathwalk;
+use std::collections::HashSet;
 
 use super::rate_ring::{ring_series, RateRingRaw};
 use super::types::Direction;
@@ -144,102 +147,78 @@ pub(crate) enum RingProof {
     /// posture every sweep in the family owns) — UNLESS the
     /// cgroupfs census proves the root's directory itself is
     /// gone, the one verdict stronger than silence (death needs
-    /// no silence read; see the decision core's `Life::Gone`
-    /// rescue).
-    Unknown,
-}
-
-/// What the cgroupfs leg proved about one candidate root
-/// (night-audit-8's belt, pure so the decision core below is
-/// unit-pinned): the kernel's own liveness verdict, one state per
-/// evidence shape.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub(crate) enum Life {
-    /// cgroup.events says `populated 1` — the root's subtree still
-    /// holds a live process (the alive-unresolvable-quiet root's
-    /// own shape). Retirement is vetoed; the enforcement stands.
-    Alive,
-    /// cgroup.events says `populated 0` — the subtree is memberless
-    /// (the lingering empty scope directory systemd keeps). The
-    /// ring's silence is now silence from both sides.
-    Memberless,
-    /// The directory is absent from a COMPLETE census walk —
-    /// kernel-proven death, the stronger verdict (the kernel
-    /// destroys a cgroup only after its last process left, so
-    /// nothing can ever deliver from it again).
-    Gone,
-    /// The census could not conclude (a tree past the bounds, an
-    /// unreadable directory) or cgroup.events could not be read —
-    /// liveness unproven, and reclamation is fail-closed: the
-    /// root waits for the next visit.
+    /// no silence read; see the decision core's `fs_gone` leg,
+    /// night-audit-8's one retirement law).
     Unknown,
 }
 
 /// The zombie decision core (NIGHT-hunt-43, pure so it is
-/// unit-pinned): from one policy root's evidence — the identity
-/// verdict, the ring proof per direction it holds a policy in,
-/// and the cgroupfs liveness belt — the retirement verdict.
-/// `None` per direction means the root holds no policy leg there,
-/// so the lens has nothing to prove about it (a stray row in that
-/// direction is census residue, the census sweep's own subject,
-/// not this root's life signal). A root retires only when no
-/// identity entry stands, every policed direction proved SILENT
-/// (or rode the `Life::Gone` death proof — the absent lens's one
-/// rescue), AND the kernel's own verdict says the subtree is
-/// memberless or the directory gone (night-audit-8's belt: an
-/// alive-but-unresolvable root keeps its enforcement even when
-/// both walking lanes are blind to it). Traffic vetoes
-/// unconditionally — the belt never rides on which proof the
-/// other legs found.
-fn zombie(identity_hit: bool, dl: Option<RingProof>, ul: Option<RingProof>, life: Life) -> bool {
+/// unit-pinned; the belt re-cut by night-audit-8): from one policy
+/// root's evidence — the identity verdict, the ring proof per
+/// direction it holds a policy in, and the cgroupfs death proof —
+/// the retirement verdict. `None` per direction means the root
+/// holds no policy leg there, so the lens has nothing to prove
+/// about it (a stray row in that direction is census residue, the
+/// census sweep's own subject, not this root's life signal).
+///
+/// A root retires only when no identity entry stands AND the
+/// cgroupfs census PROVED the root's directory gone from a
+/// complete walk — the one retirement law (night-audit-8's belt):
+/// a standing directory keeps the policy whatever its state, so
+/// the alive-unresolvable root and the pre-provisioned bed keep
+/// their enforcement, and death subsumes the silence question
+/// (nothing can deliver from a destroyed cgroup — Silent legs and
+/// the absent lens's Unknown legs alike pass under it). Traffic
+/// vetoes unconditionally — pre-death residue at worst, the root
+/// waits a visit even when its directory is already gone.
+fn zombie(identity_hit: bool, dl: Option<RingProof>, ul: Option<RingProof>, fs_gone: bool) -> bool {
     if identity_hit {
         return false;
     }
-    // The belt (night-audit-8): retirement requires the kernel's
-    // own liveness verdict — memberless or gone. An alive subtree
-    // keeps its enforcement (the residual's whole point); an
-    // unprovable one waits (fail-closed, the family's posture).
-    match life {
-        Life::Memberless | Life::Gone => {}
-        Life::Alive | Life::Unknown => return false,
+    // The belt (night-audit-8): the death proof is the one
+    // retirement law. No census, an inconclusive walk, or a
+    // standing directory — the policy stands (fail-closed for
+    // reclamation, enforcement preserved over bookkeeping).
+    if !fs_gone {
+        return false;
     }
     match (dl, ul) {
         // A root no direction polices is not this sweep's subject
         // at all (the walk only names roots the policy maps carry;
         // the core stays defensive — no leg, no retirement).
         (None, None) => false,
-        _ => [dl, ul].into_iter().flatten().all(|p| match p {
-            RingProof::Silent => true,
-            // The absent lens's one rescue: the root itself is
-            // kernel-proven gone, so the silence this leg
-            // could not read is moot — nothing can deliver
-            // from a destroyed cgroup.
-            RingProof::Unknown => life == Life::Gone,
-            RingProof::Traffic => false,
-        }),
+        // Death subsumes the silence read: a Silent leg proved the
+        // quiet, an Unknown leg could not — but nothing can ever
+        // deliver from a destroyed cgroup either way. Only Traffic
+        // (pre-death residue) keeps the root waiting a visit.
+        _ => [dl, ul]
+            .into_iter()
+            .flatten()
+            .all(|p| p != RingProof::Traffic),
     }
 }
 
 /// Verbose trace line for the zombie sweep (NIGHT-hunt-43): pure
 /// formatting so the wording is unit-pinned beside its siblings.
-/// The evidence clause names which proof retired the rows — the
-/// ring silence plus the memberless subtree the belt verified
-/// (cgroup.events populated 0), the cgroupfs death proof the
-/// absent lens falls back to, or all of them when one visit
-/// collected each class (the honest surface: a retirement never
-/// reads as a proof the visit never collected).
+/// The evidence clause names which proof retired the rows — under
+/// night-audit-8's belt every retirement carries the cgroupfs
+/// death proof, and the clause separates the rows whose lenses
+/// also READ their silence from the rows only the death proof
+/// could reach (the absent lens's own lane — the honest surface:
+/// a retirement never reads as a silence the visit never
+/// collected).
 fn zombie_sweep_trace_line(retired: usize, state_reclaimed: usize, fs_proven: usize) -> String {
-    let memberless = retired.saturating_sub(fs_proven);
-    let evidence = match (memberless, fs_proven) {
-        (_, 0) => {
-            "no ring traffic for the horizon and a memberless subtree \
-             (cgroup.events populated 0)"
-        }
+    let silence_read = retired.saturating_sub(fs_proven);
+    let evidence = match (silence_read, fs_proven) {
+        (_, 0) => "no ring traffic for the horizon and the cgroupfs death proof",
         (0, _) => {
-            "the cgroupfs death proof — the root's directory gone \
-             from a complete walk"
+            "the cgroupfs death proof alone — the directory gone from a \
+             complete walk (the absent lens's own lane)"
         }
-        _ => "no ring traffic for the horizon, a memberless subtree, and the cgroupfs death proof",
+        _ => {
+            "no ring traffic for the horizon and the cgroupfs death proof \
+             (the directory gone from a complete walk)"
+        }
     };
     format!(
         "[limiter] zombie sweep: retired {retired} dead-cgroup polic{} — \
@@ -255,14 +234,13 @@ fn zombie_sweep_trace_line(retired: usize, state_reclaimed: usize, fs_proven: us
 }
 
 /// The belt's hold line (night-audit-8, verbose only): a root the
-/// two-signal walk named but the kernel's liveness verdict kept —
-/// the diagnosis the hunt-43 audit promised would be "one grep
-/// away" the day a report arrived, printed by the very visit that
-/// held it.
+/// two-signal walk named but the death proof kept — the diagnosis
+/// the hunt-43 audit promised would be "one grep away" the day a
+/// report arrived, printed by the very visit that held it.
 fn zombie_sweep_held_line(held: usize) -> String {
     format!(
-        "[limiter] zombie sweep: {held} candidate{} held — the cgroup subtree \
-         still holds processes, or the census could not conclude (fail-closed; \
+        "[limiter] zombie sweep: {held} candidate{} held — the cgroup's directory \
+         still stands, or the census could not conclude (fail-closed; \
          the policy stands)",
         if held == 1 { "" } else { "s" },
     )
@@ -407,11 +385,12 @@ impl Limiter {
             .collect();
 
         // The census need (night-audit-8): a root whose retirement
-        // the belt must verify (every policed leg Silent) or whose
-        // absent-lens leg needs the death proof (any Unknown leg
-        // with no Traffic veto). A root carrying Traffic in any
-        // policed direction can never retire — it never asks for
-        // the walk.
+        // the belt must prove (it passed the identity miss and
+        // carries no Traffic leg — the death proof is the one
+        // retirement law, and every such candidate asks for the
+        // walk). A root carrying Traffic in any policed direction
+        // can never retire — it never asks for the walk; the
+        // healthy host with no candidates pays nothing.
         let needs_census = proofs.iter().any(|(_, hit, dl, ul)| {
             if *hit {
                 return false;
@@ -425,13 +404,13 @@ impl Limiter {
             }
             any_leg
         });
-        // The cgroupfs census (id -> path), the belt's evidence:
-        // built ONLY when a root needs it, complete-or-nothing. A
+        // The cgroupfs census, the belt's one evidence: built ONLY
+        // when a candidate asks for it, complete-or-nothing. A
         // census that could not conclude reads as None, every
-        // root's life leg stays Unknown, and the veto stands —
+        // root's death proof stays false, and the veto stands —
         // fail-closed, the walk's own contract.
-        let fs_census: Option<HashMap<u32, PathBuf>> = if needs_census {
-            pathwalk::cgroupfs_id_path_census()
+        let fs_census = if needs_census {
+            crate::ebpf::identity::pathwalk::cgroupfs_id_census()
         } else {
             None
         };
@@ -442,40 +421,34 @@ impl Limiter {
         let mut belt_held = 0usize;
         let mut captured_groups: Vec<u32> = Vec::new();
         for (id, identity_hit, dl_proof, ul_proof) in proofs {
-            // The cgroupfs life leg (night-audit-8): a complete
-            // census maps the root to the kernel's own verdict —
-            // the directory gone (death), or standing and read for
-            // its `populated` line (the belt). No census, or a
-            // root the census still names but whose events file
-            // will not read: Unknown, and the veto stands.
-            let life = match fs_census.as_ref() {
-                None => Life::Unknown,
-                Some(map) => match map.get(&id) {
-                    None => Life::Gone,
-                    Some(path) => match pathwalk::cgroup_events_populated(path) {
-                        Some(true) => Life::Alive,
-                        Some(false) => Life::Memberless,
-                        None => Life::Unknown,
-                    },
-                },
-            };
-            if !zombie(identity_hit, dl_proof, ul_proof, life) {
+            // The death-proof bit: true only when the census
+            // COMPLETED and the root's directory is absent from it
+            // — kernel-proven gone. A root the census still names
+            // (alive, memberless, or an id a recycled directory
+            // inherited), or a census that could not conclude,
+            // keeps the bit false and the policy stands.
+            let fs_gone = fs_census.as_ref().is_some_and(|set| !set.contains(&id));
+            if !zombie(identity_hit, dl_proof, ul_proof, fs_gone) {
                 // The belt's own hold (verbose-diagnosable): a root
-                // the ring-and-identity legs passed but the
-                // kernel's liveness verdict kept. The
-                // counterfactual pins the leg that held it — an
-                // Unknown RING leg with a standing directory is
-                // the absent lens's wait, not the belt's.
-                if zombie(identity_hit, dl_proof, ul_proof, Life::Memberless) {
+                // the ring-and-identity legs passed but the death
+                // proof kept — the counterfactual pins the leg that
+                // held it (an Unknown RING leg is the absent
+                // lens's wait, not the belt's; a Traffic leg was
+                // never a candidate).
+                if zombie(identity_hit, dl_proof, ul_proof, true) {
                     belt_held += 1;
                 }
                 continue;
             }
-            // A retirement whose directory the census proved gone
-            // rode the death proof to its verdict — the trace's
-            // evidence clause names it, never the silence the lens
-            // read or the belt verified.
-            if life == Life::Gone {
+            // A retirement with an absent-lens leg rode the death
+            // proof ALONE to its verdict — the trace's evidence
+            // clause must never call it a silence the lens never
+            // read.
+            if [dl_proof, ul_proof]
+                .into_iter()
+                .flatten()
+                .any(|p| p == RingProof::Unknown)
+            {
                 fs_proven += 1;
             }
             // The retirement, recover's own shape per root: capture
