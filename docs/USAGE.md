@@ -998,7 +998,7 @@ targeting several cgroups reports each), and the report answers the
 question a bare `cg:1234` row leaves open — WHAT is this:
 
 ```text
-╭─── zelynic eagle-eyes --depth ─────────────────────────────────╮
+╭────────────────── zelynic eagle-eyes --depth ──────────────────╮
   cg:1234 — cat-test
   3 processes · 2 holders · 5 sockets
   ────────────────────────────────────────────────────────────────
@@ -1543,7 +1543,7 @@ Color annotations follow the frame; the text layout is byte-exact
 with what the renderer draws.
 
 ```text
-╭─── zelynic eagle-eyes ───────────────────────────────────────────────────────╮
+╭───────────────────────────── zelynic eagle-eyes ─────────────────────────────╮
 │                                                                              │
 │=> top process                                download     upload      total  │
 │──────────────────────────────────────────────────────────────────────────────│

@@ -201,7 +201,14 @@ fn short_terminals_keep_the_note_and_the_fill() {
     };
     let frame = loading_frame(Duration::from_secs(5), geo);
     assert_eq!(frame.len(), geo.height, "the frame fills a 10-row window");
-    assert!(frame[0].starts_with(" ╭─── zelynic eagle-eyes"));
+    // NIGHT-engrave-12: the title rides the bar's middle — the
+    // frame composes at 78 cols, (78 - 4 - 18) / 2 = 28 flank
+    // dashes a side around the core.
+    assert!(
+        frame[0].starts_with(&format!(" ╭{} zelynic eagle-eyes ", "─".repeat(28))),
+        "the centered title, inset column first: {}",
+        frame[0]
+    );
     assert!(frame[2].contains("loading observer…"));
     let joined = frame.join("\n");
     assert!(

@@ -245,9 +245,12 @@ fn status_branch_frames_carry_the_flagship_chrome() {
             "{name}: title + {story_rows} story + stamp, zero filler, got {} lines",
             lines.len()
         );
+        // NIGHT-engrave-12: the centered title — the status bar
+        // composes at the raw width (no frame_width inset here),
+        // (60 - 4 - 14) / 2 = 21 flank dashes a side.
         assert!(
-            lines[0].starts_with("╭─── zelynic status"),
-            "{name}: the eagle title bar opens the frame, got: {}",
+            lines[0].starts_with(&format!("╭{} zelynic status ", "─".repeat(21))),
+            "{name}: the centered eagle title bar opens the frame, got: {}",
             lines[0]
         );
         assert!(
