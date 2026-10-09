@@ -59,6 +59,21 @@
 //! EMA's convergence horizon (weight 1/8 per window): a sustained
 //! step change flags for roughly three windows, then reads as the
 //! new steady — the baseline FOLLOWS the traffic, not the past.
+//!
+//! ── THE PANEL'S RETIRE_DEAD (NIGHT-hunt-34, the render twin) ────
+//!
+//! A verdict row renders only while its policy root is OBSERVABLY
+//! alive: no identity entry for a 3-frame grace retires the row
+//! from the PANEL — display-only, the session board's own
+//! retire_dead law restated for this lane (a dead cgroup's ghost,
+//! the `cg:NNN steady 0 B/s` row the ring read still carries
+//! between the death and the next mutation visit's zombie sweep,
+//! is the same lie the board's freeze told). The retirement
+//! deliberately does NOT delete the learned state: the ring read
+//! re-seeds a dropped key the very next frame (the kernel twin
+//! still stands), so a deletion would only reset the ghost's EMA —
+//! the hidden row must stay hidden, not churn back as
+//! `learning 1/8`.
 
 use std::collections::HashMap;
 
@@ -102,6 +117,15 @@ pub const BASELINE_DEV_FLOOR_BYTES: u64 = 4 * 1024;
 /// (flags are rare, clearing is honest — the asymmetry is the
 /// conservative side).
 pub const BASELINE_SUSTAIN_WINDOWS: u32 = 2;
+
+/// The panel retirement grace (NIGHT-hunt-34): consecutive
+/// identity-miss frames a verdict row must survive before it
+/// retires from the panel. Three frames mirrors the session
+/// board's own RETIRE_GRACE_FRAMES discipline (session.rs, the
+/// sibling law one home over): a refresh hiccup that briefly
+/// loses a live root's entry lands a frame or two of false
+/// deaths, and the grace keeps a live verdict from flapping off.
+const BASELINE_RETIRE_GRACE_FRAMES: u32 = 3;
 // ── The per-direction learned state (pure) ─────────────────────────
 
 /// One policy root, one direction: the learned baseline. All folds
@@ -229,6 +253,12 @@ pub(crate) struct BaselineLane {
     dl: HashMap<u32, BaselineState>,
     /// Upload-direction states, the mirror leg.
     ul: HashMap<u32, BaselineState>,
+    /// Consecutive identity-miss frames per policy root
+    /// (NIGHT-hunt-34, the panel's retire_dead): an entry exists
+    /// only while its row is a retirement candidate, so the map is
+    /// bounded by the lane's own key set and empties on a
+    /// fully-live panel (a live frame clears the row's streak).
+    retire_streaks: HashMap<u32, u32>,
 }
 
 impl BaselineLane {
@@ -290,6 +320,37 @@ impl BaselineLane {
         states.retain(|k, _| live.contains(k));
     }
 
+    /// Retire the panel's dead rows (NIGHT-hunt-34, the render
+    /// twin of the session board's own law — the module header
+    /// owns the full contract). A row is dead ONLY by identity
+    /// (the walk names every cgroup a live process sits in, so a
+    /// root with no entry has no process left — no socket can
+    /// originate from it, no verdict it renders can be true), and
+    /// only a [`BASELINE_RETIRE_GRACE_FRAMES`]-frame streak of
+    /// such frames hides it; a live frame clears the streak. The
+    /// signal guard: an EMPTY identity map is a failed walk, never
+    /// proof of universal death — the pass stands down entirely.
+    pub(crate) fn retire_dead(&mut self, identity: &IdentityMap) {
+        if identity.is_empty() {
+            return;
+        }
+        let mut keys: Vec<u32> = self.dl.keys().chain(self.ul.keys()).copied().collect();
+        keys.sort_unstable();
+        keys.dedup();
+        for id in keys {
+            if identity.get(id).is_some() {
+                self.retire_streaks.remove(&id);
+            } else {
+                *self.retire_streaks.entry(id).or_insert(0) += 1;
+            }
+        }
+        // The streak map rides the lane's own retain law: a root
+        // whose ring row left the read (the zombie sweep collected
+        // it, or the pin epoch changed) takes its streak with it.
+        self.retire_streaks
+            .retain(|k, _| self.dl.contains_key(k) || self.ul.contains_key(k));
+    }
+
     /// cfg(test) pin seam (NIGHT-engrave-10): one read carrying one
     /// live window — a lane whose panel renders `learning 7/8` (the
     /// read folds the whole completed horizon: six quiet windows as
@@ -321,10 +382,20 @@ impl BaselineLane {
     /// The panel rows for the ranked view: every policy root the
     /// lane holds, busiest first (dl+ul EMA desc, ties by cgroup id
     /// — the board must not reshuffle between frames on a tie).
+    /// Retired roots (NIGHT-hunt-34) render no row: a root whose
+    /// identity streak reached the grace is hidden from the panel
+    /// while the lane keeps folding its ring (the display filter's
+    /// own law — the kernel-side row is the zombie sweep's
+    /// subject, not this lane's to delete).
     pub(crate) fn panel_rows(&self) -> Vec<(u32, Option<BaselineWord>, Option<BaselineWord>)> {
         let mut keys: Vec<u32> = self.dl.keys().chain(self.ul.keys()).copied().collect();
         keys.sort_unstable();
         keys.dedup();
+        keys.retain(|k| {
+            self.retire_streaks
+                .get(k)
+                .is_none_or(|streak| *streak < BASELINE_RETIRE_GRACE_FRAMES)
+        });
         let mut rows: Vec<(u32, Option<BaselineWord>, Option<BaselineWord>)> = keys
             .into_iter()
             .map(|k| {
@@ -494,6 +565,14 @@ pub(crate) fn render_panel(
 #[cfg(test)]
 #[path = "../../../test/ebpf/render/baseline_tests.rs"]
 mod baseline_tests;
+
+// NIGHT-hunt-34: the retirement pins took their own file when the
+// panel's retire_dead landed (the session tree's own split
+// discipline — one file per contract, session_retire_tests the
+// precedent one home over).
+#[cfg(test)]
+#[path = "../../../test/ebpf/render/baseline_retire_tests.rs"]
+mod baseline_retire_tests;
 
 #[cfg(test)]
 #[path = "../../../test/ebpf/render/baseline_render_tests.rs"]

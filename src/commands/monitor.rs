@@ -353,6 +353,14 @@ pub fn handle_eagle_eyes(
         // next to the poll it joins (the lens lifecycle contracts
         // live in render/baseline.rs's header).
         baseline.refresh();
+        // NIGHT-hunt-34: the panel's retire_dead, the render twin
+        // of the session board's own law — a policy root with no
+        // identity entry for a 3-frame grace hides its verdict row
+        // (display-only; render/baseline.rs owns the why). Rides
+        // AFTER the refresh so the streaks judge the read's own
+        // key set, and beside the observer's identity, which the
+        // poll above lazily refreshed this frame.
+        baseline.retire_dead(observer.identity());
         render_eagle_eyes(
             lines,
             &summary,
