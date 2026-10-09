@@ -104,8 +104,8 @@ fn the_footer_is_the_empty_session_footer() {
     for fragment in [
         "0 packets + 0 cgroups",
         "total usage internet in 0s = 0 B",
-        "total max dl | ul = 0 B/s | 0 B/s",
-        "total avg dl | ul = 0 B/s | 0 B/s",
+        "peak arrival dl | ul = 0 B/s | 0 B/s",
+        "avg arrival dl | ul = 0 B/s | 0 B/s",
         "1s realtime - theme ",
         " - q quit - t theme",
         "by oxyzenQ",

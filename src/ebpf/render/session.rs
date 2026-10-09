@@ -58,7 +58,7 @@
 //!
 //! NIGHT-engrave-6 (the footer's speed pair): the session state also
 //! carries the running PEAK RATES of the watched set's per-frame
-//! aggregates — the max figure the footer's `total max dl | ul` line
+//! aggregates — the max figure the footer's `peak arrival dl | ul` line
 //! renders. Since NIGHT-hunt-38 the peaks are tracked as RATES at
 //! fold time (each frame's aggregate divided by the span that frame
 //! was measured over): the pre-hunt-38 form stored the peak BYTES
@@ -321,7 +321,7 @@ impl SessionState {
     }
 
     /// Note one frame's watched-set aggregate into the running
-    /// peak RATES (NIGHT-engrave-6 — the footer's `total max dl | ul`
+    /// peak RATES (NIGHT-engrave-6 — the footer's `peak arrival dl | ul`
     /// line; NIGHT-hunt-38 — the peak tracks the RATE, the delta
     /// divided by the span IT was measured over). `watched` is
     /// `None` on an unfiltered frame (every cgroup aggregates — the

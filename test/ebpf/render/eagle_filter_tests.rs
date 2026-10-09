@@ -143,11 +143,11 @@ fn name_targets_expand_and_misses_note() {
     // to it exactly as it is to the board), AVG divides the filtered
     // session legs by the 70s uptime. One paragraph, one story.
     assert!(
-        joined.contains("total max dl | ul = 5.0 KB/s | 100 B/s"),
+        joined.contains("peak arrival dl | ul = 5.0 KB/s | 100 B/s"),
         "the filtered frame's peaks are the watched set's own: {joined}"
     );
     assert!(
-        joined.contains("total avg dl | ul = 71 B/s | 1 B/s"),
+        joined.contains("avg arrival dl | ul = 71 B/s | 1 B/s"),
         "the filtered frame's avg divides the watched legs by the uptime: {joined}"
     );
     assert!(

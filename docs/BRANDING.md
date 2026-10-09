@@ -153,10 +153,13 @@ numerics, and no per-cell noise (values are never packed as
   living thing in the grey block), `478 packets + 1 cgroups` (grey,
   session horizon), `total usage internet in 1h:20s = 10.2 GB` (grey,
   SI decimal — the same ladder every byte figure rides),
-  `total max dl | ul = 20.2 GB/s | 1.0 GB/s` and `total avg dl | ul =
-  10.2 GB/s | 1.1 MB/s` (grey — the session speed pair: the peak
-  and the average per direction, same watched scope and same clock
-  as the total row above them, honest `0 B/s` zeroes at rest),
+  `peak arrival dl | ul = 20.2 GB/s | 1.0 GB/s` and `avg arrival dl |
+  ul = 10.2 GB/s | 1.1 MB/s` (grey — the session speed pair: the peak
+  and the average per direction, arrival-labeled since
+  night-private-research-7 — pre-verdict figures, so a peak above the
+  policy is the demand the limit absorbed; same watched scope and
+  same clock as the total row above them, honest `0 B/s` zeroes at
+  rest),
   `limit target with 'sudo zelynic ss curl 100kb'` (grey prefix,
   the quoted command in the ACTIVE theme's brand tier since
   NIGHT-engrave-7 — purple under netrunner, the theme's own accent

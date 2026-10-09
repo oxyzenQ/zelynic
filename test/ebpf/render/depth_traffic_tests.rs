@@ -10,6 +10,11 @@
 //! carried. All fixture-driven, never the host — the composition is
 //! pure over (deltas, census, cookie join), exactly what the handler
 //! assembles after the observer's window closes.
+//!
+//! night-private-research-7: the figures are now ARRIVAL RATES — the
+//! header carries the arrival label and every figure divides by the
+//! window's own seconds, the same per-second vocabulary the
+//! enforcement line speaks.
 
 use super::*;
 
@@ -175,10 +180,10 @@ fn quiet_window_is_a_verdict_not_a_failure() {
     );
 }
 
-/// The section rendering: the header carries the window and the
-/// kernel totals, the rows carry the live view's [dl X | ul Y]
-/// vocabulary, byteless rows stay lean, and the mover outranks the
-/// quiet endpoint.
+/// The section rendering: the header carries the window, the ARRIVAL
+/// label, and the window's own rates; the rows carry the live view's
+/// [dl X | ul Y] rate vocabulary, byteless rows stay lean, and the
+/// mover outranks the quiet endpoint.
 #[test]
 fn traffic_section_renders_the_window_and_ranked_rows() {
     let conns = census();
@@ -193,14 +198,14 @@ fn traffic_section_renders_the_window_and_ranked_rows() {
     let text = lines.join("\n");
 
     assert!(
-        text.contains("network traffic (5s focus): dl 10.0 MB · ul 300.0 KB"),
-        "the header names the window and both totals, got: {text}"
+        text.contains("network traffic (5s focus · arrival): dl 2.0 MB/s · ul 60.0 KB/s"),
+        "the header names the window, the arrival label, and both rates, got: {text}"
     );
     assert!(
         text.contains(
-            "curl (4242) → 142.250.191.78:443 tcp ESTABLISHED [dl 10.0 MB | ul 300.0 KB]"
+            "curl (4242) → 142.250.191.78:443 tcp ESTABLISHED [dl 2.0 MB/s | ul 60.0 KB/s]"
         ),
-        "the mover's row carries the byte vocabulary, got: {text}"
+        "the mover's row carries the rate vocabulary, got: {text}"
     );
     assert!(
         text.contains("cat-test (1234) → 10.0.0.9:22 tcp ESTABLISHED"),
@@ -318,8 +323,8 @@ fn connected_udp_reaches_the_traffic_rows() {
     let focus = traffic_focus(1234, 3, &[delta(1234, 100, 5000)], Some(&conns), &bytes);
     let text = traffic_section_lines(&focus).join("\n");
     assert!(
-        text.contains("142.250.191.78:443 udp ESTABLISHED [dl 5.0 KB | ul 700 B]"),
-        "the connected-UDP row renders with its figures, got: {text}"
+        text.contains("142.250.191.78:443 udp ESTABLISHED [dl 1.7 KB/s | ul 233 B/s]"),
+        "the connected-UDP row renders with its figures over the 3s window (5000/3 rounds 1667 B/s), got: {text}"
     );
     // Movers-first: the UDP socket out-ate the TCP one, so it ranks first.
     let udp_line = focus
@@ -372,8 +377,8 @@ fn raw_socket_reaches_the_traffic_rows() {
     let focus = traffic_focus(1234, 3, &[delta(1234, 100, 8000)], Some(&conns), &bytes);
     let text = traffic_section_lines(&focus).join("\n");
     assert!(
-        text.contains("1.2.3.4:0 raw ESTABLISHED [dl 8.0 KB | ul 200 B]"),
-        "the raw socket row renders with its figures, got: {text}"
+        text.contains("1.2.3.4:0 raw ESTABLISHED [dl 2.7 KB/s | ul 67 B/s]"),
+        "the raw socket row renders with its figures over the 3s window (8000/3 rounds 2667 B/s), got: {text}"
     );
     // Movers-first: the raw socket out-ate the TCP one (8.3 KB vs
     // 400 B), so it ranks first — the operator sees the raw socket
@@ -428,8 +433,8 @@ fn unbound_raw_socket_reaches_the_traffic_rows() {
     let focus = traffic_focus(1234, 3, &[delta(1234, 1500, 500)], Some(&conns), &bytes);
     let text = traffic_section_lines(&focus).join("\n");
     assert!(
-        text.contains("0.0.0.0:0 raw CLOSE [dl 500 B | ul 1.5 KB]"),
-        "the unbound raw socket row renders with its figures, got: {text}"
+        text.contains("0.0.0.0:0 raw CLOSE [dl 167 B/s | ul 500 B/s]"),
+        "the unbound raw socket row renders with its figures over the 3s window (500/3 rounds 167 B/s), got: {text}"
     );
     let raw_line = focus
         .endpoints
@@ -438,4 +443,38 @@ fn unbound_raw_socket_reaches_the_traffic_rows() {
         .expect("the unbound raw endpoint survives the census gate");
     assert_eq!(raw_line.remote, "0.0.0.0:0");
     assert_eq!(raw_line.state, "CLOSE");
+}
+
+/// night-private-research-7 pin: the window's own denominator — the
+/// exact shape of the owner's transcript. A 30s window that booked
+/// 1.2 MB renders 40 KB/s (not the raw 1.2 MB a reader once mistook
+/// for a rate against a 200 KB/s policy), and the endpoint figure
+/// rides the same denominator as the header it sits under.
+#[test]
+fn window_figures_divide_by_the_windows_own_seconds() {
+    let conns = census();
+    let mut bytes = join();
+    bytes.insert(
+        1001,
+        SocketBytes {
+            dl: 1_200_000,
+            ul: 28_200,
+        },
+    );
+    let focus = traffic_focus(
+        1234,
+        30,
+        &[delta(1234, 33_300, 1_200_000)],
+        Some(&conns),
+        &bytes,
+    );
+    let text = traffic_section_lines(&focus).join("\n");
+    assert!(
+        text.contains("network traffic (30s focus · arrival): dl 40.0 KB/s · ul 1.1 KB/s"),
+        "1.2 MB over 30s is 40 KB/s — the owner's own transcript math, got: {text}"
+    );
+    assert!(
+        text.contains("142.250.191.78:443 tcp ESTABLISHED [dl 40.0 KB/s | ul 940 B/s]"),
+        "the endpoint rides the same denominator (28_200/30 = 940 B/s), got: {text}"
+    );
 }

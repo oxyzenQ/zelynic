@@ -475,7 +475,7 @@ fn rate_columns_divide_by_the_measured_span_not_the_cadence() {
         );
         // The footer's MAX pair converts with the same measured span.
         assert!(
-            joined.contains(&format!("total max dl | ul = {dl_rate} | {ul_rate}")),
+            joined.contains(&format!("peak arrival dl | ul = {dl_rate} | {ul_rate}")),
             "span {span:?}: the footer MAX pair reads the same figures: {joined}"
         );
         // The status line stays on the CONFIGURED cadence — the

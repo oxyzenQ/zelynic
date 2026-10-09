@@ -38,13 +38,25 @@
 //!   renders the basic socket census exactly as before.
 
 use crate::ebpf::connections::{CgroupConnections, ConnectionMap};
-use crate::ebpf::limiter::format_bytes;
+use crate::ebpf::limiter::format_rate;
 use crate::ebpf::loader::{CgroupDelta, SocketBytes};
 use crate::output::grey;
 
 use std::collections::HashMap;
+use std::time::Duration;
 
+use super::rate_bps;
 use super::report::SOCKET_LINES_CAP;
+
+/// The window's arrival rate for one direction (pure,
+/// night-private-research-7): window bytes over window seconds —
+/// the same honest-denominator discipline the live view's rate
+/// columns use. The window grammar bounds `--focus` at 1s..30s, so
+/// the max(1) guard is belt-and-suspenders for fixture-driven
+/// callers, never a production path.
+fn window_rate(bytes: u64, window_secs: u64) -> String {
+    format_rate(rate_bps(bytes, Duration::from_secs(window_secs.max(1))))
+}
 
 /// One endpoint row of the focus window: the /proc census row joined
 /// with its cookie's window bytes when the join resolved.
@@ -70,22 +82,32 @@ impl TrafficEndpoint {
         self.dl.unwrap_or(0).saturating_add(self.ul.unwrap_or(0))
     }
 
-    /// The row's byte suffix — the live view's exact `[dl X | ul Y]`
-    /// vocabulary, so the two surfaces read as one family. Empty for
-    /// a byteless row (the lean-row contract, detail::endpoint_text).
-    fn bytes_suffix(&self) -> String {
+    /// The row's rate suffix (night-private-research-7): the live
+    /// view's exact `[dl X | ul Y]` vocabulary with BOTH surfaces
+    /// now speaking per-second ARRIVAL rates — the window's bytes
+    /// divided by the window's own seconds, so a `[dl 40 KB/s]` row
+    /// compares directly against the `dl 200.0 KB/s` policy two
+    /// lines above it (the owner's transcript had to divide
+    /// `[dl 1.2 MB]` by an invisible 30 to discover the 40 KB/s it
+    /// always meant). Empty for a byteless row (the lean-row
+    /// contract, detail::endpoint_text).
+    fn bytes_suffix(&self, window_secs: u64) -> String {
         match (self.dl, self.ul) {
             (Some(dl), Some(ul)) => {
-                format!(" [dl {} | ul {}]", format_bytes(dl), format_bytes(ul))
+                format!(
+                    " [dl {} | ul {}]",
+                    window_rate(dl, window_secs),
+                    window_rate(ul, window_secs)
+                )
             }
-            (Some(dl), None) => format!(" [dl {}]", format_bytes(dl)),
-            (None, Some(ul)) => format!(" [ul {}]", format_bytes(ul)),
+            (Some(dl), None) => format!(" [dl {}]", window_rate(dl, window_secs)),
+            (None, Some(ul)) => format!(" [ul {}]", window_rate(ul, window_secs)),
             (None, None) => String::new(),
         }
     }
 
     /// The endpoint row as the report prints it (pure).
-    fn row(&self) -> String {
+    fn row(&self, window_secs: u64) -> String {
         format!(
             "   {} ({}) → {} {} {}{}",
             self.comm,
@@ -93,7 +115,7 @@ impl TrafficEndpoint {
             self.remote,
             self.proto,
             self.state,
-            self.bytes_suffix()
+            self.bytes_suffix(window_secs)
         )
     }
 }
@@ -130,9 +152,15 @@ impl TrafficFocus {
         self.dl_bytes > 0 || self.ul_bytes > 0
     }
 
-    /// The section header line: the window and the kernel's own
-    /// totals, the dl/ul vocabulary every speed pair in the monitor
-    /// carries. Zero traffic renders the no-movement verdict.
+    /// The section header line (night-private-research-7): the
+    /// window, the ARRIVAL label (these are pre-verdict figures —
+    /// what reached the cgroup, including what the limit then
+    /// dropped; `status`'s allowed/dropped ledger is the twin that
+    /// splits them), and the window's own rates — bytes over the
+    /// window's seconds, the same per-second vocabulary the
+    /// enforcement line two rows above speaks, so the two figures
+    /// read as one comparison. Zero traffic renders the no-movement
+    /// verdict.
     fn header(&self) -> String {
         if !self.moved() {
             return grey(&format!(
@@ -141,10 +169,10 @@ impl TrafficFocus {
             ));
         }
         grey(&format!(
-            "  network traffic ({}s focus): dl {} · ul {}",
+            "  network traffic ({}s focus · arrival): dl {} · ul {}",
             self.window_secs,
-            format_bytes(self.dl_bytes),
-            format_bytes(self.ul_bytes)
+            window_rate(self.dl_bytes, self.window_secs),
+            window_rate(self.ul_bytes, self.window_secs)
         ))
     }
 }
@@ -247,7 +275,7 @@ fn capped_rows<I: Iterator<Item = String>>(rows: I) -> Vec<String> {
 pub(crate) fn traffic_section_lines(focus: &TrafficFocus) -> Vec<String> {
     let mut lines = vec![focus.header()];
     lines.extend(capped_rows(
-        focus.endpoints.iter().map(TrafficEndpoint::row),
+        focus.endpoints.iter().map(|e| e.row(focus.window_secs)),
     ));
     lines
 }

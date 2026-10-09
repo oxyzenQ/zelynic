@@ -143,11 +143,12 @@ pub fn handle_eagle_eyes(
 ) -> Result<()> {
     use crate::ebpf::connections::ConnectionMap;
     use crate::ebpf::limiter::Target;
-    use crate::ebpf::loader::Observer;
+    use crate::ebpf::loader::{Observer, SocketBytes};
     use crate::ebpf::render::{
         loading_frame, render_eagle_eyes, BaselineLane, FrameGeometry, ScrollState, SessionState,
     };
     use crate::terminal;
+    use std::collections::HashMap;
     use std::time::Duration;
 
     // Input validation first (fail-fast, no privileges needed): the
@@ -324,6 +325,13 @@ pub fn handle_eagle_eyes(
     // tops) renders the same frame the pre-scroll monitor owned,
     // plus the focus marker the key map earns.
     let mut scroll = ScrollState::new();
+    // night-private-research-7: the previous join's ABSOLUTE cookie
+    // counters — the differencing baseline the fold below subtracts
+    // to turn the cookie maps' since-attach totals into per-frame
+    // movers. Bounded by the current census's cookie set (the loader
+    // only returns the cookies the walk resolved; a dead socket's
+    // cookie leaves with the next refresh).
+    let mut join_prev: HashMap<u64, SocketBytes> = HashMap::new();
     monitor.run(interval, |lines, action| {
         // One-frame tolerance, not a swallow bug (NIGHT-optimized-2
         // audit): the opening poll below hard-failed on any broken
@@ -347,15 +355,47 @@ pub fn handle_eagle_eyes(
         // frontier): the join. The ConnectionMap's /proc walk resolved
         // each held socket's kernel cookie (pidfd_getfd + SO_COOKIE);
         // the loader point-looks-up the BPF cookie maps for exactly
-        // that set (tens of syscalls, not a map iteration) and the
-        // result parks on the map the renderers already read. An Err
-        // keeps the previous join — lifetime totals stale by one
-        // frame, never fabricated-absent, the leaderboard's own
-        // one-frame tolerance.
+        // that set (tens of syscalls, not a map iteration).
+        //
+        // night-private-research-7 (arrival rates): the join is now
+        // DIFFERENCED before it parks — the cookie maps carry
+        // ABSOLUTE counters since attach, and a raw install made every
+        // endpoint suffix a since-attach total the reader had to
+        // mentally divide by a window that was not on screen (the
+        // owner's transcript read `[dl 771.1 KB]` as a rate and
+        // concluded the limit was bypassed — it was not; the arrival
+        // rate was 257 KB/s against a 200 KB/s policy and the drops
+        // were booked the whole time). The fold keeps only THIS
+        // FRAME's movers (either direction nonzero); the renderers
+        // divide by the measured span, the same denominator the rate
+        // columns use — every dl/ul figure on screen is per-second
+        // over the same window.
+        //
+        // The fold is untied from the poll on purpose: the baseline
+        // above advances on every SUCCESSFUL join read, so the delta
+        // always spans exactly the gap between joins — an Err keeps
+        // the previous movers (stale by one frame, the leaderboard's
+        // own tolerance), and the rare poll-ok-join-err-recovery
+        // frame renders a numerator that spans two join gaps over a
+        // one-gap span — an UNDERESTIMATE, the safe direction: this
+        // pass exists so the family never shows a fake burst above
+        // the policy.
         let cookies = conns.socket_cookies();
         if !cookies.is_empty() {
             if let Ok(bytes) = observer.socket_bytes(&cookies) {
-                conns.apply_socket_bytes(bytes);
+                let movers: HashMap<u64, SocketBytes> = bytes
+                    .iter()
+                    .filter_map(|(cookie, now)| {
+                        let prev = join_prev.get(cookie).copied().unwrap_or_default();
+                        let frame = SocketBytes {
+                            dl: now.dl.saturating_sub(prev.dl),
+                            ul: now.ul.saturating_sub(prev.ul),
+                        };
+                        (frame.dl > 0 || frame.ul > 0).then_some((*cookie, frame))
+                    })
+                    .collect();
+                conns.apply_socket_bytes(movers);
+                join_prev = bytes;
             }
         }
         // The lane refresh rides the same frame as the observer

@@ -132,11 +132,17 @@ pub struct ConnectionMap {
     refresh_ttl: Duration,
     /// The per-frame per-socket byte join (NIGHT-boost-26): the
     /// monitor loop point-looks-up the BPF cookie maps for exactly
-    /// the cookies the walk resolved and parks the result here —
-    /// the renderers read it through [`ConnectionMap::socket_bytes`],
-    /// so the join rides the SAME "everything known about one
+    /// the cookies the walk resolved, DIFFERENCES the absolute
+    /// counters against the previous folded join, and parks THIS
+    /// FRAME's movers here (night-private-research-7 — the arrival
+    /// rates pass: the renderers read it through
+    /// [`ConnectionMap::socket_bytes`] and divide by the measured
+    /// span, so the join rides the SAME "everything known about one
     /// cgroup's inhabitants" structure the endpoint rows render
-    /// from. Empty until the monitor's first successful join.
+    /// from, in the same per-second vocabulary the rate columns
+    /// speak). Empty until the monitor's first successful join, and
+    /// empty again on an all-quiet frame (movers only — a
+    /// connected-but-quiet socket keeps its lean row).
     socket_bytes: HashMap<u64, SocketBytes>,
 }
 
@@ -161,10 +167,13 @@ impl ConnectionMap {
     /// Install the per-frame per-socket byte join (NIGHT-boost-26):
     /// called by the monitor loop after every poll — the figures are
     /// live counters, refreshed each frame even when the /proc walk
-    /// itself is TTL-cached. An Err from the loader side simply skips
-    /// the install: the previous join's lifetime totals stay (stale
-    /// by one frame, never fabricated-absent) — the same
-    /// one-frame-tolerance contract the leaderboard's rows carry.
+    /// itself is TTL-cached. Since night-private-research-7 the
+    /// installed map carries the frame's MOVERS (the differenced
+    /// deltas, either direction nonzero — see the field doc); an Err
+    /// from the loader side simply skips the install: the previous
+    /// frame's movers stay (stale by one frame, never
+    /// fabricated-absent) — the same one-frame-tolerance contract
+    /// the leaderboard's rows carry.
     pub fn apply_socket_bytes(&mut self, bytes: HashMap<u64, SocketBytes>) {
         self.socket_bytes = bytes;
     }

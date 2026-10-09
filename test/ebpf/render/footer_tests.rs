@@ -138,13 +138,13 @@ fn eagle_frame_builds_lines() {
     // discipline: `0 B/s`, never the limiter's BLOCKED verdict).
     assert_eq!(
         lines[total_idx + 1],
-        flanked("  total max dl | ul = 0 B/s | 0 B/s"),
+        flanked("  peak arrival dl | ul = 0 B/s | 0 B/s"),
         "the idle max line renders honest zeroes: {}",
         lines[total_idx + 1]
     );
     assert_eq!(
         lines[total_idx + 2],
-        flanked("  total avg dl | ul = 0 B/s | 0 B/s"),
+        flanked("  avg arrival dl | ul = 0 B/s | 0 B/s"),
         "the idle avg line divides zero legs by the uptime: {}",
         lines[total_idx + 2]
     );
@@ -276,13 +276,13 @@ fn footer_layout_pins_to_the_bottom() {
     // grand totals and the same clock the story row renders.
     assert_eq!(
         lines[total_row + 1],
-        flanked("  total max dl | ul = 1.4 MB/s | 240.0 KB/s"),
+        flanked("  peak arrival dl | ul = 1.4 MB/s | 240.0 KB/s"),
         "the max line renders the session's peak per-direction rates: {}",
         lines[total_row + 1]
     );
     assert_eq!(
         lines[total_row + 2],
-        flanked("  total avg dl | ul = 20.0 KB/s | 3.4 KB/s"),
+        flanked("  avg arrival dl | ul = 20.0 KB/s | 3.4 KB/s"),
         "the avg line divides the session legs by the uptime: {}",
         lines[total_row + 2]
     );
@@ -436,11 +436,11 @@ fn footer_discovery_pair_renders_with_the_autodetect_name() {
     // divides the session legs by the 70s horizon (7.1 KB/s | 71
     // B/s — the 71 truncates to the honest integer B tier).
     assert!(
-        joined.contains("total max dl | ul = 500.0 KB/s | 5.0 KB/s"),
+        joined.contains("peak arrival dl | ul = 500.0 KB/s | 5.0 KB/s"),
         "the max line renders the session's peak rates: {joined}"
     );
     assert!(
-        joined.contains("total avg dl | ul = 7.1 KB/s | 71 B/s"),
+        joined.contains("avg arrival dl | ul = 7.1 KB/s | 71 B/s"),
         "the avg line renders the session legs over the uptime: {joined}"
     );
     assert_eq!(lines.len(), 24, "the pin is unchanged by the rebuild");

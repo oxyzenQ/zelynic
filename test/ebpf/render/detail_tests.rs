@@ -10,6 +10,11 @@ use super::*;
 use crate::ebpf::render::BaselineLane;
 use crate::ebpf::render::ScrollState;
 
+/// The fixtures' frame window (night-private-research-7): one second,
+/// the monitor's default cadence — the suffix figures the byte pins
+/// assert against divide by exactly this.
+const WINDOW: Duration = Duration::from_secs(1);
+
 /// Label enrichment (NIGHT-hunt-8): multi-tenant cgroups say so.
 #[test]
 fn label_with_count_shapes() {
@@ -165,7 +170,7 @@ fn fixture() -> (
 fn detail_lines_tree_eagle_eyes() {
     let (conns, _) = fixture();
 
-    let lines = detail_lines(Some(&conns), 7001);
+    let lines = detail_lines(Some(&conns), 7001, WINDOW);
     assert_eq!(
         lines,
         vec![
@@ -177,9 +182,9 @@ fn detail_lines_tree_eagle_eyes() {
     );
 
     // No map, no detail — the monitor degrades to plain rows.
-    assert!(detail_lines(None, 7001).is_empty());
+    assert!(detail_lines(None, 7001, WINDOW).is_empty());
     // Unknown cgroup: no detail.
-    assert!(detail_lines(Some(&conns), 1234).is_empty());
+    assert!(detail_lines(Some(&conns), 1234, WINDOW).is_empty());
 }
 
 /// Eagle-eyes cap behavior across the holder mixes: an expansion
@@ -223,7 +228,7 @@ fn detail_lines_tree_budget() {
         },
     );
     assert_eq!(
-        detail_lines(Some(&conns), 7001),
+        detail_lines(Some(&conns), 7001, WINDOW),
         vec![
             "    └ curl (4242) 2 sockets:".to_string(),
             "        ├ 10.90.170.143:443".to_string(),
@@ -245,7 +250,7 @@ fn detail_lines_tree_budget() {
         },
     );
     assert_eq!(
-        detail_lines(Some(&conns), 7002),
+        detail_lines(Some(&conns), 7002, WINDOW),
         vec![
             "    └ app (5000) → 10.0.0.0:443".to_string(),
             "    └ app (5001) → 10.0.0.1:443".to_string(),
@@ -267,7 +272,7 @@ fn detail_lines_tree_budget() {
         },
     );
     assert_eq!(
-        detail_lines(Some(&conns), 7003),
+        detail_lines(Some(&conns), 7003, WINDOW),
         vec![
             "    └ curl (4242) 2 sockets:".to_string(),
             "        ├ 10.90.170.143:443".to_string(),
@@ -283,7 +288,7 @@ fn detail_lines_tree_budget() {
 fn full_detail_lines_tree() {
     let (conns, _) = fixture();
 
-    let lines = full_detail_lines(Some(&conns), 7001);
+    let lines = full_detail_lines(Some(&conns), 7001, WINDOW);
     assert_eq!(
         lines,
         vec![
@@ -299,8 +304,8 @@ fn full_detail_lines_tree() {
 
     // Degradation contract: no map, unknown cgroup, or a cgroup with
     // no socket holders at all renders nothing.
-    assert!(full_detail_lines(None, 7001).is_empty());
-    assert!(full_detail_lines(Some(&conns), 1234).is_empty());
+    assert!(full_detail_lines(None, 7001, WINDOW).is_empty());
+    assert!(full_detail_lines(Some(&conns), 1234, WINDOW).is_empty());
 }
 
 /// A three-endpoint holder (NIGHT-boost-21): the eagle view caps the
@@ -337,7 +342,7 @@ fn detail_lines_three_endpoints() {
     );
 
     assert_eq!(
-        detail_lines(Some(&conns), 7001),
+        detail_lines(Some(&conns), 7001, WINDOW),
         vec![
             "    └ firefox (4242) 3 sockets:".to_string(),
             "        ├ 142.250.191.78:443".to_string(),
@@ -345,7 +350,7 @@ fn detail_lines_three_endpoints() {
         ]
     );
     assert_eq!(
-        full_detail_lines(Some(&conns), 7001),
+        full_detail_lines(Some(&conns), 7001, WINDOW),
         vec![
             "  processes with sockets (1 total processes):".to_string(),
             "  └ firefox (4242) 3 sockets:".to_string(),

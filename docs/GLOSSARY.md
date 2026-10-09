@@ -129,12 +129,24 @@ first-time reader, and this page pays it once, up front.
   the leaderboard's rate columns, the footer's speed pair, and the
   endpoint suffix all speak (a lowercase L, never the digit one —
   the font-confusable pair the owner's transcript caught; this line
-  is the decode). (USAGE.md, the eagle-eyes tables)
-- **The endpoint suffix**: `[dl X | ul Y]` on a tree line — the
-  BYTES that endpoint moved since the monitor attached, split by
-  direction (the live view's own horizon, the per-socket join
-  NIGHT-boost-26); the `--depth` report carries the same suffix
-  shape over ITS focus window instead.
+  is the decode). Since night-private-research-7 every dl/ul figure
+  is a per-second ARRIVAL rate — comparable against the policy on
+  sight, no mental math. (USAGE.md, the eagle-eyes tables)
+- **Arrival**: what REACHED the interface, pre-verdict — the
+  observer's own count, including the bytes a limit then dropped
+  and TCP retransmits (night-private-research-7's honesty label:
+  `status`'s allowed/dropped ledger is the twin that splits arrival
+  into its verdicts). A `peak arrival` above the policy is the
+  demand the limit absorbed, not a bypass.
+- **The endpoint suffix**: `[dl X | ul Y]` on a tree line — that
+  endpoint's per-second ARRIVAL rate over the measured window (the
+  live view differences the per-socket cookie counters frame over
+  frame and divides by the same span the rate columns use; the
+  `--depth` report divides the window's bytes by the window's own
+  seconds — one vocabulary, both horizons; NIGHT-boost-26's join
+  carried to its rate form by night-private-research-7). A
+  connected-but-quiet socket keeps its lean row: absence is the
+  "quiet now" signal.
 - **The `+N` label suffix**: `cg:7001 (brave +22)` — 23 processes
   hold sockets inside the cgroup: the named one plus 22 more, the
   label's honest scale.

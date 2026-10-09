@@ -77,6 +77,13 @@ pub struct DepthReport {
     pub enforcement_stats: Option<LimiterStatsRaw>,
     /// The connection walk's census for this cgroup, when it saw one.
     pub conns: Option<CgroupConnections>,
+    /// The focus window's dropped bytes (night-private-research-7):
+    /// the ledger's dropped-counter delta across the window's
+    /// bracketing reads — the bytes the limit killed while the
+    /// window measured. Zero when nothing was dropped in the window
+    /// (or no window or no limit ran); drives the enforcement line's
+    /// `(shaping)` tag.
+    pub window_dropped: u64,
     /// The network-traffic focus window (NIGHT-private-research-3,
     /// the think-like-light-years-3 upgrade): the kernel's own
     /// window totals plus every endpoint's joined bytes, measured
@@ -139,8 +146,18 @@ pub fn enforcement_word(enforcement: &Enforcement) -> &'static str {
 
 /// The summary line's human sentence: "limited — dl 100.0 KB/s · ul
 /// blocked", "blocked", or "unlimited" (pure).
+///
+/// night-private-research-7: a `shaping` window (the focus window's
+/// bracket reads saw the ledger's dropped counter MOVE — the limit
+/// was actively dropping bytes while the window measured) tags the
+/// limited verdict `limited (shaping)`, the one-word answer to the
+/// owner's standing question — "is the limit biting RIGHT NOW?" —
+/// on the enforcement line itself, no `status` round-trip needed.
+/// The tag rides the mixed limited arm only: a blocked policy drops
+/// by definition (the tag would be noise) and an unlimited one has
+/// nothing to shape.
 #[must_use]
-pub fn enforcement_sentence(enforcement: &Enforcement) -> String {
+pub fn enforcement_sentence(enforcement: &Enforcement, shaping: bool) -> String {
     match enforcement {
         Enforcement::Unlimited => "unlimited".to_string(),
         Enforcement::Limited { download, upload } => {
@@ -156,13 +173,37 @@ pub fn enforcement_sentence(enforcement: &Enforcement) -> String {
                 Some(raw) => format_rate(raw.rate_bps),
                 None => "unlimited".to_string(),
             };
+            let tag = if shaping { " (shaping)" } else { "" };
             match (direction_word(download), direction_word(upload)) {
                 ("unlimited", "unlimited") => "unlimited".to_string(),
                 (a, b) if a == "blocked" && b == "blocked" => "blocked".to_string(),
-                _ => format!("limited — dl {} · ul {}", render(download), render(upload)),
+                _ => format!(
+                    "limited{tag} — dl {} · ul {}",
+                    render(download),
+                    render(upload)
+                ),
             }
         }
     }
+}
+
+/// The focus window's dropped-byte verdict (pure,
+/// night-private-research-7): the ledger's dropped counter moved
+/// between the window's bracketing reads — the exact bytes the limit
+/// killed INSIDE the window, the honest basis for the enforcement
+/// line's `(shaping)` tag. A missing row on either side of the
+/// bracket counts as zero booked (a fresh pin mid-window books its
+/// first drops whole; a swept row stopped moving either way), and
+/// the saturating subtraction keeps a swept-and-reborn row honest
+/// too (its counter restarts — the delta reads zero, never negative).
+#[must_use]
+pub fn window_dropped_bytes(
+    closing: Option<&LimiterStatsRaw>,
+    baseline: Option<&LimiterStatsRaw>,
+) -> u64 {
+    closing
+        .map_or(0, |c| c.bytes_dropped)
+        .saturating_sub(baseline.map_or(0, |b| b.bytes_dropped))
 }
 
 /// The cgroup's absolute path, composed the same way the identity
@@ -313,7 +354,7 @@ pub fn depth_report_lines(reports: &[DepthReport], width: usize) -> Vec<String> 
         }
         lines.push(kv(
             "enforcement",
-            &enforcement_sentence(&report.enforcement),
+            &enforcement_sentence(&report.enforcement, report.window_dropped > 0),
         ));
         // NIGHT-blade-5: the accounting line — what the limit DID. The
         // ledger is the kernel's own book (bytes/packets allowed and

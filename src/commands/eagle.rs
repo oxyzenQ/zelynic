@@ -39,8 +39,8 @@ use crate::ebpf::limiter::{
 };
 use crate::ebpf::loader::{CgroupDelta, Observer, SocketBytes};
 use crate::ebpf::render::{
-    bypass_section, depth_doc_json, depth_report_lines, package_name, traffic_focus, DepthReport,
-    Enforcement,
+    bypass_section, depth_doc_json, depth_report_lines, package_name, traffic_focus,
+    window_dropped_bytes, DepthReport, Enforcement,
 };
 use crate::output::{grey, print_json};
 
@@ -358,7 +358,12 @@ pub(crate) fn handle_eagle_eyes_depth(
     let mut conns = ConnectionMap::new();
     conns.refresh();
     let limiter = open_enforcement(verbose)?;
-    let stats_rows = match &limiter {
+    // The ledger's BASELINE read (night-private-research-7): brackets
+    // the focus window's START — the dropped counter's delta across
+    // the bracket is the window's own shaping verdict (the
+    // enforcement line's `(shaping)` tag). The closing read below
+    // feeds the accounting line.
+    let baseline_stats = match &limiter {
         Some(l) => Some(l.read_stats_public()?),
         None => None,
     };
@@ -379,6 +384,17 @@ pub(crate) fn handle_eagle_eyes_depth(
         ))
     );
     let (focus_measure, traffic_note) = run_focus_window(&mut conns, focus_secs, verbose);
+    // The ledger's CLOSING read (night-private-research-7): the
+    // accounting line renders the ledger AS OF PRINT — including the
+    // window the report just measured (the pre-window read the line
+    // carried before was stale by the whole focus window: a 30s
+    // report under-reported its own enforcement by 30 seconds of
+    // drops). One extra pinned-map read, bracketing the same span
+    // the observer's deltas bracket.
+    let closing_stats = match &limiter {
+        Some(l) => Some(l.read_stats_public()?),
+        None => None,
+    };
 
     let mut reports: Vec<DepthReport> = Vec::new();
     let mut misses: Vec<(String, String)> = Vec::new();
@@ -460,7 +476,13 @@ pub(crate) fn handle_eagle_eyes_depth(
     // The stats join as a map (the find-per-id scan was
     // O(ids x rows) — the census row family is 1024-wide, a
     // fleet-scale depth spec paid a 4M-compare scan for nothing).
-    let stats_by_id: Option<HashMap<u32, LimiterStatsRaw>> = stats_rows
+    // Both bracket sides join the same way (night-private-research-7):
+    // closing feeds the accounting line, baseline feeds the window's
+    // shaping delta.
+    let stats_by_id: Option<HashMap<u32, LimiterStatsRaw>> = closing_stats
+        .as_ref()
+        .map(|rows| rows.iter().cloned().collect());
+    let baseline_by_id: Option<HashMap<u32, LimiterStatsRaw>> = baseline_stats
         .as_ref()
         .map(|rows| rows.iter().cloned().collect());
     for (token, ids) in tokens.iter().zip(ids_per_token) {
@@ -480,8 +502,16 @@ pub(crate) fn handle_eagle_eyes_depth(
             // The ledger row only exists for cgroups the kernel has
             // booked (a limited cgroup with zero traffic on a fresh
             // pin may not have one yet) — None renders no accounting
-            // line, the honest absence, never a fabricated zero.
+            // line, the honest absence, never a fabricated zero. The
+            // row is the CLOSING bracket (as-of-print, the window
+            // included — see the read's comment).
             let enforcement_stats = stats_by_id.as_ref().and_then(|m| m.get(&id)).copied();
+            // The window's own shaping verdict: the dropped counter's
+            // movement across the bracket (night-private-research-7).
+            let window_dropped = window_dropped_bytes(
+                stats_by_id.as_ref().and_then(|m| m.get(&id)),
+                baseline_by_id.as_ref().and_then(|m| m.get(&id)),
+            );
             let conns_view = conns.get(id).cloned();
             // The focus window's per-cgroup composition (pure): the
             // kernel's window totals joined onto this report's census
@@ -498,6 +528,7 @@ pub(crate) fn handle_eagle_eyes_depth(
                 enforcement,
                 enforcement_stats,
                 conns: conns_view,
+                window_dropped,
                 traffic,
                 traffic_note: traffic_note.clone(),
             });
