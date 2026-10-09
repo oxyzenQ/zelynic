@@ -1778,6 +1778,30 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **refactor(render): NIGHT-engrave-12 — the title rides the middle:
+  the eagle-eyes title bar centers its core.** The owner's ask,
+  total: the title hugged the top-left corner behind a fixed
+  three-dash prefix (`╭─── zelynic eagle-eyes ───…───╮`); it now
+  sits dead center (`╭──…── zelynic eagle-eyes ──…──╮`) — the
+  leftover columns flank the core as two balanced dash runs around
+  one rendered gutter each side, the floor on the left and the
+  remainder on the right (Rust's own `{:^}` centering convention).
+  One composer change centers every surface that speaks through it:
+  the eagle frame, the focus frame, the depth report, the loading
+  frame, `status`, and `list-apps` move together — no surface left
+  hugging. The narrow ladder re-lands: the centered form carries
+  the full core one column lower than the old prefix (24 cols for
+  the flagship title, down from 26 — no fixed five-column rent on
+  the identity), the ellipsis takes the first downgrade below that,
+  width six degrades to the plain cornered bar, and the sub-five
+  floor keeps the former cornerless fill byte for byte. The
+  engrave-11 sweep law is untouched: the flank runs and corners
+  sweep the frame's wave, the core label stays flat bold brand, and
+  Color16/Mono keep the exact flat bytes. Pinned end to end: the
+  exact centered bytes at 80/40/10, the 0-80 exact-width ladder,
+  the 24/23 degradation steps, the plain-bar floor, and the
+  centered focus/loading/footer/status titles.
+
 - **refactor(render): NIGHT-engrave-11 — the horizontal masterclass:
   every horizontal line the frame draws now sweeps the chroma
   gradient method the vertical rails ride.** The owner's ask, total:

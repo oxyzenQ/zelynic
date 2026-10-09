@@ -99,15 +99,20 @@ width, regular-purple column headers, thin separators, right-aligned
 numerics, and no per-cell noise (values are never packed as
 `89 (1.2 MB)` — that is what the RATE column is for).
 
-- Title bar: `╭─── zelynic eagle-eyes ────…───────╮`, bold purple —
+- Title bar: `╭──…── zelynic eagle-eyes ──…──╮`, bold purple —
   the frame's TOP border (NIGHT-boost-20): rounded corners
-  connecting to the bar's own fill; identity only, the full-width
-  fill owning both corners since NIGHT-engrave-3 retired the
-  top-right key hint (the legend lives in the footer's status line
-  alone). NIGHT-engrave-11: at the sweep-capable depths the bar's
-  furniture (corner, fills, cap) sweeps the frame's wave ACROSS
-  the columns while the core label stays flat bold brand —
-  identity never dims; the flat rungs keep the flat bytes.
+  connecting to the bar's own fill; identity only, the fill owning
+  both corners since NIGHT-engrave-3 retired the top-right key
+  hint (the legend lives in the footer's status line alone).
+  NIGHT-engrave-12: the title rides the MIDDLE of the bar — the
+  former fixed `╭─── ` prefix hugged it to the top-left; the
+  leftover columns now flank it as two balanced dash runs around
+  one gutter each side (the floor left, the remainder right, the
+  `{:^}` convention). NIGHT-engrave-11: at the sweep-capable depths
+  the bar's furniture (corner, flank fills, corner) sweeps the
+  frame's wave ACROSS the columns while the core label stays flat
+  bold brand — identity never dims; the flat rungs keep the flat
+  bytes.
 - Column headers: `top process  download  upload  total`, regular
   purple (NIGHT-engrave-1: lowercase, the owner's exact titles).
   NIGHT-engrave-4: the `top process` title spans the whole identity
@@ -186,10 +191,12 @@ caught status as the last uppercase holdout: `CGROUP / DOWNLOAD /
 UPLOAD / ALLOWED / DROPPED` over a plain hyphen separator; both
 report tables now render the monitor's exact family.
 
-- Title bar: `╭─── zelynic status ─…─╮` / `╭─── zelynic list-apps ─…─╮`
-  — the flagship title bar, spanning the table's own width (the
-  status branch frames — clean, stale pins — span the terminal
-  width: no table to size to). Since NIGHT-private-research-3 the
+- Title bar: `╭──…── zelynic status ──…──╮` /
+  `╭──…── zelynic list-apps ──…──╮` — the flagship title bar (the
+  title centered per NIGHT-engrave-12), spanning the table's own
+  width (the status branch frames — clean, stale pins — span the
+  terminal width: no table to size to). Since
+  NIGHT-private-research-3 the
   content stacks directly under it: the report surfaces carry zero
   blank filler lines (the engrave-5 breathing gap retired by the
   owner's compact-and-simple directive; the live monitor's frame

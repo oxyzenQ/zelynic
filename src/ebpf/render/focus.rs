@@ -309,10 +309,15 @@ mod tests {
             joined.contains("lifetime  990.0 MB"),
             "lifetime sums both lifetime counters: {joined}"
         );
+        // NIGHT-engrave-12: the centered title — the frame composes
+        // at 78 cols, the 36-col core flanked by 19 dashes a side.
         assert!(
-            joined.starts_with(" ╭─── zelynic eagle-eyes — cg:7001 (brave)"),
+            joined.starts_with(&format!(
+                " \u{256d}{} zelynic eagle-eyes — cg:7001 (brave) ",
+                "─".repeat(19)
+            )),
             "the rounded top border names the focused target, inset \
-             column first (NIGHT-engrave-8): {joined}"
+             column first, core centered (NIGHT-engrave-8 + engrave-12): {joined}"
         );
     }
 
@@ -455,7 +460,13 @@ mod tests {
             },
         );
         assert_eq!(lines.len(), 24, "pinned frame spans the terminal height");
-        assert!(lines[0].starts_with(" ╭─── zelynic eagle-eyes — cg:73386"));
+        // NIGHT-engrave-12: the centered title — the 29-col core
+        // flanked by 22 dashes left, 23 right (floor left, remainder
+        // right, the `{:^}` convention), inset column first.
+        assert!(lines[0].starts_with(&format!(
+            " \u{256d}{} zelynic eagle-eyes — cg:73386 ",
+            "─".repeat(22)
+        )));
         assert!(
             !lines[0].contains("t theme"),
             "engrave-3: the focus title carries no key hint: {}",

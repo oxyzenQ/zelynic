@@ -95,9 +95,12 @@ fn eagle_frame_builds_lines() {
         &mut ScrollState::new(),
     );
     assert_eq!(lines.len(), 24, "the frame is pinned to the height");
+    // NIGHT-engrave-12: the title rides the bar's middle — the
+    // frame composes at 78 cols, 28 flank dashes a side around the
+    // core (inset column first, NIGHT-boost-20 + engrave-8).
     assert!(
-        lines[0].starts_with(" ╭─── zelynic eagle-eyes"),
-        "title carries the rounded top border, inset column first          (NIGHT-boost-20 + engrave-8): {}",
+        lines[0].starts_with(&format!(" ╭{} zelynic eagle-eyes ", "─".repeat(28))),
+        "the centered title: {}",
         lines[0]
     );
     assert_eq!(

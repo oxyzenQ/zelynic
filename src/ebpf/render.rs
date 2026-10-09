@@ -369,8 +369,8 @@ pub(crate) fn format_uptime(elapsed: std::time::Duration) -> String {
 /// rides every compression tier.
 ///
 /// NIGHT-engrave-11 (the horizontal masterclass): at the
-/// sweep-capable depths the bar's furniture (the corner, the prefix
-/// fill, the width fill, the closing cap) paints per column with
+/// sweep-capable depths the bar's furniture (the corner, the flank
+/// fills, the closing corner) paints per column with
 /// the SAME chroma method the vertical rails ride — the wave runs
 /// across the bar (dark edges, glowing center), while the core
 /// label stays FLAT bold brand (identity, not furniture: the
@@ -380,15 +380,18 @@ pub(crate) fn format_uptime(elapsed: std::time::Duration) -> String {
 /// keep the exact flat bytes (sixteen colors cannot ramp within
 /// one hue; Mono never painted).
 ///
-/// Shape: `╭─── <core> <fill> ─╮` (the corner cap degrades before the
-/// bar loses its fill on narrow frames). The two-column gutter
-/// behind the core matches every row, separator, and footer line —
-/// the frame's left rail is one straight edge (NIGHT-boost-5); the
-/// full-width fill is the flagship anchor: the eye locks onto the
-/// purple bar and instantly reads the frame width, corners included.
+/// Shape: `╭───…─── <core> ───…───╮` (the flank runs balance around
+/// the core; the bar degrades to the plain fill before it loses its
+/// corners). NIGHT-engrave-12: the core rides the MIDDLE of the bar
+/// — the former fixed `╭─── ` prefix hugged the identity to the
+/// top-left corner; the leftover columns now flank it as two
+/// balanced dash runs (the floor on the left, the remainder on the
+/// right — Rust's own `{:^}` centering convention), one rendered
+/// gutter each side. The centering is the bar's own law: every
+/// surface that speaks through this composer (eagle, focus, depth
+/// report, loading, status, list-apps) centers together.
 #[must_use]
 pub(crate) fn title_bar(core: &str, width: usize) -> String {
-    const PREFIX: &str = "╭─── ";
     const CAP: &str = "─╮";
     // NIGHT-lts-1: the core's budget is its RENDERED width — the
     // focus title carries a cgroup's comm, and a CJK name paints
@@ -398,15 +401,9 @@ pub(crate) fn title_bar(core: &str, width: usize) -> String {
     //
     // NIGHT-improve-36: the bar ALWAYS lands on exactly `width`
     // columns — the same fit-to-width contract every other frame
-    // row carries. The former degenerate branch (full core, no
-    // fill, no cap) let a long core overflow a narrow terminal,
-    // wrapping row 0 and shifting every row below it — the seam
-    // the lts-3 audit filed for the owner's decision. The core now
-    // truncates with an ellipsis before the bar loses its shape;
-    // identity degrades gracefully, geometry never breaks. At the
-    // pinned frame widths (80, 40) the output is byte-identical to
-    // the former path — the change only touches the narrow tail.
-    let prefix_len = display_width(PREFIX);
+    // row carries. The core truncates with an ellipsis before the
+    // bar loses its shape; identity degrades gracefully, geometry
+    // never breaks.
     let cap_len = display_width(CAP);
     let core_len = display_width(core);
 
@@ -414,11 +411,12 @@ pub(crate) fn title_bar(core: &str, width: usize) -> String {
         return String::new();
     }
 
-    // Too narrow for the prefix: the fill carries the bar alone
-    // (cornered when the width can carry the cap, plain otherwise).
-    // The bar's purple shape still spans the full width so the
-    // frame stays rectangular on the narrowest terminals.
-    if width <= prefix_len {
+    // Too narrow to carry a cornered, guttered core (five columns
+    // or fewer): the fill carries the bar alone (cornered when the
+    // width can carry the cap, plain otherwise). The bar's purple
+    // shape still spans the full width so the frame stays
+    // rectangular on the narrowest terminals.
+    if width <= 5 {
         let tail = if width >= cap_len { CAP } else { "" };
         let glyphs = format!(
             "{}{}",
@@ -434,42 +432,52 @@ pub(crate) fn title_bar(core: &str, width: usize) -> String {
         return swept_bar(&glyphs, None, width);
     }
 
-    // The cap closes the bar whenever the width can carry
-    // prefix + 1 (the core/fill separator) + cap; otherwise the
-    // fill carries the right edge alone, cornerless.
-    let has_cap = width >= prefix_len + 1 + cap_len;
-    let tail = if has_cap { CAP } else { "" };
-    let reserved = prefix_len + 1 + if has_cap { cap_len } else { 0 };
-    let core_budget = width.saturating_sub(reserved);
-
-    // Truncate the core to its budget (no-op when it already fits),
-    // routed through the same fit-to-width every label carries.
-    let fitted = if core_len <= core_budget {
+    // The centered core's budget: two corners, two gutters, and one
+    // flank dash a side are reserved; everything else is the core's.
+    const RESERVED: usize = 6;
+    let budget = width.saturating_sub(RESERVED);
+    let fitted = if core_len == 0 || budget == 0 {
+        String::new()
+    } else if core_len <= budget {
         core.to_string()
     } else {
-        truncate_label(core, core_budget)
+        truncate_label(core, budget)
     };
     let fitted_len = display_width(&fitted);
 
-    let used = prefix_len + 1 + fitted_len + if has_cap { cap_len } else { 0 };
-    let fill = "─".repeat(width.saturating_sub(used));
-
-    let glyphs = format!("{PREFIX}{fitted} {fill}{tail}");
+    let (glyphs, text) = if fitted_len == 0 {
+        // The plain bar (width six, or a core too wide to carry one
+        // glyph): corners and fill only — geometry first, identity
+        // already yielded everything it had.
+        (format!("╭{}╮", "─".repeat(width - 2)), None)
+    } else {
+        let dashes = width - 4 - fitted_len;
+        let left = dashes / 2;
+        (
+            format!(
+                "╭{} {fitted} {}╮",
+                "─".repeat(left),
+                "─".repeat(dashes - left)
+            ),
+            Some((left + 2, fitted_len)),
+        )
+    };
     if matches!(
         capability(),
         ColorCapability::Mono | ColorCapability::Color16
     ) {
         return brand_bold(&glyphs);
     }
-    // The label's first column sits right after the prefix (its own
-    // trailing space is the gutter); its span is the RENDERED width
-    // (NIGHT-lts-1 — a CJK name paints two columns per char).
-    swept_bar(&glyphs, Some((prefix_len, fitted_len)), width)
+    // The label's first column sits one corner + one flank run + one
+    // gutter in; its span is the RENDERED width (NIGHT-lts-1 — a
+    // CJK name paints two columns per char).
+    swept_bar(&glyphs, text, width)
 }
 
 /// NIGHT-engrave-11: the swept bar composer. `glyphs` is the bar's
-/// one-char-per-column row (corner, prefix fill, label, separator,
-/// width fill, cap); the wave runs across the whole `width`, each
+/// one-char-per-column row (corner, flank fill, label, gutter,
+/// flank fill, corner — NIGHT-engrave-12 centered the label); the
+/// wave runs across the whole `width`, each
 /// furniture glyph painted by the chroma method the vertical rails
 /// ride ([`border::sweep_run`] at its own column), while the
 /// `text` columns (start, rendered length) stay FLAT bold brand —
@@ -633,19 +641,29 @@ mod tests {
     }
 
     /// Title bar (NIGHT-boost-20 shape): rounded top border, exact
-    /// width, graceful degradation on narrow frames. NIGHT-boost-5
-    /// lineage: the bar carries the gutter every other frame line
-    /// uses. NIGHT-engrave-1: the hint led with the theme key;
-    /// NIGHT-engrave-2: identity only (the legend moved to the
-    /// footer's status line); NIGHT-engrave-3: the hint itself
-    /// retired — the top-right corner belongs to the fill alone.
+    /// width, graceful degradation on narrow frames. NIGHT-engrave-12:
+    /// the core rides the MIDDLE of the bar — balanced flank runs,
+    /// one gutter each side, the floor left and the remainder right
+    /// (the `{:^}` convention). NIGHT-engrave-1: the hint led with
+    /// the theme key; NIGHT-engrave-2: identity only (the legend
+    /// moved to the footer's status line); NIGHT-engrave-3: the hint
+    /// itself retired — the corners belong to the fill alone.
     #[test]
     fn title_bar_fills_width() {
         let bar = title_bar("zelynic eagle-eyes", 80);
-        // Mono mode (tests run piped): plain text, exact width.
+        // Mono mode (tests run piped): plain text, exact width. The
+        // centered title at 80: (80 - 4 - 18) / 2 = 29 flank dashes
+        // a side around one gutter each side.
         assert_eq!(bar.chars().count(), 80);
-        assert!(bar.starts_with("╭─── zelynic eagle-eyes"));
-        assert!(bar.ends_with("───╮"));
+        assert_eq!(
+            bar,
+            format!(
+                "\u{256d}{} zelynic eagle-eyes {}\u{256e}",
+                "─".repeat(29),
+                "─".repeat(29)
+            ),
+            "engrave-12: the title sits dead center, flanks balanced"
+        );
         assert!(
             !bar.contains("t theme") && !bar.contains("q quit"),
             "engrave-3: the key hint is gone from the top-right, the\nlegend lives in the footer's status line alone: {bar}"
@@ -654,16 +672,22 @@ mod tests {
         // Narrow (NIGHT-improve-36): the core truncates with an
         // ellipsis so the bar lands on EXACTLY `width` columns —
         // no overflow, no wrap, no alignment shift on the narrowest
-        // terminals. The former path emitted the full 24-col core on
-        // a 10-col terminal, wrapping row 0 and shifting every row
-        // below it; the bar now reads clean at every width.
+        // terminals. The centered form keeps one flank dash a side
+        // even under the tightest fit (10 - 4 - 4 = 2).
         let tiny = title_bar("zelynic eagle-eyes", 10);
         assert_eq!(tiny.chars().count(), 10);
-        assert!(tiny.starts_with("╭─── z…"));
-        assert!(tiny.ends_with("─╮"));
+        assert_eq!(tiny, "╭─ zel… ─╮");
 
-        // Medium: the fill carries to the corner cap, no hint.
+        // Medium: the flanks carry to both corners, no hint.
         let mid = title_bar("zelynic eagle-eyes", 40);
+        assert_eq!(
+            mid,
+            format!(
+                "\u{256d}{} zelynic eagle-eyes {}\u{256e}",
+                "─".repeat(9),
+                "─".repeat(9)
+            )
+        );
         assert!(!mid.contains("t theme"));
         assert!(mid.ends_with('╮'));
         assert_eq!(mid.chars().count(), 40);
@@ -694,20 +718,28 @@ mod tests {
         }
 
         // The identity holds while the budget carries the full core:
-        // at width 26 (prefix 5 + space 1 + core 18 + cap 2) the
-        // fill is empty but the full core is intact and cornered.
-        let just_fits = title_bar(core, 26);
-        assert_eq!(just_fits.chars().count(), 26);
-        assert!(just_fits.starts_with("╭─── zelynic eagle-eyes "));
-        assert!(just_fits.ends_with("─╮"));
+        // at width 24 (corners 2 + gutters 2 + core 18 + flanks 2)
+        // the full core is intact and cornered, the flanks one dash
+        // a side (NIGHT-engrave-12: the centered form carries the
+        // full core one column lower than the old left-hugging
+        // prefix — no fixed five-column rent on the identity).
+        let just_fits = title_bar(core, 24);
+        assert_eq!(just_fits.chars().count(), 24);
+        assert_eq!(just_fits, "╭─ zelynic eagle-eyes ─╮");
 
         // One col narrower: the ellipsis takes the first downgrade
-        // (core_budget drops to 17, the core yields to 16 cols +
-        // the ellipsis).
-        let ellipsis_floor = title_bar(core, 25);
-        assert_eq!(ellipsis_floor.chars().count(), 25);
-        assert!(ellipsis_floor.starts_with("╭─── "));
+        // (the budget drops to 17, the core yields to 16 cols + the
+        // ellipsis; the flanks keep one dash a side).
+        let ellipsis_floor = title_bar(core, 23);
+        assert_eq!(ellipsis_floor.chars().count(), 23);
+        assert_eq!(ellipsis_floor, "╭─ zelynic eagle-ey… ─╮");
         assert!(ellipsis_floor.contains('…'));
+
+        // Width six: the core cannot carry one glyph — the plain
+        // bar keeps both corners and the fill, rectangular.
+        assert_eq!(title_bar(core, 6), "╭────╮");
+        // Width seven: the ellipsis alone rides the middle.
+        assert_eq!(title_bar(core, 7), "╭─ … ─╮");
 
         // Below the prefix: the fill carries the bar alone — no
         // prefix, no core, just the purple shape, still rectangular.
