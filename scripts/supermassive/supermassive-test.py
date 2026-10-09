@@ -2097,7 +2097,9 @@ def stage_server_zombie_sweep():
     # zero bytes means the client never delivered and the ring rows
     # may not exist (the never-delivered shape still retires, but
     # this stage's contract is the DELIVERED zombie).
-    metric, err = spawn_in_cgroup("e", [sys.executable, "-c", _PY_DL_CLIENT, str(SERVER.port), "2.0"], 30)
+    metric, err = spawn_in_cgroup(
+        "e", [sys.executable, "-c", _PY_DL_CLIENT, str(SERVER.port), "2.0"], 30
+    )
     if metric is None or metric <= 0:
         record(
             "server: zombie-sweep live proof (die + status visit)",
