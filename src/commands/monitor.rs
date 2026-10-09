@@ -95,6 +95,22 @@ pub fn handle_status(verbose: bool, json: bool) -> Result<()> {
         // exit — never rendered as "Active limits: none".
         limiter.print_status()?;
     }
+
+    // night-audit-8 (the hunt-43 audit's third named residual, the
+    // owner's call: all residuals closed): the no-residue ladder
+    // joins the status visit — a sweep that took the LAST policies
+    // used to leave the empty skeleton pinned until the next
+    // u/recover/apply-era came to unpin or reuse it (the ladder
+    // belonged to the removal family; status never carried it).
+    // The same verified-zero contract cleanup and recover own: the
+    // count is READ, never assumed (NIGHT-hunt-20 — a read failure
+    // keeps the pins and warns, so a transient error cannot tear
+    // down enforcement), and it runs only under the sweep lock this
+    // visit already holds — a concurrent operation's own family
+    // ladder owns the moment instead.
+    if _sweep_lock.is_some() {
+        super::cleanup::unpin_if_no_policies(&limiter, verbose)?;
+    }
     Ok(())
 }
 
