@@ -104,7 +104,7 @@ const HOT_RGB: (u8, u8, u8) = (255, 59, 48);
 const GREY_RGB: (u8, u8, u8) = (139, 139, 139);
 
 /// Terminal color capability, detected once and cached for the process.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum ColorCapability {
     /// No color support — plain text, no ANSI escapes.
     Mono,

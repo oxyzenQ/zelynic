@@ -1805,7 +1805,16 @@ NIGHT-hunt-18's git-history-only call.
   index over the line's span reproduces the row triples, both
   engines), the composer's exact-bytes pin (dark, perceptual mid,
   brand, mid, dark across a five-column span, no inner reset), the
-  flat-rung pins. Docs: BRANDING's layout section, USAGE's frame
+  flat-rung pins, and the drift killer (the hoisted walk against
+  the per-cell rail_rgb walk, byte for byte, both engines). The
+  LTS half is the price control: the sweep's endpoints are
+  run-invariant, so the conversions hoist out of the column loop,
+  and the composed run is a pure function of its key, so the memo
+  pays the blend work once per shape — the release A/B lands at
+  -15.6% fps on the 18.5k-fps synthetic blast (from -72% before
+  the hoist), with emit bytes flat, dirty cells flat, and the
+  Mono rung byte-identical; the record and its reading live in
+  PERFORMANCE.md. Docs: BRANDING's layout section, USAGE's frame
   borders paragraph, and the three module headers now describe the
   one-wave frame.
 

@@ -498,19 +498,46 @@ fn swept_bar(glyphs: &str, text: Option<(usize, usize)>, width: usize) -> String
     // weight spans the whole bar exactly as the flat bar's did.
     bar.push_str(theme::escape(theme::Slot::Brand, true));
     let mut col = 0usize;
+    // The furniture composes in BATCHED runs (the hoist's string
+    // half): one sweep_run per contiguous same-glyph stretch, not
+    // one call per glyph — the sweep's own per-run endpoint hoist
+    // only pays when the run is long.
+    let mut seg: Option<(usize, char)> = None;
     for g in glyphs.chars() {
         let in_text = col >= text_start && col < text_end;
-        if !in_text && g != ' ' {
-            bar.push_str(&border::sweep_run(
-                g,
-                col,
-                1,
-                width,
-                theme,
-                Some(anchor),
-                cap,
-            ));
+        let furniture = !in_text && g != ' ';
+        if furniture {
+            match seg {
+                Some((_s, open)) if open == g => {}
+                Some((s, open)) => {
+                    bar.push_str(&border::sweep_run(
+                        open,
+                        s,
+                        col - s,
+                        width,
+                        theme,
+                        Some(anchor),
+                        cap,
+                    ));
+                    seg = Some((col, g));
+                }
+                None => seg = Some((col, g)),
+            }
         } else {
+            if let Some((s, open)) = seg.take() {
+                bar.push_str(&border::sweep_run(
+                    open,
+                    s,
+                    col - s,
+                    width,
+                    theme,
+                    Some(anchor),
+                    cap,
+                ));
+            }
+            // The label's chars and the bare spaces paint nothing
+            // here — the open SGR's bold brand colors the label
+            // (identity), the background shows through the spaces.
             bar.push(g);
         }
         // The same rendered-width walk the fit path carries (the
@@ -520,6 +547,17 @@ fn swept_bar(glyphs: &str, text: Option<(usize, usize)>, width: usize) -> String
         } else {
             crate::output::char_width(g)
         };
+    }
+    if let Some((s, open)) = seg.take() {
+        bar.push_str(&border::sweep_run(
+            open,
+            s,
+            col - s,
+            width,
+            theme,
+            Some(anchor),
+            cap,
+        ));
     }
     bar.push_str(border::RESET);
     bar
