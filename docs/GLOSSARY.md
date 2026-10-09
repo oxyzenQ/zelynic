@@ -171,14 +171,23 @@ first-time reader, and this page pays it once, up front.
 - **retire_dead**: the leaderboard's dead-row retirement — a row
   with no identity entry and no window traffic retires after a
   3-frame grace, only when the board is at its cap, behind an
-  identity signal guard (NIGHT-mitigate-1).
-- **Orphan**: a policy row whose cgroup no longer exists —
-  `zelynic recover` finds and removes them.
+  identity signal guard (NIGHT-mitigate-1). Since NIGHT-hunt-34
+  the same law rides the baseline panel (display-only — a verdict
+  row hides, the learned EMA stays).
+- **Orphan**: a policy row whose cgroup no longer exists — since
+  night-hunt-43 the zombie sweep collects them automatically at
+  the next mutation-capable visit (the two-signal walk: no
+  identity entry, no ring traffic for the 8s horizon);
+  `zelynic recover` remains the manual, reported override.
 - **Reclaim**: the family that returns dead per-root state
   (buckets, rings, stats, windows) to the maps on removal — and,
   since NIGHT-hunt-34, the orphan-census sweep that collects the
   residue a failed or interrupted reclaim leaves behind, riding
-  the next mutation-capable CLI visit.
+  the next mutation-capable CLI visit. Since night-hunt-43 the
+  family also owns the zombie-policy sweep (limiter/zombie.rs),
+  the collector one gate up: whole roots (policies AND state)
+  whose cgroup died, retired by the same two-signal law the
+  session board's retire_dead rides.
 - **The absent-lens contract**: a failed read of a MONITOR map (the
   rings) renders the field honestly absent — never a fabricated
   empty series, and never a failed enforcement report.

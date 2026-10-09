@@ -566,8 +566,12 @@ socket not found", "no container named 'x'", "no pod 'y' in
 namespace 'z'", each with its discovery tip. A stopped container
 is named as such: the daemon's own status word rides the error,
 because a stopped container's cgroup is torn down at exit — there
-is no live workload to target, and a policy left behind against
-its dead cgroup is a job for `zelynic recover`. Container targets
+is no live workload to target. A policy left behind against a
+dead cgroup is collected automatically by the next
+mutation-capable visit (night-hunt-43's zombie sweep — the
+two-signal walk: no identity entry, no ring traffic for the 8s
+horizon); `zelynic recover` remains the manual, reported override
+for stale epochs. Container targets
 ride the single lane: a `::` list cannot carry them (the group lane
 shares ONE bucket across its members — a container workload owns
 its own apply), so `s docker://a:nginx::brave` is refused with the
@@ -707,6 +711,14 @@ reclaims the bucket/stats state of dead-cgroup orphans alongside
 their policies (the same LTS budget unstrict maintains). Safe to run
 anytime — it does nothing when state is clean. `status` tells you when
 you need it ("stale bpf pin files detected").
+
+night-hunt-43: a dead cgroup's standing policy no longer waits for
+this command — the zombie sweep rides every mutation-capable visit
+(`status`, every apply), retiring a root whose identity entry is
+gone and whose rings have been silent for the full 8s horizon (the
+two-signal law; `-v` traces each retirement). `recover` remains the
+manual, REPORTED override — and the only collector for a stale pin
+epoch, where the rings cannot be read and silence stays unproven.
 
 NIGHT-hunt-30: recover also runs the WINDOW-DEATH pass before its
 orphan scan — an expired `--during` row is not crash residue (its
