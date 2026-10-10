@@ -68,8 +68,8 @@ license terms.
 | ---------- | -------------- | ------------------------------------------------------------ |
 | Personal   | Free (GPL-3.0) | Hobby, personal, non-commercial, open-source contributions   |
 | Individual | $99/year       | Solo devs, freelancers, revenue < $100K/year                 |
-| Business   | $2,199/year    | SMB, revenue $100K – $10M/year                               |
-| Company    | $20,199/year   | Enterprise (>$10M/year revenue) OR any redistribution rights |
+| Business   | $5,199/year    | SMB, revenue $100K – $10M/year                               |
+| Company    | $110,199/year  | Enterprise (>$10M/year revenue) OR any redistribution rights |
 
 Notes:
 
@@ -77,6 +77,14 @@ Notes:
   individual, whichever applies), not your zelynic-specific revenue.
 - **Multi-year discount** (owner discretion): 20% off a 2-year term,
   30% off a 3-year term.
+- **2026-10-10 price move** (NIGHT-dinner-31, effective from the
+  first release tag after that date): Business $2,199 →
+  $5,199/year, Company $20,199 → $110,199/year; Individual holds
+  at $99/year. The rationale is the owner's, unchanged and
+  compounding: zelynic is a masterpiece, its value increases
+  year by year, and the business end of the ladder keeps climbing
+  with it. Grandfathering unchanged: buyers who paid before the
+  move keep the price they paid, for the term they bought.
 - **2026-09-30 price move** (NIGHT-dinner-25, effective from the
   first release tag after that date): Business $1,990 →
   $2,199/year, Company $14,990 → $20,199/year; Individual holds

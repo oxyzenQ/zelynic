@@ -26,8 +26,8 @@ Tiers follow your total annual revenue:
 | ---------------------------------- | ------------------------ |
 | No commercial use (hobby/personal) | Personal (free, GPL-3.0) |
 | Solo dev / freelancer, < $100K     | Individual ($99/year)    |
-| $100K – $10M                       | Business ($2,199/year)   |
-| > $10M, or any redistribution      | Company ($20,199/year)   |
+| $100K – $10M                       | Business ($5,199/year)   |
+| > $10M, or any redistribution      | Company ($110,199/year)  |
 
 Redistribution under your own terms is the Company tier regardless of
 revenue — it is the only tier that carries redistribution rights.

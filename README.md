@@ -761,15 +761,15 @@ live in [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md); the short version:
 | ---------- | -------------- | ------------------------------------------------ |
 | Personal   | Free (GPL-3.0) | Hobby, personal, non-commercial, contributions   |
 | Individual | $99/year       | Solo devs, freelancers, revenue < $100K/year     |
-| Business   | $2,199/year    | SMB, revenue $100K – $10M/year                   |
-| Company    | $20,199/year   | Enterprise (>$10M/year) OR redistribution rights |
+| Business   | $5,199/year    | SMB, revenue $100K – $10M/year                   |
+| Company    | $110,199/year  | Enterprise (>$10M/year) OR redistribution rights |
 
 The business end of the ladder follows the value upward
-(NIGHT-dinner-25): zelynic is a masterpiece, and its value
-increases year by year — the price tracks the value, and it will
-keep rising as the work compounds. Buyers who paid before the
-move are grandfathered at the price they bought, for the term
-they bought.
+(NIGHT-dinner-31, the second move after NIGHT-dinner-25): zelynic
+is a masterpiece, and its value increases year by year — the
+price tracks the value, and it will keep rising as the work
+compounds. Buyers who paid before a move are grandfathered at the
+price they bought, for the term they bought.
 
 **Unauthorized use is theft.** Taking this code — stealing it,
 forking it illegally, stripping the license, or building a

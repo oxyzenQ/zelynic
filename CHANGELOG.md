@@ -27,6 +27,20 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **docs(license): NIGHT-dinner-31 — the business tiers climb
+  again.** Business $2,199 → $5,199/year, Company $20,199 →
+  $110,199/year; Individual holds at $99/year, effective from the
+  first release tag after 2026-10-10. The masterpiece rationale
+  compounds: the value increases year by year and the price keeps
+  tracking it upward. Grandfathering unchanged — buyers who paid
+  before the move keep the price they paid, for the term they
+  bought. The unauthorized-use warning stands verified in all
+  three licensing surfaces (README, COMMERCIAL_LICENSE.md,
+  LICENSING_FAQ.md): taking the code — stealing it, forking it
+  illegally, shipping it inside a closed-source commercial
+  product — without contacting the owner (rezky_nightky /
+  oxyzenQ) and paying the license is theft, the mark of the worst,
+  rotten kind of human.
 - **docs(readme): NIGHT-dinner-32 — the masthead drops the release
   badge.** A static version badge is one more surface to keep honest
   on every bump, and the header does not need it: the version
