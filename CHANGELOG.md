@@ -25,6 +25,27 @@ NIGHT-hunt-18's git-history-only call.
 
 ## [Unreleased]
 
+### Added
+
+- **docs(longevity): NIGHT-think-like-light-years-4 — the 100+
+  year survival strategy, kept simple.** One new living doc,
+  docs/LONGEVITY.md, answering the light-years ask: the substrate
+  bet (Linux, cgroup v2, in-tree eBPF — the only floor in the
+  industry with a century-scale record, and the Linux-only
+  refusal as the same strategy worn as a design rule), the
+  rent-paying design (verdict-only surface, one self-contained
+  binary, the prebuilt-parity gate, dependency minimalism, the
+  frozen CLI, zero telemetry), the funded economics (GPL core +
+  the commercial tiers, prices tracked in COMMERCIAL_LICENSE.md
+  only — one authoritative surface per fact is itself a
+  longevity rule), the knowledge time capsule (the doc corpus as
+  externalized understanding, the machine-enforced gates as the
+  immune system that survives owner attrition), the refusals that
+  keep the surface small, and the century checklist with the
+  succession terms said plainly. Indexed in docs/README.md (Quick
+  Navigation + Project Meta). Docs-only: no code path touched,
+  benchmark skipped.
+
 ### Changed
 
 - **docs(license): NIGHT-dinner-31 — the business tiers climb

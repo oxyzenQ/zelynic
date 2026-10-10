@@ -24,6 +24,7 @@ question well, and this page says which.
 | Understand licensing (GPL vs commercial) | [LICENSING_FAQ.md](LICENSING_FAQ.md) |
 | Release a new version | [VERIFY_RELEASE.md](VERIFY_RELEASE.md) § owner procedures + [MAINTENANCE.md](MAINTENANCE.md) |
 | Keep the project healthy long-term | [MAINTENANCE.md](MAINTENANCE.md) |
+| Read the 100+ year survival strategy | [LONGEVITY.md](LONGEVITY.md) |
 | Read the project rules | [RULES.md](RULES.md) |
 | See how the v11 era compares to v10 | [research/NIGHT_DINNER_5_V10_V11_ERA_COMPARISON.md](research/NIGHT_DINNER_5_V10_V11_ERA_COMPARISON.md) |
 
@@ -158,6 +159,7 @@ readable in every checkout, never rewritten.
 | Doc | Covers |
 |-----|--------|
 | [BRANDING.md](BRANDING.md) | Visual identity: the purple, the dragon, the tone |
+| [LONGEVITY.md](LONGEVITY.md) | The 100+ year survival strategy: the substrate bet, the rent-paying design, the funded economics, the knowledge that outlives the author, the refusals |
 | [../QA.md](../QA.md) | Owner question ledger — questions asked and answered, with dates |
 | [../CHANGELOG.md](../CHANGELOG.md) + [archive/CHANGELOG_PRE_V11.md](archive/CHANGELOG_PRE_V11.md) | What shipped: the v11-era active file and the pre-v11 archive (the frozen v11 campaign history lives in git history alone — NIGHT-dinner-19 removed the root duplicate) |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | How to contribute: the gate battery, commit discipline |
