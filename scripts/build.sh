@@ -25,6 +25,12 @@ readonly NC='\033[0m'
 
 # Configuration with intelligent defaults
 readonly PROJECT_NAME="zelynic"
+# NIGHT-improve-75: the miri module (stamp contract, status banner,
+# nightly runner) lives in its own sourced file, the cosmostrix
+# lib/miri.sh split — one concern, one file; the entry script owns
+# dispatch only.
+# shellcheck source=scripts/lib/miri.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/miri.sh"
 
 # Read version from Cargo.toml (single source of truth)
 ZELYNIC_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/' || echo "unknown")
@@ -447,6 +453,8 @@ USAGE:
 COMMANDS:
     debug           Build debug version (default)
     test            Run test suite
+    miri            Miri UB verification on the pure-Rust pin families
+                    (nightly; stamp-cached; NIGHT-improve-75)
 
     check           Quick checks (fmt + clippy)
     check-all       Recommended local quality gate (fmt + clippy + test
@@ -474,6 +482,14 @@ OPTIONS:
                     lines, no banners or step headers (the CI shape;
                     NIGHT-boost-7)
 
+MIRI OPTIONS (NIGHT-improve-75, with the miri command only):
+    --filter <pat>  Narrow the miri scope to one substring (partial
+                    run; the stamp is not updated)
+    --no-install    Never auto-install nightly/miri (fail if missing;
+                    the CI contract)
+    --full          Run the entire test suite under miri (slow;
+                    binary-spawning and root-gated families fail)
+
 ENVIRONMENT VARIABLES:
     ZELYNIC_JOBS     Override CPU core limit (default: auto)
     ZELYNIC_TARGET   Override build target (default: rustc host target)
@@ -492,6 +508,9 @@ TOOLS INTEGRATION:
                 install: cargo install cargo-audit --locked
     deny      - Dependency policies (optional; missing tool warns/skips)
                 install: cargo install cargo-deny --locked
+    miri      - UB verification on nightly (auto-installed; use
+                --no-install to refuse the download)
+                install: rustup toolchain install nightly --component miri
 
 EOF
 }
@@ -520,6 +539,31 @@ while [ $# -gt 0 ]; do
 		;;
 	--quiet | -q)
 		QUIET=1
+		shift
+		;;
+	--filter)
+		# NIGHT-improve-75: narrow the miri scope to one substring
+		# (e.g. "limiter::during::") — a partial run; no stamp update.
+		if [ $# -lt 2 ]; then
+			log_error "--filter requires an argument"
+			exit 1
+		fi
+		# shellcheck disable=SC2034 # read by run_miri in lib/miri.sh
+		MIRI_FILTER="$2"
+		shift 2
+		;;
+	--no-install)
+		# NIGHT-improve-75: the miri run must not download anything
+		# (the CI contract — the workflow installs its own toolchain).
+		# shellcheck disable=SC2034 # read by run_miri in lib/miri.sh
+		MIRI_NO_INSTALL=1
+		shift
+		;;
+	--full)
+		# NIGHT-improve-75: run the entire test suite under miri
+		# (slow; binary-spawning and root-gated families will fail).
+		# shellcheck disable=SC2034 # read by run_miri in lib/miri.sh
+		MIRI_FULL=1
 		shift
 		;;
 	help | -h | --help)
@@ -553,10 +597,31 @@ main() {
 		exit 1
 	fi
 
+	# `help` is pure documentation — skip the cache setup so it stays
+	# quiet, and skip the miri banner (nothing built, nothing to gate).
+	if [ "${COMMAND:-}" = "help" ] || [ "${COMMAND:-}" = "-h" ] || [ "${COMMAND:-}" = "--help" ]; then
+		show_help
+		exit 0
+	fi
+
+	# NIGHT-improve-75: `miri` manages its own toolchain (nightly), so
+	# skip the stable toolchain check and the build-cache setup — the
+	# sccache RUSTC_WRAPPER and the mold/lld RUSTFLAGS poison the miri
+	# build (its rustc is an interpreter wrapper that must not be
+	# re-wrapped or re-flagged).
+	if [ "${COMMAND:-}" = "miri" ]; then
+		run_miri
+		exit $?
+	fi
+
 	# Setup environment
 	if [ $NO_CACHE -eq 0 ]; then
 		setup_build_cache
 	fi
+
+	# NIGHT-improve-75: the miri stamp banner rides every build/test
+	# invocation (cosmostrix's visibility contract) — quiet under -q.
+	show_miri_status
 
 	local command="${COMMAND:-debug}"
 

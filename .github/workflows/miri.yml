@@ -1,0 +1,127 @@
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: GPL-3.0-only
+# =============================================================================
+# Dragon Guard - Miri — undefined-behavior verification of the pure-Rust core
+# =============================================================================
+#
+# NIGHT-improve-75 (cosmostrix miri lineage): the mature shape ported
+# whole — the runner logic lives in the repo (scripts/lib/miri.sh,
+# dispatched by ./scripts/build.sh miri), and this workflow only
+# installs the toolchain and calls it. One implementation, two
+# surfaces: a contributor runs the same command locally, and the
+# stamp file contract (target/miri-stamp) means CI's verdict and the
+# local banner read from the same source of truth.
+#
+# Scope: miri interprets every instruction, so the full 900+ test
+# suite would take 30+ minutes and several test families spawn the
+# real binary, touch cgroups/TTY, or need root + eBPF — shapes miri
+# cannot run. The runner restricts to the eight pure-Rust pin
+# families (the --during grammar, the status renderers, the color
+# ladder, the theme catalog, the UX/argv contracts, the frame
+# differ) — the string/math/logic core where an unsafe-adjacent
+# refactor would first lie. The audited-families list lives in
+# MIRI_AUDIT_MODULES (scripts/lib/miri.sh), not here.
+#
+# The BPF side is out of miri's jurisdiction by design: the eBPF
+# crate targets the kernel's verifier, not an interpreter, and the
+# miri run rides --no-default-features (the local gate's dormant
+# lane, NIGHT-ask-2) so the nested nightly eBPF build is never
+# dragged in.
+#
+# Weekly cadence mirrors the cosmostrix contract: miri is slow and
+# nightly-only, so it is not on the per-PR critical path — the push
+# filter catches Rust-surface changes the same week, and the Sunday
+# run (00:00 UTC / 07:00 WIB) picks up whatever slipped through.
+# The `--no-install` flag is the CI contract: this workflow installs
+# its own pinned toolchain below, so a missing component must fail
+# loudly rather than silently download a moving nightly.
+
+name: Dragon Guard - Miri
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      # NIGHT-boost-10: the estate-wide trigger spelling — six
+      # shared surface globs plus this file's own name, identical
+      # in every build workflow (the header carries the coverage
+      # facts). A workflow that can change its own contract owes
+      # itself a run (NIGHT-hunt-34).
+      - '**/*.rs'
+      - '**/*.toml'
+      - '**/Cargo.lock'
+      - '.cargo/**'
+      - 'ebpf/**'
+      - 'scripts/**'
+      - '.github/workflows/miri.yml'
+  pull_request:
+    branches: ["main"]
+    paths:
+      # NIGHT-boost-10: same spelling as push (the no-drift law).
+      - '**/*.rs'
+      - '**/*.toml'
+      - '**/Cargo.lock'
+      - '.cargo/**'
+      - 'ebpf/**'
+      - 'scripts/**'
+      - '.github/workflows/miri.yml'
+  schedule:
+    # Sunday 00:00 UTC (07:00 WIB) — picks up the week's commits in
+    # one shot, the cosmostrix cadence.
+    - cron: '0 0 * * 0'
+  # Manual trigger from the Actions tab.
+  workflow_dispatch:
+
+# Least privilege (cosmostrix contract): the job only reads the repo.
+permissions:
+  contents: read
+
+# Rapid pushes to the same ref cancel the superseded run instead of
+# queueing a duplicate miri build (cosmostrix stability pattern).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  # Deliberately NO RUSTFLAGS=-D warnings here: the miri build is not
+  # the warning-gated lane (ci.yml owns that contract), and pinning
+  # warnings on the interpreter build would couple two unrelated
+  # policies.
+
+jobs:
+  miri:
+    name: Dragon Guard - Miri UB verification (8 pure-Rust families)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
+
+      # The runner's own toolchain: the moving `nightly` tag with the
+      # miri component — exactly what `./scripts/build.sh miri` would
+      # auto-install locally. The +nightly override in the runner wins
+      # over the rust-toolchain.toml stable pin by construction.
+      - name: Install nightly + miri (the runner's own toolchain)
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: nightly
+          components: miri
+
+      - name: Run Miri verification (stamp + log land in target/)
+        run: ./scripts/build.sh miri --no-install
+
+      # The failure evidence outlives the runner: the interpreted log
+      # (which test, which allocation, which borrow) plus the stamp
+      # that says which commit failed.
+      - name: Upload Miri log on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          name: miri-log
+          path: |
+            target/miri-log.txt
+            target/miri-stamp
+          retention-days: 30
