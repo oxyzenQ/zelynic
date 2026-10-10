@@ -25,6 +25,9 @@
 </div>
 
 <p align="center">
+  <a href="https://github.com/oxyzenQ/zelynic/releases">
+    <img src="https://img.shields.io/badge/version-v50.0.0--beta.1-7C3AED?style=flat-square" alt="release version">
+  </a>
   <a href="https://ko-fi.com/rezky">
     <img src="https://img.shields.io/badge/Ko--fi-support-7C3AED?style=flat-square&logo=kofi&logoColor=white&labelColor=111827" alt="Support on Ko-fi">
   </a>

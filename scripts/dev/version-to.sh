@@ -18,9 +18,14 @@
 # the root crate's — its objects ship inside the binary, so a drifting
 # 0.1.0 label riding a v50 binary was a provenance hole. The version
 # change touches the ebpf/ tree, so the prebuilt lane's tree pin
-# notices it: the script ends by reporting the lane's parity verdict
-# honestly, and --commit REFUSES while the lane is stale — run
-# ./scripts/release/refresh-prebuilt.sh first. README.md is probed
+# notices it: NIGHT-improve-70 — when THIS script's own rewrite stales
+# the lane, the refresh runs in the same invocation
+# (./scripts/release/refresh-prebuilt.sh through the repo's validated
+# build pipeline — one command leaves a committable tree; a refresh
+# that cannot complete fails closed with the bootstrap recipe).
+# A lane already stale BEFORE the bump keeps the honest manual
+# verdict: this script auto-refreshes only the churn it created,
+# never a WIP it found. README.md is probed
 # for a version surface and reported honestly either way —
 # NIGHT-hunt-32: the README lane once printed an unconditional
 # "OK README.md -> vN" while the README carried no badge, no release
@@ -124,9 +129,15 @@ fi
 # --- Update README.md (probed first — NIGHT-hunt-32: the lane once ---
 # --- printed an unconditional OK while the README carried no badge, ---
 # --- no release URL, and no Version line for any pattern to match) ---
+# shields.io escapes a literal dash in badge text as "--": a
+# prerelease version (50.0.0-rc.1) renders correctly only doubled
+# (version-v50.0.0--rc.1). Born with the README release badge
+# (NIGHT-improve-70) — the old single-dash rewrite would have broken
+# the badge on every prerelease bump.
+NEW_VERSION_BADGE="${NEW_VERSION//-/--}"
 README_HITS="$(grep -cE 'version-v[0-9]|releases/download/v[0-9]|zelynic-v[0-9]+\.[0-9]+|^Version: v[0-9]' README.md 2>/dev/null || true)"
 if [ "${README_HITS:-0}" -gt 0 ]; then
-	sed -i -E "s|version-v[^?]*\\?|version-v${NEW_VERSION}-7C3AED?|" README.md
+	sed -i -E "s|version-v[^?]*\\?|version-v${NEW_VERSION_BADGE}-7C3AED?|" README.md
 	sed -i -E "s|releases/download/v[0-9]+\\.[0-9]+\\.[0-9]+|releases/download/v${NEW_VERSION}|g" README.md
 	sed -i -E "s|zelynic-v[0-9]+\\.[0-9]+\\.[0-9]+(-[A-Za-z0-9.]+)?-x86_64|zelynic-v${NEW_VERSION}-x86_64|g" README.md
 	sed -i "s|Version: v.*|Version: v${NEW_VERSION}|" README.md
@@ -149,9 +160,11 @@ echo -e "  ${GREEN}OK${NC} Binary (zelynic)    → auto (reads from Cargo.toml)"
 # ./scripts/release/refresh-prebuilt.sh regenerates the lane. The
 # lock edit mirrors the root pair's shape: the name-anchored
 # zelynic-ebpf entry moves, dependency versions never do.
+EBPF_CHANGED=false
 if [ "${EBPF_CURRENT}" != "${NEW_VERSION}" ]; then
 	sed -i "0,/^version = \".*\"/s//version = \"${NEW_VERSION}\"/" ebpf/Cargo.toml
 	echo -e "  ${GREEN}OK${NC} ebpf/Cargo.toml     → ${NEW_VERSION}"
+	EBPF_CHANGED=true
 	if [ -f ebpf/Cargo.lock ]; then
 		sed -i -E "/^name = \"zelynic-ebpf\"$/{n;s|^version = \"${EBPF_CURRENT}\"|version = \"${NEW_VERSION}\"|;}" ebpf/Cargo.lock
 		EBPF_LOCK_VER="$(grep -A1 '^name = "zelynic-ebpf"' ebpf/Cargo.lock | grep '^version = "' | head -1 | sed -E 's/^version = "(.+)"/\1/')"
@@ -165,30 +178,52 @@ else
 	echo -e "  ${YELLOW}!${NC} ebpf/Cargo.toml     → already at v${NEW_VERSION}"
 fi
 
-# --- Prebuilt-lane parity verdict (always reported, never guessed) ---
+# --- Prebuilt-lane refresh + parity verdict (NIGHT-improve-70) ---
 # The gate is the one implementation of the tree pin (refresh-
 # prebuilt.sh ends by running it; this script only READS its verdict —
-# the anti-drift discipline the gate's header documents). Quiet by
-# design: the version report prints one line, the gate's own PASS/
-# FAIL detail belongs to its dedicated invocation.
+# the anti-drift discipline the gate's header documents). When THIS
+# script's own rewrite staled the lane, the refresh runs in the same
+# invocation so one command leaves a committable tree — the manual
+# two-step (bump, failed commit, refresh, re-commit) was the exact
+# friction the owner refused to keep typing. A lane stale for
+# reasons this script did not create keeps the honest manual verdict.
 echo ""
-if bash scripts/gates/check-prebuilt-parity.sh >/dev/null 2>&1; then
+if [ "${EBPF_CHANGED}" = true ] && ! bash scripts/gates/check-prebuilt-parity.sh >/dev/null 2>&1; then
+	echo -e "  ${YELLOW}..${NC} ebpf-prebuilt/     → the version rewrite staled the lane's tree pin — auto-refreshing through the validated build pipeline"
+	if bash scripts/release/refresh-prebuilt.sh; then
+		echo -e "  ${GREEN}OK${NC} ebpf-prebuilt/     → lane regenerated in parity (commit ebpf/ + ebpf-prebuilt/ together)"
+	else
+		echo -e "${RED}FAIL:${NC} the prebuilt refresh did not complete — the tree is NOT committable in this state."
+		echo -e "  the refresh drives the eBPF build; its once-per-machine prerequisites:"
+		echo -e "    ./scripts/dev/bootstrap-ebpf.sh"
+		echo -e "  then finish the bump manually and commit the lane with its sources:"
+		echo -e "    ./scripts/release/refresh-prebuilt.sh"
+		echo -e "    git add Cargo.toml Cargo.lock README.md ebpf/ ebpf-prebuilt/"
+		exit 1
+	fi
+elif bash scripts/gates/check-prebuilt-parity.sh >/dev/null 2>&1; then
 	echo -e "  ${GREEN}OK${NC} ebpf-prebuilt/     → parity green (the lane pins the live ebpf/ tree)"
 else
-	echo -e "  ${YELLOW}!${NC} ebpf-prebuilt/     → STALE: ebpf/ changed after the lane was generated"
+	echo -e "  ${YELLOW}!${NC} ebpf-prebuilt/     → STALE: ebpf/ changed after the lane was generated (not by this run)"
 	echo -e "     run ./scripts/release/refresh-prebuilt.sh and commit ebpf/ + ebpf-prebuilt/ together (the parity gate fails CI until the refresh lands)"
 fi
 
 echo ""
 echo -e "${GREEN}Version updated to v${NEW_VERSION}${NC}"
+if [ "${EBPF_CHANGED}" = true ]; then
+	echo "next: git add Cargo.toml Cargo.lock README.md ebpf/ ebpf-prebuilt/ && git commit"
+fi
 
 if [ "${COMMIT}" = true ]; then
 	# Fail closed (NIGHT-improve-67): a commit that stages the ebpf
 	# version bump WITHOUT the refreshed lane would ride a stale
 	# tree pin straight into CI's parity gate — refuse, name the
-	# refresh, and hand over the one-commit recipe. Re-running
-	# version-to.sh after the refresh hits the early "already at"
-	# exit, so the recipe commits manually by design.
+	# refresh, and hand over the one-commit recipe. With the
+	# NIGHT-improve-70 auto-refresh this refusal is reachable only
+	# when the lane was stale for reasons this run did not create
+	# (the refresh above already failed closed for its own shape).
+	# Re-running version-to.sh after a manual refresh hits the early
+	# "already at" exit, so the recipe commits manually by design.
 	if ! bash scripts/gates/check-prebuilt-parity.sh >/dev/null 2>&1; then
 		echo -e "${RED}FAIL:${NC} refusing to commit — the prebuilt lane is stale (ebpf/ changed, ebpf-prebuilt/ has not)."
 		echo -e "  1. ./scripts/release/refresh-prebuilt.sh"
@@ -196,7 +231,7 @@ if [ "${COMMIT}" = true ]; then
 		echo -e "  3. git commit -m \"release: v${NEW_VERSION}\""
 		exit 1
 	fi
-	git add Cargo.toml Cargo.lock README.md ebpf/Cargo.toml ebpf/Cargo.lock
+	git add Cargo.toml Cargo.lock README.md ebpf/Cargo.toml ebpf/Cargo.lock ebpf-prebuilt/
 	git commit -m "release: v${NEW_VERSION}"
 	echo -e "${GREEN}OK Committed: release: v${NEW_VERSION}${NC}"
 fi
