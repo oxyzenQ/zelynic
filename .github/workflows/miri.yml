@@ -22,11 +22,15 @@
 # refactor would first lie. The audited-families list lives in
 # MIRI_AUDIT_MODULES (scripts/lib/miri.sh), not here.
 #
-# The BPF side is out of miri's jurisdiction by design: the eBPF
-# crate targets the kernel's verifier, not an interpreter, and the
-# miri run rides --no-default-features (the local gate's dormant
-# lane, NIGHT-ask-2) so the nested nightly eBPF build is never
-# dragged in.
+# Two lanes, one run (NIGHT-ask-2's compile-lane split): the --during
+# grammar, the status renderers, and --print-json sit inside
+# src/ebpf/** behind the `ebpf` feature, the color/ux/argv/theme/diff
+# pins ride the dormant lane — so the runner walks both, and this
+# workflow installs the eBPF stack (the dated nightly pin with
+# rust-src, plus the prebuilt bpf-linker) that build.rs's nested
+# cross-build preflights. The BPF side itself stays out of miri's
+# jurisdiction by design: the eBPF crate targets the kernel's
+# verifier, not an interpreter.
 #
 # Weekly cadence mirrors the cosmostrix contract: miri is slow and
 # nightly-only, so it is not on the per-PR critical path — the push
@@ -93,9 +97,9 @@ env:
 
 jobs:
   miri:
-    name: Dragon Guard - Miri UB verification (8 pure-Rust families)
+    name: Dragon Guard - Miri UB verification (8 pure-Rust families, both lanes)
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
@@ -109,6 +113,22 @@ jobs:
         with:
           toolchain: nightly
           components: miri
+
+      # Lane 2's prerequisites (the full-feature lane's nested eBPF
+      # build): the dated nightly pin with rust-src, and the pinned
+      # bpf-linker — the same pair ci.yml's check job installs, by the
+      # same one-script contract (NIGHT-improve-11). A runner without
+      # them would silently shrink the run to the dormant lane; the
+      # stamp's lanes_run row would record it, but CI exists to check
+      # the WHOLE estate, so the stack is installed up front.
+      - name: Install eBPF nightly toolchain (dated pin)
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: nightly-2026-09-18
+          components: rust-src
+
+      - name: Install bpf-linker 0.11.1 (prebuilt static musl)
+        run: bash scripts/dev/install-bpf-linker.sh
 
       - name: Run Miri verification (stamp + log land in target/)
         run: ./scripts/build.sh miri --no-install
