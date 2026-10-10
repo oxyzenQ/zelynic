@@ -346,8 +346,8 @@ That engine family is **cosmostrix's** rendering architecture
 the split is a separation-of-concerns answer to one question: what
 does a frame COST, in cells, in color, in mood?
 
-- **the cosmic dragon** (`src/engine/cosmic_dragon_engine/`) owns *what
-  cells changed*: the diff-based render loop — a persistent
+- **the cosmic dragon render engine** (`src/engine/cosmic_dragon_engine/`)
+  owns *what cells changed*: the diff-based render loop — a persistent
   back-buffer compared frame-to-frame, only dirty cells emitted as
   ANSI with RLE batching. ~360 cell-writes instead of 4,800 on a
   120×40 terminal (a 13× I/O reduction), which is what makes
@@ -368,9 +368,9 @@ regression cannot corrupt a physics invariant and an ambient scene
 swap cannot touch the diff buffer. Each engine is independently
 testable and independently lockable.
 
-**What zelynic inherited**: the cosmic dragon's diff discipline,
-scaled down to a utility — `src/terminal/diff.rs` is the
-cosmic-dragon-engine adaptation (NIGHT-improve-2): the renderer
+**What zelynic inherited**: the cosmic dragon render engine's diff
+discipline, scaled down to a utility — `src/terminal/diff.rs` is the
+cosmic dragon render engine adaptation (NIGHT-improve-2): the renderer
 builds logical lines, the engine diffs against the previous frame's
 shadow and emits only changed rows in ONE write syscall; idle
 frames emit nothing. The purple brand and the dragon register

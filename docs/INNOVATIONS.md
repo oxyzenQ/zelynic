@@ -20,6 +20,40 @@ cores (`ammsp.rs`, `drr.rs`, `math.rs`, `ecn.rs`, `quic.rs`,
 kernel object and the userspace test tree, so every law below is
 pinned by rootless unit tests, not by hope.
 
+## The engine, named
+
+The core these thirteen compose has a name (NIGHT-improve-68):
+**the cosmic dragon engine** — the zelynic enforcement core, the
+heart of the cosmic dragon architecture. The architecture is the
+body (pure eBPF, one hooking layer, no daemon); the engine is the
+heart (the verdict path that body exists to run). The naming keeps
+the family's one law — one identity, one name, many engines:
+cosmostrix's diff-based renderer is **the cosmic dragon render
+engine** (its `cosmic_dragon_engine` module path, whose discipline
+`src/terminal/diff.rs` ports), and this engine, the family's
+default, is the one that counts bytes. The canonical definition:
+
+> **the cosmic dragon engine** — the zelynic enforcement core: the
+> six-layer verdict path that turns a binary allow/drop hook into a
+> smooth shaper. AMMSP resolves which budget owns a packet (subtree
+> truth); the token pool refills with sub-byte precision, SMP-safe,
+> no false drops; DRR shares it fair across processes (learned-share,
+> starvation killed); CAKE-shaped flow buckets keep the quiet flow's
+> latency; QUIC-aware attribution restores the fair unit for HTTP/3;
+> and the ECN-first debt law converts the would-be drop into a CE
+> mark the sender converges on without losing a packet — debt paid
+> from the stream's own tokens, so the aggregate stays exactly
+> `rate × t + burst + 64 KiB` under every adversarial shape. A
+> policer with a shaper's manners: the first verdict-only engine
+> that polices smooth.
+
+The honest edge is written into the definition on purpose: the
+smooth lane is the ECT lane. Non-ECT traffic still meets the drop
+when the burst is spent — that is the physics of a verdict-only
+hook, damped by the burst allowance and the GSO admit floor, never
+hidden. "Polices smooth" is exact for the lane that can hear the
+signal, and the ledger never pretends otherwise.
+
 ## The thirteen, in dependency order
 
 **1. AMMSP — Aware Multi Micro Sub-Process** (`ebpf/src/ammsp.rs`).

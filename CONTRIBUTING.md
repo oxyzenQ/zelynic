@@ -116,8 +116,8 @@ src/
   terminal/
     mod.rs           — alt-screen box mode + the monitor loop
     diff.rs          — diff-based render engine (NIGHT-improve-2, the
-                        cosmic-dragon-engine adaptation: shadow, dirty
-                        runs, single write syscall, idle zero-emit;
+                        cosmic dragon render engine adaptation: shadow,
+                        dirty runs, single write syscall, idle zero-emit;
                         NIGHT-improve-6: top-aligned scroll-free tall
                         regime); unit pins in test/terminal/diff_tests.rs
 

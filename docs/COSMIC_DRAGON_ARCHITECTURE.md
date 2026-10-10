@@ -152,8 +152,9 @@ CLI output (`src/ebpf/render.rs`, the responsive monitor engine, NIGHT-hunt-7),
 JSON output (`--print-json`).
 This layer never touches BPF directly — it consumes `CounterSummary` +
 `IdentityMap` and renders. Monitor frames flow through the diff-based
-engine (`terminal/diff.rs`, NIGHT-improve-2 — the cosmic-dragon-engine
-adaptation from cosmostrix): the renderer builds logical lines, the
+engine (`terminal/diff.rs`, NIGHT-improve-2 — the cosmic dragon
+render engine adaptation from cosmostrix): the renderer builds
+logical lines, the
 engine diffs them against the previous frame's shadow, and emits only
 the changed rows in one write syscall — idle frames emit nothing and
 the screen is never wiped mid-session. The tall regime (frame >=
@@ -280,10 +281,14 @@ the definite article in prose, exactly like the name zelynic
 itself) — because a dragon pack operates with clear layering:
 scouts (observer), hunters (limiter), alpha (policy). Each role is distinct,
 each contributes to the pack's survival. No member tries to do everything
-alone. The pack was raised to the cosmic register the project already
-lives in: the GPG signing identity is the cosmic dragon, the render engine
-lineage is the cosmic-dragon-engine (cosmostrix), and the agent persona
-behind this work is `dragonzen` — one identity, one name.
+alone. The pack was raised to the cosmic register the project
+already lives in: the GPG signing identity is the cosmic dragon,
+the enforcement core is the cosmic dragon engine (zelynic —
+NIGHT-improve-68, the six-layer verdict path defined canonically in
+[INNOVATIONS.md](INNOVATIONS.md); the architecture is the body, the
+engine is its heart), the render lineage is the cosmic dragon
+render engine (cosmostrix), and the agent persona behind this work
+is `dragonzen` — one identity, one name, many engines.
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

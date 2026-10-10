@@ -31,7 +31,7 @@ question well, and this page says which.
 
 | Doc | Covers |
 |-----|--------|
-| [INNOVATIONS.md](INNOVATIONS.md) | The innovation ledger: the thirteen research wins that define the engine (AMMSP through time windows), plus the two retired by verdict |
+| [INNOVATIONS.md](INNOVATIONS.md) | The innovation ledger: the cosmic dragon engine's canonical definition (the six-layer verdict path), the thirteen research wins that compose it (AMMSP through time windows), plus the two retired by verdict |
 | [GLOSSARY.md](GLOSSARY.md) | The coined-term decoder: one line per term the docs, commits, and source comments speak in (AMMSP, the ledger, retire_dead, the absent-lens contract, Pattern C, ...) |
 | [COSMIC_DRAGON_ARCHITECTURE.md](COSMIC_DRAGON_ARCHITECTURE.md) | Pure-eBPF architecture: single hooking layer, cgroup v2, why Linux-only |
 | [PHILOSOPHY.md](PHILOSOPHY.md) | The design canon: cgroup as the unit, observation before enforcement, frozen CLI grammar, local-first |
@@ -122,7 +122,7 @@ project's institutional memory. The naming convention is
 | [audits/NIGHT_IMPROVE_48_SUPERMASSIVE_COMPLETENESS_ROUND_2_AUDIT_2026-10-07.md](audits/NIGHT_IMPROVE_48_SUPERMASSIVE_COMPLETENESS_ROUND_2_AUDIT_2026-10-07.md) | The supermassive completeness question answered from run 229's own logs: the full skip inventory after the round-1 fix (the starved-window discriminator) |
 | [audits/NIGHT_IMPROVE_48_SUPERMASSIVE_PRECISION_ROW_AUDIT_2026-10-06.md](audits/NIGHT_IMPROVE_48_SUPERMASSIVE_PRECISION_ROW_AUDIT_2026-10-06.md) | The supermassive completeness question, the precision proof-claim's red CI lane root-caused and closed |
 | [audits/NIGHT_IMPROVE_47_SUPERMASSIVE_DEPTH_AUDIT_2026-10-06.md](audits/NIGHT_IMPROVE_47_SUPERMASSIVE_DEPTH_AUDIT_2026-10-06.md) | The supermassive depth tests for the private-research-4 features, verified feature by feature (the seven-feature list, depth coverage beyond the CLI surface) |
-| [audits/NIGHT_DEPTHBORE_1_COSMIC_DRAGON_ENGINE_AUDIT_2026-10-06.md](audits/NIGHT_DEPTHBORE_1_COSMIC_DRAGON_ENGINE_AUDIT_2026-10-06.md) | The cosmic dragon engine's peak verdict re-verified: the render-engine lineage (terminal/diff.rs), its raw-fd IO twin (raw.rs), the chroma dragon engine (the OKLab polar port) |
+| [audits/NIGHT_DEPTHBORE_1_COSMIC_DRAGON_ENGINE_AUDIT_2026-10-06.md](audits/NIGHT_DEPTHBORE_1_COSMIC_DRAGON_ENGINE_AUDIT_2026-10-06.md) | The cosmic dragon render engine's peak verdict re-verified: the render-engine lineage (terminal/diff.rs), its raw-fd IO twin (raw.rs), the chroma dragon engine (the OKLab polar port) |
 | [audits/NIGHT_IMPROVE_46_HELP_DOCS_CONSISTENCY_AUDIT_2026-10-06.md](audits/NIGHT_IMPROVE_46_HELP_DOCS_CONSISTENCY_AUDIT_2026-10-06.md) | The help surface and every other document verified against the source: the two-way flag extraction, the built flagship binary as the rendered truth |
 | [audits/NIGHT_HUNT_32_SCRIPTS_DISEASE_AUDIT_2026-10-04.md](audits/NIGHT_HUNT_32_SCRIPTS_DISEASE_AUDIT_2026-10-04.md) | The scripts disease audit: harness-vs-reality drift swept out of every lane — the four-coat family (misdiagnosed skip reasons, and kin) named and healed so the repo "does not catch the disease again" |
 | [audits/NIGHT_KRUN_DL_UL_ASYMMETRY_AUDIT_2026-10-04.md](audits/NIGHT_KRUN_DL_UL_ASYMMETRY_AUDIT_2026-10-04.md) | The 605ns vs 233ns per-run asymmetry: the enforcement lane vs the memoized bypass, the owner's live full-mode claims run read honestly |

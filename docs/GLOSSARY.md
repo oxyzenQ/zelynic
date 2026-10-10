@@ -237,6 +237,13 @@ first-time reader, and this page pays it once, up front.
 - **The cosmic dragon**: the pure-eBPF architecture's name — one
   hooking layer, cgroup v2, Linux-only
   ([COSMIC_DRAGON_ARCHITECTURE.md](COSMIC_DRAGON_ARCHITECTURE.md)).
+- **the cosmic dragon engine**: the enforcement core's name
+  (NIGHT-improve-68) — the six-layer verdict path that polices
+  smooth, the architecture's heart
+  ([INNOVATIONS.md](INNOVATIONS.md)).
+- **the cosmic dragon render engine**: cosmostrix's diff-based
+  renderer whose discipline `src/terminal/diff.rs` ports (QA.md Q8)
+  — the render lineage, distinct from the enforcement engine.
 - **The purple**: the brand color and the dragon's tone
   ([BRANDING.md](BRANDING.md)); regular purple is the brand layer,
   warn yellow the finding layer, suggestion white the recovery
