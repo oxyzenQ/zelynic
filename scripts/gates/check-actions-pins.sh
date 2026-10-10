@@ -111,7 +111,7 @@ cd "$REPO_ROOT"
 # reads. Resolved inside preflight() — the one seat that touches the
 # network — so a cache hit (zero network) also costs zero probes.
 # shellcheck source=scripts/lib/github_token.sh
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../" && pwd)/lib/github_token.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/github_token.sh"
 SWEEP_SCRIPT="scripts/ci/actions-version-sweep.sh"
 API_ROOT="https://api.github.com"
 DEFAULT_TTL=21600

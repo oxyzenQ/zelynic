@@ -93,7 +93,7 @@ cd "$REPO_ROOT"
 # One lib, one implementation, shared with the commit-time health
 # check; a machine offering no source stays anonymous, honestly.
 # shellcheck source=scripts/lib/github_token.sh
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../" && pwd)/lib/github_token.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/github_token.sh"
 GITHUB_TOKEN="${GITHUB_TOKEN:-$(resolve_github_token)}"
 if [ -n "$GITHUB_TOKEN" ]; then
 	export GITHUB_TOKEN
