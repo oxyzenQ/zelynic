@@ -293,7 +293,14 @@ fn status_branch_frames_carry_the_flagship_chrome() {
 /// never understates what remains), sub-minute in seconds so a
 /// short trial reads its own countdown; the 4h59m59s pin is the
 /// owner's own transcript shape, a `--during 5h` checked seconds
-/// after apply that must never read "4h".
+/// after apply that must never read "4h". The night-improve-74 pins
+/// are the same law at the tier crossing the owner's 55h transcript
+/// walked into: checked seconds after apply the remainder
+/// (54h59m57s) sits ABOVE the day tier, so the hours promise reads
+/// "3d" — the countdown rounds up into the unit the remainder still
+/// holds, it does not keep the unit the flag was spoken in. The
+/// boundary itself is pinned both ways: a breath under a day still
+/// reads hours, a breath over it reads days.
 #[test]
 fn format_duration_compact_one_unit_ceiled() {
     const S: u64 = 1_000_000_000;
@@ -313,6 +320,16 @@ fn format_duration_compact_one_unit_ceiled() {
     assert_eq!(format_duration_compact(5 * H - S), "5h");
     assert_eq!(format_duration_compact(45 * S + 500_000_000), "46s");
     assert_eq!(format_duration_compact(59 * S + S / 2), "60s");
+    // night-improve-74 (the owner's 55h transcript): `--during 55h`
+    // applied at 16:21:18 UTC, status read ~3s later — remaining
+    // 54h59m57s holds a third day, and the day tier ceils to 3d.
+    // The until stamp carried the exact promise (apply + 55h =
+    // 2026-10-12 23:21:18 UTC); only the unit crossed. The hours-to-
+    // days boundary pinned on both sides so the crossing can never
+    // silently move.
+    assert_eq!(format_duration_compact(55 * H - 3 * S), "3d");
+    assert_eq!(format_duration_compact(D - S), "24h");
+    assert_eq!(format_duration_compact(D + H), "2d");
 }
 
 /// The five lifetime shapes a row with a window renders, pinned to
