@@ -88,7 +88,7 @@ miss, then `amssp_resolve_root` (ebpf/src/amssp_resolve.rs) reads
 the generation array and hits the direction-scoped LRU memo - the
 negative memo (current generation, root 0) - and returns allow.
 Past the cgroup-id helper that is TWO hash lookups and ONE array
-read. This is the NIGHT-lts-2 unlimited fast path with AMMSP's
+read. This is the NIGHT-lts-2 unlimited fast path with MMSPA's
 one-lookup-plus-memo extension doing exactly what it was designed
 to do: the cost of deciding there is nothing to enforce.
 
@@ -130,7 +130,7 @@ arithmetic, not counted directly.)
 One belt fires exactly once in the window and is worth reading:
 the claim-4 stage ran the same cgroup's maps at 100 MB/s before this
 stage re-applied a 5 Mbps policy, and every policy mutation bumps
-ammsp_generation - so the footprint window's FIRST dl packet finds
+mmspa_generation - so the footprint window's FIRST dl packet finds
 a generation-mismatched leaf bucket and zeroes its stale quantum
 (the v13/v17 belt in ebpf/src/drr_flow.rs, designed for exactly this
 apply-over-live-traffic sequence). Every later run sees matching
@@ -183,9 +183,9 @@ asymmetric; that is what falsifiable means.
 ## The Z1 echo: why the cheap lane is ALLOWED to be cheap
 
 The ACK egress packets riding the ul bypass today are the exact
-traffic class that once poisoned the v10..v17 SHARED AMMSP memo
+traffic class that once poisoned the v10..v17 SHARED MMSPA memo
 (NIGHT-hunt-Z1 - the v18 schema notes in ebpf/src/bin/limiter.rs
-and the ammsp_leaf_cache_ul map docs in ebpf/src/amssp_resolve.rs
+and the mmspa_leaf_cache_ul map docs in ebpf/src/amssp_resolve.rs
 carry the full find): handshake and ACK egress memoized the leaf
 onto the root catch-all, and every download data packet then
 enforced at the ANCESTOR's rate - 3.5-4.7x over budget
@@ -208,7 +208,7 @@ for its correctness with a live over-admission find.
 - The enforcement lane: try_enforce in ebpf/src/bin/limiter.rs,
   drr_flow in ebpf/src/drr_flow.rs, the refill/consume/book math in
   ebpf/src/math.rs.
-- The bypass lane: ammsp_resolve_root and the direction-scoped memo
+- The bypass lane: mmspa_resolve_root and the direction-scoped memo
   maps in ebpf/src/amssp_resolve.rs.
 - The traffic shape constants: PURE_RATE = 5,000,000 and the 5.0s
   window in scripts/bench/proof-claims.py; default_burst in

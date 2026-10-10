@@ -105,7 +105,7 @@ impl super::Limiter {
                     // AND rollback, one stamp), never failing the
                     // rollback verdict.
                     let rolled_back = self.rollback_mutations(&mutations, &window_mutations, cause);
-                    self.ammsp_memo_invalidate_best_effort();
+                    self.mmspa_memo_invalidate_best_effort();
                     return Err(rolled_back);
                 }
             }
@@ -135,11 +135,11 @@ impl super::Limiter {
         // visit that follows it (reclaim.rs owns the why).
         self.sweep_census_orphans();
 
-        // AMMSP memo invalidation (research-2 / perf-0): the fresh
+        // MMSPA memo invalidation (research-2 / perf-0): the fresh
         // policies may cover leaves whose cached resolution is
         // stale — the walk sees only the live map, so the generation
         // bump makes the addition visible; once per invocation.
-        self.ammsp_memo_invalidate_best_effort();
+        self.mmspa_memo_invalidate_best_effort();
 
         Ok(applied)
     }
@@ -325,7 +325,7 @@ impl super::Limiter {
                     // still mutated, so the bump runs after its
                     // restorations.
                     let rolled_back = self.rollback_mutations(&mutations, &window_mutations, cause);
-                    self.ammsp_memo_invalidate_best_effort();
+                    self.mmspa_memo_invalidate_best_effort();
                     return Err(rolled_back);
                 }
             }
@@ -345,10 +345,10 @@ impl super::Limiter {
         // collector (apply_single's note owns the law).
         self.sweep_census_orphans();
 
-        // AMMSP memo invalidation (NIGHT-private-research-2,
+        // MMSPA memo invalidation (NIGHT-private-research-2,
         // generation-stamped by NIGHT-perf-0) — same
         // once-per-invocation tail as apply_single's.
-        self.ammsp_memo_invalidate_best_effort();
+        self.mmspa_memo_invalidate_best_effort();
 
         if self.verbose {
             for line in group_apply_lines(group_id, rates, all_cgroup_ids.len()) {

@@ -223,13 +223,13 @@ impl super::Limiter {
                 Err(cause) => {
                     // The rollback RESTORES each mutation's
                     // pre-apply raw (the charger-core-2 upgrade over
-                    // the hunt-20 delete-only shape); the AMMSP
+                    // the hunt-20 delete-only shape); the MMSPA
                     // generation bump runs after the restore's
                     // mutations land, covering every state change
                     // this invocation made — the same
                     // once-per-invocation tail the family owns.
                     let rolled_back = self.rollback_mutations(&mutations, &window_mutations, cause);
-                    self.ammsp_memo_invalidate_best_effort();
+                    self.mmspa_memo_invalidate_best_effort();
                     return Err(rolled_back);
                 }
             }
@@ -246,7 +246,7 @@ impl super::Limiter {
         // NIGHT-hunt-34: the orphan-census sweep, the tail's third
         // collector (reclaim.rs owns the why).
         self.sweep_census_orphans();
-        self.ammsp_memo_invalidate_best_effort();
+        self.mmspa_memo_invalidate_best_effort();
 
         if self.verbose {
             for line in group_apply_lines(group_id, rates, all_cgroup_ids.len()) {

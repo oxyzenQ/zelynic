@@ -138,7 +138,7 @@ finished, and the verdict is the fast path's miss shape, not a
 new lane. The SWEEP is the removal the repo already owns: every
 userspace command's mutation entry checks expiry rows and drives
 them through the existing unstrict/reclaim path (reclaim.rs), so
-the AMMSP generation bump, the bucket reclamation, the pin
+the MMSPA generation bump, the bucket reclamation, the pin
 hygiene, and the status rows all ride the machinery that exists.
 The CLI is the daemon — the sentence this whole design is.
 
@@ -164,7 +164,7 @@ lane where every other per-row semantic already lives.
 
 ## 4. The interactions with laws already pinned
 
-* The AMMSP generation belt: the datapath's expired-allow is NOT
+* The MMSPA generation belt: the datapath's expired-allow is NOT
   a mutation (no belt fires — the row simply answers expired per
   packet); the SWEEP is a removal and rides unstrict's existing
   gen bump, which zeroes every lane's stale state the way it
@@ -319,7 +319,7 @@ entry (a stale window expiring a fresh forever-row is the
 one-level-up twin of the stale-leg find). The unstrict/reclaim
 sweep removes it with the legs. The expired/dormant verdict is
 section 3.2's verbatim: ALLOW per packet, the miss shape, no
-AMMSP belt, until swept.
+MMSPA belt, until swept.
 
 The suspend residue, stated: CLOCK_MONOTONIC does not count
 suspend, so a span on a host that sleeps ages in wall time

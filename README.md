@@ -73,7 +73,7 @@ honest residuals) lives in
 | Edge | Detail |
 |------|--------|
 | **Pure eBPF datapath** | Zero intermediaries. The kernel IS the rate limiter. |
-| **Subtree-aware limits** | A limit on a cgroup covers every process spawned beneath it — any depth, born any time, sharing ONE budget (AMMSP, NIGHT-private-research-2). tc/nftables can't see the cgroup tree; zelynic polices it. |
+| **Subtree-aware limits** | A limit on a cgroup covers every process spawned beneath it — any depth, born any time, sharing ONE budget (MMSPA, NIGHT-private-research-2). tc/nftables can't see the cgroup tree; zelynic polices it. |
 | **Guaranteed fair share** | `--floor 100kb` / `--ceil 300kb`: every subprocess under the target is guaranteed a minimum and capped at a maximum — the floor a PRIORITY (an idle subprocess lends its share back; the pool itself is the lender), the ceiling binding even a lone subprocess. HTB's rate/ceil idiom in a pure eBPF policer (improve-40, schema v24). Per-direction spellings for the asymmetric link: `--floor-download` / `--ceil-upload` bracket one direction's rows only, one spelling per side (improve-40-b). |
 | **Self-expiring limits** | `--during 20d` — a duration from the apply instant (units s, m, h, d, mn, y; bounds 1s..5y): the KERNEL expires the row, no daemon, no cron, drift-free monotonic spans (night-during, schema v23; the window and date forms are gone — the owner's duration-only revision, rows written by older builds keep their promises). |
 | **Pinned bpf_links** | Enforcement survives process exit — no daemon, no battery drain (RAM/CPU/IO measured live, not asserted: the proof harness's footprint claim). |
@@ -670,7 +670,7 @@ trails live in each row's doc, told once there:
 | [supermassive v2](docs/CROSS_DISTRO_RESULTS.md) | The abuse family: the 106-case CLI stresstest, guards, SIGKILL batteries, crash teardown (4+ min) | `sudo ./scripts/supermassive/supermassive-test-v2.sh` |
 | [supermassive v3](docs/CROSS_DISTRO_RESULTS.md) | The container depth: docker:// and k8s:// target grammar, resolution errors, the resolve-only contract, docker E2E (self-skips with no daemon) | `sudo ./scripts/supermassive/supermassive-test-v3.sh` |
 | [supermassive v4](docs/CROSS_DISTRO_RESULTS.md) | The CLI depth: every command, alias, flag, color mode (zero to hero), typo tip, rate-explode category, removed/retired + hidden surface (rootless) | `./scripts/supermassive/supermassive-test-v4.sh` |
-| [AMMSP vs legacy](docs/CROSS_DISTRO_RESULTS.md) | The subtree contract as a DELTA: this build vs the pre-AMMSP v11.0.0 stable, seven child leaves each, the >= 99% coverage proof (~3 min) | `sudo ./scripts/supermassive/ammsp-vs-legacy-test.sh` (the v11.0.0 side auto-downloads, sha512-verified) |
+| [MMSPA vs legacy](docs/CROSS_DISTRO_RESULTS.md) | The subtree contract as a DELTA: this build vs the pre-MMSPA v11.0.0 stable, seven child leaves each, the >= 99% coverage proof (~3 min) | `sudo ./scripts/supermassive/mmspa-vs-legacy-test.sh` (the v11.0.0 side auto-downloads, sha512-verified) |
 | [claims proof](docs/CLAIMS_VERIFICATION.md) | The README's four headline claims plus the one-shot footprint, proven live (~1 min) | `sudo ./scripts/bench/proof-claims.sh` |
 | [sandbox](docs/SANDBOX.md) | No root on your box? The same micro-VM CI boots, locally — throwaway kernel, no docker, no host changes | `scripts/sandbox/zelynic-sandbox.sh --smoke` |
 

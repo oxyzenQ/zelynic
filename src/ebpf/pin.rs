@@ -58,34 +58,34 @@ pub const PIN_MAP_WALL_CLOCK_OFFSET: &str = "/sys/fs/bpf/zelynic/wall_clock_offs
 pub const PIN_MAP_RATE_RING_DL: &str = "/sys/fs/bpf/zelynic/rate_ring_dl";
 pub const PIN_MAP_RATE_RING_UL: &str = "/sys/fs/bpf/zelynic/rate_ring_ul";
 
-/// The AMMSP leaf caches (NIGHT-private-research-2; direction-scoped
+/// The MMSPA leaf caches (NIGHT-private-research-2; direction-scoped
 /// since NIGHT-hunt-Z1, schema v18): leaf cgroup id -> the packed u64
 /// memo word (`(generation << 32) | root`, 0 root = resolved
-/// unlimited; the packing is the pure core's, ebpf/src/ammsp.rs).
+/// unlimited; the packing is the pure core's, ebpf/src/mmspa.rs).
 /// ONE MAP PER DIRECTION — a memo's root is only valid for the
 /// direction whose walk produced it (the walk reads THAT direction's
 /// policy map, and the single-direction applies legitimately leave
 /// the two disagreeing; the shared v10..v17 map let one direction's
 /// resolution poison the other's enforcement). LRU hash maps,
 /// written by the datapath only, retired generationally by every
-/// policy mutation (ammsp_memo_invalidate in limiter/ammsp.rs — the
-/// ammsp_generation bump, NIGHT-perf-0, one shared counter retiring
+/// policy mutation (mmspa_memo_invalidate in limiter/mmspa.rs — the
+/// mmspa_generation bump, NIGHT-perf-0, one shared counter retiring
 /// both lanes at once). The static map names in
-/// ebpf/src/ammsp_resolve.rs and these pin paths are the same
+/// ebpf/src/mmspa_resolve.rs and these pin paths are the same
 /// contract every other map here follows.
-pub const PIN_MAP_AMMSP_CACHE_DL: &str = "/sys/fs/bpf/zelynic/ammsp_leaf_cache_dl";
-pub const PIN_MAP_AMMSP_CACHE_UL: &str = "/sys/fs/bpf/zelynic/ammsp_leaf_cache_ul";
+pub const PIN_MAP_MMSPA_CACHE_DL: &str = "/sys/fs/bpf/zelynic/mmspa_leaf_cache_dl";
+pub const PIN_MAP_MMSPA_CACHE_UL: &str = "/sys/fs/bpf/zelynic/mmspa_leaf_cache_ul";
 
-/// The AMMSP memo generation counter (NIGHT-perf-0): a one-entry
+/// The MMSPA memo generation counter (NIGHT-perf-0): a one-entry
 /// pinned array, read by the datapath before every resolution and
 /// bumped by userspace after every policy mutation's writes land
-/// (ammsp_memo_invalidate in limiter/ammsp.rs). The stamp every memo
+/// (mmspa_memo_invalidate in limiter/mmspa.rs). The stamp every memo
 /// carries is compared against this word per packet — the O(1)
 /// replacement for the whole-map delete sweep, and the close for the
 /// insert-after-flush race no sweep could cover. The static map
 /// name in ebpf/src/bin/limiter.rs and this pin path are the same
 /// contract every other map here follows.
-pub const PIN_MAP_AMMSP_GEN: &str = "/sys/fs/bpf/zelynic/ammsp_generation";
+pub const PIN_MAP_MMSPA_GEN: &str = "/sys/fs/bpf/zelynic/mmspa_generation";
 
 /// Open a pinned hash map in read mode (NIGHT-optimized-2).
 /// Single source of the pin-open + error-mapping dance the status
@@ -100,7 +100,7 @@ pub(crate) fn open_pinned_hash_map(pin_path: &str) -> Result<aya::maps::Map> {
 }
 
 /// Open a pinned LRU hash map in read mode — the LRU twin of
-/// [`open_pinned_hash_map`] (the AMMSP leaf cache). Wrapped in the
+/// [`open_pinned_hash_map`] (the MMSPA leaf cache). Wrapped in the
 /// matching enum variant so aya's map-type reporting stays honest;
 /// every syscall op (get / insert / remove / keys iteration) the
 /// flush and the status readers need works identically on LRU hash

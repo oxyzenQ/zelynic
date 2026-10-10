@@ -74,7 +74,7 @@ class since hunt-Z5 (2026-10-02), verbatim in
 > the ceiling carries the verdict.
 
 The same battery's own rows prove the class on the very legs that
-reddened the claims rows: the ammsp fair-share single row passed
+reddened the claims rows: the mmspa fair-share single row passed
 at 36.9% (1mb, another leg), 83.5% (this run) — "under-delivery is
 TCP recovery physics (the sender's RTO cadence), the ceiling
 carries the verdict"; the ladder rungs pass at 1.4% and 29.9% with

@@ -1,10 +1,10 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 rezky_nightky (oxyzenQ) -->
 
-# The AMMSP implementation audit (NIGHT-private-research-2 & think-like-light-years-2, 2026-09-30)
+# The MMSPA implementation audit (NIGHT-private-research-2 & think-like-light-years-2, 2026-09-30)
 
 The design brief lives at
-[research/NIGHT_PRIVATE_RESEARCH_2_AMMSP_DESIGN.md](../research/NIGHT_PRIVATE_RESEARCH_2_AMMSP_DESIGN.md)
+[research/NIGHT_PRIVATE_RESEARCH_2_MMSPA_DESIGN.md](../research/NIGHT_PRIVATE_RESEARCH_2_MMSPA_DESIGN.md)
 — the owner's directive, the verified root cause, the four
 candidate designs, the risk register. This audit records what was
 actually BUILT, the decisions made in the building, and the honest
@@ -14,16 +14,16 @@ tree as committed, not as planned.
 ## 1. What shipped
 
 - **The datapath** (`ebpf/src/bin/limiter.rs`,
-  `ebpf/src/ammsp_resolve.rs`, `ebpf/src/ammsp.rs`): the leaf's own
-  policy lookup stays first and unchanged (every pre-AMMSP scenario
+  `ebpf/src/mmspa_resolve.rs`, `ebpf/src/mmspa.rs`): the leaf's own
+  policy lookup stays first and unchanged (every pre-MMSPA scenario
   is bit-identical — one lookup, enforce at the leaf); on miss, the
   LRU memo answers (cached 0 = unlimited at one lookup, the whole
-  fast-path cost of AMMSP); on no memo or a stale one, the ancestor
+  fast-path cost of MMSPA); on no memo or a stale one, the ancestor
   walk (absolute levels ascending, zero-break, last-match-wins =
   nearest root, bounded at 32) resolves against the live policy map
   and re-memoizes. Enforcement keys bucket AND stats at the ROOT
   id: one shared subtree budget, one status row that aggregates it.
-- **The userspace half** (`src/ebpf/limiter/ammsp.rs`): the whole
+- **The userspace half** (`src/ebpf/limiter/mmspa.rs`): the whole
   memo flush, once per mutation, inside the flock the mutation
   already holds — `apply_single`, `apply_group`, and `unstrict`
   run it on both their success and error paths (a rolled-back apply
@@ -32,7 +32,7 @@ tree as committed, not as planned.
 - **Schema v10** (`src/ebpf/limiter/schema.rs`, split from
   types.rs at this bump — the version-history block is the one
   piece of types.rs that grows by design, and the cap was full):
-  new pinned `ammsp_leaf_cache` map (LRU, 4096 entries), existing
+  new pinned `mmspa_leaf_cache` map (LRU, 4096 entries), existing
   struct layouts, the same one-time reload-and-re-apply contract as
   v4..v9.
 - **The lane twin** (`reclaim.rs::with_lru_u32_map`): the
@@ -42,16 +42,16 @@ tree as committed, not as planned.
   instead of weakening it: the LRU twin lives in the same lane
   file, and only the flush rides it.
 - **The live stage** (`scripts/supermassive/supermassive-test.py::
-  test_ammsp_subtree`): the owner's scenario, made permanent —
+  test_mmspa_subtree`): the owner's scenario, made permanent —
   child born after the apply (policed), poisoned pre-apply memo
   (invalidated by the flush), parent+child pair under one budget
   (the SUM is one 100kb, not two), grandchild under nested roots
   (nearest root's budget), aggregate-at-root stats row, kernel-drop
   proof. Every verdict a measured band, every band the harness's
   own.
-- **The rootless pins** (`test/ebpf/limiter/ammsp_tests.rs`,
-  `test/ebpf/limiter/ammsp_flush_lines_tests.rs`): the pure core
-  compiles from `ebpf/src/ammsp.rs` — the same file the BPF object
+- **The rootless pins** (`test/ebpf/limiter/mmspa_tests.rs`,
+  `test/ebpf/limiter/mmspa_flush_lines_tests.rs`): the pure core
+  compiles from `ebpf/src/mmspa.rs` — the same file the BPF object
   builds (the math.rs discipline) — and the walk state machine,
   the exhaustive cache verdict table, the memo value contract, the
   depth bound and its cost curve are pinned without root.
@@ -83,8 +83,8 @@ tree as committed, not as planned.
   so the pins see the curve.
 - **The LOC-cap splits happened as the gates demanded, not
   preemptively**: limiter.rs crossed 500 with the resolution block
-  (the aya-touching half moved to `ebpf/src/ammsp_resolve.rs`;
-  the decidable half was already pure in `ammsp.rs`), mod.rs was
+  (the aya-touching half moved to `ebpf/src/mmspa_resolve.rs`;
+  the decidable half was already pure in `mmspa.rs`), mod.rs was
   trimmed under the cap, and types.rs's schema block grew its own
   file at the bump that filled it. Every split follows the
   policy_lines/parse precedent: re-export surfaces unchanged.

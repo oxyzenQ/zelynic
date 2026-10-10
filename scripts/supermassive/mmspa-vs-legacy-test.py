@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: GPL-3.0-only
-"""zelynic AMMSP-vs-legacy depth test (NIGHT-perf-1) — the subtree
+"""zelynic MMSPA-vs-legacy depth test (NIGHT-perf-1) — the subtree
 contract proven as a DELTA between two real binaries.
 
-The owner's ask: "create a script to depth test zelynic AMMSP vs non
-AMMSP (using old v11 stable), verify and proof the AMMSP works 99%
+The owner's ask: "create a script to depth test zelynic MMSPA vs non
+MMSPA (using old v11 stable), verify and proof the MMSPA works 99%
 or not" — turned into a permanent harness the supermassive legs run
 on the kernel floor AND the latest head (the low/best pair).
 
 The two sides are the two REAL builds, nothing simulated:
 
-  * CURRENT — this checkout's AMMSP build (schema v10+, the subtree
+  * CURRENT — this checkout's MMSPA build (schema v10+, the subtree
     walk + the generation-stamped memo since NIGHT-perf-0), resolved
     exactly the way every other harness resolves it (the version
     gate included: this side IS this checkout).
-  * LEGACY — the last pre-AMMSP stable release, v11.0.0 (schema v9,
+  * LEGACY — the last pre-MMSPA stable release, v11.0.0 (schema v9,
     leaf-anchored lookups: a socket born in a child cgroup simply
     missed the policy map and ran UNLIMITED). The legacy side comes
     from --legacy-binary, $ZELYNIC_LEGACY_BINARY, the canonical
@@ -28,17 +28,17 @@ The two sides are the two REAL builds, nothing simulated:
 
 Both sides run the IDENTICAL battery under the same fleet, the same
 server, the same traffic workers, the same bands — the only variable
-is the binary. The battery is the subtree depth sweep the AMMSP
+is the binary. The battery is the subtree depth sweep the MMSPA
 design promised:
 
   1. a strict on the PARENT cgroup at 100kb;
   2. seven leaf children measured one by one — a three-level depth
      chain (parent/sub, parent/sub/sub2, parent/sub/sub2/sub3), three
      direct siblings, and one child created AFTER the apply (the
-     owner's eagle-eyes scenario, the exact hole AMMSP exists to
+     owner's eagle-eyes scenario, the exact hole MMSPA exists to
      close);
   3. one leaf deliberately pre-poisoned with an UNLIMITED download
-     BEFORE the apply (the memo AMMSP must invalidate);
+     BEFORE the apply (the memo MMSPA must invalidate);
   4. a shared-budget probe: two leaves downloading CONCURRENTLY must
      sum to ONE 100kb budget, not two;
   5. a nested-root probe: a 50kb strict on the chain's first level —
@@ -48,16 +48,16 @@ Each leaf lands one of three classes: POLICED (inside the measured
 band), ESCAPED (at or beyond 2.6x configured — the line-rate class),
 or GRAY (between — counted as not-policed, reported honestly). The
 coverage rate is policed/total per side, and the headline verdict is
-the DELTA: the AMMSP side must cover >= 99% of the leaves, the legacy
+the DELTA: the MMSPA side must cover >= 99% of the leaves, the legacy
 side must cover none of them (every measured leaf lives in a CHILD
-cgroup — the pre-AMMSP datapath never policed one), and the gap must
-be >= 99 points. That is the "does AMMSP work 99% or not" question,
+cgroup — the pre-MMSPA datapath never policed one), and the gap must
+be >= 99 points. That is the "does MMSPA work 99% or not" question,
 answered with numbers from both kernels of the low/best pair.
 
 Division of labor with v1/v2: this harness owns the A/B DELTA only.
-The AMMSP tree's own functional battery (band verdicts, stats
+The MMSPA tree's own functional battery (band verdicts, stats
 roll-up, generation-stamp behavior) lives in supermassive-test.py's
-test_ammsp_subtree; v2 owns the abuse family. What only a
+test_mmspa_subtree; v2 owns the abuse family. What only a
 two-binary comparison can prove — the counterfactual, "what the same
 machine, same fleet, same traffic would have leaked on the old
 stable" — is the one row this script exists for.
@@ -132,9 +132,9 @@ WINDOW = 4.0
 # own class (never hidden in a pass).
 ESCAPED_FACTOR = 2.6
 
-# The legacy side's canonical provenance: the last pre-AMMSP stable
+# The legacy side's canonical provenance: the last pre-MMSPA stable
 # release (verified: the v11.0.0 tree's ebpf/src/bin/limiter.rs carries
-# zero ammsp references). The tarball carries the binary at its ROOT
+# zero mmspa references). The tarball carries the binary at its ROOT
 # (verified against the release archive itself), with the sha512sum
 # sidecar beside it — the pair the auto-download fetches and the CI
 # rootfs step stages.
@@ -146,7 +146,7 @@ LEGACY_URL = (
 LEGACY_SHA512_EXT = ".sha512sum"
 LEGACY_INNER = "zelynic"
 LEGACY_CACHE = os.path.join(
-    os.environ.get("TMPDIR") or "/tmp", "zelynic-ammsp-legacy", LEGACY_VERSION.lstrip("v")
+    os.environ.get("TMPDIR") or "/tmp", "zelynic-mmspa-legacy", LEGACY_VERSION.lstrip("v")
 )
 
 
@@ -229,28 +229,28 @@ def classify(measured_bps, configured_bps):
     return "gray"
 
 
-def coverage_verdict(ammsp_counts, legacy_counts):
+def coverage_verdict(mmspa_counts, legacy_counts):
     """The headline DELTA computation (pure, self-test-pinned).
 
-    Each side's counts is a dict of class -> leaves. AMMSP works at
+    Each side's counts is a dict of class -> leaves. MMSPA works at
     the 99% bar when: its policed share is >= 99% of its measured
     leaves, the legacy side polices none of the child leaves (every
-    pre-AMMSP child escaped — the counterfactual), and the gap is
+    pre-MMSPA child escaped — the counterfactual), and the gap is
     >= 99 points. Anything else FAILs with the numbers attached —
     the verdict never rounds a single escaped leaf up to a pass.
     """
-    ammsp_total = sum(ammsp_counts.values())
+    mmspa_total = sum(mmspa_counts.values())
     legacy_total = sum(legacy_counts.values())
-    ammsp_cov = ammsp_counts.get("policed", 0) / ammsp_total if ammsp_total else 0.0
+    mmspa_cov = mmspa_counts.get("policed", 0) / mmspa_total if mmspa_total else 0.0
     legacy_cov = legacy_counts.get("policed", 0) / legacy_total if legacy_total else 0.0
-    delta = ammsp_cov - legacy_cov
-    ok = ammsp_cov >= 0.99 and legacy_cov <= 0.01 and delta >= 0.99 and ammsp_total > 0
+    delta = mmspa_cov - legacy_cov
+    ok = mmspa_cov >= 0.99 and legacy_cov <= 0.01 and delta >= 0.99 and mmspa_total > 0
     detail = (
-        f"AMMSP {ammsp_counts.get('policed', 0)}/{ammsp_total} leaf cgroups policed "
-        f"({ammsp_cov:.0%}), legacy {legacy_counts.get('policed', 0)}/{legacy_total} "
+        f"MMSPA {mmspa_counts.get('policed', 0)}/{mmspa_total} leaf cgroups policed "
+        f"({mmspa_cov:.0%}), legacy {legacy_counts.get('policed', 0)}/{legacy_total} "
         f"({legacy_cov:.0%}) — the {delta:.0%} gap is the counterfactual proof"
     )
-    return ok, detail, ammsp_cov, legacy_cov
+    return ok, detail, mmspa_cov, legacy_cov
 
 
 def side_verdict(cls, is_current):
@@ -258,7 +258,7 @@ def side_verdict(cls, is_current):
 
     THE DELTA row owns the headline pass/fail — but the per-leaf rows
     also carry verdicts, and the harness's EXIT rides any FAIL row.
-    The 1a25f91 CI lesson: a perfect proof (AMMSP 7/7 policed, legacy
+    The 1a25f91 CI lesson: a perfect proof (MMSPA 7/7 policed, legacy
     0/7, THE DELTA row OK) still exited 1 because the legacy side's
     ESCAPES were recorded as FAIL rows — nine of them — and the
     supermassive legs went red on the counterfactual doing exactly
@@ -266,7 +266,7 @@ def side_verdict(cls, is_current):
     verdict per side: the current side is JUDGED (policed is the only
     pass — an escaped or gray leaf is a real finding against the 99%
     claim and the DELTA row fails with it), while the legacy side is
-    the CONTROL (escaping is the expected pre-AMMSP shape; a POLICED
+    the CONTROL (escaping is the expected pre-MMSPA shape; a POLICED
     legacy child is the measurement bug the proof refuses). The row
     detail keeps the class either way — nothing is hidden, only the
     verdict column learns which side it is on.
@@ -373,15 +373,15 @@ def battery_order(current, legacy):
     run_battery_side rebinds lib.BINARY as its first act: a caller
     that reads the module global after a side has run gets that side's
     binary instead of its own. That is the run-253 CI lesson — the
-    current side executed the legacy binary, AMMSP coverage read
+    current side executed the legacy binary, MMSPA coverage read
     0/7, and all four supermassive legs failed on a harness aliasing
-    bug, not an AMMSP regression. The third element names the side for
+    bug, not an MMSPA regression. The third element names the side for
     the side-aware row verdicts; the self-test pins the discipline
     rootlessly by rebinding the global between capture and use.
     """
     return (
-        ("legacy (pre-AMMSP)", legacy, False),
-        ("current (AMMSP)", current, True),
+        ("legacy (pre-MMSPA)", legacy, False),
+        ("current (MMSPA)", current, True),
     )
 
 
@@ -399,7 +399,7 @@ def leaf_bytes(path, win, idle=0.0):
         win + 20,
     )
     if metric is None:
-        record("ammsp-vs-legacy: leaf worker", "FAIL", err)
+        record("mmspa-vs-legacy: leaf worker", "FAIL", err)
     return metric or 0
 
 
@@ -429,7 +429,7 @@ def mkdir_quiet(path):
     except FileExistsError:
         return True
     except OSError as e:
-        record(f"ammsp-vs-legacy: create {os.path.basename(path)}", "FAIL", str(e))
+        record(f"mmspa-vs-legacy: create {os.path.basename(path)}", "FAIL", str(e))
         return False
 
 
@@ -445,7 +445,7 @@ def rmdir_quiet(path):
 def measure_line_rate(win=2.0):
     """The unpoliced loopback floor, measured once before either side
     runs: a scratch child of the never-policed fleet bed "b", one
-    download, gone again. The same gate v1's test_ammsp_subtree holds
+    download, gone again. The same gate v1's test_mmspa_subtree holds
     (a 100kb band is meaningless when the machine cannot feed 2x it) —
     measured, never assumed."""
     scratch = f"{sm1.CG.paths['b']}/av-baseline"
@@ -525,7 +525,7 @@ def run_battery_side(label, binary, is_current=False):
     # Clean slate: recover tolerates an already-clean pin dir.
     rc, _, err = run_side_binary(binary, ["recover"])
     if rc != 0:
-        record(f"ammsp-vs-legacy: {label} recover", "FAIL", err.strip()[:160])
+        record(f"mmspa-vs-legacy: {label} recover", "FAIL", err.strip()[:160])
         return None
 
     parent = sm1.CG.paths["a"]
@@ -547,7 +547,7 @@ def run_battery_side(label, binary, is_current=False):
         if not all(mkdir_quiet(p) for p in leaves):
             return None
         made += [p for p in leaves if p not in made]
-        # Pre-poison one sibling with an UNLIMITED window: the AMMSP
+        # Pre-poison one sibling with an UNLIMITED window: the MMSPA
         # side memoizes the negative (and the perf-0 generation stamp
         # must retire it after the apply); the legacy side has no
         # memo — this is just a pre-apply baseline download there.
@@ -555,10 +555,10 @@ def run_battery_side(label, binary, is_current=False):
 
         ok, payload = sm1.apply_single("a", RATE_STR, RATE_BPS, RATE_BPS)
         if not ok:
-            record(f"ammsp-vs-legacy: {label} strict on the parent", "FAIL", payload)
+            record(f"mmspa-vs-legacy: {label} strict on the parent", "FAIL", payload)
             return None
         record(
-            f"ammsp-vs-legacy: {label} strict on the parent",
+            f"mmspa-vs-legacy: {label} strict on the parent",
             "PASS",
             f"{RATE_STR} on cgroup a — the subtree contract is now the question",
         )
@@ -574,7 +574,7 @@ def run_battery_side(label, binary, is_current=False):
 
         # The late-born child: created AFTER the apply — the owner's
         # eagle-eyes scenario, the exact shape the legacy datapath
-        # never covered and AMMSP exists to cover.
+        # never covered and MMSPA exists to cover.
         late = f"{parent}/av-late"
         if mkdir_quiet(late):
             made.append(late)
@@ -589,7 +589,7 @@ def run_battery_side(label, binary, is_current=False):
             counts[cls] += 1
             details.append(f"{os.path.basename(p)}={cls}")
             record(
-                f"ammsp-vs-legacy: {label} leaf {os.path.basename(p)}",
+                f"mmspa-vs-legacy: {label} leaf {os.path.basename(p)}",
                 side_verdict(cls, is_current),
                 f"{fmt_bps(measured)} measured vs {RATE_STR} configured — {cls}",
             )
@@ -628,7 +628,7 @@ def run_battery_side(label, binary, is_current=False):
         shared_bps = total / WINDOW
         shared_cls = classify(shared_bps, RATE_BPS)
         record(
-            f"ammsp-vs-legacy: {label} two concurrent leaves share ONE budget",
+            f"mmspa-vs-legacy: {label} two concurrent leaves share ONE budget",
             side_verdict(shared_cls, is_current),
             f"sum {fmt_bps(shared_bps)} across two child cgroups vs {RATE_STR} — {shared_cls}",
         )
@@ -640,7 +640,7 @@ def run_battery_side(label, binary, is_current=False):
         if chain1_id is not None:
             rc, _, err = run_side_binary(binary, nested_apply_argv(chain1_id, is_current))
             if rc != 0:
-                record(f"ammsp-vs-legacy: {label} nested-root apply", "FAIL", err.strip()[:160])
+                record(f"mmspa-vs-legacy: {label} nested-root apply", "FAIL", err.strip()[:160])
             else:
                 # The fresh nested bucket starts FULL (the 64 KiB GSO
                 # burst floor binds at this rate). v1's own nested-root
@@ -659,7 +659,7 @@ def run_battery_side(label, binary, is_current=False):
                 measured = got / WINDOW
                 nested_cls = classify(measured, NESTED_BPS)
                 record(
-                    f"ammsp-vs-legacy: {label} grandchild resolves the NEAREST root",
+                    f"mmspa-vs-legacy: {label} grandchild resolves the NEAREST root",
                     side_verdict(nested_cls, is_current),
                     f"{fmt_bps(measured)} under a {NESTED_STR} root inside a "
                     f"{RATE_STR} subtree — {nested_cls}",
@@ -682,7 +682,7 @@ def self_test():
     the classifier table, the coverage/delta verdict at its exact
     thresholds, the legacy resolver's failure shape, and the report
     plumbing — python3 stdlib only, no root, no zelynic, no BPF."""
-    out("zelynic ammsp-vs-legacy depth test — engine self-test (NIGHT-perf-1)")
+    out("zelynic mmspa-vs-legacy depth test — engine self-test (NIGHT-perf-1)")
     out()
     t0 = time.perf_counter()
 
@@ -717,7 +717,7 @@ def self_test():
     record("self: delta verdict — a policed legacy child fails", "PASS", "counterfactual guarded")
 
     ok, _, _, _ = coverage_verdict({"policed": 0, "escaped": 0, "gray": 0}, {"policed": 1})
-    assert not ok, "an empty AMMSP sweep is no proof at all"
+    assert not ok, "an empty MMSPA sweep is no proof at all"
     record("self: delta verdict — empty sweep fails", "PASS", "zero leaves is zero evidence")
 
     # The legacy resolver's SKIP shape (no legacy binary on this host
@@ -737,16 +737,16 @@ def self_test():
     # The run-253 CI lesson, pinned as a shape: the current side's
     # binary is captured BEFORE the legacy side rebinds lib.BINARY —
     # reading the module global after the first side returns would
-    # run the legacy binary on BOTH sides (AMMSP 0/7, THE DELTA
+    # run the legacy binary on BOTH sides (MMSPA 0/7, THE DELTA
     # failing as a harness bug). battery_order() takes both paths as
     # plain arguments, so the rebind discipline is structural: the
     # captured value survives a module-global mutation untouched.
     captured = "/checkout/zelynic"
     order = battery_order(captured, "/opt/zelynic/legacy/zelynic")
     lib.BINARY = "/opt/zelynic/legacy/zelynic"  # what the first side leaves behind
-    assert order[0][0] == "legacy (pre-AMMSP)" and order[0][1] == "/opt/zelynic/legacy/zelynic"
+    assert order[0][0] == "legacy (pre-MMSPA)" and order[0][1] == "/opt/zelynic/legacy/zelynic"
     assert order[0][2] is False, "the legacy side names itself the control"
-    assert order[1][0] == "current (AMMSP)" and order[1][1] == captured, (
+    assert order[1][0] == "current (MMSPA)" and order[1][1] == captured, (
         "the current side must be the captured path, never the post-rebind global"
     )
     assert order[1][2] is True, "the current side names itself the judged side"
@@ -844,8 +844,8 @@ def self_test():
 
 def main():
     ap = argparse.ArgumentParser(
-        prog="ammsp-vs-legacy-test",
-        description="zelynic AMMSP vs pre-AMMSP (v11.0.0) subtree-coverage "
+        prog="mmspa-vs-legacy-test",
+        description="zelynic MMSPA vs pre-MMSPA (v11.0.0) subtree-coverage "
         "depth test (NIGHT-perf-1) — the 99% delta proof",
     )
     ap.add_argument(
@@ -856,13 +856,13 @@ def main():
     ap.add_argument(
         "--binary",
         default="",
-        help="the CURRENT (AMMSP) zelynic under test (default: the repo's "
+        help="the CURRENT (MMSPA) zelynic under test (default: the repo's "
         "own resolution, newest build first)",
     )
     ap.add_argument(
         "--legacy-binary",
         default="",
-        help="the pre-AMMSP legacy zelynic (v11.0.0) for the counterfactual "
+        help="the pre-MMSPA legacy zelynic (v11.0.0) for the counterfactual "
         "side (also $ZELYNIC_LEGACY_BINARY, /opt/zelynic/legacy/zelynic "
         "as staged by the supermassive CI legs, or the canonical "
         "auto-download — in that order)",
@@ -885,17 +885,17 @@ def main():
 
     if os.geteuid() != 0:
         out("FAIL: this harness drives real BPF enforcement — run it as root")
-        out("  (sudo ./scripts/supermassive/ammsp-vs-legacy-test.sh)")
+        out("  (sudo ./scripts/supermassive/mmspa-vs-legacy-test.sh)")
         out("  The engine alone can be verified rootlessly: --self-test")
         return 1
 
-    if not lib.resolve_binary(args.binary, "ammsp-vs-legacy-test.sh"):
+    if not lib.resolve_binary(args.binary, "mmspa-vs-legacy-test.sh"):
         return 1
     # The current side is captured BY VALUE the moment resolution
     # succeeds: run_battery_side rebinds lib.BINARY for every side it
     # runs, so reading the module global after the legacy side returns
     # would hand the harness the LEGACY binary for its "current
-    # (AMMSP)" side (the run-253 lesson — both sides pre-AMMSP, the
+    # (MMSPA)" side (the run-253 lesson — both sides pre-MMSPA, the
     # delta failing as a harness bug). battery_order() freezes the
     # pair; the self-test pins the discipline.
     current = lib.BINARY
@@ -907,7 +907,7 @@ def main():
         # never a false fail (the same honest-SKIP contract the realnet
         # lane holds). CI stages the legacy binary, so on the super-
         # massive legs this row is live, not skipped.
-        record("ammsp-vs-legacy: legacy side resolved", "SKIP", legacy_note)
+        record("mmspa-vs-legacy: legacy side resolved", "SKIP", legacy_note)
         out()
         out("  The delta proof needs the legacy pair. The auto-download")
         out("  already tried the canonical release (or --no-download")
@@ -927,7 +927,7 @@ def main():
         # one-sided delta is exactly what this harness exists to
         # forbid, and a SKIP-exit-0 used to read as PASS through
         # supermassive-init's [ -x ] + exit-code guard.
-        record("ammsp-vs-legacy: legacy side resolved", "FAIL", legacy_note)
+        record("mmspa-vs-legacy: legacy side resolved", "FAIL", legacy_note)
         out()
         out("  The legacy candidate exists but is not a healthy zelynic")
         out("  legacy binary — the delta proof refuses to run one-sided.")
@@ -940,7 +940,7 @@ def main():
         )
         final_report(time.perf_counter(), "root", "failed — broken legacy binary")
         return 1
-    record("ammsp-vs-legacy: legacy side resolved", "PASS", legacy_banner)
+    record("mmspa-vs-legacy: legacy side resolved", "PASS", legacy_banner)
 
     # The shared engine boot (the v2 precedent): fleet first, then the
     # in-process server, then the harness-in-hq isolation contract.
@@ -949,7 +949,7 @@ def main():
     sm1.MODE = mode
     sm1.SERVER = sm1.HttpServer()
 
-    out(f"zelynic ammsp-vs-legacy depth test (NIGHT-perf-1) — AMMSP vs {LEGACY_VERSION}, {mode}")
+    out(f"zelynic mmspa-vs-legacy depth test (NIGHT-perf-1) — MMSPA vs {LEGACY_VERSION}, {mode}")
     out(f"  current: {current}")
     out(f"  legacy:  {legacy}")
     out()
@@ -958,29 +958,29 @@ def main():
     # floor too low to feed it (the same gate v1's stages hold — the
     # SKIP is honest, never a false pass).
     if not sm1.CG.dedicated:
-        record("ammsp-vs-legacy: dedicated fleet", "SKIP", "no cgroup lane — child leaves need one")
+        record("mmspa-vs-legacy: dedicated fleet", "SKIP", "no cgroup lane — child leaves need one")
         final_report(time.perf_counter(), "root", "skipped — no dedicated cgroup fleet")
         return 0
     baseline = measure_line_rate()
     if baseline < 2_000_000:
         record(
-            "ammsp-vs-legacy: loopback baseline",
+            "mmspa-vs-legacy: loopback baseline",
             "SKIP",
             f"{fmt_bps(baseline)} — too low to feed a {RATE_STR} band",
         )
         final_report(time.perf_counter(), "root", "skipped — baseline too low")
         return 0
-    record("ammsp-vs-legacy: loopback baseline", "PASS", f"{fmt_bps(baseline)} unpoliced floor")
+    record("mmspa-vs-legacy: loopback baseline", "PASS", f"{fmt_bps(baseline)} unpoliced floor")
 
     (legacy_label, legacy_path, _), (current_label, current_path, _) = battery_order(
         current, legacy
     )
     legacy_counts = run_battery_side(legacy_label, legacy_path, is_current=False)
-    ammsp_counts = run_battery_side(current_label, current_path, is_current=True)
+    mmspa_counts = run_battery_side(current_label, current_path, is_current=True)
 
-    ok, detail, ammsp_cov, legacy_cov = coverage_verdict(ammsp_counts or {}, legacy_counts or {})
+    ok, detail, mmspa_cov, legacy_cov = coverage_verdict(mmspa_counts or {}, legacy_counts or {})
     record(
-        "ammsp-vs-legacy: THE DELTA — AMMSP polices >= 99% of child leaves, legacy none",
+        "mmspa-vs-legacy: THE DELTA — MMSPA polices >= 99% of child leaves, legacy none",
         "PASS" if ok else "FAIL",
         detail,
     )
@@ -988,7 +988,7 @@ def main():
     final_report(
         time.perf_counter(),
         "root",
-        f"AMMSP subtree coverage {ammsp_cov:.0%} vs legacy {legacy_cov:.0%} — "
+        f"MMSPA subtree coverage {mmspa_cov:.0%} vs legacy {legacy_cov:.0%} — "
         "the 99% proof is the delta",
     )
     failed = any(r["verdict"] == "FAIL" for r in RESULTS)

@@ -56,11 +56,11 @@
 ///     everywhere else, so a blocked multi-CPU cgroup lost drop
 ///     increments like the pre-v7 ledger lost allowed bytes. Verdict
 ///     unchanged, no layout change; same one-time re-apply as v4..v8.
-/// v10 (NIGHT-private-research-2, AMMSP): the leaf-anchored policy
+/// v10 (NIGHT-private-research-2, MMSPA): the leaf-anchored policy
 ///     lookup becomes subtree-aware — a policy written for cgroup A
 ///     now polices every socket born under A/** with ONE shared
 ///     budget, resolved per packet through the new pinned
-///     ammsp_leaf_cache map (LRU, leaf cgroup id -> resolved policy
+///     mmspa_leaf_cache map (LRU, leaf cgroup id -> resolved policy
 ///     root, 0 = resolved unlimited) and enforced with bucket +
 ///     stats keyed at the ROOT, so the subtree shares the budget and
 ///     the ledger rolls up to the target. New map, new coverage,
@@ -83,10 +83,10 @@
 ///     twin. No layout change, verdict math untouched; the bump
 ///     forces pinned v10 programs to reload into the init-race-free
 ///     object — the same one-time re-apply contract as v4..v10.
-/// v12 (NIGHT-perf-0): AMMSP memos become generation-stamped —
-///     the ammsp_leaf_cache value widens u32 -> u64, packing
+/// v12 (NIGHT-perf-0): MMSPA memos become generation-stamped —
+///     the mmspa_leaf_cache value widens u32 -> u64, packing
 ///     `(generation << 32) | root`, and a new one-entry pinned
-///     ammsp_generation counter array is read by the datapath
+///     mmspa_generation counter array is read by the datapath
 ///     before every resolution and bumped by userspace after every
 ///     policy mutation's writes land. The stamp closes the insert
 ///     race the whole-map delete flush could not (a walk whose
@@ -109,9 +109,9 @@
 ///     instant it refills: it holds at most one quantum
 ///     (max(rate x 100ms, the 64 KiB GSO admit floor)) at a time, and
 ///     the pool's next refills flow to whichever leaf is empty and
-///     asking — the AMMSP starvation shape becomes bounded shares
+///     asking — the MMSPA starvation shape becomes bounded shares
 ///     while the aggregate stays exactly the policy. The
-///     stale-quantum belt stamps leaf quanta with the AMMSP
+///     stale-quantum belt stamps leaf quanta with the MMSPA
 ///     generation at their draw and zeroes mismatching stamps before
 ///     the packet proceeds, so a policy mutation can never leave a
 ///     leaf spending a dead budget's quantum. New maps, new
@@ -207,16 +207,16 @@
 ///     single-active row's whole-budget bound), and every ledger
 ///     word fails open onto the v16 law. New maps, the pool-share
 ///     word re-packed (the askers' peak joined it) and the share +
-///     ledger state maps re-keyed on the AMMSP generation (repair-6:
+///     ledger state maps re-keyed on the MMSPA generation (repair-6:
 ///     a mutated budget hands its successor a fresh divisor and a
 ///     fresh carry, never the previous budget's peak throttling it
 ///     through the decay's tail — the key is (generation << 32) |
 ///     id, the memo map's own packing shape); verdict math
 ///     unchanged on every other lane; the usual one-time re-apply
 ///     contract as ever.
-/// v18 (NIGHT-hunt-Z1, the cross-direction memo close): the AMMSP
+/// v18 (NIGHT-hunt-Z1, the cross-direction memo close): the MMSPA
 ///     leaf cache splits into TWO direction-scoped pinned LRU maps —
-///     ammsp_leaf_cache_dl and ammsp_leaf_cache_ul — because a memo's
+///     mmspa_leaf_cache_dl and mmspa_leaf_cache_ul — because a memo's
 ///     root is only valid for the direction whose walk produced it:
 ///     the walk resolves against THAT direction's policy map, and
 ///     the single-direction applies (`strict -d`, `strict -u`)
@@ -234,7 +234,7 @@
 ///     ran), and the stale-detect belt could not catch it because
 ///     the catch-all carries a row in both policy maps. Two maps
 ///     close the class; each direction memoizes only what its own
-///     walk resolved. The ammsp_generation counter stays shared (one
+///     walk resolved. The mmspa_generation counter stays shared (one
 ///     bump retires both lanes at once); the fallback sweep walks
 ///     both maps. New map layout on the memo lane; the bump forces
 ///     pinned v17 programs to reload into the direction-scoped

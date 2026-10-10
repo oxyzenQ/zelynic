@@ -48,7 +48,7 @@ limits** (and the kernel re-assigns cgroup IDs anyway).
 **2. A target is resolved once, and the limit follows its subtree.**
 `zelynic s brave 100kb` walks `/proc`, finds every process named
 `brave`, resolves each one's cgroup, and writes one policy per cgroup.
-The policy is subtree-aware (AMMSP): any process that later spawns
+The policy is subtree-aware (MMSPA): any process that later spawns
 BENEATH a limited cgroup is covered the moment its first packet moves —
 child cgroups, containers, grandchildren, at any depth up to 32 levels.
 No re-run needed. One honest bound: resolution is a snapshot of

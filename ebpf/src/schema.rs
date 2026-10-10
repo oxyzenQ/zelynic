@@ -45,10 +45,10 @@
 /// several CPUs lost drop-accounting increments exactly the way
 /// the pre-v7 ledger lost allowed bytes; verdict unchanged, no
 /// layout change, same one-time re-apply contract; v10
-/// (NIGHT-private-research-2, AMMSP): the leaf-anchored policy
+/// (NIGHT-private-research-2, MMSPA): the leaf-anchored policy
 /// lookup becomes subtree-aware — a policy written for cgroup A now
 /// polices every socket born under A/** with ONE shared budget,
-/// resolved per packet through the new pinned ammsp_leaf_cache map
+/// resolved per packet through the new pinned mmspa_leaf_cache map
 /// (LRU, leaf cgroup id → resolved policy root, 0 = resolved
 /// unlimited) and enforced with bucket + stats keyed at the ROOT, so
 /// the subtree shares the budget and the ledger rolls up to the
@@ -66,10 +66,10 @@
 /// vanished. No layout change, verdict math untouched; the bump
 /// forces pinned v10 programs to reload into the init-race-free
 /// object — the same one-time re-apply contract as v4..v10.
-/// v12 (NIGHT-perf-0): AMMSP memos become generation-stamped — the
-/// ammsp_leaf_cache value widens u32 -> u64, packing
+/// v12 (NIGHT-perf-0): MMSPA memos become generation-stamped — the
+/// mmspa_leaf_cache value widens u32 -> u64, packing
 /// `(generation << 32) | root`, and a new one-entry pinned
-/// ammsp_generation counter array is bumped by every userspace
+/// mmspa_generation counter array is bumped by every userspace
 /// policy mutation after its writes land (read by the datapath before
 /// every resolution). The stamp closes the one hole the whole-map
 /// delete flush could not: a walk whose tail an NMI/IRQ storm
@@ -98,7 +98,7 @@
 /// have); the group-bucket lane (the former strict-multi verb)
 /// keeps the legacy FCFS shape by documented scope. The stale-quantum
 /// belt: leaf
-/// quanta are stamped with the AMMSP generation at their draw, and
+/// quanta are stamped with the MMSPA generation at their draw, and
 /// a mismatching stamp zeroes them before the packet proceeds — a
 /// policy mutation can never leave a leaf spending a dead budget's
 /// quantum. New maps, new enforcement semantics on the individual
@@ -166,11 +166,11 @@
 /// the fast drawer blocks at its fair share, the refills
 /// accumulate behind it, and the starved leaf's rare draws find
 /// a rich pool. No existing struct layout changes; new maps, the
-/// share word re-packed and both state maps re-keyed on the AMMSP
+/// share word re-packed and both state maps re-keyed on the MMSPA
 /// generation (the usual one-time re-apply contract).
-/// v18 (NIGHT-hunt-Z1, the cross-direction memo close): the AMMSP
+/// v18 (NIGHT-hunt-Z1, the cross-direction memo close): the MMSPA
 /// leaf cache splits into TWO direction-scoped maps —
-/// ammsp_leaf_cache_dl and ammsp_leaf_cache_ul — because a memo's
+/// mmspa_leaf_cache_dl and mmspa_leaf_cache_ul — because a memo's
 /// root is only valid for the direction whose walk produced it. The
 /// v10..v17 single map was read by both enforce_dl and enforce_ul,
 /// and the single-direction applies (`strict -d`, `strict -u`)
@@ -185,7 +185,7 @@
 /// that never ran), and the stale-detect belt could not catch it
 /// because the catch-all carries a row in both policy maps. Two
 /// maps close the class; each direction memoizes only what its own
-/// walk resolved. The ammsp_generation counter stays SHARED (a
+/// walk resolved. The mmspa_generation counter stays SHARED (a
 /// mutation bump retires both lanes' memos at once — the stamp
 /// contract is unchanged). New map layout on the memo lane; the
 /// bump forces pinned v17 programs to reload into the
@@ -278,7 +278,7 @@
 ///     the unlimited fast path pays nothing (the NIGHT-lts-2 law,
 ///     verbatim). A row whose window is INACTIVE answers ALLOW —
 ///     the miss shape, no stats booking, no ring booking, no
-///     AMMSP belt — until the userspace sweep (the unstrict/
+///     MMSPA belt — until the userspace sweep (the unstrict/
 ///     reclaim path) removes an ENDED span; a dormant future-date
 ///     row and a recurring daily window are never swept. The two
 ///     shapes: SPAN rows (the duration and date grammar) store

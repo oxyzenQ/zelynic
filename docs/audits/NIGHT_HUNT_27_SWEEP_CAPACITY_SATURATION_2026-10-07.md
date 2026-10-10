@@ -96,7 +96,7 @@ leaderboard bug's shape:
 | userspace leaderboard | 4096 | dead rows retire (mitigate-1) | clean |
 | observer dl/ul counter maps | LRU 4096 | live-with-traffic counted, idle ages out | clean |
 | socket cookie maps | LRU 4096 | same LRU lane | clean |
-| AMMSP leaf-cache memos | LRU 4096 | evicts, no freeze | clean |
+| MMSPA leaf-cache memos | LRU 4096 | evicts, no freeze | clean |
 | policy family (buckets/stats/window too) | 1024 | sweeps saturate (this task), explicit lists refuse clean | clean |
 | group buckets | 256 | member degrades to its own bucket at the group's rate — never unlimited (lts-7), dead groups reclaimed | clean |
 

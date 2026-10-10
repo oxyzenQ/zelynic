@@ -13,7 +13,7 @@
 > (improve-47's frame — surface in the v4 battery, law in the Rust
 > pins, live kernel in the root-gated probes and the VM matrix),
 > applied per innovation with signature sweeps across every live lane
-> (v1 matrix, v2 survival, v3 container, ammsp-vs-legacy, the claims
+> (v1 matrix, v2 survival, v3 container, mmspa-vs-legacy, the claims
 > battery, the depth scripts), row-body reads to confirm the rows
 > exercise behavior, and fresh empirical runs of every rootless lane
 > this audit could reach. Audited at e8d2741 (hunt-35's tree).
@@ -58,8 +58,8 @@ lanes ran fresh.
 
 | # | Innovation | Rust pins | Suite rows | Live lane | Verdict |
 |---|---|---|---|---|---|
-| 1 | AMMSP | ammsp_tests + ammsp_flush_lines_tests | v1 test_ammsp_subtree + test_ammsp_fairshare; the ammsp-vs-legacy A/B battery (the whole VM leg) | VM matrix, all four legs | at peak |
-| 2 | Fair-Shared Bucket (DRR inside AMMSP) | drr_tests 8, drr_share 9, drr_ledger 8, drr_take 3, drr_highload 3, drr_sim | v1 test_ammsp_fairshare — the live starvation battery | VM matrix | at peak |
+| 1 | MMSPA | mmspa_tests + mmspa_flush_lines_tests | v1 test_mmspa_subtree + test_mmspa_fairshare; the mmspa-vs-legacy A/B battery (the whole VM leg) | VM matrix, all four legs | at peak |
+| 2 | Fair-Shared Bucket (DRR inside MMSPA) | drr_tests 8, drr_share 9, drr_ledger 8, drr_take 3, drr_highload 3, drr_sim | v1 test_mmspa_fairshare — the live starvation battery | VM matrix | at peak |
 | 3 | CAKE-style flow isolation | cake_isolation_tests (the 476-LOC flow-shape sim), cake_battery 9, cake_tests 8, the DRR family above | v1 fairshare/DRR rows — the scheduler under live load | VM matrix | at peak |
 | 4 | Per-socket tier | types_tests (the SocketBucket layout), the ecn fleet sims, display/persist round-trips | v4 stage 12 (the flag surface) | **NONE — the hole** | **filled, this audit** |
 | 5 | Time-Windowed Policies | during_tests 21, during_user_tests 13, persist_window_tests 3 | v4 stage 10 (the 14-case grammar ladder) | **expiry never watched — the hole** | **filled, this audit** |
@@ -69,14 +69,14 @@ lanes ran fresh.
 | 9 | Bypass Detection (Shadow Mode) | bypass_tests 5, render/bypass_tests 8 | v2 test_bypass_audit — BOTH sides: an AF_PACKET stream must flag the shadow (bypassed_tx/bypassed_both in the depth JSON), honest policed traffic must read CLEAN | VM | at peak |
 | 10 | Self-Proving Enforcement | probe_ledger/probe_role/probe_report_tests | v1 VERIFIED rows + test_probe_failed (the honest failure side); v4 stage 12's --no-test surface | VM | at peak |
 | 11 | Container-Native Resolution | docker_tests, container_tests, pathwalk_tests | v3 container battery (30 rows) | the container workflow (real runtimes) | at peak |
-| 12 | Atomic Multi-Target with Rollback | policy_tests (capacity_admit, the ledgered write), ammsp atomic | v1 multi_group / block_multi / unstrict_multi / mixed — the `::` lanes whole-or-refused | VM | at peak |
+| 12 | Atomic Multi-Target with Rollback | policy_tests (capacity_admit, the ledgered write), mmspa atomic | v1 multi_group / block_multi / unstrict_multi / mixed — the `::` lanes whole-or-refused | VM | at peak |
 | 13 | In-Kernel Time-Series Ring | rate_ring_tests | v1 ring rows (the sustain/ladder windows), v2 ring-under-kills, the claims ring rows | VM | at peak |
 
 ## 4. The two finds — the same class, one root cause
 
 **Find 1: the per-socket tier had no live lane.** The signature
 sweep returns zero `per.socket`/`per_socket`/`PER_SOCKET` hits
-across v1, v2, v3, ammsp-vs-legacy, the claims battery, and the
+across v1, v2, v3, mmspa-vs-legacy, the claims battery, and the
 depth scripts — the flag's only suite presence was v4's parse
 surface (stage 12: the valid parse rides the one verb that owns it,
 the group verb's refusal). The Rust slice is real (the
@@ -160,8 +160,8 @@ their row detail (the numbers a red run would need).
 | The full Rust battery, ebpf lane (CI's own lane) | `cargo test --features ebpf --locked` | 834 + 53 passed, 0 failed (1 + 3 root-gated ignores, unchanged) — improve-47's 812 plus the hunt-30/34 growth |
 | The supermassive v4 CLI surface | `./scripts/supermassive/supermassive-test-v4.sh` | 147 passed, 0 failed, 0 skipped (the post-improve-55 count, fresh green) |
 | The v1 engine self-test | `--self-test` | 34 passed, 0 failed — the new rows import and wire clean |
-| The v2/v3/ammsp engine self-tests | `--self-test` | 10, 12, and the classifier/delta/resolver/runner battery — all green |
-| The two new v1 rows, live | the VM matrix | **the next supermassive run carries them** — the estate's standing division for root-gated rows (ammsp_subtree landed the same way: engine-verified on the tree, live-proven by the VM legs) |
+| The v2/v3/mmspa engine self-tests | `--self-test` | 10, 12, and the classifier/delta/resolver/runner battery — all green |
+| The two new v1 rows, live | the VM matrix | **the next supermassive run carries them** — the estate's standing division for root-gated rows (mmspa_subtree landed the same way: engine-verified on the tree, live-proven by the VM legs) |
 
 ## 7. The verdict
 

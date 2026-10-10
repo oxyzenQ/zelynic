@@ -1,8 +1,8 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! NIGHT-private-research-2 (AMMSP): precision pins for the eBPF
-//! resolution core (ebpf/src/ammsp.rs — the same file the BPF object
+//! NIGHT-private-research-2 (MMSPA): precision pins for the eBPF
+//! resolution core (ebpf/src/mmspa.rs — the same file the BPF object
 //! builds). The walk state machine, the cache decision table, and
 //! the depth bound are every decision the kernel-side plumbing
 //! makes; these pins make them provable rootlessly, the
@@ -27,11 +27,11 @@
 // the SAME file the BPF object builds (ebpf/src/bin/limiter.rs wires
 // it with its own #[path]). Only the test tree reaches across trees
 // — src/ wirings stay under test/ (the gate-tree discipline).
-#[path = "../../../ebpf/src/ammsp.rs"]
-pub(super) mod ebpf_ammsp;
+#[path = "../../../ebpf/src/mmspa.rs"]
+pub(super) mod ebpf_mmspa;
 
-use self::ebpf_ammsp::{
-    AMMSP_MAX_DEPTH, AmmspWalk, CacheVerdict, cache_verdict, memo_gen, memo_root, memo_value,
+use self::ebpf_mmspa::{
+    CacheVerdict, MMSPA_MAX_DEPTH, MmspaWalk, cache_verdict, memo_gen, memo_root, memo_value,
     walk_queries,
 };
 
@@ -39,7 +39,7 @@ use self::ebpf_ammsp::{
 /// resolves to that cgroup's id.
 #[test]
 fn walk_single_match_resolves_to_that_root() {
-    let mut w = AmmspWalk::new();
+    let mut w = MmspaWalk::new();
     // Ascending feed: root (100), level 1 (200), level 2 (300).
     w.note(100, false);
     w.note(200, true);
@@ -52,7 +52,7 @@ fn walk_single_match_resolves_to_that_root() {
 /// wins because it is the NEAREST root to the leaf.
 #[test]
 fn walk_nested_roots_pick_the_nearest() {
-    let mut w = AmmspWalk::new();
+    let mut w = MmspaWalk::new();
     w.note(100, false); // cgroup root
     w.note(200, true); // A: the outer strict
     w.note(300, true); // B: the inner, nearer strict
@@ -70,7 +70,7 @@ fn walk_nested_roots_pick_the_nearest() {
 fn walk_verdict_depends_on_level_order_not_write_order() {
     // The same chain as the nested pin — the state machine never
     // sees write order, only feed order.
-    let mut w = AmmspWalk::new();
+    let mut w = MmspaWalk::new();
     w.note(100, false);
     w.note(200, true);
     w.note(300, true);
@@ -82,7 +82,7 @@ fn walk_verdict_depends_on_level_order_not_write_order() {
 /// the socket is unlimited and the root is the 0 sentinel.
 #[test]
 fn walk_no_match_resolves_unlimited() {
-    let mut w = AmmspWalk::new();
+    let mut w = MmspaWalk::new();
     w.note(100, false);
     w.note(200, false);
     w.note(300, false);
@@ -93,8 +93,8 @@ fn walk_no_match_resolves_unlimited() {
 /// chain was empty) is unlimited, never a stale id.
 #[test]
 fn fresh_walk_resolves_unlimited() {
-    assert_eq!(AmmspWalk::new().root(), 0);
-    assert_eq!(AmmspWalk::default().root(), 0);
+    assert_eq!(MmspaWalk::new().root(), 0);
+    assert_eq!(MmspaWalk::default().root(), 0);
 }
 
 /// The leaf itself is never fed to the walk (the caller checks the
@@ -104,7 +104,7 @@ fn fresh_walk_resolves_unlimited() {
 /// carries the policy.
 #[test]
 fn walk_fed_ancestors_only_resolves() {
-    let mut w = AmmspWalk::new();
+    let mut w = MmspaWalk::new();
     w.note(111, false);
     w.note(222, true);
     assert_eq!(w.root(), 222, "ancestor matches are the walk's whole job");
@@ -114,7 +114,7 @@ fn walk_fed_ancestors_only_resolves() {
 /// machine keeps the last MATCH, not the last note.
 #[test]
 fn walk_keeps_last_match_through_trailing_misses() {
-    let mut w = AmmspWalk::new();
+    let mut w = MmspaWalk::new();
     w.note(100, false);
     w.note(200, true);
     w.note(300, false);
@@ -242,7 +242,7 @@ fn only_the_current_generation_is_trusted() {
 /// hostile chain.
 #[test]
 fn depth_bound_is_32() {
-    assert_eq!(AMMSP_MAX_DEPTH, 32);
+    assert_eq!(MMSPA_MAX_DEPTH, 32);
 }
 
 /// The walk cost contract: queries scale with the socket's real

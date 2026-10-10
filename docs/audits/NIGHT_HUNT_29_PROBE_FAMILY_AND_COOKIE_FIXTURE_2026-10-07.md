@@ -59,7 +59,7 @@ It can. Three roads lead there:
   exact shape of minimal and container hosts, where PID 1 sits
   directly in the root (the CI micro-VM class).
 - The enforcement object resolves the NEAREST policed ancestor per
-  packet (`enforce.rs`'s ammsp_resolve_root) — so a row on the root
+  packet (`enforce.rs`'s mmspa_resolve_root) — so a row on the root
   polices every root-level child, the probe's server home included.
 
 The blast shape it bought: a server throttled at the ROOT's rate is

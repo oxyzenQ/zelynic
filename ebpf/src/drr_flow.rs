@@ -6,7 +6,7 @@
 // leaf-bucket maps and the pool/leaf orchestration
 // (ebpf/src/bin/limiter.rs calls into drr_flow from try_enforce's
 // individual-bucket lane). Split from the pure core (../drr.rs) at
-// the ammsp_resolve precedent: everything decidable about the
+// the mmspa_resolve precedent: everything decidable about the
 // quantum lives there and is pinned rootlessly by
 // test/ebpf/limiter/drr_tests.rs; everything here is what only the
 // kernel side can touch:
@@ -14,7 +14,7 @@
 //   * the per-leaf bucket maps (leaf cgroup id -> Bucket), one per
 //     direction, LRU so dead leaves (transient systemd scopes,
 //     churned container cgroups) evict naturally instead of filling
-//     the lane — the ammsp_leaf_cache posture, one map family over;
+//     the lane — the mmspa_leaf_cache posture, one map family over;
 //   * the draw path: refill the POOL through the exact refill_window
 //     the legacy lane uses, spend the LEAF through the exact
 //     try_consume, and move tokens pool -> leaf only through a
@@ -22,7 +22,7 @@
 //     verdict), never over-allow.
 //
 // The stale-quantum belt (the design's own close): a leaf's quanta
-// are stamped with the AMMSP memo generation current at their draw,
+// are stamped with the MMSPA memo generation current at their draw,
 // and a mismatching stamp zeroes the leaf's tokens before the
 // packet proceeds — the generation-stamp trick (NIGHT-perf-0)
 // applied to buckets, so a policy mutation can never leave a leaf
@@ -39,16 +39,16 @@ use core::sync::atomic::{AtomicU64, Ordering};
 // tree compiles) and the enforcement arithmetic it draws from.
 // Reused from the root's own inclusion — ONE copy per crate, the
 // math.rs duplicate-mod discipline (clippy rightly rejects two).
-use super::ammsp_resolve::current_generation;
 use super::cake_flow;
 use super::drr;
 use super::math::{
     Bucket, LimiterStats, Policy, book, gen_stamp_read, gen_stamp_write, refill_window, tokens_cas,
     tokens_read, try_consume,
 };
+use super::mmspa_resolve::current_generation;
 
 /// The per-leaf download bucket: LEAF cgroup id -> tokens the leaf
-/// may spend. LRU + pinned (the ammsp_leaf_cache posture — dead
+/// may spend. LRU + pinned (the mmspa_leaf_cache posture — dead
 /// leaves age out, live ones always find room). The static name
 /// stays lowercase like every map symbol in the limiter object (the
 /// userspace pin contract, one family with the memo map).
@@ -214,7 +214,7 @@ pub(super) fn drr_flow(
     let bkt = unsafe { &mut *leaf_ptr };
 
     // The generation stamp: a leaf whose stamp mismatches the live
-    // AMMSP generation holds quanta from a dead budget (a policy
+    // MMSPA generation holds quanta from a dead budget (a policy
     // mutation happened since its draw) — zero them before this
     // packet may spend. The CAS form keeps a concurrent consumer
     // correct: its consume re-observes the zero and retries against
@@ -319,7 +319,7 @@ pub(super) fn drr_flow(
     // after a mutation.
     let stamp = unsafe { core::ptr::addr_of!(bkt.last_refill_ns).read_volatile() };
     // The generation-prefixed state keys (repair-6): every policy
-    // mutation bumps the AMMSP generation the belt above already
+    // mutation bumps the MMSPA generation the belt above already
     // read, and the pool-share and leaf-ledger words ride the bump —
     // a fresh budget starts with a fresh divisor, a fresh carry, a
     // fresh asker count, never the previous budget's peak throttling

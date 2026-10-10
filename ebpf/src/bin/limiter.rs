@@ -59,25 +59,25 @@ use aya_ebpf::{
 #[path = "../math.rs"]
 mod math;
 
-// NIGHT-private-research-2 (AMMSP): the resolution core lives in
-// ../ammsp.rs — same discipline as math.rs: pure `core`, zero aya
+// NIGHT-private-research-2 (MMSPA): the resolution core lives in
+// ../mmspa.rs — same discipline as math.rs: pure `core`, zero aya
 // dependencies, wired here with #[path] AND into the userspace test
-// tree, pinned rootlessly by test/ebpf/limiter/ammsp_tests.rs. The
+// tree, pinned rootlessly by test/ebpf/limiter/mmspa_tests.rs. The
 // walk state machine, the cache decision table, and the depth
 // bound are the pinned surface; the helper calls and map plumbing
 // stay here because only this side can touch them.
-#[path = "../ammsp.rs"]
-mod ammsp;
+#[path = "../mmspa.rs"]
+mod mmspa;
 
-// The datapath wiring half of AMMSP (NIGHT-private-research-2): the
+// The datapath wiring half of MMSPA (NIGHT-private-research-2): the
 // pinned LRU memo map + the ancestor-walk driver — the aya-touching
 // split that holds this file under the 500-LOC owner cap, the same
 // discipline the userspace tree's policy_lines/parse splits set.
-#[path = "../ammsp_resolve.rs"]
-mod ammsp_resolve;
+#[path = "../mmspa_resolve.rs"]
+mod mmspa_resolve;
 
 // NIGHT-upgrade-charger-core-1c (the fair-shared bucket): the pure
-// quantum core — same discipline as math.rs/ammsp.rs: pure `core`,
+// quantum core — same discipline as math.rs/mmspa.rs: pure `core`,
 // zero aya dependencies, wired here with #[path] AND into the
 // userspace test tree, pinned rootlessly by
 // test/ebpf/limiter/drr_tests.rs.
@@ -86,12 +86,12 @@ mod drr;
 
 // The DRR datapath wiring (NIGHT-upgrade-charger-core-1c): the two
 // pinned LRU leaf-bucket maps + the pool/leaf orchestration — the
-// aya-touching split, the ammsp_resolve precedent one feature over.
+// aya-touching split, the mmspa_resolve precedent one feature over.
 #[path = "../drr_flow.rs"]
 mod drr_flow;
 
 // NIGHT-upgrade-charger-core-3a (the in-kernel time-series ring): the
-// pure window-protocol core — same discipline as math.rs/ammsp.rs/
+// pure window-protocol core — same discipline as math.rs/mmspa.rs/
 // drr.rs: pure `core`, zero aya dependencies, wired here with #[path]
 // AND into the userspace test tree, pinned rootlessly by
 // test/ebpf/limiter/rate_ring_tests.rs.
@@ -107,7 +107,7 @@ mod rate_ring;
 mod socket_flow;
 
 // NIGHT-private-research-4 (ECN-first policing): the debt core lives
-// in ../ecn.rs — same discipline as math.rs/ammsp.rs/drr.rs: pure
+// in ../ecn.rs — same discipline as math.rs/mmspa.rs/drr.rs: pure
 // `core`, zero aya dependencies, wired here with #[path] AND into
 // the userspace test tree the same way, pinned rootlessly by
 // test/ebpf/limiter/ecn_tests.rs. The charge/pay arithmetic and the
@@ -127,7 +127,7 @@ mod cake_flow;
 
 // NIGHT-private-research-4 candidate, schema v22 (QUIC-aware
 // attribution): the pure header core — same discipline as
-// math.rs/ammsp.rs/drr.rs/ecn.rs: pure `core`, zero aya
+// math.rs/mmspa.rs/drr.rs/ecn.rs: pure `core`, zero aya
 // dependencies, wired here with #[path] AND into the userspace
 // test tree the same way, pinned rootlessly by
 // test/ebpf/limiter/quic_tests.rs. The QUIC v1/v2 header laws,
@@ -143,7 +143,7 @@ mod quic;
 mod quic_flow;
 
 // night-during, schema v23 (the unified --during time windows): the
-// pure verdict core — same discipline as math.rs/ammsp.rs/drr.rs/
+// pure verdict core — same discipline as math.rs/mmspa.rs/drr.rs/
 // ecn.rs/quic.rs: pure `core`, zero aya dependencies, wired here
 // with #[path] AND into the userspace test tree the same way,
 // pinned rootlessly by test/ebpf/limiter/during_tests.rs. The
@@ -201,7 +201,7 @@ static schema_version: Array<u32> = Array::pinned(1, 0);
 // ─ The time-window side map (night-during, schema v23 — the
 // unified --during) ─ one row per policed cgroup, keyed at the
 // RESOLVED POLICY ROOT exactly like the stats ledger (the same
-// join the AMMSP resolution already produces; a row's two legs
+// join the MMSPA resolution already produces; a row's two legs
 // share one window, one shared map both hooks read). The gate
 // reads it AFTER the policy hit on the policed path only: an
 // absent entry is today's behavior exactly, and a row whose
@@ -299,7 +299,7 @@ fn enforce_dl(ctx: SkBuffContext) -> i32 {
         ctx,
         true,
         &cgroup_policy_dl,
-        &ammsp_resolve::ammsp_leaf_cache_dl,
+        &mmspa_resolve::mmspa_leaf_cache_dl,
         &cgroup_bucket_dl,
         &group_bucket_dl,
         &drr_flow::leaf_bucket_dl,
@@ -321,7 +321,7 @@ fn enforce_ul(ctx: SkBuffContext) -> i32 {
         ctx,
         false,
         &cgroup_policy_ul,
-        &ammsp_resolve::ammsp_leaf_cache_ul,
+        &mmspa_resolve::mmspa_leaf_cache_ul,
         &cgroup_bucket_ul,
         &group_bucket_ul,
         &drr_flow::leaf_bucket_ul,

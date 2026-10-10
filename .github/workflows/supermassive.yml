@@ -746,7 +746,7 @@ jobs:
             fi
             echo "virtio modules staged into the rootfs cpio"
           fi
-          # NIGHT-perf-1: the AMMSP-vs-legacy A/B needs the pre-AMMSP
+          # NIGHT-perf-1: the MMSPA-vs-legacy A/B needs the pre-MMSPA
           # stable INSIDE the VM on its own loopback lane (the A/B
           # rides the guest's deterministic loopback traffic, not the
           # internet — the egress changes nothing here, both sides

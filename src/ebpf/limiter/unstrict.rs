@@ -143,7 +143,7 @@ impl super::Limiter {
             // belt-and-suspenders pair (stamp + stale-detect) is
             // cheaper than reasoning about which half of it a given
             // removal needed.
-            self.ammsp_memo_invalidate_best_effort();
+            self.mmspa_memo_invalidate_best_effort();
             return Err(anyhow!(
                 "{}",
                 unstrict_partial_failure_line(removed, &failed)
@@ -157,14 +157,14 @@ impl super::Limiter {
         // halves of the endurance budget.
         self.reclaim_dead_groups(&superseded);
 
-        // AMMSP memo invalidation (NIGHT-private-research-2,
+        // MMSPA memo invalidation (NIGHT-private-research-2,
         // generation-stamped by NIGHT-perf-0): a removed root leaves
         // cached resolutions pointing at a policy that no longer
         // exists — the datapath's stale-detect re-walks them per
         // packet, and this bump retires the whole stale generation
         // in one word so the re-walk cost is paid once, not per
         // packet, per leaf.
-        self.ammsp_memo_invalidate_best_effort();
+        self.mmspa_memo_invalidate_best_effort();
 
         Ok(removed)
     }

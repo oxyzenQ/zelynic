@@ -1,17 +1,17 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 //
-// The AMMSP resolution core, extracted pure (NIGHT-private-research-2
+// The MMSPA resolution core, extracted pure (NIGHT-private-research-2
 // & think-like-light-years-2): the walk state machine and the cache
 // decision table that run inside the BPF program, with zero
 // aya/eBPF dependencies so the SAME file compiles into the kernel
 // object (ebpf/src/bin/limiter.rs wires it with #[path]) AND into
-// the userspace test tree (src/ebpf/limiter/ammsp.rs wires it the
-// same way), where test/ebpf/limiter/ammsp_tests.rs pins it
+// the userspace test tree (src/ebpf/limiter/mmspa.rs wires it the
+// same way), where test/ebpf/limiter/mmspa_tests.rs pins it
 // rootlessly — the NIGHT-depthbore-1 math.rs discipline applied to
 // the resolution logic.
 //
-// AMMSP (Aware Multi Micro Sub-Process) is the intergalaxion-engine
+// MMSPA (Multi-Micro Sub-Process Aware) is the intergalaxion-engine
 // skill patch that closes the subtree hole: a policy written for
 // cgroup A must police A AND every descendant socket (A/**), sharing
 // ONE token budget, with no daemon, no config, and no enumeration of
@@ -40,7 +40,7 @@
 //      the leaf's own depth — the walk's break condition.
 //
 // The generation stamp (NIGHT-perf-0): every memo carries the
-// ammsp_generation counter value it was resolved under, and every
+// mmspa_generation counter value it was resolved under, and every
 // policy mutation bumps that counter AFTER its writes land. The
 // ordering proof that makes a stale memo self-invalidating:
 //
@@ -63,7 +63,7 @@
 // state it summarized.
 
 /// How deep the ancestor walk reaches: the loop queries absolute
-/// levels 0..AMMSP_MAX_DEPTH and stops early the moment the helper
+/// levels 0..MMSPA_MAX_DEPTH and stops early the moment the helper
 /// returns 0 (past the socket's cgroup), so the bound is a ceiling,
 /// not a cost — a depth-6 socket pays seven queries, not 32.
 ///
@@ -71,9 +71,9 @@
 /// ~6, container runtimes ~4, Kubernetes pods under 10), so 32 is
 /// three times generous. A socket nested deeper than 32 levels from
 /// the cgroup root resolves as unlimited — the one documented,
-/// explicit compromise of AMMSP (USAGE.md honest limitations); no
+/// explicit compromise of MMSPA (USAGE.md honest limitations); no
 /// deployment reaches it without deliberately constructing it.
-pub const AMMSP_MAX_DEPTH: u32 = 32;
+pub const MMSPA_MAX_DEPTH: u32 = 32;
 
 /// The walk state machine: fed cgroup ids in ascending level order
 /// (the socket's chain from the cgroup root downward), it tracks the
@@ -92,16 +92,16 @@ pub const AMMSP_MAX_DEPTH: u32 = 32;
 /// cgroup is the nearest possible root — nothing below it can be
 /// nearer), so by the time the walk runs the leaf is known
 /// policy-free and only ancestors can match.
-pub struct AmmspWalk {
+pub struct MmspaWalk {
     nearest: u32,
 }
 
-impl AmmspWalk {
+impl MmspaWalk {
     /// A fresh walk: nothing matched yet, root() would report 0
     /// (unlimited).
     #[inline(always)]
     pub const fn new() -> Self {
-        AmmspWalk { nearest: 0 }
+        MmspaWalk { nearest: 0 }
     }
 
     /// Note one chain member. `id` is the cgroup id the caller
@@ -126,7 +126,7 @@ impl AmmspWalk {
     }
 }
 
-impl Default for AmmspWalk {
+impl Default for MmspaWalk {
     fn default() -> Self {
         Self::new()
     }
@@ -138,7 +138,7 @@ impl Default for AmmspWalk {
 /// is only trusted while the policy map still agrees it is alive
 /// (checked by the caller before enforcing), and only while the
 /// generation it was stamped with is still the current one (checked
-/// by the caller against ammsp_generation before anything else) —
+/// by the caller against mmspa_generation before anything else) —
 /// and any disagreement, or an absent entry, sends the packet
 /// through the walk, which re-reads the live policy map and
 /// rewrites the memo with the current generation.
@@ -168,7 +168,7 @@ pub enum CacheVerdict {
 /// The cache decision table. `cached` is the memoized packed value
 /// for the leaf (None = absent, Some(v) = the packed
 /// generation-and-root word); `current_gen` is the generation the
-/// caller just read from ammsp_generation; `root_policy_alive` is
+/// caller just read from mmspa_generation; `root_policy_alive` is
 /// whether the policy map currently contains the cached root (only
 /// meaningful for a generation-current memo with a nonzero root).
 ///
@@ -217,7 +217,7 @@ pub const fn memo_value(generation: u32, root: u32) -> u64 {
 }
 
 /// The generation stamp half of a packed memo value. The stamp is
-/// the ammsp_generation counter the walk read BEFORE its policy
+/// the mmspa_generation counter the walk read BEFORE its policy
 /// reads — the ordering that makes a mismatch provable staleness
 /// (see the module header's proof).
 #[inline(always)]
@@ -241,7 +241,7 @@ pub const fn memo_root(value: u64) -> u32 {
 /// the leaf's own level returns the leaf itself or 0 (the ancestors
 /// array's self-slot), so the exact count is leaf_level+1 or +2 —
 /// the bound, never the exact integer, is the contract, and a socket
-/// deeper than [`AMMSP_MAX_DEPTH`] resolves unlimited (the one
+/// deeper than [`MMSPA_MAX_DEPTH`] resolves unlimited (the one
 /// documented compromise).
 ///
 /// Test-facing by design: the datapath needs no query budget, the
@@ -252,8 +252,8 @@ pub const fn memo_root(value: u64) -> u32 {
 #[cfg(test)]
 #[inline(always)]
 pub const fn walk_queries(leaf_level: u32) -> u32 {
-    if leaf_level + 2 > AMMSP_MAX_DEPTH {
-        AMMSP_MAX_DEPTH
+    if leaf_level + 2 > MMSPA_MAX_DEPTH {
+        MMSPA_MAX_DEPTH
     } else {
         leaf_level + 2
     }

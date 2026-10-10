@@ -220,20 +220,20 @@ construction — the change is kernel-side only) reads parity.
   the fd scan is lazy per matched socket; the pidfd open is lazy
   per PID with sticky failure. Peak for the design.
 
-### NIGHT-private-research-2 A/B (AMMSP — the subtree-aware datapath, 2026-09-30)
+### NIGHT-private-research-2 A/B (MMSPA — the subtree-aware datapath, 2026-09-30)
 
-The private-research-2 change is datapath work: the AMMSP resolution
+The private-research-2 change is datapath work: the MMSPA resolution
 (the leaf's own policy lookup unchanged and first, the LRU memo on
 the miss branch, the ancestor walk on the memo miss, bucket and
 stats keyed at the resolved root). None of it touches the frame
 path — the render surface is byte-identical by construction, and
 the frame A/B is the same class of proof the previous datapath-side
 records used (A = 4223a50, the dinner-25 pricing tree; B = the
-AMMSP tree; single runs, 10 s budget, the standard harness
+MMSPA tree; single runs, 10 s budget, the standard harness
 protocol; the B side was captured on a container running a
 concurrent CI watch, the fps spread below is that load).
 
-| Metric | 4223a50 (A) | AMMSP (B) | Delta |
+| Metric | 4223a50 (A) | MMSPA (B) | Delta |
 |--------|-------------|-----------|-------|
 | fps (render path) | 7,670.8 | 7,361.5 | -4.0% (container load noise) |
 | bytes/frame | 1,919.0 | 1,919.0 | +0.0% |
@@ -256,7 +256,7 @@ depths, then memoized for its lifetime), and a policy mutation
 pays ONE Array store (the generation bump, NIGHT-perf-0 — the
 pre-perf-0 design paid a memo sweep bounded by the 4096-entry cap)
 plus each live leaf one re-walk. The supermassive matrix's
-test_ammsp_subtree stage and its overhead stage own the live
+test_mmspa_subtree stage and its overhead stage own the live
 measurements on every push that touches the limiter.
 
 ### NIGHT-private-research-3 A/B (the depth traffic focus + report compaction, 2026-09-30)
@@ -367,7 +367,7 @@ would be over-engineering a peak already reached):
   slack), which is what makes the lending honest: borrowed bytes
   were someone's saved bytes, never invented ones.
 - THE HANDOFF (a fresh budget inherits nothing): every policy
-  mutation re-keys the share/ledger state on the AMMSP generation —
+  mutation re-keys the share/ledger state on the MMSPA generation —
   a 24-leaf policy that shrinks to one hands the survivor a fresh
   divisor, never the dead fleet's peak throttling it through the
   decay's tail (the repair-6 pin: the 8.2%-of-policy handoff find).
@@ -655,7 +655,7 @@ during_tests.rs, during_user_tests.rs):
    hooks sit at the cgroup root and see every packet the machine
    moves) pays nothing. An absent window entry is today's behavior
    exactly; an INACTIVE window answers ALLOW — the miss shape: no
-   stats booking, no ring booking, no AMMSP belt.
+   stats booking, no ring booking, no MMSPA belt.
 2. THE DRIFT CLAUSE: SPAN rows (the duration the flag writes,
    and the restore lane's re-translated wall deadlines) store
    wall instants PRE-TRANSLATED into the monotonic clock at
@@ -1707,7 +1707,7 @@ semantics, and the dense-host merge fix (loader.rs) changes the
 poll's internal complexity class, not one byte of frame output —
 the same class of proof the private-research-2 datapath A/B
 carried. The harness therefore proves frame-parity (A = aa283ca,
-the AMMSP-rider tree; B = 79b0921 at HEAD, formal 10 s runs,
+the MMSPA-rider tree; B = 79b0921 at HEAD, formal 10 s runs,
 75k+ frames per side):
 
 | Metric | aa283ca | HEAD | Delta |

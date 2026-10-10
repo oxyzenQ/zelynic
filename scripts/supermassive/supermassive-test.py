@@ -994,7 +994,7 @@ def curl_in_cgroup(name, window):
 # charger-core-1b: whether the CURRENT lib.BINARY knows the
 # verification-skip flag (NIGHT-improve-54: --no-test; the retired
 # --no-probe redirects to it) — the standalone matrix and v2 always
-# run the current build; the ammsp-vs-legacy A/B rebinds lib.BINARY
+# run the current build; the mmspa-vs-legacy A/B rebinds lib.BINARY
 # per side and flips this off for the legacy half (the legacy
 # v11.0.0 predates both spellings).
 PROBE_FLAG_SUPPORTED = True
@@ -1006,7 +1006,7 @@ def apply_single(name, rate_str, exp_dl, exp_ul, extra=()):
     # (--no-test since improve-54; --no-probe before it): the legacy
     # v11.0.0 side (run_battery_side rebinds lib.BINARY) predates the
     # flag and exits 2 on it — the CI find on 75e0f3f. The lib-level
-    # toggle is set per side by ammsp-vs-legacy's runner.
+    # toggle is set per side by mmspa-vs-legacy's runner.
     argv = ["strict", str(CG.ids[name]), rate_str, *extra]
     if PROBE_FLAG_SUPPORTED:
         argv.append(PROBE_FLAG)
@@ -4100,8 +4100,8 @@ def test_multi_group(window, baseline):
     return solo and joint
 
 
-def test_ammsp_subtree(window, baseline):
-    """NIGHT-private-research-2 (AMMSP): the subtree contract, measured
+def test_mmspa_subtree(window, baseline):
+    """NIGHT-private-research-2 (MMSPA): the subtree contract, measured
     live — a strict on cgroup A polices every socket born under A/**,
     sharing ONE budget, with no daemon and no enumeration.
 
@@ -4112,7 +4112,7 @@ def test_ammsp_subtree(window, baseline):
     a fresh child simply missed the map. Four verdicts, one stage:
 
       1. dynamic coverage — a child cgroup created AFTER the apply is
-         policed (the pre-AMMSP shape: unlimited, line-rate FAIL);
+         policed (the pre-MMSPA shape: unlimited, line-rate FAIL);
       2. stale-negative invalidation — a leaf that already cached
          "unlimited" BEFORE the apply is policed after it (the
          userspace flush's live proof);
@@ -4125,7 +4125,7 @@ def test_ammsp_subtree(window, baseline):
     books at the root's id in cgroup_limiter_stats, so one status row
     carries the whole subtree's allowed/dropped ledger.
     """
-    name = "ammsp: subtree enforcement under one budget"
+    name = "mmspa: subtree enforcement under one budget"
     if not CG.dedicated:
         return record(
             name,
@@ -4135,9 +4135,9 @@ def test_ammsp_subtree(window, baseline):
     if baseline and baseline < 2_000_000:
         return record(name, "SKIP", f"baseline too low ({fmt_bps(baseline)})")
 
-    sub_path = f"{TEST_CGROUPS[0]}/ammsp-sub"
-    grand_path = f"{sub_path}/ammsp-grand"
-    late_path = f"{TEST_CGROUPS[0]}/ammsp-late"
+    sub_path = f"{TEST_CGROUPS[0]}/mmspa-sub"
+    grand_path = f"{sub_path}/mmspa-grand"
+    late_path = f"{TEST_CGROUPS[0]}/mmspa-late"
     made = []
 
     def nested_mkdir(path):
@@ -4146,7 +4146,7 @@ def test_ammsp_subtree(window, baseline):
             made.append(path)
             return True
         except OSError as e:
-            record(f"ammsp: create {os.path.basename(path)}", "FAIL", str(e))
+            record(f"mmspa: create {os.path.basename(path)}", "FAIL", str(e))
             return False
 
     def child_bytes(path, win, idle=0.0):
@@ -4156,7 +4156,7 @@ def test_ammsp_subtree(window, baseline):
             win + 20,
         )
         if metric is None:
-            record("ammsp: worker", "FAIL", err)
+            record("mmspa: worker", "FAIL", err)
         return metric or 0
 
     passed = True
@@ -4195,7 +4195,7 @@ def test_ammsp_subtree(window, baseline):
             )
             passed = (
                 band_check(
-                    "ammsp: child born after apply is policed",
+                    "mmspa: child born after apply is policed",
                     samples[-1],
                     100_000,
                     extra=lib.window_samples_note(samples),
@@ -4220,7 +4220,7 @@ def test_ammsp_subtree(window, baseline):
         )
         passed = (
             band_check(
-                "ammsp: pre-apply unlimited memo invalidated by the apply",
+                "mmspa: pre-apply unlimited memo invalidated by the apply",
                 samples[-1],
                 100_000,
                 extra=lib.window_samples_note(samples),
@@ -4254,7 +4254,7 @@ def test_ammsp_subtree(window, baseline):
         after = after_entry.get("bytes_allowed", 0)
         dropped = after_entry.get("packets_dropped", 0)
         record(
-            "ammsp subtree: kernel drops engaged",
+            "mmspa subtree: kernel drops engaged",
             "PASS" if dropped > 0 else "FAIL",
             f"{dropped} packets dropped, {after} bytes allowed (cumulative)",
         )
@@ -4285,14 +4285,14 @@ def test_ammsp_subtree(window, baseline):
         if got >= lib.ACCOUNTING_FLOOR_BYTES + burst and delta > 0:
             ratio = delta / got
             record(
-                "ammsp subtree: BPF accounting matches client bytes",
+                "mmspa subtree: BPF accounting matches client bytes",
                 "PASS" if 0.5 <= ratio <= 1.5 else "FAIL",
                 f"ledger delta {delta} vs client {got} ({ratio * 100:.1f}%) "
                 f"across one window, booked at the ROOT row",
             )
         elif delta > 0:
             record(
-                "ammsp subtree: BPF accounting matches client bytes",
+                "mmspa subtree: BPF accounting matches client bytes",
                 "SKIP",
                 f"payload {got} B inside the floor-plus-one-burst zone "
                 f"({lib.ACCOUNTING_FLOOR_BYTES // 1024} KiB floor + 64 KiB "
@@ -4303,7 +4303,7 @@ def test_ammsp_subtree(window, baseline):
 
         # Verdict 3 — shared budget: one worker at the root, one in
         # the child, concurrently; the SUM is one 100kb budget (the
-        # pre-AMMSP N x limit shape reads ~2x here).
+        # pre-MMSPA N x limit shape reads ~2x here).
         child_bytes(sub_path, 0.5)  # steady-state re-drain
         totals = {"root": 0, "child": 0}
 
@@ -4320,7 +4320,7 @@ def test_ammsp_subtree(window, baseline):
             th.join()
         passed = (
             band_check(
-                "ammsp: parent + child share ONE budget",
+                "mmspa: parent + child share ONE budget",
                 (totals["root"] + totals["child"]) / window,
                 100_000,
                 hi=1.45,
@@ -4333,7 +4333,7 @@ def test_ammsp_subtree(window, baseline):
         sub_id = os.stat(sub_path).st_ino
         rc, stdout, stderr = run_zel(["strict", str(sub_id), "50kb", PROBE_FLAG])
         if rc != 0:
-            record("ammsp: nested root apply", "FAIL", f"exit {rc}: {(stderr or stdout)[:120]}")
+            record("mmspa: nested root apply", "FAIL", f"exit {rc}: {(stderr or stdout)[:120]}")
             passed = False
         elif nested_mkdir(grand_path):
             # The retrying warm-up (the 0b0a8f5 lesson): a stalled
@@ -4389,7 +4389,7 @@ def test_ammsp_subtree(window, baseline):
             )
             passed = (
                 band_check(
-                    "ammsp: grandchild resolves to the NEAREST root (50kb, not 100kb)",
+                    "mmspa: grandchild resolves to the NEAREST root (50kb, not 100kb)",
                     samples[-1],
                     50_000,
                     # NIGHT-total-lts-1 rider 3: the verdict matches
@@ -4433,7 +4433,7 @@ def test_ammsp_subtree(window, baseline):
     return passed
 
 
-def test_ammsp_fairshare(window, baseline):
+def test_mmspa_fairshare(window, baseline):
     """NIGHT-improve-1b (the owner's DeepSeek verification checklist,
     item 2 — the starvation battery): does the fair-shared bucket
     actually share fairly when many leaves contend, and does the
@@ -4502,7 +4502,7 @@ def test_ammsp_fairshare(window, baseline):
     measure apply-to-spawn like every other stage — simpler, and
     the same shape the rate ladder already proved.
     """
-    name = "ammsp: fair-share under contention (the starvation battery)"
+    name = "mmspa: fair-share under contention (the starvation battery)"
     if not CG.dedicated:
         return record(
             name,
@@ -4512,7 +4512,7 @@ def test_ammsp_fairshare(window, baseline):
     if baseline and baseline < 2_000_000:
         return record(name, "SKIP", f"baseline too low ({fmt_bps(baseline)})")
 
-    fs_root = f"{TEST_CGROUPS[0]}/ammsp-fs"
+    fs_root = f"{TEST_CGROUPS[0]}/mmspa-fs"
     made = []
 
     def nested_mkdir(path):
@@ -4521,7 +4521,7 @@ def test_ammsp_fairshare(window, baseline):
             made.append(path)
             return True
         except OSError as e:
-            record("ammsp fair-share: create " + os.path.basename(path), "FAIL", str(e))
+            record("mmspa fair-share: create " + os.path.basename(path), "FAIL", str(e))
             return False
 
     def leaf_bytes(path, win, idle=0.0):
@@ -4531,7 +4531,7 @@ def test_ammsp_fairshare(window, baseline):
             win + 20,
         )
         if metric is None:
-            record("ammsp fair-share: worker", "FAIL", err)
+            record("mmspa fair-share: worker", "FAIL", err)
         return metric or 0
 
     def quantum(rate_bps):
@@ -4570,7 +4570,7 @@ def test_ammsp_fairshare(window, baseline):
         ladder's rungs already tolerate."""
         ok, payload = apply_single("a", rate_str, rate, rate)
         if not ok:
-            record(f"ammsp fair-share: {label} apply", "FAIL", payload)
+            record(f"mmspa fair-share: {label} apply", "FAIL", payload)
             return False
         # The diagnostic baseline: the span is exactly the measured
         # window (the enforcement_proofs precedent — nothing outside
@@ -4628,7 +4628,7 @@ def test_ammsp_fairshare(window, baseline):
             dba = ba - ledger_before[2]
             dbd = bd - ledger_before[3]
             record(
-                f"ammsp fair-share: {label} round ledger (repair-7 diagnostic)",
+                f"mmspa fair-share: {label} round ledger (repair-7 diagnostic)",
                 "SKIP",
                 f"arrivals {dp + dd} pkts (admitted {dp}, dropped {dd}); "
                 f"bytes admitted {dba} vs dropped {dbd}; client total "
@@ -4637,7 +4637,7 @@ def test_ammsp_fairshare(window, baseline):
             )
         except Exception as exc:  # noqa: BLE001 — diagnostic only
             record(
-                f"ammsp fair-share: {label} round ledger (repair-7 diagnostic)",
+                f"mmspa fair-share: {label} round ledger (repair-7 diagnostic)",
                 "SKIP",
                 f"ledger read failed: {exc}",
             )
@@ -4653,7 +4653,7 @@ def test_ammsp_fairshare(window, baseline):
             # under-delivery is physics, the band floor drops to 0
             # and the ceiling carries the verdict.
             ok = band_check(
-                f"ammsp fair-share: {label} stays inside the policy",
+                f"mmspa fair-share: {label} stays inside the policy",
                 total / span,
                 rate,
                 lo=0.0,
@@ -4666,7 +4666,7 @@ def test_ammsp_fairshare(window, baseline):
             )
         else:
             ok = band_check(
-                f"ammsp fair-share: {label} aggregate stays inside the policy",
+                f"mmspa fair-share: {label} aggregate stays inside the policy",
                 total / span,
                 rate,
                 hi=1.45,
@@ -4703,7 +4703,7 @@ def test_ammsp_fairshare(window, baseline):
             starved = min(results)
             ok = (
                 record(
-                    f"ammsp fair-share: {label} no leaf monopolizes the refill",
+                    f"mmspa fair-share: {label} no leaf monopolizes the refill",
                     "PASS" if worst <= hi_leaf else "FAIL",
                     f"worst leaf {worst:.0f} B vs bound {hi_leaf:.0f} "
                     f"(fair {fair:.0f} + 3x live band + quantum {q}; "
@@ -4722,7 +4722,7 @@ def test_ammsp_fairshare(window, baseline):
             # CI log keeps the signal — never a red verdict the
             # medium cannot support.
             record(
-                f"ammsp fair-share: {label} quietest leaf (advisory)",
+                f"mmspa fair-share: {label} quietest leaf (advisory)",
                 "SKIP",
                 f"quietest {starved:.0f} B vs fair/4 {fair / 4:.0f} — the "
                 "anti-starvation law is pinned by the rootless sims; the "
@@ -6854,12 +6854,12 @@ def run_heavy(baseline_window):
     test_during_expiry(1_000_000, 3, baseline)
     test_curl_upload(5.0, baseline)
     test_multi_group(5.0, baseline)
-    # NIGHT-private-research-2 (AMMSP): the subtree contract, measured
+    # NIGHT-private-research-2 (MMSPA): the subtree contract, measured
     # live — the owner's eagle-eyes finding made permanent.
-    test_ammsp_subtree(4.0, baseline)
+    test_mmspa_subtree(4.0, baseline)
     # NIGHT-improve-1b (the owner's DeepSeek verification checklist):
     # the starvation battery and the self-proving FAILED path.
-    test_ammsp_fairshare(4.0, baseline)
+    test_mmspa_fairshare(4.0, baseline)
     test_probe_failed()
     test_block_multi(4.0)
     test_unstrict_multi()

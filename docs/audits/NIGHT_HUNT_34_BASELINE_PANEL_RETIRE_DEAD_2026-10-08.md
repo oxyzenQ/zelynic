@@ -76,7 +76,7 @@ and stands the whole sweep down, the `reclaim_dead_groups`
 posture); best-effort on collection (an unreadable family map
 skips just that family, warns, and the next visit retries; a
 failed delete warns and never fails the caller). The LRU families
-(leaf buckets, flow buckets, socket maps, ECN debt, the AMMSP
+(leaf buckets, flow buckets, socket maps, ECN debt, the MMSPA
 memo) are deliberately untouched — the LRU owns their lifecycle,
 and the leaf maps' keys are not policy roots (the predicate would
 be wrong there, not just unnecessary).

@@ -25,7 +25,7 @@
 //     budget law: the cgroup total is bounded by rate x concurrent
 //     sockets, not by rate — that is what per-socket MEANS);
 //   * the stale-token belt: the bucket's generation stamp (the
-//     AMMSP generation every policy mutation bumps) zeroes a socket
+//     MMSPA generation every policy mutation bumps) zeroes a socket
 //     bucket's tokens on the first packet after a mutation, so a
 //     limit change can never leave a socket spending a dead budget's
 //     burst — the DRR leaf belt, one lane over. A dedicated gen
@@ -68,10 +68,10 @@ use aya_ebpf::{macros::map, maps::LruHashMap};
 // The enforcement arithmetic (the same file the userspace test tree
 // compiles — reused from the root's own inclusion, ONE copy per
 // crate, the math.rs duplicate-mod discipline).
-use super::ammsp_resolve::current_generation;
 use super::math::{
     Bucket, LimiterStats, Policy, book, book_rescue, refill_window, tokens_cas, try_consume,
 };
+use super::mmspa_resolve::current_generation;
 
 // The ECN-first arithmetic (schema v19's pure core, the same #[path]
 // file the cgroup lanes' wiring and the rootless test tree build):
@@ -168,7 +168,7 @@ fn get_socket_ptr(map: &LruHashMap<u64, SocketBucket>, cookie: &u64) -> Option<*
 /// the CE-marked packet is DELIVERED — the caller's ring wrap books
 /// it as allowed through this lane's return of 1. `stats` stays
 /// keyed at the RESOLVED POLICY ROOT (the ledger rolls up to the
-/// target the owner limited, the AMMSP contract), and the ring wrap
+/// target the owner limited, the MMSPA contract), and the ring wrap
 /// rides the caller's ring_verdict like every other lane.
 #[inline(always)]
 pub(super) fn socket_flow(

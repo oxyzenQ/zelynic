@@ -3,23 +3,23 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # OS: Linux only — zelynic is a Linux eBPF tool; no other OS is supported.
 #
-# Wrapper for ammsp-vs-legacy-test.py (NIGHT-perf-1) — the one-click
-# AMMSP-vs-pre-AMMSP subtree-coverage depth test: the same battery,
-# the same fleet, the same traffic, run against the current AMMSP
-# build AND the last pre-AMMSP stable (v11.0.0), with the >= 99%
+# Wrapper for mmspa-vs-legacy-test.py (NIGHT-perf-1) — the one-click
+# MMSPA-vs-pre-MMSPA subtree-coverage depth test: the same battery,
+# the same fleet, the same traffic, run against the current MMSPA
+# build AND the last pre-MMSPA stable (v11.0.0), with the >= 99%
 # child-coverage delta as the verdict. Python is the engine (the
 # same rationale as every supermassive wrapper: subprocess control,
 # /proc parsing, threaded traffic, precise timing).
 #
 # Usage:
-#   sudo ./scripts/supermassive/ammsp-vs-legacy-test.sh
+#   sudo ./scripts/supermassive/mmspa-vs-legacy-test.sh
 #        (the legacy v11.0.0 side AUTO-DOWNLOADS from the canonical
 #         release when no local candidate exists — sha512-sidecar-
 #         verified, cached under TMPDIR; --legacy-binary overrides
 #         everything)
-#   ./scripts/supermassive/ammsp-vs-legacy-test.sh --self-test   # engine smoke, no root
-#   ./scripts/supermassive/ammsp-vs-legacy-test.sh --json        # machine-readable
-#   ./scripts/supermassive/ammsp-vs-legacy-test.sh --no-download # offline: local paths only
+#   ./scripts/supermassive/mmspa-vs-legacy-test.sh --self-test   # engine smoke, no root
+#   ./scripts/supermassive/mmspa-vs-legacy-test.sh --json        # machine-readable
+#   ./scripts/supermassive/mmspa-vs-legacy-test.sh --no-download # offline: local paths only
 #
 # The legacy side resolves from --legacy-binary, $ZELYNIC_LEGACY_BINARY,
 # /opt/zelynic/legacy/zelynic (the path the supermassive CI legs
@@ -33,4 +33,4 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec python3 "${SCRIPT_DIR}/ammsp-vs-legacy-test.py" "$@"
+exec python3 "${SCRIPT_DIR}/mmspa-vs-legacy-test.py" "$@"

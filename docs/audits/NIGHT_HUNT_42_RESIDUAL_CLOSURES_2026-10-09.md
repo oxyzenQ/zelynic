@@ -317,7 +317,7 @@ The owner's five markers, walked:
 Private-research-1 (the cosmostrix-parity maturity gaps — NOTICE,
 the design philosophy canon, the user-facing FAQ) shipped
 (NIGHT-private-research-1, the v20 era). Private-research-2
-(AMMSP) shipped (the subtree-aware datapath, schema v18).
+(MMSPA) shipped (the subtree-aware datapath, schema v18).
 Private-research-3 (the depth traffic focus + report compaction)
 shipped (the eagle-eyes --depth focus window, the compact report).
 Private-research-4 (the time-windowed policies, --during, schema
@@ -349,7 +349,7 @@ helper wall (the helpers the observer + limiter use, each with
 its kernel-version availability) is on the record. A future
 kernel that exposes a new helper the estate could use is a
 private-research-N lane; the audit family's pattern (private-
-research-2 for AMMSP, private-research-4 for the time-windowed
+research-2 for MMSPA, private-research-4 for the time-windowed
 policies) is the closure path. No new helper is in scope this
 round — the estate's current helpers cover the verified matrix.
 

@@ -118,11 +118,11 @@ all previously delivered, all still pinned, none re-performed.
 ## 3. The live find — the 9a78dfc low-spec red lane
 
 Caught by this audit's own CI watch: supermassive failed on
-9a78dfc, both low-spec legs, exactly one row — `ammsp fair-share:
+9a78dfc, both low-spec legs, exactly one row — `mmspa fair-share:
 many24 no leaf monopolizes the refill` (low-gnu worst 1,671,246 B
 vs bound 1,621,086; low-musl 1,638,478 vs 1,592,414 — 3% over
 each). Both best-spec legs green; the engine self-test, the v2
-survival battery, the claims proof, and the AMMSP-vs-legacy delta
+survival battery, the claims proof, and the MMSPA-vs-legacy delta
 green on every leg.
 
 The diagnosis, from the runs' own ledgers:
@@ -191,7 +191,7 @@ improve-15 note), where every sibling depth suite already lives.
 - **scripts/, the reference map.** The supermassive family is all
   live: v1 is the CI matrix plus both self-test gates (ci.yml,
   setup.sh, supermassive-init.sh); v2 rides its own lanes;
-  ammsp-vs-legacy is the conditional legacy A/B (init.sh, guarded
+  mmspa-vs-legacy is the conditional legacy A/B (init.sh, guarded
   on the legacy binary's presence). The `.sh`/`.py` pairs are thin
   exec wrappers by design (sudo entry, python engine), not
   duplicates. The bench family (benchmarking, proof-claims,

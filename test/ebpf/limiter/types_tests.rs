@@ -160,9 +160,9 @@ fn test_schema_version_constant() {
     // inserts ride BPF_NOEXIST — the first-packet init race
     // can no longer resurrect tokens or roll the window stamp
     // back under a many-CPU burst on a fresh bucket.
-    // v12 (NIGHT-perf-0): AMMSP memos are generation-stamped —
+    // v12 (NIGHT-perf-0): MMSPA memos are generation-stamped —
     // the leaf-cache value packs (generation << 32) | root and
-    // the new ammsp_generation array invalidates every memo a
+    // the new mmspa_generation array invalidates every memo a
     // mutation outlives, one O(1) bump per mutation.
     // v13 (charger-core-1c): the individual lane becomes DRR —
     // the shared bucket a pool, every packet spending from a
@@ -178,12 +178,12 @@ fn test_schema_version_constant() {
     // 100ms refill split across the drawee PEAK, earned per epoch
     // and carried quantum-capped) through the two new
     // drr_leaf_state_dl/ul maps, the pool-share word re-packed
-    // with the peak, both state maps keyed on the AMMSP generation
+    // with the peak, both state maps keyed on the MMSPA generation
     // (a mutated budget hands its successor a fresh word), and the
     // note atomic (the v16 plain-read-plus-BPF_ANY insert lost
     // increments to racing writers until the count itself lied).
-    // v18 (NIGHT-hunt-Z1): the AMMSP leaf cache splits into TWO
-    // direction-scoped maps (ammsp_leaf_cache_dl/ul) — a memo's
+    // v18 (NIGHT-hunt-Z1): the MMSPA leaf cache splits into TWO
+    // direction-scoped maps (mmspa_leaf_cache_dl/ul) — a memo's
     // root is only valid for the direction whose walk produced it,
     // and the shared map let one direction's resolution poison the
     // other's enforcement under single-direction applies.

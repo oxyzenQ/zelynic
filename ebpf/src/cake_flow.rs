@@ -67,13 +67,13 @@ use aya_ebpf::{macros::map, maps::LruHashMap};
 // and the leaf lane's own note/room/spend helpers (pub(super), the
 // same CAS discipline one level down — this file never duplicates
 // what a sibling already owns).
-use super::ammsp_resolve::current_generation;
 use super::drr;
 use super::drr_flow::{ledger_room, ledger_spend, note_share};
 use super::math::{
     Bucket, Policy, draw_stamp_take, gen_stamp_read, gen_stamp_write, tokens_cas, tokens_fetch_add,
     tokens_read,
 };
+use super::mmspa_resolve::current_generation;
 
 /// The per-flow download bucket: socket cookie -> the tokens the
 /// flow may spend. LRU + pinned (the leaf-bucket posture — dead

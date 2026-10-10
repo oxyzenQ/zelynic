@@ -88,7 +88,7 @@ src/
       reclaim.rs       — bucket/stats slot reclamation on unstrict/recover
                          (the LTS budget, NIGHT-improve-10) + the
                          u32-keyed map acquisition lanes
-      ammsp.rs         — the AMMSP leaf-cache flush every policy
+      mmspa.rs         — the MMSPA leaf-cache flush every policy
                          mutation runs (NIGHT-private-research-2)
     identity/
       mod.rs           — cgroup ID → process name resolution + the canonical
@@ -264,7 +264,7 @@ scripts/
     smoke-cli.sh       — one-click rootless CLI smoke
 
   supermassive/        — the depth-battery family (v1..v4 plus the
-                        AMMSP A/B lane; NIGHT-hunt-Z8: the listing
+                        MMSPA A/B lane; NIGHT-hunt-Z8: the listing
                         caught up with the family it describes)
     supermassive-test.sh — one-click supermassive test (NIGHT-master-2,
                 renamed from brutal-stress-test in NIGHT-improve-11;
@@ -290,8 +290,8 @@ scripts/
                 hidden subcommand; wraps supermassive-test-v4.py; the
                 full battery runs rootless in ci.yml's gnu-dynamic
                 job, the self-test in the check job)
-    ammsp-vs-legacy-test.sh — the AMMSP A/B lane (wraps
-                ammsp-vs-legacy-test.py; --self-test rootless)
+    mmspa-vs-legacy-test.sh — the MMSPA A/B lane (wraps
+                mmspa-vs-legacy-test.py; --self-test rootless)
 ```
 
 ## Coding Standards

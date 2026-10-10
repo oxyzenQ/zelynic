@@ -40,7 +40,7 @@ only because the VM's cgroup fleet has no "brave").
 ## The method (the leg matrix)
 
 The sweep enumerated every binary-driving instrument in the repo
-(the five supermassive batteries, the AMMSP delta harness, the
+(the five supermassive batteries, the MMSPA delta harness, the
 claims proof, the depth family, the bench family, the nonroot depth
 suite, and the Rust test tree), then crossed each with every leg
 that runs it and the uid that leg runs under:
@@ -75,13 +75,13 @@ five refusal rows firing green against the repo binary, stages 3-6
 skipping honestly. Verified live as root by the VM and container
 legs (both green at 6eb652d). No row is uid-blind.
 
-**v1, v2, the AMMSP delta harness, and the claims proof —
+**v1, v2, the MMSPA delta harness, and the claims proof —
 fail-fast preflights, the other honest discipline.** None of them
 can run their batteries rootless and none pretend to: v1 records
 the honest FAIL row ("re-run with sudo — BPF needs CAP_BPF") and
 exits, v2 and the claims proof print the one-line refusal ("This
 test programs the kernel datapath — run with sudo.") and exit 2,
-AMMSP refuses with the `--self-test` hint and exits 1 — all four
+MMSPA refuses with the `--self-test` hint and exits 1 — all four
 exit shapes verified live rootless this session (2 / 2 / 1 / 2), so
 no CI leg can ever mistake a wrong-uid invocation for a green
 verdict. The rootless legs only ever see their `--self-test`

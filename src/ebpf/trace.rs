@@ -163,7 +163,7 @@ mod tests {
     /// 1 map", never "1 programs".
     #[test]
     fn load_line_pins_counts_and_units() {
-        // NIGHT-private-research-2: ten maps — the ammsp_leaf_cache
+        // NIGHT-private-research-2: ten maps — the mmspa_leaf_cache
         // LRU memo joined the pinned inventory.
         assert_eq!(
             load_line("limiter", 2, 10, Duration::from_millis(8)),
