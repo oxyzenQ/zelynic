@@ -253,3 +253,88 @@ fn per_socket_flag_parses_on_strict_only() {
         "the rejection is clap's unknown-argument error, got: {err}"
     );
 }
+
+// ── forced_color_mode_from_argv (NIGHT-improve-73) ─────────────────
+
+use crate::output::ColorCapability;
+
+/// The owner's live repro grammar: the space form before the typo'd
+/// subcommand must seed Mono, so the clap-rendered error half obeys
+/// the same ladder the ux-rendered half does.
+#[test]
+fn space_form_before_the_failure_seeds_mono() {
+    let a = argv(&["zelynic", "-v", "--color-mode", "0", "ss", "brave", "100kb"]);
+    assert_eq!(
+        forced_color_mode_from_argv(&a),
+        Some(ColorCapability::Mono),
+        "the repro line must seed Mono for the error lane"
+    );
+}
+
+/// The `=` form rides one token and seeds the same way.
+#[test]
+fn equals_form_seeds_the_same() {
+    let a = argv(&["zelynic", "--color-mode=24", "s", "brave", "100kb"]);
+    assert_eq!(
+        forced_color_mode_from_argv(&a),
+        Some(ColorCapability::TrueColor),
+        "the one-token form must seed TrueColor"
+    );
+}
+
+/// clap's ArgAction::Set takes the LAST occurrence; the scan mirrors
+/// it, so a later valid value overrides an earlier one.
+#[test]
+fn last_occurrence_wins() {
+    let a = argv(&["zelynic", "--color-mode", "0", "--color-mode", "16"]);
+    assert_eq!(
+        forced_color_mode_from_argv(&a),
+        Some(ColorCapability::Color16),
+        "the scan must mirror clap's last-Set contract"
+    );
+}
+
+/// Nothing after `--` is an option: the scan stops there, the same
+/// world-end the parser honors.
+#[test]
+fn double_dash_ends_the_scan() {
+    let a = argv(&["zelynic", "s", "brave", "100kb", "--", "--color-mode", "0"]);
+    assert_eq!(
+        forced_color_mode_from_argv(&a),
+        None,
+        "an escaped --color-mode is a value, never a seed"
+    );
+}
+
+/// An invalid MODE never seeds: the grammar error belongs to main's
+/// authoritative check, and the auto ladder renders it.
+#[test]
+fn invalid_mode_never_seeds() {
+    for bad in ["9", "wat", ""] {
+        let a = argv(&["zelynic", "--color-mode", bad, "s", "brave", "100kb"]);
+        assert_eq!(
+            forced_color_mode_from_argv(&a),
+            None,
+            "invalid MODE {bad:?} must not seed"
+        );
+    }
+    let a = argv(&["zelynic", "--color-mode=wat", "s"]);
+    assert_eq!(forced_color_mode_from_argv(&a), None);
+}
+
+/// No flag, no seed — the auto ladder stays in charge.
+#[test]
+fn absence_leaves_the_seed_empty() {
+    let a = argv(&["zelynic", "-v", "ss", "brave", "100kb"]);
+    assert_eq!(forced_color_mode_from_argv(&a), None);
+}
+
+/// A `--color-mode` flag swallowed as another option's value never
+/// existed in this grammar (color-mode is the sole value-taker), but
+/// a dangling `--color-mode` with no value must not panic the scan —
+/// it just leaves the seed empty (clap reports the missing value).
+#[test]
+fn dangling_flag_without_value_is_harmless() {
+    let a = argv(&["zelynic", "s", "brave", "100kb", "--color-mode"]);
+    assert_eq!(forced_color_mode_from_argv(&a), None);
+}

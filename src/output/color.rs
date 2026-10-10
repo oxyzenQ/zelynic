@@ -17,11 +17,18 @@
 //! | Mono | `NO_COLOR`, `CLICOLOR=0`, or not a TTY (unless `CLICOLOR_FORCE=1`) | plain text |
 //!
 //! Owner color contract (NIGHT-hunt-5, cosmostrix S-master-HUNT-5
-//! lineage): error = red #FF5A5A, warning = yellow #FFEB3C, suggestion
-//! = crystal white #DCEBFF, brand = purple #A855F7. Suggestion lines
-//! ("tip:", "hint:", did-you-mean, possible-value lists) render white —
-//! distinct from the error they are embedded in, so a typo tip never
-//! drowns in red. Status green (#50FA7B) stays for affirmative verdicts.
+//! lineage): error = red #FF5A5A, warning = yellow #FFEB3C, brand =
+//! purple #A855F7. Suggestion lines on the CLI error lane used to
+//! ride the crystal-white tier #DCEBFF — NIGHT-improve-73 moved the
+//! labeled renderer's passive tips ("tip:", "hint:", did-you-mean,
+//! possible-value lists) to the calm-grey tier #8B8B8B, the same
+//! value the clap surface paints its `tip:` labels and suggestion
+//! candidates with, so an advisory line reads as ONE tier on both
+//! error surfaces. The crystal-white tier stays live for the
+//! status-frame contracts that wrap runnable commands directly
+//! (display.rs stale lines, recover.rs action lines).
+//! Status green (#50FA7B) stays for affirmative verdicts and the
+//! runnable-tip tier (NIGHT-dinner-12).
 //!
 //! NIGHT-dinner-12 (the owner's green-suggestion call): a tip that
 //! QUOTES a command to run (`'zelynic list-apps'`) renders in the
@@ -73,8 +80,12 @@ const ERROR_RGB: (u8, u8, u8) = (255, 90, 90);
 #[cfg(test)] // referenced in tests; kept as source-of-truth documentation
 const WARN_RGB: (u8, u8, u8) = (255, 235, 60);
 
-/// Suggestion crystal-white RGB: #DCEBFF (220,235,255) — cosmostrix
-/// suggestion format. 256-color fallback: index 255 (nearest
+/// Suggestion crystal-white RGB: #DCEBFF (220,235,255) — the
+/// status-frame contract tier (NIGHT-hunt-5): the direct
+/// [`suggestion`] wrappers (display.rs stale lines, recover.rs action
+/// lines) render runnable commands in it. The labeled error lane's
+/// passive tips ride the grey tier since NIGHT-improve-73 — same
+/// value as clap's `valid`. 256-color fallback: index 255 (nearest
 /// near-white). Color16 fallback:
 /// bright white (97) — the aixterm bright slot, universally supported;
 /// the normal 37 can render dim gray and blur suggestions into body text.
@@ -175,6 +186,15 @@ fn detect_capability() -> ColorCapability {
         return ColorCapability::Color256;
     }
     if term == "dumb" || term.is_empty() {
+        // NIGHT-improve-73: CLICOLOR_FORCE=1 promised colors even when
+        // piped (the env contract in the output module docs) — a
+        // probe-dead TERM must not veto the force. Color16 is the
+        // floor: the classic palette renders on every terminal back
+        // to VT100, so the forced lane never garbles and never lands
+        // Mono.
+        if force {
+            return ColorCapability::Color16;
+        }
         return ColorCapability::Mono;
     }
 
@@ -306,11 +326,12 @@ pub fn warn_bold_open() -> &'static str {
 
 /// Suggestion crystal-white open sequence, capability-aware.
 ///
-/// Owner color contract (NIGHT-hunt-5): "tip:" / "hint:" / did-you-mean
-/// lines render white — distinct from the red or yellow of the block
-/// they are embedded in. See [`SUGGESTION_RGB`] for the tier rationale.
-/// NIGHT-dinner-12 carve-out: a tip that quotes a runnable command
-/// (`'zelynic ...`) renders green instead — classified in
+/// The status-frame contract tier (NIGHT-hunt-5): the surfaces that
+/// wrap a runnable command directly (display.rs stale lines,
+/// recover.rs action lines) render through here. The labeled error
+/// lane's passive tips ride the grey tier instead (NIGHT-improve-73,
+/// matching clap's `valid` grey), and runnable tips inside a labeled
+/// block go green (NIGHT-dinner-12) — see
 /// [`super::labeled::is_runnable_tip_line`].
 #[must_use]
 pub fn suggestion_open() -> &'static str {

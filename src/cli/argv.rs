@@ -21,6 +21,16 @@
 //!   brought to the headline claims.
 //! - [`drop_dishonest_escape_hatch`] — the render-side gate that
 //!   runs the probe and removes the tip it disproves.
+//! - [`seed_forced_color_mode`] (NIGHT-improve-73) — the pre-parse
+//!   scan that honors `--color-mode` on the clap error surface: a
+//!   usage error exits through `cli::ux::exit_clap_error` BEFORE
+//!   `main` seeds the forced capability, so without this scan the
+//!   clap-rendered half of an error block ignored `--color-mode 0`
+//!   while the ux-rendered half obeyed it — two color laws, one
+//!   terminal. The scan is a best-effort mirror of clap's own
+//!   assignment (last valid occurrence wins, `--` ends the world);
+//!   the authoritative seed still runs in `main` after a successful
+//!   parse.
 //!
 //! Pure functions over `(argv, token)`; a probe result is never
 //! dispatched — only its Ok/Err shape is read.
@@ -31,6 +41,7 @@ use clap::Parser;
 use clap::error::{ContextKind, ContextValue};
 
 use crate::cli::Cli;
+use crate::output::{parse_color_mode, set_forced_capability};
 
 /// Indexes (into the full argv) of every argv[1..] occurrence equal
 /// to `token`; the binary name at argv[0] never matches by position.
@@ -182,6 +193,79 @@ pub(crate) fn drop_dishonest_escape_hatch(e: &mut clap::Error, argv: &[OsString]
         return;
     }
     e.remove(ContextKind::Suggested);
+}
+
+// ── The pre-parse color-mode seed (NIGHT-improve-73) ───────────────────────
+//
+// `--color-mode` must govern EVERY rendered byte of the process, but a
+// usage error exits through `cli::ux::exit_clap_error` before `main`
+// ever reads the parsed field. This scan mirrors clap's assignment
+// closely enough for the error lane: the space form takes the next
+// argv token as MODE (even when that token looks like a flag — the
+// parser takes it as the value too, and an unusable value dies in the
+// bridge with the same verdict either way), the `=` form rides one
+// token, the last valid occurrence wins (clap's ArgAction::Set), and
+// `--` ends the scan because nothing after it is an option. An
+// invalid MODE never seeds here: the parse either fails elsewhere and
+// the auto ladder renders the error, or `main`'s authoritative check
+// reports the grammar error through the labeled renderer.
+
+/// Resolve the forced capability a raw argv carries, if any.
+///
+/// Pure over the argv slice so the pins can drive it without touching
+/// process state; the process-global seed is [`seed_forced_color_mode`]'s
+/// job.
+fn forced_color_mode_from_argv(argv: &[OsString]) -> Option<crate::output::ColorCapability> {
+    let mut forced = None;
+    let mut value_pending = false;
+    for arg in argv.iter().skip(1) {
+        let Some(word) = arg.to_str() else {
+            continue; // non-UTF-8 cannot name the flag or a MODE value
+        };
+        if value_pending {
+            value_pending = false;
+            // The space-form value: any word the parser would eat as
+            // MODE. Invalid values leave the seed untouched — `main`
+            // owns the grammar error.
+            if let Ok(cap) = parse_color_mode(word) {
+                forced = Some(cap);
+            }
+            continue;
+        }
+        if word == "--" {
+            break; // nothing after -- is an option
+        }
+        if let Some(mode) = word.strip_prefix("--color-mode=") {
+            if let Ok(cap) = parse_color_mode(mode) {
+                forced = Some(cap);
+            }
+            continue;
+        }
+        if word == "--color-mode" {
+            value_pending = true;
+        }
+    }
+    forced
+}
+
+/// Seed the process-global forced capability from raw argv, once,
+/// BEFORE the parser runs (NIGHT-improve-73).
+///
+/// The clap error surface renders through the same capability ladder
+/// as every other surface only if the ladder already knows about
+/// `--color-mode` when the error fires — and a usage error fires
+/// inside `Cli::try_parse()`. The scan lands on the LAST valid
+/// occurrence (clap's `ArgAction::Set` contract); the authoritative
+/// `main`-side seed after a successful parse is a no-op at the
+/// OnceLock when this scan already set the same value the parser
+/// read — a divergence would require two `--color-mode` flags with
+/// different values on one command line, and both lanes take the
+/// last one.
+pub(crate) fn seed_forced_color_mode() {
+    let argv: Vec<OsString> = std::env::args_os().collect();
+    if let Some(cap) = forced_color_mode_from_argv(&argv) {
+        set_forced_capability(cap);
+    }
 }
 
 // The argv-forensics pins live under the single test/ tree

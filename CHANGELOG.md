@@ -25,6 +25,39 @@ NIGHT-hunt-18's git-history-only call.
 
 ## [Unreleased]
 
+### Fixed
+
+- **fix(cli): NIGHT-improve-73 — one color law for every error
+  surface.** The clap error half of a usage error ran its own private
+  color probe (clap `Error::print` → AutoStream), so `--color-mode 0`
+  killed the ux-rendered half of an error block while the
+  clap-rendered half stayed colored — two laws, one terminal, the
+  owner's live repro (`zelynic -v --color-mode 0 ss brave 100kb`
+  vs `... s brave 100kb`). The pre-parse argv scan
+  (`cli::argv::seed_forced_color_mode`) now seeds the forced
+  capability BEFORE the parser runs, and the bridge
+  (`cli::ux::exit_clap_error`) owns the bytes: Mono renders the plain
+  StyledStr text (zero escape bytes), every colored rung emits clap's
+  ANSI bytes (`StyledStr::ansi`) — the exact stream clap's
+  color-passing AutoStream would have kept, byte-identical on every
+  lane the old code colored. Depth honesty: `--color-mode 16` swaps
+  in the palette mapping (`cli::styles::clap_styles_16` — magenta
+  brand, bold red error, bright-black valid, yellow invalid, the
+  same slots the output layer's Color16 fallbacks pick) so a forced
+  16-color terminal never receives RGB bytes from the clap render;
+  the 256/24 rungs ride the RGB raw (clap's closest speakable
+  encoding). Tier alignment rides the same task: the labeled
+  renderer's passive tips (`tip:`, `hint:`, possible-value lists,
+  did-you-mean) move from the crystal-white tier to the calm-grey
+  #8B8B8B — the same value clap paints its `tip:` labels and
+  suggestion candidates with — so an advisory line reads as one tier
+  on both error surfaces; runnable tips keep the status-green
+  "this is what you type" tier (NIGHT-dinner-12), and the
+  crystal-white tier stays live for the status-frame contracts that
+  wrap runnable commands directly (display.rs, recover.rs). Docs and
+  reference comments updated in step (color.rs, styles.rs, ux.rs,
+  labeled.rs, main.rs, CHANGELOG).
+
 ### Added
 
 - **docs(longevity): NIGHT-think-like-light-years-4 — the 100+

@@ -31,8 +31,9 @@ pub use surface::Commands;
 // The clap brand-styling block lives in cli/styles.rs since
 // NIGHT-master-1 (the depth surface's docs pushed this file past the
 // 500-line cap) — one theme, one concern, re-exported for the
-// `#[command(styles = ...)]` attribute below.
-pub(crate) use styles::clap_styles;
+// `#[command(styles = ...)]` attribute below. clap_styles_16 is the
+// 16-color rung the error bridge swaps in (NIGHT-improve-73).
+pub(crate) use styles::{clap_styles, clap_styles_16};
 
 // The --print-json scope contract lives in cli/scope.rs since
 // NIGHT-private-research-3 (the --focus field's docs pushed this file

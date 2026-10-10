@@ -80,14 +80,19 @@ NIGHT-hunt-5 — cosmostrix S-master-HUNT-5 lineage):
 | Status green | `#50FA7B` | affirmative doctor verdicts (YES, SUPPORTED), up-to-date |
 | Error red | `#FF5A5A` | `error:` labels and error bodies |
 | Warning yellow | `#FFEB3C` | `!` warning labels, warnings, update-available |
-| Suggestion white | `#DCEBFF` | `tip:` / `hint:` value suggestions and passive advice on the labeled (anyhow) error lane — content, not grammar |
-| Grammar grey | `#8B8B8B` | help synopses, flag spellings, and target-form tokens (flag_row / target_row); error-lane suggestion candidates, redirect successors, and the footer's `--help` (clap valid, hunt-39 peak law) |
+| Suggestion white | `#DCEBFF` | the status-frame contracts that wrap runnable commands directly (display.rs stale lines, recover.rs action lines) — content, not grammar |
+| Grammar grey | `#8B8B8B` | help synopses, flag spellings, and target-form tokens (flag_row / target_row); error-lane suggestion candidates, redirect successors, and the footer's `--help` (clap valid, hunt-39 peak law); passive `tip:` / `hint:` advice on the labeled error lane since NIGHT-improve-73 — one advisory tier on both the clap and ux error surfaces |
 
 All styled output degrades to plain text when piped so ANSI codes never
 leak into scripts, logs, or JSON consumers. Every user-facing print goes
-through the broken-pipe-safe macros (`println_safe!` / `eprintln_safe!`)
+through the broken-pipe-safe macros (`println_safe!` / `eprintln_safe!` /
+`eprint_safe!`)
 so piping into a short reader (`zelynic --help | head -2`) truncates
-cleanly instead of panicking with exit 101.
+cleanly instead of panicking with exit 101. One color law governs every
+surface since NIGHT-improve-73: `--color-mode` (and the env ladder)
+answers for the clap error render too — Mono strips the clap render to
+plain text, Color16 swaps the palette mapping in, and the colored rungs
+emit clap's ANSI bytes unchanged.
 
 Exit-code contract: clap usage errors exit 2; runtime failures exit 1.
 
