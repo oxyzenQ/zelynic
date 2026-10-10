@@ -99,8 +99,8 @@ Replace `project-vX.Y.Z-linux-amd64-v3-gnu` with the actual archive
 name. Releases are arch-baseline builds (NIGHT-improve-22): four
 packages per tag — `v3` (AVX2/BMI2/FMA, any x86_64 CPU from ~2013
 onward) and `v4` (AVX-512), each in `gnu` and `musl` (e.g.
-`zelynic-v11.0.0-linux-amd64-v3-gnu`,
-`zelynic-v11.0.0-linux-amd64-v4-musl`). Every package name carries
+`zelynic-v50.0.0-rc.1-linux-amd64-v3-gnu`,
+`zelynic-v50.0.0-rc.1-linux-amd64-v4-musl`). Every package name carries
 its libc leg (NIGHT-boost-36): the gnu flavors keep `-gnu` —
 `zelynic-vX.Y.Z-linux-amd64-v3-gnu.tar.gz` — while the musl
 flavors keep their `-musl` leg. The binary's embedded `Build:`

@@ -83,7 +83,7 @@ userspace tool coordination, no format mismatches, no leaked state.
 │  cgroup_skb/egress observer → cgroup_counters map       │
 │  cgroup_skb ingress+egress limiter → token-bucket       │
 │  ebpf/ (aya-ebpf: observer + limiter, pure Rust)        │
-│  (future: a policer program, same pure-Rust ebpf/)       │
+│  (future: a policer program, same pure-Rust ebpf/)      │
 ```
 
 ### Layer 0 — BPF Programs (kernel)

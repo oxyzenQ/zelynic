@@ -1554,18 +1554,18 @@ with what the renderer draws.
 │        ├ tcp 104.18.32.7:443 [dl 3.1 MB/s | ul 174.0 KB/s]                   │
 │        └ tcp 104.18.32.115:443 [dl 296.0 KB/s | ul 36.0 KB/s]                │
 │    3  cg:73511 (curl)                               —          —     4.2 MB  │
-│   (+19 more — ↑↓ scroll)                                                    │
+│   (+19 more — ↑↓ scroll)                                                     │
 │──────────────────────────────────────────────────────────────────────────────│
-│  top consumer is brave                                                      │
-│  1.2K packets + 22 cgroups                                                  │
-│  total usage internet in 1h:20s = 11.1 GB                                   │
-│  peak arrival dl | ul = 24.6 MB/s | 1.2 MB/s                                │
-│  avg arrival dl | ul = 2.9 MB/s | 143.6 KB/s                                │
-│  limit target with 'sudo zelynic s brave 100kb'                             │
+│  top consumer is brave                                                       │
+│  1.2K packets + 22 cgroups                                                   │
+│  total usage internet in 1h:20s = 11.1 GB                                    │
+│  peak arrival dl | ul = 24.6 MB/s | 1.2 MB/s                                 │
+│  avg arrival dl | ul = 2.9 MB/s | 143.6 KB/s                                 │
+│  limit target with 'sudo zelynic s brave 100kb'                              │
 │                                                                              │
-│  1s realtime - theme netrunner - q quit - t theme - ↑↓ scroll - ←→ section  │
+│  1s realtime - theme netrunner - q quit - t theme - ↑↓ scroll - ←→ section   │
 │                                                                              │
-│  v11.0.0-beta.1 (a1b2c3d) by oxyzenQ                                        │
+│  v50.0.0-rc.1 (a1b2c3d) by oxyzenQ                                           │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -1602,7 +1602,7 @@ order. Every figure names its horizon and scope:
 | `avg arrival dl | ul = 2.9 MB/s \| 143.6 KB/s` | The session's average per-direction arrival rate: the same per-direction totals the grand sums, divided by the SAME uptime the total row renders — the three lines of the paragraph share their legs and their clock, so they can never disagree. |
 | `limit target with 'sudo zelynic s brave 100kb'` | The action: a ready-to-paste command for the consumer the headline just named — the `s` short alias, and the `100kb` engraved default (the one fixed suggestion value on a line whose every other fact is derived live). The command rides the ACTIVE theme's brand tier — the frame's two living accents, the thing to read and the thing to act on. |
 | status line | The legend: `1s realtime - theme netrunner - q quit - t theme - ↑↓ scroll - ←→ section` — the poll interval, the active theme's name, and the whole six-key map (night-improve-58): quit, theme, the scroll arrows, the section arrows. Rides every compression tier. |
-| Build stamp | `v11.0.0-beta.1 (a1b2c3d) by oxyzenQ` — version, git hash, author, brand purple: the frame's quiet closing paragraph. |
+| Build stamp | `v50.0.0-rc.1 (a1b2c3d) by oxyzenQ` — version, git hash, author, brand purple: the frame's quiet closing paragraph. |
 | `(identities unresolved — labels show raw cgroup IDs)` | The rare honesty note: the /proc walk found no identities this frame, so labels render raw IDs. It rides only when true. |
 
 Colors, on a live terminal: the footer text renders calm grey except
