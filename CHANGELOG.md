@@ -96,6 +96,34 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **fix(render): night-improve-72 — the table never starves the
+  baseline police.** The owner's live find in eagle-eyes: scrolling
+  the top process window decided the baseline panel's fate. Scroll
+  up toward the busy head ranks — the detail-heavy rows — and the
+  table's unbounded row budget ate every line up to the pinned
+  footer, the panel's leftover room collapsed to zero, and its
+  renderer returned before drawing a thing: the whole
+  `baseline · policy aggregate` section vanished, title included.
+  Scroll down toward the quiet tail and the shorter rows let it
+  back, at the price of seeing only the board's last ranks. Both
+  directions, normal and limited terminal heights. The fix carves
+  the panel's guaranteed-visible floor — separator, header, one
+  verdict row, the scroll note — out of the table's budget BEFORE
+  the table renders (PANEL_FLOOR, five lines, one home beside the
+  panel's own usable-row arithmetic in baseline_panel.rs), whenever
+  the panel has rows to show (the shared view_rows helper answers
+  "does the panel have anything to say" for both the layout and the
+  renderer) and the table can still keep its own minimum (chrome
+  plus one data row). A frame too short to hold both keeps the
+  table — the ranked view is the primary one; that degradation is
+  the old behavior by design, not a new cliff. The scroll contract
+  is unchanged: sections still walk independently, the gutter
+  marker still names the focused section, the dock still lands the
+  panel flush above the footer. Pinned in
+  test/ebpf/render/eagle_floor_tests.rs at a limited (24) and a
+  normal (40) height, through the window walk in both directions,
+  and at the too-short degradation that keeps the table; the
+  red-check (floor disabled) fails exactly the two starvation pins.
 - **fix(cli): NIGHT-hunt-39 — the flag tier: every flag spelling on
   the --help reference renders calm grey.** The owner's ask, total:
   flags are grammar, so --all and every spelling beside it rides the

@@ -955,7 +955,15 @@ share a column block; NIGHT-engrave-10: the section DOCKS — on a
 tall terminal it sits flush against the pinned footer, directly
 above the "top consumer" headline, and the blank slack rides between
 the table and the section's separator, never between the verdict
-rows and the footer they answer to): `learning n/8` while the
+rows and the footer they answer to; night-improve-72: the section's
+visibility no longer rides the table's appetite — the layout
+withholds the panel's guaranteed-visible floor (separator, header,
+one verdict row, the scroll note) from the table's row budget
+whenever the panel has rows to show, so a board rich enough to fill
+the frame — scrolling up to the busy head ranks included — can
+never starve the section out of the frame; a terminal too short to
+hold both keeps the table, the primary view):
+`learning n/8` while the
 horizon fills, then
 `steady <rate>` with the learned figure, and `above +N%` /
 `below -N%` (warn yellow) when delivered traffic departs from the
