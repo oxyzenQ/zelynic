@@ -92,11 +92,11 @@ the surface prints lowercase. Healed: a real target, signal deaths
 (rc >= 128) counted apart from graceful refusals, and a state check
 that can fail.
 
-**5. ammsp-vs-legacy-test.py violated its own docstring.** "A file
+**5. mmspa-vs-legacy-test.py violated its own docstring.** "A file
 that exists but does not execute is a hard FAIL, not a skip" — the
 code SKIPped and exited 0, and through supermassive-init's
 `[ -x ]` + exit-code guard a broken-but-executable staged binary
-read as "AMMSP vs legacy ... PASS" in CI: the one-sided delta proof
+read as "MMSPA vs legacy ... PASS" in CI: the one-sided delta proof
 the harness exists to forbid. Healed: an existing-but-unhealthy
 candidate (explicit, env, /opt staging, or fetched) returns the
 hard-FAIL marker and the harness exits 1 with re-staging hints; the
@@ -223,7 +223,7 @@ The shell quad at CI-pinned versions (shfmt v3.10.0, shellcheck
 v0.10.0 with -x) is clean across all 18 touched .sh files; ruff
 0.16.8 format + check clean across all 10 touched .py files; the
 engine self-test battery is green end to end — proof-claims 23/23,
-ammsp 12/12 (including the resolver-shape pin), supermassive v1
+mmspa 12/12 (including the resolver-shape pin), supermassive v1
 34/34, v2 10/10, v3 PASS on a binary-less host (the CI smoke
 lane's exact shape), v4 PASS. The rig-only suites (crash-recovery,
 race, reload, endurance, benchmarking) carry the falsifiable

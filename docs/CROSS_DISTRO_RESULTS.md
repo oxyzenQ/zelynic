@@ -326,7 +326,7 @@ The numbers behind the instrument split, filed from the CI round
 ledgers of runs 122-124 (2026-10-01 through 2026-10-02, the
 born-red era's last pushes). Every failing leg read the same two
 rows while every other probe passed (engine self-test 34/34,
-AMMSP delta, v2 survival, claims proof):
+MMSPA delta, v2 survival, claims proof):
 
 | Leg | Row | Measured | Bound |
 | --- | --- | --- | --- |
@@ -366,7 +366,7 @@ refill`, on both low-spec legs at once (low-gnu worst 1,671,246 B
 vs bound 1,621,086; low-musl worst 1,638,478 B vs bound 1,592,414
 — 3% over each), while both best-spec legs held (worst 1.08-1.27
 MB) and everything else on every leg passed (the engine self-test,
-the v2 survival battery, the claims proof, the AMMSP-vs-legacy
+the v2 survival battery, the claims proof, the MMSPA-vs-legacy
 delta). The objects were provably byte-identical to the green run
 128 era (the prebuilt-parity rows PASSED on this very push), and
 the aggregates stayed inside policy on the failing legs (99-105%)
@@ -398,7 +398,7 @@ reddened before (2.14x fair, 60% of the bound — healthy headroom),
 with the many24 quietest advisory landing healthy too (196,686 B
 vs fair/4 172,734). The low-gnu leg still reddened — on a
 DIFFERENT row, the one the audit's CI watch had not met before:
-`ammsp subtree: BPF accounting matches client bytes`, ledger
+`mmspa subtree: BPF accounting matches client bytes`, ledger
 delta 164,862 vs client 98,382 (167.6% against the 1.5 hi). The
 row's own history is bimodal and the diagnosis is exact: the
 client count at this probe shape is near-deterministic (98,382 B
@@ -430,8 +430,8 @@ the low-gnu leg (the phantom-burst row now SKIPs inside its named
 zone, the anti-monopoly band holding) and the low-musl and
 best-gnu legs — with Gate-keepers, CI, and CodeQL all SUCCESS.
 The best-musl leg reddened on the one remaining probe this era
-had not yet met: the AMMSP-vs-legacy A/B's shared-budget row —
-`current (AMMSP) two concurrent leaves share ONE budget — sum
+had not yet met: the MMSPA-vs-legacy A/B's shared-budget row —
+`current (MMSPA) two concurrent leaves share ONE budget — sum
 131.1 KB/s across two child cgroups vs 100kb — gray`, 1.1 points
 past the 1.30 BAND_HI, while every single-leaf row policed at
 64-90 KB/s, the legacy control escaped as designed (10.8 GB/s),
@@ -457,7 +457,7 @@ THREE legs green — low-gnu, low-musl, and best-gnu, the first
 three-leg green since the instrument split era began, with the
 shared-budget row reading in-band where it had reddened (and
 Gate-keepers, CI, CodeQL SUCCESS). The best-musl leg reddened on
-the v1 battery's own grandchild row: `ammsp: grandchild resolves
+the v1 battery's own grandchild row: `mmspa: grandchild resolves
 to the NEAREST root (50kb, not 100kb) — configured 50.0 KB/s,
 measured 16.4 KB/s (32.8%); windows: 28.3, 32.0, 16.4` — three
 patient windows all under the 0.65 lo bound, the cadence
@@ -484,7 +484,7 @@ nested-root row). Battery-only; the eBPF object byte-identical
 
 The 0d9f98c era (the audit's close — the first full four-leg
 green with every close live): all four supermassive legs PASS the
-v1 limiter matrix (0 failed on every leg) and the AMMSP-vs-legacy
+v1 limiter matrix (0 failed on every leg) and the MMSPA-vs-legacy
 delta (7/7 vs 0/7 on every leg), with Gate-keepers and CI SUCCESS
 — the first run since the instrument split era began where every
 medium-lottery row the era surfaced is either calibrated to the

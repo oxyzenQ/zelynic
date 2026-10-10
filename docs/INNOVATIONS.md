@@ -15,7 +15,7 @@ is `ebpf/src/schema.rs`; this page is the map, not the ledger.
 One law runs through everything below: **no daemon, no config file,
 no agent** — every mechanism lives in the eBPF datapath or in a
 one-shot CLI run, and the kernel state is the only truth. The pure
-cores (`ammsp.rs`, `drr.rs`, `math.rs`, `ecn.rs`, `quic.rs`,
+cores (`mmspa.rs`, `drr.rs`, `math.rs`, `ecn.rs`, `quic.rs`,
 `rate_ring.rs`, ...) are `core`-only files compiled into BOTH the
 kernel object and the userspace test tree, so every law below is
 pinned by rootless unit tests, not by hope.
@@ -35,7 +35,7 @@ default, is the one that counts bytes. The canonical definition:
 
 > **the cosmic dragon engine** — the zelynic enforcement core: the
 > six-layer verdict path that turns a binary allow/drop hook into a
-> smooth shaper. AMMSP resolves which budget owns a packet (subtree
+> smooth shaper. MMSPA resolves which budget owns a packet (subtree
 > truth); the token pool refills with sub-byte precision, SMP-safe,
 > no false drops; DRR shares it fair across processes (learned-share,
 > starvation killed); CAKE-shaped flow buckets keep the quiet flow's
@@ -56,7 +56,7 @@ signal, and the ledger never pretends otherwise.
 
 ## The thirteen, in dependency order
 
-**1. AMMSP — Aware Multi Micro Sub-Process** (`ebpf/src/ammsp.rs`).
+**1. MMSPA — Multi-Micro Sub-Process Aware** (`ebpf/src/mmspa.rs`).
 The subtree hole: a policy written for cgroup A must
 police A AND every descendant socket (A/**), sharing one token
 budget — a socket born in a child cgroup that did not exist at apply
@@ -66,7 +66,7 @@ memos so a fresh budget never inherits a stale one. Found live by
 the owner (a 100kb cgroup's subprocess downloading >1mbps), closed
 in the datapath.
 
-**2. Fair-Shared Bucket — DRR inside AMMSP** (`ebpf/src/drr.rs`,
+**2. Fair-Shared Bucket — DRR inside MMSPA** (`ebpf/src/drr.rs`,
 schema v13). When several processes share one limited cgroup, FCFS
 lets one loud subprocess starve its siblings. The shared budget is
 handed out Deficit-Round-Robin: each member draws a bounded quantum,
@@ -181,7 +181,7 @@ rejections below are as load-bearing as the thirteen.
 ## Reading order for a new maintainer
 
 `ebpf/src/schema.rs` (the version-by-version contract history) →
-`ebpf/src/ammsp.rs` + `drr.rs` (the budget core) → `enforce.rs`
+`ebpf/src/mmspa.rs` + `drr.rs` (the budget core) → `enforce.rs`
 (the verdict path) → `src/cli/surface.rs` (the frozen grammar) →
 `docs/PHILOSOPHY.md` (why it is shaped this way at all).
 <!-- ZELYNIC-DISCLAIMER -->

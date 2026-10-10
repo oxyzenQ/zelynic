@@ -1824,7 +1824,7 @@ def self_test():
                     "run_zel",
                     "status_json",
                     "limit_entry",
-                    "test_ammsp_fairshare",
+                    "test_mmspa_fairshare",
                     "test_probe_failed",
                 )
             )

@@ -37,7 +37,7 @@ force. The instrument table:
 | 1 | Stability & crash | the orphan-reachability scan rebuilt fresh (every tracked test/*.rs file must be reachable from a compile root — a silently-unwired test file is a test count that drops without a failure, the quietest failure class a test tree owns); the crash-pattern count re-run at HEAD (27 hits across src/, every one the pre-classified set — test blocks, the connect-loop invariant, the build-time schema belt); the battery from the lts-9 run stands (829 + 55 / 0 failed; the delta since is docs-only) |
 | 2 | Code hygiene (the dragon hunt) | the index-completeness diff (all tracked docs/audits/*.md vs the docs/README.md index — THE FIND, 20 missing rows); the path-reference check over the newest doc (INNOVATIONS.md's 13 source paths all resolve); v4.py's case tables after the restore-row removal (every remaining mention an intentional REMOVED-pair proof or history narration); USAGE.md's TOC against its section list (11/11, the restore subsection gone, numbering continuous); the TODO/FIXME/HACK sweep (zero in production source); the root-docs vocabulary check (README/QA's "snapshot" hits are the blocklist-capture and color-engine Cloud senses, domain vocabulary, not the retired verb) |
 | 3 | Optimization | no hot path exists in the delta (deletions, comments, help strings, doc rows) — the lts-6/7/9 peak verdicts stand with their own A/B evidence; re-anchored, not re-run |
-| 4 | Security hardening (white hat, kernel hacker mode) | the newest public doc under the no-secrets lens (INNOVATIONS.md: zero credential/token/API-key material — the "token" and "api" hits are the AMMSP subtree token and the docker Engine API, domain terms); the attacker-facing surfaces (update lane, lock module, CI estate, QUIC parser, /proc boundary) untouched by the delta, verified by diff — skipped on lts-6/Z7/Z9's own fresh reads |
+| 4 | Security hardening (white hat, kernel hacker mode) | the newest public doc under the no-secrets lens (INNOVATIONS.md: zero credential/token/API-key material — the "token" and "api" hits are the MMSPA subtree token and the docker Engine API, domain terms); the attacker-facing surfaces (update lane, lock module, CI estate, QUIC parser, /proc boundary) untouched by the delta, verified by diff — skipped on lts-6/Z7/Z9's own fresh reads |
 | 5 | LTS stability | the upgrade-with-leftovers question for the retired pair answered at the filesystem: the legacy state file (/var/lib/zelynic/limits.json) is INERT — zero references anywhere in src/ or scripts/ (nothing reads it, nothing writes it, nothing chokes on it); the schema-version migration lane, the pin lifecycle predicate, the watchdog dormancy, the retirement family — all untouched by the delta, skipped on lts-6's re-verification |
 
 ## 2. The find — the institutional memory outgrew its map
@@ -133,7 +133,7 @@ lane, the lock module, the CI workflows, the QUIC parser, the
 fresh (verified by diff; skipped on that evidence). The one new
 public surface is the innovation ledger, and it carries no
 secrets: the no-secrets lens over INNOVATIONS.md finds domain
-terms only (the AMMSP subtree token, the docker Engine API), no
+terms only (the MMSPA subtree token, the docker Engine API), no
 credential, no token material, no internal hostname. The index
 repair adds twenty public one-liners of already-public doc
 summaries — nothing new to harden.

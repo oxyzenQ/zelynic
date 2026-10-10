@@ -1350,7 +1350,7 @@ cannot misattribute a packet to `cg:1` by context alone. The
 kthreads themselves own no ordinary sockets; the ingress hook does
 not even run for skbs without a full socket. The risk is not
 misattribution — it is the ROOT POSITION ITSELF: a policy keyed at
-the cgroupfs root is resolved by the AMMSP ancestor walk for EVERY
+the cgroupfs root is resolved by the MMSPA ancestor walk for EVERY
 socket on the machine (the same "ancestor catch-all" the v18 memo
 split documents), kthread-processed traffic included wherever its
 socket rides. The owner's phrasing "polices NAPI kthreads" is the
@@ -1405,7 +1405,7 @@ is one `stat` away and does not depend on /proc at all:
 The wording keeps the `system process` family the blade-18 battery
 needles pin and teaches the same `--force-this` lift every guard
 arm teaches — the root catch-all stays POSSIBLE (a whole-machine
-cap is a legitimate ask; the AMMSP contract itself documents the
+cap is a legitimate ask; the MMSPA contract itself documents the
 ancestor catch-all as a working shape), it just never lands
 unexplained again. Unit pins: the root ladder (refusal names
 position, blast radius, and override; force lifts) and the
@@ -1481,7 +1481,7 @@ RateRing 128 B, the u64 state words 8 B):
 | Group buckets | group_bucket_dl/ul | 256 pinned | bounded by group-lane lists, reclaimed by the dead-group sweep |
 | Stats ledger | cgroup_limiter_stats | 1024 pinned | 1024 (keyed at the resolved root) |
 | Delivered-rate rings | rate_ring_dl/ul | 1024 pinned | 1024 roots x 128 B |
-| AMMSP memo | ammsp_leaf_cache_dl/ul | 4096 LRU | 1024 live + dead cold entries age out (4x margin) |
+| MMSPA memo | mmspa_leaf_cache_dl/ul | 4096 LRU | 1024 live + dead cold entries age out (4x margin) |
 | Leaf buckets | leaf_bucket_dl/ul | 4096 LRU | 1024 leaves (4x margin) |
 | Pool share words | drr_pool_state_dl/ul | 4096 LRU | one live per (generation, root); stale generations age out |
 | Leaf ledgers | drr_leaf_state_dl/ul | 4096 LRU | one live per (generation, leaf); three stale generations of headroom at 1024 leaves |

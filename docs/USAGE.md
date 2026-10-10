@@ -78,7 +78,7 @@ suggested `ss` command) is the same direct target: the prefix
 round-trips (NIGHT-boost-37), so a copied label always works.
 
 The policy itself is **subtree-aware** (NIGHT-private-research-2,
-AMMSP): a limit set on a cgroup polices every process that spawns
+MMSPA): a limit set on a cgroup polices every process that spawns
 BENEATH it — child cgroups, grandchild cgroups, at any depth —
 sharing ONE budget. A subprocess that lands in a fresh scope under
 a limited target inherits the limit automatically; the kernel
@@ -139,7 +139,7 @@ sudo zelynic s brave::curl::pacman 1mb # the group lane: one shared rate
   — see [the group lane](#strict--the-group-lane-one-shared-rate-for-several-apps)
   below.
 - The policy covers **the target's whole subtree** with ONE shared
-  budget (NIGHT-private-research-2, AMMSP): every process that
+  budget (NIGHT-private-research-2, MMSPA): every process that
   spawns under the target's cgroup — at any depth, born at any
   time after the apply — inherits the limit automatically, and
   all of them draw from the same token bucket. `status` shows the
@@ -170,7 +170,7 @@ sudo zelynic s brave::curl::pacman 1mb # the group lane: one shared rate
   bucket lane at all. `status` marks the rate cells (`500.0 KB/s
   /socket`) and the JSON carries `download_per_socket` /
   `upload_per_socket`; a policy mutation zeroes every socket's
-  leftover tokens through the AMMSP generation belt, so a lowered
+  leftover tokens through the MMSPA generation belt, so a lowered
   limit never leaks the old burst to a live connection.
   The lane is ECN-first too (schema v21, the per-socket convergence
   closure): a connection's over-budget packet is delivered
@@ -273,7 +273,7 @@ sudo zelynic s brave::curl::pacman 1mb # the group lane: one shared rate
   not a formal round-robin guarantee (iteration over leaves is
   impossible in a cgroup_skb hot path — the honest bound is one
   quantum of slop); the stale-quantum belt zeroes any leaf's tokens
-  the moment a policy mutation outlives them (the AMMSP generation
+  the moment a policy mutation outlives them (the MMSPA generation
   stamp, applied to buckets), and the group lane (`strict a::b`)
   keeps the FCFS shape by documented scope (its members are
   enumerated by the apply itself, so the unknown-leaf starvation
@@ -372,7 +372,7 @@ sudo zelynic s brave::curl::pacman 1mb # the group lane: one shared rate
 
 The root catch-all arm (NIGHT-hunt-Z3): a policy keyed at the
 cgroupfs root (`cg:1` on the host — the node the hooks attach to) is
-not one app's limit — the AMMSP ancestor walk resolves EVERY socket
+not one app's limit — the MMSPA ancestor walk resolves EVERY socket
 on the machine through the root's row, so the root position is
 refused whatever spelling reaches it: the explicit id (`s cg:1`),
 a name whose processes live in the root cgroup (a daemon on a
@@ -970,7 +970,7 @@ serving a frozen verdict for a dead policy.
 
 The verdicts describe the POLICY's delivered aggregate (the ring is
 keyed at the resolved policy root — for a `--per-socket` policy the
-series is every connection's allowed bytes rolled up, the AMMSP
+series is every connection's allowed bytes rolled up, the MMSPA
 contract), and the focus row joins by exact cgroup id only: a
 cgroup governed by an ANCESTOR's policy gets no row, because the
 ancestor's aggregate cannot be split back down to the leaf, and an
@@ -1738,7 +1738,7 @@ zelynic resolves the apps that exist **at that moment** and writes
 their cgroup rules. What happens next splits in two:
 
 - **Processes that spawn UNDER a limited target are covered.**
-  (NIGHT-private-research-2, AMMSP.) A subprocess that gets its own
+  (NIGHT-private-research-2, MMSPA.) A subprocess that gets its own
   child cgroup beneath a limited cgroup inherits the limit and
   shares its budget — automatically, however deep the tree grows,
   however late the spawn. The kernel resolves the covering root per
@@ -2105,7 +2105,7 @@ object from before the v14 reload), never a fabricated empty
 series. The ring is a monitor, not a ledger: the exact cumulative
 truth stays the `packets_*`/`bytes_*` fields beside it. For a
 `--per-socket` policy the series is the cgroup's AGGREGATE (every
-connection's allowed bytes roll up to the same root key, the AMMSP
+connection's allowed bytes roll up to the same root key, the MMSPA
 contract) — the per-connection budget law is the one the
 `per_socket` fields below state. The live monitor folds this same
 series into the per-policy baseline verdicts (EAGLE EYES V2, the

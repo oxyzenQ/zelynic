@@ -70,7 +70,7 @@ pub fn draw_stamp_take(bkt: &mut Bucket, last: u64, now: u64) -> bool {
 }
 
 /// Read the DRR generation stamp (the frac_rem field, unused by the
-/// leaf buckets' arithmetic — the DRR belt stores the AMMSP
+/// leaf buckets' arithmetic — the DRR belt stores the MMSPA
 /// generation a leaf's quanta were drawn under).
 #[inline(always)]
 pub fn gen_stamp_read(bkt: &Bucket) -> u64 {

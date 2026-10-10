@@ -1,12 +1,12 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 rezky_nightky (oxyzenQ) -->
 
-# The NIGHT-perf-2 depth audit — AMMSP endurance and ultra scale, now and future
+# The NIGHT-perf-2 depth audit — MMSPA endurance and ultra scale, now and future
 
 > Audit date: 2026-09-30 (NIGHT-perf-2, the perf-trilogy's endurance
-> leg). Scope: the AMMSP resolution machinery (ebpf/src/ammsp.rs,
-> ebpf/src/ammsp_resolve.rs, ebpf/src/bin/limiter.rs) and its
-> userspace invalidation half (src/ebpf/limiter/ammsp.rs, lanes.rs,
+> leg). Scope: the MMSPA resolution machinery (ebpf/src/mmspa.rs,
+> ebpf/src/mmspa_resolve.rs, ebpf/src/bin/limiter.rs) and its
+> userspace invalidation half (src/ebpf/limiter/mmspa.rs, lanes.rs,
 > policy.rs, reclaim.rs) audited for the owner's directive: "depth
 > audit for endurance and ability to handle ultra scale > trillion
 > data/burst for now and future". The question decomposes into four
@@ -71,8 +71,8 @@ fallback.
 
 **Finding P3 (the proof gap, landed as NIGHT-perf-1):** the
 subtree contract had no counterfactual proof — nothing measured
-what the same machine would have leaked on the pre-AMMSP stable.
-The ammsp-vs-legacy harness now runs the identical seven-leaf
+what the same machine would have leaked on the pre-MMSPA stable.
+The mmspa-vs-legacy harness now runs the identical seven-leaf
 battery against v11.0.0 and the current build on every
 supermassive leg (low AND best, gnu AND musl), with the >= 99%
 child-coverage DELTA as the verdict.
@@ -137,7 +137,7 @@ the hit rate buys is speed:
 |---------|-------|--------------|----------------------|
 | Per-cgroup bytes allowed/dropped | u64 | 18.4 EB per cgroup — ~4,670 years at 1 Gbps line rate | wrap_coherent_delta (pinned) — the delta math is wrap-safe by design |
 | Tokens / frac_rem | u64 per bucket | bounded by burst clamp (<= 100 MB) and the 1s elapsed cap per window | arithmetic cannot reach wrap; the v4/v6 clamp family pins it |
-| ammsp_generation | u32 | 2^32 mutations — 136 years at one mutation per second | total ordering: the wrap-neighbor pin (a stamp one full u32 behind reads as stale, never as current) |
+| mmspa_generation | u32 | 2^32 mutations — 136 years at one mutation per second | total ordering: the wrap-neighbor pin (a stamp one full u32 behind reads as stale, never as current) |
 | kernfs cgroup ids (u32 keys) | u32 per boot | ~4 billion cgroup CREATIONS per boot | the pre-existing map contract; a fresh leaf aliasing a live leaf's key needs ~497 days of 100-cgroups/second churn in one boot (STABILITY's documented residual) |
 
 **Mutation storms:** the apply lane now costs its policy writes
@@ -190,7 +190,7 @@ cost the owner decides — none is reachable by volume of traffic.
 ### 5.3 Future — the lifts are ready and deliberately not taken
 
 The two constants a future deployment might want raised are
-`AMMSP_MAX_DEPTH` (32 levels — three times any real hierarchy;
+`MMSPA_MAX_DEPTH` (32 levels — three times any real hierarchy;
 raising it is one line plus one pin plus the USAGE.md paragraph)
 and the memo's 4096-entry cap (one line in the map definition,
 one schema bump, the LRU handles the rest). Neither is taken now:
@@ -209,7 +209,7 @@ a larger LRU or per-CPU memo variants (no host needs them; the
 degradation is bounded and documented), double-buffered memo
 swaps (RCU-style — the stamp achieves the same invalidation for
 one word), and any form of subtree enumeration at apply time
-(the design brief rejected it before AMMSP landed; nothing this
+(the design brief rejected it before MMSPA landed; nothing this
 audit found moves that verdict).
 
 ## 6. Verification
@@ -218,14 +218,14 @@ audit found moves that verdict).
   the verdict table WITH the generation row (mismatch walks
   regardless of root or aliveness; the wraparound neighbor does
   not alias), the pack/unpack roundtrips, and the
-  only-current-generation-is-trusted sweep (ammsp_tests.rs).
+  only-current-generation-is-trusted sweep (mmspa_tests.rs).
 - The wording surface is pinned (bump trace, fallback sweep
-  trace, the two-cause failure line) in ammsp_flush_lines_tests.rs.
+  trace, the two-cause failure line) in mmspa_flush_lines_tests.rs.
 - The schema pin (types.rs) and the acquisition-lane architecture
   pin (architecture_pins.rs, now naming lanes.rs) hold the
   structural contracts.
-- The live proof is permanent: supermassive's test_ammsp_subtree
-  (functional) and the new ammsp-vs-legacy harness (the
+- The live proof is permanent: supermassive's test_mmspa_subtree
+  (functional) and the new mmspa-vs-legacy harness (the
   counterfactual DELTA, low AND best legs, gnu AND musl) — the
   >= 99% child-coverage question is answered by CI on every
   push that touches the limiter, on the kernel floor and the

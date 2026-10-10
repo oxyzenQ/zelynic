@@ -1,16 +1,16 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! The AMMSP userspace half (NIGHT-private-research-2 &
+//! The MMSPA userspace half (NIGHT-private-research-2 &
 //! think-like-light-years-2, hardened by NIGHT-perf-0): memo
 //! invalidation on policy mutation.
 //!
-//! The kernel half (ebpf/src/bin/limiter.rs + ebpf/src/ammsp.rs +
-//! ebpf/src/ammsp_resolve.rs) resolves every packet's socket leaf
+//! The kernel half (ebpf/src/bin/limiter.rs + ebpf/src/mmspa.rs +
+//! ebpf/src/mmspa_resolve.rs) resolves every packet's socket leaf
 //! cgroup to the policy ROOT covering it — the subtree contract: a
 //! strict on cgroup A polices every socket born under A/** with ONE
 //! shared budget — and memoizes the resolution in the pinned LRU
-//! `ammsp_leaf_cache` map so the unlimited majority pays one lookup,
+//! `mmspa_leaf_cache` map so the unlimited majority pays one lookup,
 //! not a walk, per packet.
 //!
 //! The memo's one blind spot is mutation: a cached NEGATIVE (leaf ->
@@ -23,7 +23,7 @@
 //! finished sweeping — the flock serializes mutations against
 //! mutations, never against kernel-side walks, so the stale verdict
 //! then lived until the NEXT mutation. The perf-0 answer is the
-//! generation stamp: every memo carries the `ammsp_generation`
+//! generation stamp: every memo carries the `mmspa_generation`
 //! counter value current when its walk ran (packed into the memo
 //! word), and every mutation bumps that counter AFTER its writes
 //! land. The per-packet stamp check then catches any insert that
@@ -43,7 +43,7 @@ use anyhow::{Context, Result, anyhow};
 use aya::maps::{Array as BpfArray, HashMap as BpfHashMap, MapData};
 
 use super::lanes::map_error_means_absent;
-use crate::ebpf::pin::{self, PIN_MAP_AMMSP_GEN};
+use crate::ebpf::pin::{self, PIN_MAP_MMSPA_GEN};
 
 /// Advance the generation word in whatever array handle the
 /// acquisition lane hands over: read, wrap-increment, write. Pure
@@ -51,9 +51,9 @@ use crate::ebpf::pin::{self, PIN_MAP_AMMSP_GEN};
 /// (wrapping, never saturating, so a counter that outlives u32
 /// keeps the scheme total) is written once.
 fn bump_generation_word(map: &mut BpfArray<&mut MapData, u32>) -> Result<(u32, u32)> {
-    let old = map.get(&0, 0).context("read ammsp_generation[0]")?;
+    let old = map.get(&0, 0).context("read mmspa_generation[0]")?;
     let new = old.wrapping_add(1);
-    map.set(0, new, 0).context("write ammsp_generation[0]")?;
+    map.set(0, new, 0).context("write mmspa_generation[0]")?;
     Ok((old, new))
 }
 
@@ -63,7 +63,7 @@ fn bump_generation_word(map: &mut BpfArray<&mut MapData, u32>) -> Result<(u32, u
 /// each, through the live policy map.
 pub(super) fn bump_trace_line(old: u32, new: u32) -> String {
     format!(
-        "[limiter] ammsp memo generation {old} -> {new} — every leaf re-resolves \
+        "[limiter] mmspa memo generation {old} -> {new} — every leaf re-resolves \
          once on its next packet"
     )
 }
@@ -74,10 +74,10 @@ pub(super) fn bump_trace_line(old: u32, new: u32) -> String {
 /// re-walk once each.
 pub(super) fn flush_trace_line(flushed: u32) -> String {
     if flushed == 0 {
-        "[limiter] ammsp leaf cache: 0 memos — resolution state already clean".to_string()
+        "[limiter] mmspa leaf cache: 0 memos — resolution state already clean".to_string()
     } else {
         format!(
-            "[limiter] ammsp leaf cache: flushed {flushed} memo{} — each covered leaf \
+            "[limiter] mmspa leaf cache: flushed {flushed} memo{} — each covered leaf \
              re-resolves once on its next packet",
             if flushed == 1 { "" } else { "s" }
         )
@@ -94,7 +94,7 @@ pub(super) fn flush_trace_line(flushed: u32) -> String {
 /// papered over). Pure formatting so the wording is unit-pinned.
 pub(super) fn invalidate_failed_line(bump_cause: &str, sweep_cause: &str) -> String {
     format!(
-        "ammsp memo invalidation failed (generation bump: {bump_cause}; sweep: \
+        "mmspa memo invalidation failed (generation bump: {bump_cause}; sweep: \
          {sweep_cause}) — removals still self-heal per packet, but a stale verdict \
          can outlive this apply until the next mutation; run 'zelynic recover' if \
          this persists"
@@ -102,7 +102,7 @@ pub(super) fn invalidate_failed_line(bump_cause: &str, sweep_cause: &str) -> Str
 }
 
 impl super::Limiter {
-    /// Bump the AMMSP memo generation (NIGHT-perf-0).
+    /// Bump the MMSPA memo generation (NIGHT-perf-0).
     ///
     /// The O(1) memo invalidation: one Array store advances the word
     /// every memo is stamped against, and the datapath's per-packet
@@ -120,11 +120,11 @@ impl super::Limiter {
     /// and after; `Err` names the acquisition problem without
     /// failing the caller's own verdict (the caller falls back to
     /// the sweep).
-    pub fn ammsp_generation_bump(&mut self) -> Result<(u32, u32)> {
-        self.with_array_u32_map("ammsp_generation", PIN_MAP_AMMSP_GEN, bump_generation_word)
+    pub fn mmspa_generation_bump(&mut self) -> Result<(u32, u32)> {
+        self.with_array_u32_map("mmspa_generation", PIN_MAP_MMSPA_GEN, bump_generation_word)
     }
 
-    /// Flush the AMMSP leaf cache whole (NIGHT-private-research-2;
+    /// Flush the MMSPA leaf cache whole (NIGHT-private-research-2;
     /// the NIGHT-perf-0 fallback lane).
     ///
     /// The pre-perf-0 invalidation, kept as the belt for a failed
@@ -140,7 +140,7 @@ impl super::Limiter {
     /// iterator off a moving map. ENOENT on a remove means the memo
     /// was already gone — the flush wants the map empty, so absent
     /// counts as done.
-    pub fn ammsp_cache_flush(&mut self) -> Result<u32> {
+    pub fn mmspa_cache_flush(&mut self) -> Result<u32> {
         // NIGHT-hunt-Z1 (schema v18): the memo lane is TWO
         // direction-scoped maps — the sweep must empty BOTH or a
         // stale memo survives the fallback on the unswept side (the
@@ -149,12 +149,12 @@ impl super::Limiter {
         // name + pin path, one row per direction.
         const MEMO_MAPS: [(&str, &str); 2] = [
             (
-                "ammsp_leaf_cache_dl",
-                crate::ebpf::pin::PIN_MAP_AMMSP_CACHE_DL,
+                "mmspa_leaf_cache_dl",
+                crate::ebpf::pin::PIN_MAP_MMSPA_CACHE_DL,
             ),
             (
-                "ammsp_leaf_cache_ul",
-                crate::ebpf::pin::PIN_MAP_AMMSP_CACHE_UL,
+                "mmspa_leaf_cache_ul",
+                crate::ebpf::pin::PIN_MAP_MMSPA_CACHE_UL,
             ),
         ];
         let mut flushed = 0u32;
@@ -203,14 +203,14 @@ impl super::Limiter {
     /// the mutation's own verdict, which outranks the memo
     /// housekeeping — the datapath's stale-detect covers removals,
     /// and the next successful mutation re-covers additions).
-    pub(super) fn ammsp_memo_invalidate_best_effort(&mut self) {
-        match self.ammsp_generation_bump() {
+    pub(super) fn mmspa_memo_invalidate_best_effort(&mut self) {
+        match self.mmspa_generation_bump() {
             Ok((old, new)) => {
                 if self.verbose {
                     eprintln_safe!("{}", bump_trace_line(old, new));
                 }
             }
-            Err(bump_cause) => match self.ammsp_cache_flush() {
+            Err(bump_cause) => match self.mmspa_cache_flush() {
                 Ok(flushed) => {
                     if self.verbose {
                         eprintln_safe!("{}", flush_trace_line(flushed));
@@ -230,5 +230,5 @@ impl super::Limiter {
 // NIGHT-hunt-17: pins live under the single test/ tree, #[path]-wired
 // across trees (cosmostrix Pattern C).
 #[cfg(test)]
-#[path = "../../../test/ebpf/limiter/ammsp_flush_lines_tests.rs"]
-mod ammsp_flush_lines_tests;
+#[path = "../../../test/ebpf/limiter/mmspa_flush_lines_tests.rs"]
+mod mmspa_flush_lines_tests;

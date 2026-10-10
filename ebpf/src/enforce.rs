@@ -26,7 +26,6 @@ use aya_ebpf::{
     programs::SkBuffContext,
 };
 
-use crate::ammsp_resolve::ammsp_resolve_root;
 use crate::drr_flow::drr_flow;
 use crate::ecn;
 use crate::enforce_helpers::{
@@ -34,6 +33,7 @@ use crate::enforce_helpers::{
     window_gate,
 };
 use crate::math::{Bucket, MAX_ENFORCABLE_BURST, POLICY_FLAG_PER_SOCKET, Policy, book, enforce};
+use crate::mmspa_resolve::mmspa_resolve_root;
 use crate::quic_flow;
 use crate::rate_ring::RateRing;
 use crate::socket_flow::{self, socket_flow};
@@ -74,25 +74,25 @@ pub(crate) fn try_enforce(
     // bit-identical: when a policy exists, the watchdog read and the
     // timestamp run exactly as before, just after the policy lookup.
     //
-    // AMMSP (NIGHT-private-research-2) adds exactly ONE lookup to
+    // MMSPA (NIGHT-private-research-2) adds exactly ONE lookup to
     // this fast path's miss branch: the LRU leaf cache, answered
     // with a resolved 0 for every socket no root covers — the
     // unlimited majority stays one-lookup-plus-memo, never a walk.
     // A socket whose OWN cgroup carries the policy (every
-    // pre-AMMSP scenario) still takes the single direct lookup
+    // pre-MMSPA scenario) still takes the single direct lookup
     // below — its cgroup IS the root, no resolution runs.
     let leaf = unsafe { bpf_skb_cgroup_id(ctx.skb.skb) } as u32;
     let pkt_len = ctx.len();
 
     // Look up the direction's policy at the socket's own cgroup
     // first — the nearest possible root. No policy means the leaf
-    // itself is unpoliced, but AMMSP must still ask whether an
+    // itself is unpoliced, but MMSPA must still ask whether an
     // ANCESTOR of it is: a strict on cgroup A covers every socket
     // born under A/** (the subtree contract), resolved per packet.
     let (cgroup_id, pol) = match policy_map.get_ptr(&leaf) {
         Some(ptr) => (leaf, unsafe { &*ptr }),
         None => {
-            let root = ammsp_resolve_root(&ctx, leaf, policy_map, memo_map);
+            let root = mmspa_resolve_root(&ctx, leaf, policy_map, memo_map);
             if root == 0 {
                 return 1;
             }
@@ -212,7 +212,7 @@ pub(crate) fn try_enforce(
     // to the DRR cgroup lane below — the packet stays policed at
     // the cgroup's shared budget, honestly coarser, never an
     // unlimited pass. The stats ledger and the ring both stay keyed
-    // at the RESOLVED POLICY ROOT — the roll-up the AMMSP contract
+    // at the RESOLVED POLICY ROOT — the roll-up the MMSPA contract
     // already owns.
     if pol_sane.flags & POLICY_FLAG_PER_SOCKET != 0 {
         let cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
@@ -267,7 +267,7 @@ pub(crate) fn try_enforce(
     if pol_sane.group_id != 0 {
         // The group lane keeps the legacy FCFS shape
         // (documented scope): its members are enumerated by the
-        // apply itself, so the fairness problem AMMSP has (unbounded
+        // apply itself, so the fairness problem MMSPA has (unbounded
         // unknown leaves) does not exist here.
         //
         // The ECN budget key rides the bucket the packet actually

@@ -76,8 +76,8 @@ real host's lifetime — ebpf/src/stats.rs); the watchdog array is
 dormant by design with no userspace writer; the maps' fixed
 capacities (1024/256/4096) are the documented bounded-memory
 posture with honest fail-open semantics (USAGE limitation 11,
-STABILITY's endurance table); and the AMMSP walk bound
-(AMMSP_MAX_DEPTH 32) is three times deeper than real
+STABILITY's endurance table); and the MMSPA walk bound
+(MMSPA_MAX_DEPTH 32) is three times deeper than real
 hierarchies with early break at first 0 (a depth-6 socket pays
 seven queries, not 32).
 
@@ -108,7 +108,7 @@ deliberately out of scope (the shaping question — see 3.4).
 
 "Millions even billions of data" needs unpacking into the two
 surfaces. PACKETS: the datapath cost is constant per packet
-(policy lookup + the AMMSP memo for the unlimited majority,
+(policy lookup + the MMSPA memo for the unlimited majority,
 watchdog + ktime + bucket + stats for the policed minority) —
 10Mpps through the hooks costs the same per-packet budget at 1M
 pps, and nothing in the program scales with session history.

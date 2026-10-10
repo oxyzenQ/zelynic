@@ -207,7 +207,7 @@ pub(crate) fn parse_target_id(s: &str) -> Option<u32> {
 
 /// The cgroupfs mount's own kernfs id, truncated to u32 the same way
 /// every id in the pipeline truncates (NIGHT-hunt-Z3): the hooks
-/// attach at `/sys/fs/cgroup` and the AMMSP ancestor walk resolves
+/// attach at `/sys/fs/cgroup` and the MMSPA ancestor walk resolves
 /// every socket in the namespace through this node's row when it
 /// carries a policy — the machine-wide catch-all position. A
 /// missing/unmounted cgroupfs is `None`, and every caller treats

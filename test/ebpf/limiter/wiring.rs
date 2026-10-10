@@ -30,11 +30,11 @@ mod math_tests;
 #[path = "math_smp_tests.rs"]
 mod math_smp_tests;
 
-// NIGHT-private-research-2 (AMMSP): the resolution core compiles
-// from ebpf/src/ammsp.rs the same way, pinned by ammsp_tests.rs.
+// NIGHT-private-research-2 (MMSPA): the resolution core compiles
+// from ebpf/src/mmspa.rs the same way, pinned by mmspa_tests.rs.
 #[cfg(test)]
-#[path = "ammsp_tests.rs"]
-mod ammsp_tests;
+#[path = "mmspa_tests.rs"]
+mod mmspa_tests;
 
 // NIGHT-upgrade-charger-core-1c: the DRR quantum core compiles from
 // ebpf/src/drr.rs the same way, pinned rootlessly by

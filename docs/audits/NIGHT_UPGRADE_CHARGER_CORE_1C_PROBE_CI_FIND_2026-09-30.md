@@ -16,7 +16,7 @@ root machine to debug.
 Two independent findings on the same run, one mundane and one deep:
 
 1. **The mundane one (fixed at the source — deeper than it looked,
-   closed by rider I after six red pushes):** the ammsp-vs-legacy
+   closed by rider I after six red pushes):** the mmspa-vs-legacy
    battery's `apply_single` and its nested-root row passed
    `--no-probe` to the LEGACY v11.0.0 binary, which predates the
    flag and exits 2 on it. Rider C's toggle fix had TWO defects: it
@@ -56,7 +56,7 @@ precision: 100.0 MB/s limit, measured 8.3 GB in 3s
 
 ## What the SAME run proved works
 
-The ammsp-vs-legacy battery on the current side, same binary, same
+The mmspa-vs-legacy battery on the current side, same binary, same
 kernel (7.3.0-6-generic), same guest, minutes later:
 
 - 7/7 leaves policed (73.7 / 64.8 / 97.5 / 73.7 / 113.9 / 81.9 /
@@ -64,7 +64,7 @@ kernel (7.3.0-6-generic), same guest, minutes later:
 - two concurrent leaves sharing ONE budget: 114.0 KB/s summed — policed
 - the nested nearest-root resolution: 40.2 KB/s under the 50kb root
 
-So AMMSP resolution, the DRR fair-share lane, and the whole
+So MMSPA resolution, the DRR fair-share lane, and the whole
 enforcement stack police correctly for the battery's worker shape:
 a `bash -c 'echo $$ > cgroup.procs; exec ...'` python worker in a
 cgroup created under the fleet target BEFORE the apply, downloading
@@ -111,7 +111,7 @@ each examined and none (yet) convicted:
 The probe client's INGRESS traffic on kernel 7.3 escaped the
 cgroup_skb/ingress policing that the same kernel applies to the
 battery's workers — either the hook did not run for those packets,
-or the AMMSP walk resolved the probe cgroup as unlimited. The
+or the MMSPA walk resolved the probe cgroup as unlimited. The
 static analysis above clears every candidate twice; the next step
 needs a root machine (the CI guest is the oracle, the sandbox has
 no /dev/kvm):
@@ -121,7 +121,7 @@ no /dev/kvm):
 mkdir -p /sys/fs/cgroup/probe-a && echo $$ > /sys/fs/cgroup/probe-a/cgroup.procs
 zelynic strict-single <probe-a-id> -d 5mb        # the probe runs
 # watch, in parallel:
-bpftool map dump name ammsp_leaf_cache           # the probe cgroup's memo
+bpftool map dump name mmspa_leaf_cache           # the probe cgroup's memo
 bpftool map dump name cgroup_policy_dl           # the policy row
 bpftool map dump name cgroup_limiter_stats       # bytes_allowed moving?
 cat /sys/fs/cgroup/probe-a/zelynic-probe-cl-*/cgroup.procs   # residency live

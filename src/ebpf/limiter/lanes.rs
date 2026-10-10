@@ -19,9 +19,9 @@
 //! the opened pin otherwise, acquisition errors keeping their
 //! per-mode wording. The hash twin serves the policy, bucket, and
 //! stats maps; the LRU twin serves the direction-scoped
-//! ammsp_leaf_cache_dl/ul memo pair (v18; the pin opens as
+//! mmspa_leaf_cache_dl/ul memo pair (v18; the pin opens as
 //! `Map::LruHashMap` so aya's map-type reporting stays
-//! honest); the Array twin serves the ammsp_generation counter
+//! honest); the Array twin serves the mmspa_generation counter
 //! (NIGHT-perf-0) the memo invalidation bumps.
 
 use anyhow::{Context, Result, anyhow};
@@ -94,9 +94,9 @@ impl super::Limiter {
     /// contract — every mutation of a u32-keyed limiter map flows
     /// through this file — extended to the map family whose pin opens
     /// as `Map::LruHashMap` so aya's map-type reporting stays honest
-    /// (the direction-scoped ammsp_leaf_cache_dl/ul memo pair, v18;
+    /// (the direction-scoped mmspa_leaf_cache_dl/ul memo pair, v18;
     /// the plain twin would work
-    /// operationally, the variant is the honesty). Only the ammsp
+    /// operationally, the variant is the honesty). Only the mmspa
     /// fallback sweep mutates an LRU map, so only it rides this lane.
     pub(super) fn with_lru_u32_map<V, R>(
         &mut self,
@@ -124,7 +124,7 @@ impl super::Limiter {
 
     /// The Array twin of [`Self::with_u32_map`] (NIGHT-perf-0):
     /// the one acquisition path for the limiter's u32-valued pinned
-    /// array maps — the ammsp_generation counter the memo
+    /// array maps — the mmspa_generation counter the memo
     /// invalidation bumps. Same per-mode shape as the hash twins:
     /// the loaded object's map when one is live, the opened pin
     /// otherwise; acquisition errors keep their per-mode wording.

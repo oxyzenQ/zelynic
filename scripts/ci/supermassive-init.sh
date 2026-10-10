@@ -275,9 +275,9 @@ else
 	note "supermassive v1 - limiter matrix (full, server-first)" FAIL
 fi
 
-# ── the AMMSP-vs-legacy DELTA (NIGHT-perf-1, the owner's ask: "verify
-# and proof the AMMSP works 99% or not"): the identical subtree battery
-# against THIS build and the pre-AMMSP v11.0.0 stable the rootfs
+# ── the MMSPA-vs-legacy DELTA (NIGHT-perf-1, the owner's ask: "verify
+# and proof the MMSPA works 99% or not"): the identical subtree battery
+# against THIS build and the pre-MMSPA v11.0.0 stable the rootfs
 # assembly staged at /opt/zelynic/legacy — seven child leaves (a depth
 # chain, siblings, a late-born child), a pre-poisoned memo, the shared
 # budget, and the nested root, per side, with the >= 99% child-coverage
@@ -289,15 +289,15 @@ fi
 # the CI rootfs step FAILS the leg instead, so a skip here never hides
 # on the supermassive lanes.
 if [ -x /opt/zelynic/legacy/zelynic ]; then
-	if python3 scripts/supermassive/ammsp-vs-legacy-test.py \
+	if python3 scripts/supermassive/mmspa-vs-legacy-test.py \
 		--binary /opt/zelynic/zelynic \
 		--legacy-binary /opt/zelynic/legacy/zelynic; then
-		note "AMMSP vs legacy v11.0.0 - subtree coverage delta (>= 99%)" PASS
+		note "MMSPA vs legacy v11.0.0 - subtree coverage delta (>= 99%)" PASS
 	else
-		note "AMMSP vs legacy v11.0.0 - subtree coverage delta (>= 99%)" FAIL
+		note "MMSPA vs legacy v11.0.0 - subtree coverage delta (>= 99%)" FAIL
 	fi
 else
-	note "AMMSP vs legacy v11.0.0 - subtree coverage delta (>= 99%)" SKIP
+	note "MMSPA vs legacy v11.0.0 - subtree coverage delta (>= 99%)" SKIP
 fi
 
 # v2, the survival battery (the e2e pipeline's phase three, LAST per

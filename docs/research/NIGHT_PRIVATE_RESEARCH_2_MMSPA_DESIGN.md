@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 rezky_nightky (oxyzenQ) -->
 
-# The AMMSP design brief (NIGHT-private-research-2 & think-like-light-years-2, 2026-09-30)
+# The MMSPA design brief (NIGHT-private-research-2 & think-like-light-years-2, 2026-09-30)
 
 The owner's directive, verbatim intent: give the limiter engine
 (intergalaxion-engine) an adaptive ability — a limit set on a cgroup
@@ -21,7 +21,7 @@ across every dimension it walked — rate math, SMP, hostile state,
 leaks. The owner's observation exposed the dimension it never walked:
 **semantic coverage of the cgroup subtree**.
 
-The verified mechanics (ebpf/src/bin/limiter.rs, pre-AMMSP):
+The verified mechanics (ebpf/src/bin/limiter.rs, pre-MMSPA):
 
 - Both hooks attach at the cgroup v2 ROOT and see every packet the
   machine moves.
@@ -80,7 +80,7 @@ misses it, walk UP the socket's cgroup chain with
 cgroup root, ascending, stop at the first 0 (past the leaf's depth)
 — and keep the LAST level that carries a policy: the NEAREST root.
 Memoize the resolution in a pinned LRU hash map
-(`ammsp_leaf_cache`, 4096 entries) so every packet after the first
+(`mmspa_leaf_cache`, 4096 entries) so every packet after the first
 pays one lookup, not a walk.
 
 Every kernel fact this rests on was verified against
@@ -115,20 +115,20 @@ for the policy-map contract).
 
 ## 3. The chosen design, in full
 
-**Datapath** (ebpf/src/bin/limiter.rs + ebpf/src/ammsp_resolve.rs +
-ebpf/src/ammsp.rs):
+**Datapath** (ebpf/src/bin/limiter.rs + ebpf/src/mmspa_resolve.rs +
+ebpf/src/mmspa.rs):
 
 1. The leaf's own policy lookup stays FIRST — a socket whose own
-   cgroup carries the policy takes the exact pre-AMMSP path: one
+   cgroup carries the policy takes the exact pre-MMSPA path: one
    lookup, enforce at the leaf id. Every existing scenario is
    bit-identical.
 2. On leaf miss: consult the memo. A cached 0 (resolved unlimited)
    allows — the unlimited majority pays ONE extra lookup per packet,
-   the whole cost of AMMSP on the fast path. A cached root is
+   the whole cost of MMSPA on the fast path. A cached root is
    trusted only while the policy map still holds it (stale-detect:
    delete the memo, re-walk). No memo: walk.
 3. The walk: ascending absolute levels, zero-break, last-match-wins
-   = nearest root. Bounded by `AMMSP_MAX_DEPTH = 32` — a ceiling,
+   = nearest root. Bounded by `MMSPA_MAX_DEPTH = 32` — a ceiling,
    never a cost (the break makes a depth-6 socket pay ~8 queries).
    The walk result is memoized either way (root id or 0).
 4. Enforcement keys the bucket AND the stats at the ROOT id: the
@@ -137,12 +137,12 @@ ebpf/src/ammsp.rs):
    the think-like-light-years list wanted, arriving as a
    consequence of the design rather than a feature of its own.
 
-**Userspace** (src/ebpf/limiter/ammsp.rs): every policy mutation —
+**Userspace** (src/ebpf/limiter/mmspa.rs): every policy mutation —
 apply_single, apply_group, unstrict — invalidates the memo once
 per invocation, inside the flock the mutation already holds. The
 original invalidation (NIGHT-private-research-2) was a whole-map
 delete flush; NIGHT-perf-0 hardened it into the GENERATION BUMP:
-a one-entry pinned counter array (`ammsp_generation`) advances by
+a one-entry pinned counter array (`mmspa_generation`) advances by
 one after every mutation's writes land, and every memo carries the
 counter value it was resolved under, packed into its own word
 (`(generation << 32) | root`). The datapath compares the stamp per
@@ -196,7 +196,7 @@ USAGE.md.
 
 | Risk | Shape | Answer |
 |------|-------|--------|
-| Memo staleness after policy ADD | cached negative outlives a new policy | the generation stamp (NIGHT-perf-0): every mutation bumps `ammsp_generation` after its writes; the per-packet stamp check walks any memo the addition outlived — closed for the insert race the delete flush could not cover |
+| Memo staleness after policy ADD | cached negative outlives a new policy | the generation stamp (NIGHT-perf-0): every mutation bumps `mmspa_generation` after its writes; the per-packet stamp check walks any memo the addition outlived — closed for the insert race the delete flush could not cover |
 | Memo staleness after policy REMOVE | cached root outlives its policy | datapath stale-detect: delete + re-walk, per packet (the belt behind the stamp — the stamp covers removals too, since every mutation bumps) |
 | Walk-vs-mutation insert race | a stretched walk inserts pre-mutation state after the flush swept | the stamp again: the insert carries the walk's pre-read generation, the next packet mismatches it — self-healing per packet (NIGHT-perf-0; the shape that closed this row is the reason the bump replaced the sweep) |
 | Map growth from dead leaves | transient scopes fill the memo | LRU eviction is the map type; 4096 entries bound it |
@@ -208,16 +208,16 @@ USAGE.md.
 
 ## 6. The verification battery
 
-- Rootless pins: test/ebpf/limiter/ammsp_tests.rs — the walk state
+- Rootless pins: test/ebpf/limiter/mmspa_tests.rs — the walk state
   machine (nearest-root, nested, zero-match, trailing-miss), the
   cache verdict table (exhaustive), the memo value contract, the
   depth bound and its cost curve. The pure core compiles from
-  ebpf/src/ammsp.rs — the same file the BPF object builds.
-- Wording pins: test/ebpf/limiter/ammsp_flush_lines_tests.rs — the
+  ebpf/src/mmspa.rs — the same file the BPF object builds.
+- Wording pins: test/ebpf/limiter/mmspa_flush_lines_tests.rs — the
   flush trace and failure lines.
 - The schema pin: types.rs's version constant test, moved to 10.
 - Live proof (CI root lanes): the supermassive matrix gains
-  `test_ammsp_subtree` — the child born after the apply, the
+  `test_mmspa_subtree` — the child born after the apply, the
   poisoned-memo invalidation, the parent+child shared budget, the
   grandchild nearest-root resolution, and the aggregate-at-root
   stats row, each a measured band verdict plus the kernel-drop
@@ -228,7 +228,7 @@ USAGE.md.
 
 ## 7. What this deliberately does NOT do
 
-- No new CLI flag, no grammar change: AMMSP is the DEFAULT
+- No new CLI flag, no grammar change: MMSPA is the DEFAULT
   behavior of every strict/block verb (the v11 frozen grammar
   honored — an ability upgrade, not a surface change).
 - No daemon, no watcher, no enumeration of children that do not

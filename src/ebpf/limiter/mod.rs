@@ -14,18 +14,18 @@
 //! - `policy_write.rs` — the per-cgroup leg writer (improve-40 split)
 //! - `reclaim.rs` — the remove path (unstrict) + state reclamation
 //! - `stats.rs`   — status printing + map readers + identity
-//! - `ammsp.rs`   — the AMMSP userspace half: the leaf-cache flush
+//! - `mmspa.rs`   — the MMSPA userspace half: the leaf-cache flush
 //!   every policy mutation runs (private-research-2)
 //! - `during*.rs` — the --during family (night-during): grammar,
 //!   translation twin, and window map lanes
 //! - `rate_ring.rs` — the time-series ring's read half + mirror
-mod ammsp;
 mod atomic;
 mod during;
 mod during_map;
 mod during_parse;
 mod format;
 mod lanes;
+mod mmspa;
 mod parse;
 mod policy;
 mod policy_lines;

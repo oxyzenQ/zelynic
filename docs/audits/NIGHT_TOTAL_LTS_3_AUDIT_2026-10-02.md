@@ -15,7 +15,7 @@
 > Method: three parallel feature-level deep dives, each reading the
 > actual engine code line by line rather than re-running the
 > instrument-level sweeps of lts-2 — the limiter engine by the lead
-> auditor (math.rs, DRR, AMMSP, the datapath), the eagle-eyes render
+> auditor (math.rs, DRR, MMSPA, the datapath), the eagle-eyes render
 > tree and the CLI/UX surface by two dedicated read passes. Status:
 > the limiter and the monitor answer SOUND at peak; two real finds
 > in the UX surface (an argv-forensics walk that mis-descends on
@@ -30,7 +30,7 @@ the rest — total LTS, honest. Three deep dives, five areas each:
 
 | # | The ask | The instrument this audit used |
 |---|---------|-------------------------------|
-| 1 | Stability & crash over the limiter and the monitor | line-by-line reads of the enforcement math (math.rs, DRR, AMMSP, the datapath program) and the render tree; the full test battery fresh (650 + 47 / 0 failed after the closes) |
+| 1 | Stability & crash over the limiter and the monitor | line-by-line reads of the enforcement math (math.rs, DRR, MMSPA, the datapath program) and the render tree; the full test battery fresh (650 + 47 / 0 failed after the closes) |
 | 2 | Code hygiene across the killer-feature dirs | the render-tree zombie census (manual call-graph), the CLI zombie census (every flag invoked live), the stale-comment hunt (the argv walk's own comment was the find) |
 | 3 | Optimization of the hot paths | the per-packet arithmetic read for the kernel side (the fill-detect bound, the saturating DRR family); the full-budget frame-bench fresh after the closes — bytes/frame byte-exact at 1,919.0 |
 | 4 | Security hardening at the feature surfaces | the kernel-side trust-boundary chain re-read (the pol_sane clamp before any math, the per-socket cookie-0 fallback, the group-lane degradation); the rate parser's live edge-case battery (20+ hostile inputs, all u128-checked) |
@@ -69,7 +69,7 @@ The per-packet core, read line by line:
   with saturating ops, epoch deltas via `wrapping_sub` (correct
   for modulo arithmetic), the ledger room overflow-free by
   construction — the math.rs fill_ns discipline, applied again.
-- **AMMSP (ammsp.rs + ammsp_resolve.rs, 466 lines).** The memo
+- **MMSPA (mmspa.rs + mmspa_resolve.rs, 466 lines).** The memo
   word `(generation << 32) | root` — u32 fields into u64, no
   packing overflow possible; the one-map-per-direction split and
   the generational retire ride the schema pins.

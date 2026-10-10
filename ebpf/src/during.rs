@@ -68,7 +68,7 @@
 //
 // THE VERDICT LAW. A row whose window is INACTIVE answers ALLOW,
 // per packet, exactly the unlimited fast path's miss shape — no
-// stats booking, no ring booking, no AMMSP belt (the row is not
+// stats booking, no ring booking, no MMSPA belt (the row is not
 // being removed, it is simply not policing this packet; the sweep
 // through the unstrict/reclaim path is what removes an ENDED span,
 // and a DORMANT span or a recurring window is never swept). An

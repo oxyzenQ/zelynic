@@ -10,13 +10,13 @@
 use aya_ebpf::maps::HashMap;
 use aya_ebpf::maps::LruHashMap;
 
-use crate::ammsp_resolve;
 use crate::cgroup_limiter_stats;
 use crate::during;
 use crate::ecn;
 use crate::math::Bucket;
 use crate::math::LimiterStats;
 use crate::math::book_rescue;
+use crate::mmspa_resolve;
 use crate::policy_window;
 use crate::rate_ring;
 use crate::rate_ring::RateRing;
@@ -188,7 +188,7 @@ pub(crate) unsafe fn bpf_skb_ecn_set_ce(skb: *mut core::ffi::c_void) -> i64 {
 /// entries age out through the LRU the leaf buckets already trust.
 #[inline(always)]
 pub(crate) fn debt_key_for(budget_key: u32) -> u64 {
-    (u64::from(ammsp_resolve::current_generation()) << 32) | u64::from(budget_key)
+    (u64::from(mmspa_resolve::current_generation()) << 32) | u64::from(budget_key)
 }
 
 /// Get or create the debt word for a budget key (the get_stats_ptr

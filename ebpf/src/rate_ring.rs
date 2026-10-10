@@ -13,7 +13,7 @@
 // detector (the EAGLE EYES someday) reads directly, and the honest
 // peak/shape record `status --print-json` already surfaces.
 //
-// Same discipline as math.rs/ammsp.rs/drr.rs (the pure-core
+// Same discipline as math.rs/mmspa.rs/drr.rs (the pure-core
 // lineage): `core`-only, zero aya dependencies, wired into the
 // kernel object (ebpf/src/bin/limiter.rs wires it with #[path]) AND
 // into the userspace test tree the same way

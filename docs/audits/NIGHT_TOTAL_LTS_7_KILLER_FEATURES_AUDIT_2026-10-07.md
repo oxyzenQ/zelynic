@@ -76,7 +76,7 @@ instead of by argument.
 ## 3. The limiter engine — SOUND at peak, the fresh reads
 
 - **enforce.rs** (the one verdict path every packet rides): the
-  unlimited fast path, the AMMSP miss branch, the window gate, the
+  unlimited fast path, the MMSPA miss branch, the window gate, the
   blocked-booking, the burst clamp, the per-socket/group/DRR lane
   selection — all re-read fresh. The fail-open-on-map-race belt (the
   TOCTOU note on the root re-lookup) holds; the group-lane degrade

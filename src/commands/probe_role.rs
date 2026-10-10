@@ -364,7 +364,7 @@ fn dir_is_clean(limiter: &crate::ebpf::limiter::Limiter, path: &Path) -> bool {
 /// The probe server's transient home is a DIRECT child of the root,
 /// so the root is the one ancestor that can police the server's
 /// sockets through the object's nearest-ancestor resolution
-/// (enforce.rs's ammsp_resolve_root — the same walk that covers the
+/// (enforce.rs's mmspa_resolve_root — the same walk that covers the
 /// client's subtree). A row there is reachable: `Target::parse`
 /// accepts `cg:<root-inode>`, and on minimal or container hosts a
 /// root-resident process name resolves to it. The root-level

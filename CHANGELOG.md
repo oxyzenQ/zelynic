@@ -25,6 +25,30 @@ NIGHT-hunt-18's git-history-only call.
 
 ## [Unreleased]
 
+### Changed
+
+- **rename(ebpf): NIGHT-badas-1 — the AMMSP innovation is now MMSPA
+  (Multi-Micro Sub-Process Aware).** The owner's call, total rename:
+  the subtree-aware resolution keeps its identity but speaks the new
+  name everywhere the living tree carries it. Scope: the module files
+  (ebpf/src/mmspa.rs + mmspa_resolve.rs, userspace limiter/mmspa.rs),
+  the AmmspWalk -> MmspaWalk identifier family, the static BPF map
+  names and their /sys/fs/bpf/zelynic/mmspa_* pin paths (both sides
+  of the contract renamed together, as ever), the supermassive A/B
+  lane (scripts/supermassive/mmspa-vs-legacy-test.*), the CI wiring
+  and workflow comments that name the lane, and every living doc —
+  the GLOSSARY definition, INNOVATIONS entry #1, USAGE, PERFORMANCE,
+  the audits index rows (three dated records renamed with their
+  index links). The expansion follows the owner's coinage: Multi-
+  Micro Sub-Process Aware. docs/archive keeps the era-accurate
+  spellings by design — a dated record is not renamed. The swap is
+  length-preserving (five chars to five), so rustfmt's only word was
+  re-sorting the use lists the new name moves in alphabetical order;
+  the prebuilt lane is regenerated with the renamed tree (pin
+  927c2a350df2). A host carrying pre-rename pins cleans the orphaned
+  ammsp_* files with `zelynic recover` — the orphaned-pin sweep owns
+  exactly that residue class.
+
 ### Fixed
 
 - **fix(cli): NIGHT-hunt-39 — the flag tier: every flag spelling on
@@ -319,7 +343,7 @@ NIGHT-hunt-18's git-history-only call.
   coverage for every applied innovation. Eleven of the thirteen
   carry their full three-slice depth (Rust pins, suite rows, live
   lane) and stay at peak — the audit map re-verified them
-  post-merge (AMMSP and the DRR fair-share on the live matrix plus
+  post-merge (MMSPA and the DRR fair-share on the live matrix plus
   the A/B battery; ECN-first on the policer rows, the claims
   precision row, and the ect-probe; QUIC on the claims attribution
   rows; the guarantee brackets on the v4 law ladder, the claims
@@ -454,7 +478,7 @@ NIGHT-hunt-18's git-history-only call.
   table rows are gone (four aliases now: s, b, u, ee). The v2
   depth table grows to 106 cases (+ the --no-test parse row, +
   the --no-probe redirect row) with its size pin and citations
-  updated together; every driver (v1's fleet stages, ammsp's
+  updated together; every driver (v1's fleet stages, mmspa's
   side-aware helpers — the legacy v11.0.0 side keeps its era
   spellings by design, the depth/bench/bench-proof suites,
   smoke-cli, uninstall) rides the new spelling.
@@ -891,7 +915,7 @@ NIGHT-hunt-18's git-history-only call.
   pulled fresh from the four legs' downloaded logs: 47 skipped
   rows per leg, 24 environmental or physical and honest about it
   (the loopback-only realnet lanes, the hardware-ceiling ladders,
-  the GSO accounting floors, the AMMSP diagnostics, the
+  the GSO accounting floors, the MMSPA diagnostics, the
   container-runtime E2E the container workflow carries), and 23
   closable — one root cause family: the VM leg runs everything
   as root, so the 20 rootless-lane rows that assert what a real
@@ -938,7 +962,7 @@ NIGHT-hunt-18's git-history-only call.
   engine self-test reads 36/0, ruff check and format clean, the
   gates 16/16. The "others" sweep: the other four headline claims'
   rows green on the same failing runs, the whole lane inventory
-  (v1 matrix, AMMSP, v2, v3, v4 155 rows, the three rig suites)
+  (v1 matrix, MMSPA, v2, v3, v4 155 rows, the three rig suites)
   green on them too, and the five-claims coverage map verified
   present and running — the estate's coverage was never the gap,
   the instrument's robustness on shared runners was, and it is
@@ -1973,7 +1997,7 @@ NIGHT-hunt-18's git-history-only call.
   reading low on a first attempt, clean on a fresh runner), so
   the Actions history itself becomes the longitudinal dataset —
   no in-repo writes, the workflow keeps contents:read. The
-  AMMSP-vs-legacy A/B keeps its determinism by construction (the
+  MMSPA-vs-legacy A/B keeps its determinism by construction (the
   A/B rides the guest's loopback lane, not the internet). The
   push of this commit is the live proof by the workflow's own
   contract (the hunt-34 rule: a workflow that changes itself owes
@@ -2702,7 +2726,7 @@ NIGHT-hunt-18's git-history-only call.
   no window row died at the mutation ledger's pre-apply read:
   `failed to read cg:N policy window: key not found — apply rolled
   back (2 partial policies)` — six supermassive probes down (the
-  limiter matrix, the AMMSP delta, the survival battery, the
+  limiter matrix, the MMSPA delta, the survival battery, the
   reload and race rigs, claims proof), all four legs, the same
   root. The forensic: aya 0.14's `HashMap::get` on an absent row
   NEVER produces the `SyscallError(ENOENT)` the shared

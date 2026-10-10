@@ -59,7 +59,7 @@ failed exactly one probe out of the whole lane inventory:
 
 ```
 MASS-RESULT: supermassive v1 - limiter matrix (full, server-first) — PASS
-MASS-RESULT: AMMSP vs legacy v11.0.0 - subtree coverage delta (>= 99%) — PASS
+MASS-RESULT: MMSPA vs legacy v11.0.0 - subtree coverage delta (>= 99%) — PASS
 MASS-RESULT: supermassive v2 - survival battery (full, server-first) — PASS
 MASS-RESULT: supermassive v3 - container depth battery (full) — PASS
 MASS-RESULT: supermassive v4 - CLI depth battery (full, rootless) — PASS
@@ -198,7 +198,7 @@ present, running, and now honest about its instrument.
 
 **The lane inventory on the failing runs:** kernel checks,
 -V, doctor, four engine self-tests, --reset-terminal, the v1
-limiter matrix (full, server-first), the AMMSP subtree delta,
+limiter matrix (full, server-first), the MMSPA subtree delta,
 the v2 survival battery, the v3 container depth battery, the
 v4 CLI depth battery (155 rows), the three rig suites — every
 one PASS on runs 224/228. Nothing else in the estate was red.

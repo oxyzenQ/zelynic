@@ -5,13 +5,13 @@
 // NIGHT-upgrade-charger-core-1-c: the pure arithmetic of the
 // fair-shared bucket — the quantum sizing and the invariants the
 // datapath (drr_flow.rs) and the userspace pins share. Extracted
-// core-only (the math.rs / ammsp.rs discipline): zero aya/eBPF
+// core-only (the math.rs / mmspa.rs discipline): zero aya/eBPF
 // dependencies, so the SAME file compiles into the kernel object
 // (ebpf/src/bin/limiter.rs wires it with #[path]) AND into the
 // userspace test tree, where test/ebpf/limiter/drr_tests.rs pins it
 // rootlessly.
 //
-// THE PROBLEM (the owner's starvation find): AMMSP gives a policy's
+// THE PROBLEM (the owner's starvation find): MMSPA gives a policy's
 // whole subtree ONE shared budget — and a shared bucket is
 // first-come-first-served at token granularity. One greedy leaf
 // (a subprocess of the limited app) whose packets keep arriving can

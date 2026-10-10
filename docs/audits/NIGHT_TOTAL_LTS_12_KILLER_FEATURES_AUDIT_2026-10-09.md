@@ -294,7 +294,7 @@ pins and the prose still agree with the code.
 |------|---------|------|
 | Limiter removal/reclamation (reclaim.rs + the sweep's four call sites) | SOUND, re-read whole | lock matrix clean (section 4); fail-closed on unreadable census; best-effort warn lanes unchanged; the delta added no new apply-family caller |
 | Limiter kernel datapath | PEAK, skipped | byte-pinned through the delta (prebuilt parity re-proven per commit); lts-3/5/7 territory |
-| Limiter apply atomicity (atomic.rs) | SOUND, re-read whole | the rollback ledger restores the pre-apply raw (charger-core-2 upgrade over the hunt-20 delete-only shape); the window ledger rides the same rollback; the AMMSP generation bump runs after the restore |
+| Limiter apply atomicity (atomic.rs) | SOUND, re-read whole | the rollback ledger restores the pre-apply raw (charger-core-2 upgrade over the hunt-20 delete-only shape); the window ledger rides the same rollback; the MMSPA generation bump runs after the restore |
 | Monitor session state (peak-rate law) | SOUND, re-derived | fold ordering (section 5), admits-gate sharing, zero-span guard, saturating ceilings |
 | Render tree (footer, detail, eagle, loading) | PEAK | hunt-38's line-by-line plus its A/B; the only delta is hunt-40's dedupe in depth_traffic.rs (byte-identical by construction, pinned by the depth report tests) |
 | Display boundary (sanitize_comm + char_width) | FIXED this round | the bidi format-char hole (section 2) + the wcwidth defense-in-depth (section 3); both closed in 59f1d13 |

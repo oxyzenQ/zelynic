@@ -182,7 +182,7 @@ wrote it.
 
 ## 8. Peak-skips honored (the honest list)
 
-- The kernel enforcement math (math.rs, DRR, AMMSP, the datapath):
+- The kernel enforcement math (math.rs, DRR, MMSPA, the datapath):
   lts-3 read it to the metal; the object is byte-pinned by every
   commit gate since — re-running the read would duplicate a
   standing verdict.

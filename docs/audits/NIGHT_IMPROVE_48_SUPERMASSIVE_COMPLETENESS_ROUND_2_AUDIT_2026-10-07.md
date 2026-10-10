@@ -40,7 +40,7 @@ Run 229 (commit 6e80916, created 2026-10-06T16:19:22Z, completed
 success): every leg PASS. The per-battery verdict lines, read from
 the downloaded job logs:
 
-| leg | kernel | v1 matrix | AMMSP A/B | v2 survival | v3 container | v4 CLI | claims proof | verdict |
+| leg | kernel | v1 matrix | MMSPA A/B | v2 survival | v3 container | v4 CLI | claims proof | verdict |
 |---|---|---|---|---|---|---|---|---|
 | low specs gnu | 5.13.0-52 | PASS | PASS | 155/0/0 (57s) | 25/0/3 | 136/0/19 | 26/0/3 (43s) | PASS |
 | low specs musl | 5.13.0-52 | PASS | PASS | 155/0/0 (57s) | 25/0/3 | 136/0/19 | 26/0/3 (43s) | PASS |
@@ -78,7 +78,7 @@ Run 229's logs carry 47 skipped rows per leg. Each one, by class:
 | tool-absent (the claims battery's diagnostic probes) | 3 | claims proof: nft ruleset snapshot, bpftool prog/link show, bpftool footprint run-time row | CLOSABLE — this task's rootfs closure | the VM rootfs ships no nftables and no bpftool; a real user's machine has both one apt away, so the rows that prove "no netfilter path" and "kernel run time" go unproven in the VM leg |
 | container-runtime-absent | 2 | v3 docker-e2e, k8s-e2e | stays | the VM ships no docker daemon and no kubelet by design; the container workflow carries both E2E lanes on runners with real runtimes |
 | realnet-absent | 9 | v1 real-internet lanes | stays | the guest is loopback-only by design (the offline-VM contract); the realnet verdict belongs to the owner's local run |
-| physics (hardware ceiling, GSO granularity, diagnostic floors) | 13 | v1: 4 ladder rows the 5.1 GB/s baseline cannot feed, 2 accounting-floor rows, 7 AMMSP diagnostic/advisory rows | stays | the honest instrument bounds round 1 already documented |
+| physics (hardware ceiling, GSO granularity, diagnostic floors) | 13 | v1: 4 ladder rows the 5.1 GB/s baseline cannot feed, 2 accounting-floor rows, 7 MMSPA diagnostic/advisory rows | stays | the honest instrument bounds round 1 already documented |
 
 The honest arithmetic: 47 skips per leg, 24 environmental or
 physical and honest about it, 23 closable — and every closable row

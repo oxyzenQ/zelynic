@@ -1,9 +1,9 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! NIGHT-private-research-2 (AMMSP), re-stamped by NIGHT-perf-0:
+//! NIGHT-private-research-2 (MMSPA), re-stamped by NIGHT-perf-0:
 //! wording pins for the userspace memo-invalidation surface
-//! (src/ebpf/limiter/ammsp.rs). The generation-bump trace is the
+//! (src/ebpf/limiter/mmspa.rs). The generation-bump trace is the
 //! verbose diagnostic contract — exact strings, pinned — and the
 //! failure line is the never-silent-but-never-fatal contract the
 //! unstrict partial-failure line set the precedent for. The legacy
@@ -13,7 +13,7 @@
 // The invalidation formatters live in the userspace module under
 // test; this file is wired INTO that module by its own #[path]
 // include (the gate-tree discipline: src/ wirings stay under test/),
-// so `super` is the ammsp module itself — the same `use super::*`
+// so `super` is the mmspa module itself — the same `use super::*`
 // shape the policy pins use.
 use super::{bump_trace_line, flush_trace_line, invalidate_failed_line};
 
@@ -25,12 +25,12 @@ use super::{bump_trace_line, flush_trace_line, invalidate_failed_line};
 fn bump_trace_pairs_generations_and_costs() {
     assert_eq!(
         bump_trace_line(3, 4),
-        "[limiter] ammsp memo generation 3 -> 4 — every leaf re-resolves \
+        "[limiter] mmspa memo generation 3 -> 4 — every leaf re-resolves \
          once on its next packet"
     );
     assert_eq!(
         bump_trace_line(0, 1),
-        "[limiter] ammsp memo generation 0 -> 1 — every leaf re-resolves \
+        "[limiter] mmspa memo generation 0 -> 1 — every leaf re-resolves \
          once on its next packet"
     );
 }
@@ -43,7 +43,7 @@ fn bump_trace_pairs_generations_and_costs() {
 fn bump_trace_carries_the_wraparound_pair_verbatim() {
     assert_eq!(
         bump_trace_line(u32::MAX, 0),
-        "[limiter] ammsp memo generation 4294967295 -> 0 — every leaf \
+        "[limiter] mmspa memo generation 4294967295 -> 0 — every leaf \
          re-resolves once on its next packet"
     );
 }
@@ -55,7 +55,7 @@ fn bump_trace_carries_the_wraparound_pair_verbatim() {
 fn flush_trace_zero_is_the_clean_state_line() {
     assert_eq!(
         flush_trace_line(0),
-        "[limiter] ammsp leaf cache: 0 memos — resolution state already clean"
+        "[limiter] mmspa leaf cache: 0 memos — resolution state already clean"
     );
 }
 
@@ -66,12 +66,12 @@ fn flush_trace_zero_is_the_clean_state_line() {
 fn flush_trace_counts_and_costs_are_worded() {
     assert_eq!(
         flush_trace_line(1),
-        "[limiter] ammsp leaf cache: flushed 1 memo — each covered leaf \
+        "[limiter] mmspa leaf cache: flushed 1 memo — each covered leaf \
          re-resolves once on its next packet"
     );
     assert_eq!(
         flush_trace_line(7),
-        "[limiter] ammsp leaf cache: flushed 7 memos — each covered leaf \
+        "[limiter] mmspa leaf cache: flushed 7 memos — each covered leaf \
          re-resolves once on its next packet"
     );
 }
@@ -85,11 +85,11 @@ fn flush_trace_counts_and_costs_are_worded() {
 #[test]
 fn invalidate_failure_line_names_causes_degradation_and_tip() {
     let line = invalidate_failed_line(
-        "pinned map /sys/fs/bpf/zelynic/ammsp_generation: gone",
-        "ammsp_leaf_cache_dl not found in loaded object",
+        "pinned map /sys/fs/bpf/zelynic/mmspa_generation: gone",
+        "mmspa_leaf_cache_dl not found in loaded object",
     );
     assert!(
-        line.starts_with("ammsp memo invalidation failed (generation bump: "),
+        line.starts_with("mmspa memo invalidation failed (generation bump: "),
         "names the primary surface: {line}"
     );
     assert!(

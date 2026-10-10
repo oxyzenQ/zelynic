@@ -23,20 +23,20 @@ first-time reader, and this page pays it once, up front.
 
 ## The engine (the limiter's moving parts)
 
-- **AMMSP — Aware Multi Micro Sub-Process**: the subtree-aware
+- **MMSPA — Multi-Micro Sub-Process Aware**: the subtree-aware
   enforcement mechanism — a policy written for cgroup A polices A
   and every descendant (A/**) through ONE shared budget, resolved
   by an ancestor walk inside the BPF program. The name is the
   owner's coinage and stays. (INNOVATIONS.md #1,
-  `ebpf/src/ammsp.rs`)
-- **The memo**: the LRU cache of leaf-to-root resolutions the AMMSP
+  `ebpf/src/mmspa.rs`)
+- **The memo**: the LRU cache of leaf-to-root resolutions the MMSPA
   walk consults; every apply-family mutation bumps a generation
   stamp so a fresh policy never resolves through a stale memo.
 - **DRR lane**: Deficit Round Robin — the shared budget is a POOL
   and each member (leaf) draws a bounded QUANTUM, unused quantum
   carrying forward; the aggregate stays exactly the policy.
   (`ebpf/src/drr.rs`)
-- **Fair-Shared Bucket**: DRR inside AMMSP — several processes
+- **Fair-Shared Bucket**: DRR inside MMSPA — several processes
   sharing one limited cgroup get bounded shares instead of an FCFS
   race. (INNOVATIONS.md #2)
 - **Flow isolation (CAKE-style)**: the same fairness one level down

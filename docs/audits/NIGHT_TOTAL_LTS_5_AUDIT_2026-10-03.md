@@ -140,7 +140,7 @@ it on the record instead of hunting it.
 - **The attach lifecycle** (limiter/mod.rs): the hunt-19
   operational-pin predicate, the hunt-28 bpffs preflight, the
   hunt-30 alignment preflight — holding.
-- Kernel-side (math.rs, DRR, AMMSP, the datapath): PEAK, skipped
+- Kernel-side (math.rs, DRR, MMSPA, the datapath): PEAK, skipped
   per the protocol — lts-3 read them to the metal and the object
   is byte-pinned since.
 
