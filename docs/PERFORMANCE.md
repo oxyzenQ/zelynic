@@ -220,6 +220,40 @@ construction — the change is kernel-side only) reads parity.
   the fd scan is lazy per matched socket; the pidfd open is lazy
   per PID with sticky failure. Peak for the design.
 
+### night-improve-72 A/B (the panel floor, 2026-10-10)
+
+The baseline panel's guaranteed-visible floor touched the render
+path itself (the eagle layout now computes the panel's view rows
+before the table renders, and the table's row budget stops at the
+floor), so the frame harness owns the A/B. Protocol: A = c783b58
+(the pre-floor tree, the owner's weekly deps bump included on both
+sides so the layout engine is the only variable); B = 8cc05e8; the
+standard 10 s budget, single runs, the standard harness protocol.
+
+| Metric | c783b58 (A) | 8cc05e8 (B) | Delta |
+|--------|-------------|-------------|-------|
+| fps (render path) | 5,113.5 | 5,188.2 | +1.5% (machine noise) |
+| bytes/frame | 1,919.0 | 1,919.0 | +0.0% |
+| emit bytes/frame | 550.7 | 550.4 | -0.1% |
+| density gini | 0.3429 | 0.3427 | -0.1% |
+| frame entropy | 3.2192 | 3.2176 | -0.0% |
+| dirty cells/frame | 102.4 | 102.2 | -0.2% |
+
+Reading: PARITY on the happy path, by construction — the harness's
+synthetic board never starves the panel, so the floor's five
+withheld lines never bind and bytes/frame identical to the decimal
+is the proof the well-fed frame is byte-exact the old tree's; the
+pre-table `view_rows` pass (the one real addition to the frame
+path, a small vec build over the lane's policy roots) disappears
+into the noise class with everything else, fps signed positive
+besides. The rescue itself is invisible to this harness by the
+same construction: the starving shape — a board rich enough to
+fill the frame, a panel with verdicts to show, the window walked
+onto the detail-heavy head ranks — is pinned in
+test/ebpf/render/eagle_floor_tests.rs at a limited (24) and a
+normal (40) height, with the red-check (floor disabled) failing
+exactly those two pins.
+
 ### NIGHT-private-research-2 A/B (MMSPA — the subtree-aware datapath, 2026-09-30)
 
 The private-research-2 change is datapath work: the MMSPA resolution
