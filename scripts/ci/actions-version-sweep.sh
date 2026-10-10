@@ -71,12 +71,33 @@
 #                     commit-time floor of 70 — and a shared egress
 #                     IP can still exhaust it mid-sweep (see
 #                     check-actions-pins.sh, which picks the variable
-#                     up too).
+#                     up too). Since NIGHT-improve-69 an unset
+#                     GITHUB_TOKEN is auto-resolved from the
+#                     machine's own credentials before the first API
+#                     call — gh auth token, then the git credential
+#                     helper for github.com, the same secret that
+#                     pushes; no new standing secret is created
+#                     (scripts/lib/github_token.sh, one implementation
+#                     shared with the commit-time health check).
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
+
+# NIGHT-improve-69: resolve a token from the machine's own
+# credentials (env -> gh -> git credential helper) so a machine that
+# pushes fine never burns the anonymous 60/h ceiling mid-sweep — the
+# night-improve-71 first apply caught that exact half-heal shape
+# live (tags reported "unresolvable" once the shared IP quota died).
+# One lib, one implementation, shared with the commit-time health
+# check; a machine offering no source stays anonymous, honestly.
+# shellcheck source=scripts/lib/github_token.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../" && pwd)/lib/github_token.sh"
+GITHUB_TOKEN="${GITHUB_TOKEN:-$(resolve_github_token)}"
+if [ -n "$GITHUB_TOKEN" ]; then
+	export GITHUB_TOKEN
+fi
 
 API_ROOT="https://api.github.com"
 MODE="dry-run"

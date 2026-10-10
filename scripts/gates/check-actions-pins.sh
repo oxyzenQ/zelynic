@@ -86,7 +86,15 @@
 #                                    picks it up too) — in practice the
 #                                    only route to a cold verdict: the
 #                                    anonymous 60/h ceiling sits below
-#                                    the 70-call sweep floor
+#                                    the 70-call sweep floor. Since
+#                                    NIGHT-improve-69 an empty value is
+#                                    auto-resolved from the machine's
+#                                    own credentials (gh auth token,
+#                                    then the git credential helper for
+#                                    github.com) before preflight pays
+#                                    for the network — no new standing
+#                                    secret, the push credential reuses
+#                                    itself
 #
 # Usage:
 #   bash scripts/gates/check-actions-pins.sh                # the check
@@ -97,6 +105,13 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 
+# NIGHT-improve-69: the shared token resolution (env -> gh -> git
+# credential helper) lives in one lib so this check and the sweep it
+# drives never disagree about whose credential pays for the API
+# reads. Resolved inside preflight() — the one seat that touches the
+# network — so a cache hit (zero network) also costs zero probes.
+# shellcheck source=scripts/lib/github_token.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../" && pwd)/lib/github_token.sh"
 SWEEP_SCRIPT="scripts/ci/actions-version-sweep.sh"
 API_ROOT="https://api.github.com"
 DEFAULT_TTL=21600
@@ -137,8 +152,10 @@ tunables (env):
   ZELYNIC_ACTIONS_HEALTH_TTL       cache seconds (default 21600)
   ZELYNIC_ACTIONS_HEALTH_TIMEOUT   cold-sweep budget (default 30s)
   ZELYNIC_ACTIONS_HEAL_TIMEOUT     auto-apply budget (default 60s)
-  GITHUB_TOKEN                     a PAT — the anonymous 60/h tier can
-                                   never pass the 70-call sweep floor
+  GITHUB_TOKEN                     a PAT (auto-resolved from gh or the
+                                   git credential helper when unset) —
+                                   the anonymous 60/h tier can never
+                                   pass the 70-call sweep floor
 EOF
 }
 
@@ -365,13 +382,17 @@ cold_check() {
 	rc=0
 	preflight || rc=$?
 	if [ "$rc" -eq 1 ]; then
-		health "re-verify: GitHub API unreachable (offline or blocked); pins unchecked"
+		health "re-verify: GitHub API unreachable (offline or blocked${PREFLIGHT_NOTE:+ — ${PREFLIGHT_NOTE}}); pins unchecked"
 		return 3
 	elif [ "$rc" -eq 2 ]; then
 		if [ -n "$QUOTA_LIMIT" ] && [ "$QUOTA_LIMIT" -lt "$QUOTA_FLOOR" ]; then
-			health "re-verify: API ceiling ${QUOTA_LIMIT}/h can never cover the ${QUOTA_FLOOR}-call cold-sweep floor; export GITHUB_TOKEN"
+			if [ -n "${GITHUB_TOKEN:-}" ]; then
+				health "re-verify: API ceiling ${QUOTA_LIMIT}/h under the resolved token can never cover the ${QUOTA_FLOOR}-call cold-sweep floor"
+			else
+				health "re-verify: API ceiling ${QUOTA_LIMIT}/h can never cover the ${QUOTA_FLOOR}-call cold-sweep floor — no token resolved (export GITHUB_TOKEN, gh auth login, or store a github.com credential)"
+			fi
 		else
-			health "re-verify: GitHub API quota below ${QUOTA_FLOOR} calls; retry after the quota resets, or export GITHUB_TOKEN"
+			health "re-verify: GitHub API quota below ${QUOTA_FLOOR} calls; retry after the quota resets"
 		fi
 		return 3
 	fi
@@ -586,6 +607,17 @@ auto_heal() {
 
 preflight() {
 	local body status remaining limit
+	# NIGHT-improve-69: resolve the machine's own token on the one
+	# path that pays for the network (env -> gh -> git credential
+	# helper, never a new standing secret) and hand it to every
+	# child the sweep spawns; a cache hit never reaches here.
+	if [ -z "${GITHUB_TOKEN:-}" ]; then
+		GITHUB_TOKEN="$(resolve_github_token)"
+		if [ -n "$GITHUB_TOKEN" ]; then
+			export GITHUB_TOKEN
+		fi
+	fi
+	PREFLIGHT_NOTE=""
 	local args=(-sS --connect-timeout 5 --max-time 8 -w '\n%{http_code}')
 	args+=("${API_ROOT}/rate_limit")
 	if [ -n "${GITHUB_TOKEN:-}" ]; then
@@ -593,6 +625,18 @@ preflight() {
 	fi
 	body="$(curl "${args[@]}" 2>/dev/null || true)"
 	status="${body##*$'\n'}"
+	status="${status:-000}"
+	# The unreachable note names the shape (NIGHT-improve-69): "no
+	# HTTP answer" is a network fact, HTTP 401 names a rejected
+	# token, any other code names the middlebox — the old bare
+	# "offline or blocked" left the owner guessing which one.
+	if [ "$status" = "000" ]; then
+		PREFLIGHT_NOTE="no HTTP answer — connection failed, DNS, or a blocking middlebox"
+	elif [ "$status" = "401" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
+		PREFLIGHT_NOTE="HTTP 401 — the resolved token was rejected (check GITHUB_TOKEN, gh auth, or the git credential helper)"
+	elif [ "$status" != "200" ]; then
+		PREFLIGHT_NOTE="HTTP ${status}"
+	fi
 	[ "$status" = "200" ] || return 1
 	remaining="$(printf '%s' "${body%$'\n'*}" | jq -r '.resources.core.remaining // empty' 2>/dev/null || true)"
 	[[ $remaining =~ ^[0-9]+$ ]] || return 0
@@ -705,12 +749,16 @@ main() {
 	rc=0
 	preflight || rc=$?
 	if [ "$rc" -eq 1 ]; then
-		skip_check "GitHub API unreachable (offline or blocked); pins unchecked"
+		skip_check "GitHub API unreachable (offline or blocked${PREFLIGHT_NOTE:+ — ${PREFLIGHT_NOTE}}); pins unchecked"
 	elif [ "$rc" -eq 2 ]; then
 		if [ -n "$QUOTA_LIMIT" ] && [ "$QUOTA_LIMIT" -lt "$QUOTA_FLOOR" ]; then
-			skip_check "API ceiling ${QUOTA_LIMIT}/h can never cover the ${QUOTA_FLOOR}-call cold-sweep floor — a quota reset cannot fix this; export GITHUB_TOKEN"
+			if [ -n "${GITHUB_TOKEN:-}" ]; then
+				skip_check "API ceiling ${QUOTA_LIMIT}/h under the resolved token can never cover the ${QUOTA_FLOOR}-call cold-sweep floor"
+			else
+				skip_check "API ceiling ${QUOTA_LIMIT}/h can never cover the ${QUOTA_FLOOR}-call cold-sweep floor — no token resolved (export GITHUB_TOKEN, gh auth login, or store a github.com credential in the git credential helper)"
+			fi
 		fi
-		skip_check "GitHub API quota below ${QUOTA_FLOOR} calls; pins unchecked (retry after the quota resets, or export GITHUB_TOKEN)"
+		skip_check "GitHub API quota below ${QUOTA_FLOOR} calls; pins unchecked (retry after the quota resets${GITHUB_TOKEN:+ under the resolved token})"
 	fi
 
 	payload="$(mktemp /tmp/zelynic-health-cold.XXXXXX)"
