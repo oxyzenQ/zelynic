@@ -3,7 +3,7 @@
 
 [package]
 name = "zelynic"
-version = "50.0.0-beta.1"
+version = "50.0.0-rc.1"
 # NIGHT-improve-67: edition 2024 across ALL packages — the root crate
 # joins ebpf/Cargo.toml (2024 since the aya-ebpf 0.2.1 pairing) so the
 # repo speaks one edition. Migration verified clean: the 2024 hard
