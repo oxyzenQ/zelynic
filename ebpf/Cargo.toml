@@ -49,7 +49,7 @@
 
 [package]
 name = "zelynic-ebpf"
-version = "50.0.0-rc.1"
+version = "50.0.0"
 edition = "2024"
 publish = false
 
