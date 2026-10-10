@@ -161,21 +161,16 @@
 # NIGHT-hunt-35, the depth rigs the battery now executes
 # (scripts/depth/**: a rig edit changes this workflow's contract
 # exactly the way an engine edit does) + workflow_dispatch
-# (the pre-release click)
-# + the weekly Monday 03:00 UTC schedule (the kernel-span clock:
-# a docs-only push skips the runner, but the old-releases mirror
-# can change availability and the archive the latest-kernel
-# resolver walks can restructure, both between pushes) — landed
-# for real at NIGHT-approved-1 (the header had documented the
-# slot since the kernel-span era; the trigger itself was absent),
-# with the busy-hour residual watch as its second purpose: the
-# round-1 audit's documented limit (shared-runner busy-hour band
-# failures on the first attempt, recovered by re-running the
-# failed legs on fresh runners) now earns a weekly longitudinal
-# sample, the Actions history itself the dataset (every
-# scheduled run's watch-summary step below names the trigger,
-# the leg, and every FAIL/SKIP row with its reading — no
-# in-repo writes, this workflow keeps contents:read).
+# (the pre-release click). The weekly Monday 03:00 UTC schedule
+# NIGHT-approved-1 landed (the kernel-span clock: a docs-only push
+# skips the runner, and the old-releases mirror's availability plus
+# the archive the latest-kernel resolver walks were watched between
+# pushes) is retired at NIGHT-reject-1 — the owner's call, the
+# schedule not needed; the watch-summary step keeps landing every
+# push/dispatch run's FAIL/SKIP rows in the step summary, the
+# busy-hour residual's longitudinal ledger now riding the
+# qualifying pushes instead of the weekly clock (no in-repo
+# writes, this workflow keeps contents:read).
 #
 # NIGHT-approved-1 (the owner's approved next candidates, the
 # architectural half): the micro-VM earns REAL EGRESS — qemu
@@ -224,17 +219,15 @@ on:
       - 'ebpf/**'
       - 'scripts/**'
       - '.github/workflows/supermassive.yml'
-  # NIGHT-approved-1: the weekly clock — Monday 03:00 UTC (10:00
-  # WIB, the owner's Monday morning), the slot the header has
-  # documented since the kernel-span era. The scheduled runs watch
-  # two things between pushes: the resolver lanes' mirrors (the
-  # frozen impish pocket, the live archive's structure) and the
-  # busy-hour residual (the round-1 audit's documented shared-runner
-  # limit) — the watch-summary step lands every run's FAIL/SKIP
-  # rows in the step summary so the Actions history reads as the
-  # longitudinal dataset.
-  schedule:
-    - cron: "0 3 * * 1"
+  # NIGHT-reject-1: the weekly clock is retired — the owner's call,
+  # the schedule is not needed. The Monday 03:00 UTC slot
+  # NIGHT-approved-1 landed (its runs watched the resolver lanes'
+  # mirrors — the frozen impish pocket, the live archive's
+  # structure — and the busy-hour residual, the round-1 audit's
+  # documented shared-runner limit) comes off the trigger surface.
+  # The watch-summary step stays on every push and dispatch run,
+  # so the FAIL/SKIP rows keep landing in the step summary without
+  # the weekly cadence.
   workflow_dispatch: {}
 
 # Least privilege (cosmostrix contract): this workflow only reads
@@ -362,8 +355,10 @@ jobs:
       # The floor kernel (NIGHT-improve-33): impish indri (21.10)
       # 5.13.0-52, the TRUE documented floor, fetched from the frozen
       # old-releases archive (EOL July 2022 — it can never drift; the
-      # trade, a frozen mirror's availability, is what the weekly
-      # schedule clock watches). The resolver shape is the jammy
+      # trade, a frozen mirror's availability, now surfaces at the
+      # next qualifying push — NIGHT-reject-1 retired the weekly
+      # clock that used to sample it between pushes). The resolver
+      # shape is the jammy
       # floor's, retargeted: isolated sources, names-only search,
       # highest ABI, apt resolves the last impish-updates kernel so
       # no URL rot.
@@ -864,16 +859,17 @@ jobs:
           echo "OK: the kernel span proven on the ${{ matrix.title }} envelope"
 
       # NIGHT-approved-1: the busy-hour residual watch — every run
-      # (push, dispatch, and the weekly clock alike) lands its
-      # leg's FAIL/SKIP inventory in the step summary, so the
-      # Actions history reads as the longitudinal dataset: the
-      # weekly scheduled runs sample the shared-runner busy-hour
-      # residual the round-1 audit documented (band rows reading
-      # low under contention on a first attempt, clean on a fresh
-      # runner), and the reading rides each week's summary row —
-      # the run list itself is the record (this workflow keeps
-      # contents:read; no in-repo writes, no artifact expiry).
-      - name: Weekly watch summary (the busy-hour residual clock)
+      # (push and dispatch, since NIGHT-reject-1 retired the weekly
+      # clock) lands its leg's FAIL/SKIP inventory in the step
+      # summary, so the Actions history reads as the longitudinal
+      # dataset: the qualifying-push runs sample the shared-runner
+      # busy-hour residual the round-1 audit documented (band rows
+      # reading low under contention on a first attempt, clean on a
+      # fresh runner), and the reading rides each run's summary
+      # row — the run list itself is the record (this workflow
+      # keeps contents:read; no in-repo writes, no artifact
+      # expiry).
+      - name: Watch summary (the busy-hour residual clock)
         if: always()
         run: |
           cd /tmp/kfloor

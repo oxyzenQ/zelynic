@@ -81,6 +81,26 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **ci(supermassive): NIGHT-reject-1 — the weekly clock is retired,
+  the owner's call: the schedule is not needed.** The Monday
+  03:00 UTC cron comes off the supermassive trigger surface (the
+  slot NIGHT-approved-1 landed for the kernel-span mirror watch
+  and the busy-hour residual sample) — the `on:` block keeps
+  `workflow_dispatch`, so the pre-release click and every
+  qualifying push still run the full four-leg battery. The
+  watch-summary step stays on every push and dispatch run (its
+  name drops the "Weekly" prefix with the clock that owned it):
+  the FAIL/SKIP inventory keeps landing in the step summary, the
+  busy-hour residual's longitudinal ledger now riding the
+  qualifying pushes instead of the weekly cadence. The header's
+  trigger paragraph and the impish floor-kernel step's comment
+  updated in step — the frozen-mirror availability risk now
+  surfaces at the next qualifying push, said honestly rather than
+  silently dropped. The push of this commit is the live proof by
+  the workflow's own contract (the hunt-34 rule: a workflow that
+  changes itself owes itself a run). CI-only: no code path
+  touched, benchmark skipped.
+
 - **docs(license): NIGHT-dinner-31 — the business tiers climb
   again.** Business $2,199 → $5,199/year, Company $20,199 →
   $110,199/year; Individual holds at $99/year, effective from the
