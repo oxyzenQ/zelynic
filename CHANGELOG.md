@@ -60,6 +60,25 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **dev(release): NIGHT-improve-76 — version-to.sh writes the
+  release ledger line.** A bump is a release event, and the
+  CHANGELOG now records it the same way the Cargo files do: every
+  `./scripts/dev/version-to.sh vX.Y.Z(-label)` run writes the
+  owner's shape — a `## [Released]` heading with the bare version
+  line under it — above `## [Unreleased]`, pre-release and stable
+  alike, newest first (the section is created on the first bump,
+  and later versions splice in at its top). Honest probes, the
+  README lane's NIGHT-hunt-32 rule: a missing CHANGELOG, a missing
+  `## [Unreleased]` anchor, a version line the ledger already
+  carries, or a `## [Released]` section without this tool's own
+  shape warns and writes nothing — a ledger this script did not
+  create is not one it rewrites. The `--commit` path and both
+  recipe echoes stage CHANGELOG.md with the rest of the bump. The
+  whole lane was proven against the real script in a scratch copy
+  (eight scenarios, 28 assertions: create, splice, dedup, the
+  three honest-refusal shapes, the fail-closed --commit refusal,
+  and the add-list contract). Dev tooling only: no runtime code
+  path touched, benchmark skipped.
 - **docs(longevity): NIGHT-think-like-light-years-4 — the 100+
   year survival strategy, kept simple.** One new living doc,
   docs/LONGEVITY.md, answering the light-years ask: the substrate

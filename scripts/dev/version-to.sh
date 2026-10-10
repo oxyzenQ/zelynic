@@ -31,6 +31,13 @@
 # "OK README.md -> vN" while the README carried no badge, no release
 # URL, and no Version line for any pattern to match —
 # a claimed rewrite that never happened)
+# CHANGELOG.md earns its release line (NIGHT-improve-76: a bump is a
+# release event — the ledger records it the same way the Cargo files
+# do: the owner's shape, a "## [Released]" heading with the bare
+# version line under it, newest first, pre-release and stable alike,
+# above "## [Unreleased]". Probed honestly, the README lane's rule:
+# a missing file, a missing anchor, or a non-standard Released shape
+# warns and writes nothing — never claim a write that did not happen)
 # Files auto-derived: scripts/build.sh (reads from Cargo.toml), binary (env!("CARGO_PKG_VERSION"))
 # =============================================================================
 set -euo pipefail
@@ -63,6 +70,74 @@ validate_version() {
 	if ! echo "${ver}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'; then
 		echo -e "${RED}Error: Invalid version '${ver}'. Expected format: X.Y.Z or X.Y.Z-label${NC}" >&2
 		exit 1
+	fi
+}
+
+# Write the release line to CHANGELOG.md (NIGHT-improve-76). The
+# ledger shape is the owner's: a "## [Released]" heading with the
+# bare version line under it — newest first, created above
+# "## [Unreleased]" when absent. Pre-release (X.Y.Z-rc.1) and stable
+# (X.Y.Z) write the same shape. Honest probes (the README lane's
+# NIGHT-hunt-32 rule): a missing file, a missing "## [Unreleased]"
+# anchor, or a "## [Released]" section without this tool's own shape
+# (heading, blank spacer, version lines) warns and writes nothing —
+# a ledger this script did not create is not one it rewrites.
+changelog_release() {
+	local ver="v$1"
+	if [ ! -f CHANGELOG.md ]; then
+		echo -e "  ${YELLOW}!${NC} CHANGELOG.md        → file absent, nothing to write"
+		return 0
+	fi
+	# A version line never repeats: the re-run at a version the ledger
+	# already carries (the usual stale-tree re-entry) writes nothing.
+	if grep -qxF "${ver}" CHANGELOG.md; then
+		echo -e "  ${YELLOW}!${NC} CHANGELOG.md        → ${ver} already recorded, nothing to write"
+		return 0
+	fi
+	local tmp
+	tmp="$(mktemp)"
+	if grep -q '^## \[Released\]$' CHANGELOG.md; then
+		# The section exists. This tool's own shape puts one blank
+		# spacer between the heading and the version lines — the new
+		# version splices in under it, above the current top line.
+		if [ -z "$(sed -n '/^## \[Released\]$/{n;p;}' CHANGELOG.md)" ]; then
+			awk -v ver="${ver}" '
+                                /^## \[Released\]$/ && !done {
+                                        print
+                                        getline spacer
+                                        print spacer
+                                        print ver
+                                        done = 1
+                                        next
+                                }
+                                { print }
+                        ' CHANGELOG.md >"${tmp}"
+			mv "${tmp}" CHANGELOG.md
+			echo -e "  ${GREEN}OK${NC} CHANGELOG.md        → ${ver} (## [Released], newest first)"
+		else
+			rm -f "${tmp}"
+			echo -e "  ${YELLOW}!${NC} CHANGELOG.md        → unexpected ## [Released] shape (no blank spacer under the heading) — nothing to write"
+		fi
+	else
+		# No section yet — create it above "## [Unreleased]" (the
+		# unreleased work keeps its own section below the ledger).
+		if grep -q '^## \[Unreleased\]$' CHANGELOG.md; then
+			awk -v ver="${ver}" '
+                                /^## \[Unreleased\]$/ && !done {
+                                        print "## [Released]"
+                                        print ""
+                                        print ver
+                                        print ""
+                                        done = 1
+                                }
+                                { print }
+                        ' CHANGELOG.md >"${tmp}"
+			mv "${tmp}" CHANGELOG.md
+			echo -e "  ${GREEN}OK${NC} CHANGELOG.md        → ${ver} (section created above ## [Unreleased])"
+		else
+			rm -f "${tmp}"
+			echo -e "  ${YELLOW}!${NC} CHANGELOG.md        → no ## [Unreleased] anchor found — nothing to write"
+		fi
 	fi
 }
 
@@ -144,6 +219,9 @@ else
 	echo -e "  ${YELLOW}!${NC} README.md           → no version surface found (no release URL / versioned example / Version line) — nothing to rewrite"
 fi
 
+# --- Update CHANGELOG.md (NIGHT-improve-76: the release ledger line) ---
+changelog_release "${NEW_VERSION}"
+
 # --- scripts/build.sh reads dynamically from Cargo.toml, no update needed ---
 echo -e "  ${GREEN}OK${NC} scripts/build.sh    → auto (reads from Cargo.toml)"
 
@@ -196,7 +274,7 @@ if [ "${EBPF_CHANGED}" = true ] && ! bash scripts/gates/check-prebuilt-parity.sh
 		echo -e "    ./scripts/dev/bootstrap-ebpf.sh"
 		echo -e "  then finish the bump manually and commit the lane with its sources:"
 		echo -e "    ./scripts/release/refresh-prebuilt.sh"
-		echo -e "    git add Cargo.toml Cargo.lock README.md ebpf/ ebpf-prebuilt/"
+		echo -e "    git add Cargo.toml Cargo.lock README.md CHANGELOG.md ebpf/ ebpf-prebuilt/"
 		exit 1
 	fi
 elif bash scripts/gates/check-prebuilt-parity.sh >/dev/null 2>&1; then
@@ -209,7 +287,7 @@ fi
 echo ""
 echo -e "${GREEN}Version updated to v${NEW_VERSION}${NC}"
 if [ "${EBPF_CHANGED}" = true ]; then
-	echo "next: git add Cargo.toml Cargo.lock README.md ebpf/ ebpf-prebuilt/ && git commit"
+	echo "next: git add Cargo.toml Cargo.lock README.md CHANGELOG.md ebpf/ ebpf-prebuilt/ && git commit"
 fi
 
 if [ "${COMMIT}" = true ]; then
@@ -225,11 +303,11 @@ if [ "${COMMIT}" = true ]; then
 	if ! bash scripts/gates/check-prebuilt-parity.sh >/dev/null 2>&1; then
 		echo -e "${RED}FAIL:${NC} refusing to commit — the prebuilt lane is stale (ebpf/ changed, ebpf-prebuilt/ has not)."
 		echo -e "  1. ./scripts/release/refresh-prebuilt.sh"
-		echo -e "  2. git add Cargo.toml Cargo.lock README.md ebpf/Cargo.toml ebpf/Cargo.lock ebpf-prebuilt/"
+		echo -e "  2. git add Cargo.toml Cargo.lock README.md CHANGELOG.md ebpf/Cargo.toml ebpf/Cargo.lock ebpf-prebuilt/"
 		echo -e "  3. git commit -m \"release: v${NEW_VERSION}\""
 		exit 1
 	fi
-	git add Cargo.toml Cargo.lock README.md ebpf/Cargo.toml ebpf/Cargo.lock ebpf-prebuilt/
+	git add Cargo.toml Cargo.lock README.md CHANGELOG.md ebpf/Cargo.toml ebpf/Cargo.lock ebpf-prebuilt/
 	git commit -m "release: v${NEW_VERSION}"
 	echo -e "${GREEN}OK Committed: release: v${NEW_VERSION}${NC}"
 fi
