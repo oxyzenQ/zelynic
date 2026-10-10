@@ -56,15 +56,20 @@ resolve_nightly_name() {
 	rustup toolchain list 2>/dev/null | awk '$1 == "nightly" {print $1; exit}'
 }
 
-readonly MIRI_AUDIT_MODULES=(
-	"limiter::during::"
-	"ebpf::display::"
-	"display_json::"
+# The scope, split by compile lane (NIGHT-ask-2's split): each family
+# runs on the lane where it lives, so no pin is interpreted twice and
+# both lanes stay inside their time budget.
+readonly MIRI_AUDIT_MODULES_DORMANT=(
 	"output::color::"
 	"output::theme::"
 	"cli::ux::"
 	"cli::argv::"
 	"terminal::diff::"
+)
+readonly MIRI_AUDIT_MODULES_EBPF=(
+	"limiter::during::"
+	"ebpf::display::"
+	"display_json::"
 )
 
 # show_miri_status — print the one-line stamp banner. Called from
@@ -127,8 +132,9 @@ show_miri_status() {
 #   --no-install    never auto-install nightly/miri (CI's contract —
 #                   the workflow installs its own pinned toolchain, so
 #                   a missing component must fail loudly, not download)
-#   --full          run the ENTIRE test suite (slow; families that
-#                   spawn the binary or need root will fail under miri)
+#   --full          run the ENTIRE test suite on both lanes (slow;
+#                   families that spawn the binary or need root will
+#                   fail under miri)
 run_miri() {
 	local filter="${MIRI_FILTER}"
 	local full="${MIRI_FULL}"
@@ -185,41 +191,91 @@ run_miri() {
 	log_step "Ensuring the Miri sysroot is set up (cargo +nightly miri setup)..."
 	cargo "+${nightly_name}" miri setup 2>&1 | tail -3 || true
 
-	# 5. Build the test filter list.
-	local filter_args=()
+	# 5. Build the test filter lists — one per lane. An explicit
+	#    --filter rides BOTH lanes (a partial probe, no stamp update);
+	#    the default scope walks each family on its own lane.
+	local -a dormant_args=() ebpf_args=()
 	if [ -n "${filter}" ]; then
-		filter_args=("${filter}")
-		log_step "Running Miri with filter: ${filter}"
+		dormant_args=("${filter}")
+		ebpf_args=("${filter}")
+		log_step "Running Miri with filter on both lanes: ${filter}"
 	elif [ "${full}" = "1" ]; then
-		log_step "Running Miri on the FULL test suite (slow; binary-spawning and root-gated families will fail under miri)..."
+		log_step "Running Miri on the FULL test suite on both lanes (slow; binary-spawning and root-gated families will fail under miri)..."
 	else
-		read -r -a filter_args <<<"${MIRI_AUDIT_MODULES[*]}"
-		log_step "Running Miri on ${#filter_args[@]} pure-Rust module families: ${filter_args[*]}"
+		read -r -a dormant_args <<<"${MIRI_AUDIT_MODULES_DORMANT[*]}"
+		read -r -a ebpf_args <<<"${MIRI_AUDIT_MODULES_EBPF[*]}"
+		log_step "Scope: ${#dormant_args[@]} dormant families + ${#ebpf_args[@]} ebpf families (${dormant_args[*]} ${ebpf_args[*]})"
 	fi
 
-	# 6. Run Miri. --locked: the lockfile-freeze contract every other
-	#    gate rides (NIGHT-boost-7). --no-default-features: the local
-	#    gate's dormant lane (NIGHT-ask-2) — the default `ebpf` feature
-	#    would drag the nested nightly eBPF build into a miri run, and
-	#    the BPF side is the kernel's jurisdiction, not the
-	#    interpreter's. MIRIFLAGS disables isolation so the pure pins
-	#    that read env vars, clocks, or temp paths do not fail
-	#    spuriously.
-	#    Test filters ride the harness argv (after --); the cargo
-	#    options stay before it.
+	# 6. Run Miri on BOTH feature lanes. --locked: the lockfile-freeze
+	#    contract every other gate rides (NIGHT-boost-7). The pure core
+	#    the scope names lives on two compile lanes (NIGHT-ask-2): the
+	#    --during grammar, the status renderers, and --print-json sit
+	#    inside src/ebpf/** — gated behind the `ebpf` feature — while
+	#    the color/ux/argv/theme/diff pins ride the dormant lane. One
+	#    lane alone would verify half the estate, so the runner walks
+	#    both: dormant first (no prerequisites), then the full-feature
+	#    lane, which in a git checkout drives build.rs's nested eBPF
+	#    build and therefore needs the dated nightly + rust-src +
+	#    bpf-linker stack (scripts/dev/bootstrap-ebpf.sh). A machine
+	#    without that stack skips lane 2 with a loud warning and the
+	#    stamp records what actually ran — a skip must never read like
+	#    a pass (the NIGHT-boost-7 law).
+	#    MIRIFLAGS disables isolation so the pure pins that read env
+	#    vars, clocks, or temp paths do not fail spuriously. Test
+	#    filters ride the harness argv (after --); the cargo options
+	#    stay before it.
+	run_miri_lane() {
+		# $1: the lane selector ("dormant" or "ebpf"); $2..: harness
+		# filters (may be empty). The feature spec is spelled HERE, not
+		# at the call site — "--features ebpf" is two words, and a
+		# half-arg call site would hand cargo a bare --features (the
+		# failure the selector spelling can never produce).
+		local lane="$1"
+		shift
+		local -a lane_args=()
+		case "$lane" in
+		dormant) lane_args=(--no-default-features) ;;
+		ebpf) lane_args=(--features ebpf) ;;
+		*)
+			log_error "run_miri_lane: unknown lane '$lane'"
+			exit 1
+			;;
+		esac
+		local -a harness_args=("$@")
+		if [ "${#harness_args[@]}" -gt 0 ]; then
+			MIRIFLAGS="${MIRIFLAGS:--Zmiri-disable-isolation}" \
+				cargo "+${nightly_name}" miri test --locked "${lane_args[@]}" -- "${harness_args[@]}" \
+				2>&1 | tee -a "${MIRI_LOG_FILE}" || return 1
+		else
+			MIRIFLAGS="${MIRIFLAGS:--Zmiri-disable-isolation}" \
+				cargo "+${nightly_name}" miri test --locked "${lane_args[@]}" \
+				2>&1 | tee -a "${MIRI_LOG_FILE}" || return 1
+		fi
+	}
+
 	local start_ms end_ms duration_ms
 	start_ms=$(date +%s%3N 2>/dev/null || date +%s)
 
 	mkdir -p target
-	local miri_exit=0
-	if [ "${#filter_args[@]}" -gt 0 ]; then
-		MIRIFLAGS="${MIRIFLAGS:--Zmiri-disable-isolation}" \
-			cargo "+${nightly_name}" miri test --locked --no-default-features -- "${filter_args[@]}" \
-			2>&1 | tee "${MIRI_LOG_FILE}" || miri_exit=$?
+	rm -f "${MIRI_LOG_FILE}"
+	local miri_exit=0 lanes_run="dormant"
+
+	log_step "Lane 1/2: the dormant lane (--no-default-features), ${#dormant_args[@]} families..."
+	run_miri_lane dormant "${dormant_args[@]}" || miri_exit=1
+
+	local ebpf_stack=1
+	rustup toolchain list 2>/dev/null | grep -q '^nightly-2026-09-18' || ebpf_stack=0
+	command -v bpf-linker >/dev/null 2>&1 || ebpf_stack=0
+	if [ "${ebpf_stack}" = "1" ]; then
+		log_step "Lane 2/2: the full-feature lane (--features ebpf), ${#ebpf_args[@]} families..."
+		if run_miri_lane ebpf "${ebpf_args[@]}"; then
+			lanes_run="dormant+ebpf"
+		else
+			miri_exit=1
+		fi
 	else
-		MIRIFLAGS="${MIRIFLAGS:--Zmiri-disable-isolation}" \
-			cargo "+${nightly_name}" miri test --locked --no-default-features \
-			2>&1 | tee "${MIRI_LOG_FILE}" || miri_exit=$?
+		log_warning "ebpf lane skipped — the eBPF stack is missing (the nightly-2026-09-18 pin with rust-src, bpf-linker on PATH). Install: ./scripts/dev/bootstrap-ebpf.sh. The ${#ebpf_args[@]} ebpf-lane families went unverified; the stamp records the partial scope."
 	fi
 
 	end_ms=$(date +%s%3N 2>/dev/null || date +%s)
@@ -261,7 +317,7 @@ run_miri() {
 		local modules
 		modules=$(
 			IFS=','
-			echo "${MIRI_AUDIT_MODULES[*]}"
+			echo "${MIRI_AUDIT_MODULES_DORMANT[*]} ${MIRI_AUDIT_MODULES_EBPF[*]}"
 		)
 
 		cat >"${MIRI_STAMP_FILE}" <<STAMP_EOF
@@ -275,11 +331,12 @@ status=${status}
 duration_ms=${duration_ms}
 tests_run=${tests_run}
 tests_failed=${tests_failed}
+lanes_run=${lanes_run}
 modules=${modules}
 miri_version=${miri_ver}
 nightly_version=${nightly_ver}
 STAMP_EOF
-		log_info "Stamp written to ${MIRI_STAMP_FILE}"
+		log_info "Stamp written to ${MIRI_STAMP_FILE} (lanes: ${lanes_run})"
 		log_info "Log saved to ${MIRI_LOG_FILE}"
 	fi
 

@@ -334,8 +334,17 @@ fn run_nested_ebpf_build(ebpf_dir: &std::path::Path) {
         // removing it, the nightly sub-build would compile build-std
         // core with the stable compiler and fail on its missing
         // rust-src. The sub-build must resolve its own rustc.
+        // NIGHT-improve-75 (the miri lane find): `cargo miri` exports
+        // RUSTC_WRAPPER=cargo-miri to build scripts, and the wrapper
+        // composes [RUSTC_WRAPPER, RUSTC, args] for every compiler
+        // probe — the nested build's own `rustc -vV` startup probe
+        // became `cargo-miri <dated-rustc> -vV` and died ("called
+        // without RUSTC set"). The nested cross-build is a NATIVE
+        // compile (the BPF side never rides the interpreter), so the
+        // wrapper goes the same way as the RUSTC poisons: stripped.
         .env_remove("RUSTC")
-        .env_remove("RUSTC_WORKSPACE_WRAPPER");
+        .env_remove("RUSTC_WORKSPACE_WRAPPER")
+        .env_remove("RUSTC_WRAPPER");
     strip_host_poison_rustflags(&mut nested);
     force_bpf_v3_rustflags(&mut nested);
     let status = nested.status().unwrap_or_else(|e| {
