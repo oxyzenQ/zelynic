@@ -204,6 +204,16 @@ follows the value. This section stays as the 2026-09-28 decision
 record; the current price list lives in
 [COMMERCIAL_LICENSE.md](../../COMMERCIAL_LICENSE.md).
 
+**Superseded again 2026-10-10 (NIGHT-dinner-31):** the owner
+lifted the business end once more — Business $5,199/year,
+Company $110,199/year; Individual still holds at $99/year. Same
+rationale, compounding: zelynic is a masterpiece, its value
+increases year by year, and the price keeps tracking the value
+upward. Grandfathering unchanged — buyers who paid before any
+move keep the price they paid, for the term they bought. The
+current price list lives in
+[COMMERCIAL_LICENSE.md](../../COMMERCIAL_LICENSE.md).
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
