@@ -424,8 +424,13 @@ outside these two families — nothing is excluded from the scan.
 
 ### 3.3. The engine name — the cosmic dragon
 
-The engine and architecture name is **the cosmic dragon** (and the
-architecture: **the cosmic dragon architecture**) — the same
+The engine and architecture name is **the cosmic dragon** — one
+name over two named surfaces of the same lineage (NIGHT-improve-68):
+**the cosmic dragon architecture** (the body: pure eBPF, one
+hooking layer, no daemon) and **the cosmic dragon engine** (the
+heart: the limiter's six-layer verdict path, defined canonically in
+[INNOVATIONS.md](INNOVATIONS.md)); the render lineage is **the
+cosmic dragon render engine** (cosmostrix) — the same
 lowercase convention the name zelynic carries (NIGHT-audit-2, the
 owner's consistency call): the name `cosmic dragon` is lowercase in
 every context — prose, titles, headings, comments — and in running
@@ -438,7 +443,7 @@ itself.
 
 | Context | Format |
 |---|---|
-| Running text / prose | the cosmic dragon (engine) / the cosmic dragon architecture |
+| Running text / prose | the cosmic dragon engine / the cosmic dragon render engine / the cosmic dragon architecture |
 | Sentence or heading start | The cosmic dragon... |
 | Identifiers | `COSMIC_DRAGON_*` (consts, filenames — e.g. `docs/COSMIC_DRAGON_ARCHITECTURE.md`), `cosmic_dragon_engine` (the cosmostrix module path) |
 
