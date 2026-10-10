@@ -6,13 +6,51 @@
 //! under the table — one verdict row per policy root, the focus
 //! gutter marker, and the scroll window night-improve-58 gave it.
 //! The lane's fold/state/retire contracts stay one home over; this
-//! file owns only what the ranked frame paints.
+//! file owns only what the ranked frame paints. Since
+//! night-improve-72 the file also owns the panel's FLOOR — the
+//! guaranteed-visible shape the eagle layout withholds from the
+//! table's budget, so a full board can never starve the section
+//! back out of the frame.
 
-use super::baseline::{BaselineLane, pair_phrase};
+use super::baseline::{BaselineLane, BaselineWord, pair_phrase};
 use super::footer::grid_line;
 use super::scroll::{ScrollState, Section, scroll_note};
 use crate::ebpf::identity::IdentityMap;
 use crate::output::{grey, pad_to_width};
+
+/// The panel's guaranteed-visible floor (night-improve-72): the
+/// room the eagle layout withholds from the table's budget
+/// whenever the panel has rows to show — separator, header, one
+/// verdict row, and the scroll note a truncating panel renders
+/// instead of a second verdict. Five lines is the smallest room
+/// `render_panel` turns into a VISIBLE section: below it the
+/// usable-row arithmetic collapses to zero and the renderer
+/// returns before drawing a thing (the starvation the floor
+/// exists to prevent — a full-board table eating every line to
+/// the footer pin while the section title vanished with the
+/// rows). One home beside the arithmetic it describes, so the
+/// budget and the renderer can never drift apart on what the
+/// panel's minimum shape is.
+pub(super) const PANEL_FLOOR: usize = 5;
+
+/// The rows the frame's panel actually renders (night-improve-72):
+/// the lane's own rows, narrowed to the watched set when targets
+/// filter the frame (a filter is a filter), with silent rows —
+/// both directions pre-first-fold — dropped as noise. One home for
+/// the arithmetic so the eagle layout's floor decision and the
+/// panel's renderer answer the same question, "does the panel
+/// have anything to say", the same way.
+pub(super) fn view_rows(
+    lane: &BaselineLane,
+    filter: Option<&[u32]>,
+) -> Vec<(u32, Option<BaselineWord>, Option<BaselineWord>)> {
+    let mut rows = lane.panel_rows();
+    if let Some(ids) = filter {
+        rows.retain(|(k, _, _)| ids.contains(k));
+    }
+    rows.retain(|(_, dl, ul)| dl.is_some() || ul.is_some());
+    rows
+}
 
 /// The ranked view's baseline panel: one line per policy root the
 /// lane holds (filtered to the watched set — a filter is a
@@ -40,13 +78,7 @@ pub(crate) fn render_panel(
     width: usize,
     scroll: &mut ScrollState,
 ) {
-    let mut rows = lane.panel_rows();
-    if let Some(ids) = filter {
-        rows.retain(|(k, _, _)| ids.contains(k));
-    }
-    // Rows with nothing to say (both directions pre-first-fold) are
-    // noise, not information.
-    rows.retain(|(_, dl, ul)| dl.is_some() || ul.is_some());
+    let rows = view_rows(lane, filter);
     // The panel's scroll window (night-improve-58), clamped to the
     // rows the FILTERED lane holds this frame — the clamp writes
     // home so the next arrow step rides it (a retired root's

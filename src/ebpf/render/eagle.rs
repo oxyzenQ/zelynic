@@ -39,6 +39,11 @@
 //! - **The pin**: the frame spans the terminal height, the table
 //!   floats under the header, and the built footer pins to the bottom
 //!   through measured padding — it never follows the table's length.
+//! - **The panel floor** (night-improve-72): the table's budget is
+//!   cut by the baseline panel's guaranteed-visible shape whenever
+//!   the panel has rows to show — a full board can never starve the
+//!   section out of the frame; a frame too short for both keeps the
+//!   table (the ranked view is the primary one).
 //!
 //! The row budget follows the terminal height (no --limit, no cap):
 //! a short window shows the top few consumers, a tall one spans the
@@ -49,21 +54,20 @@
 use std::time::Duration;
 
 use super::baseline::BaselineLane;
-use super::baseline_panel::render_panel;
+use super::baseline_panel::{PANEL_FLOOR, render_panel, view_rows};
 use super::border;
+use super::eagle_row::render_eagle_row;
 use super::footer::{FooterCensus, TOP_CHROME, build_grip_footer, grid_line, plan_footer_tier};
 use super::scroll::{ScrollState, Section, scroll_note};
 use super::{
-    EagleColumns, FrameGeometry, SessionAcc, SessionState, detail_lines, focus::board_rows,
-    focus::render_eagle_focus, format_rate_or_dash, label_with_count, plan_eagle_columns, rate_bps,
-    title_bar, truncate_label,
+    FrameGeometry, SessionState, detail_lines, focus::board_rows, focus::render_eagle_focus,
+    plan_eagle_columns, rate_bps, title_bar, truncate_label,
 };
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::Target;
-use crate::ebpf::limiter::format_bytes_wide;
 use crate::ebpf::loader::CounterSummary;
-use crate::output::{brand, grey, hot, ok, warn};
+use crate::output::{brand, grey};
 
 /// Columns the rank furniture occupies between the shared gutter
 /// and the label column: the two-wide rank cell plus its two-wide
@@ -283,6 +287,33 @@ pub(super) fn render_eagle_eyes_at(
     // frame's content must stop.
     let footer_start = geo.height.saturating_sub(footer.len());
 
+    // night-improve-72: the panel floor. The table's budget used to
+    // run all the way to the footer pin — a board rich enough to
+    // fill the frame let the table eat every line, and the baseline
+    // panel starved to zero rows and vanished whole (the owner's
+    // live find: scroll up to the busy head ranks and the panel's
+    // title left with them; only the quiet tail's shorter rows let
+    // it back). The floor withholds the panel's guaranteed-visible
+    // shape — separator, header, one verdict, the scroll note —
+    // from the table's budget BEFORE the table renders, whenever
+    // the panel has rows to show and the table can still keep its
+    // own minimum (chrome plus one data row). Below that line the
+    // degradation is the old behavior by design: the table is the
+    // primary view, and a frame too short for both keeps it.
+    let panel_filter: Option<&[u32]> = if tokens.is_empty() {
+        None
+    } else {
+        Some(&ids[..])
+    };
+    let panel_floor = if !view_rows(baseline, panel_filter).is_empty()
+        && footer_start.saturating_sub(lines.len()) >= (TOP_CHROME - 1) + PANEL_FLOOR
+    {
+        PANEL_FLOOR
+    } else {
+        0
+    };
+    let table_floor = footer_start.saturating_sub(panel_floor);
+
     // Header row (regular purple — brand layer, NIGHT-hunt-5). The
     // rank cell is BLANK (NIGHT-boost-5: "#" retired — the digits
     // speak for themselves); NIGHT-engrave-4: "top process" SPANS
@@ -290,7 +321,7 @@ pub(super) fn render_eagle_eyes_at(
     // the frame's canonical text column, the numeric titles stay
     // right-aligned over their columns, and the grid below renders
     // purple too (NIGHT-boost-14) — one border family.
-    let table_room = footer_start.saturating_sub(lines.len());
+    let table_room = table_floor.saturating_sub(lines.len());
     let show_table = !session.is_empty() && (tokens.is_empty() || !board.is_empty());
     // The table needs room for its own chrome (header + grid) plus at
     // least one data row; below that the footer carries the story.
@@ -347,13 +378,14 @@ pub(super) fn render_eagle_eyes_at(
 
         // Row budget counts detail lines too (NIGHT-hunt-8): a row
         // plus its lines fit as a unit, within what remains after
-        // the top chrome and the pinned footer (--limit and the cap
-        // are gone, NIGHT-boost-1: the window IS the budget;
+        // the top chrome, the panel floor (night-improve-72), and
+        // the pinned footer (--limit and the cap are gone,
+        // NIGHT-boost-1: the window IS the budget;
         // NIGHT-boost-14 made the footer's claim explicit;
         // night-improve-58: the window is the budget, the SCROLL is
         // the window's walk — the rank column still carries the
         // board's true rank, never the window's position).
-        let row_room = footer_start.saturating_sub(lines.len());
+        let row_room = table_floor.saturating_sub(lines.len());
         let mut used = 0usize;
         let mut emitted = 0usize;
         for (i, (cgroup_id, acc)) in board.iter().enumerate().skip(offset) {
@@ -425,7 +457,7 @@ pub(super) fn render_eagle_eyes_at(
         let above = offset;
         let below = board.len().saturating_sub(offset + emitted);
         if let Some(note) = scroll_note(above, below) {
-            if emitted > 0 && lines.len() >= footer_start {
+            if emitted > 0 && lines.len() >= table_floor {
                 lines.pop();
             }
             lines.push(format!("   {}", grey(&note)));
@@ -447,12 +479,13 @@ pub(super) fn render_eagle_eyes_at(
     // the table and the panel's separator — never between the
     // verdict rows and the top-consumer headline they answer to
     // (the owner's gap fix: the section keeps near the bottom).
+    // The dock (NIGHT-engrave-10): pad to the panel's floor, then
+    // land the block — the pin below tops the frame off. Since
+    // night-improve-72 the panel's room is the floor the table
+    // left standing PLUS everything the table could not fill: a
+    // quiet board still gives the panel the frame's slack, a full
+    // one still gives it the withheld five.
     let panel_room = footer_start.saturating_sub(lines.len());
-    let panel_filter = if tokens.is_empty() {
-        None
-    } else {
-        Some(&ids[..])
-    };
     let mut panel: Vec<String> = Vec::new();
     render_panel(
         &mut panel,
@@ -488,61 +521,6 @@ pub(super) fn render_eagle_eyes_at(
     border::wrap(lines, full_width);
 }
 
-/// One ranked data row. The static traffic-light tiers
-/// (NIGHT-boost-14): rank 1 champion red, rank 2 warning yellow,
-/// rank 3 and below status green — the owner's exact color contract,
-/// calmer than the white it replaced and with no blink anywhere.
-#[allow(clippy::too_many_arguments)]
-fn render_eagle_row(
-    lines: &mut Vec<String>,
-    cgroup_id: u32,
-    acc: SessionAcc,
-    dl_rate: u64,
-    ul_rate: u64,
-    identity: &IdentityMap,
-    conns: Option<&ConnectionMap>,
-    cols: &EagleColumns,
-    rank: usize,
-) {
-    // Saturating session sum (NIGHT-boost-16; u128 since NIGHT-lts-5).
-    let session_total = acc.dl.saturating_add(acc.ul);
-    // NIGHT-lts-1: the label cell is fit AND padded by RENDERED
-    // width in one pass (a CJK label padded by chars would shift
-    // the row's numeric cells; one call spares the double
-    // measurement a separate truncate step would pay).
-    let label =
-        crate::output::pad_to_width(&label_with_count(identity, conns, cgroup_id), cols.label_w);
-    let body = if cols.show_total {
-        format!(
-            "   {:>2}  {} {:>w1$} {:>w2$} {:>w3$}",
-            rank,
-            label,
-            format_rate_or_dash(dl_rate),
-            format_rate_or_dash(ul_rate),
-            format_bytes_wide(session_total),
-            w1 = cols.dl_w,
-            w2 = cols.ul_w,
-            w3 = cols.dl_w
-        )
-    } else {
-        format!(
-            "   {:>2}  {} {:>w1$} {:>w2$}",
-            rank,
-            label,
-            format_rate_or_dash(dl_rate),
-            format_rate_or_dash(ul_rate),
-            w1 = cols.dl_w,
-            w2 = cols.ul_w
-        )
-    };
-    let painted = match rank {
-        1 => hot(&body),
-        2 => warn(&body),
-        _ => ok(&body),
-    };
-    lines.push(painted);
-}
-
 // NIGHT-boost-1: the renderer pins live under the single test/ tree
 // (cosmostrix Pattern C), #[path]-wired like the limiter's
 // math_tests. One file per contract when a family grows past the
@@ -571,3 +549,11 @@ mod eagle_dock_tests;
 #[cfg(test)]
 #[path = "../../../test/ebpf/render/eagle_scroll_tests.rs"]
 mod eagle_scroll_tests;
+
+// night-improve-72: the panel-floor pins — the table never starves
+// the baseline police (the owner's live find, pinned at both a
+// limited and a normal height, through the walk, and at the
+// too-short degradation that keeps the table).
+#[cfg(test)]
+#[path = "../../../test/ebpf/render/eagle_floor_tests.rs"]
+mod eagle_floor_tests;

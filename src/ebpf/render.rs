@@ -97,6 +97,7 @@ mod depth_json;
 mod depth_traffic;
 mod detail;
 mod eagle;
+mod eagle_row;
 mod focus;
 mod footer;
 mod loading;
