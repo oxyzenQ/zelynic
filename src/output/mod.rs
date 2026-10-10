@@ -64,7 +64,14 @@ pub(crate) mod chroma;
 // with one NIGHT-boost-20 exception: the eagle-eyes border gradient
 // interpolates the ACTIVE theme's brand RGB per row, so it borrows
 // the capability probe (never escapes: it builds its own ramp).
-pub use color::{brand, brand_bold, error, error_bold, ok, ok_bold, suggestion, warn_bold};
+pub use color::{brand, brand_bold, error, error_bold, ok, ok_bold, warn_bold};
+// `suggestion` rides the ebpf gate its call sites wear (display.rs stale
+// lines, recover.rs action lines — the NIGHT-dinner-12 white tier): the
+// dormant lane's strict build (-D warnings) counts the ungated re-export
+// of a binary crate as an unused import, the same law that gates the
+// wrapper pair itself (NIGHT-improve-75 session, the bdaab27 red).
+#[cfg(feature = "ebpf")]
+pub use color::suggestion;
 // The capability re-export serves the eagle-eyes border gradient
 // (render/border.rs, ebpf-gated — NIGHT-boost-20) and — since
 // NIGHT-improve-73 — the clap error bridge (cli/ux.rs, every build

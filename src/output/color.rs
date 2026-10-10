@@ -333,6 +333,10 @@ pub fn warn_bold_open() -> &'static str {
 /// matching clap's `valid` grey), and runnable tips inside a labeled
 /// block go green (NIGHT-dinner-12) — see
 /// [`super::labeled::is_runnable_tip_line`].
+// The wrapper rides the ebpf gate with its callers (display.rs, recover.rs
+// — both ebpf-gated): the dormant lane's strict build would count the
+// ungated wrapper dead code.
+#[cfg(feature = "ebpf")]
 #[must_use]
 pub fn suggestion_open() -> &'static str {
     match capability() {
@@ -437,6 +441,8 @@ pub fn warn_bold(msg: &str) -> String {
 }
 
 /// Wrap `msg` in suggestion crystal white. Plain text when color is off.
+// Same ebpf gate as [`suggestion_open`] — its only callers.
+#[cfg(feature = "ebpf")]
 #[must_use]
 pub fn suggestion(msg: &str) -> String {
     match capability() {
