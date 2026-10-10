@@ -6,7 +6,7 @@
 > Audit date: 2026-10-10 (night-improve-74, after night-improve-73).
 > Scope: the owner's `--during` transcript and its AI analysis —
 > `sudo zelynic s brave 200kb --during 55h` applied at the shell's
-> 23:21 (⏱ 2s), `status | grep -A5 brave` read back `window: until
+> 23:21 (the command's 2s timer), `status | grep -A5 brave` read back `window: until
 > 2026-10-12 23:21:18 UTC (3d left)` three seconds later, and the
 > analysis concluded "55h from now should land 13 Okt ~06:21 UTC, not
 > 12 Okt — and 23:21 to 23:21 is 48h, but the UI says 3d left — likely
@@ -19,7 +19,7 @@
 ## 1. The 48h that was 55h (a local clock compared against a UTC stamp)
 
 The transcript's two clocks were compared in two different timezones.
-The shell's ⏱ `23:21` is the owner's wall clock (WIB, UTC+7); the
+The shell's `23:21` (the 2s-timer timestamp) is the owner's wall clock (WIB, UTC+7); the
 status line prints `until ... UTC` — `format_wall_utc` names its
 timezone in the string. Re-derived in one zone (UTC): the apply ran at
 2026-10-10 **16:21:18 UTC** (23:21:18 WIB), and the window end the
@@ -97,3 +97,20 @@ rootless grammar pins in `test/ebpf/limiter/during_user_tests.rs`
 (`duration_parses_every_unit`, `duration_bounds_are_pinned`,
 `duration_translates_to_a_running_span`) which already pin the
 surfaces section 1-3 walk through.
+<!-- ZELYNIC-DISCLAIMER -->
+<!--
+  Documentation Disclaimer — read before relying on any data point.
+
+  This document may contain stale data, hardcoded counts, or outdated
+  file paths and symbol names. Maintainers update source code but may
+  forget to sync every doc — perfect sync across every .md file is a
+  known maintenance burden with diminishing returns.
+
+  Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
+  truth. Always cross-check against the actual source files before
+  relying on any specific number (target count, LOC, rate bound),
+  file path, function name, or config key.
+
+  If you find a discrepancy, please open a PR — the doc is wrong, not
+  the source.
+-->
