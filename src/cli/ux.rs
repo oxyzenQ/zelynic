@@ -17,13 +17,16 @@
 //! regression the tests below pin).
 //!
 //! Rendering: clap errors are re-rendered with the command's brand
-//! styles (purple headers/usage, red error label, white `valid` tips —
-//! see [`crate::cli::clap_styles`]); rate/duration value suggestions
-//! are appended as canonical `tip:` lines which the line-aware
-//! [`crate::output::eprintln_error_labeled`] paints white. The
-//! closest-match machinery lives in `cli/suggestion.rs`; the argv
-//! forensics — the escape-hatch honesty probe (NIGHT-boost-13) and
-//! the failing-command discovery — live in `cli/argv.rs`.
+//! styles (purple headers/usage, red error label, grey `valid` tips —
+//! see [`crate::cli::clap_styles`]) and routed through the same
+//! capability ladder as every other surface (NIGHT-improve-73:
+//! plain bytes in Mono, clap's ANSI bytes otherwise — one color law);
+//! rate/duration value suggestions are appended as canonical `tip:`
+//! lines which the line-aware [`crate::output::eprintln_error_labeled`]
+//! paints grey. The closest-match machinery lives in
+//! `cli/suggestion.rs`; the argv forensics — the escape-hatch honesty
+//! probe (NIGHT-boost-13) and the failing-command discovery — live in
+//! `cli/argv.rs`.
 
 use clap::CommandFactory;
 use clap::error::{ContextKind, ContextValue};
@@ -33,7 +36,7 @@ use super::argv::drop_dishonest_escape_hatch;
 use super::rescue::{flag_vocabulary_rescue, rescue_shadowed_suggestion, top_level_flag_rescue};
 use super::suggestion::closest_long_flag_ci;
 use crate::cli::Cli;
-use crate::output::grey;
+use crate::output::{ColorCapability, capability, grey};
 
 // NIGHT-blade-4: the value-suggestion tip family moved to cli/tips.rs
 // (the 500-LOC cap split — see that file's header); re-exported so
@@ -382,8 +385,12 @@ fn enrich_unknown_arg_suggestion(e: &mut clap::Error, cmd: &clap::builder::Comma
 /// when followed is dropped, NIGHT-boost-13), then the usage context
 /// is replaced with the real full usage (clap narrows the usage line
 /// to the suggested flag, which reads as if that flag were required),
-/// then the error is re-rendered with the command's brand styles.
-/// clap's DisplayHelp / DisplayVersion kinds can no longer occur: the
+/// then the error is re-rendered with the command's brand styles
+/// (the 16-color rung swaps in the palette mapping first, so the
+/// injected tips carry the matching encoding), and the bytes route
+/// through the shared capability ladder — plain in Mono, clap's ANSI
+/// otherwise (NIGHT-improve-73). clap's DisplayHelp / DisplayVersion
+/// kinds can no longer occur: the
 /// built-in help flag, help subcommand, and version flag are all
 /// disabled and replaced by custom top-level args intercepted in
 /// `main` (NIGHT-improve-3). The canonical `For more information,
@@ -394,6 +401,20 @@ fn enrich_unknown_arg_suggestion(e: &mut clap::Error, cmd: &clap::builder::Comma
 pub(crate) fn exit_clap_error(e: clap::Error) -> ! {
     let mut e = e;
     let mut cmd = Cli::command();
+    // Depth honesty (NIGHT-improve-73): the forced 16-color rung gets
+    // the palette mapping (clap_styles_16) BEFORE any enrichment —
+    // the subcommand-flag redirect bakes the `valid` style into its
+    // injected tip at build time, so the remap must land first or the
+    // tip would carry RGB bytes into a 16-color render. Mono strips
+    // at the render step below; the 256/24 rungs ride the RGB raw.
+    // The usage context is PRE-RENDERED at parse time under the base
+    // (RGB) styles, so the remap also regenerates it — the walk in
+    // argv reproduces the native line byte-for-byte, now in the
+    // forced palette.
+    let remapped_16 = capability() == ColorCapability::Color16;
+    if remapped_16 {
+        cmd = cmd.styles(crate::cli::clap_styles_16());
+    }
     let argv: Vec<OsString> = std::env::args_os().collect();
     // Captured BEFORE enrichment: only clap's OWN suggestion narrows
     // the native usage (the parser adds the suggested flag to its
@@ -420,7 +441,7 @@ pub(crate) fn exit_clap_error(e: clap::Error) -> ! {
     // narrowed usage is regenerated (from the failing command, by
     // walking argv the way the parser descends), and a missing
     // usage context is filled the same way.
-    if native_usage_narrowed || e.get(ContextKind::Usage).is_none() {
+    if remapped_16 || native_usage_narrowed || e.get(ContextKind::Usage).is_none() {
         let failing_token = match e.get(ContextKind::InvalidArg) {
             Some(ContextValue::String(s)) => Some(s.clone()),
             _ => None,
@@ -429,13 +450,26 @@ pub(crate) fn exit_clap_error(e: clap::Error) -> ! {
         e.insert(ContextKind::Usage, ContextValue::StyledStr(usage));
     }
 
-    // Re-render with the command's styles applied, then print to the
-    // error's own stream (stderr for error kinds). Broken pipe is
-    // swallowed, matching clap's own exit() behavior. The clap render
-    // ends with a bare newline; the append below closes it into
-    // clap's canonical footer spacing ("\n\nFor more information…\n").
+    // Render with the command's styles applied, then route the bytes
+    // through the SAME capability ladder every other surface answers
+    // to (NIGHT-improve-73): clap's own `Error::print` runs its
+    // private auto color probe, which ignored `--color-mode` — the
+    // one surface in the binary above the ladder. The styled render
+    // is owned here instead: Mono takes the plain-text render (the
+    // StyledStr Display — zero escape bytes), every colored rung takes
+    // the ANSI bytes clap already embedded (StyledStr::ansi — the
+    // exact stream clap's color-passing AutoStream would have kept).
+    // One color law, one decision point. Broken pipe is swallowed,
+    // matching clap's own exit() behavior. The clap render ends with
+    // a bare newline (try_help's no-help-flag arm); the append below
+    // closes it into clap's canonical footer spacing
+    // ("\n\nFor more information…\n").
     let e = e.format(&mut cmd);
-    let _ = e.print();
+    let rendered = e.render();
+    match capability() {
+        ColorCapability::Mono => eprint_safe!("{}", rendered),
+        _ => eprint_safe!("{}", rendered.ansi()),
+    }
 
     eprintln_safe!("\n{}", help_footer());
     std::process::exit(2);
@@ -482,11 +516,23 @@ mod hidden_vocab_tests;
 #[path = "../../test/cli/rescue_tests.rs"]
 mod rescue_tests;
 
+// NIGHT-improve-73: the one-color-law pins (the ladder-obedient
+// render lane and the 16-color palette mapping) split to their own
+// file at the 500-line cap pressure — one theme, one file, the
+// usage_tests discipline.
+#[cfg(test)]
+#[path = "../../test/cli/color_law_tests.rs"]
+mod color_law_tests;
+
 /// Render an error exactly the way [`exit_clap_error`] does (minus
-/// the process::exit), so render-level contracts are testable.
-/// Mirrors the full stderr byte stream: the clap render (which ends
-/// with a bare newline) followed by the bridge's manual footer
-/// append — reproducing clap's canonical "\n\n<footer>\n" tail.
+/// the process::exit and the capability-lane byte choice), so
+/// render-level contracts are testable. Mirrors the full stderr byte
+/// stream in the MONO lane (the lane cargo's test process runs in):
+/// the plain-text clap render (which ends with a bare newline)
+/// followed by the bridge's manual footer append — reproducing clap's
+/// canonical "\n<footer>\n" tail. The colored lanes emit the same
+/// text with clap's ANSI bytes embedded (StyledStr::ansi) — text
+/// identical, so every pin here holds byte-for-byte in all lanes.
 /// Lives here (not in a test file) so both #[path]-wired test
 /// modules reach it through `super::` — one harness, one source of
 /// truth for what the bridge renders.
@@ -496,13 +542,17 @@ fn render_via_bridge(argv: &[&str]) -> String {
     let mut err = Cli::try_parse_from(argv).expect_err("argv must fail to parse");
     let mut cmd = Cli::command();
     let owned: Vec<std::ffi::OsString> = argv.iter().map(std::ffi::OsString::from).collect();
+    // The test process runs in the Mono lane, so the 16-color remap
+    // never fires here — the flag mirrors the bridge's condition and
+    // stays false under cargo test.
+    let remapped_16 = capability() == ColorCapability::Color16;
     let native_usage_narrowed = err.get(ContextKind::SuggestedArg).is_some();
     enrich_unknown_arg_suggestion(&mut err, &cmd);
     enrich_removed_subcommand_redirect(&mut err);
     enrich_subcommand_flag_redirect(&mut err, &cmd);
     drop_hidden_subcommand_suggestions(&mut err, &cmd);
     drop_dishonest_escape_hatch(&mut err, &owned);
-    if native_usage_narrowed || err.get(ContextKind::Usage).is_none() {
+    if remapped_16 || native_usage_narrowed || err.get(ContextKind::Usage).is_none() {
         let failing_token = match err.get(ContextKind::InvalidArg) {
             Some(ContextValue::String(s)) => Some(s.clone()),
             _ => None,

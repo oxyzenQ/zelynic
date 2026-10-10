@@ -37,9 +37,11 @@ fn main() {
         // distinct from clap usage errors, which exit 2 inside
         // cli::ux::exit_clap_error). The line-aware renderer paints the
         // "error:" label bold red and the body red; passive "tip:"
-        // lines render white, while tips that quote a command to run
-        // render green (NIGHT-dinner-12 — the "this is what you type"
-        // tier, so the way out of a red block reads as an action).
+        // lines render grey (NIGHT-improve-73 — the same tier the clap
+        // surface paints its suggestion candidates), while tips that
+        // quote a command to run render green (NIGHT-dinner-12 — the
+        // "this is what you type" tier, so the way out of a red block
+        // reads as an action).
         // NIGHT-hunt-28: the render carries the FULL cause chain —
         // `format!("{e}")` shows only the outermost context, which
         // turned a load failure into a bare "Failed to load BPF
@@ -80,6 +82,16 @@ fn format_error_chain(e: &anyhow::Error) -> String {
 }
 
 fn try_main() -> Result<()> {
+    // NIGHT-improve-73: the forced capability seeds from raw argv
+    // BEFORE the parser runs — a usage error exits through
+    // `cli::ux::exit_clap_error` before the parsed `--color-mode`
+    // field exists, and the clap-rendered error must obey the same
+    // capability ladder as every other surface. The scan mirrors
+    // clap's assignment (last valid occurrence wins, `--` ends the
+    // scan); invalid values never seed here, so `main`'s
+    // authoritative check below still owns the grammar error.
+    cli::argv::seed_forced_color_mode();
+
     // Parse through the branded bridge: usage errors get the
     // case-insensitive typo rescue, the real usage line, clap's brand
     // styles, and the canonical help footer — all with exit 2. The
@@ -97,7 +109,9 @@ fn try_main() -> Result<()> {
     // any output renders — help, errors, and the monitor all answer
     // to one ladder depth. Invalid values die at the input boundary
     // with the allowed grammar, the same exit-2 shape as clap usage
-    // errors.
+    // errors. (The pre-parse scan in cli::argv already set the same
+    // value for the error lane; the OnceLock keeps this authoritative
+    // seed idempotent — NIGHT-improve-73.)
     if let Some(mode) = &cli.color_mode {
         match output::parse_color_mode(mode) {
             Ok(cap) => output::set_forced_capability(cap),

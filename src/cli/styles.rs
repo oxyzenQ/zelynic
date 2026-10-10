@@ -18,6 +18,21 @@
 //! output-layer semantic palette so both surfaces (clap-rendered and
 //! ux-rendered) look identical.
 //!
+//! Ladder obedience (NIGHT-improve-73, the one-color-law contract):
+//! the clap surface used to answer only to clap's own auto color
+//! probe — `--color-mode 0` killed the ux-rendered half of an error
+//! block while the clap-rendered half stayed colored. The bridge in
+//! [`crate::cli::ux`] now renders clap's styled error through the
+//! SAME capability ladder every other surface answers to (plain
+//! render in Mono, escape bytes otherwise), so `--color-mode` governs
+//! both halves from the first byte. Depth honesty per rung: Mono
+//! renders plain; Color16 swaps in [`clap_styles_16`] (clap cannot
+//! speak RGB at a 16-color terminal, and the brand purple would
+//! garble); Color256 and TrueColor ride the RGB raw — the 256 rung
+//! documents clap's closest speakable encoding (RGB rather than the
+//! indexed cube), the same visual hue family the app layer's index
+//! approximates.
+//!
 //! The hunt-39 peak extension (owner approved, the one-line tier
 //! decision): `valid` — the style clap paints SUGGESTION CANDIDATES
 //! with (a similar argument's '--verbose', a similar subcommand's
@@ -41,7 +56,7 @@
 //! attribute resolves unchanged.
 
 use clap::builder::Styles;
-use clap::builder::styling::{Color, Effects, RgbColor, Style};
+use clap::builder::styling::{AnsiColor, Color, Effects, RgbColor, Style};
 
 #[must_use]
 pub(crate) fn clap_styles() -> Styles {
@@ -65,4 +80,39 @@ pub(crate) fn clap_styles() -> Styles {
         )
         .valid(Style::new().fg_color(Some(Color::Rgb(RgbColor(139, 139, 139)))))
         .invalid(Style::new().fg_color(Some(Color::Rgb(RgbColor(255, 235, 60)))))
+}
+
+/// The 16-color rung of the clap brand styles (NIGHT-improve-73).
+///
+/// `--color-mode 16` forces the classic palette for every surface;
+/// the output layer answers with ANSI 16-color escapes (color.rs's
+/// ladder), and this mapping is the clap surface's matching rung —
+/// the same slots in the palette the output layer picks: brand
+/// purple falls to magenta (35), error red to red (31, bold kept),
+/// the valid grey to bright black (90, the palette's only honest
+/// grey), and the invalid yellow to yellow (33). The bridge swaps
+/// these in when the capability ladder reports Color16, so a forced
+/// 16-color terminal never receives RGB bytes from the clap render.
+#[must_use]
+pub(crate) fn clap_styles_16() -> Styles {
+    Styles::styled()
+        .header(
+            Style::new()
+                .effects(Effects::BOLD)
+                .fg_color(Some(Color::Ansi(AnsiColor::Magenta))),
+        )
+        .usage(
+            Style::new()
+                .effects(Effects::BOLD)
+                .fg_color(Some(Color::Ansi(AnsiColor::Magenta))),
+        )
+        .literal(Style::new().effects(Effects::BOLD))
+        .placeholder(Style::new())
+        .error(
+            Style::new()
+                .effects(Effects::BOLD)
+                .fg_color(Some(Color::Ansi(AnsiColor::Red))),
+        )
+        .valid(Style::new().fg_color(Some(Color::Ansi(AnsiColor::BrightBlack))))
+        .invalid(Style::new().fg_color(Some(Color::Ansi(AnsiColor::Yellow))))
 }

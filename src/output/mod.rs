@@ -35,7 +35,8 @@
 //! - Colors are stripped when stderr is not a TTY.
 //!
 //! Every user-facing print goes through the broken-pipe-safe macros
-//! [`println_safe!`] / [`eprintln_safe!`]: Rust ignores SIGPIPE, so a
+//! [`println_safe!`] / [`eprintln_safe!`] / [`eprint_safe!`]: Rust
+//! ignores SIGPIPE, so a
 //! piped reader exiting early (`zelynic --help | head -2`) turns
 //! `println!` into a panic with exit 101. The safe macros discard the
 //! write error instead — the report is truncated at the pipe boundary
@@ -65,10 +66,11 @@ pub(crate) mod chroma;
 // the capability probe (never escapes: it builds its own ramp).
 pub use color::{brand, brand_bold, error, error_bold, ok, ok_bold, suggestion, warn_bold};
 // The capability re-export serves the eagle-eyes border gradient
-// (render/border.rs, ebpf-gated — NIGHT-boost-20): non-ebpf builds
-// have no external consumer and the import must not warn
-// (NIGHT-boost-23 hunt fix).
-#[cfg(feature = "ebpf")]
+// (render/border.rs, ebpf-gated — NIGHT-boost-20) and — since
+// NIGHT-improve-73 — the clap error bridge (cli/ux.rs, every build
+// flavor): the bridge renders clap's styled error through the same
+// capability ladder every other surface answers to, so the type and
+// the probe must be reachable in the dormant lane too.
 pub(crate) use color::{ColorCapability, capability};
 // NIGHT-hunt-35: grey left the eagle-eyes graph — the --help command
 // synopses paint it in every build flavor (half-life included).
@@ -99,6 +101,19 @@ macro_rules! eprintln_safe {
                 let _ = std::io::stderr().write_fmt(format_args!("\n"));
                 let _ = std::io::stderr().flush();
         }};
+}
+
+/// Like `eprint!` but never panics on a broken stderr pipe — and
+/// never appends a newline (NIGHT-improve-73: the clap error bridge
+/// writes clap's already-newline-terminated render through this
+/// macro, so the byte stream matches clap's own `Error::print`
+/// exactly).
+macro_rules! eprint_safe {
+    ($($arg:tt)*) => {{
+            use std::io::Write as _;
+            let _ = std::io::stderr().write_fmt(format_args!($($arg)*));
+            let _ = std::io::stderr().flush();
+    }};
 }
 
 /// Like `println!` but never panics on a broken/closed stdout pipe.

@@ -7,9 +7,12 @@
 //! The owner color contract: errors render as `error: <body>` with a
 //! bold red label and a red body; warnings render as `! <body>` with a
 //! bold yellow label. Suggestion lines embedded anywhere in the block
-//! (`tip:`, `hint:`, did-you-mean, possible-value lists) switch to the
-//! suggestion white semantic so a typo tip never drowns in the error
-//! color it lives inside. In Mono mode everything is plain text.
+//! (`tip:`, `hint:`, did-you-mean, possible-value lists) render in
+//! the calm-grey tier (NIGHT-improve-73, the tip-is-grey call) — the
+//! same #8B8B8B the clap surface paints its `tip:` labels and
+//! suggestion candidates with (cli/styles.rs `valid`), so an
+//! advisory line reads as the same tier on both error surfaces and
+//! never drowns in the error color it lives inside.
 //!
 //! NIGHT-dinner-12 (the owner's green-suggestion call): a tip that
 //! carries a quoted command to RUN (`'zelynic ...`, `'cargo ...`) is
@@ -38,7 +41,7 @@
 //! input class neither covered: the command line itself.
 
 use super::sanitize_comm;
-use super::{error, error_bold, ok, suggestion};
+use super::{error, error_bold, grey, ok};
 #[cfg(feature = "ebpf")]
 use super::{warn, warn_bold};
 
@@ -68,11 +71,11 @@ fn is_suggestion_line(line: &str) -> bool {
 /// in. The status-green "this is what you type" tier (NIGHT-boost-4,
 /// the `--help` example tier) is exactly that semantic, so runnable
 /// tips join it. Passive suggestions — did-you-mean, possible-value
-/// lists, "re-run without sudo" advice — keep the crystal-white
-/// tier: they explain, they do not hand you a command. The quoting
-/// convention (`'zelynic list-apps'`) is the classifier's contract:
-/// every producer that names a command quotes it, so the split stays
-/// mechanical, never guessed from sentence shape.
+/// lists, "re-run without sudo" advice — keep the calm-grey tier
+/// (NIGHT-improve-73): they explain, they do not hand you a command.
+/// The quoting convention (`'zelynic list-apps'`) is the classifier's
+/// contract: every producer that names a command quotes it, so the
+/// split stays mechanical, never guessed from sentence shape.
 fn is_runnable_tip_line(line: &str) -> bool {
     let t = line.trim_start();
     (t.starts_with("tip:") || t.starts_with("hint:"))
@@ -84,7 +87,8 @@ fn is_runnable_tip_line(line: &str) -> bool {
 /// The FIRST line gets `{label} {body}` with the label bold in the
 /// message semantic. Every subsequent line keeps the message color —
 /// EXCEPT suggestion lines (see [`is_suggestion_line`]), which render
-/// in the suggestion (white) semantic, and runnable tips among them
+/// in the calm-grey tier (NIGHT-improve-73, matching the clap
+/// surface's `valid` grey), and runnable tips among them
 /// (see [`is_runnable_tip_line`]), which render in the status-green
 /// "this is what you type" semantic. In Mono mode everything is plain
 /// text.
@@ -109,16 +113,18 @@ fn render_labeled_block(
         ));
     }
     // Subsequent lines: runnable tips go green (this is what you
-    // type), the remaining suggestion lines white, the rest keeps
-    // the message semantic. Classification runs on the RAW line
-    // (the `tip:`/`hint:` prefixes are program-generated text, so
-    // sanitization cannot move a line across tiers).
+    // type), the remaining suggestion lines grey (the clap surface's
+    // valid tier — one advisory tier on both error surfaces,
+    // NIGHT-improve-73), the rest keeps the message semantic.
+    // Classification runs on the RAW line (the `tip:`/`hint:`
+    // prefixes are program-generated text, so sanitization cannot
+    // move a line across tiers).
     for line in lines {
         out.push('\n');
         let styled = if is_runnable_tip_line(line) {
             ok(&sanitize_comm(line))
         } else if is_suggestion_line(line) {
-            suggestion(&sanitize_comm(line))
+            grey(&sanitize_comm(line))
         } else {
             body_wrap(&sanitize_comm(line))
         };
@@ -132,7 +138,7 @@ fn render_labeled_block(
 /// The single exit-adjacent error renderer for runtime failures —
 /// every anyhow message that reaches `main()` flows through here, so
 /// all runtime errors share one branded shape (bold red label, red
-/// body, white tip lines, green runnable tips).
+/// body, grey passive tip lines, green runnable tips).
 pub fn eprintln_error_labeled(msg: &str) {
     eprintln_safe!("{}", render_labeled_block("error:", error_bold, error, msg));
 }
@@ -181,7 +187,7 @@ mod tests {
 
     /// NIGHT-dinner-12: a tip that carries a quoted runnable command
     /// classifies into the green "this is what you type" tier; passive
-    /// tips stay in the white suggestion tier.
+    /// tips stay in the grey suggestion tier (NIGHT-improve-73).
     #[test]
     fn classifies_runnable_tips_apart_from_passive_ones() {
         for line in [
