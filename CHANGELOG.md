@@ -27,6 +27,16 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **docs(readme): NIGHT-dinner-32 — the masthead drops the release
+  badge.** A static version badge is one more surface to keep honest
+  on every bump, and the header does not need it: the version
+  already lives where it cannot rot — the releases page and this
+  changelog. version-to.sh's badge rewrite lane died with the badge
+  (the NEW_VERSION_BADGE dash-escape law and the shields sed are
+  gone, the probe no longer counts the badge pattern); the lane
+  keeps reporting the README's remaining version surfaces honestly
+  either way — NIGHT-hunt-32's contract unchanged. The Ko-fi badge
+  keeps the masthead's purple.
 - **rename(ebpf): NIGHT-badas-1 — the AMMSP innovation is now MMSPA
   (Multi-Micro Sub-Process Aware).** The owner's call, total rename:
   the subtree-aware resolution keeps its identity but speaks the new

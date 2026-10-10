@@ -29,7 +29,7 @@
 # for a version surface and reported honestly either way —
 # NIGHT-hunt-32: the README lane once printed an unconditional
 # "OK README.md -> vN" while the README carried no badge, no release
-# URL, and no Version line for any of the four patterns to match —
+# URL, and no Version line for any pattern to match —
 # a claimed rewrite that never happened)
 # Files auto-derived: scripts/build.sh (reads from Cargo.toml), binary (env!("CARGO_PKG_VERSION"))
 # =============================================================================
@@ -129,21 +129,19 @@ fi
 # --- Update README.md (probed first — NIGHT-hunt-32: the lane once ---
 # --- printed an unconditional OK while the README carried no badge, ---
 # --- no release URL, and no Version line for any pattern to match) ---
-# shields.io escapes a literal dash in badge text as "--": a
-# prerelease version (50.0.0-rc.1) renders correctly only doubled
-# (version-v50.0.0--rc.1). Born with the README release badge
-# (NIGHT-improve-70) — the old single-dash rewrite would have broken
-# the badge on every prerelease bump.
-NEW_VERSION_BADGE="${NEW_VERSION//-/--}"
-README_HITS="$(grep -cE 'version-v[0-9]|releases/download/v[0-9]|zelynic-v[0-9]+\.[0-9]+|^Version: v[0-9]' README.md 2>/dev/null || true)"
+# The badge lane died with the badge (NIGHT-dinner-32: the owner
+# dropped the static release badge from the README header — one
+# less surface to keep honest on every bump). What remains rewrites
+# the surfaces that carry a real version: release/download URLs,
+# versioned tarball names, and Version lines.
+README_HITS="$(grep -cE 'releases/download/v[0-9]|zelynic-v[0-9]+\.[0-9]+|^Version: v[0-9]' README.md 2>/dev/null || true)"
 if [ "${README_HITS:-0}" -gt 0 ]; then
-	sed -i -E "s|version-v[^?]*\\?|version-v${NEW_VERSION_BADGE}-7C3AED?|" README.md
 	sed -i -E "s|releases/download/v[0-9]+\\.[0-9]+\\.[0-9]+|releases/download/v${NEW_VERSION}|g" README.md
 	sed -i -E "s|zelynic-v[0-9]+\\.[0-9]+\\.[0-9]+(-[A-Za-z0-9.]+)?-x86_64|zelynic-v${NEW_VERSION}-x86_64|g" README.md
 	sed -i "s|Version: v.*|Version: v${NEW_VERSION}|" README.md
-	echo -e "  ${GREEN}OK${NC} README.md           → v${NEW_VERSION} (badge + example)"
+	echo -e "  ${GREEN}OK${NC} README.md           → v${NEW_VERSION} (release URLs + versioned examples)"
 else
-	echo -e "  ${YELLOW}!${NC} README.md           → no version surface found (no badge / release URL / Version line) — nothing to rewrite"
+	echo -e "  ${YELLOW}!${NC} README.md           → no version surface found (no release URL / versioned example / Version line) — nothing to rewrite"
 fi
 
 # --- scripts/build.sh reads dynamically from Cargo.toml, no update needed ---
