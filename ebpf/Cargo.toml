@@ -52,6 +52,15 @@ name = "zelynic-ebpf"
 version = "50.0.0"
 edition = "2024"
 publish = false
+# NIGHT-improve-77: metadata hygiene for the detached crate. It is
+# never published (publish = false) and never enters the root
+# crate's rust-version-sync contract, but manifest readers that
+# walk the tree (SBOM generators, license scanners, cargo metadata
+# consumers) deserve the same completeness the files' own SPDX
+# headers already state: GPL-3.0-only, same repository.
+license = "GPL-3.0-only"
+repository = "https://github.com/oxyzenQ/zelynic"
+description = "Pure-Rust eBPF programs (observer, limiter) for zelynic, cross-compiled with aya-ebpf and embedded by the userspace loader."
 
 [dependencies]
 aya-ebpf = "0.2.1"

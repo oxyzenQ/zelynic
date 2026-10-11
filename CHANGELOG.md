@@ -25,6 +25,56 @@ NIGHT-hunt-18's git-history-only call.
 
 ## [Unreleased]
 
+### Added
+
+- **pkg(manifest): NIGHT-improve-77 — the package-metadata
+  masterclass audit.** A depth pass over the `[package]` data in
+  both manifests, measured and verified live, five findings
+  shipped. (1) `documentation = "https://docs.rs/zelynic"` — the
+  docs.rs rustdoc tree is hosted and green (verified live at
+  audit time; the hosted build served was 20.0.0), completing the
+  repository/documentation/readme triad a published crate's peak
+  manifest carries; the version-less base URL always tracks
+  whatever the registry hosts. (2) The category set gains
+  `os::linux-apis` — live-validated slug ("Bindings to
+  Linux-specific APIs", 731 crates in the bucket at validation
+  time, 2026-10-11), the honest registry bucket for a pure-eBPF
+  Linux-only tool whose two keyword peers ("linux", "ebpf")
+  already pointed at the same axis; cosmostrix lineage comment
+  style, 3 of the 5 registry slots used. (3) The NIGHT-hunt-17
+  Pattern C contract is completed across every auto-discovery
+  axis: `autobenches = false` and `autoexamples = false` join
+  `autotests = false` — cargo bench is retired on this repo
+  (build.sh's history note records zero `[[bench]]` targets ever,
+  the real harness is scripts/bench/), no benches/ or examples/
+  directory exists, and a stray directory can never silently
+  become a target the release lane did not vet. (4) NOTICE joins
+  the include allowlist — the one-page license, trademark and
+  forking summary now rides the tarball it summarizes
+  (COMMERCIAL_LICENSE.md, TRADEMARK.md and LICENSE were already
+  shipped; cosmostrix's exclude-mode tarball ships its own NOTICE
+  de-facto), measured live with cargo package: +1 file / +1,214
+  bytes uncompressed, 286 files / 4,045,666 bytes total, zero
+  packaging warnings. (5) ebpf/Cargo.toml's `[package]` gains
+  license, repository and description — the detached crate is
+  never published (publish = false) and stays outside the
+  rust-version-sync contract, but SBOM generators, license
+  scanners and cargo metadata consumers read manifests, and the
+  files' own SPDX headers already state GPL-3.0-only; the
+  manifest now agrees. Verified live: both manifests parse clean
+  (cargo metadata on the root workspace and the detached ebpf
+  workspace), and the A/B binary identity proof — dev build
+  before vs after the edit — produced a byte-identical sha256
+  with cargo declaring the post-edit build fresh, the honest
+  equivalent of the 10-second benchmark for a metadata-only
+  change with zero codegen surface (the runtime lanes, visual
+  and performance, are untouched by construction; the
+  scripts/bench and sandbox lanes stay available for the next
+  code task). Not touched, deliberately: the version (owner
+  decision), the description copy (owner's voice), rust-version
+  1.98 (the gate-10 toolchain-sync contract), the authors field
+  (privacy choice).
+
 ### Fixed
 
 - **fix(cli): NIGHT-improve-73 — one color law for every error
