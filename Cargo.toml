@@ -18,9 +18,27 @@ description = "Per-app network rate limiter and traffic monitor for Linux. Pure 
 authors = ["rezky_nightky (oxyzenQ) <with dot rezky at gmail dot com>"]
 license = "GPL-3.0-only"
 repository = "https://github.com/oxyzenQ/zelynic"
+# NIGHT-improve-77: the docs.rs rustdoc tree is hosted and green
+# (verified live against the registry lane at audit time). The
+# field is the version-less base URL so it always tracks the
+# newest hosted build. Peak-standard manifest completeness for a
+# published crate: crates.io renders it in the sidebar and the
+# API exposes it to every index consumer.
+documentation = "https://docs.rs/zelynic"
 readme = "README.md"
 keywords = ["bandwidth", "network", "rate-limiter", "linux", "ebpf"]
-categories = ["command-line-utilities", "network-programming"]
+# NIGHT-improve-77: discoverability metadata, cosmostrix lineage
+# (that manifest documents its category set the same way). Slugs
+# validated against the live registry API (2026-10-11):
+# - "command-line-utilities": the primary bucket for a terminal
+#   binary.
+# - "network-programming": the eBPF loader/limiter surface.
+# - "os::linux-apis": "Bindings to Linux-specific APIs" — the
+#   honest bucket for a pure-eBPF, Linux-only tool (731 crates in
+#   the bucket at validation time). Was missing while both keyword
+#   peers ("linux", "ebpf") already pointed at the same axis.
+# Registry limit is 5 categories; 3 used.
+categories = ["command-line-utilities", "network-programming", "os::linux-apis"]
 rust-version = "1.98"
 # NIGHT-ask-2: the crates.io ship set (cosmostrix include/exclude
 # lineage; NIGHT-ask-1 opened the lane, this task made it
@@ -78,6 +96,13 @@ include = [
     "rust-toolchain.toml",
     "README.md",
     "LICENSE",
+    # NIGHT-improve-77: NOTICE is the one-page license, trademark
+    # and forking summary a compliance reader asks for first; the
+    # tarball already carries every document it points at
+    # (COMMERCIAL_LICENSE.md, TRADEMARK.md, LICENSE) — the summary
+    # rides with them now. cosmostrix's exclude-mode tarball ships
+    # its NOTICE de-facto; the include lane now matches.
+    "NOTICE",
     "deny.toml",
     "test/**",
     "ebpf-prebuilt/**",
@@ -98,6 +123,16 @@ include = [
 # explicit [[test]] sections below — a stray tests/ directory can
 # never silently re-enable the old layout.
 autotests = false
+# NIGHT-improve-77 completes the same contract for the two
+# remaining auto-discovery axes: autobenches is OFF (cargo bench
+# is retired on this repo — build.sh's history note records zero
+# [[bench]] targets ever; the real harness is scripts/bench/ —
+# and no benches/ directory exists) and autoexamples is OFF (no
+# examples/ directory exists). A stray benches/ or examples/
+# directory can never silently become a target the release lane
+# did not vet.
+autobenches = false
+autoexamples = false
 
 [dependencies]
 # Explicit feature set (cosmostrix contract): std + color + help + usage +

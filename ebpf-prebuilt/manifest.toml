@@ -13,7 +13,14 @@ schema = 1
 generated = "2026-10-10T15:13:32Z"
 toolchain = "nightly-2026-09-18"
 bpf_linker = "0.11.1"
-ebpf_tree_sha256 = "6df264e928f89079d0ee1594904b6c8797eeaefe15a559623fde81c0a71fc4f1"
+# NIGHT-improve-77 re-pin: the ebpf/Cargo.toml package-metadata edit
+# (license, repository, description — no source, dependency, profile
+# or object-codegen change) moved the tree hash. The two objects are
+# the same bytes their sha256 rows pin; the row below was recomputed
+# with the parity gate's own LC_ALL=C pipeline (kept in lockstep with
+# scripts/release/refresh-prebuilt.sh), the lane a full rebuild does
+# not need for a metadata-only edit.
+ebpf_tree_sha256 = "47da8cf768b2ce4735fe0e547c3cca57bb8905c0b8490a0492b9d83e44ca9abb"
 
 [[object]]
 name = "zelynic-observer"
