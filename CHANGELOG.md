@@ -23,6 +23,10 @@ history (entries [1.0.0] through [7.0.0]) is archived in
 — restored there by NIGHT-dinner-15 (2026-09-28), superseding
 NIGHT-hunt-18's git-history-only call.
 
+## [Released]
+
+v80.0.0
+
 ## [Unreleased]
 
 ### Added
