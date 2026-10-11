@@ -553,7 +553,7 @@ slightly easier to maintain.
 - No REST API
 - No non-Linux support
 
-### Stable API (from v50.0.0)
+### Stable API (from v80.0.0)
 
 The CLI surface is frozen. No breaking changes
 to commands, flags, or output format. Future releases focus on:
@@ -562,7 +562,7 @@ to commands, flags, or output format. Future releases focus on:
 - Kernel compatibility updates
 - Performance improvements (internal, no API changes)
 
-### Maintenance Mode (from v50.0.0)
+### Maintenance Mode (from v80.0.0)
 
 > **zelynic marks the beginning of maintenance mode. Future releases
 > prioritize stability, compatibility, performance, and bug fixes over
