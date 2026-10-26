@@ -18,6 +18,35 @@
 # string/math/logic core the limiter's promises are written in; they
 # are exactly where an unsafe-adjacent refactor would first lie.
 #
+# The admission law (the sibling zejtron containment, ported from the
+# zylaxion night-dinner-6 miri incident — night-dragon-maintenance-1):
+# on the sibling, a CI miri run hung past 30 minutes with 93% of its
+# wall clock inside FIVE tests — two full-text README/CHANGELOG
+# doc-assertion scans (~23 minutes interpreted) and three sample-loop
+# render tests (~6 minutes). All five were pure safe code with no
+# pointer/borrow surface: interpreter food, zero UB signal. The
+# audited families are the pointer/alloc/UB surface, NOT the docs
+# lane or a sample-loop stage. A test that full-text scans README/
+# CHANGELOG, burns an unbounded numeric/render loop, or streams
+# sample frames is useless work under an interpreter and must never
+# enter the families below without
+#   #[cfg_attr(miri, ignore = "<the reason>")]
+# (the night-guard-1 pattern) — natively it still runs in every other
+# lane, where ci.yml and the docs gates own the docs assertions and
+# the math loops. zelynic's eight families carry no such test today
+# (verified 2026-10-26, night-dragon-maintenance-1: zero README or
+# CHANGELOG references in the whole test/ tree, no unbounded ranges
+# in the family files); this law is what keeps it true.
+#
+# The measured record the fail-fast cap is sized against: 2026-10-26,
+# nightly 1.101.0-nightly, both lanes (dormant + ebpf), 95 tests,
+# 0 violations, 319.7s (~5.3 min) on an 8-core host — stamp
+# target/miri-stamp, log target/miri-log.txt. The workflow's
+# timeout-minutes carries the sizing story (the ~2.5-4x CI-shape
+# headroom over this record); a future burden test that inflates the
+# run past that boundary fails loudly inside the budget instead of
+# hanging the runner for 30+ minutes.
+#
 # Scope (substring filters against the full test path):
 #   - limiter::during::    the --during grammar, translation, verdict twin
 #   - ebpf::display::      the status table + the ceil countdown pins
