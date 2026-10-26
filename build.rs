@@ -262,13 +262,14 @@ fn stage_registry_prebuilt_objects(manifest_dir: &std::path::Path) {
     // embeds bytes the manifest does not describe (the sibling
     // zejtron build/prebuilt.rs law). The pins are blake3, computed
     // by the std-only build/blake3.rs.
-    let manifest_text = std::fs::read_to_string(prebuilt_dir.join("manifest.toml")).unwrap_or_else(|e| {
-        panic!(
-            "the prebuilt lane's provenance manifest {} is unreadable ({e}) — the \
+    let manifest_text =
+        std::fs::read_to_string(prebuilt_dir.join("manifest.toml")).unwrap_or_else(|e| {
+            panic!(
+                "the prebuilt lane's provenance manifest {} is unreadable ({e}) — the \
              registry tarball is incomplete without it; report this as a packaging bug",
-            prebuilt_dir.join("manifest.toml").display()
-        )
-    });
+                prebuilt_dir.join("manifest.toml").display()
+            )
+        });
     let pins = parse_prebuilt_manifest(&manifest_text);
     for name in ["zelynic-observer", "zelynic-limiter"] {
         let data = read_validated_ebpf_object(&prebuilt_dir.join(name)).unwrap_or_else(|problem| {
@@ -372,7 +373,10 @@ fn check_prebuilt_lane_freshness(manifest_dir: &std::path::Path) {
     if !digest_tool {
         return;
     }
-    let verdict = std::process::Command::new("bash").arg(&script).arg("--check").output();
+    let verdict = std::process::Command::new("bash")
+        .arg(&script)
+        .arg("--check")
+        .output();
     let Ok(out) = verdict else {
         return;
     };
@@ -589,18 +593,18 @@ mod blake3;
 mod flags;
 #[path = "build/identity.rs"]
 mod identity;
-#[path = "build/preflight.rs"]
-mod preflight;
 #[path = "build/prebuilt.rs"]
 mod prebuilt;
+#[path = "build/preflight.rs"]
+mod preflight;
 #[path = "build/validate.rs"]
 mod validate;
 #[path = "build/vcs.rs"]
 mod vcs;
 
 use flags::{force_bpf_v3_rustflags, strip_host_poison_rustflags};
-use preflight::preflight_ebpf_prerequisites;
 use prebuilt::{parse_prebuilt_manifest, verify_prebuilt_bytes};
+use preflight::preflight_ebpf_prerequisites;
 use validate::read_validated_ebpf_object;
 use vcs::{env_short_sha, git_short_sha, packaged_vcs_sha};
 
