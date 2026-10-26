@@ -128,6 +128,13 @@ command -v rustup >/dev/null 2>&1 || die "rustup is not installed — get it fro
 EBPF_TOOLCHAIN="$(sed -n 's/^[[:space:]]*channel[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "${TOOLCHAIN_FILE}" | head -n 1)"
 [[ -n "${EBPF_TOOLCHAIN}" ]] || die "could not read the toolchain channel from ${TOOLCHAIN_FILE}."
 
+# The prebuilt lane's digest tool (night-dragon-maintenance-0): the
+# manifest's pins are blake3, the reference b3sum binary is the
+# writer-side implementation, and refresh-prebuilt.sh plus the parity
+# gate refuse to answer without it — so the bootstrap installs it
+# beside the build pair, the one-command fix their error messages name.
+B3SUM_VERSION="1.8.7"
+
 # ── Status probes (no side effects) ────────────────────────────────────────
 # TOOLCHAIN_OK: the pin appears in `rustup toolchain list`. rustup prints
 # one "<name>-<host-triple>" line per installed toolchain, so the probe
@@ -138,6 +145,7 @@ COMPONENTS_OK=false
 LINKER_OK=false
 LINKER_RESOLVED=""
 LINKER_VERSION_REPORTED=""
+B3SUM_OK=false
 
 probe_all() {
 	TOOLCHAIN_OK=false
@@ -194,6 +202,13 @@ probe_all() {
 	if [[ "${LINKER_VERSION_REPORTED}" == *"${BPF_LINKER_VERSION}"* ]]; then
 		LINKER_OK=true
 	fi
+
+	B3SUM_OK=false
+	local b3sum_report
+	b3sum_report="$(b3sum --version 2>/dev/null || true)"
+	if [[ "${b3sum_report}" == *"${B3SUM_VERSION}"* ]]; then
+		B3SUM_OK=true
+	fi
 }
 
 report() {
@@ -212,6 +227,11 @@ report() {
 		warn "bpf-linker: ${LINKER_RESOLVED} reports '${LINKER_VERSION_REPORTED}', expected ${BPF_LINKER_VERSION}"
 	else
 		warn "bpf-linker: not on PATH"
+	fi
+	if [[ "${B3SUM_OK}" == true ]]; then
+		ok "b3sum ${B3SUM_VERSION}: on PATH (the prebuilt lane's digest tool)"
+	else
+		warn "b3sum ${B3SUM_VERSION}: not on PATH (the prebuilt lane's digest tool)"
 	fi
 }
 
@@ -364,6 +384,12 @@ if [[ "${LINKER_OK}" != true ]]; then
 	CHANGED=true
 fi
 
+if [[ "${B3SUM_OK}" != true ]]; then
+	ok "installing b3sum ${B3SUM_VERSION} (cargo install --locked, the prebuilt lane's digest tool)..."
+	cargo install b3sum --version "${B3SUM_VERSION}" --locked
+	CHANGED=true
+fi
+
 # ── Re-probe: verify what changed, then trust it ──────────────────────────
 # Only when something changed — an unchanged run keeps its one
 # report (the first probe above already spoke).
@@ -375,6 +401,9 @@ if [[ "${CHANGED}" == true ]]; then
 	fi
 	if [[ "${LINKER_OK}" != true ]]; then
 		die "bpf-linker is still not resolvable at version ${BPF_LINKER_VERSION} — see the messages above."
+	fi
+	if [[ "${B3SUM_OK}" != true ]]; then
+		die "b3sum is still not resolvable at version ${B3SUM_VERSION} — see the messages above."
 	fi
 fi
 

@@ -3,7 +3,9 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # OS: Linux only — zelynic is a Linux eBPF tool; no other OS is supported.
 #
-# ZELYNIC PREBUILT eBPF PARITY CHECK (NIGHT-ask-2)
+# ZELYNIC PREBUILT eBPF PARITY CHECK (NIGHT-ask-2, refreshed by
+# night-dragon-maintenance-0 — the digest algorithm is blake3,
+# upgraded from sha256)
 #
 # Guards the ebpf-prebuilt/ lane — the two maintainer-built objects
 # that make `cargo install zelynic` land the full-featured binary on
@@ -16,9 +18,9 @@
 #      minimum size). A missing or truncated object would make the
 #      registry lane's build.rs panic on every `cargo install`.
 #   2. Every manifest [[object]] row matches the file on disk
-#      (sha256 + size). A tampered or partially refreshed directory
+#      (blake3 + size). A tampered or partially refreshed directory
 #      fails here instead of shipping an unaccounted artifact.
-#   3. The manifest's ebpf_tree_sha256 equals the sha256 over the
+#   3. The manifest's ebpf_tree_blake3 equals the blake3 over the
 #      byte-order-sorted git-tracked ebpf/ file hashes — the
 #      STALENESS killer: any change under ebpf/ (sources, locks,
 #      pins, target spec) changes the tree hash, and the gate fails
@@ -42,9 +44,14 @@
 # check-release-parity.sh: pin what is deterministic, document what
 # is not.
 #
-# The manifest is generator-controlled (refresh-prebuilt.sh writes a
-# flat-key header plus one [[object]] block per object), so parsing is
-# deliberately simple awk over that exact shape.
+# The manifest is generator-controlled (refresh-prebuilt.sh — the ONE
+# WRITER of the lane — writes a flat-key header plus one [[object]]
+# block per object), so parsing is deliberately simple awk over that
+# exact shape. The digest tool is the reference b3sum binary
+# (crates.io b3sum, installed at the pinned version by
+# scripts/dev/bootstrap-ebpf.sh); build/blake3.rs is the reader-side
+# implementation and the standalone build suite pins the two to the
+# same vectors.
 #
 # Usage: bash scripts/gates/check-prebuilt-parity.sh
 set -euo pipefail
@@ -52,9 +59,26 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 
+# The install locations are not on PATH in every invocation context
+# (the pre-commit hook runs non-login shells): the bootstrap installs
+# b3sum into ~/.cargo/bin, so prepend the known homes before probing.
+for bin_dir in "${HOME}/.cargo/bin" "${HOME}/.local/bin"; do
+	[ -d "${bin_dir}" ] && PATH="${bin_dir}:${PATH}"
+done
+export PATH
+
 PREBUILT_DIR="ebpf-prebuilt"
 MANIFEST="${PREBUILT_DIR}/manifest.toml"
 FAILED=0
+
+# The digest tool probe (fail closed, the fix named): every pin this
+# gate recomputes is a blake3, so without the reference b3sum the
+# verdict cannot even exist.
+if ! b3sum --version >/dev/null 2>&1; then
+	echo "FAIL: the digest tool b3sum is not on PATH — the prebuilt lane's pins are blake3 (night-dragon-maintenance-0)." >&2
+	echo "      One command: ./scripts/dev/bootstrap-ebpf.sh (installs the toolchain pair plus the pinned b3sum)" >&2
+	exit 1
+fi
 
 fail() {
 	echo "FAIL: $*"
@@ -65,7 +89,7 @@ pass() {
 	echo "PASS: $*"
 }
 
-# sha256 over the byte-order-sorted git-tracked ebpf/ file hashes.
+# blake3 over the byte-order-sorted git-tracked ebpf/ file hashes.
 # The LC_ALL=C pin is load-bearing (the NIGHT-hunt-Z6 find, the
 # 779907d shape): a bare `sort -z` follows the invoking shell's
 # collation, and a UTF-8 desktop locale reorders the very list a C
@@ -76,15 +100,18 @@ pass() {
 # maintainer's host passed every local gate against a manifest CI's
 # clean checkout refused on this row alone. LC_ALL=C makes the pin
 # deterministic on every Linux, the property this header always
-# claimed. Kept in lockstep with
-# scripts/gates/../release/refresh-prebuilt.sh (which ends every
-# generation by running THIS gate, so the two implementations
-# cannot drift apart silently).
-ebpf_tree_sha() {
+# claimed. The hashed listing carries each file's path, so a
+# content-preserving rename under ebpf/ still stales the pin (the
+# pin describes the tree, not just its content multiset), and the
+# NUL-separated -z pipeline is locale-proof and newline-proof by
+# construction. Kept in lockstep with scripts/release/refresh-prebuilt.sh
+# (which ends every generation by running THIS gate, so the two
+# implementations cannot drift apart silently).
+ebpf_tree_blake3() {
 	git ls-files -z -- ebpf/ |
 		LC_ALL=C sort -z |
-		xargs -0 -r sha256sum |
-		sha256sum |
+		xargs -0 -r b3sum |
+		b3sum |
 		awk '{print $1}'
 }
 
@@ -144,7 +171,7 @@ done
 
 # ── 2. every manifest row matches the file on disk ───────────────
 if [ -f "$MANIFEST" ]; then
-	# One line per [[object]] block: "name sha256 size"
+	# One line per [[object]] block: "name blake3 size"
 	while read -r name want_sha want_size; do
 		[ -n "$name" ] || continue
 		file="${PREBUILT_DIR}/${name}"
@@ -152,14 +179,14 @@ if [ -f "$MANIFEST" ]; then
 			fail "manifest names ${name} but the file is absent"
 			continue
 		fi
-		got_sha="$(sha256sum "$file" | awk '{print $1}')"
+		got_sha="$(b3sum "$file" | awk '{print $1}')"
 		got_size="$(stat -c%s "$file")"
 		if [ "$got_sha" != "$want_sha" ]; then
-			fail "${name} sha256 drift: manifest ${want_sha}, disk ${got_sha}"
+			fail "${name} blake3 drift: manifest ${want_sha}, disk ${got_sha}"
 		elif [ "$got_size" != "$want_size" ]; then
 			fail "${name} size drift: manifest ${want_size}, disk ${got_size}"
 		else
-			pass "${name} matches its manifest row (sha256 + size)"
+			pass "${name} matches its manifest row (blake3 + size)"
 		fi
 	done < <(
 		awk '
@@ -168,17 +195,17 @@ if [ -f "$MANIFEST" ]; then
                                 name = ""; sha = ""; size = ""
                         }
                         /^name = / { gsub(/"/, "", $3); name = $3 }
-                        /^sha256 = / { gsub(/"/, "", $3); sha = $3 }
+                        /^blake3 = / { gsub(/"/, "", $3); sha = $3 }
                         /^size = / { size = $3 }
                         END { if (name != "") print name, sha, size }
                 ' "$MANIFEST"
 	)
 
 	# ── 3. the manifest's tree pin equals the live ebpf/ tree ──────
-	want_tree="$(awk -F'"' '/^ebpf_tree_sha256 = /{print $2}' "$MANIFEST")"
-	got_tree="$(ebpf_tree_sha)"
+	want_tree="$(awk -F'"' '/^ebpf_tree_blake3 = /{print $2}' "$MANIFEST")"
+	got_tree="$(ebpf_tree_blake3)"
 	if [ -z "$want_tree" ]; then
-		fail "manifest carries no ebpf_tree_sha256 — regenerate with ./scripts/release/refresh-prebuilt.sh"
+		fail "manifest carries no ebpf_tree_blake3 — regenerate with ./scripts/release/refresh-prebuilt.sh"
 	elif [ "$want_tree" != "$got_tree" ]; then
 		fail "ebpf/ changed after the prebuilt lane was generated (tree ${got_tree} vs manifest ${want_tree}) — run ./scripts/release/refresh-prebuilt.sh and commit ebpf-prebuilt/. A locally MODIFIED tracked file under ebpf/ trips this too (a local pro build rewriting ebpf/Cargo.lock is the known shape): git status -- ebpf/ shows the churn — restore it before refreshing, or the refresh pins the churn"
 	else

@@ -83,8 +83,9 @@
 #  18.  Prebuilt eBPF parity (NIGHT-ask-2 —
 #       scripts/gates/check-prebuilt-parity.sh: the ebpf-prebuilt/
 #       objects that make `cargo install zelynic` full-featured stay
-#       sane ELFs, match their manifest.toml rows (sha256 + size),
-#       and pin the live ebpf/ tree hash — any change under ebpf/
+#       sane ELFs, match their manifest.toml rows (blake3 + size,
+#       night-dragon-maintenance-0), and pin the live ebpf/ tree
+#       hash — any change under ebpf/
 #       fails here until scripts/release/refresh-prebuilt.sh
 #       regenerates the lane, so the registry tarball can never ship
 #       objects that silently fell behind the sources they claim to
