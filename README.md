@@ -823,3 +823,5 @@ commercial use (see [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md)).
   If you find a discrepancy, please open a PR — the doc is wrong, not
   the source.
 -->
+
+<p align="center"><sub>built with curiosity</sub></p>
