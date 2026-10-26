@@ -472,6 +472,8 @@ fn format_unix_secs_as_build_time(total_secs: i64) -> String {
 // The split modules (NIGHT-improve-31's plan, NIGHT-improve-44's
 // execution) — #[path] keeps them inside this crate root with zero
 // new dependencies.
+#[path = "build/blake3.rs"]
+mod blake3;
 #[path = "build/flags.rs"]
 mod flags;
 #[path = "build/identity.rs"]
