@@ -72,7 +72,7 @@ warns 30 days before any subkey lapses.
 | File | Algorithm | Family | Quantum-safe? |
 |------|-----------|--------|---------------|
 | `*.sha512sum` | SHA-512 | SHA-2 | 256-bit (borderline) |
-| `*.b2sum` | BLAKE2b-512 | BLAKE2 | 256-bit |
+| `*.b3sum` | BLAKE3 | BLAKE3 | 128-bit |
 | `*.shake256` | SHAKE256 | SHA-3 XOF (NIST PQ) | 256-bit |
 
 ### How to verify
@@ -84,8 +84,8 @@ mismatch). No manual hash comparison needed.
 # Classical (universal, every Linux has this)
 sha512sum -c project-vX.Y.Z-linux-amd64-v3-gnu.tar.gz.sha512sum
 
-# Quantum-resistant — BLAKE2b (fastest, in coreutils)
-b2sum -c project-vX.Y.Z-linux-amd64-v3-gnu.tar.gz.b2sum
+# The fast modern lane — BLAKE3 (the official b3sum utility)
+b3sum -c project-vX.Y.Z-linux-amd64-v3-gnu.tar.gz.b3sum
 
 # Quantum-resistant — SHAKE256 (NIST PQ standard, via Python)
 # openssl's -shake256 default output length varies by version/distro;
@@ -115,7 +115,7 @@ The verification flow is identical for all four.
   files on a mirror cannot forge the `.asc`.
 - **Checksums** prove the artifact was not corrupted during download
   (integrity).
-- **Three hash families** (SHA-2, BLAKE2, SHA-3) provide defense in
+- **Three hash families** (SHA-2, BLAKE3, SHA-3) provide defense in
 depth — a future cryptanalytic break of any single family does not
 invalidate verification via the other two.
 
@@ -286,12 +286,17 @@ against the live registry API). The first publish creates it.
 ## Verification tools required
 
 - `sha512sum` — GNU coreutils (preinstalled on every Linux)
-- `b2sum` — GNU coreutils ≥ 8.x (preinstalled on modern distros)
+- `b3sum` — the official BLAKE3 utility (not in coreutils):
+  Debian 13+ and Ubuntu 24.04+ ship it as the `b3sum` package
+  (`apt install b3sum`); anywhere with a Rust toolchain,
+  `cargo install b3sum` builds the same binary
 - `gpg` — GnuPG 2.x (preinstalled on every major distro; the GPG
   check in section 1 needs it, the checksum checks do not)
 
 All three tools ship with Arch Linux, Debian, Ubuntu, Fedora, Alpine,
-and macOS by default — no extra install needed.
+and macOS by default — the one exception is `b3sum`, a one-package
+install where it is missing (see above); no other extra install
+needed.
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

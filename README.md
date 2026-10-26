@@ -179,7 +179,7 @@ file, so there is nothing else to clean (no /usr/lib payload, no
 service, no man page). Building from source keeps the richer
 `scripts/package/install.sh` / `uninstall.sh` flow in the repo.
 
-Each release tarball carries three checksums (SHA-512 + BLAKE2b-512 +
+Each release tarball carries three checksums (SHA-512 + BLAKE3 +
 SHAKE256) and a detached GPG signature from the maintainer's
 published key. Verify before installing — the one-liners live in
 [Release Verification](#release-verification) below and in
@@ -694,8 +694,8 @@ is the same verdict these commands produce locally.
 ## Release Verification
 
 Each release ships a **detached GPG signature** per archive plus three
-checksums: classical SHA-512 + quantum-resistant BLAKE2b-512 +
-SHAKE256. The authenticity check is one command —
+checksums: classical SHA-512 + fast-modern BLAKE3 +
+quantum-resistant SHAKE256. The authenticity check is one command —
 
 ```bash
 # one-time: import the maintainer's published signing key

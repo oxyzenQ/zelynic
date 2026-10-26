@@ -74,7 +74,7 @@ evidence rather than opinion. The naming convention is
 
 | Doc | Covers |
 |-----|--------|
-| [VERIFY_RELEASE.md](VERIFY_RELEASE.md) | Checksums (SHA-512 / BLAKE2b / SHAKE256), GPG verification, the crates.io lane, owner publish procedures |
+| [VERIFY_RELEASE.md](VERIFY_RELEASE.md) | Checksums (SHA-512 / BLAKE3 / SHAKE256), GPG verification, the crates.io lane, owner publish procedures |
 | [MAINTENANCE.md](MAINTENANCE.md) | Owner playbook: secret inventory, key rotation, release recovery, gate refresh cadence |
 
 ## Audits
