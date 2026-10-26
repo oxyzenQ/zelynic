@@ -198,8 +198,8 @@ the same date as this execution — no source moved in between.
 **Superseded 2026-09-30 (NIGHT-dinner-25):** the owner lifted the
 business end of the ladder again — Business $2,199/year, Company
 $20,199/year; Individual still holds at $99/year. The rationale
-this time is the owner's, not the comparables': zelynic is a
-masterpiece, and its value increases year by year — the price
+this time is the owner's, not the comparables': zelynic's
+value increases year by year — the price
 follows the value. This section stays as the 2026-09-28 decision
 record; the current price list lives in
 [COMMERCIAL_LICENSE.md](../../COMMERCIAL_LICENSE.md).
@@ -207,7 +207,7 @@ record; the current price list lives in
 **Superseded again 2026-10-10 (NIGHT-dinner-31):** the owner
 lifted the business end once more — Business $5,199/year,
 Company $110,199/year; Individual still holds at $99/year. Same
-rationale, compounding: zelynic is a masterpiece, its value
+rationale, compounding: zelynic's value
 increases year by year, and the price keeps tracking the value
 upward. Grandfathering unchanged — buyers who paid before any
 move keep the price they paid, for the term they bought. The
