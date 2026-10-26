@@ -141,6 +141,12 @@ fn build_ebpf_objects() {
         return;
     }
 
+    // night-dragon-maintenance-0: the build-time arm of the freshness
+    // contract — announce a lane that no longer describes its sources
+    // (advisory; the commit gate is the enforcement arm — see the
+    // function's doc comment for why this arm does not rewrite).
+    check_prebuilt_lane_freshness(&manifest_dir);
+
     // NIGHT-host-1: preflight the two host prerequisites BEFORE the
     // nested build, so a failure names the exact missing piece and
     // the one-command fix (scripts/dev/bootstrap-ebpf.sh) instead of
@@ -250,6 +256,20 @@ fn stage_registry_prebuilt_objects(manifest_dir: &std::path::Path) {
     // so refreshing the prebuilt lane must not rebuild such trees.
     println!("cargo:rerun-if-changed={}", prebuilt_dir.display());
     let out_dir = std::path::PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR"));
+    // night-dragon-maintenance-0: the manifest pins are verified
+    // against the staged bytes BEFORE anything is embedded — a stale
+    // or tampered lane panics naming both hashes, never silently
+    // embeds bytes the manifest does not describe (the sibling
+    // zejtron build/prebuilt.rs law). The pins are blake3, computed
+    // by the std-only build/blake3.rs.
+    let manifest_text = std::fs::read_to_string(prebuilt_dir.join("manifest.toml")).unwrap_or_else(|e| {
+        panic!(
+            "the prebuilt lane's provenance manifest {} is unreadable ({e}) — the \
+             registry tarball is incomplete without it; report this as a packaging bug",
+            prebuilt_dir.join("manifest.toml").display()
+        )
+    });
+    let pins = parse_prebuilt_manifest(&manifest_text);
     for name in ["zelynic-observer", "zelynic-limiter"] {
         let data = read_validated_ebpf_object(&prebuilt_dir.join(name)).unwrap_or_else(|problem| {
             panic!(
@@ -264,6 +284,22 @@ fn stage_registry_prebuilt_objects(manifest_dir: &std::path::Path) {
                  — see docs/VERIFY_RELEASE.md for both channels"
             )
         });
+        let pin = pins.iter().find(|row| row.name == name).unwrap_or_else(|| {
+            panic!(
+                "the prebuilt lane's manifest.toml carries no parsable [[object]] row for \
+                 {name} (name/blake3/size) — the manifest is generator-controlled by \
+                 scripts/release/refresh-prebuilt.sh; a hand-edited or truncated \
+                 manifest is a broken lane, and the build refuses it by name"
+            )
+        });
+        verify_prebuilt_bytes(&data, pin).unwrap_or_else(|drift| {
+            panic!(
+                "the prebuilt eBPF lane is stale: {drift}. The bytes on disk are not the \
+                 bytes the manifest pins — regenerate the lane with \
+                 ./scripts/release/refresh-prebuilt.sh before building; embedding \
+                 unverified bytes is never an option"
+            )
+        });
         let dst = out_dir.join(name);
         std::fs::write(&dst, &data)
             .unwrap_or_else(|e| panic!("failed to stage {} into OUT_DIR: {e}", dst.display()));
@@ -273,6 +309,81 @@ fn stage_registry_prebuilt_objects(manifest_dir: &std::path::Path) {
     // (source tree pin, toolchain, linker) rides the shipped
     // ebpf-prebuilt/manifest.toml.
     println!("cargo:rustc-env=ZELYNIC_EBPF_LANE=registry-prebuilt");
+}
+
+/// The build-time arm of the prebuilt-lane freshness contract
+/// (night-dragon-maintenance-0, the sibling zejtron
+/// auto_heal_prebuilt_lane shape, adapted honestly to this repo's
+/// laws): any edit under ebpf/ stales the manifest's tree pin, and
+/// every ebpf-feature build on a git checkout announces it — a
+/// production alias (`cargo pro-linux-amd64-v3-gnu` and siblings) or
+/// a plain `cargo build` never silently builds against a lane that
+/// no longer describes its sources.
+///
+/// Advisory by construction, for a zelynic-specific reason: the
+/// sibling's writer builds the object NESTED (its own target
+/// directory), so its build-time heal can run the full rewrite from
+/// inside build.rs; zelynic's writer deliberately routes through the
+/// ROOT pipeline (`cargo build --release --locked --features ebpf` —
+/// the NIGHT-ask-2 single-source-of-build-truth law), and that root
+/// build already holds cargo's target/ lock while this build script
+/// runs — an in-build rewrite would deadlock on its own rebuild.
+/// The commit gate (scripts/gates/check-commit-gate.sh) is the
+/// enforcement arm: it auto-heals the stale lane through the one
+/// writer and stages the refresh into the commit, so "edit ebpf/,
+/// commit" carries a fresh lane with no manual step.
+///
+/// In-sync lanes pay one script spawn (a verdict over a few small
+/// hashes) per build; the verdict is skipped entirely on registry
+/// extracts and packaged copies (no writer, no .git) and under the
+/// ZELYNIC_SKIP_PREBUILT_REGEN escape hatch, shared with the commit
+/// gate.
+fn check_prebuilt_lane_freshness(manifest_dir: &std::path::Path) {
+    let script = manifest_dir.join("scripts/release/refresh-prebuilt.sh");
+    if !script.is_file() || !manifest_dir.join(".git").exists() {
+        return;
+    }
+    if std::env::var_os("ZELYNIC_SKIP_PREBUILT_REGEN").is_some() {
+        return;
+    }
+    // The digest tool probe: the regenerator refuses to answer without
+    // its pinned b3sum (its own gate exits before any verdict), and a
+    // missing tool is NOT a stale lane — the distinction matters
+    // because the warning says "stale". On a host without the tool
+    // (a miri runner, a fresh contributor checkout) the check is a
+    // silent no-op: this build embeds the SOURCE-BUILT objects and
+    // needs nothing from the lane, and the commit gate is the hard
+    // stop that names the fix. The two install dirs are probed
+    // explicitly because the build-script env does not always carry
+    // them on PATH (the pre-commit-hook lesson).
+    let mut b3sum_candidates: Vec<std::path::PathBuf> = vec![std::path::PathBuf::from("b3sum")];
+    if let Ok(home) = std::env::var("HOME") {
+        let home = std::path::PathBuf::from(home);
+        b3sum_candidates.push(home.join(".cargo/bin/b3sum"));
+        b3sum_candidates.push(home.join(".local/bin/b3sum"));
+    }
+    let digest_tool = b3sum_candidates.iter().any(|candidate| {
+        std::process::Command::new(candidate)
+            .arg("--version")
+            .output()
+            .map(|out| out.status.success())
+            .unwrap_or(false)
+    });
+    if !digest_tool {
+        return;
+    }
+    let verdict = std::process::Command::new("bash").arg(&script).arg("--check").output();
+    let Ok(out) = verdict else {
+        return;
+    };
+    if out.status.success() {
+        return;
+    }
+    println!(
+        "cargo:warning=zelynic: the ebpf-prebuilt lane is stale (an edit under ebpf/); \
+         the commit gate will regenerate it through the one writer at commit time, \
+         or run ./scripts/release/refresh-prebuilt.sh now"
+    );
 }
 
 /// The nested eBPF cross-build invocation, factored out of
@@ -480,6 +591,8 @@ mod flags;
 mod identity;
 #[path = "build/preflight.rs"]
 mod preflight;
+#[path = "build/prebuilt.rs"]
+mod prebuilt;
 #[path = "build/validate.rs"]
 mod validate;
 #[path = "build/vcs.rs"]
@@ -487,6 +600,7 @@ mod vcs;
 
 use flags::{force_bpf_v3_rustflags, strip_host_poison_rustflags};
 use preflight::preflight_ebpf_prerequisites;
+use prebuilt::{parse_prebuilt_manifest, verify_prebuilt_bytes};
 use validate::read_validated_ebpf_object;
 use vcs::{env_short_sha, git_short_sha, packaged_vcs_sha};
 

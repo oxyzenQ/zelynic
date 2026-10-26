@@ -23,9 +23,11 @@
 //
 // The suite below is the only thing that executes these vectors —
 // `cargo test` never runs build-script tests; the standing runner is:
-//   rustc --edition 2021 --test build.rs -o /tmp/zelynic-build-test
-//     && /tmp/zelynic-build-test
-// The vectors were hashed with the reference b3sum 1.8.7 binary as
+//   rustc --edition 2021 --test build/blake3.rs && ./blake3
+// (the module is std-only and self-contained, so it compiles alone
+// under the 2021 edition the wider build.rs outgrew — the root file
+// itself needs the crate's 2024 edition). The vectors were hashed
+// with the reference b3sum 1.8.7 binary as
 // the ground truth (crates.io b3sum, --locked), on deterministic
 // inputs ('a' repeated) so the suite can rebuild every input byte
 // exactly: the set walks every structural boundary the tree has —
