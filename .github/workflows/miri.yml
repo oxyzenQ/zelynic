@@ -99,6 +99,19 @@ jobs:
   miri:
     name: Dragon Guard - Miri UB verification (8 pure-Rust families, both lanes)
     runs-on: ubuntu-24.04
+    # The fail-fast cap (night-dragon-maintenance-1, the sibling
+    # zejtron night-dinner-6 containment law): sized against the
+    # measured record, not inherited — 2026-10-26 measured both lanes
+    # (dormant + ebpf, 95 tests, 0 violations) at ~5.3 min interpreted
+    # on an 8-core host; a 2-core runner compiles the same graph
+    # ~2-3x slower, so the CI-shape estimate is ~10-16 min and 40 is
+    # the ~2.5-4x boundary. Not a speed claim — the line a future
+    # burden test (a docs full-text scan, an unbounded render loop —
+    # the sibling's 33-minute hang shape) dies loudly against
+    # instead of hanging the runner. The admission law that keeps
+    # such tests out of the audited families lives in
+    # scripts/lib/miri.sh's header; the escape hatch for a genuine
+    # whole-suite probe is `./scripts/build.sh miri --full` (local).
     timeout-minutes: 40
 
     steps:
