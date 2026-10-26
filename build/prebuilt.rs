@@ -47,18 +47,13 @@ pub(crate) fn parse_prebuilt_manifest(text: &str) -> Vec<PrebuiltPin> {
     let mut name: Option<String> = None;
     let mut blake3: Option<String> = None;
     let mut size: Option<u64> = None;
-    let mut flush =
-        |name: &mut Option<String>, blake3: &mut Option<String>, size: &mut Option<u64>| {
-            if let (Some(name), Some(blake3), Some(size)) =
-                (name.take(), blake3.take(), size.take())
-            {
-                rows.push(PrebuiltPin {
-                    name,
-                    blake3,
-                    size,
-                });
-            }
-        };
+    let mut flush = |name: &mut Option<String>,
+                     blake3: &mut Option<String>,
+                     size: &mut Option<u64>| {
+        if let (Some(name), Some(blake3), Some(size)) = (name.take(), blake3.take(), size.take()) {
+            rows.push(PrebuiltPin { name, blake3, size });
+        }
+    };
     for line in text.lines() {
         let line = line.trim_start();
         if line.starts_with("[[object]]") {
