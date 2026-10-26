@@ -168,6 +168,22 @@ pub fn print_json<T: serde::Serialize + ?Sized>(value: &T) {
     let _ = out.flush();
 }
 
+/// One labeled field row of a banner report
+/// (night-dragon-maintenance-1, the masterclass UX-consistency
+/// law): the doctor's geometry — a two-space indent and the
+/// label (colon included) left-padded so the value column
+/// always starts at column 14. Every banner field surface
+/// (doctor, recover, update check, the pin block) renders
+/// through this primitive instead of hand-aligned literals,
+/// so the four surfaces can never drift apart silently, and a
+/// future label longer than the column degrades gracefully
+/// (one space after the longest label, never swallowed
+/// whitespace).
+#[must_use]
+pub fn field(label: &str, value: &str) -> String {
+    format!("  {:<11} {}", label, value)
+}
+
 /// The signature footer (NIGHT-boost-5; simplified by
 /// NIGHT-boost-19): the build stamp every flagship surface signs its
 /// work with — `zelynic status` prints it under the table, the
@@ -190,6 +206,9 @@ pub fn signature_footer() -> String {
     ))
 }
 
+#[cfg(test)]
+#[path = "../../test/output/field_tests.rs"]
+mod field_tests;
 mod labeled;
 mod sanitize;
 // The width discipline's consumers (render tree, border, list-apps)

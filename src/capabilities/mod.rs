@@ -269,7 +269,7 @@ pub fn run_doctor(json: bool) -> Result<()> {
 }
 
 fn print_report(report: &CapabilityReport) {
-    use crate::output::{brand_bold, error_bold, ok_bold, warn_bold};
+    use crate::output::{brand_bold, error_bold, field, ok_bold, warn_bold};
 
     println_safe!("{}", brand_bold("━━━ zelynic eBPF Capability Doctor ━━━"));
     println_safe!();
@@ -291,7 +291,7 @@ fn print_report(report: &CapabilityReport) {
             report.ebpf_lane
         )
     };
-    println_safe!("  Build:      {}", flavor_line);
+    println_safe!("{}", field("Build:", &flavor_line));
     // night-improve-66: the BUILD block the doctor was missing — the
     // cosmostrix diagnostics completeness (version, git_sha, variant,
     // rustc, profile) in zelynic's lean single-column shape, rendered
@@ -302,46 +302,58 @@ fn print_report(report: &CapabilityReport) {
     // absence: a deserialized pre-improve-66 report skips the block
     // instead of fabricating one.
     if let Some(build) = &report.build {
-        println_safe!("  Version:    v{}", build.version);
-        println_safe!("  Commit:     {}", build.git_sha);
-        println_safe!("  Variant:    {}", build.variant);
-        println_safe!("  Built:      {}", build.build_time);
-        println_safe!("  Rustc:      {}", build.rustc_version);
-        println_safe!("  Profile:    {}", build.profile);
+        println_safe!("{}", field("Version:", &format!("v{}", build.version)));
+        println_safe!("{}", field("Commit:", &build.git_sha));
+        println_safe!("{}", field("Variant:", &build.variant));
+        println_safe!("{}", field("Built:", &build.build_time));
+        println_safe!("{}", field("Rustc:", &build.rustc_version));
+        println_safe!("{}", field("Profile:", &build.profile));
     }
     println_safe!();
-    println_safe!("  Kernel:     {}", report.system.kernel);
+    println_safe!("{}", field("Kernel:", &report.system.kernel));
     println_safe!(
-        "  cgroup v2:  {}",
-        if report.system.cgroup_v2 {
-            ok_bold("YES")
-        } else {
-            error_bold("NO")
-        }
+        "{}",
+        field(
+            "cgroup v2:",
+            &if report.system.cgroup_v2 {
+                ok_bold("YES")
+            } else {
+                error_bold("NO")
+            },
+        )
     );
     println_safe!(
-        "  BPF fs:     {}",
-        if report.system.bpf_fs_mounted {
-            ok_bold("YES")
-        } else {
-            error_bold("NO")
-        }
+        "{}",
+        field(
+            "BPF fs:",
+            &if report.system.bpf_fs_mounted {
+                ok_bold("YES")
+            } else {
+                error_bold("NO")
+            },
+        )
     );
     println_safe!(
-        "  Root:       {}",
-        if report.system.is_root {
-            ok_bold("YES")
-        } else {
-            warn_bold("NO")
-        }
+        "{}",
+        field(
+            "Root:",
+            &if report.system.is_root {
+                ok_bold("YES")
+            } else {
+                warn_bold("NO")
+            },
+        )
     );
     println_safe!(
-        "  eBPF:       {}",
-        if report.ebpf_supported {
-            ok_bold("SUPPORTED")
-        } else {
-            error_bold("NOT SUPPORTED")
-        }
+        "{}",
+        field(
+            "eBPF:",
+            &if report.ebpf_supported {
+                ok_bold("SUPPORTED")
+            } else {
+                error_bold("NOT SUPPORTED")
+            },
+        )
     );
 
     if !report.warnings.is_empty() {

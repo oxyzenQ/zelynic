@@ -95,28 +95,44 @@ pub(super) fn collect_pin_state() -> Option<PinState> {
 /// nothing backed — and now prints UNKNOWN.
 #[cfg(feature = "ebpf")]
 pub(super) fn print_pin_state() {
-    use crate::output::{ok_bold, warn_bold};
+    use crate::output::{field, ok_bold, warn_bold};
 
     match collect_pin_state() {
         None => println_safe!(
-            "  Pins:       {} (could not read {})",
-            warn_bold("UNKNOWN"),
-            PIN_DIR
+            "{}",
+            field(
+                "Pins:",
+                &format!("{} (could not read {})", warn_bold("UNKNOWN"), PIN_DIR)
+            )
         ),
         Some(ps) if ps.state == PIN_STATE_ACTIVE => println_safe!(
-            "  Pins:       {} ({} files, BPF active)",
-            ok_bold("active"),
-            ps.files
+            "{}",
+            field(
+                "Pins:",
+                &format!("{} ({} files, BPF active)", ok_bold("active"), ps.files)
+            )
         ),
         Some(ps) if ps.state == PIN_STATE_STALE => println_safe!(
-            "  Pins:       {} ({} files, partial — run 'zelynic recover')",
-            warn_bold("STALE"),
-            ps.files
+            "{}",
+            field(
+                "Pins:",
+                &format!(
+                    "{} ({} files, partial — run 'zelynic recover')",
+                    warn_bold("STALE"),
+                    ps.files
+                )
+            )
         ),
         Some(_) if std::path::Path::new(PIN_DIR).exists() => {
-            println_safe!("  Pins:       {} (empty directory)", ok_bold("clean"))
+            println_safe!(
+                "{}",
+                field("Pins:", &format!("{} (empty directory)", ok_bold("clean")))
+            )
         }
-        Some(_) => println_safe!("  Pins:       {} (no limits active)", ok_bold("clean")),
+        Some(_) => println_safe!(
+            "{}",
+            field("Pins:", &format!("{} (no limits active)", ok_bold("clean")))
+        ),
     }
 }
 

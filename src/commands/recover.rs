@@ -55,13 +55,17 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
         "{}",
         crate::output::brand_bold("━━━ zelynic Crash Recovery ━━━")
     );
+    eprintln_safe!();
 
     if !pin_dir_has_files() {
         eprintln_safe!(
-            "  State: {} (no pin files found)",
-            crate::output::ok_bold("clean")
+            "{}",
+            crate::output::field(
+                "State:",
+                &format!("{} (no pin files found)", crate::output::ok_bold("clean"))
+            )
         );
-        eprintln_safe!("  Action: nothing to recover");
+        eprintln_safe!("{}", crate::output::field("Action:", "nothing to recover"));
         return Ok(());
     }
 
@@ -71,8 +75,14 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
     if is_valid {
         // BPF is valid — check for orphan policies (cgroup dead, policy remains).
         eprintln_safe!(
-            "  State: {} (enforcement pins intact)",
-            crate::output::ok_bold("valid")
+            "{}",
+            crate::output::field(
+                "State:",
+                &format!(
+                    "{} (enforcement pins intact)",
+                    crate::output::ok_bold("valid")
+                )
+            )
         );
         eprintln_safe!("  Checking for orphan policies...");
 
@@ -101,8 +111,14 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
         };
         if swept > 0 {
             eprintln_safe!(
-                "  Windows: {} expired row(s) swept (window-death, not crash residue)",
-                crate::output::ok(&swept.to_string())
+                "{}",
+                crate::output::field(
+                    "Windows:",
+                    &format!(
+                        "{} expired row(s) swept (window-death, not crash residue)",
+                        crate::output::ok(&swept.to_string())
+                    )
+                )
             );
         }
 
@@ -121,9 +137,15 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
         let census_swept = limiter.sweep_census_orphans();
         if census_swept > 0 {
             eprintln_safe!(
-                "  Census: {} orphaned state entr{} reclaimed (no policy names them — crash residue, not policies)",
-                crate::output::ok(&census_swept.to_string()),
-                if census_swept == 1 { "y" } else { "ies" }
+                "{}",
+                crate::output::field(
+                    "Census:",
+                    &format!(
+                        "{} orphaned state entr{} reclaimed (no policy names them — crash residue, not policies)",
+                        crate::output::ok(&census_swept.to_string()),
+                        if census_swept == 1 { "y" } else { "ies" }
+                    )
+                )
             );
         }
 
@@ -177,8 +199,14 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
             // same actionable-accent tier 'zelynic recover' gets
             // from the status stale lines.
             eprintln_safe!(
-                "  Action: nothing to recover — use {} to remove limits",
-                crate::output::suggestion("'zelynic u --all'")
+                "{}",
+                crate::output::field(
+                    "Action:",
+                    &format!(
+                        "nothing to recover — use {} to remove limits",
+                        crate::output::suggestion("'zelynic u --all'")
+                    )
+                )
             );
             return Ok(());
         }
@@ -277,28 +305,31 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
             // and the policy noun goes singular/plural aware — the
             // entry/entries pattern two lines below always had it.
             eprintln_safe!(
-                "  Result: {}",
-                crate::output::ok(&format!(
-                    "removed {} orphan {}, reclaimed {} stale state {} and {} group bucket {}",
-                    orphans_removed,
-                    if orphans_removed == 1 {
-                        "policy"
-                    } else {
-                        "policies"
-                    },
-                    state_reclaimed,
-                    if state_reclaimed == 1 {
-                        "entry"
-                    } else {
-                        "entries"
-                    },
-                    groups_reclaimed,
-                    if groups_reclaimed == 1 {
-                        "slot"
-                    } else {
-                        "slots"
-                    },
-                ))
+                "{}",
+                crate::output::field(
+                    "Result:",
+                    &crate::output::ok(&format!(
+                        "removed {} orphan {}, reclaimed {} stale state {} and {} group bucket {}",
+                        orphans_removed,
+                        if orphans_removed == 1 {
+                            "policy"
+                        } else {
+                            "policies"
+                        },
+                        state_reclaimed,
+                        if state_reclaimed == 1 {
+                            "entry"
+                        } else {
+                            "entries"
+                        },
+                        groups_reclaimed,
+                        if groups_reclaimed == 1 {
+                            "slot"
+                        } else {
+                            "slots"
+                        },
+                    ))
+                )
             );
             // NIGHT-master-4: the no-residue ladder the unstrict
             // family already owns. When the orphan sweep took the
@@ -316,21 +347,24 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
             // that follows completes (exit 1 carries the failure,
             // the Result line carries what DID succeed).
             eprintln_safe!(
-                "  Result: {}",
-                crate::output::warn(&format!(
-                    "removed {} orphan {}, reclaimed {} stale state entries and {} \
+                "{}",
+                crate::output::field(
+                    "Result:",
+                    &crate::output::warn(&format!(
+                        "removed {} orphan {}, reclaimed {} stale state entries and {} \
                      group bucket slots; {} could not be removed: {}",
-                    orphans_removed,
-                    if orphans_removed == 1 {
-                        "policy"
-                    } else {
-                        "policies"
-                    },
-                    state_reclaimed,
-                    groups_reclaimed,
-                    failed.len(),
-                    failed.join(", ")
-                ))
+                        orphans_removed,
+                        if orphans_removed == 1 {
+                            "policy"
+                        } else {
+                            "policies"
+                        },
+                        state_reclaimed,
+                        groups_reclaimed,
+                        failed.len(),
+                        failed.join(", ")
+                    ))
+                )
             );
             // NIGHT-master-4: an incomplete recovery is a runtime
             // failure, not a quiet success. The exit-code contract
@@ -358,19 +392,37 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
     match detected {
         Some(n) => {
             eprintln_safe!(
-                "  State: {} ({n} orphaned pin file(s) detected)",
-                crate::output::warn_bold("STALE")
+                "{}",
+                crate::output::field(
+                    "State:",
+                    &format!(
+                        "{} ({n} orphaned pin file(s) detected)",
+                        crate::output::warn_bold("STALE")
+                    )
+                )
             );
         }
         None => {
             eprintln_safe!(
-                "  State: {} (orphaned pin files detected)",
-                crate::output::warn_bold("STALE")
+                "{}",
+                crate::output::field(
+                    "State:",
+                    &format!(
+                        "{} (orphaned pin files detected)",
+                        crate::output::warn_bold("STALE")
+                    )
+                )
             );
         }
     }
-    eprintln_safe!("  Cause: likely crash, SIGKILL, OOM, or partial upgrade");
-    eprintln_safe!("  Action: removing all pin files...");
+    eprintln_safe!(
+        "{}",
+        crate::output::field("Cause:", "likely crash, SIGKILL, OOM, or partial upgrade")
+    );
+    eprintln_safe!(
+        "{}",
+        crate::output::field("Action:", "removing all pin files...")
+    );
 
     if verbose && let Ok(entries) = std::fs::read_dir(pin_dir) {
         for entry in entries.flatten() {
@@ -387,12 +439,24 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
     // file(s) removed)" while the files stood). Leftover survivors
     // error out of unpin_all before this line can lie.
     eprintln_safe!(
-        "  Result: {} ({removed} file(s) removed)",
-        crate::output::ok_bold("recovered")
+        "{}",
+        crate::output::field(
+            "Result:",
+            &format!(
+                "{} ({removed} file(s) removed)",
+                crate::output::ok_bold("recovered")
+            )
+        )
     );
     eprintln_safe!(
-        "  Next: run {} to re-apply limits",
-        crate::output::suggestion("'zelynic strict <target> <rate>'")
+        "{}",
+        crate::output::field(
+            "Next:",
+            &format!(
+                "run {} to re-apply limits",
+                crate::output::suggestion("'zelynic strict <target> <rate>'")
+            )
+        )
     );
     Ok(())
 }
