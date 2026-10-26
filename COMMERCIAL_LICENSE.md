@@ -81,7 +81,7 @@ Notes:
   first release tag after that date): Business $2,199 →
   $5,199/year, Company $20,199 → $110,199/year; Individual holds
   at $99/year. The rationale is the owner's, unchanged and
-  compounding: zelynic is a masterpiece, its value increases
+  compounding: zelynic's value increases
   year by year, and the business end of the ladder keeps climbing
   with it. Grandfathering unchanged: buyers who paid before the
   move keep the price they paid, for the term they bought.
@@ -89,7 +89,7 @@ Notes:
   first release tag after that date): Business $1,990 →
   $2,199/year, Company $14,990 → $20,199/year; Individual holds
   at $99/year. The rationale is the owner's, not the
-  comparables': zelynic is a masterpiece, and its value
+  comparables': zelynic's value
   increases year by year — the price follows the value, and the
   business end of the ladder will keep rising as the work
   compounds. Grandfathering unchanged: buyers who paid before
