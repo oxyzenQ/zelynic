@@ -3,7 +3,7 @@
 
 use std::process::Command;
 
-use crate::output::{brand_bold, ok_bold, sanitize_comm, warn_bold};
+use crate::output::{brand_bold, field, ok_bold, sanitize_comm, warn_bold};
 
 mod cooldown;
 
@@ -140,12 +140,19 @@ pub fn check_update(current_version: &str) -> Result<(), String> {
         && let Some(remaining) = cooldown_remaining(now_secs, last_fetch)
     {
         println_safe!("{}", brand_bold("━━━ zelynic Update Check ━━━"));
+        println_safe!();
         println_safe!(
-            "Status:  {} — the hourly window closes in {} minute(s)",
-            warn_bold("throttled"),
-            remaining.div_ceil(60)
+            "{}",
+            field(
+                "Status:",
+                &format!(
+                    "{} — the hourly window closes in {} minute(s)",
+                    warn_bold("throttled"),
+                    remaining.div_ceil(60)
+                )
+            )
         );
-        println_safe!("Source:  {RELEASES_URL}");
+        println_safe!("{}", field("Source:", RELEASES_URL));
         return Ok(());
     }
 
@@ -209,15 +216,16 @@ pub fn check_update(current_version: &str) -> Result<(), String> {
     // other zelynic banner; status verdict colored by semantic (green =
     // current, yellow = attention).
     println_safe!("{}", brand_bold("━━━ zelynic Update Check ━━━"));
-    println_safe!("Current: {}", normalize_version(current_version));
-    println_safe!("Latest:  {}", normalize_version(&latest_tag));
+    println_safe!();
+    println_safe!("{}", field("Current:", &normalize_version(current_version)));
+    println_safe!("{}", field("Latest:", &normalize_version(&latest_tag)));
     let status_line = match compare_versions(current_version, &latest_tag) {
         UpdateStatus::UpToDate => ok_bold("up to date"),
         UpdateStatus::UpdateAvailable => warn_bold("update available"),
         UpdateStatus::CurrentIsNewer => "current is newer than latest release".to_string(),
     };
-    println_safe!("Status:  {status_line}");
-    println_safe!("Source:  {RELEASES_URL}");
+    println_safe!("{}", field("Status:", &status_line));
+    println_safe!("{}", field("Source:", RELEASES_URL));
 
     Ok(())
 }
