@@ -108,7 +108,7 @@ only control surface — exactly the cosmostrix output contract.
 
 ### Q: How do I verify a downloaded binary?
 
-A: Every release ships SHA-512, BLAKE2b-512, and SHAKE256 checksum
+A: Every release ships SHA-512, BLAKE3, and SHAKE256 checksum
 siblings for each tarball, plus GPG signatures: download the checksum
 next to the tarball, run `sha512sum -c`, and check the signature
 against the fingerprint recorded in docs/VERIFY_RELEASE.md. The

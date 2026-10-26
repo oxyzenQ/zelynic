@@ -258,6 +258,16 @@ jobs:
       - name: Install bpf-linker 0.11.1 (prebuilt static musl)
         run: bash scripts/dev/install-bpf-linker.sh
 
+      # night-dragon-maintenance-0: the release archives carry a BLAKE3
+      # sidecar (the estate's fast modern lane, upgraded from BLAKE2b).
+      # Ubuntu 24.04 ships the b3sum package; the cargo install is the
+      # fallback for any runner image that drops it.
+      - name: Install b3sum (the BLAKE3 digest tool)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q b3sum || cargo install b3sum --locked
+          b3sum --version
+
       # NIGHT-improve-22: cache keyed per target triple. The v3/v4
       # builds of one triple share a key deliberately — cargo's
       # fingerprints include RUSTFLAGS, so a shared cache is refingered
@@ -470,9 +480,11 @@ jobs:
           fi
           rm -rf "${STAGE}"
           cd dist
-          # Checksums: SHA-512 (classical) + BLAKE2b-512 + SHAKE256 (quantum-resistant)
+          # Checksums: SHA-512 (classical) + BLAKE3 (the estate's fast
+          # modern lane, night-dragon-maintenance-0) + SHAKE256
+          # (quantum-resistant)
           sha512sum "${PKG}.tar.gz" > "${PKG}.tar.gz.sha512sum"
-          b2sum "${PKG}.tar.gz" > "${PKG}.tar.gz.b2sum"
+          b3sum "${PKG}.tar.gz" > "${PKG}.tar.gz.b3sum"
           # SHAKE256 via Python (cross-platform, consistent 64-byte output)
           python3 -c "
           import hashlib
@@ -714,7 +726,7 @@ jobs:
           fi
           BROKEN=0
           for f in dist/*.tar.gz; do
-            for suffix in sha512sum b2sum shake256; do
+            for suffix in sha512sum b3sum shake256; do
               if [ ! -f "${f}.${suffix}" ]; then
                 echo "::error::Missing checksum sibling ${f}.${suffix}"
                 BROKEN=1

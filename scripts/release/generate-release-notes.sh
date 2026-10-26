@@ -375,7 +375,7 @@ verification_section() {
 	local tag="$1"
 	echo "## Verification"
 	echo ""
-	echo "Every archive includes a GPG detached signature (\`.asc\`) and three checksum files (SHA-512, BLAKE2b, SHAKE256)."
+	echo "Every archive includes a GPG detached signature (\`.asc\`) and three checksum files (SHA-512, BLAKE3, SHAKE256)."
 	echo ""
 	echo "### GPG signature"
 	echo ""
