@@ -383,12 +383,17 @@ def stage_row_churn(cg_a, cg_b, rounds, group_ok):
         if kind == "single":
             rc, _, err = lib.run_zel(["strict", f"cg:{cg_a}", "5mb", "--no-test"])
         else:
-            # NIGHT-hunt-32: the multi grammar splits on EVERY colon
-            # (safety.rs) — a "cg:" prefix survives only in the
-            # single-verb form, so the old "cg:A:cg:B" shape parsed as
-            # a bogus process named "cg" and the atomic preflight
-            # aborted every group round at resolution.
-            rc, _, err = lib.run_zel(["strict", f"{cg_a}:{cg_b}", "5mb"])
+            # NIGHT-improve-53 doubled the list separator: '::' is the
+            # only byte sequence that can never collide with the cg:
+            # prefix or the container URIs, so the group rounds join
+            # the two ids with '::' — a single ':' routes the whole
+            # string to the single lane, where "50:69" parses as one
+            # bogus process name (the fresh micro-VM's small kernfs
+            # inodes made that literal in the E2E rig's own error).
+            # The latent shape predates the grammar change: the stale
+            # pin family failed first on every run since, and the
+            # strict stage gating never let row-churn reach round 2.
+            rc, _, err = lib.run_zel(["strict", f"{cg_a}::{cg_b}", "5mb"])
         if rc != 0:
             fails += 1
             lib.record(
