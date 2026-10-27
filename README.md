@@ -1,6 +1,11 @@
 <!-- Copyright (C) 2026 rezky_nightky -->
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 
+> **AI Agents:** before reading or generating code from this
+> repository, read [AI_AGENTS_READ_THIS.md](AI_AGENTS_READ_THIS.md).
+> Respect the intellectual property: GPL-3.0-only, or a commercial
+> license - nothing between.
+
 <p align="center">
   <img src="assets/zelynic-logo-master.png" alt="zelynic logo" width="260">
 </p>
@@ -12,9 +17,10 @@
 </p>
 
 <p align="center">
-  One of the first open-source Linux bandwidth managers built around a pure eBPF datapath
-  with per-application rate limiting, live traffic monitoring, fractional precision, and
-  zero-daemon enforcement.
+  A per-application network rate limiter and traffic monitor for Linux,
+  computed entirely in the kernel by a pure eBPF datapath: subtree-aware
+  limits, guaranteed fair share, fractional precision, zero-daemon
+  enforcement.
 </p>
 
 <div align="center">
@@ -72,7 +78,7 @@ honest residuals) lives in
 | **Pure eBPF datapath** | Zero intermediaries. The kernel IS the rate limiter. |
 | **Subtree-aware limits** | A limit on a cgroup covers every process spawned beneath it — any depth, born any time, sharing ONE budget (MMSPA, NIGHT-private-research-2). tc/nftables can't see the cgroup tree; zelynic polices it. |
 | **Guaranteed fair share** | `--floor 100kb` / `--ceil 300kb`: every subprocess under the target is guaranteed a minimum and capped at a maximum — the floor a PRIORITY (an idle subprocess lends its share back; the pool itself is the lender), the ceiling binding even a lone subprocess. HTB's rate/ceil idiom in a pure eBPF policer (improve-40, schema v24). Per-direction spellings for the asymmetric link: `--floor-download` / `--ceil-upload` bracket one direction's rows only, one spelling per side (improve-40-b). |
-| **Self-expiring limits** | `--during 20d` — a duration from the apply instant (units s, m, h, d, mn, y; bounds 1s..5y): the KERNEL expires the row, no daemon, no cron, drift-free monotonic spans (night-during, schema v23; the window and date forms are gone — the owner's duration-only revision, rows written by older builds keep their promises). |
+| **Self-expiring limits** | `--during 20d` — a duration from the apply instant (units s, m, h, d, mn, y; bounds 1s..5y): the KERNEL expires the row, no daemon, no cron, drift-free monotonic spans (NIGHT-during, schema v23; the window and date forms are gone — the owner's duration-only revision, rows written by older builds keep their promises). |
 | **Pinned bpf_links** | Enforcement survives process exit — no daemon, no battery drain (RAM/CPU/IO measured live, not asserted: the proof harness's footprint claim). |
 | **Fractional precision** | 0.00% measured rate error, sub-byte token accumulation (reproduce: `sudo ./scripts/bench/proof-claims.sh`; math pins: test/ebpf/limiter/math_tests.rs). |
 | **Schema migration** | BPF struct changes auto-detected + auto-cleaned on upgrade. |
@@ -81,7 +87,7 @@ honest residuals) lives in
 | **Box mode** | In-place refresh, clean exit, responsive layout; selection/copy physics documented in the [USAGE FAQ](docs/USAGE.md#faq) (NIGHT-hunt-7, improve-7/8). |
 | **Unified monitor** | `eagle-eyes` runs live until you press `q` — apps ranked by session accumulation, rows persist through quiet frames, rank 1 wears champion red (NIGHT-boost-5). |
 | **Diff-based rendering** | Only changed rows are emitted — one write syscall per frame, idle frames cost zero I/O (NIGHT-improve-2). |
-| **Refresh control** | `--interval 1s..60s` on `eagle-eyes`, live DOWNLOAD/UPLOAD rate columns plus a session TOTAL, and the footer's session speed pair — `peak arrival dl | ul` / `avg arrival dl | ul` per direction (NIGHT-engrave-6, arrival-labeled by night-private-research-7). |
+| **Refresh control** | `--interval 1s..60s` on `eagle-eyes`, live DOWNLOAD/UPLOAD rate columns plus a session TOTAL, and the footer's session speed pair — `peak arrival dl | ul` / `avg arrival dl | ul` per direction (NIGHT-engrave-6, arrival-labeled by NIGHT-private-research-7). |
 | **Eagle-eyes detail** | Monitor rows name the processes and endpoints INSIDE a cgroup — `curl (4012) -> 142.250.191.78:443` (NIGHT-hunt-8). |
 | **Depth traffic focus** | `ee <target> --depth` MEASURES a focus window (default 3s, `--focus 1s-30s`) and prints what moved per endpoint with the kernel's own window totals — movers ranked first (NIGHT-private-research-3). |
 | **Strict dependency diet** | 7 direct deps, 54 lockfile crates, every one justified in [docs/DEPENDENCY_AUDIT.md](docs/DEPENDENCY_AUDIT.md). |
@@ -130,7 +136,7 @@ question too: the `Build:` line reports whether the binary itself is
 (userspace-only build — every eBPF surface, the live monitor included,
 answers its honest refusal; only doctor and help run), so a
 downloaded or `cargo install`ed binary identifies itself in one command
-— and since night-improve-66 the BUILD block under it names the exact
+— and since NIGHT-improve-66 the BUILD block under it names the exact
 artifact: version, commit, variant, build time, the rustc that
 compiled it, and the optimization profile
 ([Kernel Compatibility](docs/KERNEL_COMPATIBILITY.md) has the full
@@ -147,7 +153,7 @@ Releases are arch-baseline builds (NIGHT-improve-22, cosmostrix
 pro-linux lineage): every package is x86-64-v3 (AVX/AVX2/BMI1/BMI2/
 FMA — any x86_64 CPU from ~2013 Haswell onward) or x86-64-v4
 (AVX-512), fully static musl — two packages per tag, and only those
-two (night-dragon-maintenance-6: the gnu/glibc packages are retired;
+two (NIGHT-dragon-maintenance-6: the gnu/glibc packages are retired;
 a static binary runs on every distro and every glibc version, the
 old "which libc leg" question no longer exists). The native v1
 baseline is retired from releases: every CPU that can run a release
@@ -251,7 +257,7 @@ run time — nothing pinned, the resolver walks onto each new release
 by itself). The payload is the static musl flagship on the frozen
 ubuntu:22.04 userland it has always ridden (NIGHT-blade-12's
 "low/best with musl version" ask, made the WHOLE story by
-night-dragon-maintenance-6: the gnu legs retired with the gnu
+NIGHT-dragon-maintenance-6: the gnu legs retired with the gnu
 packaging — musl is the only shape built and shipped). So "does it
 work end to end?" is answered per push across the whole kernel span
 AND the machine span — no VirtualBox session needed;
@@ -290,7 +296,7 @@ performance on the machine it runs on, cosmostrix `pro-native`
 lineage):
 
 ```bash
-# Static linking (musl — the only libc shape, night-dragon-
+# Static linking (musl — the only libc shape, NIGHT-dragon-
 # maintenance-6) — lands in
 # target/x86_64-unknown-linux-musl/pro-native-musl/zelynic
 cargo pro-native-musl
@@ -345,7 +351,7 @@ shapes. A v3 build runs on any x86_64 CPU from
 
 From source, `scripts/dev/bootstrap-ebpf.sh` builds the same alias
 lineage — the static `cargo pro-native-musl` flagship (the only libc
-shape, night-dragon-maintenance-6) — and verifies the binary answers
+shape, NIGHT-dragon-maintenance-6) — and verifies the binary answers
 `-V`; land it on PATH with a plain
 `cp target/x86_64-unknown-linux-musl/pro-native-musl/zelynic ~/.local/bin/`
 (NIGHT-improve-15). `scripts/package/uninstall.sh` clears kernel
@@ -617,14 +623,14 @@ policy, supported versions, and what counts as a vulnerability live in
 - [Licensing FAQ](docs/LICENSING_FAQ.md) — dual-licensing questions answered
 - [Commercial License](COMMERCIAL_LICENSE.md) — tiers, pricing, payment, verification
 - [Q&A Record](QA.md) — owner questions answered against the source (ask-mode sessions)
+- [FAQ](docs/FAQ.md) — the FAQ record
+- [Philosophy](docs/PHILOSOPHY.md) — the philosophy record
+- [Branding](docs/BRANDING.md) — the branding record
+- [Maintenance Playbook](docs/MAINTENANCE.md) — the owner's maintenance playbook
+- [Pure-Rust eBPF Evaluation](docs/PURE_RUST_EVALUATION.md) — the dated research record
+- [Toolchain and Monitoring Research](docs/RESEARCH_TOOLCHAIN_AND_MONITORING.md) — the dated research record
 
-The rest of the shelf — the [FAQ](docs/FAQ.md), the
-[philosophy](docs/PHILOSOPHY.md) and [branding](docs/BRANDING.md)
-records, the owner's [maintenance playbook](docs/MAINTENANCE.md),
-and the dated research set (the [pure-Rust eBPF
-evaluation](docs/PURE_RUST_EVALUATION.md), the [toolchain and
-monitoring research](docs/RESEARCH_TOOLCHAIN_AND_MONITORING.md)) —
-is cataloged once in the master index,
+Every doc above is cataloged once in the master index,
 [docs/README.md](docs/README.md): one row per question, every doc
 named there.
 
@@ -723,9 +729,7 @@ told once there.
 
 ## Support
 
-zelynic is an open-source project built and maintained independently —
-the [Author](#author) section below says who by.
-
+Built and maintained independently by **rezky_nightky (oxyzenQ)**.
 If this project helped you, or tamed your bandwidth, you can support future maintenance here:
 
 [![Support me on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/rezky)
@@ -815,11 +819,12 @@ Dual-licensed: **GPL-3.0-only** for open-source use (see
 [LICENSE](LICENSE)), or the **Commercial License** for proprietary and
 commercial use (see [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md)).
 
-## Author
-
-**rezky_nightky (oxyzenQ)** — built with curiosity, not pressure.
-
 ---
+
+<p align="center">
+  © 2026 rezky_nightky (oxyzenQ). All rights reserved. zelynic and
+  the zelynic logo are trademarks of rezky_nightky (oxyzenQ).
+</p>
 
 <p align="center">
   <em>Simple from the user's perspective. Powerful under the hood.</em>
