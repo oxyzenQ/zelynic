@@ -1902,9 +1902,26 @@ def stage_server_dual_dir_duel():
     # for 2s PAST a nonzero count; a zero counter keeps the poll
     # alive until the drain lands or the cap gives up (a still-zero
     # count is a real verdict: nothing was delivered).
+    #
+    # The delivered rate's denominator ends where the DELIVERY ends:
+    # the counter's own landing (its last movement), not the tail of
+    # the confirmation hold. During a stable hold no bytes move, so
+    # the hold's clock covers zero delivered bytes by definition -
+    # dividing by it diluted the rate by construction (the low musl
+    # leg measured 78.9% over an 8.1s horizon whose last 2s held a
+    # frozen counter, and the best leg's longer drain pushed the same
+    # shape to 62.9%, 2.1 points under the band, run 40480466471).
+    # The drain itself still lands in BOTH the numerator and the
+    # denominator: the landing timestamp is the last counter movement,
+    # so every byte the drain delivered and the time it took to
+    # deliver it stay inside the judged window. A counter that never
+    # lands keeps the full elapsed window and fails at rate zero -
+    # the real verdict nothing was delivered.
     deadline = time.monotonic() + 15.0
     last, stable = -1, 0
+    landing_at = None
     while time.monotonic() < deadline:
+        now = time.perf_counter()
         current = SERVER.peek()["ul"]
         if current == last and current > 0:
             stable += 1
@@ -1912,9 +1929,11 @@ def stage_server_dual_dir_duel():
                 break
         else:
             stable = 0
+            if current != last and current > 0:
+                landing_at = now
         last = current
         time.sleep(0.2)
-    horizon = time.perf_counter() - started_at
+    horizon = (landing_at if landing_at is not None else time.perf_counter()) - started_at
     ul_delivered = SERVER.peek()["ul"]
     ul_delivered_rate = ul_delivered / horizon if horizon else 0.0
     ok = True
