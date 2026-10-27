@@ -142,6 +142,7 @@ curl -s https://api.github.com/repos/oxyzenQ/zelynic/releases \
 # the budget contract, pinned in the generator
 ./scripts/release/generate-release-notes.sh --self-test
 ```
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

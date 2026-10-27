@@ -216,6 +216,7 @@ wrote it.
   binary was proven healthy — the cost is recorded here because
   it is the honest price of the find, and because the fix makes
   the next auditor's half hour free.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

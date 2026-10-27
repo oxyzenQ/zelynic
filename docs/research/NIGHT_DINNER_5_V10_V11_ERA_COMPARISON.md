@@ -309,6 +309,7 @@ LTS kernel (7.0.0-34) postdates the helper restoration, so v10's
 doctor legitimately reports SUPPORTED on it; the span defect lives in
 the 6.8–6.16 window the box cannot boot without fetching another
 kernel lane (`--kernel floor` boots 5.13, the other edge).
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

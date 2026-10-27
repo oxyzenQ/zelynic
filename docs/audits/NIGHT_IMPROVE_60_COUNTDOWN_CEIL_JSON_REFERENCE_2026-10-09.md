@@ -87,6 +87,7 @@ row detail), and a frame benchmark that never renders the changed
 code would measure noise. The pin battery (`display_tests`,
 `during_user_tests`, `display_json_tests`) is the verification
 lane; fmt and clippy the hygiene lane.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

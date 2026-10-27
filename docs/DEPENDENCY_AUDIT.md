@@ -308,6 +308,7 @@ Default answer is no. When a feature genuinely needs a new crate:
    review.
 4. Run `cargo deny check all` and `cargo audit` locally before the
    commit; CI re-runs both.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

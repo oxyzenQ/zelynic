@@ -305,6 +305,7 @@ made consistent at the accumulator.
 - The u32 cgroup-id space (4.29e9 lifetimes) outlives any real
   host by the `stats.rs` note's own arithmetic — the id wrap is
   the one horizon no monitor survives to see.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

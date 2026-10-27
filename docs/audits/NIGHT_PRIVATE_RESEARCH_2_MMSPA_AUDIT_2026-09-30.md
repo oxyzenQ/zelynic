@@ -140,6 +140,7 @@ what covers a socket, per packet, against the only authority (the
 live policy map), with a memo that keeps the price at one lookup.
 The 2026-09-27 audit's "peak for its class" verdict stands — the
 class grew a dimension, and the dimension is covered.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

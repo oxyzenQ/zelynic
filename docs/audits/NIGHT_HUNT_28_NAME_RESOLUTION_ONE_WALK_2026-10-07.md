@@ -140,13 +140,14 @@ the supermassive VM lane covering the removal rows end to end.
 - clippy and fmt clean on every lane.
 - The render lane is untouched by construction (command-handler
   resolve paths only); the A/B frame benchmark confirms it.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
 
   This document may contain stale data, hardcoded counts, or outdated
   file paths and symbol names. Maintainers update source code but may
-  forget to sync every .md file — perfect sync across every .md file is a
+  forget to sync every doc — perfect sync across every .md file is a
   known maintenance burden with diminishing returns.
 
   Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of

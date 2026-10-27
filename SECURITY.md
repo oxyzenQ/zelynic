@@ -129,6 +129,7 @@ hardening is invisible (lock relocation, CI isolation, guards) and the
 one behavioral rule that matters is a clear error message, not a
 foot-gun (`--check-update` tells you to drop sudo instead of failing
 cryptically).
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

@@ -69,6 +69,7 @@ Run the gates before committing — the two commands and what each runs
   (`build.sh check-all` + `gate-keepers.sh`). Frame-level render
   changes additionally get the 10s A/B benchmark
   (`scripts/bench/frame-bench.py`) — protocol in the script header.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

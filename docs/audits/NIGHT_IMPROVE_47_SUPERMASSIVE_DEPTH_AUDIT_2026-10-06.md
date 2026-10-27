@@ -78,6 +78,7 @@ improve-42 documented it.
 
 No gaps found, nothing to add — the correct entry for a depth
 audit whose subject already carries its depth.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

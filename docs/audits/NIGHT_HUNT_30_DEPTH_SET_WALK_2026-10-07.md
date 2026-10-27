@@ -98,13 +98,14 @@ removal (hunt-29), depth facts + joins (this task). The
 un-audited remainder is the eBPF kernel side beyond hunt-27's
 capacity/SMP math walk — the honest boundary for a userspace
 hunt; the VM lanes pin its behavior.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
 
   This document may contain stale data, hardcoded counts, or outdated
   file paths and symbol names. Maintainers update source code but may
-  forget to sync every .md file — perfect sync across every .md file is a
+  forget to sync every doc — perfect sync across every .md file is a
   known maintenance burden with diminishing returns.
 
   Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of

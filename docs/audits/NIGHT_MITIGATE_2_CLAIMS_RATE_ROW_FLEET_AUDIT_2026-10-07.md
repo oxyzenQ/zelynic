@@ -291,23 +291,6 @@ The closing line, the same doctrine the hunt-Z5 audit closed
 on: a verdict belongs to the instrument that can certify it —
 a cgroup-held rate is a cgroup-level truth, and the fleet is
 the instrument that reads it.
-<!-- ZELYNIC-DISCLAIMER -->
-<!--
-  Documentation Disclaimer — read before relying on any data point.
-
-  This document may contain stale data, hardcoded counts, or outdated
-  file paths and symbol names. Maintainers update source code but may
-  forget to sync every doc — perfect sync across every .md file is a
-  known maintenance burden with diminishing returns.
-
-  Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
-  truth. Always cross-check against the actual source files before
-  relying on any specific number (target count, LOC, rate bound),
-  file path, function name, or config key.
-
-  If you find a discrepancy, please open a PR — the doc is wrong, not
-  the source.
--->
 
 ## 10. Postscript — the live verdict on section 8, and the followup it forced
 
@@ -330,3 +313,21 @@ row names matched to their laws, 38 self-test rows green). The
 fleet stays — it is still the honest cgroup-level instrument
 (mitigate-3's section 4) — but the verdict law it feeds is the
 ceiling, and that law is what makes the rows weather-proof.
+
+<!-- ZELYNIC-DISCLAIMER -->
+<!--
+  Documentation Disclaimer — read before relying on any data point.
+
+  This document may contain stale data, hardcoded counts, or outdated
+  file paths and symbol names. Maintainers update source code but may
+  forget to sync every doc — perfect sync across every .md file is a
+  known maintenance burden with diminishing returns.
+
+  Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
+  truth. Always cross-check against the actual source files before
+  relying on any specific number (target count, LOC, rate bound),
+  file path, function name, or config key.
+
+  If you find a discrepancy, please open a PR — the doc is wrong, not
+  the source.
+-->

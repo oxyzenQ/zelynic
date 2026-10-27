@@ -174,12 +174,13 @@ all (the hunt-34 precedent).
    ladder belongs to the removal family; status never carried it).
    The next `u`/`recover`/apply-era unpins or reuses it — the
    pre-existing behavior of every status-side sweep, unchanged.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
 
   This document may contain stale data, hardcoded counts, or outdated
-  file paths or symbol names. Maintainers update source code but may
+  file paths and symbol names. Maintainers update source code but may
   forget to sync every doc — perfect sync across every .md file is a
   known maintenance burden with diminishing returns.
 

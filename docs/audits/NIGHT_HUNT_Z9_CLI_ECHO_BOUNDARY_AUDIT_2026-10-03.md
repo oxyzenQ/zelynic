@@ -237,6 +237,7 @@ byte-safety contract); v1/v2/v3 engine self-tests green.
   structurally unreachable with hostile bytes (only matched
   targets print); adding a sanitize pass there would be
   defense against a shape that cannot exist.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

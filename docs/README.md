@@ -166,6 +166,7 @@ readable in every checkout, never rewritten.
 | [../CHANGELOG.md](../CHANGELOG.md) + [archive/CHANGELOG_PRE_V11.md](archive/CHANGELOG_PRE_V11.md) | What shipped: the v11-era active file and the pre-v11 archive (the frozen v11 campaign history lives in git history alone — NIGHT-dinner-19 removed the root duplicate) |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | How to contribute: the gate battery, commit discipline |
 | [../CLA.md](../CLA.md), [../COMMERCIAL_LICENSE.md](../COMMERCIAL_LICENSE.md), [../TRADEMARK.md](../TRADEMARK.md), [../NOTICE](../NOTICE) | Contribution licensing, commercial terms, trademark policy, root legal notice |
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

@@ -150,6 +150,7 @@ row's other dependencies (attach, verify, pins, process-set).
 The busy-hour under-band reading itself is recorded — every
 sample — and no longer reddens: that number was never the
 product's to promise.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

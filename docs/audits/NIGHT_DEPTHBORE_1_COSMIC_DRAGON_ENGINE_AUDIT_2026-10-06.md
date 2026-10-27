@@ -173,6 +173,7 @@ dependency surface), and the loopback GSO measurement physics
 peak-skip protocol, none of these is actionable on the engine
 itself — over-engineering at a confirmed peak is its own failure
 mode.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

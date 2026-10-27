@@ -182,14 +182,15 @@ row), and the QUIC flow-key's CID-finer bucketing under --per-socket
 claims rows — a live N-HTTP/3-connections row would need a QUIC
 client in the VM rootfs, an owner-scope call recorded here, not
 silently skipped.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
 
   This document may contain stale data, hardcoded counts, or outdated
   file paths and symbol names. Maintainers update source code but may
-  forget to sync every .md — perfect sync across every .md file is
-  a known maintenance burden with diminishing returns.
+  forget to sync every doc — perfect sync across every .md file is a
+  known maintenance burden with diminishing returns.
 
   Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
   truth. Always cross-check against the actual source files before

@@ -814,6 +814,9 @@ commercial use (see [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md)).
 <p align="center">
   <em>Simple from the user's perspective. Powerful under the hood.</em>
 </p>
+
+<p align="center"><sub>built with curiosity</sub></p>
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
@@ -831,5 +834,3 @@ commercial use (see [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md)).
   If you find a discrepancy, please open a PR — the doc is wrong, not
   the source.
 -->
-
-<p align="center"><sub>built with curiosity</sub></p>

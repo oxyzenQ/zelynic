@@ -3,48 +3,49 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # OS: Linux only — zelynic is a Linux eBPF tool; no other OS is supported.
 #
-# ZELYNIC DISCLAIMER INJECTOR
+# ZELYNIC DISCLAIMER INJECTOR (night-dragon-maintenance-3: the
+# placement law, the sibling's mature shape)
 #
-# Auto-injects a "documentation disclaimer" note at the BOTTOM of every
-# git-tracked *.md file in the repo. The disclaimer warns readers that
-# docs may contain stale data, hardcoded counts, or outdated references
-# because maintainers update source code but may forget to sync docs.
-# Source code is the single source of truth — cross-check before relying
-# on any specific number, file path, or symbol name.
+# Guarantees the "documentation disclaimer" note sits at the BOTTOM
+# of every living git-tracked *.md file in the repo - the last
+# content block, never mid-file and never under a header. The
+# disclaimer warns readers that docs may contain stale data,
+# hardcoded counts, or outdated references, because maintainers
+# update source code but may forget to sync every doc. Source code
+# is the single source of truth - cross-check before relying on any
+# specific number, file path, or symbol name.
 #
-# The disclaimer is idempotent: re-running this script will not add a
-# second copy if the marker is already present.
+# The injector this port replaces read MARKER PRESENCE as the done
+# verdict, so a block hand-pasted mid-file (or left behind when a
+# footer was appended after it) stayed there forever - the exact
+# defect the owner flagged (docs/PERFORMANCE.md and an audit record
+# carried the block hundreds of lines above EOF; README.md carried
+# it above the built-with-curiosity footer). This port reads
+# PLACEMENT as the verdict: any disclaimer block found anywhere
+# other than the bottom is stripped from its position and
+# re-appended as the file's final block, so one run normalizes every
+# file and a second run changes no bytes.
+#
+# Placement law:
+#   - the marker line is `<!-- ZELYNIC-DISCLAIMER -->`, followed by
+#     the single HTML comment that closes on the next `-->` line;
+#   - between the closing `-->` and EOF nothing but blank lines may
+#     remain;
+#   - one blank line separates the block from the body above it.
+#
+# Excluded (the frozen-record class the gate must not demand edits
+# in): CHANGELOG.md and the CHANGELOG-V*-ERA.md family - the frozen
+# release ledgers - and everything under docs/archive/ - the frozen
+# era records. The root-era regex arms stay as the old-checkout
+# shield (the era files moved into docs/archive/ long ago).
 #
 # Usage:
-#   bash scripts/gates/inject-disclaimer.sh          # inject into all .md files
-#   bash scripts/gates/inject-disclaimer.sh --check  # verify all .md files have it
+#   bash scripts/gates/inject-disclaimer.sh          # normalize (inject/relocate)
+#   bash scripts/gates/inject-disclaimer.sh --check  # verify placement only
 #
 # Exit codes:
-#   0 = all .md files have the disclaimer (or were just injected)
-#   1 = one or more .md files are missing the disclaimer (in --check mode)
-#
-# Why this exists:
-#   Owner observed that AI agents (and human maintainers) frequently
-#   update source code (e.g. changing a rate bound or a file layout)
-#   but forget to update every doc that references that number or path.
-#   Chasing perfect sync across every .md file is a maintenance burden
-#   with diminishing returns. Instead, the project ships a uniform
-#   disclaimer that asks readers to cross-check source code before
-#   believing any specific data point.
-#
-# Excluded: CHANGELOG.md — a frozen historical record, never
-#   rewritten (the same exclusion policy as every other gate). The
-#   former CHANGELOG-V11-ERA.md root duplicate was removed in
-#   NIGHT-dinner-19 (its frozen content lives in git history);
-#   the regex below keeps the era-file arm so an old checkout
-#   running this gate still excludes it. NIGHT-improve-43 added
-#   CHANGELOG-V20-ERA.md — the v20-era record split out of the
-#   live file at the b743d9c blob — the same frozen-record class
-#   (byte-frozen history the disclaimer gate must not demand
-#   edits in). The task's re-issue moved that file from the root
-#   into docs/archive/, where it carries the bottom disclaimer
-#   the PRE_V11 archive file established — so this root regex arm
-#   is the old-checkout shield now, not the live exemption.
+#   0 = every living .md carries the bottom block (or was normalized)
+#   1 = --check mode found at least one file missing or misplaced
 
 set -euo pipefail
 
@@ -53,16 +54,17 @@ CHECK_MODE=false
 
 if [[ "${1:-}" == "--check" ]]; then
 	CHECK_MODE=true
+elif [[ $# -gt 0 ]]; then
+	echo "usage: bash scripts/gates/inject-disclaimer.sh [--check]" >&2
+	exit 2
 fi
 
-# The disclaimer marker — must match exactly for idempotency.
-# If this string appears anywhere in the file, the file is considered
-# already-injected and will be skipped.
+# The house marker - the marker line AND the block's first line.
 MARKER="<!-- ZELYNIC-DISCLAIMER -->"
 
-# The full disclaimer block. Injected at the BOTTOM of the file.
-read -r -d '' DISCLAIMER <<'EOF' || true
-
+# The canonical block. The leading separator blank line is added at
+# append time, so the heredoc carries the block proper only.
+read -r -d '' BLOCK_TEXT <<'EOF' || true
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
@@ -81,63 +83,147 @@ read -r -d '' DISCLAIMER <<'EOF' || true
   the source.
 -->
 EOF
+mapfile -t BLOCK_LINES <<<"${BLOCK_TEXT}"
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-NC='\033[0m'
+RED='\033'
+GREEN='\033'
+YELLOW='\033'
+NC='\033'
 
-INJECTED=0
-SKIPPED=0
-MISSING=0
 CHECKED=0
+OK_BOTTOM=0
+INJECTED=0
+RELOCATED=0
+NOT_BOTTOM=0
 
-# Process every git-tracked OR untracked-but-present .md file in the
-# repo (git ls-files --cached --others --exclude-standard returns
-# tracked files PLUS new files not yet staged — respecting .gitignore —
-# so a freshly written .md fails the check BEFORE it can be committed).
-while IFS= read -r -d '' file; do
+TMPDIR="$(mktemp -d "${TMPDIR:-/tmp}/zelynic-discl.XXXXXX")"
+trap 'rm -rf "${TMPDIR}"' EXIT
+
+# normalize <file>: strip every disclaimer block from wherever it
+# sits, then append the canonical block as the file's final block.
+# Emits the candidate path; the caller cmps it against the original.
+normalize() {
+	local file="$1"
+	local -a lines=()
+	mapfile -t lines <"${file}"
+
+	local -a kept=()
+	local i=0
+	local n=${#lines[@]}
+	while [ "${i}" -lt "${n}" ]; do
+		local line="${lines[${i}]}"
+		if [ "${line}" = "${MARKER}" ]; then
+			# swallow the one separator blank above the block
+			local top=$((${#kept[@]} - 1))
+			if [ "${top}" -ge 0 ] && [ -z "${kept[${top}]}" ]; then
+				kept=("${kept[@]:0:${top}}")
+			fi
+			# skip the block proper: to the closing --> line
+			local j=$((i + 1))
+			while [ "${j}" -lt "${n}" ] && [ "${lines[${j}]}" != "-->" ]; do
+				j=$((j + 1))
+			done
+			i=$((j + 1))
+			continue
+		fi
+		kept+=("${line}")
+		i=$((i + 1))
+	done
+
+	# strip the trailing blank runs the block left behind
+	local last=$((${#kept[@]} - 1))
+	while [ "${last}" -ge 0 ] && [ -z "${kept[${last}]}" ]; do
+		last=$((last - 1))
+	done
+	kept=("${kept[@]:0:$((last + 1))}")
+
+	local -a out=()
+	if [ "${#kept[@]}" -gt 0 ]; then
+		out=("${kept[@]}" "")
+	fi
+	out=("${out[@]}" "${BLOCK_LINES[@]}")
+
+	local candidate="${TMPDIR}/normalized.md"
+	printf '%s\n' "${out[@]}" >"${candidate}"
+	printf '%s' "${candidate}"
+}
+
+process_file() {
+	local rel="$1"
+	local file="${REPO_ROOT}/${rel}"
 	CHECKED=$((CHECKED + 1))
 
-	if grep -q "$MARKER" "$file"; then
-		SKIPPED=$((SKIPPED + 1))
-		continue
+	local had_house=0
+	if grep -Fq -- "${MARKER}" "${file}"; then
+		had_house=1
 	fi
 
-	if $CHECK_MODE; then
-		echo -e "${RED}MISSING disclaimer: ${file}${NC}"
-		MISSING=$((MISSING + 1))
-		continue
+	local candidate
+	candidate="$(normalize "${file}")"
+	local changed=1
+	if cmp -s "${candidate}" "${file}"; then
+		changed=0
 	fi
 
-	# Inject the disclaimer at the end of the file.
-	# Preserve a blank line separator if the file doesn't end with one.
-	if [[ -n "$(tail -c1 "$file" 2>/dev/null)" ]]; then
-		printf '\n' >>"$file"
+	if [ "${CHECK_MODE}" = true ]; then
+		if [ "${changed}" -eq 0 ]; then
+			OK_BOTTOM=$((OK_BOTTOM + 1))
+		elif [ "${had_house}" -eq 1 ]; then
+			echo -e "${RED}MISPLACED block (not the bottom block): ${rel}${NC}"
+			NOT_BOTTOM=$((NOT_BOTTOM + 1))
+		else
+			echo -e "${RED}MISSING disclaimer: ${rel}${NC}"
+			NOT_BOTTOM=$((NOT_BOTTOM + 1))
+		fi
+		return 0
 	fi
-	printf '%s\n' "$DISCLAIMER" >>"$file"
-	INJECTED=$((INJECTED + 1))
-	echo "Injected: $file"
+
+	if [ "${changed}" -eq 0 ]; then
+		OK_BOTTOM=$((OK_BOTTOM + 1))
+		return 0
+	fi
+	cp "${candidate}" "${file}"
+	if [ "${had_house}" -eq 1 ]; then
+		echo "Relocated: ${rel} (block moved to the bottom)"
+		RELOCATED=$((RELOCATED + 1))
+	else
+		echo "Injected: ${rel}"
+		INJECTED=$((INJECTED + 1))
+	fi
+}
+
+# Every tracked OR untracked-but-present .md (git ls-files
+# --cached --others --exclude-standard respects .gitignore, so a
+# freshly written .md fails the check BEFORE it can be committed).
+# The filter is awk (a zero-match filter is not a failed pipeline
+# under pipefail); the NUL shim is bash printf - awk cannot emit
+# NUL bytes on mawk (the Ubuntu default), and read -d '' starved on
+# a NUL-less stream (the sibling's bash-printf shim is
+# load-bearing, kept verbatim).
+while IFS= read -r -d '' rel; do
+	process_file "${rel}"
 done < <(
-	git ls-files --cached --others --exclude-standard 2>/dev/null |
-		grep -E '\.md$' |
-		grep -v -E '^CHANGELOG(-V(11|20)-ERA)?\.md$' |
-		while IFS= read -r line; do
-			printf '%s\0' "${REPO_ROOT}/${line}"
-		done
+	cd "${REPO_ROOT}" &&
+		git ls-files --cached --others --exclude-standard 2>/dev/null |
+		awk '/\.md$/ && $0 !~ /^CHANGELOG\.md$/ && $0 !~ /CHANGELOG-V[0-9]+-ERA\.md$/ && $0 !~ /^docs\/archive\//' |
+			while IFS= read -r rel; do
+				printf '%s\0' "${rel}"
+			done
 )
 
-if $CHECK_MODE; then
-	if [[ "$MISSING" -eq 0 ]]; then
-		echo -e "${GREEN}OK: $CHECKED .md files checked, all have the disclaimer${NC}"
+if [ "${CHECK_MODE}" = true ]; then
+	if [ "${NOT_BOTTOM}" -eq 0 ]; then
+		echo -e "${GREEN}OK: ${CHECKED} .md files checked, every disclaimer sits at the bottom${NC}"
 		exit 0
-	else
-		echo -e "${RED}FAIL: $MISSING of $CHECKED .md files missing the disclaimer${NC}"
-		echo "Run: bash scripts/gates/inject-disclaimer.sh"
-		exit 1
 	fi
-else
-	echo ""
-	echo -e "${GREEN}Injected: ${INJECTED}  Skipped (already had it): ${SKIPPED}  Total checked: ${CHECKED}${NC}"
-	exit 0
+	echo -e "${RED}FAIL: ${NOT_BOTTOM} of ${CHECKED} .md files missing or misplaced${NC}"
+	echo "Run: bash scripts/gates/inject-disclaimer.sh"
+	exit 1
 fi
+
+echo ""
+echo -e "${GREEN}Injected: ${INJECTED}  Relocated: ${RELOCATED}  Already-at-bottom: ${OK_BOTTOM}  Total: ${CHECKED}${NC}"
+if [ "$((INJECTED + RELOCATED))" -gt 0 ]; then
+	echo -e "${YELLOW}Review the git diff before staging.${NC}"
+fi
+exit 0
