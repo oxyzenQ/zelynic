@@ -93,11 +93,15 @@ jobs:
   # ===========================================================================
   # Validate Release Tag (fail fast, before any build cost)
   # ===========================================================================
-  # Release channel contract (cosmostrix lineage): a tag is either a
-  # stable release (plain vX.Y.Z) or a pre-release restricted to the
-  # dev / nightly / alpha / beta / rc channels (vX.Y.Z-<channel>[.N]). Any
-  # other suffix fails validation here, so no binary is built and no
-  # GitHub release is ever created for an unsupported channel.
+  # Release channel contract (night-dragon-maintenance-3, the owner's
+  # masterclass simplification — the sibling's mature shape): the
+  # release channel is the TAG SHAPE, never a hardcoded channel list.
+  # A tag is either a stable release (plain vX.Y.Z) or a pre-release
+  # (vX.Y.Z-<anything> — beta.1, rc.2, nightly.7, example.1, whatever
+  # the owner names; the '-' at the end of the patch version IS the
+  # signal). The strict gate below only validates semver syntax — it
+  # no longer judges channel names, so a new pre-release channel needs
+  # no CI edit, ever.
   validate:
     name: Validate release tag
     # Runner pinned to ubuntu-24.04, never a floating ubuntu-latest:
@@ -125,31 +129,34 @@ jobs:
             exit 1
           fi
 
-          # Must match vX.Y.Z or vX.Y.Z-<channel>[.N]
-          if ! [[ "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+(\.[0-9]+)?)?$ ]]; then
+          # Must match vX.Y.Z or vX.Y.Z-<suffix> — syntax only, no
+          # channel whitelist (night-dragon-maintenance-3): any '-'
+          # after the patch version makes it a pre-release.
+          if ! [[ "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]]; then
             echo "::error::Invalid release tag: ${TAG}"
-            echo "Expected format: vX.Y.Z (stable) or vX.Y.Z-<channel>.N (pre-release)"
-            echo "Examples: v11.0.0, v11.0.0-beta.1"
+            echo "Expected format: vX.Y.Z (stable) or vX.Y.Z-<suffix> (pre-release)"
+            echo "Examples: v11.0.0, v11.0.0-beta.1, v80.0.0-nightly.7"
             exit 1
           fi
 
           VERSION="${TAG#v}"
-          PRE="false"
-          if [[ "${VERSION}" == *-* ]]; then
-            SUFFIX="${VERSION#*-}"
-            CHANNEL="${SUFFIX%%.*}"
-            case "${CHANNEL}" in
-              dev|nightly|alpha|beta|rc)
-                PRE="true"
-                ;;
-              *)
-                echo "::error::Unsupported pre-release channel: '${CHANNEL}'"
-                echo "Pre-releases are restricted to: dev, nightly, alpha, beta, rc."
-                echo "Stable releases use the plain vX.Y.Z format."
-                exit 1
-                ;;
-            esac
-          fi
+          # The shape detector (the sibling's bash case, one law: the
+          # pre-release branch comes FIRST — a glob * crosses '-', so
+          # the reversed order classified every -rc/-alpha/-beta tag
+          # stable; the sibling shipped that incident as
+          # night-dragon-1S and this shape keeps the lesson). The
+          # '-' at the end of the patch version is the whole
+          # pre-release contract — no channel list to maintain, the
+          # owner names the suffix and the release page renders the
+          # Pre-release badge by itself.
+          case "${VERSION}" in
+            *[0-9].*[0-9].*[0-9]-*)
+              PRE="true"
+              ;;
+            *)
+              PRE="false"
+              ;;
+          esac
 
           {
             echo "tag=${TAG}"
@@ -795,7 +802,7 @@ jobs:
           else
             PREV_TAG=$(printf '%s\n' "${TAGS}" \
               | awk -v cur="${TAG}" \
-                '$0 != cur && $0 !~ /^v[0-9]+\.[0-9]+\.[0-9]+-(dev|nightly|alpha|beta|rc)[\.-]/' \
+                '$0 != cur && $0 !~ /^v[0-9]+\.[0-9]+\.[0-9]+-/' \
               | sort -V | tail -1)
           fi
 
@@ -805,7 +812,7 @@ jobs:
           # since previous build · M commits since last stable".
           LAST_STABLE=$(printf '%s\n' "${TAGS}" \
             | awk -v cur="${TAG}" \
-              '$0 != cur && $0 !~ /^v[0-9]+\.[0-9]+\.[0-9]+-(dev|nightly|alpha|beta|rc)[\.-]/' \
+              '$0 != cur && $0 !~ /^v[0-9]+\.[0-9]+\.[0-9]+-/' \
             | sort -V | tail -1)
 
           # Commits between the boundary and the tag, straight from the
