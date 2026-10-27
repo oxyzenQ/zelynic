@@ -383,6 +383,10 @@ fn block_booking_is_exact_under_smp_contention() {
         // SAFETY: same disclosure as the Send impl; by-value self so
         // the &self -> &mut shape never appears (clippy mut_from_ref).
         unsafe fn stats(self) -> &'static mut LimiterStats {
+            // SAFETY: self.0 is the Box::into_raw pointer the test
+            // owns exclusively (single-threaded by the Send pin's
+            // own contract); the by-value self guarantees the
+            // &mut borrow is unique for the handle's lifetime.
             unsafe { &mut *self.0 }
         }
     }

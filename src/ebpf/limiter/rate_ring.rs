@@ -47,7 +47,15 @@ pub struct RateRingRaw {
     pub slots: [RateSlotRaw; RATE_RING_SLOTS],
 }
 
+/// SAFETY: RateSlotRaw is a plain `repr(align(8))` u64-field
+/// aggregate (Copy, no references, no invariant a zeroed instance
+/// would break) — the all-zeros-valid, any-bit-pattern-safe value
+/// contract aya::Pod requires for a BPF map value; the layout
+/// mirror pins the shape (types.rs layout contract).
 unsafe impl aya::Pod for RateSlotRaw {}
+/// SAFETY: RateRingRaw is the same POD class — an array of the
+/// aligned slot aggregates above, zeroed-instance-valid and
+/// any-bit-pattern-safe, so the aya::Pod value contract holds.
 unsafe impl aya::Pod for RateRingRaw {}
 
 /// Both directions' ring censuses, the shape the status surface

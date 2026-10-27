@@ -283,7 +283,13 @@ fn policy_window_raw_layout_is_pinned() {
         start_s: 9 * 3600,
         end_s: 17 * 3600,
     };
+    // SAFETY: transmute(PolicyWindowRaw -> [u8; 32]) is the layout
+    // pin's whole point — the repr(C) struct's size is pinned below
+    // to exactly 32 bytes, and reading the bytes back transmutes
+    // into the same POD type, the round-trip the assert owns.
     let bytes: [u8; 32] = unsafe { core::mem::transmute(row) };
+    // SAFETY: the inverse leg of the same size-pinned round trip —
+    // 32 bytes back into the same repr(C) POD shape.
     let back: PolicyWindowRaw = unsafe { core::mem::transmute(bytes) };
     assert_eq!(row, back, "the window row round-trips through its bytes");
 }

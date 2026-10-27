@@ -123,6 +123,10 @@ pub(crate) fn ring_verdict(
 ) -> i32 {
     if verdict == 1 {
         if let Some(ptr) = get_ring_ptr(ring_map, key) {
+            // SAFETY: the rate ring's map value behind get_ring_ptr
+            // lives in stable kernel memory for this invocation;
+            // the exclusive borrow is the only one taken and the
+            // book write moves through the RMW views.
             ring_book(unsafe { &mut *ptr }, now, pkt_len);
         }
     }
@@ -173,12 +177,15 @@ const BPF_NOEXIST: u64 = 1;
 /// materializes the BPF call immediate the verifier resolves.
 #[inline(always)]
 pub(crate) unsafe fn bpf_skb_ecn_set_ce(skb: *mut core::ffi::c_void) -> i64 {
-    // SAFETY: the transmute materializes the helper-ID call immediate
-    // (the bindings-crate convention); the call hands the program's
-    // own context pointer to the kernel — the contract the SAFETY
-    // note above this function pins.
+    // SAFETY: the transmute materializes the helper-ID call
+    // immediate (the bindings-crate convention); the call hands the
+    // program's own context pointer to the kernel — the contract
+    // the SAFETY note above this function pins.
     let fun: unsafe extern "C" fn(*mut core::ffi::c_void) -> i64 =
         unsafe { core::mem::transmute(97usize) };
+    // SAFETY: fun is the kernel's helper 97 with the documented
+    // (skb-pointer) signature; skb is the caller's own context
+    // pointer, the one contract helper 97 names.
     unsafe { fun(skb) }
 }
 
@@ -235,6 +242,9 @@ pub(crate) fn ecn_rescue(
     pkt_len: u32,
     stats_ptr: Option<*mut LimiterStats>,
 ) -> bool {
+    // SAFETY: the helper call takes the program's own skb pointer
+    // (the same contract bpf_skb_ecn_set_ce's signature note pins);
+    // the return is a plain i64, no pointer crosses back.
     if unsafe { bpf_skb_ecn_set_ce(skb) } == 0 {
         return false;
     }
@@ -246,6 +256,10 @@ pub(crate) fn ecn_rescue(
         return false;
     }
     if let Some(sp) = stats_ptr {
+        // SAFETY: the stats value pointer the budgeted lane handed
+        // in is the same stable map value; its Option borrow was
+        // consumed before this tail runs, so the exclusive deref
+        // aliases nothing.
         book_rescue(unsafe { &mut *sp }, pkt_len);
     }
     true
@@ -266,9 +280,15 @@ pub(crate) fn window_gate(cgroup_id: &u32, now_mono_ns: u64) -> bool {
     match policy_window.get_ptr(cgroup_id) {
         None => true,
         Some(w) => {
+            // SAFETY: the window row's map value (policy_window's
+            // get_ptr contract) is stable kernel memory, read as a
+            // shared borrow for this invocation only.
             let win = unsafe { &*w };
             if win.kind == during::WINDOW_KIND_DAILY {
                 match wall_clock_offset.get_ptr(0) {
+                    // SAFETY: the pre-created Array entry's value —
+                    // the same stable-memory read the deadline gate
+                    // rides; a plain u64 copy, no aliasing.
                     Some(off) => during::window_active(win, now_mono_ns, unsafe { *off }),
                     None => true,
                 }

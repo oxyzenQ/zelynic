@@ -59,6 +59,10 @@ pub struct CgroupStatsRaw {
     pub bytes: u64,
 }
 
+/// SAFETY: CgroupStatsRaw is a plain `repr(align(8))` two-u64
+/// aggregate (Copy, no references, zeroed-instance-safe) — the
+/// value contract aya::Pod requires for a BPF map value; the
+/// layout mirror pins the shape (types.rs layout contract).
 unsafe impl aya::Pod for CgroupStatsRaw {}
 
 pub struct Observer {

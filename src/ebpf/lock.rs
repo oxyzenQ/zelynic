@@ -114,6 +114,8 @@ fn acquire_locked(path: &str) -> Result<std::fs::File> {
         .map_err(|e| anyhow::anyhow!("Failed to open lock file {path}: {e}"))?;
 
     // Non-blocking exclusive lock. If held by another process, return error.
+    // SAFETY: the fd is this process's own opened lock file;
+    // flock only re-states the advisory lock on that descriptor.
     let ret = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
     if ret != 0 {
         let err = std::io::Error::last_os_error();

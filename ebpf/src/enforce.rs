@@ -81,6 +81,10 @@ pub(crate) fn try_enforce(
     // A socket whose OWN cgroup carries the policy (every
     // pre-MMSPA scenario) still takes the single direct lookup
     // below — its cgroup IS the root, no resolution runs.
+    // SAFETY: the helper call hands the program's own skb context
+    // pointer to the kernel (the helper contract every bpf_* call
+    // in this file rides); the return value is a plain u64, no
+    // pointer crosses back into the program.
     let leaf = unsafe { bpf_skb_cgroup_id(ctx.skb.skb) } as u32;
     let pkt_len = ctx.len();
 
@@ -90,6 +94,10 @@ pub(crate) fn try_enforce(
     // ANCESTOR of it is: a strict on cgroup A covers every socket
     // born under A/** (the subtree contract), resolved per packet.
     let (cgroup_id, pol) = match policy_map.get_ptr(&leaf) {
+        // SAFETY: aya's get_ptr hands a pointer into stable kernel
+        // map memory, valid for this program invocation's lifetime;
+        // the shared read borrow never outlives the invocation and
+        // the program is the map's only reader-writer lane.
         Some(ptr) => (leaf, unsafe { &*ptr }),
         None => {
             let root = mmspa_resolve_root(&ctx, leaf, policy_map, memo_map);
@@ -97,6 +105,9 @@ pub(crate) fn try_enforce(
                 return 1;
             }
             match policy_map.get_ptr(&root) {
+                // SAFETY: same map-value contract as the leaf lookup
+                // above — stable kernel memory, one invocation
+                // lifetime, the walk's root is a live map key.
                 Some(ptr) => (root, unsafe { &*ptr }),
                 // TOCTOU belt: the policy vanished between the walk
                 // and this lookup (flush + remove raced the packet).
@@ -113,6 +124,9 @@ pub(crate) fn try_enforce(
     // unlimited fast path (NIGHT-lts-2) never pays for a timestamp
     // it cannot use — only a packet whose policy EXISTS can reach
     // the window gate or the watchdog that follows it.
+    // SAFETY: argument-free kernel helper call — no pointer leaves
+    // the program, the u64 return needs no contract beyond the
+    // helper's own monotonic-clock promise.
     let now = unsafe { bpf_ktime_get_ns() };
 
     // The time-window gate (night-during, schema v23): a row
@@ -136,6 +150,9 @@ pub(crate) fn try_enforce(
     // unreachable in practice; the C twin checks for NULL regardless
     // and so does the port.
     let deadline = match watchdog_deadline.get_ptr(0) {
+        // SAFETY: Array-map value read through aya's get_ptr — the
+        // kernel pre-creates Array entries, and the pointer handed
+        // back is stable for the invocation either way.
         Some(ptr) => unsafe { *ptr },
         None => return 1,
     };
@@ -162,6 +179,10 @@ pub(crate) fn try_enforce(
     // increments exactly the way the pre-v7 ledger lost allowed
     // bytes. Verdict untouched: the drop itself was always total.
     if pol.rate_bps == 0 {
+        // SAFETY: the stats map value behind get_stats_ptr lives in
+        // stable kernel memory for this invocation; the exclusive
+        // borrow is the only one this lane takes (book moves the
+        // counters through their RMW views, no aliasing).
         let stats = get_stats_ptr(&cgroup_id).map(|ptr| unsafe { &mut *ptr });
         if let Some(s) = stats {
             book(s, false, pkt_len);
@@ -199,6 +220,9 @@ pub(crate) fn try_enforce(
     // the same entry the lane booked the drop into, one lookup,
     // no second map read.
     let stats_ptr = get_stats_ptr(&cgroup_id);
+    // SAFETY: same stats-map contract as the rate-0 lane above —
+    // stable kernel memory, one invocation lifetime; the Option's
+    // borrow is moved into exactly one budgeted lane, never two.
     let stats = stats_ptr.map(|ptr| unsafe { &mut *ptr });
 
     // The per-socket lane (NIGHT-upgrade-charger-core-3b, Tier B
@@ -215,6 +239,9 @@ pub(crate) fn try_enforce(
     // at the RESOLVED POLICY ROOT — the roll-up the MMSPA contract
     // already owns.
     if pol_sane.flags & POLICY_FLAG_PER_SOCKET != 0 {
+        // SAFETY: helper call with the program's own skb context
+        // (cast to the helper's void-pointer signature); the return
+        // is a plain u64 cookie, no pointer crosses back.
         let cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
         if cookie != 0 {
             // The skb pointer rides in for the lane's own ECN-first
@@ -293,6 +320,10 @@ pub(crate) fn try_enforce(
             None => return 1,
         };
         let debt_key = debt_key_for(ecn_budget_key);
+        // SAFETY: the group bucket's map value, valid for this
+        // invocation (get_bucket_ptr's contract); bkt_raw is not
+        // dereferenced again while this borrow lives — the debt-pay
+        // tail below re-derives its own raw place.
         let bkt = unsafe { &mut *bkt_raw };
         let verdict = enforce(&pol_sane, bkt, pkt_len, now, stats);
         // The ECN debt pay (private-research-4), on the ALLOW path
@@ -303,6 +334,11 @@ pub(crate) fn try_enforce(
         // never overlaps the &mut borrow the lane consumed above.
         if verdict == 1 {
             if let Some(dp) = get_debt_ptr(debt_map, &debt_key) {
+                // SAFETY: the raw place targets one 8-aligned field
+                // of the same map value the lane borrowed — the &mut
+                // borrow was consumed by enforce's return, so no
+                // live alias overlaps; dp is the debt map's own
+                // valid value pointer (get_debt_ptr's contract).
                 unsafe { ecn::debt_pay(core::ptr::addr_of_mut!((*bkt_raw).tokens), dp) };
             }
         }
@@ -338,6 +374,9 @@ pub(crate) fn try_enforce(
     // one flow bucket). The bucket/share/ledger maps key by the
     // value handed to drr_flow unchanged; every QUIC refusal rides
     // the raw cookie, exactly the v20 verdict.
+    // SAFETY: helper call with the program's own skb context (the
+    // same helper contract the per-socket lane rides); the return
+    // is a plain u64 cookie, no pointer crosses back.
     let cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
     let flow_key = if cookie != 0 {
         quic_flow::quic_flow_key(&ctx, cookie, is_ingress)
@@ -349,6 +388,10 @@ pub(crate) fn try_enforce(
         None => return 1,
     };
     let debt_key = debt_key_for(cgroup_id);
+    // SAFETY: the DRR pool's map value, valid for this invocation
+    // (get_bucket_ptr's contract); pool_ptr is not dereferenced
+    // again while this borrow lives — the debt-pay tail below
+    // re-derives its own raw place, the drr_flow call owns this one.
     let pool = unsafe { &mut *pool_ptr };
     let verdict = drr_flow(
         &pol_sane,
@@ -373,6 +416,10 @@ pub(crate) fn try_enforce(
     // never overlaps the &mut borrow the lane consumed above.
     if verdict == 1 {
         if let Some(dp) = get_debt_ptr(debt_map, &debt_key) {
+            // SAFETY: same raw-place discipline as the group lane's
+            // debt pay — one 8-aligned field of the map value whose
+            // &mut borrow drr_flow consumed, no live alias; dp is
+            // the debt map's valid value pointer.
             unsafe { ecn::debt_pay(core::ptr::addr_of_mut!((*pool_ptr).tokens), dp) };
         }
     }

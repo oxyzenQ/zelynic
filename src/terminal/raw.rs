@@ -155,12 +155,14 @@ pub(crate) fn query_terminal_bg() -> Option<(u8, u8, u8)> {
     if unsafe { libc::write(1, OSC_QUERY.as_ptr().cast(), OSC_QUERY.len()) } < 0 {
         return None;
     }
-    // SAFETY: poll(2) on fd 0 for readability, one entry, bounded.
     let mut pfd = libc::pollfd {
         fd: 0,
         events: libc::POLLIN,
         revents: 0,
     };
+    // SAFETY: poll(2) on fd 0 over the single-entry local array with
+    // a bounded timeout; the kernel writes only revents of that
+    // entry.
     let ready = unsafe { libc::poll(&mut pfd, 1, OSC_REPLY_BUDGET_MS) };
     if ready <= 0 {
         return None;
@@ -183,6 +185,8 @@ pub(crate) fn query_terminal_bg() -> Option<(u8, u8, u8)> {
         events: libc::POLLIN,
         revents: 0,
     };
+    // SAFETY: poll(2) over the single-entry local array, the same
+    // contract as the budget poll above; 10 ms, best-effort drain.
     if unsafe { libc::poll(&mut pfd2, 1, 10) } > 0 {
         // SAFETY: read(2) on fd 0 into a valid buffer, discarded.
         let _ = unsafe { libc::read(0, drain.as_mut_ptr().cast(), drain.len()) };

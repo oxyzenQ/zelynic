@@ -116,6 +116,8 @@ impl TerminalGuard {
         // The state to restore: the tty's pre-monitor termios, read
         // through the raw libc surface so the child can apply the
         // same C object it inherited (async-signal-safe after fork).
+        // SAFETY: zeroed() is valid for libc::termios — a POD byte
+        // struct tcgetattr overwrites wholesale before any read.
         let mut original: libc::termios = unsafe { std::mem::zeroed() };
         // SAFETY: tcgetattr(2) on fd 0 into a valid termios struct.
         if unsafe { libc::tcgetattr(0, &mut original) } != 0 {
@@ -154,13 +156,18 @@ impl TerminalGuard {
             unsafe { libc::prctl(libc::PR_SET_NAME, GUARD_NAME.as_ptr(), 0, 0, 0) };
             let mut byte = [0u8; 1];
             loop {
-                // SAFETY: read(2) one byte from the pipe — the
-                // park. Zero CPU: the kernel blocks until the byte
-                // or the parent's death-closed EOF.
+                // SAFETY: read(2) one byte from this child's own pipe
+                // read end (fds[0], the pipe(2) above) into a valid
+                // one-byte local slot — the park. Zero CPU: the
+                // kernel blocks until the byte or the parent's
+                // death-closed EOF.
                 let n = unsafe { libc::read(fds[0], byte.as_mut_ptr().cast(), 1) };
                 if n == 1 {
                     // The parent's Drop spoke: the terminal is
                     // already restored. Stand down.
+                    // SAFETY: _exit ends this fork-child immediately
+                    // — no buffered state to flush (the child's
+                    // async-signal-safe contract above).
                     unsafe { libc::_exit(0) };
                 }
                 if n == 0 {
@@ -199,6 +206,10 @@ impl TerminalGuard {
                 // SAFETY: read errno is only consulted by retrying.
                 let err = std::io::Error::last_os_error();
                 if err.raw_os_error() != Some(libc::EINTR) {
+                    // SAFETY: _exit terminates this fork-child process
+                    // immediately without running atexit handlers or
+                    // flushing — the child owns no buffered state by
+                    // design (the async-signal-safe contract above).
                     unsafe { libc::_exit(0) };
                 }
             }

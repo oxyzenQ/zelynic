@@ -114,6 +114,9 @@ static mmspa_generation: Array<u32> = Array::pinned(1, 0);
 pub(super) fn current_generation() -> u32 {
     mmspa_generation
         .get_ptr(0)
+        // SAFETY: the generation Array's pre-created entry — the
+        // same stable-memory read the deadline and window gates
+        // ride; a plain u32 copy, no aliasing.
         .map(|p| unsafe { *p })
         .unwrap_or(0)
 }
@@ -159,6 +162,9 @@ pub(super) fn mmspa_resolve_root(
     // get_ptr is the repo's map-lookup idiom (safe, raw-pointer); the
     // one unsafe read is the map-value deref every get_ptr caller in
     // the object performs the same way.
+    // SAFETY: the memo Array's map value read — the stable-memory
+    // contract every get_ptr caller in the object rides; a plain
+    // u32 copy out, no borrow leaves the closure.
     let cached = memo_map.get_ptr(&leaf).map(|p| unsafe { *p });
     // The stale-detect's policy lookup runs only when it can change
     // the verdict: a generation-current memo with a nonzero root.
@@ -184,6 +190,10 @@ pub(super) fn mmspa_resolve_root(
 
     let mut walk = MmspaWalk::new();
     for level in 0..MMSPA_MAX_DEPTH {
+        // SAFETY: the helper call takes the program's own skb
+        // context (the same helper contract every bpf_* call in
+        // this object rides); the return is a plain u64 cgroup id,
+        // no pointer crosses back.
         let id = unsafe { bpf_skb_ancestor_cgroup_id(ctx.skb.skb, level as i32) } as u32;
         if id == 0 {
             // Past the socket's own depth: the chain is exhausted

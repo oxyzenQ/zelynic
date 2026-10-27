@@ -211,6 +211,10 @@ pub(super) fn drr_flow(
         // never drop on a map miss.
         None => return 1,
     };
+    // SAFETY: the leaf bucket's map value (get_leaf_ptr's contract)
+    // is stable kernel memory for this invocation; the exclusive
+    // borrow is the only deref this lane takes before the
+    // raw-place stamp read below.
     let bkt = unsafe { &mut *leaf_ptr };
 
     // The generation stamp: a leaf whose stamp mismatches the live
@@ -242,6 +246,10 @@ pub(super) fn drr_flow(
     //    the socket lane's own bookkeeping posture.
     if cookie != 0 {
         if let Some(fp) = cake_flow::get_flow_ptr(flow_map, &cookie) {
+            // SAFETY: the per-flow bucket's map value behind
+            // get_flow_ptr — the same stable-memory contract the
+            // leaf borrow above rides; the flow borrow and the leaf
+            // borrow target different maps, no aliasing.
             let fbkt = unsafe { &mut *fp };
             // The stale-quantum belt, one level deeper (the leaf
             // bucket's own trick on frac_rem): tokens drawn under a
@@ -258,6 +266,9 @@ pub(super) fn drr_flow(
             // unchanged v17 machinery — the flow draw rides whatever
             // the leaf then holds).
             if tokens_read(bkt) < u64::from(pkt_len) {
+                // SAFETY: one-field volatile read of the leaf's
+                // stamp (the READ_ONCE discipline the leaf belt
+                // pins); the projection stays inside the map value.
                 let leaf_stamp = unsafe { core::ptr::addr_of!(bkt.last_refill_ns).read_volatile() };
                 let leaf_share_key = (generation << 32) | u64::from(*root);
                 let leaf_ledger_key = (generation << 32) | u64::from(*leaf);
@@ -317,6 +328,9 @@ pub(super) fn drr_flow(
     // sufficiency-verified CAS. The draw stamps the leaf's
     // generation as a side effect — the belt only ever re-fires
     // after a mutation.
+    // SAFETY: one-field volatile read of the leaf bucket's stamp —
+    // the same READ_ONCE discipline the belt's re-fire rule above
+    // pins; the projection stays inside the map value.
     let stamp = unsafe { core::ptr::addr_of!(bkt.last_refill_ns).read_volatile() };
     // The generation-prefixed state keys (repair-6): every policy
     // mutation bumps the MMSPA generation the belt above already

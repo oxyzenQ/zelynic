@@ -217,6 +217,10 @@ pub(super) fn quic_flow_key(ctx: &SkBuffContext, cookie: u64, is_ingress: bool) 
     // derived minimum is one, never zero.
     let mut ip = [0u8; IP_BYTES];
     let want_ip = 1 + core::cmp::min(IP_BYTES - 1, (ctx.len() as usize).saturating_sub(1));
+    // SAFETY: bpf_skb_load_bytes bounds-checks every byte itself —
+    // the helper's own contract (a short read fails the call, the
+    // ret check below owns it); the buffer is a fixed local array
+    // and want_ip is clamped to it, no pointer escapes.
     let ret = unsafe {
         bpf_skb_load_bytes(
             ctx.skb.skb.cast(),
@@ -244,6 +248,10 @@ pub(super) fn quic_flow_key(ctx: &SkBuffContext, cookie: u64, is_ingress: bool) 
     let mut l4 = [0u8; L4_BYTES];
     let remain = (ctx.len() as usize).saturating_sub(shape.l4_off);
     let want_l4 = 1 + core::cmp::min(L4_BYTES - 1, remain.saturating_sub(1));
+    // SAFETY: the same load_bytes contract as the IP read above —
+    // the helper bounds-checks, want_l4 clamps to the local array
+    // and remain clamps to the packet; a short read fails the call
+    // and the ret check below owns it.
     let ret = unsafe {
         bpf_skb_load_bytes(
             ctx.skb.skb.cast(),

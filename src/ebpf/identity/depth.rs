@@ -319,6 +319,9 @@ fn read_link_split_deleted(path: &str) -> Option<(String, bool)> {
 /// matches every mainstream Linux build; the None path in the pure
 /// helpers keeps a refused sysconf honest rather than wrong.
 pub(super) fn clock_ticks() -> f64 {
+    // SAFETY: sysconf with a plain integer selector (_SC_CLK_TCK)
+    // — no pointer arguments, the libc contract makes the query
+    // signal-safe; a non-positive fallback reads below.
     let ticks = unsafe { libc::sysconf(libc::_SC_CLK_TCK) };
     if ticks > 0 { ticks as f64 } else { 100.0 }
 }

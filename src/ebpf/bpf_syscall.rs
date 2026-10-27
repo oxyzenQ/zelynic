@@ -123,6 +123,9 @@ pub fn sys_bpf_link_create(prog_fd: RawFd, target_fd: RawFd, attach_type: u32) -
         flags: 0,
         ..Default::default()
     };
+    // SAFETY: the SYS_bpf call passes a fully-initialized bpf_attr
+    // union of the size the kernel expects for this command; both
+    // fds are this process's own, freshly opened and owned here.
     let ret = unsafe {
         libc::syscall(
             libc::SYS_bpf,
@@ -153,6 +156,10 @@ pub fn sys_bpf_obj_pin(fd: RawFd, path: &str) -> Result<()> {
         bpf_fd: fd as u32,
         file_flags: 0,
     };
+    // SAFETY: the same SYS_bpf contract as the link-create call
+    // above — a fully-initialized attr union for BPF_OBJ_PIN, the
+    // fd owned by this process, the path a valid CString pointer
+    // that outlives the call.
     let ret = unsafe {
         libc::syscall(
             libc::SYS_bpf,
@@ -249,6 +256,8 @@ pub fn create_and_pin_link(
     let link_fd = sys_bpf_link_create(prog_fd, cgroup_fd, attach_type)?;
     sys_bpf_obj_pin(link_fd, link_pin_path)?;
     // Close the link fd — the pin keeps the link alive in kernel.
+    // SAFETY: link_fd is this process's own descriptor from the
+    // call above; close only invalidates that one handle.
     unsafe { libc::close(link_fd) };
     Ok(())
 }

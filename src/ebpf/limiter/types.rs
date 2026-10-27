@@ -139,6 +139,10 @@ pub struct PolicyRaw {
     pub flags: u32,
 }
 
+/// SAFETY: PolicyRaw is a plain `repr(align(8))` u64/u32 aggregate
+/// (Copy, no references, no invariant a zeroed instance breaks) —
+/// the value contract aya::Pod requires for a BPF map value; the
+/// size pins below pin the layout against the BPF twin.
 unsafe impl aya::Pod for PolicyRaw {}
 
 /// Policy flag bit 0 (charger-core-3b, schema v15): enforce per
@@ -185,6 +189,10 @@ pub struct PolicyWindowRaw {
     pub end_s: u32,
 }
 
+/// SAFETY: PolicyWindowRaw is a plain u64/u32 aggregate of the same
+/// POD class as PolicyRaw above — the aya::Pod value contract holds
+/// (Copy, no references, any bit pattern a zeroed instance starts
+/// from is valid); the window law reads it defensively (during.rs).
 unsafe impl aya::Pod for PolicyWindowRaw {}
 
 /// Window kind: an absolute monotonic span (the duration and date
@@ -216,6 +224,10 @@ pub struct BucketRaw {
     pub frac_rem: u64,
 }
 
+/// SAFETY: BucketRaw is a plain three-u64 `repr(align(8))`
+/// aggregate (Copy, no references) — the all-zeros-valid value
+/// contract aya::Pod requires; the BPF twin is math.rs's Bucket
+/// (the layout contract, size-pinned both sides).
 unsafe impl aya::Pod for BucketRaw {}
 
 #[repr(C)]
@@ -228,6 +240,10 @@ pub struct LimiterStatsRaw {
     pub bytes_dropped: u64,
 }
 
+/// SAFETY: LimiterStatsRaw is a plain four-u64 `repr(align(8))`
+/// aggregate (Copy, no references) — the same aya::Pod value
+/// contract; the BPF twin is math.rs's LimiterStats (the layout
+/// contract, size-pinned both sides).
 unsafe impl aya::Pod for LimiterStatsRaw {}
 
 // ━━ High-level API types ━━

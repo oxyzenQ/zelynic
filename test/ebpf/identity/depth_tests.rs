@@ -223,6 +223,8 @@ fn classify_probe_never_blocks_on_a_fifo() {
     let fifo = dir.join("pipe");
     let cpath =
         std::ffi::CString::new(fifo.to_string_lossy().as_bytes()).expect("fifo path encodes");
+    // SAFETY: mkfifo takes a valid CString path and a plain mode —
+    // the fixture node it creates lives in this test's own temp dir.
     let rc = unsafe { libc::mkfifo(cpath.as_ptr(), 0o644) };
     assert_eq!(rc, 0, "the mkfifo fixture must exist");
 

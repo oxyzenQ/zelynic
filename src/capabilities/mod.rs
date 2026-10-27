@@ -220,6 +220,9 @@ fn statfs_type(path: &str) -> Option<i64> {
     use std::ffi::CString;
 
     let c_path = CString::new(path).ok()?;
+    // SAFETY: zeroed() is valid for libc::statfs — an all-zero byte
+    // pattern is a sound initial value for the POD struct (no
+    // references, no niches the kernel reads before statfs writes).
     let mut buf: libc::statfs = unsafe { std::mem::zeroed() };
     // SAFETY: c_path is a valid NUL-terminated string and buf is a
     // valid, properly-aligned statfs buffer of the expected size.

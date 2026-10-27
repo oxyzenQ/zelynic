@@ -77,6 +77,10 @@ unsafe impl Send for SharedHandle {}
 impl SharedHandle {
     // SAFETY: same disclosure as the Send impl.
     unsafe fn hit(&self, pol: &Policy, pkt_len: u32, now: u64) -> i32 {
+        // SAFETY: bucket and stats are the Box::into_raw pointers
+        // this handle owns exclusively — the two derefs are
+        // distinct map-value structs, no overlap, and the enforce
+        // call consumes them within this one invocation.
         unsafe { enforce(pol, &mut *self.bucket, pkt_len, now, Some(&mut *self.stats)) }
     }
 }

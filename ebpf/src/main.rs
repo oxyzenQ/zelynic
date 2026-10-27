@@ -264,12 +264,18 @@ fn bump_socket_counter(map: &LruHashMap<u64, u64>, cookie: u64, pkt_len: u64) {
 
 #[cgroup_skb(egress)]
 fn observe_egress(ctx: SkBuffContext) -> i32 {
+    // SAFETY: the helper call hands the program's own skb context
+    // pointer to the kernel; the return is a plain u64 cgroup id,
+    // no pointer crosses back into the program.
     let cgroup_id = unsafe { bpf_skb_cgroup_id(ctx.skb.skb) } as u32;
     let pkt_len = ctx.len();
 
     // Per-socket attribution (NIGHT-boost-26): the cookie of the
     // SENDING socket — per-packet accounting, never a dropped
     // packet's worth of bookkeeping.
+    // SAFETY: the same helper contract — the skb cast matches the
+    // helper's void-pointer signature, the return a plain u64
+    // cookie.
     let cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
     bump_socket_counter(&socket_counters, cookie, u64::from(pkt_len));
 
@@ -308,6 +314,9 @@ fn observe_egress(ctx: SkBuffContext) -> i32 {
 
 #[cgroup_skb(ingress)]
 fn observe_ingress(ctx: SkBuffContext) -> i32 {
+    // SAFETY: the helper call hands the program's own skb context
+    // pointer to the kernel; the return is a plain u64 cgroup id,
+    // no pointer crosses back into the program.
     let cgroup_id = unsafe { bpf_skb_cgroup_id(ctx.skb.skb) } as u32;
     let pkt_len = ctx.len() as u64;
 
@@ -315,6 +324,9 @@ fn observe_ingress(ctx: SkBuffContext) -> i32 {
     // RECEIVING socket — at this attach the kernel has already
     // demuxed the packet (the hook fires per-socket), so the cookie
     // names the download's true owner.
+    // SAFETY: the same helper contract — the skb cast matches the
+    // helper's void-pointer signature, the return a plain u64
+    // cookie.
     let cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
     bump_socket_counter(&socket_counters_ingress, cookie, pkt_len);
 
