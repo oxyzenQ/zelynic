@@ -1,0 +1,559 @@
+---
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: GPL-3.0-only
+# =============================================================================
+#
+# zelynic - SUPERMASSIVE E2E (the depth-stresstest lane;
+# night-dragon-maintenance-2, the owner's ask: the ultimate real CI
+# function is an end-to-end realtime depth stresstest of ALL the
+# existing CLI surfaces, in the real user and root modes, on the
+# kernel span — the sibling's supermassive-e2e contract, sized to
+# zelynic's own physics).
+#
+# The contract: every surface, every guard, every error path,
+# exercised against the REAL compiled binary, on two KVM micro-VM
+# legs - the low-spec leg boots the TRUE documented floor kernel
+# (impish 5.13, the oldest kernel in the verified matrix, from the
+# frozen old-releases archive) and the best-spec leg boots the
+# archive's dynamically resolved LATEST kernel (nothing pinned, the
+# resolver walks onto each new release by itself). Both legs run
+# the IDENTICAL suite and the IDENTICAL check depth: the budget
+# buys headroom, never depth.
+#
+# The suite lives in scripts/ci/e2e-init.sh (its header is the
+# contract's home); this file only makes the legs run. Five
+# canonical invocations per leg, the modes the owner named:
+# the unprivileged USER leg first (nonroot-depth-test.sh - the
+# honest refusal contract), then the ROOT legs (zelynic is a root
+# tool - README's "Linux kernel 5.13+, cgroup v2, root" - so the
+# enforcement depth is root by design): the limiter depth
+# stresstest (measured rates + BPF-counter cross-checks, full
+# depth), the endurance clocks (full churn + monitor soak), the
+# whole-CLI-surface smoke battery, and the install/uninstall
+# lifecycle. Real KVM, real eBPF, real user AND real root - no
+# container shortcut, no simulation.
+#
+# Why a separate lane from supermassive.yml: that lane owns the
+# limiter matrix and its engine batteries (v1-v4, the MMSPA A/B,
+# the three root rig suites) on the same kernel span; this lane
+# owns the per-surface end-to-end depth - the five depth suites
+# no other CI lane executes (the depth audit's finding: all five
+# had ZERO CI wiring, owner-local only). Two contracts, two lanes
+# - neither reduces the other, and the existing lane's name and
+# matrix stay untouched.
+#
+# Build shape (the owner's from-source law): each leg builds the
+# pro-linux-amd64-v3-gnu alias - the release page's amd64-v3 gnu
+# tier, NEVER a bare `cargo build --release` (no release package
+# ever shipped that shape; the binary the depth suite exercises is
+# the binary the release ships). The RUSTFLAGS composition carries
+# the -D warnings lead plus the alias's target-cpu token verbatim
+# (the workflow-level-shadowing incident's lesson, ci.yml's pro
+# block), and the artifact is verified through its embedded build
+# label before it ships into the guest.
+#
+# Trigger discipline (the owner's unfiltered-CI simplification):
+# every push (any branch, any tag) and every pull request (any
+# base) burns this lane - no path filter, no branch filter, the
+# same blind posture every push-triggered lane in the estate now
+# carries. workflow_dispatch stays as the manual recovery lane.
+#
+# The jobs fail on any FAIL (every suite exits 1 on its own
+# failure, and the init's E2E-VERDICT relay aggregates the rows;
+# 0 = all passed; the verdict lines are the contract the Verdict
+# step greps - the VM cannot relay exit codes through qemu).
+
+name: Dragon Guard - Supermassive E2E
+
+"on":
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  supermassive-e2e:
+    name: ${{ matrix.title }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # The estate's envelope vocabulary (supermassive.yml's pair):
+        # low = the TRUE documented floor kernel, best = the archive's
+        # dynamic latest. The vm_timeout is the wedge-guard outer
+        # bound (a wedged guest can never burn the job budget); both
+        # legs run the identical suite at identical depth, so the
+        # low leg's larger bound is headroom for its quarter-core
+        # serialization, never less depth.
+        include:
+          - title: supermassive e2e - low specs (the 5.13 floor kernel)
+            profile: low
+            vm_timeout: 2400
+          - title: supermassive e2e - best specs (the archive's latest kernel)
+            profile: best
+            vm_timeout: 1800
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          persist-credentials: false
+
+      # The kernel can change; /dev/kvm is a GitHub runner guarantee
+      # on this image family, but the node ships 0660 root:kvm and
+      # the runner user is not in the kvm group, so the job opens it
+      # up itself. Failing LOUDLY here beats a confusing TCG
+      # fallback: the payload is x86-64-v3 codegen and would SIGILL
+      # under TCG's -cpu qemu64.
+      - name: Verify KVM
+        run: |
+          test -e /dev/kvm || {
+            echo "FAIL: /dev/kvm is absent - this runner image cannot boot the micro-VM"
+            exit 1
+          }
+          test -w /dev/kvm || sudo chmod 666 /dev/kvm
+          test -w /dev/kvm || {
+            echo "FAIL: /dev/kvm is not usable by the runner user even after chmod"
+            ls -l /dev/kvm
+            exit 1
+          }
+          echo "OK: /dev/kvm present and usable"
+
+      - name: Install qemu + cpio
+        run: |
+          sudo apt-get -o Acquire::Retries=5 update -qq
+          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends qemu-system-x86 cpio
+
+      # The toolchain set mirrors ci.yml's gnu job (the same three
+      # install steps): the pinned stable for the payload build, the
+      # dated nightly for the nested pure-Rust eBPF crate build the
+      # ebpf feature drives, and the pinned prebuilt bpf-linker.
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: "1.98.1"
+          components: clippy, rustfmt
+
+      - name: Install eBPF nightly toolchain (dated pin)
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: nightly-2026-09-18
+          components: rust-src
+
+      - name: Install bpf-linker 0.11.1 (prebuilt static musl)
+        run: bash scripts/dev/install-bpf-linker.sh
+
+      - name: Cache cargo registry
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6, NIGHT-hunt-20 SHA pin
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            ebpf/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      # The owner's from-source law: the release-tier alias, never a
+      # bare cargo build --release. The RUSTFLAGS lead is the
+      # -D-warnings-plus-alias-token composition ci.yml's pro block
+      # carries (an env RUSTFLAGS shadows every config rustflags, so
+      # the alias invocation IS the contract under test); the
+      # explicit --target keeps RUSTFLAGS off the host proc-macro
+      # world (the SIGILL incident's lesson). The artifact is
+      # verified through its embedded build label - v3 executes
+      # everywhere (every x86_64 runner since Haswell), so the -V
+      # gate runs live.
+      - name: Build the release-tier v3 payload (pro-linux-amd64-v3-gnu)
+        run: |
+          set -euo pipefail
+          RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3" \
+            cargo pro-linux-amd64-v3-gnu --locked --target x86_64-unknown-linux-gnu
+          ./target/x86_64-unknown-linux-gnu/pro-linux-amd64-v3-gnu/zelynic -V | grep -F "Build: local-linux-amd64-v3-gnu"
+
+      # The floor kernel (NIGHT-improve-33's resolver, ported from
+      # supermassive.yml's floor lane): impish indri (21.10) 5.13, the
+      # TRUE documented floor, fetched from the frozen old-releases
+      # archive (EOL July 2022 - it can never drift; the trade, a
+      # frozen mirror's availability, surfaces at the next push).
+      # Names-only search, highest ABI, apt resolves the last
+      # impish-updates kernel so no URL rot. NIGHT-dinner-12's retry
+      # contract rides every frozen-mirror probe.
+      - name: Fetch the impish 5.13 floor kernel (low specs)
+        if: matrix.profile == 'low'
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/kfloor && cd /tmp/kfloor
+          {
+            echo "deb http://old-releases.ubuntu.com/ubuntu/ impish main"
+            echo "deb http://old-releases.ubuntu.com/ubuntu/ impish-updates main"
+          } | sudo tee /etc/apt/sources.list.d/impish-floor.list >/dev/null
+          sudo apt-get -o Acquire::Retries=5 update \
+            -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/impish-floor.list \
+            -o Dir::Etc::sourceparts=/dev/null \
+            -o APT::Get::List-Cleanup=0
+          IMG=$(apt-cache search --names-only \
+            'linux-image-unsigned-5\.13\.0-.*-generic' 2>/dev/null \
+            | grep -oE 'linux-image-unsigned-5\.13\.0-[0-9]+-generic' \
+            | sort -V | tail -1 || true)
+          if test -z "$IMG"; then
+            echo "FAIL: no linux-image-unsigned-5.13.0-*-generic in the impish pockets - resolver evidence:"
+            apt-cache search --names-only 'linux-image-unsigned-5\.13' || true
+            exit 1
+          fi
+          echo "resolved: $IMG"
+          apt-get -o Acquire::Retries=5 download "$IMG"
+          dpkg -x "${IMG}"*_amd64.deb pkg
+          VMLINUZ=$(find pkg/boot -name 'vmlinuz-5.13.*' | head -1)
+          if test -z "$VMLINUZ"; then
+            echo "FAIL: no vmlinuz inside the deb - pkg/boot contents:"
+            ls -la pkg/boot || true
+            exit 1
+          fi
+          cp "$VMLINUZ" /tmp/kfloor/vmlinuz-floor
+          echo "kernel: $(du -h /tmp/kfloor/vmlinuz-floor | cut -f1) at /tmp/kfloor/vmlinuz-floor"
+          # The egress half: stage the kernel's OWN virtio_net module
+          # pair when the driver is a module (the 5.13 floor ships
+          # CONFIG_VIRTIO_NET=m, verified against the deb's own
+          # config). The bus layer is =y on every kernel this VM
+          # boots. The chain walk is run 37520041688's lesson:
+          # failover.ko under net/core owns the symbols
+          # net_failover.ko imports, so the pair alone fails every
+          # insmod with Unknown symbol - three modules, bottom-up.
+          KVER="${IMG#linux-image-unsigned-}"
+          MODPKG="linux-modules-$KVER"
+          apt-get -o Acquire::Retries=5 download "$MODPKG"
+          rm -rf mods /tmp/kfloor/virtio-mods
+          dpkg-deb -x "${MODPKG}"*_amd64.deb mods
+          CFG="mods/boot/config-$KVER"
+          test -f "$CFG" || {
+            echo "FAIL: no config-$KVER inside $MODPKG - deb contents:"
+            ls mods/boot || true
+            exit 1
+          }
+          VNET=$(sed -n 's/^CONFIG_VIRTIO_NET=\(.*\)$/\1/p' "$CFG")
+          case "$VNET" in
+            y)  echo "virtio_net built-in (=y) - no modules to stage" ;;
+            m)  STG="/tmp/kfloor/virtio-mods/lib/modules/$KVER/kernel"
+                mkdir -p "$STG/net/core" "$STG/drivers/net"
+                stage_mod() {
+                  mod=$1; dir=$2; flag=$3
+                  WANT=$(sed -n "s/^CONFIG_$flag=\(.*\)$/\1/p" "$CFG")
+                  if [ "$WANT" = "m" ]; then
+                    SRC="mods/lib/modules/$KVER/kernel/$dir/$mod.ko"
+                    test -f "$SRC" || { echo "FAIL: $mod.ko absent from $MODPKG (config says =m)"; exit 1; }
+                    cp "$SRC" "$STG/$dir/"
+                  fi
+                }
+                stage_mod failover net/core FAILOVER
+                stage_mod net_failover drivers/net NET_FAILOVER
+                stage_mod virtio_net drivers/net VIRTIO_NET
+                echo "staged virtio modules: $(du -sh /tmp/kfloor/virtio-mods | cut -f1) at /tmp/kfloor/virtio-mods" ;;
+            *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET - no usable virtio-net driver on this kernel"; exit 1 ;;
+          esac
+
+      # The latest kernel (NIGHT-improve-33's resolver, the best-specs
+      # twin, ported from supermassive.yml): resolved DYNAMICALLY at
+      # run time, nothing pinned. The dists index names every live
+      # base suite; each suite's Release carries Date + Codename; the
+      # two newest DISTINCT codenames (the dedupe is load-bearing -
+      # mid-cycle the index lists the devel alias AND its target
+      # codename pointing at the same content) become the apt
+      # sources, main + -updates pockets each (proposed deliberately
+      # excluded - pre-release is not "latest"), and the newest
+      # generic unsigned image wins via sort -V. When Ubuntu ships
+      # its next release, this resolver walks onto it without an
+      # edit; an archive restructure fails LOUDLY with the discovery
+      # evidence attached.
+      - name: Resolve the archive's latest kernel (best specs)
+        if: matrix.profile == 'best'
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/kfloor && cd /tmp/kfloor
+          SUITES=$(curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 300 --connect-timeout 15 \
+            http://archive.ubuntu.com/ubuntu/dists/ \
+            | grep -oE 'href="[a-z0-9]+/"' | cut -d'"' -f2 | tr -d '/' \
+            | grep -v -- '-' | sort -u)
+          if test -z "$SUITES"; then
+            echo "FAIL: the dists index resolved no base suites - archive restructure?"
+            curl -fsSL --retry 6 --retry-all-errors http://archive.ubuntu.com/ubuntu/dists/ | head -40 || true
+            exit 1
+          fi
+          echo "base suites: $(echo "$SUITES" | tr '\n' ' ')"
+          RELEASES=$(for s in $SUITES; do
+            rel=$(curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 300 --connect-timeout 15 \
+              "http://archive.ubuntu.com/ubuntu/dists/$s/Release")
+            d=$(echo "$rel" | sed -n 's/^Date: //p' | head -1)
+            c=$(echo "$rel" | sed -n 's/^Codename: //p' | head -1)
+            if test -n "$d" && test -n "$c"; then
+              echo "$(date -d "$d" +%s 2>/dev/null || echo 0) $c"
+            fi
+          done | sort -rn -k1,1 | awk '!seen[$2]++')
+          DATED=$(echo "$RELEASES" | head -2 | awk '{print $2}')
+          if test -z "$DATED"; then
+            echo "FAIL: no suite Release carried Date+Codename - resolver evidence above"
+            exit 1
+          fi
+          echo "newest distinct codenames: $(echo "$DATED" | tr '\n' ' ')"
+          {
+            for s in $DATED; do
+              echo "deb http://archive.ubuntu.com/ubuntu/ $s main"
+              echo "deb http://archive.ubuntu.com/ubuntu/ $s-updates main"
+            done
+          } | sudo tee /etc/apt/sources.list.d/latest-head.list >/dev/null
+          sudo apt-get -o Acquire::Retries=5 update \
+            -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/latest-head.list \
+            -o Dir::Etc::sourceparts=/dev/null \
+            -o APT::Get::List-Cleanup=0
+          IMG=$(apt-cache search --names-only 'linux-image-unsigned' 2>/dev/null \
+            | awk '{print $1}' \
+            | grep -E '^linux-image-unsigned-[0-9]+\.[0-9]+\.0-[0-9]+-generic$' \
+            | sort -V | tail -1 || true)
+          if test -z "$IMG"; then
+            echo "FAIL: no generic unsigned kernel image resolved across the newest suites - index evidence:"
+            apt-cache search --names-only 'linux-image-unsigned' | head -20 || true
+            exit 1
+          fi
+          echo "resolved: $IMG"
+          apt-get -o Acquire::Retries=5 download "$IMG"
+          dpkg -x "${IMG}"*_amd64.deb pkg
+          VMLINUZ=$(find pkg/boot -type f -name 'vmlinuz-*' | head -1)
+          if test -z "$VMLINUZ"; then
+            echo "FAIL: no vmlinuz inside the deb - pkg/boot contents:"
+            ls -la pkg/boot || true
+            exit 1
+          fi
+          cp "$VMLINUZ" /tmp/kfloor/vmlinuz-floor
+          echo "kernel: $(du -h /tmp/kfloor/vmlinuz-floor | cut -f1) at /tmp/kfloor/vmlinuz-floor"
+          # The egress half, the latest-kernel twin: the SAME
+          # config-driven staging walk (the modern heads ship
+          # CONFIG_VIRTIO_NET=y - the walk exists so the day a head
+          # flips the flag back to =m, this leg stages the trio
+          # instead of reddening the egress row the init judges).
+          KVER="${IMG#linux-image-unsigned-}"
+          MODPKG="linux-modules-$KVER"
+          apt-get -o Acquire::Retries=5 download "$MODPKG"
+          rm -rf mods /tmp/kfloor/virtio-mods
+          dpkg-deb -x "${MODPKG}"*_amd64.deb mods
+          CFG="mods/boot/config-$KVER"
+          test -f "$CFG" || {
+            echo "FAIL: no config-$KVER inside $MODPKG - deb contents:"
+            ls mods/boot || true
+            exit 1
+          }
+          VNET=$(sed -n 's/^CONFIG_VIRTIO_NET=\(.*\)$/\1/p' "$CFG")
+          case "$VNET" in
+            y)  echo "virtio_net built-in (=y) - no modules to stage" ;;
+            m)  STG="/tmp/kfloor/virtio-mods/lib/modules/$KVER/kernel"
+                mkdir -p "$STG/net/core" "$STG/drivers/net"
+                stage_mod() {
+                  mod=$1; dir=$2; flag=$3
+                  WANT=$(sed -n "s/^CONFIG_$flag=\(.*\)$/\1/p" "$CFG")
+                  if [ "$WANT" = "m" ]; then
+                    SRC="mods/lib/modules/$KVER/kernel/$dir/$mod.ko"
+                    test -f "$SRC" || { echo "FAIL: $mod.ko absent from $MODPKG (config says =m)"; exit 1; }
+                    cp "$SRC" "$STG/$dir/"
+                  fi
+                }
+                stage_mod failover net/core FAILOVER
+                stage_mod net_failover drivers/net NET_FAILOVER
+                stage_mod virtio_net drivers/net VIRTIO_NET
+                echo "staged virtio modules: $(du -sh /tmp/kfloor/virtio-mods | cut -f1) at /tmp/kfloor/virtio-mods" ;;
+            *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET - no usable virtio-net driver on this kernel"; exit 1 ;;
+          esac
+
+      # The userland, held CONSTANT across both legs on purpose (the
+      # leg's only variables are the kernel and the envelope): the
+      # rootfs draws from the ubuntu:24.04 CONTAINER (the glibc the
+      # v3-gnu payload was built against; 2.39's kernel floor is 3.2,
+      # so the 5.13 guest kernel is safe). python3 + iproute2 + kmod
+      # + curl + nftables ride the plain apt line (the suites' own
+      # needs: the engines' python, `ip link set lo up`, the insmod
+      # pair, the loopback transfers, the nft snapshot rows).
+      # bpftool is extracted from the linux-tools dependency chain
+      # (improve-48's walk - the VM's kernel never matches the
+      # rootfs's tools ABI) so the suites' bpftool surfaces run for
+      # real instead of SKIPping. The QUIC stack stays OFF this
+      # rootfs: none of the five suites drives HTTP/3 (that row is
+      # supermassive.yml's v1 contract), so the RAM-resident cpio
+      # stays lean. The checkout (tracked files only) and the
+      # payload land at /opt/zelynic, scripts/ci/e2e-init.sh becomes
+      # /init (PID 1), PAYLOAD-SHAPE names the alias for the init's
+      # identity row - then the whole tree packs into ONE newc cpio
+      # (the initramfs IS the rootfs; no disk).
+      - name: Assemble the micro-VM rootfs
+        run: |
+          set -euo pipefail
+          cd /tmp/kfloor
+          SUITE=ubuntu:24.04
+          PAYLOAD="$GITHUB_WORKSPACE/target/x86_64-unknown-linux-gnu/pro-linux-amd64-v3-gnu/zelynic"
+          echo "rootfs suite: $SUITE (payload: pro-linux-amd64-v3-gnu)"
+          docker pull -q "$SUITE"
+          docker rm -f e2e-rootfs >/dev/null 2>&1 || true
+          docker run --name e2e-rootfs -d "$SUITE" sleep infinity
+          docker exec e2e-rootfs apt-get update -qq
+          docker exec e2e-rootfs apt-get install -y --no-install-recommends python3 iproute2 kmod curl nftables
+          docker exec e2e-rootfs sh -ec '
+            cd /tmp || exit 1
+            resolve() {
+              apt-cache depends "$1" \
+                | sed -n "s/^ *Depends: \(linux-tools-[0-9][^ ]*\) *$/\1/p" \
+                | head -n1
+            }
+            pkg=$(resolve linux-tools-generic)
+            test -n "$pkg" || { echo "FAIL: no per-kernel linux-tools resolved"; exit 1; }
+            src=""
+            for _ in 1 2 3; do
+              apt-get download "$pkg" >/dev/null
+              rm -rf /tmp/bpx
+              dpkg-deb -x "${pkg}"_*.deb /tmp/bpx
+              src=$(find /tmp/bpx/usr/lib -type f -name bpftool | head -n1)
+              test -n "$src" && break
+              next=$(resolve "$pkg")
+              test -n "$next" || break
+              test "$next" != "$pkg" || break
+              pkg="$next"
+            done
+            test -n "$src" || { echo "FAIL: no bpftool inside the linux-tools chain ($pkg)"; exit 1; }
+            install -m 0755 "$src" /usr/bin/bpftool
+            rm -rf /tmp/bpx /tmp/linux-tools-*.deb
+          '
+          docker export e2e-rootfs -o rootfs.tar
+          mkdir -p rootfs
+          tar -xf rootfs.tar -C rootfs
+          mkdir -p rootfs/opt/zelynic
+          git -C "$GITHUB_WORKSPACE" archive HEAD | tar -x -C rootfs/opt/zelynic
+          cp "$PAYLOAD" rootfs/opt/zelynic/zelynic
+          printf '%s\n' 'pro-linux-amd64-v3-gnu' > rootfs/opt/zelynic/PAYLOAD-SHAPE
+          cp "$GITHUB_WORKSPACE/scripts/ci/e2e-init.sh" rootfs/init
+          chmod +x rootfs/init
+          # The virtio module pair a resolver step staged (the 5.13
+          # floor's =m legs) rides the cpio under the kernel's own
+          # module path; the =y heads staged nothing and the init's
+          # insmod chain simply finds no files. The copy respects the
+          # usr-merge (run 37518266382's lesson: the ubuntu containers
+          # ship /lib as a SYMLINK to usr/lib).
+          if [ -d /tmp/kfloor/virtio-mods ]; then
+            if [ -L rootfs/lib ]; then
+              mkdir -p rootfs/usr/lib
+              cp -a /tmp/kfloor/virtio-mods/lib/modules rootfs/usr/lib/
+            else
+              mkdir -p rootfs/lib
+              cp -a /tmp/kfloor/virtio-mods/lib/modules rootfs/lib/
+            fi
+            echo "virtio modules staged into the rootfs cpio"
+          fi
+          # PID 1 needs a console to exec onto before devtmpfs lands
+          # (the kernel opens the initramfs's static /dev/console for
+          # it; the init's devtmpfs mount takes over from there). The
+          # docker export ships a /dev/console entry tar could not
+          # restore as a device - remove whatever landed, mknod the
+          # real char device fresh.
+          sudo rm -f rootfs/dev/console
+          sudo mknod -m 600 rootfs/dev/console c 5 1
+          ( cd rootfs && sudo find . -print0 | sudo cpio --null -o -H newc ) | gzip -1 > initrd.gz
+          echo "initramfs: $(du -h initrd.gz | cut -f1)"
+
+      # Boot the micro-VM: direct kernel boot, KVM host-passthrough
+      # CPU, no disk, serial console to stdout, panic=-1 + -no-reboot
+      # so a kernel panic ends qemu instead of hanging the job, the
+      # per-profile outer timeout (a wedged guest can never burn the
+      # 55-minute job budget), SLIRP user-mode networking (the
+      # deterministic 10.0.2.x shape the init configures), and the
+      # isa-debug-exit device - the guest ends the VM deterministically
+      # by writing one byte to port 0xf4 (qemu exits with status 1),
+      # the kernel-CI standard for initramfs guests whose direct-boot
+      # path never reaches an ACPI S5 poweroff.
+      #
+      # The DYNAMIC envelope (the owner's "cpu core, ram, etc don't
+      # set fixed let dynamic"): derived from the runner at boot
+      # time - low specs takes one quarter of the cores (floored at
+      # 1) and one eighth of the RAM (floored at 1024 MB), best
+      # specs takes every core and three quarters of the RAM. The
+      # pair scales with GitHub's hardware instead of pinning one
+      # era's runner shape.
+      - name: Boot the micro-VM and run the E2E depth suite
+        run: |
+          set -euo pipefail
+          cd /tmp/kfloor
+          CORES=$(nproc)
+          TOTAL_MB=$(free -m | awk '/^Mem:/{print $2}')
+          if [ "${{ matrix.profile }}" = "low" ]; then
+            SMP=$(( CORES / 4 )); [ "$SMP" -lt 1 ] && SMP=1
+            MEM=$(( TOTAL_MB / 8 )); [ "$MEM" -lt 1024 ] && MEM=1024
+          else
+            SMP=$CORES
+            MEM=$(( TOTAL_MB * 3 / 4 ))
+          fi
+          echo "envelope: $SMP vCPU / $MEM MB (of $CORES cores / $TOTAL_MB MB on the runner)"
+          set +e
+          timeout ${{ matrix.vm_timeout }} qemu-system-x86_64 \
+            -machine q35,accel=kvm -cpu host \
+            -m "$MEM" -smp "$SMP" \
+            -netdev user,id=net0 \
+            -device virtio-net-pci,netdev=net0 \
+            -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
+            -kernel vmlinuz-floor \
+            -initrd initrd.gz \
+            -append "console=ttyS0 panic=-1" \
+            -nographic -no-reboot 2>&1 | tee vm.log
+          QEMU_RC=${PIPESTATUS[0]}
+          set -e
+          # rc 0 = a natural poweroff; rc 1 = the guest's deliberate
+          # isa-debug-exit (the verdict itself rides the E2E-*
+          # sentinel lines, so the Verdict step below stays the
+          # authority). Anything else - the profile's timeout (124),
+          # a KVM init failure - fails HERE with the tail attached.
+          if test "$QEMU_RC" -ne 0 && test "$QEMU_RC" -ne 1; then
+            echo "FAIL: qemu exited $QEMU_RC - log tail:"
+            tail -40 vm.log
+            exit 1
+          fi
+          exit 0
+
+      # The verdict lives in the log (the VM cannot relay exit codes
+      # through qemu; the E2E-RESULT / E2E-VERDICT sentinel lines are
+      # the contract - scripts/ci/e2e-init.sh owns them).
+      - name: Verdict
+        run: |
+          set -euo pipefail
+          cd /tmp/kfloor
+          echo "-- e2e depth verdicts (${{ matrix.title }}) --"
+          grep -E '^E2E-(RESULT|VERDICT)' vm.log || true
+          grep -q '^E2E-VERDICT: PASS' vm.log
+          echo "OK: the E2E depth suite proven on the ${{ matrix.title }} leg"
+
+      # The busy-hour residual watch (the estate's convention, the
+      # same shape supermassive.yml carries): every run lands its
+      # leg's FAIL/SKIP inventory in the step summary, so the Actions
+      # history reads as the longitudinal dataset. This workflow
+      # keeps contents: read; no in-repo writes, no artifact expiry.
+      - name: Watch summary
+        if: always()
+        run: |
+          cd /tmp/kfloor 2>/dev/null || exit 0
+          {
+            echo "## Dragon Guard watch - ${{ matrix.title }}"
+            echo
+            echo "- trigger: ${{ github.event_name }}"
+            echo "- run: ${{ github.run_id }} (attempt ${{ github.run_attempt }})"
+            echo
+            echo "### suite verdicts (the init's sentinel rows)"
+            echo
+            echo '```'
+            grep -E '^E2E-(RESULT|VERDICT)' vm.log || true
+            echo '```'
+            echo
+            echo "### FAIL/SKIP inventory"
+            echo
+            echo '```'
+            grep -E '^(FAIL|SKIP|X  |X )' vm.log | head -40 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
