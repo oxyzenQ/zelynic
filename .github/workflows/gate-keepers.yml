@@ -154,6 +154,19 @@ jobs:
           toolchain: nightly-2026-09-18
           components: rust-src, rustfmt
 
+      # The prebuilt-parity gate recomputes the lane's blake3 pins
+      # (check-prebuilt-parity.sh, fail-closed on the digest tool's
+      # absence). The release lane's own install order, verbatim:
+      # Ubuntu 24.04 ships the b3sum package; the cargo install is the
+      # fallback for any runner image that drops it. The owner's local
+      # gate never saw this gap because the bootstrap installs the
+      # pinned b3sum into ~/.cargo/bin.
+      - name: Install b3sum (the BLAKE3 digest tool)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q b3sum || cargo install b3sum --locked
+          b3sum --version
+
       # The wholesale run: all 19 sections in one shot — exit code 0
       # or the push is blocked.
       - name: Run gate-keepers.sh (wholesale)
