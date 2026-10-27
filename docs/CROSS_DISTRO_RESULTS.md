@@ -254,8 +254,8 @@ verified across all tested distros.
 All distros tested with the release tarball (no source build):
 
 ```bash
-curl -LO https://github.com/oxyzenQ/zelynic/releases/download/vX.Y.Z/zelynic-vX.Y.Z-linux-amd64-v3-gnu.tar.gz
-tar xzf zelynic-vX.Y.Z-linux-amd64-v3-gnu.tar.gz
+curl -LO https://github.com/oxyzenQ/zelynic/releases/download/vX.Y.Z/zelynic-vX.Y.Z-linux-amd64-v3-musl.tar.gz
+tar xzf zelynic-vX.Y.Z-linux-amd64-v3-musl.tar.gz
 sudo install -Dm755 zelynic /usr/local/bin/zelynic
 ```
 

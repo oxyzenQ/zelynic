@@ -43,17 +43,16 @@
 # boots the archive's latest (resolved dynamically at run time),
 # and the same userland (the ubuntu:22.04 container) serves both.
 #
-# NIGHT-blade-12: the envelope pair crossed with the payload's
-# libc — the matrix is now {low, best} x {gnu, musl} and this init
-# runs once per leg with ITS payload at /opt/zelynic/zelynic. The
-# rootfs assembly writes /opt/zelynic/PAYLOAD-FLAVOR ("gnu" or
-# "musl") beside the binary, and the probe rows below name it, so
-# a four-leg matrix's serial log always says which libc it proved
-# (the gnu legs ride a ubuntu:24.04 rootfs — same-distro as the
-# runner that built the dynamic flagship; the musl legs keep the
-# frozen ubuntu:22.04 userland). A missing marker is a rootfs
-# assembly bug and shows as "unknown" — visible in the verdict
-# lines, never silent.
+# NIGHT-blade-12: the envelope pair once crossed with the payload's
+# libc ({low, best} x {gnu, musl}); night-dragon-maintenance-6
+# collapsed the dimension to musl (the gnu packaging retired), so
+# this init runs once per leg with the static payload at
+# /opt/zelynic/zelynic. The rootfs assembly still writes
+# /opt/zelynic/PAYLOAD-FLAVOR ("musl") beside the binary, and the
+# probe rows below name it, so the serial log always says which
+# libc it proved (the frozen ubuntu:22.04 userland). A missing
+# marker is a rootfs assembly bug and shows as "unknown" — visible
+# in the verdict lines, never silent.
 #
 # Contract: one MASS-RESULT line per probe plus a final
 # MASS-VERDICT line, all on the serial console (the workflow's

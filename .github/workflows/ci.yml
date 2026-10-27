@@ -95,9 +95,10 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
           components: clippy, rustfmt
           # NIGHT-improve-20: the musl target install moved to the
-          # dedicated `musl` job below — this gnu job no longer
-          # compiles any musl shape, so it no longer carries the
-          # target (one shape, one job).
+          # dedicated `musl` job below — the check job rides the
+          # runner's host toolchain for tests only (one shape, one
+          # job; musl is the only shipped shape, night-dragon-
+          # maintenance-6).
 
       # NIGHT-improve-1 phase 3: clippy --all-features compiles the
       # ebpf-feature build, which drives the nested pure-Rust eBPF
@@ -110,7 +111,7 @@ jobs:
           components: rust-src
 
       # NIGHT-improve-11: the pinned bpf-linker install is shared by
-      # four CI jobs (this one, gnu-dynamic below, release.yml, and
+      # four CI jobs (this one, ebpf-host below, release.yml, and
       # maintenance.yml) — one script, one place to bump the pin.
       - name: Install bpf-linker 0.11.1 (prebuilt static musl)
         run: bash scripts/dev/install-bpf-linker.sh
@@ -180,7 +181,7 @@ jobs:
       # every push. The division of labor stays as designed: v3's
       # full battery lives in supermassive-container.yml (the
       # docker/k8s E2E legs), v4's full battery runs rootless in the
-      # gnu-dynamic job below, and these rows are the plumbing
+      # ebpf-host job below, and these rows are the plumbing
       # proof — the same shape the v1/v2 rows above carry.
       - name: Supermassive v3 harness engine self-test
         run: python3 scripts/supermassive/supermassive-test-v3.py --self-test
@@ -195,72 +196,12 @@ jobs:
       - name: Claims-proof harness engine self-test
         run: python3 scripts/bench/proof-claims.py --self-test
 
-      # NIGHT-boost-2: the plain `cargo build --release` verify is
-      # retired — the release page never shipped a plain-release
-      # gnu binary, so the shape it verified was one nobody
-      # distributes. The verification now compiles the three gnu pro
-      # profiles (native + v3 + v4) via the .cargo/config.toml
-      # aliases: the v3/v4 pair reproduces the tiers release.yml
-      # distributes, native covers the local dev contract — every
-      # build with the ebpf feature, --locked, and its own profile
-      # dir (no clobbering target/release).
-      #
-      # NIGHT-boost-7 (SIGILL closure): every line now passes
-      # --target x86_64-unknown-linux-gnu explicitly. Without it,
-      # cargo runs a host-oriented build and RUSTFLAGS leaks into
-      # the HOST artifacts — the proc-macro dylibs rustc itself
-      # loads and executes mid-compile. On the 2026-09-22 run the
-      # runner CPU had no AVX-512, so the v4-flagged thiserror-impl
-      # dylib hit an illegal instruction inside rustc ("could not
-      # compile aya-obj", signal 4) — while the musl v4 build
-      # never crashed, because its alias already targets
-      # x86_64-unknown-linux-musl. The explicit --target splits the
-      # two worlds: RUSTFLAGS governs the target artifacts only,
-      # proc-macros and build scripts compile flag-clean for the
-      # host on any runner CPU. Artifact paths gain the triple
-      # segment, mirroring the musl job's layout.
-      #
-      # RUSTFLAGS composition: each line leads with -D warnings
-      # (NIGHT-strict-2) and carries the full baseline set verbatim —
-      # a set env RUSTFLAGS silently shadows every config rustflags
-      # (the workflow-level -D warnings would eat the alias's
-      # target-cpu flags; release.yml composes its matrix flags the
-      # same way). The alias invocation itself is still the contract
-      # under test: profile, feature set, and the ZELYNIC_BUILD
-      # label all come from the alias definition in
-      # .cargo/config.toml, so CI proves the owner-facing
-      # reproduction path works, not a hand-copied variant of it.
-      #
-      # v4 executes nothing: AVX-512 runners are not guaranteed, so
-      # the artifact is verified via its embedded build label — the
-      # same no-SIGILL contract release.yml carries for v4. Native
-      # executes nothing either (NIGHT-hunt-34, preemptive): this job
-      # caches target/ exactly like the musl twin, and a restored
-      # target-cpu=native artifact was compiled on a PREVIOUS
-      # runner's CPU — executing it on this run's silicon is the same
-      # lottery that SIGILLed the musl ubuntu-22.04 job. Same fix,
-      # same contract: the embedded build label. v3 keeps its
-      # execution gate — the fixed v3 baseline is pool-portable
-      # (every x86_64 runner since Haswell executes AVX2).
-      - name: 'Verify pro builds (gnu: native + v3 + v4)'
-        run: |
-          set -euo pipefail
-          RUSTFLAGS="-D warnings -C target-cpu=native" \
-            cargo pro-native-gnu --locked --target x86_64-unknown-linux-gnu
-          grep -aF "local-native-gnu" \
-            ./target/x86_64-unknown-linux-gnu/pro-native-gnu/zelynic
-          RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3" \
-            cargo pro-linux-amd64-v3-gnu --locked --target x86_64-unknown-linux-gnu
-          ./target/x86_64-unknown-linux-gnu/pro-linux-amd64-v3-gnu/zelynic -V | grep -F "Build: local-linux-amd64-v3-gnu"
-          RUSTFLAGS="-D warnings -C target-cpu=x86-64-v4" \
-            cargo pro-linux-amd64-v4-gnu --locked --target x86_64-unknown-linux-gnu
-          grep -aF "local-linux-amd64-v4-gnu" \
-            ./target/x86_64-unknown-linux-gnu/pro-linux-amd64-v4-gnu/zelynic
-
-  # NIGHT-improve-20: musl CI parity — the owner directive. The gnu
-  # surface gets fmt + clippy + tests + the pro build verification on
-  # every push; the musl static twin deserved the same contract,
-  # not a single release-shape compile stapled to the gnu job. The
+  # NIGHT-improve-20: musl CI parity — the owner directive, now the
+  # whole shipping story (night-dragon-maintenance-6: musl is the
+  # ONLY libc shape the project builds and ships; the gnu pro-profile
+  # verification retired with the gnu aliases). The musl job carries
+  # clippy + tests + the debug gate + the pro build verification on
+  # every push. The
   # matrix once pinned the hosted kernel span (5.15 through 6.8+);
   # NIGHT-blade-3 retires the old-OS leg — the runner rides the
   # latest LTS only (ubuntu-24.04), because the REAL kernel span
@@ -316,7 +257,7 @@ jobs:
       # The ebpf-feature builds below drive the nested pure-Rust
       # eBPF build in build.rs — the dated nightly pin
       # (ebpf/rust-toolchain.toml) and bpf-linker must be present,
-      # same contract as the check and gnu-dynamic jobs.
+      # same contract as the check and ebpf-host jobs.
       - name: Install eBPF nightly toolchain (dated pin)
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
         with:
@@ -339,7 +280,7 @@ jobs:
             ${{ runner.os }}-musl-${{ matrix.os }}-cargo-
             ${{ runner.os }}-musl-cargo-
 
-      # Lint parity: the gnu check job's clippy step, aimed at the
+      # Lint parity: the check job's clippy step, aimed at the
       # musl target — target-conditional code paths (libc structs,
       # cfg(target_env = "musl") branches) get analyzed, not just
       # compiled.
@@ -352,7 +293,7 @@ jobs:
       - name: Run tests (musl target)
         run: cargo test --locked --target x86_64-unknown-linux-musl
 
-      # Debug-build parity (the gnu-dynamic job's debug contract):
+      # Debug-build parity (the ebpf-host job's debug contract):
       # the debug binary with the ebpf feature, then executed — a
       # debug shape that compiles but cannot even print -V is not a
       # build, it is a liability.
@@ -424,16 +365,17 @@ jobs:
           grep -aF "local-linux-amd64-v4-musl" \
             ./target/x86_64-unknown-linux-musl/pro-linux-amd64-v4-musl/zelynic
 
-  # NIGHT-boost-2: the job id and display name renamed — the surface
-  # this matrix compiles is the GNU DYNAMIC host build (the musl
-  # twin's name mirror), not "just" the eBPF objects: it builds the
-  # pure-Rust eBPF objects, then proves the gnu host crate against
-  # them (debug build + tests with the ebpf feature). The eBPF
-  # object build stays the job's unique step; the name now says
-  # what the artifacts ARE (gnu, dynamically linked) like "Musl
-  # Static Twin" says static.
-  gnu-dynamic:
-    name: Gnu Dynamic (${{ matrix.os }})
+  # NIGHT-boost-2, renamed again by night-dragon-maintenance-6 (the
+  # musl-only estate): the surface this matrix compiles is the HOST
+  # dev lane — the pure-Rust eBPF objects, then the host crate built
+  # against them (debug build + tests with the ebpf feature) plus
+  # the rootless v4 CLI depth battery. The name now says what the
+  # job contracts (the eBPF objects and the host graph around them);
+  # no shipped package rides this lane — musl is the only shipped
+  # shape, so the old gnu-dynamic name described a packaging tier
+  # that no longer exists.
+  ebpf-host:
+    name: eBPF Host (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -472,7 +414,7 @@ jobs:
           components: rust-src
 
       # NIGHT-improve-11: the pinned bpf-linker install is shared by
-      # four CI jobs (check, gnu-dynamic, release, maintenance) — one
+      # four CI jobs (check, ebpf-host, release, maintenance) — one
       # script, one place to bump the pin.
       - name: Install bpf-linker 0.11.1 (prebuilt static musl)
         run: bash scripts/dev/install-bpf-linker.sh
@@ -492,10 +434,10 @@ jobs:
             ~/.cargo/git
             target
             ebpf/target
-          key: ${{ runner.os }}-gnu-dynamic-${{ matrix.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-ebpf-host-${{ matrix.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-gnu-dynamic-${{ matrix.os }}-cargo-
-            ${{ runner.os }}-gnu-dynamic-cargo-
+            ${{ runner.os }}-ebpf-host-${{ matrix.os }}-cargo-
+            ${{ runner.os }}-ebpf-host-cargo-
 
       # NIGHT-improve-13: the "Check eBPF Rust formatting" step that
       # used to run here is a duplicate of gate-keepers.sh section 12

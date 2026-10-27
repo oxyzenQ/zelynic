@@ -18,7 +18,9 @@
 [build]
 rustflags = ["-C", "codegen-units=1"]
 
-# Static binary configuration for musl target
+# Static binary configuration for the musl targets — the ONLY libc
+# shapes this project builds (night-dragon-maintenance-6: the gnu/
+# glibc packaging is retired; every shipped binary is fully static).
 [target.x86_64-unknown-linux-musl]
 linker = "rust-lld"
 rustflags = ["-C", "target-feature=+crt-static"]
@@ -27,18 +29,16 @@ rustflags = ["-C", "target-feature=+crt-static"]
 linker = "rust-lld"
 rustflags = ["-C", "target-feature=+crt-static"]
 
-# ── Native-CPU host build aliases (cosmostrix pro-native
+# ── Native-CPU host build alias (cosmostrix pro-native
 # lineage) ────────────────────────────────────────────────────────────────
 #
-# Owner contract: `cargo pro-native-gnu` / `cargo pro-native-musl`
-# compile for the host CPU (`-C target-cpu=native`) with dynamic
-# linking (gnu/glibc) or static linking (musl) respectively. Both
-# carry `--features ebpf` so the result is the full flagship binary
-# (same feature set as the CI release build), not the ebpf-less dev
-# shell. Separate profile names land the binaries in
-# target/pro-native-gnu/zelynic and
-# target/x86_64-unknown-linux-musl/pro-native-musl/zelynic so a
-# native build never clobbers target/release/zelynic.
+# Owner contract: `cargo pro-native-musl` compiles for the host CPU
+# (`-C target-cpu=native`) with static linking (musl, the only libc
+# shape). It carries `--features ebpf` so the result is the full
+# flagship binary (same feature set as the CI release build), not the
+# ebpf-less dev shell. The separate profile name lands the binary in
+# target/x86_64-unknown-linux-musl/pro-native-musl/zelynic so a native
+# build never clobbers target/release/zelynic.
 #
 # Precedence note (verified live on cargo 1.98.1): target-level
 # rustflags SHADOW build-level rustflags, so the musl alias must set
@@ -50,27 +50,15 @@ rustflags = ["-C", "target-feature=+crt-static"]
 # native+static contract stays self-contained if the [target] block
 # ever changes.
 #
-# aarch64 hosts: pro-native-gnu works as-is (host triple, dynamic);
-# pro-native-musl is x86_64-only because cargo aliases cannot detect
-# the host arch — mirror this block with the aarch64 target triple if
-# a static aarch64 native build is ever needed.
+# aarch64 hosts: the alias is x86_64-only because cargo aliases cannot
+# detect the host arch — mirror this block with the aarch64 target
+# triple if a static aarch64 native build is ever needed.
 #
-# Prerequisites (one-time, NIGHT-host-1): both aliases carry
+# Prerequisites (one-time, NIGHT-host-1): the alias carries
 # --features ebpf, so the host needs the dated nightly pin +
 # bpf-linker — ./scripts/dev/bootstrap-ebpf.sh installs both (build.rs
 # preflights them before any compile time is spent).
 [alias]
-pro-native-gnu = [
-  "build",
-  "--profile",
-  "pro-native-gnu",
-  "--features",
-  "ebpf",
-  "--config",
-  "env.ZELYNIC_BUILD=\"local-native-gnu\"",
-  "--config",
-  "build.rustflags=[\"-C\",\"target-cpu=native\"]",
-]
 pro-native-musl = [
   "build",
   "--profile",
@@ -88,55 +76,32 @@ pro-native-musl = [
 # ── Arch-baseline release aliases (NIGHT-improve-22, cosmostrix
 # pro-linux lineage; NIGHT-boost-30: names carry the arch) ──────
 #
-# Owner contract: `cargo pro-linux-amd64-v3-gnu` /
-# `pro-linux-amd64-v4-gnu` / `pro-linux-amd64-v3-musl` /
+# Owner contract: `cargo pro-linux-amd64-v3-musl` /
 # `pro-linux-amd64-v4-musl` compile the EXACT release shapes
-# (release.yml builds v3 and v4 for both libc flavors; the native v1
-# baseline is retired from releases and stays a local dev-only build
-# via the pro-native aliases above). Each alias carries `--features
-# ebpf` (full flagship binary), its own profile so the four artifacts
-# land in separate target dirs and never clobber each other or
-# target/release/zelynic, and a ZELYNIC_BUILD label that is the
-# release matrix platform id VERBATIM under the `local-` marker
-# ("local-linux-amd64-v3-gnu" etc.), so `-V` names the shape the
-# same way the release Build: line does, arch included — the
-# pre-boost-30 labels (`local-linux-gnu-v3`) hid the arch and
+# (release.yml builds v3 and v4, fully static musl — the only shapes
+# that ship; the native v1 baseline is retired from releases and
+# stays a local dev-only build via the pro-native alias above; the
+# gnu pair is retired outright, night-dragon-maintenance-6). Each
+# alias carries `--features ebpf` (full flagship binary), its own
+# profile so the two artifacts land in separate target dirs and never
+# clobber each other or target/release/zelynic, and a ZELYNIC_BUILD
+# label that is the release matrix platform id VERBATIM under the
+# `local-` marker ("local-linux-amd64-v3-musl" etc.), so `-V` names
+# the shape the same way the release Build: line does, arch included
+# — the pre-boost-30 labels (`local-linux-gnu-v3`) hid the arch and
 # scrambled the platform id's token order.
 #
-# The gnu pair rides build.rustflags with the baseline -C
-# target-cpu flag; the musl pair sets the target-level rustflags
-# directly (the SHADOW rule documented above applies unchanged —
-# the file's [target.x86_64-unknown-linux-musl] block would ignore
-# build-level flags, and the CLI --config target rustflags are
-# concatenated with that block's +crt-static, so carrying it
-# explicitly here keeps each alias self-contained).
+# The aliases set the target-level rustflags directly (the SHADOW
+# rule documented above applies — the file's
+# [target.x86_64-unknown-linux-musl] block would ignore build-level
+# flags, and the CLI --config target rustflags are concatenated with
+# that block's +crt-static, so carrying it explicitly here keeps each
+# alias self-contained).
 #
 # build.rs already strips ANY target-cpu=/target-feature= token
 # from the nested eBPF build's environment (NIGHT-hunt-28, the
 # "invalid CPU znver3" family), so x86-64-v3/v4 never reach
 # bpf-linker — the aliases work on any host CPU.
-pro-linux-amd64-v3-gnu = [
-  "build",
-  "--profile",
-  "pro-linux-amd64-v3-gnu",
-  "--features",
-  "ebpf",
-  "--config",
-  "env.ZELYNIC_BUILD=\"local-linux-amd64-v3-gnu\"",
-  "--config",
-  "build.rustflags=[\"-C\",\"target-cpu=x86-64-v3\"]",
-]
-pro-linux-amd64-v4-gnu = [
-  "build",
-  "--profile",
-  "pro-linux-amd64-v4-gnu",
-  "--features",
-  "ebpf",
-  "--config",
-  "env.ZELYNIC_BUILD=\"local-linux-amd64-v4-gnu\"",
-  "--config",
-  "build.rustflags=[\"-C\",\"target-cpu=x86-64-v4\"]",
-]
 pro-linux-amd64-v3-musl = [
   "build",
   "--profile",

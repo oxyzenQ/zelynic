@@ -381,7 +381,7 @@ verification_section() {
 	echo ""
 	echo '```bash'
 	echo "gpg --keyserver keyserver.ubuntu.com --recv-keys F5324E0967F104D58CE025F347A50AEF4B65AAC2"
-	echo "gpg --verify zelynic-${tag}-linux-amd64-v3-gnu.tar.gz.asc"
+	echo "gpg --verify zelynic-${tag}-linux-amd64-v3-musl.tar.gz.asc"
 	echo '```'
 	echo ""
 	echo "Expected: \`Good signature from \"Rezky Cahya Sahputra (cosmic dragon)\"\`"

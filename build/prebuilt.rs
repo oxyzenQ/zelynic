@@ -204,7 +204,7 @@ pub(crate) fn stage_registry_prebuilt_objects(manifest_dir: &std::path::Path) {
 /// auto_heal_prebuilt_lane shape, adapted honestly to this repo's
 /// laws): any edit under ebpf/ stales the manifest's tree pin, and
 /// every ebpf-feature build on a git checkout announces it — a
-/// production alias (`cargo pro-linux-amd64-v3-gnu` and siblings) or
+/// production alias (`cargo pro-linux-amd64-v3-musl` and siblings) or
 /// a plain `cargo build` never silently builds against a lane that
 /// no longer describes its sources.
 ///

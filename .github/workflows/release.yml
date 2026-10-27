@@ -12,7 +12,7 @@ on:
       - 'v*'
   # NIGHT-improve-32 (the combined-push hardening): the recovery
   # lane. A dispatch on the tag ref re-runs the whole pipeline —
-  # validate, all four builds, publish — WITHOUT re-pushing anything,
+  # validate, all builds, publish — WITHOUT re-pushing anything,
   # so a mid-flight red (a transient API 5xx, a runner hiccup) heals
   # with one click instead of the only alternative the push trigger
   # offers: delete + re-push the tag, which is itself the moved-tag
@@ -68,8 +68,8 @@ concurrency:
 #    or bpf-linker state — the release build cannot collide with
 #    the in-flight branch CI machines because they never meet.
 # 3. Caches are prefix-disjoint (this pass): ci / musl /
-#    gnu-dynamic / release / maintenance each carry their own key
-#    prefix, and within THIS workflow the four matrix legs key on
+#    ebpf-host / release / maintenance each carry their own key
+#    prefix, and within THIS workflow the two matrix legs key on
 #    the platform id (below), so no two concurrently-running jobs
 #    anywhere in the estate ever save the same cache key — the
 #    "failed to reserve cache key" warning class is closed, not
@@ -186,55 +186,48 @@ jobs:
   # ===========================================================================
   # NIGHT-improve-22 (cosmostrix pro-linux lineage): releases are
   # arch-baseline builds only — x86-64-v3 (AVX/AVX2/BMI1/BMI2/FMA,
-  # ~2013 Haswell and newer) and x86-64-v4 (AVX-512) for both libc
-  # flavors. The native v1 baseline is RETIRED from release packages:
-  # every CPU that can run a release at all can run v3, and v3's
-  # vector paths are what the limiter's hot loops actually use. The
-  # four packages, and only these four, come out of every tag:
-  #   zelynic-vX.Y.Z-linux-amd64-v3-gnu
-  #   zelynic-vX.Y.Z-linux-amd64-v4-gnu
+  # ~2013 Haswell and newer) and x86-64-v4 (AVX-512), fully static
+  # musl (night-dragon-maintenance-6: musl is the ONLY libc shape —
+  # the gnu pair is retired, zero glibc/GLIBC packages ship). The
+  # native v1 baseline is RETIRED from release packages: every CPU
+  # that can run a release at all can run v3, and v3's vector paths
+  # are what the limiter's hot loops actually use. The two packages,
+  # and only these two, come out of every tag:
   #   zelynic-vX.Y.Z-linux-amd64-v3-musl
   #   zelynic-vX.Y.Z-linux-amd64-v4-musl
   # The full flag set rides each matrix entry (single source of
   # truth): "-D warnings" first (NIGHT-strict-2), then the baseline
-  # -C target-cpu, plus -C target-feature=+crt-static on the musl
-  # pair (self-contained even though the musl target enables it by
-  # default — the alias contract in .cargo/config.toml mirrors this
-  # exactly, so a local `cargo pro-linux-amd64-v3-gnu` reproduces the
-  # v3-gnu package bit-for-bit in optimization tier).
+  # -C target-cpu, plus -C target-feature=+crt-static (self-contained
+  # even though the musl target enables it by default — the alias
+  # contract in .cargo/config.toml mirrors this exactly, so a local
+  # `cargo pro-linux-amd64-v3-musl` reproduces the v3-musl package
+  # bit-for-bit in optimization tier).
   build:
     name: Build Release Binary (${{ matrix.platform }})
     runs-on: ubuntu-24.04
     needs: validate
     timeout-minutes: 30
     strategy:
-      # One bad platform must not cancel the other three — each
+      # One bad platform must not cancel the other — each
       # matrix job reports its own failure (cosmostrix release
       # matrix contract).
       fail-fast: false
       # NIGHT-boost-36 (the owner's audit: "release packages
       # format name should like this: zelynic-v11.0.0-linux-
       # amd64-v3-gnu.tar.gz"): ONE platform field is the single
-      # truth again — package name and embedded Build: label are
-      # the same id, every flavor carrying its libc leg
-      # (linux-amd64-v3-gnu, -v4-gnu, -v3-musl, -v4-musl). The
-      # boost-35 split (platform without the -gnu leg, build with
-      # it, the cosmostrix tarball shape) is retired: its two
-      # fields had already drifted once (the boost-35 correction
-      # commit — the v4 probe keyed the wrong field and every
-      # branch went silent no-op), and with the -gnu leg restored
-      # to the package name the pair carried identical values in
-      # all four entries, a drift class with nothing left to buy.
-      # One id, one grep surface: the tarball a user downloads and
-      # the Build: line the binary prints agree by construction.
+      # truth — package name and embedded Build: label are the
+      # same id. The boost-35 split (platform without the libc
+      # leg, build with it, the cosmostrix tarball shape) is
+      # retired: its two fields had already drifted once (the
+      # boost-35 correction commit — the v4 probe keyed the wrong
+      # field and every branch went silent no-op). One id, one
+      # grep surface: the tarball a user downloads and the Build:
+      # line the binary prints agree by construction.
+      # night-dragon-maintenance-6: the gnu legs are gone — the
+      # two entries below are the whole matrix, both fully static
+      # musl.
       matrix:
         include:
-          - platform: linux-amd64-v3-gnu
-            target: x86_64-unknown-linux-gnu
-            rustflags: "-D warnings -C target-cpu=x86-64-v3"
-          - platform: linux-amd64-v4-gnu
-            target: x86_64-unknown-linux-gnu
-            rustflags: "-D warnings -C target-cpu=x86-64-v4"
           - platform: linux-amd64-v3-musl
             target: x86_64-unknown-linux-musl
             rustflags: "-D warnings -C target-cpu=x86-64-v3 -C target-feature=+crt-static"
@@ -281,7 +274,7 @@ jobs:
           components: rust-src
 
       # NIGHT-improve-11: the pinned bpf-linker install is shared by
-      # four CI jobs (check, gnu-dynamic, maintenance, this one) — one
+      # four CI jobs (check, ebpf-host, maintenance, this one) — one
       # script, one place to bump the pin.
       - name: Install bpf-linker 0.11.1 (prebuilt static musl)
         run: bash scripts/dev/install-bpf-linker.sh
@@ -306,18 +299,17 @@ jobs:
       #
       # NIGHT-improve-32: the exact key now carries the platform id,
       # and the platform id alone keys the whole scheme. The two
-      # same-triple legs (v3-gnu + v4-gnu, v3-musl + v4-musl) run
-      # CONCURRENTLY on a tag push, and with a shared exact key both
-      # tried to save the same entry at exit — one won, the other
-      # logged the "failed to reserve cache key" warning (benign, but
-      # collision-shaped noise on the very combined push this pass
-      # hardens). The platform id encodes baseline AND libc in one
-      # field (the improve-22 single-source rule), so keying on it
-      # alone keeps the four legs' saves disjoint while the restore
-      # prefix stays inside one platform — never crossing a triple.
-      # The re-key costs four cold caches once, on the first tag
-      # after this change; cargo's RUSTFLAGS fingerprinting keeps
-      # every restored entry refingered — never mis-served.
+      # same-triple legs (v3-musl + v4-musl) run CONCURRENTLY on a
+      # tag push, and with a shared exact key both tried to save the
+      # same entry at exit — one won, the other logged the "failed
+      # to reserve cache key" warning (benign, but collision-shaped
+      # noise on the very combined push this pass hardens). The
+      # platform id encodes baseline AND libc in one field (the
+      # improve-22 single-source rule), so keying on it alone keeps
+      # the two legs' saves disjoint while the restore prefix stays
+      # inside one platform — never crossing a triple. cargo's
+      # RUSTFLAGS fingerprinting keeps every restored entry
+      # refingered — never mis-served.
       - name: Cache cargo registry & build
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6, NIGHT-hunt-20 SHA pin
         with:
@@ -338,8 +330,6 @@ jobs:
         run: |
           set -euo pipefail
           case "${{ matrix.platform }}" in
-            linux-amd64-v3-gnu) expected="-D warnings -C target-cpu=x86-64-v3" ;;
-            linux-amd64-v4-gnu) expected="-D warnings -C target-cpu=x86-64-v4" ;;
             linux-amd64-v3-musl) expected="-D warnings -C target-cpu=x86-64-v3 -C target-feature=+crt-static" ;;
             linux-amd64-v4-musl) expected="-D warnings -C target-cpu=x86-64-v4 -C target-feature=+crt-static" ;;
             *) echo "::error::Unknown platform id ${{ matrix.platform }}"; exit 1 ;;
@@ -408,7 +398,7 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           echo "=== ${PLATFORM} (Build: ${PLATFORM}) ==="
           # NIGHT-boost-36: one field keys everything — the platform
-          # id carries its libc leg (linux-amd64-v4-gnu), so the
+          # id carries its libc leg (linux-amd64-v4-musl), so the
           # *-v4-* / *-v3-* patterns keep matching, and the
           # package name and the embedded Build: label are the same
           # string by construction (the boost-35 two-field drift
@@ -465,28 +455,24 @@ jobs:
                 || { echo "::error::Expected 'zelynic: v${VERSION}' in -V (Cargo.toml/tag drift)"; exit 1; }
               ;;
           esac
-          if [[ "${PLATFORM}" == *-musl ]]; then
-            # Static proof (NIGHT-improve-20 contract kept): ldd must
-            # deny dynamic dependencies — it exits non-zero exactly
-            # then, so capture instead of fail. Both spellings are
-            # accepted: glibc ldd says "not a dynamic executable",
-            # musl ldd says "statically linked" (seen live on a
-            # musl-based container, 2026-09-22).
-            LDD_OUT="$(ldd "${BIN}" 2>&1 || true)"
-            grep -Eq "not a dynamic executable|statically linked" <<<"${LDD_OUT}" \
-              || { echo "::error::musl binary is not static: ${LDD_OUT}"; exit 1; }
-            echo "static: yes"
-          else
-            echo "=== ldd ==="
-            ldd "${BIN}" || true
-          fi
+          # Static proof (NIGHT-improve-20 contract kept; unconditional
+          # since night-dragon-maintenance-6 — every leg is musl): ldd
+          # must deny dynamic dependencies — it exits non-zero exactly
+          # then, so capture instead of fail. Both spellings are
+          # accepted: glibc ldd says "not a dynamic executable",
+          # musl ldd says "statically linked" (seen live on a
+          # musl-based container, 2026-09-22).
+          LDD_OUT="$(ldd "${BIN}" 2>&1 || true)"
+          grep -Eq "not a dynamic executable|statically linked" <<<"${LDD_OUT}" \
+            || { echo "::error::musl binary is not static: ${LDD_OUT}"; exit 1; }
+          echo "static: yes"
 
       - name: Prepare release artifact
         run: |
           set -euo pipefail
           VERSION=${GITHUB_REF_NAME#v}
 
-          # --- arch-baseline tarball (v3/v4, gnu/musl) ---
+          # --- arch-baseline tarball (v3/v4, fully static musl) ---
           # Flat archive layout: files at archive root (the 2026-09-22
           # owner directive, the cosmostrix release invariant): the
           # tarball carries ONLY zelynic + LICENSE + README.md. The
@@ -664,7 +650,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7, NIGHT-hunt-20 SHA pin
         with:
           # NIGHT-improve-22: one artifact per platform; the release
-          # job merges the four by pattern (merge-multiple) so the
+          # job merges the two by pattern (merge-multiple) so the
           # GPG signing below stays in the build-class jobs (the
           # improve-14 least-privilege placement) while the matrix
           # scales without renaming anything downstream.
@@ -725,10 +711,11 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8, NIGHT-hunt-20 SHA pin
         with:
-          # NIGHT-improve-22: the build job is a four-platform matrix
-          # now — pull every per-platform artifact and merge them into
-          # one dist/ so the release body and the published files see
-          # exactly the four packages and their checksums/signatures.
+          # NIGHT-improve-22: the build job is a two-platform matrix
+          # (the musl-only estate, night-dragon-maintenance-6) — pull
+          # every per-platform artifact and merge them into one dist/
+          # so the release body and the published files see exactly
+          # the two packages and their checksums/signatures.
           pattern: release-artifacts-*
           merge-multiple: true
           path: dist
@@ -738,19 +725,19 @@ jobs:
       # `files:` glob as a warning — the exact silence that shipped
       # beta.3/beta.4 asset-less through a green pipeline — so the
       # workflow, not a third-party action, decides what "assets
-      # present" means. The build matrix is four legs (v3/v4 ×
-      # gnu/musl); each Prepare step emits one tarball plus three
+      # present" means. The build matrix is two legs (v3/v4, fully
+      # static musl); each Prepare step emits one tarball plus three
       # checksum files, and the build job's signature-coverage
       # tripwire makes GPG signing all-or-nothing — so the legal
-      # shapes here are exactly: 4 tarballs + 12 checksums + (0 or 4)
+      # shapes here are exactly: 2 tarballs + 6 checksums + (0 or 2)
       # signatures. Anything else is a red pipeline with the precise
       # missing file named, never a silently asset-less release.
       - name: Assert release asset inventory
         run: |
           set -euo pipefail
           TARBALLS=$(find dist -maxdepth 1 -type f -name '*.tar.gz' | wc -l)
-          if [ "${TARBALLS}" -ne 4 ]; then
-            echo "::error::Expected 4 release tarballs in dist/ (the build matrix legs), found ${TARBALLS}"
+          if [ "${TARBALLS}" -ne 2 ]; then
+            echo "::error::Expected 2 release tarballs in dist/ (the build matrix legs), found ${TARBALLS}"
             find dist -maxdepth 1 -type f -print 2>/dev/null || true
             exit 1
           fi

@@ -12,8 +12,9 @@ fn main() {
 
     // Forward the ZELYNIC_BUILD label into the compile-time env consumed
     // by info::build_label() (cosmostrix canonical_build_label lineage).
-    // The label is set by the cargo aliases pro-native-gnu /
-    // pro-native-musl (.cargo/config.toml `env.ZELYNIC_BUILD=...`) or by
+    // The label is set by the cargo alias pro-native-musl (the only
+    // libc shape, night-dragon-maintenance-6; .cargo/config.toml
+    // `env.ZELYNIC_BUILD=...`) or by
     // CI/release scripts exporting it directly. Tracked via
     // rerun-if-env-changed so switching between an alias build and a
     // plain build recompiles the crate and the version report never

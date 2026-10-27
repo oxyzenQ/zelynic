@@ -98,7 +98,7 @@ Usage:
   sudo ./scripts/bench/proof-claims.sh --quick        # faster windows (~30s)
   ./scripts/bench/proof-claims.sh --self-test         # engine smoke, no root
   sudo ./scripts/bench/proof-claims.sh --json         # machine-readable
-  sudo ./scripts/bench/proof-claims.sh --binary ./target/pro-native-gnu/zelynic
+  sudo ./scripts/bench/proof-claims.sh --binary ./target/x86_64-unknown-linux-musl/pro-native-musl/zelynic
 
 Exit code: 0 = every verdict PASS or SKIP, 1 = any FAIL, 2 = usage
 or environment not suitable.

@@ -1854,7 +1854,7 @@ real-run path calls the shared `resolve_binary` (explicit
 newest-first, then PATH — every candidate passing the version
 gate), while the `--self-test` engine smoke keeps its
 resolution-free path. All four call shapes verified: the bare
-local invocation resolves the repo-local pro-native-gnu build
+local invocation resolves the repo-local pro-native-musl build
 and runs 121/0/0; `--binary target/debug/zelynic` passes the
 gate and runs 121/0/0; `--self-test` passes untouched; both CI
 call sites (the workflow's two legs and the supermassive

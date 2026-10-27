@@ -152,6 +152,7 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
           components: clippy, rustfmt
+          targets: x86_64-unknown-linux-musl
 
       # NIGHT-improve-1 phase 3: clippy --all-features drives the
       # nested pure-Rust eBPF build — the dated nightly pin and
@@ -246,21 +247,24 @@ jobs:
         run: python3 scripts/gates/check-policy.py
 
       # NIGHT-boost-2: the sweep's verify rides the pro profile the
-      # release floor ships (linux gnu v3, via the .cargo/config.toml
-      # alias — ebpf feature and --locked included) instead of the
-      # retired plain `--release` build: dependency updates are
-      # proven against a tier someone actually distributes. One
-      # shape, not the ci.yml trio — this job validates lockfile
-      # health, not artifacts; ci.yml and release.yml own the full
-      # per-tier verification. RUSTFLAGS composed inline for the same
+      # release floor ships (linux musl v3, fully static, via the
+      # .cargo/config.toml alias — ebpf feature and --locked included)
+      # instead of the retired plain `--release` build: dependency
+      # updates are proven against a tier someone actually
+      # distributes (the only tier since night-dragon-maintenance-6 —
+      # the gnu pair retired with the gnu packaging). One shape, not
+      # the ci.yml trio — this job validates lockfile health, not
+      # artifacts; ci.yml and release.yml own the full per-tier
+      # verification. RUSTFLAGS composed inline for the same
       # env-shadow reason ci.yml documents (workflow-level -D
       # warnings would eat the alias's target-cpu flag).
-      - name: 'Verify pro build (linux gnu v3)'
+      - name: 'Verify pro build (linux musl v3)'
         if: steps.changes.outputs.changed == 'true'
         run: |
           set -euo pipefail
-          RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3" cargo pro-linux-amd64-v3-gnu --locked
-          ./target/pro-linux-amd64-v3-gnu/zelynic -V
+          RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3 -C target-feature=+crt-static" \
+            cargo pro-linux-amd64-v3-musl --locked
+          ./target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic -V
 
       - name: Upload validated Cargo.lock
         if: steps.changes.outputs.changed == 'true'

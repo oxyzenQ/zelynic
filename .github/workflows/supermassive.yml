@@ -27,36 +27,27 @@
 # itself a run).
 #
 # NIGHT-blade-12 (the owner's ask: "add support for CI supermassive
-# test low/best with musl version"): the envelope pair grows a version
-# dimension — {low, best} x {gnu, musl}, four legs. The musl legs are
-# the ask's own words made structural: the static twin the pair has
-# carried since NIGHT-improve-31 becomes a NAMED, titled matrix entry
-# ("supermassive test - low specs (musl)") instead of the unnamed
-# default it silently was. The gnu legs close a hole the blade-12 hunt
-# found while mapping the ask: the gnu flagship — the default
-# source-build shape (setup.sh phase 1, bootstrap-ebpf.sh's alias
-# build) and half the release matrix (v3-gnu, v4-gnu) — had ZERO
-# root E2E anywhere in the estate. ci.yml's gnu-dynamic job compiles
-# it and greps build labels; every runtime battery (the v1 limiter
-# matrix, the v2 survival pty work, the live claims proof) ran on the
-# musl twin alone. Each gnu leg now runs the FULL battery — the same
-# canonical invocations, the same verdict contract — on the
-# pro-native-gnu flagship.
+# test low/best with musl version"): the envelope pair grew a version
+# dimension — {low, best} x {gnu, musl}, four legs — the static twin
+# made a NAMED, titled matrix entry ("supermassive test - low specs
+# (musl)") instead of the unnamed default it silently was. The gnu
+# legs closed a real hole in their era: the gnu flagship had ZERO
+# root E2E anywhere in the estate while it shipped. Both eras of the
+# dimension are recorded here once: the gnu legs ran the FULL battery
+# on a same-distro ubuntu:24.04 rootfs (a gnu binary is dynamically
+# linked against its build host's glibc — the source-build deployment
+# shape IS same-distro), and the musl legs kept the frozen
+# ubuntu:22.04 userland (a static binary owes no userland anything —
+# the improve-31 contract, carried verbatim).
 #
-# The version dimension carries one honest physics delta: a gnu
-# binary is dynamically linked against its BUILD host's glibc, so the
-# gnu legs assemble the rootfs from ubuntu:24.04 (the runner's own
-# distro — built on 24.04's glibc 2.39, running on 24.04's glibc
-# 2.39; the source-build deployment shape IS same-distro, and the
-# frozen 22.04 container's glibc 2.35 would be a weaker, untested
-# claim). The musl legs keep the ubuntu:22.04 userland unchanged
-# (a static binary owes no userland anything — the improve-31
-# contract, carried verbatim). The kernel span and the envelope
-# derivation are untouched: the pair's variables stay kernel +
-# envelope, now crossed with the libc the payload links. The rootfs
-# assembly writes /opt/zelynic/PAYLOAD-FLAVOR so the init's probe
-# rows name the payload they ran — a four-leg matrix's logs must say
-# which libc they proved.
+# night-dragon-maintenance-6 — the MUSL-ONLY estate: the gnu/glibc
+# packaging is retired outright (release matrix, cargo aliases, the
+# setup.sh flagship — everything musl now), so the gnu legs' payload
+# no longer exists and the version dimension collapses back to the
+# two musl legs, {low, best} x musl. The kernel span and the envelope
+# derivation are untouched. The rootfs assembly still writes
+# /opt/zelynic/PAYLOAD-FLAVOR so the init's probe rows name the
+# payload they ran.
 #
 # NIGHT-blade-3 (the owner's re-shape): the envelope pair's small
 # end is renamed minimum -> low, everywhere the name lives (the
@@ -253,10 +244,10 @@ jobs:
       matrix:
         include:
           # The two ends of the machines zelynic promises to run on
-          # (see the header), each crossed with the payload's libc
-          # (NIGHT-blade-12: {low, best} x {gnu, musl} — the version
-          # names the binary the leg boots, the title suffix carries
-          # it into the check run's name). Resources are NOT pinned
+          # (see the header), on the musl payload (night-dragon-
+          # maintenance-6: the gnu legs retired with the gnu
+          # packaging — musl is the only shipped shape, the version
+          # dimension collapsed to it). Resources are NOT pinned
           # here anymore (NIGHT-improve-33) — the boot step derives
           # each envelope from the runner at run time. What stays
           # per-leg: the title (the owner's exact base strings plus
@@ -266,18 +257,10 @@ jobs:
           # budget rides at 2100 s, NIGHT-hunt-35's +300 for the
           # rig battery; the best envelope's wide slice rides at
           # 1500 s).
-          - title: supermassive test - low specs (gnu)
-            profile: low
-            version: gnu
-            vm_timeout: "2100"
           - title: supermassive test - low specs (musl)
             profile: low
             version: musl
             vm_timeout: "2100"
-          - title: supermassive test - best specs (gnu)
-            profile: best
-            version: gnu
-            vm_timeout: "1500"
           - title: supermassive test - best specs (musl)
             profile: best
             version: musl
@@ -329,21 +312,15 @@ jobs:
       # toolchain build, and the envelope's point is the STRESSTEST,
       # not the compile): the canonical path from e2e.yml — bootstrap,
       # the payload build, and the rootless engine self-test. The
-      # payload follows the leg's version (NIGHT-blade-12): the gnu
-      # legs stop at the phase-1 flagship (pro-native-gnu — no musl
-      # toolchain to install, a leaner bring-up), the musl legs add
-      # the static twin (phase 2, exactly as before: glibc-free, the
-      # exact binary the cross-distro instrument runs on foreign
-      # distros, executing under KVM's -cpu host on the SAME silicon
-      # that built it).
-      - name: Bring-up (setup.sh --skip-heavy, payload per version)
+      # payload IS the flagship (night-dragon-maintenance-6: musl is
+      # the only shape — setup.sh's flagship is the static
+      # pro-native-musl build, glibc-free, the exact binary the
+      # cross-distro instrument runs on foreign distros, executing
+      # under KVM's -cpu host on the SAME silicon that built it).
+      - name: Bring-up (setup.sh --skip-heavy, static musl flagship)
         run: |
-          if [ "${{ matrix.version }}" = "musl" ]; then
-            rustup target add x86_64-unknown-linux-musl
-            ./scripts/setup.sh --skip-heavy --musl
-          else
-            ./scripts/setup.sh --skip-heavy
-          fi
+          rustup target add x86_64-unknown-linux-musl
+          ./scripts/setup.sh --skip-heavy
 
       # The floor kernel (NIGHT-improve-33): impish indri (21.10)
       # 5.13.0-52, the TRUE documented floor, fetched from the frozen
@@ -615,14 +592,13 @@ jobs:
         run: |
           set -euo pipefail
           cd /tmp/kfloor
-          if [ "${{ matrix.version }}" = "gnu" ]; then
-            SUITE=ubuntu:24.04
-            PAYLOAD="$GITHUB_WORKSPACE/target/pro-native-gnu/zelynic"
-          else
-            SUITE=ubuntu:22.04
-            PAYLOAD="$GITHUB_WORKSPACE/target/x86_64-unknown-linux-musl/pro-native-musl/zelynic"
-          fi
-          echo "rootfs suite: $SUITE (payload: ${{ matrix.version }})"
+          # The frozen jammy userland, unchanged since NIGHT-improve-31
+          # (a static binary owes no userland anything) — the version
+          # dimension collapsed to musl with the gnu packaging
+          # (night-dragon-maintenance-6).
+          SUITE=ubuntu:22.04
+          PAYLOAD="$GITHUB_WORKSPACE/target/x86_64-unknown-linux-musl/pro-native-musl/zelynic"
+          echo "rootfs suite: $SUITE (payload: musl static flagship)"
           docker pull -q "$SUITE"
           docker rm -f floor-rootfs >/dev/null 2>&1 || true
           docker run --name floor-rootfs -d "$SUITE" sleep infinity

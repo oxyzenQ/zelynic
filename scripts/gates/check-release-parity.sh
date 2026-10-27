@@ -5,7 +5,7 @@
 #
 # ZELYNIC RELEASE PARITY CHECK (NIGHT-lts-9)
 #
-# The release pipeline builds the four arch-baseline packages from
+# The release pipeline builds the two arch-baseline packages from
 # .github/workflows/release.yml's matrix rustflags; the README tells
 # owners a local `cargo pro-linux-amd64-<platform>` reproduces the
 # release artifact's optimization tier BIT-FOR-BIT. Until now nothing
@@ -15,18 +15,19 @@
 # not the release shape — exactly the drift class a critical-infra
 # release pipeline should not carry).
 #
-# This gate walks the four platforms and asserts, per platform, that
-# the -C codegen tokens of the alias's rustflags equal the -C tokens
-# of the release matrix's rustflags. The -D warnings lint token is
-# deliberately OUT of scope: the release build adds it via matrix env
-# (NIGHT-strict-2), the local alias deliberately does not (a local
-# debug build has no business failing on warnings) — the parity
-# contract is about the OPTIMIZATION tier, not the lint posture.
-# release.yml's own "Verify arch-baseline inputs" step holds the
-# canonical constant per platform; this gate holds the cross-file
-# equality. The musl aliases set the rustflags at the target level
-# (the SHADOW rule documented in .cargo/config.toml) — both shapes
-# are understood.
+# This gate walks the two platforms (night-dragon-maintenance-6: the
+# musl-only estate — the gnu pair is retired) and asserts, per
+# platform, that the -C codegen tokens of the alias's rustflags equal
+# the -C tokens of the release matrix's rustflags. The -D warnings
+# lint token is deliberately OUT of scope: the release build adds it
+# via matrix env (NIGHT-strict-2), the local alias deliberately does
+# not (a local debug build has no business failing on warnings) — the
+# parity contract is about the OPTIMIZATION tier, not the lint
+# posture. release.yml's own "Verify arch-baseline inputs" step holds
+# the canonical constant per platform; this gate holds the
+# cross-file equality. The musl aliases set the rustflags at the
+# target level (the SHADOW rule documented in .cargo/config.toml) —
+# the shape is understood.
 #
 # Usage: bash scripts/gates/check-release-parity.sh
 
@@ -37,8 +38,9 @@ cd "$REPO_ROOT"
 
 FAILED=0
 
-# The four release platforms (the matrix ids release.yml owns).
-PLATFORMS="linux-amd64-v3-gnu linux-amd64-v4-gnu linux-amd64-v3-musl linux-amd64-v4-musl"
+# The release platforms (the matrix ids release.yml owns; the
+# musl-only estate — night-dragon-maintenance-6 retired the gnu pair).
+PLATFORMS="linux-amd64-v3-musl linux-amd64-v4-musl"
 
 for platform in $PLATFORMS; do
 	# ── Matrix side: the rustflags line inside release.yml's matrix
@@ -146,6 +148,6 @@ if [ "$FAILED" -gt 0 ]; then
 	echo "FAIL: $FAILED platform(s) out of parity"
 	exit 1
 else
-	echo "OK: all four release platforms in local-alias/matrix parity"
+	echo "OK: all release platforms in local-alias/matrix parity"
 	exit 0
 fi

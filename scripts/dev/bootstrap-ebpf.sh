@@ -9,7 +9,8 @@
 # (NIGHT-improve-16): the two prerequisites below, the PATH fix that
 # lets future shells (and this script's own build) see bpf-linker,
 # and the flagship binary itself, built with the canonical native
-# alias (cargo pro-native-gnu, lands in target/pro-native-gnu/zelynic).
+# alias (cargo pro-native-musl — the only libc shape, fully static,
+# lands in target/x86_64-unknown-linux-musl/pro-native-musl/zelynic).
 # The contract is three commands total, nothing in between:
 #   git clone ... && cd zelynic && ./scripts/dev/bootstrap-ebpf.sh
 #   sudo ./scripts/supermassive/supermassive-test.sh
@@ -390,6 +391,18 @@ if [[ "${B3SUM_OK}" != true ]]; then
 	CHANGED=true
 fi
 
+# The flagship target (night-dragon-maintenance-6): the alias builds
+# the fully static musl flagship — the only libc shape — so the
+# repo-pinned stable toolchain carries the musl target (rust-lld is
+# bundled with rustc; no musl-gcc, no extra sysroot). Idempotent:
+# rustup skips an already-installed target.
+if ! (cd "${REPO_ROOT}" && rustup target list --installed 2>/dev/null) |
+	grep -q '^x86_64-unknown-linux-musl$'; then
+	ok "adding the x86_64-unknown-linux-musl target (the static flagship builds with it)..."
+	(cd "${REPO_ROOT}" && rustup target add x86_64-unknown-linux-musl)
+	CHANGED=true
+fi
+
 # ── Re-probe: verify what changed, then trust it ──────────────────────────
 # Only when something changed — an unchanged run keeps its one
 # report (the first probe above already spoke).
@@ -465,11 +478,11 @@ if ! "${REPO_ROOT}/scripts/release/refresh-prebuilt.sh" --check; then
 	"${REPO_ROOT}/scripts/release/refresh-prebuilt.sh" || die "the lane regeneration failed - refresh-prebuilt.sh's output above names the cause."
 fi
 
-ok "building the flagship binary (cargo pro-native-gnu — first build ~1-3 min)..."
-if ! (cd "${REPO_ROOT}" && cargo pro-native-gnu); then
-	die "cargo pro-native-gnu failed — the prerequisites above are verified, so read the compiler output above it; this is a real compile error."
+ok "building the flagship binary (cargo pro-native-musl — first build ~1-3 min)..."
+if ! (cd "${REPO_ROOT}" && cargo pro-native-musl); then
+	die "cargo pro-native-musl failed — the prerequisites above are verified, so read the compiler output above it; this is a real compile error."
 fi
-BUILT_BIN="${REPO_ROOT}/target/pro-native-gnu/zelynic"
+BUILT_BIN="${REPO_ROOT}/target/x86_64-unknown-linux-musl/pro-native-musl/zelynic"
 [[ -x "${BUILT_BIN}" ]] || die "cargo reported success but ${BUILT_BIN} is missing — inspect the cargo output above."
 ok "flagship binary: $("${BUILT_BIN}" -V 2>/dev/null | head -n 1)"
 

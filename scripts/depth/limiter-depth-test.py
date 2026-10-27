@@ -42,8 +42,8 @@ Usage:
   sudo ./scripts/depth/limiter-depth-test.sh               # full run (~2 min)
   sudo ./scripts/depth/limiter-depth-test.sh --quick       # fast pass (~45s)
   sudo ./scripts/depth/limiter-depth-test.sh --json        # machine-readable
-  sudo ./scripts/depth/limiter-depth-test.sh --binary ./target/pro-native-gnu/zelynic
-  ZELYNIC_BINARY=./target/pro-native-gnu/zelynic sudo -E ./scripts/depth/limiter-depth-test.sh
+  sudo ./scripts/depth/limiter-depth-test.sh --binary ./target/x86_64-unknown-linux-musl/pro-native-musl/zelynic
+  ZELYNIC_BINARY=./target/x86_64-unknown-linux-musl/pro-native-musl/zelynic sudo -E ./scripts/depth/limiter-depth-test.sh
 
 What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
   env      cgroup v2, cgroup ID resolution, BPF fs, binary, doctor eBPF support

@@ -13,8 +13,9 @@ environment probes, binary resolution, and the final report.
 Fourteen near-identical functions across two 1000-line files was the
 classic drift trap: the brutal twin got the kernfs-inode fix
 (NIGHT-hunt-31) days before the depth twin, and the same week the
-brutal twin gained the target/pro-native-gnu binary candidate the
-depth twin never saw. This module is the single engine all three
+brutal twin gained a target/pro-native-gnu binary candidate the
+depth twin never saw (the alias has since retired with the gnu
+packaging, night-dragon-maintenance-6). This module is the single engine all three
 import.
 
 Contract:
@@ -265,29 +266,27 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 # and therefore CWD-independent (.cargo/config.toml is the source of
 # truth for where each command lands):
 #   root copy          — ./zelynic (legacy dev convenience)
-#   pro-native-gnu     — cargo pro-native-gnu
-#   pro-native-musl    — cargo pro-native-musl (NEW in improve-16: the
-#                        musl alias output was never a candidate, so a
-#                        static build could only be tested via --binary)
+#   pro-native-musl    — cargo pro-native-musl (the static flagship)
+#   pro-linux-amd64-v3-musl / pro-linux-amd64-v4-musl — the two
+#                        arch-baseline release tiers (the ONLY shapes
+#                        the musl-only estate builds and ships,
+#                        night-dragon-maintenance-6; the gnu alias
+#                        outputs retired with the gnu packaging).
 #   NO plain-release arm (night-dragon-maintenance-3, the owner's
 #                        from-source law): a test payload is an
 #                        alias-built release-tier binary or an explicit
 #                        --binary, never a bare cargo build --release
 #                        artifact.
-# NIGHT-improve-22 adds the four arch-baseline alias outputs
-# (pro-linux-amd64-v3/v4-gnu, pro-linux-amd64-v3/v4-musl) so a freshly built
-# release-shape binary outranks a stale native build of older code —
-# the same newest-mtime rule below picks whatever was just built.
+# The alias outputs above exist so a freshly built release-shape
+# binary outranks a stale native build of older code — the
+# newest-mtime rule below picks whatever was just built.
 # Among the candidates that exist, resolution picks the NEWEST mtime
 # ("test what was just built"): versions can match while code differs,
-# and a fresh musl build should outrank a stale gnu binary from an
-# older commit (NIGHT-improve-16).
+# and a fresh build should outrank a stale binary from an older
+# commit (NIGHT-improve-16).
 REPO_BINARY_CANDIDATES = [
     os.path.join(REPO_ROOT, "zelynic"),
-    os.path.join(REPO_ROOT, "target", "pro-native-gnu", "zelynic"),
     os.path.join(REPO_ROOT, "target", "x86_64-unknown-linux-musl", "pro-native-musl", "zelynic"),
-    os.path.join(REPO_ROOT, "target", "pro-linux-amd64-v3-gnu", "zelynic"),
-    os.path.join(REPO_ROOT, "target", "pro-linux-amd64-v4-gnu", "zelynic"),
     os.path.join(
         REPO_ROOT, "target", "x86_64-unknown-linux-musl", "pro-linux-amd64-v3-musl", "zelynic"
     ),
@@ -588,7 +587,7 @@ def resolve_binary(explicit, script_hint):
         out("One command: ./scripts/dev/bootstrap-ebpf.sh")
         out("  (installs the eBPF toolchain pair AND builds the flagship")
         out("   binary — clone, bootstrap, test, done)")
-        out(f"Or point at one: {script_hint} --binary ./target/pro-native-gnu/zelynic")
+        out(f"Or point at one: {script_hint} --binary ./target/x86_64-unknown-linux-musl/pro-native-musl/zelynic")
         return False
 
     # ── version gate: this harness tests THIS checkout ────────────────
@@ -611,7 +610,7 @@ def resolve_binary(explicit, script_hint):
         out("  be decoy noise (the 2026-09-21 debian13 run lost 12 of 23 rows")
         out("  to a stale /usr/bin/zelynic v4.0.0-alpha this way).")
         out("One command: ./scripts/dev/bootstrap-ebpf.sh   (prerequisites + flagship build)")
-        out(f"Or point at a matching build: {script_hint} --binary ./target/pro-native-gnu/zelynic")
+        out(f"Or point at a matching build: {script_hint} --binary ./target/x86_64-unknown-linux-musl/pro-native-musl/zelynic")
         return False
     return True
 

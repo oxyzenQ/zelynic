@@ -77,8 +77,10 @@ PIN_DIR="/sys/fs/bpf/zelynic"
 # Repo-local build outputs of the canonical build commands — the
 # bash twin of the python lib's REPO_BINARY_CANDIDATES
 # (.cargo/config.toml is the source of truth for where each command
-# lands): the legacy root copy, pro-native-gnu/musl, and the four
-# pro-linux release shapes. There is NO plain-release arm - the owner's
+# lands): the legacy root copy and the three musl alias shapes (the
+# native flagship plus the two pro-linux release tiers — the only
+# shapes the musl-only estate builds, night-dragon-maintenance-6).
+# There is NO plain-release arm - the owner's
 # from-source law (night-dragon-maintenance-3): a test payload is an
 # alias-built release-tier binary or an explicit --binary, never a
 # bare cargo build --release artifact. Among the
@@ -86,16 +88,13 @@ PIN_DIR="/sys/fs/bpf/zelynic"
 # built, not what was built longest ago.
 HARNESS_BINARY_CANDIDATES=(
 	"${REPO_ROOT}/zelynic"
-	"${REPO_ROOT}/target/pro-native-gnu/zelynic"
 	"${REPO_ROOT}/target/x86_64-unknown-linux-musl/pro-native-musl/zelynic"
-	"${REPO_ROOT}/target/pro-linux-amd64-v3-gnu/zelynic"
-	"${REPO_ROOT}/target/pro-linux-amd64-v4-gnu/zelynic"
 	"${REPO_ROOT}/target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic"
 	"${REPO_ROOT}/target/x86_64-unknown-linux-musl/pro-linux-amd64-v4-musl/zelynic"
 )
 
 # binary_label <path> — the alias that built a candidate
-# (pro-linux-amd64-v3-gnu), not its whole path: the pick note stays
+# (pro-linux-amd64-v3-musl), not its whole path: the pick note stays
 # one readable line even for the musl triple's nested directory.
 binary_label() {
 	local label="${1#"${REPO_ROOT}"/}"
@@ -118,7 +117,7 @@ resolve_binary() {
 	local explicit="" cand m="" newest="" newest_m=0 existing=0 rest="" found
 	if [ "${1:-}" = "--binary" ]; then
 		if [ -z "${2:-}" ]; then
-			echo "ERROR: --binary needs a path (e.g. --binary ./target/pro-linux-amd64-v3-gnu/zelynic)" >&2
+			echo "ERROR: --binary needs a path (e.g. --binary ./target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic)" >&2
 			exit 2
 		fi
 		explicit="${2}"
@@ -200,13 +199,13 @@ check_binary() {
 		echo -e "${RED}ERROR: zelynic binary not found — no repo build and nothing on PATH.${NC}"
 		echo "  Tried (repo builds first): ${BINARY_TRIED:-the shared candidate list}"
 		echo "Build first: ./scripts/dev/bootstrap-ebpf.sh (eBPF toolchain pair + flagship binary)"
-		echo "Or point at one: $(basename "${BASH_SOURCE[1]:-this-suite}") --binary ./target/pro-linux-amd64-v3-gnu/zelynic"
+		echo "Or point at one: $(basename "${BASH_SOURCE[1]:-this-suite}") --binary ./target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic"
 		exit 1
 	fi
 	if [ ! -f "${BINARY}" ]; then
 		echo -e "${RED}ERROR: Binary not found: ${BINARY}${NC}"
 		echo "Build first: ./scripts/dev/bootstrap-ebpf.sh (eBPF toolchain pair + flagship binary)"
-		echo "Or point at a real one: $(basename "${BASH_SOURCE[1]:-this-suite}") --binary ./target/pro-linux-amd64-v3-gnu/zelynic"
+		echo "Or point at a real one: $(basename "${BASH_SOURCE[1]:-this-suite}") --binary ./target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic"
 		exit 1
 	fi
 	# Version gate (NIGHT-improve-16, bash form): the harness tests THIS

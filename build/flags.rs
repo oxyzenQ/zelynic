@@ -160,8 +160,9 @@ mod tests {
     /// token survives byte-identically.
     #[test]
     fn host_poison_stripping_matches_the_live_leak_shapes() {
-        // The exact value the pro-native-gnu alias produces (verified
-        // live by dumping the build script env): pure poison -> None.
+        // The exact value the native-CPU alias rustflags produce
+        // (verified live by dumping the build script env): pure
+        // poison -> None.
         assert_eq!(
             strip_host_poison("-C\u{1f}target-cpu=native", "\u{1f}"),
             None

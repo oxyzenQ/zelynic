@@ -361,7 +361,8 @@ the limiter object's growth (9920 -> 15176 bytes, ~52% more
 instructions for the whole enforcement path, of which the DRR lane
 is the additions and the shared refill extraction is neutral). The
 live-root proof of the lane is the CI supermassive battery's job
-(the four low/best x gnu/musl legs run it on every push).
+(the low/best envelope pair, static musl payload, runs it on every
+push — the gnu legs retired with the gnu packaging).
 
 ### The guaranteed-minimum law (NIGHT-private-research-4's audit, 2026-10-04)
 

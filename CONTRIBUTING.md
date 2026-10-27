@@ -147,7 +147,7 @@ scripts/
     install.sh       — user-space build, root-escalated install
     uninstall.sh     — the install's exact inverse
   setup.sh             — the lazy one-command pipeline (NIGHT-improve-18:
-                bootstrap + pro-native-gnu build, --musl twin opt-in,
+                bootstrap + static pro-native-musl flagship build,
                 rootless self-test, the sudo supermassive matrix, then
                 a next-steps menu; every phase idempotent)
 
@@ -288,7 +288,7 @@ scripts/
                 (NIGHT-improve-35: every command, alias, flag, color
                 mode, typo, rate-explode shape, removed command, and
                 hidden subcommand; wraps supermassive-test-v4.py; the
-                full battery runs rootless in ci.yml's gnu-dynamic
+                full battery runs rootless in ci.yml's ebpf-host
                 job, the self-test in the check job)
     mmspa-vs-legacy-test.sh — the MMSPA A/B lane (wraps
                 mmspa-vs-legacy-test.py; --self-test rootless)
@@ -418,8 +418,8 @@ era): where the other workflows prove the CI-shaped surfaces with
 CI-shaped steps, supermassive.yml proves the OWNER-FACING path —
 it runs `scripts/setup.sh` itself (rustup resolving the toolchain
 pin, bootstrap installing the dated nightly + bpf-linker into
-$HOME, then the payload build the leg's version names — the gnu
-flagship, or the static musl twin) and then BOTH supermassive
+$HOME, then the static musl flagship build — the only libc shape,
+night-dragon-maintenance-6) and then BOTH supermassive
 batteries inside a KVM micro-VM, under two resource envelopes
 DERIVED from the runner at boot time (NIGHT-improve-33, the owner's
 "cpu core, ram, etc don't set fixed let dynamic"; the small
@@ -432,14 +432,12 @@ resolved dynamically at run time — the dists index, each Release's
 Date+Codename, the two newest distinct codenames, and the newest
 generic unsigned image across their main + -updates pockets wins
 via sort -V) — so the kernel span (5.13 floor to latest head) and
-the machine span are proven per push. Each envelope is crossed
-with the payload's libc (NIGHT-blade-12): the matrix is
-{low, best} x {gnu, musl} — the musl legs keep the frozen
-ubuntu:22.04 userland, the gnu legs ride a ubuntu:24.04 rootfs
-(same-distro as the runner that built the dynamic flagship), and
-the gnu flagship — previously compiled and label-grepped but never
-once E2E'd — now runs the same full batteries the static twin has
-owned since NIGHT-improve-31. Its `paths:` filter is the
+the machine span are proven per push. The payload is the static
+musl flagship on the frozen ubuntu:22.04 userland (NIGHT-blade-12
+once crossed the envelopes with the payload's libc, {low, best} x
+{gnu, musl}; night-dragon-maintenance-6 retired the gnu legs with
+the gnu packaging — the era's same-distro 24.04-rootfs runs and
+their full-battery verdicts stand in the history). Its `paths:` filter is the
 binary-shaping surface plus the harness itself (src/, ebpf/, the
 cargo manifests, the toolchain pins, the setup/bootstrap/linker
 scripts, the supermassive tree, the shared lib, the CI init

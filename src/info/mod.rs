@@ -152,7 +152,7 @@ fn version_body() -> String {
 /// ```text
 /// zelynic: v11.0.0
 /// Per-app network rate limiter and traffic monitor for Linux. Pure eBPF. Boring and silent but killer.
-/// Build: linux-amd64-gnu (ad36a81)
+/// Build: linux-amd64-v3-musl (ad36a81)
 /// Build-time: 9/18/2026 01:30 (UTC)
 /// Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)
 /// Copyright: (c) 2026 rezky_nightky (oxyzenQ)
@@ -161,8 +161,8 @@ fn version_body() -> String {
 /// ```
 ///
 /// The `Build:` line carries the canonical label from [`build_label`]:
-/// `local-native-gnu` / `local-native-musl` for alias builds, the
-/// detected `linux-<arch>-<libc>` string for plain builds. The
+/// `local-native-musl` etc. for alias builds, the detected
+/// `linux-<arch>-<libc>` string for plain builds. The
 /// `Build-time:` line (NIGHT-hunt-6, cosmostrix parity) is stamped by
 /// build.rs via the Hinnant civil-from-days algorithm — UTC-only, so
 /// no timezone database is pulled into the binary and the stamp is

@@ -47,14 +47,16 @@
 # matrix stay untouched.
 #
 # Build shape (the owner's from-source law): each leg builds the
-# pro-linux-amd64-v3-gnu alias - the release page's amd64-v3 gnu
-# tier, NEVER a bare `cargo build --release` (no release package
-# ever shipped that shape; the binary the depth suite exercises is
-# the binary the release ships). The RUSTFLAGS composition carries
-# the -D warnings lead plus the alias's target-cpu token verbatim
-# (the workflow-level-shadowing incident's lesson, ci.yml's pro
-# block), and the artifact is verified through its embedded build
-# label before it ships into the guest.
+# pro-linux-amd64-v3-musl alias - the release page's amd64-v3 tier,
+# fully static musl (night-dragon-maintenance-6: musl is the ONLY
+# shipped shape; the gnu payload retired with the gnu packaging),
+# NEVER a bare `cargo build --release` (no release package ever
+# shipped that shape; the binary the depth suite exercises is the
+# binary the release ships). The RUSTFLAGS composition carries the
+# -D warnings lead plus the alias's target-cpu and crt-static tokens
+# verbatim (the workflow-level-shadowing incident's lesson, ci.yml's
+# pro block), and the artifact is verified through its embedded
+# build label before it ships into the guest.
 #
 # Trigger discipline (the owner's unfiltered-CI simplification):
 # every push (any branch, any tag) and every pull request (any
@@ -143,15 +145,17 @@ jobs:
           sudo apt-get -o Acquire::Retries=5 update -qq
           sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends qemu-system-x86 cpio
 
-      # The toolchain set mirrors ci.yml's gnu job (the same three
-      # install steps): the pinned stable for the payload build, the
-      # dated nightly for the nested pure-Rust eBPF crate build the
-      # ebpf feature drives, and the pinned prebuilt bpf-linker.
+      # The toolchain set mirrors ci.yml's musl job (the same three
+      # install steps): the pinned stable + musl target for the
+      # payload build, the dated nightly for the nested pure-Rust
+      # eBPF crate build the ebpf feature drives, and the pinned
+      # prebuilt bpf-linker.
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
         with:
           toolchain: "1.98.1"
           components: clippy, rustfmt
+          targets: x86_64-unknown-linux-musl
 
       - name: Install eBPF nightly toolchain (dated pin)
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
@@ -184,12 +188,12 @@ jobs:
       # verified through its embedded build label - v3 executes
       # everywhere (every x86_64 runner since Haswell), so the -V
       # gate runs live.
-      - name: Build the release-tier v3 payload (pro-linux-amd64-v3-gnu)
+      - name: Build the release-tier v3 payload (pro-linux-amd64-v3-musl)
         run: |
           set -euo pipefail
-          RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3" \
-            cargo pro-linux-amd64-v3-gnu --locked --target x86_64-unknown-linux-gnu
-          ./target/x86_64-unknown-linux-gnu/pro-linux-amd64-v3-gnu/zelynic -V | grep -F "Build: local-linux-amd64-v3-gnu"
+          RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3 -C target-feature=+crt-static" \
+            cargo pro-linux-amd64-v3-musl --locked
+          ./target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic -V | grep -F "Build: local-linux-amd64-v3-musl"
 
       # The floor kernel (NIGHT-improve-33's resolver, ported from
       # supermassive.yml's floor lane): impish indri (21.10) 5.13, the
@@ -489,8 +493,8 @@ jobs:
           set -euo pipefail
           cd /tmp/kfloor
           SUITE=ubuntu:24.04
-          PAYLOAD="$GITHUB_WORKSPACE/target/x86_64-unknown-linux-gnu/pro-linux-amd64-v3-gnu/zelynic"
-          echo "rootfs suite: $SUITE (payload: pro-linux-amd64-v3-gnu)"
+          PAYLOAD="$GITHUB_WORKSPACE/target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic"
+          echo "rootfs suite: $SUITE (payload: pro-linux-amd64-v3-musl, static)"
           docker pull -q "$SUITE"
           docker rm -f e2e-rootfs >/dev/null 2>&1 || true
           docker run --name e2e-rootfs -d "$SUITE" sleep infinity
@@ -527,7 +531,7 @@ jobs:
           mkdir -p rootfs/opt/zelynic
           git -C "$GITHUB_WORKSPACE" archive HEAD | tar -x -C rootfs/opt/zelynic
           cp "$PAYLOAD" rootfs/opt/zelynic/zelynic
-          printf '%s\n' 'pro-linux-amd64-v3-gnu' > rootfs/opt/zelynic/PAYLOAD-SHAPE
+          printf '%s\n' 'pro-linux-amd64-v3-musl' > rootfs/opt/zelynic/PAYLOAD-SHAPE
           cp "$GITHUB_WORKSPACE/scripts/ci/e2e-init.sh" rootfs/init
           chmod +x rootfs/init
           # The virtio module pair a resolver step staged (the 5.13
