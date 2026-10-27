@@ -390,6 +390,7 @@ battery flipped to refusal pins) and zero everywhere else — no
 schema bump (the window row's shape is untouched), no datapath
 change, the prebuilt lane re-pinned only because the kernel
 core's header text is part of the tree hash.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

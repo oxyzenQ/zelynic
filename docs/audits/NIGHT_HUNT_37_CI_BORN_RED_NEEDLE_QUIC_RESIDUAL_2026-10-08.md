@@ -244,13 +244,14 @@ connections, drift-free pacing at 100.1% of nominal); the
 A/B frame bench is byte-identical where it counts (bytes/frame
 +0.0%, emit/dirty/entropy within host noise) — the scripts
 never touch the render path.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
 
   This document may contain stale data, hardcoded counts, or outdated
   file paths and symbol names. Maintainers update source code but may
-  forget to sync every .md — perfect sync across every .md file is a
+  forget to sync every doc — perfect sync across every .md file is a
   known maintenance burden with diminishing returns.
 
   Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of

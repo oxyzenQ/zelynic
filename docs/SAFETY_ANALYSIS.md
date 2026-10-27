@@ -1897,6 +1897,7 @@ zelynic is safe, non-malicious, and fails in the safe direction (allow all
 traffic on any error). It does not collect data, make network connections,
 or modify system files beyond BPF pin files. The source code is open for
 full audit under GPL-3.0-only.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

@@ -123,6 +123,7 @@ claims map to verifying mechanisms in docs/CLAIMS_VERIFICATION.md; and
 audits are dated, immutable records (docs/audits/). Philosophy that is
 not enforced by a gate is a wish — zelynic keeps its wishes short and
 its gates long.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

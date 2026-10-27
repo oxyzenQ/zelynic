@@ -167,6 +167,7 @@ battery whose every uid-dependent row is unreachable past its own
 main gate. The doctrine is diversity-honest: each instrument owns
 the uid shape it can actually hold, and the sweep verified each one
 against the leg that exercises it.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

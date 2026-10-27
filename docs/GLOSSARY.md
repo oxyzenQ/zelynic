@@ -251,6 +251,7 @@ first-time reader, and this page pays it once, up front.
 - **Verdict bands**: the baseline lane's departure rule — ±50% AND
   a 4 KiB floor per window, two consecutive windows before a flag
   renders; every figure pinned.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

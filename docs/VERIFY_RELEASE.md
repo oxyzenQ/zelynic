@@ -297,6 +297,7 @@ All three tools ship with Arch Linux, Debian, Ubuntu, Fedora, Alpine,
 and macOS by default — the one exception is `b3sum`, a one-package
 install where it is missing (see above); no other extra install
 needed.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

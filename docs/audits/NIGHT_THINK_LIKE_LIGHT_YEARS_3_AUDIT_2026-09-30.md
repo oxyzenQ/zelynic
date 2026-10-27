@@ -210,6 +210,7 @@ claim, and its record lands in docs/PERFORMANCE.md.
   writing; the eagle-eyes screenshot assets still show pre-v11
   eras where noted in prior audits (the text contracts and pins
   are the source of truth — the standing disclaimer rule).
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

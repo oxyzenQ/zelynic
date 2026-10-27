@@ -189,6 +189,7 @@ that it keeps running on every host it was ever installed on,
 verdict by verdict, with no one watching. That is the target
 shape: not a project that fights hardest to survive, but one that
 needs the least to keep being useful.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

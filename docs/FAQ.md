@@ -114,6 +114,7 @@ next to the tarball, run `sha512sum -c`, and check the signature
 against the fingerprint recorded in docs/VERIFY_RELEASE.md. The
 registry lane (crates.io) and the release binaries carry the same
 embedded object bytes, so verifying one lane verifies the objects.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

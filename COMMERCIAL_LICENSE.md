@@ -214,6 +214,7 @@ For frequently asked questions, see
 [docs/LICENSING_FAQ.md](docs/LICENSING_FAQ.md). For trademark matters,
 see [TRADEMARK.md](TRADEMARK.md) — commercial licensing and trademark
 licensing are separate.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

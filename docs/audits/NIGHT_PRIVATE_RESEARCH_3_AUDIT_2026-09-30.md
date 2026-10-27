@@ -159,6 +159,7 @@ both the new positives and the retired-duplicate negatives.
   renders from live cgroups); the text contract — USAGE.md's
   sample block and the pin family — is the source of truth, and
   the screenshot follows at the next owner-host capture session.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

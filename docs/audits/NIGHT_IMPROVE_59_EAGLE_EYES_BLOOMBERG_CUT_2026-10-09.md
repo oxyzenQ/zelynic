@@ -109,12 +109,13 @@ six-key contract rides the frame (improve-58), and everything
 else the walk touched was already pinned at peak by its own
 family. No new concepts, no new columns, no over-engineering —
 the Bloomberg cut is two renders and a glyph.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
 
   This document may contain stale data, hardcoded counts, or outdated
-  file paths or symbol names. Maintainers update source code but may
+  file paths and symbol names. Maintainers update source code but may
   forget to sync every doc — perfect sync across every .md file is a
   known maintenance burden with diminishing returns.
 

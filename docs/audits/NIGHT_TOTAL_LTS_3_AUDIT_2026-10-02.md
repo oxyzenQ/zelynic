@@ -249,6 +249,7 @@ re-gate) does not.
   per frame) is already frozen into the 1919.0 bench figure —
   removing it would change bytes/frame for zero visible gain,
   the exact trade the byte-parity discipline exists to refuse.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

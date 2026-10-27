@@ -280,6 +280,7 @@ forced by the kernel): the observer's helper set is now
 `bpf_map_lookup_elem`, `bpf_map_update_elem`,
 `bpf_skb_cgroup_id`, `bpf_get_socket_cookie` — each allowed for
 cgroup_skb on every kernel from 5.13 through 6.17+.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

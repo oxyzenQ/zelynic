@@ -79,6 +79,7 @@ range touches no ebpf/ source). Frame A/B claims are all
 gate-extension or no-render-path changes with byte-identical
 visual metrics — consistent with the diffs, which touch no layout
 engine.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

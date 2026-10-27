@@ -239,6 +239,7 @@ USAGE.md.
   is a think-like-light-years item, not a v11.1.0 one.
 - No per-leaf mode flag: the directive's "no exception" and the
   no-config rule together mean default-on is the only shape.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

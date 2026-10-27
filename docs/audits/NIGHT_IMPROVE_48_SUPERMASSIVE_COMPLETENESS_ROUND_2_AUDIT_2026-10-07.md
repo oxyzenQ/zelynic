@@ -171,13 +171,14 @@ green rows in quieter hours, and the discriminator's refusal
 side did its job (an under-band window WITH refusals stays red —
 the signature the row exists to catch, even when the host is the
 culprit).
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
 
   This document may contain stale data, hardcoded counts, or outdated
   file paths and symbol names. Maintainers update source code but may
-  forget to sync every .md — perfect sync across every .md file is a
+  forget to sync every doc — perfect sync across every .md file is a
   known maintenance burden with diminishing returns.
 
   Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of

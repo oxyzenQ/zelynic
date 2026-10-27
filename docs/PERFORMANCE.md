@@ -1566,24 +1566,6 @@ decimal) carry the comparison weight. The avg line's per-frame
 division and the peak note's extra summary walk cost nothing
 measurable at the 1s cadence the real monitor runs.
 
-<!-- ZELYNIC-DISCLAIMER -->
-<!--
-  Documentation Disclaimer — read before relying on any data point.
-
-  This document may contain stale data, hardcoded counts, or outdated
-  file paths and symbol names. Maintainers update source code but may
-  forget to sync every doc — perfect sync across every .md file is a
-  known maintenance burden with diminishing returns.
-
-  Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
-  truth. Always cross-check against the actual source files before
-  relying on any specific number (target count, LOC, rate bound),
-  file path, function name, or config key.
-
-  If you find a discrepancy, please open a PR — the doc is wrong, not
-  the source.
--->
-
 ### NIGHT-boost-26 A/B (per-endpoint byte attribution, 2026-09-24)
 
 The 2.4 frontier closure: the observer ELF gained two per-socket LRU
@@ -1945,3 +1927,21 @@ the three now-swept lines, not visual mass moving. The
 correctness surface is the border pins: the orientation-symmetry
 law, the exact-bytes composer wave, the flat-rung bytes, and the
 hoisted-vs-walked equality.
+
+<!-- ZELYNIC-DISCLAIMER -->
+<!--
+  Documentation Disclaimer — read before relying on any data point.
+
+  This document may contain stale data, hardcoded counts, or outdated
+  file paths and symbol names. Maintainers update source code but may
+  forget to sync every doc — perfect sync across every .md file is a
+  known maintenance burden with diminishing returns.
+
+  Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
+  truth. Always cross-check against the actual source files before
+  relying on any specific number (target count, LOC, rate bound),
+  file path, function name, or config key.
+
+  If you find a discrepancy, please open a PR — the doc is wrong, not
+  the source.
+-->

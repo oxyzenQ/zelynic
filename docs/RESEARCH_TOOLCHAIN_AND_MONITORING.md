@@ -305,6 +305,7 @@ future widening needs a new owner task, by design.
   build), `src/ebpf/loader.rs` (root-cgroup attach),
   `src/ebpf/connections.rs` (socket-table + fd-inode join),
   `ebpf/src/main.rs` (ingress+egress observers and maps).
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

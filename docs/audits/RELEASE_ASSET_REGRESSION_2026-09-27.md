@@ -151,6 +151,7 @@ AVX-512:
    actions/checkout's workspace wipe is invisible in the YAML and
    total in effect. Download-after-checkout is now structural; the
    tripwire holds the line if order ever drifts again.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

@@ -151,6 +151,7 @@ the same budget.
    before this pass (it was since-attach); now the live view IS
    per-frame, so the wrong decode is accidentally the truth. The
    residual is documentation-shaped: the glossary carries it.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

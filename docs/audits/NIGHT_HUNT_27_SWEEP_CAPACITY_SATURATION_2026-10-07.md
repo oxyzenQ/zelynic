@@ -136,6 +136,7 @@ anywhere in src/ or ebpf/src/.
    ceiling for the EXPLICIT lane only. Cost/benefit says wait for
    the owner's call: the composition (pinned admission + pinned
    write loop + thin handler) carries the risk.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

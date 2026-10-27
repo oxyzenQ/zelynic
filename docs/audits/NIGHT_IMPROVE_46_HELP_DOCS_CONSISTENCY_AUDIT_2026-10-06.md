@@ -164,6 +164,7 @@ blocklist count (drift-proof by construction), and the recurring
 display-mangling lesson (a tooling observation, not a project
 defect). Nothing to fix; the correct entry for a consistency
 audit whose subject already holds.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

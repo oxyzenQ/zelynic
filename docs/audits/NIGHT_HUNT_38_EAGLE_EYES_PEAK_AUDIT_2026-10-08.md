@@ -148,13 +148,14 @@ render pins), gates 17/17; the A/B frame bench byte-identical
 where it counts (bytes/frame +0.0%, emit/dirty/gini/entropy within
 host noise) — the changes reorder what a cap selects, never how a
 row renders.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
 
   This document may contain stale data, hardcoded counts, or outdated
   file paths and symbol names. Maintainers update source code but may
-  forget to sync every .md — perfect sync across every .md file is a
+  forget to sync every doc — perfect sync across every .md file is a
   known maintenance burden with diminishing returns.
 
   Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of

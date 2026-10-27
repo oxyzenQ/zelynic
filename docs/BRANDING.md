@@ -501,6 +501,7 @@ External projects or articles referencing zelynic should:
 - Use the correct project name: zelynic (always lowercase)
 - Link to the official repository: <https://github.com/oxyzenQ/zelynic>
 - Acknowledge it as a Rust-based CLI tool
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

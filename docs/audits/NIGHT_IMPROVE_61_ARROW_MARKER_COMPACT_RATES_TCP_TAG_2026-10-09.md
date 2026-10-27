@@ -102,6 +102,7 @@ the status line) — the marker lane is the TABLE's estate; the
 focus view's detail indentation (its own family); the depth
 report's row format (already spoke the proto); the JSON surfaces
 (no field changed); the version (the owner's call alone).
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

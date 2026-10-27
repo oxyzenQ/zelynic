@@ -2379,6 +2379,7 @@ script header).
 
 Source of truth is always `src/**` — if any doc (including this one)
 disagrees with the code, the doc is wrong; open a PR.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

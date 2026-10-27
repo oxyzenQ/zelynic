@@ -184,6 +184,7 @@ rejections below are as load-bearing as the thirteen.
 `ebpf/src/mmspa.rs` + `drr.rs` (the budget core) → `enforce.rs`
 (the verdict path) → `src/cli/surface.rs` (the frozen grammar) →
 `docs/PHILOSOPHY.md` (why it is shaped this way at all).
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

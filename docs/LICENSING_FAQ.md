@@ -93,6 +93,7 @@ option — it is the one this warning exists for.
 
 Email [with.rezky@gmail.com](mailto:with.rezky@gmail.com) or open an
 issue on [GitHub](https://github.com/oxyzenQ/zelynic).
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

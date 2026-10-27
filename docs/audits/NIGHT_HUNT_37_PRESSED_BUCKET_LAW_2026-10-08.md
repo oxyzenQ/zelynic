@@ -132,13 +132,14 @@ the designed-headroom line with the a11b8b1 and bd8de0e shapes
 pinned False), ruff check + format clean, codespell clean. The
 live supermassive legs' green belongs to the next CI run — the
 same run that carried the red.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
 
   This document may contain stale data, hardcoded counts, or outdated
   file paths and symbol names. Maintainers update source code but may
-  forget to sync every .md — perfect sync across every .md file is a
+  forget to sync every doc — perfect sync across every .md file is a
   known maintenance burden with diminishing returns.
 
   Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of

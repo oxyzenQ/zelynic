@@ -197,6 +197,7 @@ across the whole list, verdicts in segment order, wording
 byte-identical (two unit pins hold the order and the wording
 sharing). The eviction/restart/retirement semantics stay
 unit-pinned per section 4's honest boundary — unchanged.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

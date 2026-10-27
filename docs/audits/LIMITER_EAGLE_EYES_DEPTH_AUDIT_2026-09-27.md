@@ -287,6 +287,7 @@ architecture-peak: every userspace dimension is at its ceiling
 (counter-map eviction) was designed, bounded, documented — and
 closed by the E1 rider on 2026-09-28, the first thaw of the ebpf/
 tree. Nothing remains.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

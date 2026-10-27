@@ -139,6 +139,7 @@ lanes, same userland, same sentinel discipline — for the tight loop:
 agent boxes, laptops, any machine with qemu. Anything the sandbox
 proves green is what CI will confirm; anything it finds red is found
 in seconds instead of a CI round-trip.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

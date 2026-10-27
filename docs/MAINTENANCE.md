@@ -194,6 +194,7 @@ a claim without a ledger entry is a bug in the docs.
 | monthly | skim `git log -- docs/` for purpose drift; re-run `./scripts/gate-keepers.sh` once on the dev machine (re-arms the commit hook if the clone moved) |
 | per release | the §4 routine; the §3 ritual whenever `ebpf/` moved in the cycle |
 | quarterly | full sandbox validation matrix ([SANDBOX.md](SANDBOX.md)), a fresh dated audit doc recording the state of the project, and a stale-secret review (§1) |
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

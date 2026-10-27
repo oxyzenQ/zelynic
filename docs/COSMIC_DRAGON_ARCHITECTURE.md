@@ -289,6 +289,7 @@ NIGHT-improve-68, the six-layer verdict path defined canonically in
 engine is its heart), the render lineage is the cosmic dragon
 render engine (cosmostrix), and the agent persona behind this work
 is `dragonzen` — one identity, one name, many engines.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

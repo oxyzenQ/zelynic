@@ -95,6 +95,7 @@ No frame A/B, on the record: every touched path is outside the
 monitor's render loop — the print-json family is a one-shot
 scripting surface, not the frame engine (the improve-60 precedent
 for exactly this class of change).
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

@@ -146,6 +146,7 @@ class and the render tree's no-I/O, no-panic contract:
    composition (pinned core + pinned lanes + thin table) carries
    the risk meanwhile. Named here so the day a leaked-ring report
    arrives, the diagnosis is one grep away.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
