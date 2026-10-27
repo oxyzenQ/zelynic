@@ -1894,13 +1894,21 @@ def stage_server_dual_dir_duel():
         ul_future = pool.submit(ul_leg, None)
         dl_metric, dl_err = dl_future.result()
         ul_metric, ul_err = ul_future.result()
-    deadline = time.monotonic() + 10.0
+    # The /ul counter lands in ONE step: the server's PUT handler
+    # accumulates the body locally and adds it to the shared counter
+    # only when the recv loop sees EOF - and EOF waits for the whole
+    # buffered body to drain through the policed path first (seconds,
+    # not milliseconds). The wait is therefore nonzero-stable: hold
+    # for 2s PAST a nonzero count; a zero counter keeps the poll
+    # alive until the drain lands or the cap gives up (a still-zero
+    # count is a real verdict: nothing was delivered).
+    deadline = time.monotonic() + 15.0
     last, stable = -1, 0
     while time.monotonic() < deadline:
         current = SERVER.peek()["ul"]
-        if current == last:
+        if current == last and current > 0:
             stable += 1
-            if stable >= 2:
+            if stable >= 10:
                 break
         else:
             stable = 0
