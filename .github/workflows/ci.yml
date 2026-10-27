@@ -411,7 +411,13 @@ jobs:
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
         with:
           toolchain: nightly-2026-09-18
-          components: rust-src
+          # night-dragon-lts-2e: clippy rejoins rust-src on this
+          # job's pin — the standing kernel clippy lane below runs
+          # the pinned nightly's OWN clippy-driver (the lts-2d
+          # instrument, now wired where CI can see it). The check
+          # and musl jobs keep rust-src only: their nightly never
+          # runs clippy, it only drives build.rs's nested build.
+          components: rust-src, clippy
 
       # NIGHT-improve-11: the pinned bpf-linker install is shared by
       # four CI jobs (check, ebpf-host, release, maintenance) — one
@@ -457,6 +463,29 @@ jobs:
       # and the build dies inside bpf-linker's instruction selection.
       - name: Build pure-Rust eBPF objects (direct crate build)
         run: RUSTFLAGS="-D warnings -C target-cpu=v3" cargo build --release --locked
+        working-directory: ebpf
+
+      # night-dragon-lts-2e: the kernel clippy lane goes standing.
+      # The lts-2c SAFETY gate ([lints] deny) lives in ebpf/Cargo.toml
+      # and binds every clippy invocation, but NO CI lane ever RAN
+      # clippy on the kernel crate — the nightly instrument was
+      # manual-only (the lts-2d record's honest residual), so a fresh
+      # kernel-side warning would sail through CI until someone ran
+      # the instrument by hand. This step closes exactly that gap:
+      # the pinned nightly's clippy checks the crate, -D warnings is
+      # the verdict, and the crate sits at the lts-2d zero — any new
+      # kernel-side warning now fails this lane on every push and PR.
+      #
+      # No RUSTFLAGS merge here (the NIGHT-boost-38 concern is a
+      # codegen concern): the workflow env's "-D warnings" shadows
+      # the config's target-cpu=v3, and clippy generates no code — a
+      # check-only pass over the crate and its build-std core
+      # (rust-src is on the install above). The BPF_ATOMIC
+      # instruction selection the v3 flag exists for happens in the
+      # build step, which carries the flag explicitly. --locked: the
+      # same lockfile-freeze contract as the build step beside it.
+      - name: Clippy pure-Rust eBPF crate (standing kernel lane)
+        run: cargo clippy --locked -- -D warnings
         working-directory: ebpf
 
       - name: Verify eBPF objects exist
