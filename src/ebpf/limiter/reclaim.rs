@@ -248,8 +248,11 @@ impl super::Limiter {
 
         if !failures.is_empty() {
             eprintln_safe!(
-                "[limiter] Unstrict: cg:{cgroup_id} state reclaim failed: {}",
-                failures.join(", ")
+                "{}",
+                crate::output::grey(&format!(
+                    "[limiter] Unstrict: cg:{cgroup_id} state reclaim failed: {}",
+                    failures.join(", ")
+                ))
             );
         }
         reclaimed
@@ -260,7 +263,10 @@ impl super::Limiter {
     /// pure formatter.
     pub(super) fn print_reclaim_trace(&self, cgroup_id: u32, reclaimed: usize) {
         if reclaimed > 0 && self.verbose {
-            eprintln_safe!("{}", reclaim_trace_line(cgroup_id, reclaimed));
+            eprintln_safe!(
+                "{}",
+                crate::output::grey(&reclaim_trace_line(cgroup_id, reclaimed))
+            );
         }
     }
 
@@ -433,7 +439,10 @@ impl super::Limiter {
                 // An unreadable family map cannot name its
                 // orphans — skip it, warn, let the next visit
                 // retry (best-effort beside every sweep sibling).
-                eprintln_safe!("[limiter] census sweep skipped {map_name}: {e}");
+                eprintln_safe!(
+                    "{}",
+                    crate::output::grey(&format!("[limiter] census sweep skipped {map_name}: {e}"))
+                );
                 return 0;
             }
         };
@@ -447,12 +456,20 @@ impl super::Limiter {
                 Ok(true) => landed += 1,
                 Ok(false) => {}
                 Err(e) => {
-                    eprintln_safe!("[limiter] census sweep: {map_name} key {id} delete failed: {e}")
+                    eprintln_safe!(
+                        "{}",
+                        crate::output::grey(&format!(
+                            "[limiter] census sweep: {map_name} key {id} delete failed: {e}"
+                        ))
+                    )
                 }
             }
         }
         if self.verbose && landed > 0 {
-            eprintln_safe!("{}", census_sweep_trace_line(map_name, landed));
+            eprintln_safe!(
+                "{}",
+                crate::output::grey(&census_sweep_trace_line(map_name, landed))
+            );
         }
         landed
     }
@@ -524,12 +541,18 @@ impl super::Limiter {
             }
             if !failures.is_empty() {
                 eprintln_safe!(
-                    "[limiter] group:{gid} shared-bucket reclaim failed: {}",
-                    failures.join(", ")
+                    "{}",
+                    crate::output::grey(&format!(
+                        "[limiter] group:{gid} shared-bucket reclaim failed: {}",
+                        failures.join(", ")
+                    ))
                 );
             }
             if self.verbose {
-                eprintln_safe!("{}", group_reclaim_trace_line(gid, reclaimed_this_group));
+                eprintln_safe!(
+                    "{}",
+                    crate::output::grey(&group_reclaim_trace_line(gid, reclaimed_this_group))
+                );
             }
         }
         reclaimed

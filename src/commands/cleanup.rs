@@ -55,8 +55,11 @@ fn handle_unstrict_single(target_str: &str, verbose: bool) -> Result<()> {
 
     if removed > 0 {
         eprintln_safe!(
-            "Removed {removed} {} for '{target_str}'",
-            if removed == 1 { "policy" } else { "policies" }
+            "{}",
+            crate::output::ok(&format!(
+                "Removed {removed} {} for '{target_str}'",
+                if removed == 1 { "policy" } else { "policies" }
+            ))
         );
     }
 
@@ -134,11 +137,14 @@ fn handle_unstrict_multi(targets_str: &str, verbose: bool) -> Result<()> {
 
     if removed > 0 {
         eprintln_safe!(
-            "Removed {removed} {} across {} target{} from '{}'",
-            if removed == 1 { "policy" } else { "policies" },
-            targets.len(),
-            if targets.len() == 1 { "" } else { "s" },
-            targets_str
+            "{}",
+            crate::output::ok(&format!(
+                "Removed {removed} {} across {} target{} from '{}'",
+                if removed == 1 { "policy" } else { "policies" },
+                targets.len(),
+                if targets.len() == 1 { "" } else { "s" },
+                targets_str
+            ))
         );
     }
 
@@ -233,16 +239,19 @@ pub(crate) fn unpin_if_no_policies(
         Ok(0) => {
             super::unpin_all_bpf()?;
             if verbose {
-                eprintln_safe!("[limiter] No policies remain — BPF unpinned, no residue");
+                eprintln_safe!(
+                    "{}",
+                    crate::output::ok("[limiter] No policies remain — BPF unpinned, no residue")
+                );
             }
             Ok(())
         }
         Ok(_) => Ok(()),
         Err(e) => {
-            eprintln_safe!(
-                "Warning: policy maps unreadable ({e}) — leaving BPF pins in place; \
+            crate::output::eprintln_warn_labeled(&format!(
+                "policy maps unreadable ({e}) — leaving BPF pins in place; \
                  run 'zelynic recover' to repair"
-            );
+            ));
             Ok(())
         }
     }
@@ -271,7 +280,10 @@ pub fn handle_unstrict_all(verbose: bool) -> Result<()> {
         // exit-0 success `recover`'s clean path owns. The forms that
         // NAME a target (unstrict, either lane) error on a miss;
         // this sweep never can.
-        eprintln_safe!("No active limits. Nothing to remove.");
+        eprintln_safe!(
+            "{}",
+            crate::output::grey("No active limits. Nothing to remove.")
+        );
         return Ok(());
     }
 
@@ -281,12 +293,12 @@ pub fn handle_unstrict_all(verbose: bool) -> Result<()> {
     if verbose && let Ok(entries) = std::fs::read_dir(crate::ebpf::limiter::PIN_DIR) {
         for entry in entries.flatten() {
             if let Some(name) = entry.file_name().to_str() {
-                eprintln_safe!("  - {name}");
+                eprintln_safe!("{}", crate::output::grey(&format!("  - {name}")));
             }
         }
     }
 
     super::unpin_all_bpf()?;
-    eprintln_safe!("All limits removed, no residue.");
+    eprintln_safe!("{}", crate::output::ok("All limits removed, no residue."));
     Ok(())
 }

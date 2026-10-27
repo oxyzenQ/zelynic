@@ -164,7 +164,10 @@ impl Limiter {
                 Some(v) if v == SCHEMA_VERSION_EXPECTED => {
                     if verbose {
                         eprintln_safe!(
-                            "[limiter] BPF programs + links already pinned (schema v{v}) — reusing"
+                            "{}",
+                            crate::output::grey(&format!(
+                                "[limiter] BPF programs + links already pinned (schema v{v}) — reusing"
+                            ))
                         );
                     }
                     // night-during: refresh the wall-clock bridge
@@ -175,14 +178,20 @@ impl Limiter {
                 Some(v) => {
                     if verbose {
                         eprintln_safe!(
-                            "[limiter] Schema version mismatch: pinned v{v} ≠ expected v{SCHEMA_VERSION_EXPECTED} — reloading"
+                            "{}",
+                            crate::output::grey(&format!(
+                                "[limiter] Schema version mismatch: pinned v{v} ≠ expected v{SCHEMA_VERSION_EXPECTED} — reloading"
+                            ))
                         );
                     }
                     unpin_all()?;
                 }
                 None => {
                     if verbose {
-                        eprintln_safe!("[limiter] Schema version map missing — reloading");
+                        eprintln_safe!(
+                            "{}",
+                            crate::output::grey("[limiter] Schema version map missing — reloading")
+                        );
                     }
                     unpin_all()?;
                 }
@@ -192,7 +201,10 @@ impl Limiter {
             // crashed run. Clean up everything before reloading.
             if pin_dir_has_files() {
                 if verbose {
-                    eprintln_safe!("[limiter] Stale pin files detected — cleaning up");
+                    eprintln_safe!(
+                        "{}",
+                        crate::output::grey("[limiter] Stale pin files detected — cleaning up")
+                    );
                 }
                 unpin_all()?;
             }
@@ -201,10 +213,16 @@ impl Limiter {
         let obj_data = LIMITER_ELF;
         if verbose {
             eprintln_safe!(
-                "[limiter] Loading embedded BPF limiter object ({} bytes)",
-                obj_data.len()
+                "{}",
+                crate::output::grey(&format!(
+                    "[limiter] Loading embedded BPF limiter object ({} bytes)",
+                    obj_data.len()
+                ))
             );
-            eprintln_safe!("{}", trace::kernel_line("limiter", &kernel_release()));
+            eprintln_safe!(
+                "{}",
+                crate::output::grey(&trace::kernel_line("limiter", &kernel_release()))
+            );
         }
 
         // NIGHT-hunt-30: alignment preflight — structurally impossible

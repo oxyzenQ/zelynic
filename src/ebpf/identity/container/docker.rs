@@ -266,13 +266,19 @@ pub(super) fn resolve_docker(name: &str, verbose: bool) -> Result<Vec<u32>> {
             )
         })?;
     if verbose {
-        eprintln_safe!("[container] docker API via {}", socket.display());
+        eprintln_safe!(
+            "{}",
+            crate::output::grey(&format!("[container] docker API via {}", socket.display()))
+        );
     }
     let entries = parse_docker_reply(docker_http_get(&socket)?)?;
     if verbose {
         eprintln_safe!(
-            "[container] docker API listed {} container(s), matching '{name}'",
-            entries.len()
+            "{}",
+            crate::output::grey(&format!(
+                "[container] docker API listed {} container(s), matching '{name}'",
+                entries.len()
+            ))
         );
     }
     let (full_id, state) = match docker_match(&entries, name) {
@@ -323,8 +329,11 @@ pub(super) fn resolve_docker(name: &str, verbose: bool) -> Result<Vec<u32>> {
         .ok_or_else(|| anyhow!("container cgroup {} could not be stat()ed", dir.display()))?;
     if verbose {
         eprintln_safe!(
-            "[container] docker://{name} → {} (cgroup cg:{id})",
-            dir.display()
+            "{}",
+            crate::output::grey(&format!(
+                "[container] docker://{name} → {} (cgroup cg:{id})",
+                dir.display()
+            ))
         );
     }
     Ok(vec![id])

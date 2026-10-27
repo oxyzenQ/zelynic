@@ -272,11 +272,20 @@ pub fn handle_eagle_eyes(
     let monitor = if verbose {
         observer = Observer::attach(verbose)?;
         observer.refresh_identity();
-        eprintln_safe!("[ebpf] {} cgroups resolved", observer.identity().len());
+        eprintln_safe!(
+            "{}",
+            crate::output::grey(&format!(
+                "[ebpf] {} cgroups resolved",
+                observer.identity().len()
+            ))
+        );
         let first = observer.poll_and_summarize()?;
         eprintln_safe!(
-            "[ebpf] first poll: {} cgroups with traffic since attach",
-            first.cgroups.len()
+            "{}",
+            crate::output::grey(&format!(
+                "[ebpf] first poll: {} cgroups with traffic since attach",
+                first.cgroups.len()
+            ))
         );
         terminal::Monitor::open(|_, _| Vec::new())?
     } else {

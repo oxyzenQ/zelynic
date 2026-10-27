@@ -180,7 +180,7 @@ fn version_body() -> String {
 pub fn print_version_report() {
     let header = format!("{NAME}: v{VERSION}\n{DESCRIPTION}");
     println_safe!("{}", crate::output::brand(&header));
-    println_safe!("{}", version_body());
+    println_safe!("{}", crate::output::grey(&version_body()));
 }
 
 #[cfg(test)]

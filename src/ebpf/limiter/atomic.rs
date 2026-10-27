@@ -250,7 +250,7 @@ impl super::Limiter {
 
         if self.verbose {
             for line in group_apply_lines(group_id, rates, all_cgroup_ids.len()) {
-                eprintln_safe!("{line}");
+                eprintln_safe!("{}", crate::output::grey(&line));
             }
         }
 
@@ -284,8 +284,11 @@ impl super::Limiter {
                             rolled_back += 1;
                             if self.verbose {
                                 eprintln_safe!(
-                                    "[limiter] rolled back cg:{cgroup_id} {} (pre-apply policy restored)",
-                                    direction.label()
+                                    "{}",
+                                    crate::output::grey(&format!(
+                                        "[limiter] rolled back cg:{cgroup_id} {} (pre-apply policy restored)",
+                                        direction.label()
+                                    ))
                                 );
                             }
                         }
@@ -303,15 +306,21 @@ impl super::Limiter {
                         rolled_back += 1;
                         if self.verbose {
                             eprintln_safe!(
-                                "[limiter] rolled back cg:{cgroup_id} {} (was absent before this apply)",
-                                direction.label()
+                                "{}",
+                                crate::output::grey(&format!(
+                                    "[limiter] rolled back cg:{cgroup_id} {} (was absent before this apply)",
+                                    direction.label()
+                                ))
                             );
                         }
                     }
                     Err(e) => {
                         eprintln_safe!(
-                            "[limiter] rollback failed: cg:{cgroup_id} {}: {e}",
-                            direction.label()
+                            "{}",
+                            crate::output::grey(&format!(
+                                "[limiter] rollback failed: cg:{cgroup_id} {}: {e}",
+                                direction.label()
+                            ))
                         );
                         survivors.push(policy_survivor_line(cgroup_id, direction));
                     }
