@@ -269,7 +269,11 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 #   pro-native-musl    — cargo pro-native-musl (NEW in improve-16: the
 #                        musl alias output was never a candidate, so a
 #                        static build could only be tested via --binary)
-#   plain release      — cargo build --release --features ebpf
+#   NO plain-release arm (night-dragon-maintenance-3, the owner's
+#                        from-source law): a test payload is an
+#                        alias-built release-tier binary or an explicit
+#                        --binary, never a bare cargo build --release
+#                        artifact.
 # NIGHT-improve-22 adds the four arch-baseline alias outputs
 # (pro-linux-amd64-v3/v4-gnu, pro-linux-amd64-v3/v4-musl) so a freshly built
 # release-shape binary outranks a stale native build of older code —
@@ -290,7 +294,6 @@ REPO_BINARY_CANDIDATES = [
     os.path.join(
         REPO_ROOT, "target", "x86_64-unknown-linux-musl", "pro-linux-amd64-v4-musl", "zelynic"
     ),
-    os.path.join(REPO_ROOT, "target", "release", "zelynic"),
 ]
 
 # A version-shaped token inside a `-V` header line. Accepts both

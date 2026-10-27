@@ -222,10 +222,10 @@ fi
 # (-cpu max emulates the ISA, not the host — the SIGILL warning
 # below), so TCG packs the newest static build and only falls back to
 # a gnu build when no static one exists; under KVM the newest build
-# wins outright (host-passthrough runs every shape). The plain musl
-# release stays a candidate in both groups (this launcher accepted it
-# before the aliases existed — the twin list omits it because it is
-# not a canonical build command's output).
+# wins outright (host-passthrough runs every shape). The plain-release
+# arms are GONE (night-dragon-maintenance-3, the owner's from-source
+# law): a sandbox payload is an alias-built release-tier binary or an
+# explicit pick, never a bare cargo build --release artifact.
 newest_binary() {
 	local best="" cand
 	for cand in "$@"; do
@@ -248,22 +248,18 @@ if [ -z "${BINARY}" ]; then
 			"${REPO_ROOT}/target/pro-linux-amd64-v3-gnu/zelynic" \
 			"${REPO_ROOT}/target/pro-linux-amd64-v4-gnu/zelynic" \
 			"${MUSL_DIR}/pro-linux-amd64-v3-musl/zelynic" \
-			"${MUSL_DIR}/pro-linux-amd64-v4-musl/zelynic" \
-			"${MUSL_DIR}/release/zelynic" \
-			"${REPO_ROOT}/target/release/zelynic")"
+			"${MUSL_DIR}/pro-linux-amd64-v4-musl/zelynic")"
 	else
 		BINARY="$(newest_binary \
 			"${MUSL_DIR}/pro-native-musl/zelynic" \
 			"${MUSL_DIR}/pro-linux-amd64-v3-musl/zelynic" \
-			"${MUSL_DIR}/pro-linux-amd64-v4-musl/zelynic" \
-			"${MUSL_DIR}/release/zelynic")"
+			"${MUSL_DIR}/pro-linux-amd64-v4-musl/zelynic")"
 		if [ -z "${BINARY}" ]; then
 			BINARY="$(newest_binary \
 				"${REPO_ROOT}/zelynic" \
 				"${REPO_ROOT}/target/pro-native-gnu/zelynic" \
 				"${REPO_ROOT}/target/pro-linux-amd64-v3-gnu/zelynic" \
-				"${REPO_ROOT}/target/pro-linux-amd64-v4-gnu/zelynic" \
-				"${REPO_ROOT}/target/release/zelynic")"
+				"${REPO_ROOT}/target/pro-linux-amd64-v4-gnu/zelynic")"
 		fi
 	fi
 fi

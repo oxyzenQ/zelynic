@@ -77,8 +77,11 @@ PIN_DIR="/sys/fs/bpf/zelynic"
 # Repo-local build outputs of the canonical build commands — the
 # bash twin of the python lib's REPO_BINARY_CANDIDATES
 # (.cargo/config.toml is the source of truth for where each command
-# lands): the legacy root copy, pro-native-gnu/musl, the four
-# pro-linux release shapes, and the plain release build. Among the
+# lands): the legacy root copy, pro-native-gnu/musl, and the four
+# pro-linux release shapes. There is NO plain-release arm - the owner's
+# from-source law (night-dragon-maintenance-3): a test payload is an
+# alias-built release-tier binary or an explicit --binary, never a
+# bare cargo build --release artifact. Among the
 # candidates that exist, the NEWEST mtime wins — test what was just
 # built, not what was built longest ago.
 HARNESS_BINARY_CANDIDATES=(
@@ -89,7 +92,6 @@ HARNESS_BINARY_CANDIDATES=(
 	"${REPO_ROOT}/target/pro-linux-amd64-v4-gnu/zelynic"
 	"${REPO_ROOT}/target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic"
 	"${REPO_ROOT}/target/x86_64-unknown-linux-musl/pro-linux-amd64-v4-musl/zelynic"
-	"${REPO_ROOT}/target/release/zelynic"
 )
 
 # binary_label <path> — the alias that built a candidate
@@ -116,7 +118,7 @@ resolve_binary() {
 	local explicit="" cand m="" newest="" newest_m=0 existing=0 rest="" found
 	if [ "${1:-}" = "--binary" ]; then
 		if [ -z "${2:-}" ]; then
-			echo "ERROR: --binary needs a path (e.g. --binary ./target/release/zelynic)" >&2
+			echo "ERROR: --binary needs a path (e.g. --binary ./target/pro-linux-amd64-v3-gnu/zelynic)" >&2
 			exit 2
 		fi
 		explicit="${2}"
@@ -204,7 +206,7 @@ check_binary() {
 	if [ ! -f "${BINARY}" ]; then
 		echo -e "${RED}ERROR: Binary not found: ${BINARY}${NC}"
 		echo "Build first: ./scripts/dev/bootstrap-ebpf.sh (eBPF toolchain pair + flagship binary)"
-		echo "Or point at a real one: $(basename "${BASH_SOURCE[1]:-this-suite}") --binary ./target/release/zelynic"
+		echo "Or point at a real one: $(basename "${BASH_SOURCE[1]:-this-suite}") --binary ./target/pro-linux-amd64-v3-gnu/zelynic"
 		exit 1
 	fi
 	# Version gate (NIGHT-improve-16, bash form): the harness tests THIS

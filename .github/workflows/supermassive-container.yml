@@ -28,8 +28,9 @@
 #                Deploys a pause pod, resolves k8s://<ns>/<pod>,
 #                enforces, tears down.
 #
-# Both legs build zelynic from source (the gnu dynamic shape — the
-# runner's own glibc, the runner's own kernel), install it to
+# Both legs build zelynic from source through the release-tier
+# pro-linux-amd64-v3-gnu alias (the runner's own glibc, the runner's
+# own kernel — the same payload shape the e2e lane drives), install it to
 # /opt/zelynic/zelynic (v3's default binary path), and drive v3 with
 # the --docker-e2e / --k8s-e2e force flag (the lane FAILS honestly if
 # the runtime is absent — never a silent skip on a leg that exists to
@@ -125,13 +126,24 @@ jobs:
         run: RUSTFLAGS="-D warnings -C target-cpu=v3" cargo build --release --locked
         working-directory: ebpf
 
-      - name: Build zelynic with ebpf feature (gnu dynamic)
-        run: cargo build --features ebpf --locked
+      # The owner's from-source law (night-dragon-maintenance-3): the
+      # payload these E2E legs drive is the release-tier pro-linux-
+      # amd64-v3-gnu alias build - never a bare cargo build shape,
+      # debug or release. The RUSTFLAGS lead is the -D-warnings-plus-
+      # alias-token composition ci.yml's pro block carries; the
+      # explicit --target keeps RUSTFLAGS off the host proc-macro
+      # world; the artifact is verified through its embedded build
+      # label (v3 executes on every x86_64 runner since Haswell).
+      - name: Build the release-tier v3 payload (pro-linux-amd64-v3-gnu)
+        run: |
+          RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3" \
+            cargo pro-linux-amd64-v3-gnu --locked --target x86_64-unknown-linux-gnu
+          ./target/x86_64-unknown-linux-gnu/pro-linux-amd64-v3-gnu/zelynic -V | grep -F "Build: local-linux-amd64-v3-gnu"
 
       - name: Install zelynic to /opt/zelynic (v3 default path)
         run: |
           sudo mkdir -p /opt/zelynic
-          sudo cp target/debug/zelynic /opt/zelynic/zelynic
+          sudo cp target/x86_64-unknown-linux-gnu/pro-linux-amd64-v3-gnu/zelynic /opt/zelynic/zelynic
           sudo chmod 755 /opt/zelynic/zelynic
           /opt/zelynic/zelynic -V
 
@@ -190,13 +202,24 @@ jobs:
         run: RUSTFLAGS="-D warnings -C target-cpu=v3" cargo build --release --locked
         working-directory: ebpf
 
-      - name: Build zelynic with ebpf feature (gnu dynamic)
-        run: cargo build --features ebpf --locked
+      # The owner's from-source law (night-dragon-maintenance-3): the
+      # payload these E2E legs drive is the release-tier pro-linux-
+      # amd64-v3-gnu alias build - never a bare cargo build shape,
+      # debug or release. The RUSTFLAGS lead is the -D-warnings-plus-
+      # alias-token composition ci.yml's pro block carries; the
+      # explicit --target keeps RUSTFLAGS off the host proc-macro
+      # world; the artifact is verified through its embedded build
+      # label (v3 executes on every x86_64 runner since Haswell).
+      - name: Build the release-tier v3 payload (pro-linux-amd64-v3-gnu)
+        run: |
+          RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3" \
+            cargo pro-linux-amd64-v3-gnu --locked --target x86_64-unknown-linux-gnu
+          ./target/x86_64-unknown-linux-gnu/pro-linux-amd64-v3-gnu/zelynic -V | grep -F "Build: local-linux-amd64-v3-gnu"
 
       - name: Install zelynic to /opt/zelynic (v3 default path)
         run: |
           sudo mkdir -p /opt/zelynic
-          sudo cp target/debug/zelynic /opt/zelynic/zelynic
+          sudo cp target/x86_64-unknown-linux-gnu/pro-linux-amd64-v3-gnu/zelynic /opt/zelynic/zelynic
           sudo chmod 755 /opt/zelynic/zelynic
           /opt/zelynic/zelynic -V
 
