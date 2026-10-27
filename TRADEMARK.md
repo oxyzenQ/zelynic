@@ -145,7 +145,7 @@ Enforcement begins with a polite request before any formal action — but the te
 
 ## 6. Contact
 
-For trademark inquiries, permission requests, or clarifications, please open an issue on the [GitHub repository](https://github.com/oxyzenQ/zelynic) or contact the project creator at with dot rezky at gmail dot com.
+For trademark inquiries, permission requests, or clarifications, please open an issue on the [GitHub repository](https://github.com/oxyzenQ/zelynic) or contact the project creator at [with.rezky@gmail.com](mailto:with.rezky@gmail.com).
 
 ---
 

@@ -143,6 +143,30 @@ sync every doc that references a number, path, or symbol. Chasing
 perfect sync has diminishing returns; the uniform disclaimer asks
 readers to cross-check the source instead.
 
+## Tell Once (no duplication)
+
+Every fact, rule, procedure, and topic lives in exactly ONE document —
+its home. Other documents link to the home; they never restate the
+content. The law's precedents: NIGHT-docs-7 deduplicated the README's
+usage sections into docs/USAGE.md ("each topic one home"), and the
+README's trademark section says "the contact channels live there, told
+once" rather than repeating TRADEMARK.md's contact list.
+
+- A section that restates another doc's content is a future drift
+  point: one copy gets updated, the twin goes stale, and the reader
+  cannot tell which is true. The disclaimer (above) covers honest
+  decay; duplication manufactures it.
+- A summary is not duplication when it links to the home and adds no
+  second copy of the details (a one-line pointer with a "why", not a
+  paraphrased table).
+- Historical records are exempt: CHANGELOG entries and
+  docs/archive/ files record what their day said — history is not a
+  stale reference (the same carve-out the disclaimer gate applies).
+- Enforcement is review discipline, not a script: docs changes are
+  audited for duplication at PR time, and the maintenance series'
+  depth audits re-check the living docs. When a duplicate is found,
+  the newer copy loses; the home wins.
+
 ## Language Discipline
 
 - The repository is English-only: comments, docs, script text, and
