@@ -82,6 +82,12 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          # GITHUB_TOKEN hardening: the token never persists into the
+          # workspace's .git/config. No step here reads git credentials,
+          # so a build script's `git config -l` must not find them
+          # (night-dragon-maintenance-6, the reference's estate-wide rule).
+          persist-credentials: false
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
@@ -293,6 +299,12 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          # GITHUB_TOKEN hardening: the token never persists into the
+          # workspace's .git/config. No step here reads git credentials,
+          # so a build script's `git config -l` must not find them
+          # (night-dragon-maintenance-6, the reference's estate-wide rule).
+          persist-credentials: false
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
@@ -433,6 +445,12 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          # GITHUB_TOKEN hardening: the token never persists into the
+          # workspace's .git/config. No step here reads git credentials,
+          # so a build script's `git config -l` must not find them
+          # (night-dragon-maintenance-6, the reference's estate-wide rule).
+          persist-credentials: false
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin

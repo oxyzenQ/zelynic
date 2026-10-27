@@ -240,6 +240,12 @@ jobs:
           # was pure clone cost. Depth 1: one commit, no branches, no
           # sibling tags — the high-speed checkout.
           fetch-depth: 1
+          # GITHUB_TOKEN hardening: the token never persists into the
+          # workspace's .git/config — the build matrix compiles
+          # third-party crates, and their build scripts must not find
+          # credentials in the environment's git config
+          # (night-dragon-maintenance-6, the reference's estate-wide rule).
+          persist-credentials: false
 
       # NIGHT-improve-22: one target per matrix job (was both
       # triples on one toolchain when this was a two-build job).
@@ -698,6 +704,8 @@ jobs:
           fetch-depth: 1
           sparse-checkout: |
             scripts/release
+          # GITHUB_TOKEN hardening: never persists into .git/config.
+          persist-credentials: false
 
       - name: Download artifacts
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8, NIGHT-hunt-20 SHA pin
