@@ -450,6 +450,21 @@ command -v cargo >/dev/null 2>&1 || die "cargo is not on PATH (looked for ${CARG
 # finishes in seconds). build.rs preflights the nightly pin and
 # bpf-linker BEFORE any compile time is spent, so a prerequisite
 # regression dies with its one-command fix, not a raw link error.
+# The pre-built lane's build-time trigger (night-dragon-maintenance-3,
+# the owner's auto-regen law: "when cargo pro-linux-amd64/want commit
+# build trigger regenerate"): any edit under ebpf/ stales the manifest's
+# tree pin, and the flagship build is about to embed exactly those
+# bytes. The writer's --check is read-only (hashing only, no cargo);
+# a stale lane heals HERE, before cargo holds its lock - the one place
+# a regeneration can never deadlock (build.rs's in-build arm stays
+# advisory for the documented cargo-inside-cargo reason, and the
+# commit gate heals the forgotten case; this arm closes the build
+# path so every trigger is covered: edit -> build, edit -> commit).
+if ! "${REPO_ROOT}/scripts/release/refresh-prebuilt.sh" --check; then
+	warn "the ebpf-prebuilt lane is stale (an edit under ebpf/) - regenerating before the build"
+	"${REPO_ROOT}/scripts/release/refresh-prebuilt.sh" || die "the lane regeneration failed - refresh-prebuilt.sh's output above names the cause."
+fi
+
 ok "building the flagship binary (cargo pro-native-gnu — first build ~1-3 min)..."
 if ! (cd "${REPO_ROOT}" && cargo pro-native-gnu); then
 	die "cargo pro-native-gnu failed — the prerequisites above are verified, so read the compiler output above it; this is a real compile error."
