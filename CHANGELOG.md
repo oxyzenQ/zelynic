@@ -31,6 +31,36 @@ v80.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **fix(ci): the supermassive e2e depth lane's chronic throughput
+  reds — three shared-runner calibration fixes, field-evidenced.**
+  The e2e depth legs filed red in five of the last ten runs and
+  every red traced to one family: throughput rows measured on
+  contended 2-vCPU KVM guests against bands calibrated on bare
+  metal, while the engine itself stayed honest (the same binaries'
+  1mb/10mb rungs rode 92.8-99.1%, BPF accounting cross-checks
+  landed within 0.2-18%, and the sibling supermassive lane's
+  identical 100kb rung held 83.4-91.7% on the same commits).
+  (1) The 100kb band: loopback_rate_floor prices the skb-refill
+  beat regime — a 100 KB bucket banks ~1.5 loopback GSO skbs, one
+  admitted skb drops the next, the flow re-arms through min-RTO
+  backoff with the bucket full at the cap, and the aggregate
+  becomes a phase race (field samples 43.7-87.4%, binary
+  unchanged); the floor now prices the re-arm ladder at 39.6%
+  there, under the 43.7% observed worst, and the supermassive
+  selftest's floor_pins carry the same anchor. (2) The depth
+  twin's rate rows now ride that shared floor: smooth rungs keep
+  the single window at the full band, the beat rung measures
+  max-of-two windows (the multi-connection row's one-sided noise
+  law), +12s per leg. (3) The sustain drift guard's trimmed floor
+  recalibrates 0.5 -> 0.40 on the shared-runner envelope (observed
+  noise worst 0.434 with clean accounting; the steal-burst class
+  trims to 0.217 and still fails, as does the 42% persistent
+  deficit). Every recorded field series re-verdicts correctly
+  under the new model; the engine, the version, and the
+  enforcement proofs are untouched.
+
 ### Added
 
 - **pkg(manifest): NIGHT-improve-77 — the package-metadata
