@@ -16,10 +16,10 @@
 # binaries embed.
 
 schema = 2
-generated = "2026-10-27T16:46:57Z"
+generated = "2026-10-27T18:24:28Z"
 toolchain = "nightly-2026-09-18"
 bpf_linker = "0.11.1"
-ebpf_tree_blake3 = "ccb12c4e808f09651e3d339c8129a57eb2d2dca677b0ddcf90329702c314e7c1"
+ebpf_tree_blake3 = "be3379b076f0a86e6b6625488853613f3083aa0cbf3fcd76c2ddd0d395032ecf"
 built_by = "rezky_nightky <130107241+oxyzenQ@users.noreply.github.com>"
 
 [[object]]
