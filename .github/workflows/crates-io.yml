@@ -158,6 +158,22 @@ jobs:
           fi
           echo "Publishing zelynic ${CARGO_VERSION} to crates.io"
 
+      # The parity gate below fail-closes on a missing b3sum — the
+      # prebuilt lane's pins are blake3 (night-dragon-maintenance-0)
+      # and this lane runs the gate OUTSIDE the wholesale seat, so it
+      # cannot lean on gate-keepers.yml's install step. The first tag
+      # to carry the gate died here in under a second exactly that way
+      # (v80.0.1-night.1: the same check green in the wholesale seat
+      # on the same SHA, red here — the absent tool was the only
+      # difference; the runner image's apt set had moved on since the
+      # step landed). Install order shared with gate-keepers.yml and
+      # release.yml, verbatim.
+      - name: Install b3sum (the BLAKE3 digest tool)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q b3sum || cargo install b3sum --locked
+          b3sum --version
+
       # NIGHT-dinner-1: last line of defense before an IRREVERSIBLE
       # registry upload — the parity gate on the exact tree being
       # packaged (pure hashing, seconds). Fails when ebpf/ drifted

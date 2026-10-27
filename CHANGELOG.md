@@ -82,6 +82,25 @@ v80.0.0
 
 ### Fixed
 
+- **fix(ci): night-dragon-maintenance-10 — the crates.io publish
+  lane installs its own tools, and the wholesale verdict names its
+  skips.** Two seats of the same class, both found red: (1) the
+  publish job's prebuilt-parity gate died in under a second on
+  v80.0.1-night.1 — it runs check-prebuilt-parity.sh outside the
+  wholesale seat and that script fail-closes on a missing b3sum
+  (the prebuilt pins are blake3); gate-keepers.yml and release.yml
+  install the tool, crates-io.yml was the one lane that forgot, and
+  the runner image's apt set had moved on since the step landed.
+  The publish lane now carries the same install step verbatim.
+  (2) The wholesale gate's summary line counted only passes and
+  failures — a gate skipped for a missing tool vanished from the
+  verdict, so a local "25 passed, 0 failed" could read green while
+  CI (which installs every pinned tool and really runs the seat)
+  counted what the local run never did; the markdownlint-class
+  incident. The verdict now prints passed / failed / skipped, and
+  both skipped and failed gates are listed by name — a partial run
+  can no longer masquerade as a full one (the failed-sections list
+  is the zejtron gate's shape, ported).
 - **fix(ux): night-dragon-maintenance-8 — the -V version report's
   body prints plain (the owner's field report).** The whole
   build-facts body (Build through Source) rendered grey below the

@@ -150,7 +150,16 @@ NC='\033[0m' # No Color
 
 PASS=0
 FAIL=0
+SKIP=0
 FIX_MODE=false
+# The zejtron summary port: a verdict that counts only passes and
+# failures can read green while gates did not run in this seat. Every
+# skipped or failed gate is recorded by name and the summary prints
+# both lists, so a partial run can never masquerade as a full one
+# (the night-dragon-maintenance-9 false green: markdownlint absent
+# locally, seventeen violations counted only in CI).
+SKIPPED_SECTIONS=()
+FAILED_SECTIONS=()
 
 if [[ "${1:-}" == "--fix" || "${1:-}" == "--fix-all" ]]; then
 	FIX_MODE=true
@@ -158,9 +167,19 @@ fi
 
 info() { echo -e "${GREEN}[PASS]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+# A skipped gate is a gate that did not run in this seat — tallied and
+# named in the summary, never silently absorbed into a pass line. The
+# CI wholesale seat installs every pinned tool and runs every section
+# on every push, so anything skipped here is still enforced somewhere.
+skip() {
+	warn "$1"
+	SKIP=$((SKIP + 1))
+	SKIPPED_SECTIONS+=("$1")
+}
 fail() {
 	echo -e "${RED}[FAIL]${NC} $1"
 	FAIL=$((FAIL + 1))
+	FAILED_SECTIONS+=("$1")
 }
 header() {
 	echo ""
@@ -238,7 +257,7 @@ if command -v shellcheck >/dev/null 2>&1; then
 		PASS=$((PASS + 1))
 	fi
 else
-	warn "shellcheck not installed — skipping"
+	skip "shellcheck not installed — skipping"
 fi
 
 # ── 1c. shfmt -d (format check) ────────────────────────────────────────────
@@ -270,7 +289,7 @@ if command -v shfmt >/dev/null 2>&1; then
 		PASS=$((PASS + 1))
 	fi
 else
-	warn "shfmt not installed — skipping (https://github.com/mvdan/sh)"
+	skip "shfmt not installed — skipping (https://github.com/mvdan/sh)"
 fi
 
 # ── 1d. source resolution (NIGHT-blade-14) ────────────────────
@@ -343,7 +362,7 @@ if command -v yamllint >/dev/null 2>&1; then
 		fail "yamllint: errors found in YAML files"
 	fi
 else
-	warn "yamllint not installed — skipping"
+	skip "yamllint not installed — skipping"
 fi
 
 # ── 3. Actionlint ──────────────────────────────────────────────────────────
@@ -356,7 +375,7 @@ if command -v actionlint >/dev/null 2>&1; then
 		fail "actionlint: errors found in workflow files"
 	fi
 else
-	warn "actionlint not installed — skipping"
+	skip "actionlint not installed — skipping"
 fi
 
 # ── 4. TOML Syntax ─────────────────────────────────────────────────────────
@@ -376,7 +395,7 @@ if command -v python3 >/dev/null 2>&1; then
 		fail "TOML: ${TOML_ERR} file(s) have syntax errors"
 	fi
 else
-	warn "python3 not installed — skipping"
+	skip "python3 not installed — skipping"
 fi
 
 # ── 5. Codespell ──────────────────────────────────────────────────────────
@@ -392,7 +411,7 @@ if command -v codespell >/dev/null 2>&1; then
 		fail "codespell: spelling errors found (never auto-fixed - review manually)"
 	fi
 else
-	warn "codespell not installed — skipping"
+	skip "codespell not installed — skipping"
 fi
 
 # ── 5b. Markdown lint (markdownlint-cli2, repo .markdownlint.json) ─────────
@@ -433,7 +452,7 @@ if command -v markdownlint-cli2 >/dev/null 2>&1; then
 		fail "markdownlint: markdown issues found (run with --fix to auto-fix where possible)"
 	fi
 else
-	warn "markdownlint-cli2 not installed — skipping (npm install -g markdownlint-cli2)"
+	skip "markdownlint-cli2 not installed — skipping (npm install -g markdownlint-cli2)"
 fi
 
 # ── 6. SPDX License Headers (scripts/gates/check-headers.sh) ──────────────────
@@ -449,7 +468,7 @@ if [ -f scripts/gates/check-headers.sh ]; then
 		fail "license headers: violations found (no auto-fix - add the 2-line header)"
 	fi
 else
-	warn "check-headers.sh not found — skipping"
+	skip "check-headers.sh not found — skipping"
 fi
 
 # ── 7. File Permission Guard (644/755 owner rule) ─────────────────────────
@@ -475,7 +494,7 @@ if [ -f scripts/gates/check-permissions.sh ]; then
 		fi
 	fi
 else
-	warn "check-permissions.sh not found — skipping"
+	skip "check-permissions.sh not found — skipping"
 fi
 
 # ── 8. Emoji Sweep (repo-wide) ─────────────────────────────────────────────
@@ -558,7 +577,7 @@ PYEOF
 		warn "the sweep is working-tree-wide by design — untracked local artifacts (session logs, scratch dumps) are swept too; move them out of the repo or delete them"
 	fi
 else
-	warn "python3 not installed — skipping"
+	skip "python3 not installed — skipping"
 fi
 
 # ── 9. Rust Source LOC Cap (owner rule: 600, NIGHT-improve-44) ──────────────
@@ -577,7 +596,7 @@ if [ -f scripts/gates/check-loc.sh ]; then
 		fail "LOC cap: file(s) over 600 lines — the no-mercy era: split them (NIGHT-improve-44)"
 	fi
 else
-	warn "check-loc.sh not found — skipping"
+	skip "check-loc.sh not found — skipping"
 fi
 
 # ── 10. Rust Toolchain Version Sync ────────────────────────────────────────
@@ -593,7 +612,7 @@ if [ -f scripts/gates/check-rust-version-sync.sh ]; then
 		fail "rust version: sources out of sync (fix with ./scripts/dev/rust-version-to.sh <X.Y.Z>)"
 	fi
 else
-	warn "check-rust-version-sync.sh not found — skipping"
+	skip "check-rust-version-sync.sh not found — skipping"
 fi
 
 # ── 11. Documentation Disclaimer ──────────────────────────────────────────
@@ -617,7 +636,7 @@ if [ -f scripts/gates/inject-disclaimer.sh ]; then
 		fi
 	fi
 else
-	warn "inject-disclaimer.sh not found — skipping"
+	skip "inject-disclaimer.sh not found — skipping"
 fi
 
 # ── 12. rustfmt (ebpf/ pure-Rust crate, exact CI parity) ──────────────────────
@@ -646,7 +665,7 @@ if [ -d ebpf ]; then
 		fail "rustfmt: ebpf/ needs formatting (run: cd ebpf && cargo fmt)"
 	fi
 else
-	warn "ebpf/ directory not found — skipping"
+	skip "ebpf/ directory not found — skipping"
 fi
 
 # ── 13. Test-Tree Discipline (owner rule, NIGHT-hunt-17) ──────────────────
@@ -703,7 +722,7 @@ if [ -f scripts/gates/check-language.sh ]; then
 		fail "language: non-English content found (review the file:line list above)"
 	fi
 else
-	warn "check-language.sh not found — skipping"
+	skip "check-language.sh not found — skipping"
 fi
 
 # ── 15. Python lint + format (ruff, NIGHT-improve-13) ─────────────────────
@@ -751,7 +770,7 @@ if [ -n "$PY_FILES" ]; then
 			PASS=$((PASS + 1))
 		fi
 	else
-		warn "ruff not installed — skipping (pip install ruff, or fetch the static binary from https://github.com/astral-sh/ruff/releases)"
+		skip "ruff not installed — skipping (pip install ruff, or fetch the static binary from https://github.com/astral-sh/ruff/releases)"
 	fi
 else
 	info "ruff: no .py files found"
@@ -775,7 +794,7 @@ if [ -f scripts/gates/check-scripts-loc.sh ]; then
 		fail "scripts LOC cap: script file(s) over 1000 lines without an exemption marker (split them or add # LOC_EXEMPT:)"
 	fi
 else
-	warn "check-scripts-loc.sh not found — skipping"
+	skip "check-scripts-loc.sh not found — skipping"
 fi
 
 # ── 17. Release Parity (NIGHT-lts-9) ────────────────────────────────
@@ -797,7 +816,7 @@ if [ -f scripts/gates/check-release-parity.sh ]; then
 		fail "release parity: platform -C token drift between .cargo/config.toml and release.yml (a local release-shape build would not be the release shape)"
 	fi
 else
-	warn "check-release-parity.sh not found — skipping"
+	skip "check-release-parity.sh not found — skipping"
 fi
 
 # ── 18. Prebuilt eBPF Parity ─────────────────────────────────────────────────
@@ -815,7 +834,7 @@ if [ -f scripts/gates/check-prebuilt-parity.sh ]; then
 		fail "prebuilt parity: the registry lane is stale or inconsistent (run ./scripts/release/refresh-prebuilt.sh and commit ebpf-prebuilt/)"
 	fi
 else
-	warn "check-prebuilt-parity.sh not found — skipping"
+	skip "check-prebuilt-parity.sh not found — skipping"
 fi
 
 # ── 19. Name-Case Rule (owner mandate, NIGHT-dinner-22) ─────────────
@@ -838,9 +857,9 @@ if [ -f scripts/gates/check-name-case.py ] && command -v python3 >/dev/null 2>&1
 		fail "name-case: wrong-case project name found (see the file:line:token list above)"
 	fi
 elif [ ! -f scripts/gates/check-name-case.py ]; then
-	warn "check-name-case.py not found — skipping"
+	skip "check-name-case.py not found — skipping"
 else
-	warn "python3 not installed — skipping"
+	skip "python3 not installed — skipping"
 fi
 
 # ── 20. Audits Index Completeness (NIGHT-total-lts-8 followup) ─────
@@ -863,7 +882,7 @@ if [ -f scripts/gates/check-audits-index.sh ]; then
 		fail "audits index: tracked audit doc(s) missing from the docs/README.md index (add the rows — the institutional memory must stay mappable)"
 	fi
 else
-	warn "check-audits-index.sh not found — skipping"
+	skip "check-audits-index.sh not found — skipping"
 fi
 
 # ── 21. Secret-Name Consistency (night-dragon-maintenance-4) ────────
@@ -882,7 +901,7 @@ if [ -f scripts/gates/check-secret-names.sh ]; then
 		fail "secret-name drift found (a secrets.X reference outside the canonical inventory, or the rotation table out of sync — see the gate output above)"
 	fi
 else
-	warn "check-secret-names.sh not found — skipping"
+	skip "check-secret-names.sh not found — skipping"
 fi
 
 # ── 22. Fuzz Include Law (night-dragon-maintenance-5) ───────────────
@@ -902,17 +921,30 @@ if [ -f scripts/gates/check-fuzz-includes.sh ]; then
 		fail "fuzz include law: an included file carries crate:: in code (see the file:line list above - reach the sibling through super:: instead)"
 	fi
 else
-	warn "check-fuzz-includes.sh not found — skipping"
+	skip "check-fuzz-includes.sh not found — skipping"
 fi
 
 # ── Summary ────────────────────────────────────────────────────────────────
 echo ""
 echo "═══════════════════════════════════════════════════════════════"
-echo -e "  Gatekeeper Results: ${GREEN}${PASS} passed${NC}, ${RED}${FAIL} failed${NC}"
+echo -e "  Gatekeeper Results: ${GREEN}${PASS} passed${NC}, ${RED}${FAIL} failed${NC}, ${YELLOW}${SKIP} skipped${NC}"
+if [ "${#SKIPPED_SECTIONS[@]}" -gt 0 ]; then
+	echo "  Skipped gates — not run in this seat; the CI wholesale seat"
+	echo "  installs every pinned tool and enforces them on every push:"
+	for section in "${SKIPPED_SECTIONS[@]}"; do
+		echo "    - ${section}"
+	done
+fi
 echo "═══════════════════════════════════════════════════════════════"
 
 if [ "$FAIL" -gt 0 ]; then
 	echo -e "${RED}COMMIT BLOCKED: ${FAIL} check(s) failed.${NC}"
+	if [ "${#FAILED_SECTIONS[@]}" -gt 0 ]; then
+		echo "Failed sections:"
+		for section in "${FAILED_SECTIONS[@]}"; do
+			echo "  - ${section}"
+		done
+	fi
 	if ! $FIX_MODE; then
 		echo "Fix the issues above, or run: ./scripts/gate-keepers.sh --fix"
 		echo "(codespell findings are never auto-fixed - review those manually)"
