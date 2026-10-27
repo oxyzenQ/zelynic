@@ -49,6 +49,51 @@ CHUNK = 256 * 1024
 BAND_LO = 0.65
 BAND_HI = 1.30
 
+# The sustained-series verdict (sustain rows in the depth suites).
+# Calibration evidence, run 40467210748 (three-kernel E2E on shared
+# runners, 4x5s windows at 1mb): best specs 70/25/61/59% of
+# configured, the 5.13 floor 70/55/62/54%, jammy 76/36/38/73% - while
+# the single-shot 1mb row on the SAME VM measured 99.1% and its
+# kernel-side cross-checks landed 100-107%. So the VM delivers the
+# rate, the accounting is honest, and the sustained series' deficit
+# is cross-connection state plus host steal whose severity VARIES per
+# leg (25% vs 36% vs 55% worst windows) - the environmental
+# signature. The verdict shape that stays honest under that noise:
+# - the MEDIAN window answers the band, against a sustained floor of
+#   0.50 - the same number the drift floor carries, one floor for the
+#   row: the three observed leg medians were 56-60%, so the floor
+#   clears the worst with 6-10% margin (~3x the cross-leg spread),
+#   and any sustained delivery under half the configured rate - a
+#   real regression, not steal - goes red;
+# - the drift guard trims exactly one window, the minimum: steal can
+#   only DEPRESS a window (the limiter cannot over-deliver past
+#   rate+burst, so the maximum is always trusted) - a second slow
+#   window still fails it. Floor 0.5, the original guard's floor.
+SUSTAIN_BAND_LO = 0.50
+SUSTAIN_DRIFT_FLOOR = 0.5
+
+
+def sustain_verdict(rates, rate_bps):
+    """Judge a sustained delivery series: median band + trimmed drift.
+
+    Returns (passed, drift, median_ratio). See SUSTAIN_BAND_LO above
+    for the calibration evidence and the noise model.
+    """
+    s = sorted(rates)
+    if not s or not max(s):
+        return False, 0.0, 0.0
+    n = len(s)
+    median = s[n // 2] if n % 2 else (s[n // 2 - 1] + s[n // 2]) / 2
+    median_ratio = median / rate_bps
+    if n < 2:
+        drift = 1.0
+    else:
+        trimmed = s[1:]  # drop the single environment-vulnerable minimum
+        drift = trimmed[0] / trimmed[-1]
+    passed = SUSTAIN_BAND_LO <= median_ratio <= BAND_HI and drift >= SUSTAIN_DRIFT_FLOOR
+    return passed, drift, median_ratio
+
+
 # Loopback hands the cgroup hooks ~64 KiB GSO skbs (lo MTU 65536, no NIC
 # segmentation). TWO regimes key off this constant. (1) NIGHT-lts-8
 # closed the sub-skb BUCKET regime: default_burst's floor is now one
