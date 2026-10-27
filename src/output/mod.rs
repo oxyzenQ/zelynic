@@ -219,6 +219,13 @@ mod width;
 
 pub use labeled::eprintln_error_labeled;
 
+// night-dragon-maintenance-4: the loading indicator — the live
+// elapsed/total spinner for the surfaces that hold (the depth
+// report's traffic-focus window; the monitor boot owns the
+// alt-screen loading frame instead, NIGHT-boost-25).
+pub(crate) mod spinner;
+pub(crate) use spinner::Spinner;
+
 #[cfg(feature = "ebpf")]
 pub use labeled::eprintln_warn_labeled;
 pub use sanitize::sanitize_comm;

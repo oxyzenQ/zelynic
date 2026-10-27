@@ -260,6 +260,12 @@ fn run_focus_window(
     focus_secs: u64,
     verbose: bool,
 ) -> (Option<FocusMeasure>, Option<String>) {
+    // The loading indicator (night-dragon-maintenance-4): one announce
+    // line used to be all the window said before going silent for the
+    // whole capture; the spinner ticks live elapsed/total on stderr
+    // (inert when piped) and Drop erases its line on every exit path.
+    let _window_spinner =
+        crate::output::Spinner::start("capturing traffic window".to_string(), focus_secs);
     if verbose {
         eprintln_safe!(
             "{}",
