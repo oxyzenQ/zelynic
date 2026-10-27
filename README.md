@@ -798,7 +798,7 @@ licensing the architectural patterns that power it:
 **Enterprise Internal** licenses these patterns for internal use
 only. **OEM / Redistribution** licenses them for embedding in a
 shipped product. For a redistribution license, the OEM tier is the
-entry price; contact with.rezky@gmail.com for the agreement.
+entry price; contact <with.rezky@gmail.com> for the agreement.
 
 ## Commercial Licensing
 
