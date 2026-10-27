@@ -388,7 +388,7 @@ pub(super) fn note_share(
 ) -> (u16, u16) {
     if share_map.get_ptr(share_key).is_none() {
         let zero = 0u64;
-        let _ = share_map.insert(share_key, &zero, BPF_NOEXIST);
+        let _ = share_map.insert(share_key, zero, BPF_NOEXIST);
         // Lost the init race: the winner's word serves this note too.
     }
     let ptr = match share_map.get_ptr_mut(share_key) {
@@ -430,7 +430,7 @@ pub(super) fn ledger_room(
     }
     if ledger_map.get_ptr(ledger_key).is_none() {
         let zero = 0u64;
-        let _ = ledger_map.insert(ledger_key, &zero, BPF_NOEXIST);
+        let _ = ledger_map.insert(ledger_key, zero, BPF_NOEXIST);
         // Lost the init race: the winner's word serves this read too.
     }
     match ledger_map.get_ptr(ledger_key) {

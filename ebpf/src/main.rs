@@ -239,7 +239,7 @@ fn bump_socket_counter(map: &LruHashMap<u64, u64>, cookie: u64, pkt_len: u64) {
     if cookie == 0 {
         return;
     }
-    match map.get_ptr_mut(&cookie) {
+    match map.get_ptr_mut(cookie) {
         Some(ptr) => bump_socket_bytes(ptr, pkt_len),
         None => {
             // First packet for this socket: NOEXIST so a concurrent
@@ -253,10 +253,10 @@ fn bump_socket_counter(map: &LruHashMap<u64, u64>, cookie: u64, pkt_len: u64) {
             // loses this one packet's ATTRIBUTION, never the packet —
             // the same allow-and-skip contract the cgroup counter
             // maps carry.
-            if map.insert(&cookie, &pkt_len, BPF_NOEXIST).is_err() {
-                if let Some(ptr) = map.get_ptr_mut(&cookie) {
-                    bump_socket_bytes(ptr, pkt_len);
-                }
+            if map.insert(cookie, pkt_len, BPF_NOEXIST).is_err()
+                && let Some(ptr) = map.get_ptr_mut(cookie)
+            {
+                bump_socket_bytes(ptr, pkt_len);
             }
         }
     }
@@ -287,7 +287,7 @@ fn observe_egress(ctx: SkBuffContext) -> i32 {
     // winner's entry (one packet counted exactly once on every
     // interleaving; a full-map miss loses this one packet's COUNT,
     // never the packet itself).
-    match cgroup_counters.get_ptr_mut(&cgroup_id) {
+    match cgroup_counters.get_ptr_mut(cgroup_id) {
         Some(ptr) => book_packet(ptr, u64::from(pkt_len)),
         None => {
             let init = CgroupStats {
@@ -295,12 +295,11 @@ fn observe_egress(ctx: SkBuffContext) -> i32 {
                 bytes: pkt_len as u64,
             };
             if cgroup_counters
-                .insert(&cgroup_id, &init, BPF_NOEXIST)
+                .insert(cgroup_id, init, BPF_NOEXIST)
                 .is_err()
+                && let Some(ptr) = cgroup_counters.get_ptr_mut(cgroup_id)
             {
-                if let Some(ptr) = cgroup_counters.get_ptr_mut(&cgroup_id) {
-                    book_packet(ptr, u64::from(pkt_len));
-                }
+                book_packet(ptr, u64::from(pkt_len));
             }
         }
     }
@@ -330,7 +329,7 @@ fn observe_ingress(ctx: SkBuffContext) -> i32 {
     let cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
     bump_socket_counter(&socket_counters_ingress, cookie, pkt_len);
 
-    match cgroup_counters_ingress.get_ptr_mut(&cgroup_id) {
+    match cgroup_counters_ingress.get_ptr_mut(cgroup_id) {
         Some(ptr) => book_packet(ptr, pkt_len),
         None => {
             let init = CgroupStats {
@@ -344,12 +343,11 @@ fn observe_ingress(ctx: SkBuffContext) -> i32 {
             // (full map) loses this one packet's count, never the
             // packet itself — the C twin's allow-and-skip contract.
             if cgroup_counters_ingress
-                .insert(&cgroup_id, &init, BPF_NOEXIST)
+                .insert(cgroup_id, init, BPF_NOEXIST)
                 .is_err()
+                && let Some(ptr) = cgroup_counters_ingress.get_ptr_mut(cgroup_id)
             {
-                if let Some(ptr) = cgroup_counters_ingress.get_ptr_mut(&cgroup_id) {
-                    book_packet(ptr, pkt_len);
-                }
+                book_packet(ptr, pkt_len);
             }
         }
     }

@@ -173,7 +173,7 @@ fn learn_hint(map: &LruHashMap<u64, u64>, key: &u64, len: u8) {
             // cookie, the honest miss every internal lane here
             // documents.
             let init = quic::hint_word(len);
-            let _ = map.insert(key, &init, BPF_NOEXIST);
+            let _ = map.insert(key, init, BPF_NOEXIST);
             return;
         }
     };
@@ -272,8 +272,8 @@ pub(super) fn quic_flow_key(ctx: &SkBuffContext, cookie: u64, is_ingress: bool) 
     // This direction's current hint word at the conversation's key
     // (an absent entry reads 0 — the packed "no hint" verdict).
     let hint_this = this_dir_map(is_ingress)
-        .get_ptr(&conv.hkey)
-        .map(|p| word_read(p))
+        .get_ptr(conv.hkey)
+        .map(word_read)
         .unwrap_or(0);
     // Step two (pure): the QUIC decision.
     match quic::decide(cookie, &l4[..want_l4], &conv, hint_this) {

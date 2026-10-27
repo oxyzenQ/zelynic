@@ -281,16 +281,16 @@ static ecn_debt_ul: LruHashMap<u64, u64> = LruHashMap::pinned(4096, 0);
 // clamp, and the schema-v3 rate-0 block verdict.
 // ---------------------------------------------------------------------------
 
-/// Get or create the stats entry for a cgroup. Ported from the C
-/// `get_stats` helper, with the v11 init-flag delta: an
-/// init-then-relookup pair whose insert rides BPF_NOEXIST so a
-/// concurrent initializer's entry is never clobbered by a BPF_ANY
-/// overwrite — the loser of the insert race re-looks up and books
-/// its packet onto the winner's entry (the NIGHT-improve-29 observer
-/// pattern, applied to the limiter twin by think-like-light-years-3).
-/// A failed insert beyond the race (full map) leaves the relookup
-/// returning None and enforcement continues unbooked — the same
-/// fail-open bookkeeping contract the C twin carried.
+// Get or create the stats entry for a cgroup. Ported from the C
+// `get_stats` helper, with the v11 init-flag delta: an
+// init-then-relookup pair whose insert rides BPF_NOEXIST so a
+// concurrent initializer's entry is never clobbered by a BPF_ANY
+// overwrite — the loser of the insert race re-looks up and books
+// its packet onto the winner's entry (the NIGHT-improve-29 observer
+// pattern, applied to the limiter twin by think-like-light-years-3).
+// A failed insert beyond the race (full map) leaves the relookup
+// returning None and enforcement continues unbooked — the same
+// fail-open bookkeeping contract the C twin carried.
 
 /// Download enforcement (ingress). Ported from enforce_dl.
 #[cgroup_skb(ingress)]

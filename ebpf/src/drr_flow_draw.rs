@@ -66,6 +66,7 @@ use crate::math::tokens_cas;
 use crate::math::tokens_fetch_add;
 use crate::math::tokens_read;
 #[inline(always)]
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn try_draw(
     pol: &Policy,
     pool: &mut Bucket,

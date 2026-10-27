@@ -34,7 +34,7 @@ pub(crate) fn get_stats_ptr(cgroup_id: &u32) -> Option<*mut LimiterStats> {
                 bytes_allowed: 0,
                 bytes_dropped: 0,
             };
-            let _ = cgroup_limiter_stats.insert(cgroup_id, &init, BPF_NOEXIST);
+            let _ = cgroup_limiter_stats.insert(cgroup_id, init, BPF_NOEXIST);
             cgroup_limiter_stats.get_ptr_mut(cgroup_id)
         }
     }
@@ -71,7 +71,7 @@ pub(crate) fn get_bucket_ptr(
                 last_refill_ns: now,
                 frac_rem: 0,
             };
-            let _ = map.insert(key, &init, BPF_NOEXIST);
+            let _ = map.insert(key, init, BPF_NOEXIST);
             map.get_ptr_mut(key)
         }
     }
@@ -100,7 +100,7 @@ pub(crate) fn get_ring_ptr(map: &HashMap<u32, RateRing>, key: &u32) -> Option<*m
                     bytes: 0,
                 }; rate_ring::RING_SLOTS as usize],
             };
-            let _ = map.insert(key, &init, BPF_NOEXIST);
+            let _ = map.insert(key, init, BPF_NOEXIST);
             map.get_ptr_mut(key)
         }
     }
@@ -121,14 +121,14 @@ pub(crate) fn ring_verdict(
     now: u64,
     pkt_len: u32,
 ) -> i32 {
-    if verdict == 1 {
-        if let Some(ptr) = get_ring_ptr(ring_map, key) {
-            // SAFETY: the rate ring's map value behind get_ring_ptr
-            // lives in stable kernel memory for this invocation;
-            // the exclusive borrow is the only one taken and the
-            // book write moves through the RMW views.
-            ring_book(unsafe { &mut *ptr }, now, pkt_len);
-        }
+    if verdict == 1
+        && let Some(ptr) = get_ring_ptr(ring_map, key)
+    {
+        // SAFETY: the rate ring's map value behind get_ring_ptr
+        // lives in stable kernel memory for this invocation;
+        // the exclusive borrow is the only one taken and the
+        // book write moves through the RMW views.
+        ring_book(unsafe { &mut *ptr }, now, pkt_len);
     }
     verdict
 }
@@ -213,7 +213,7 @@ pub(crate) fn get_debt_ptr(debt_map: &LruHashMap<u64, u64>, key: &u64) -> Option
         Some(ptr) => Some(ptr),
         None => {
             let init: u64 = 0;
-            let _ = debt_map.insert(key, &init, BPF_NOEXIST);
+            let _ = debt_map.insert(key, init, BPF_NOEXIST);
             debt_map.get_ptr_mut(key)
         }
     }
