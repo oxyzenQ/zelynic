@@ -7,7 +7,7 @@
 > license - nothing between.
 
 <p align="center">
-  <img src="assets/zelynic-logo-master.png" alt="zelynic logo" width="260">
+  <img src="assets/zelynic-original-logo-2026.png" alt="zelynic logo" width="260">
 </p>
 
 <h1 align="center">zelynic</h1>
