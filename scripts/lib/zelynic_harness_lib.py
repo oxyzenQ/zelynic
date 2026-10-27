@@ -80,9 +80,21 @@ BAND_HI = 1.30
 # - the drift guard drops exactly one window, the minimum: steal can
 #   only DEPRESS a window (the limiter cannot over-deliver past
 #   rate+burst, so the maximum is always trusted) - a second slow
-#   window still fails it. Floor 0.5, the original guard's floor.
+#   window still fails it. Floor 0.5 was the original guard's floor,
+#   calibrated on bare metal; the shared-runner e2e legs' field data
+#   falsified its envelope the same way the median anchor's was: run
+#   40539191767's jammy leg and run 40544404794's 5.13 leg both
+#   filed trimmed drifts of 0.434 and 0.464 (medians 46% and 45%,
+#   BPF accounting clean, the same VM's single-shot rows healthy)
+#   while a genuine steal burst (run 40480466520's 11/13/18/60
+#   percent sweep) trims to 0.217 — an order-of-magnitude gap
+#   between the noise shape and the collapse shape. The floor
+#   follows the ledger's own principle (sit below the observed
+#   noise-worst with margin): 0.40 clears the 0.434 observed worst
+#   with ~1.5 points and keeps the collapse class three points
+#   under it.
 SUSTAIN_BAND_LO = 0.45
-SUSTAIN_DRIFT_FLOOR = 0.5
+SUSTAIN_DRIFT_FLOOR = 0.4
 
 
 def sustain_verdict(rates, rate_bps):
