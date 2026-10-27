@@ -222,7 +222,7 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
             ))
         );
         for id in &orphan_ids {
-            eprintln_safe!("    - cg:{id}");
+            eprintln_safe!("{}", crate::output::grey(&format!("    - cg:{id}")));
         }
         eprintln_safe!("  Action: removing orphan policies...");
 
@@ -427,7 +427,7 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
     if verbose && let Ok(entries) = std::fs::read_dir(pin_dir) {
         for entry in entries.flatten() {
             if let Some(name) = entry.file_name().to_str() {
-                eprintln_safe!("    - {name}");
+                eprintln_safe!("{}", crate::output::grey(&format!("    - {name}")));
             }
         }
     }

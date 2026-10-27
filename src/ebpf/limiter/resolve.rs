@@ -42,7 +42,12 @@ impl super::Limiter {
         match target {
             Target::CgroupId(id) => {
                 if self.verbose {
-                    eprintln_safe!("[limiter] cg:{id} targeted directly (no /proc walk)");
+                    eprintln_safe!(
+                        "{}",
+                        crate::output::grey(&format!(
+                            "[limiter] cg:{id} targeted directly (no /proc walk)"
+                        ))
+                    );
                 }
                 Ok(vec![*id])
             }
@@ -61,7 +66,10 @@ impl super::Limiter {
                 // resolves identically however it is spelled in).
                 let matched = name_pairs(name);
                 if self.verbose {
-                    eprintln_safe!("{}", resolution_trace_line(name, &matched));
+                    eprintln_safe!(
+                        "{}",
+                        crate::output::grey(&resolution_trace_line(name, &matched))
+                    );
                 }
 
                 // Also refresh identity map for display purposes.
@@ -106,7 +114,12 @@ impl super::Limiter {
             match target {
                 Target::CgroupId(id) => {
                     if self.verbose {
-                        eprintln_safe!("[limiter] cg:{id} targeted directly (no /proc walk)");
+                        eprintln_safe!(
+                            "{}",
+                            crate::output::grey(&format!(
+                                "[limiter] cg:{id} targeted directly (no /proc walk)"
+                            ))
+                        );
                     }
                     out.push(vec![*id]);
                 }
@@ -119,7 +132,10 @@ impl super::Limiter {
                         .cloned()
                         .unwrap_or_default();
                     if self.verbose {
-                        eprintln_safe!("{}", resolution_trace_line(name, &matched));
+                        eprintln_safe!(
+                            "{}",
+                            crate::output::grey(&resolution_trace_line(name, &matched))
+                        );
                     }
                     out.push(matched_pairs_to_ids(&matched));
                     walked_names = true;

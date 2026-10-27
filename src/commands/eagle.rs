@@ -261,7 +261,12 @@ fn run_focus_window(
     verbose: bool,
 ) -> (Option<FocusMeasure>, Option<String>) {
     if verbose {
-        eprintln_safe!("[eagle-eyes] traffic focus: attaching observer for a {focus_secs}s window");
+        eprintln_safe!(
+            "{}",
+            crate::output::grey(&format!(
+                "[eagle-eyes] traffic focus: attaching observer for a {focus_secs}s window"
+            ))
+        );
     }
     let mut observer = match Observer::attach(verbose) {
         Ok(o) => o,
@@ -491,7 +496,14 @@ pub(crate) fn handle_eagle_eyes_depth(
             continue;
         }
         if verbose {
-            eprintln_safe!("[eagle-eyes] {} -> {} cgroup(s)", token.label(), ids.len());
+            eprintln_safe!(
+                "{}",
+                crate::output::grey(&format!(
+                    "[eagle-eyes] {} -> {} cgroup(s)",
+                    token.label(),
+                    ids.len()
+                ))
+            );
         }
         for id in ids {
             let target = token.label();

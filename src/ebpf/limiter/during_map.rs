@@ -114,8 +114,11 @@ impl super::Limiter {
                 Some(raw) => {
                     if let Err(e) = self.write_policy_window(mutation.cgroup_id, raw) {
                         eprintln_safe!(
-                            "[limiter] window rollback failed: cg:{}: {e}",
-                            mutation.cgroup_id
+                            "{}",
+                            crate::output::grey(&format!(
+                                "[limiter] window rollback failed: cg:{}: {e}",
+                                mutation.cgroup_id
+                            ))
                         );
                         survivors.push(format!("cg:{} window", mutation.cgroup_id));
                     }
@@ -123,8 +126,11 @@ impl super::Limiter {
                 None => {
                     if let Err(e) = self.remove_policy_window(mutation.cgroup_id) {
                         eprintln_safe!(
-                            "[limiter] window rollback failed: cg:{}: {e}",
-                            mutation.cgroup_id
+                            "{}",
+                            crate::output::grey(&format!(
+                                "[limiter] window rollback failed: cg:{}: {e}",
+                                mutation.cgroup_id
+                            ))
                         );
                         survivors.push(format!("cg:{} window", mutation.cgroup_id));
                     }
@@ -175,7 +181,10 @@ impl super::Limiter {
         for cgroup_id in ended {
             if self.verbose {
                 eprintln_safe!(
-                    "[limiter] window sweep: cg:{cgroup_id} span ended — removing the row"
+                    "{}",
+                    crate::output::grey(&format!(
+                        "[limiter] window sweep: cg:{cgroup_id} span ended — removing the row"
+                    ))
                 );
             }
             // The unstrict path is the removal the repo already
@@ -185,8 +194,11 @@ impl super::Limiter {
                 Ok(_) => swept += 1,
                 Err(e) => {
                     eprintln_safe!(
-                        "[limiter] window sweep failed for cg:{cgroup_id}: {e} — \
-                         the row stays (expired, awaiting the next sweep)"
+                        "{}",
+                        crate::output::grey(&format!(
+                            "[limiter] window sweep failed for cg:{cgroup_id}: {e} — \
+                             the row stays (expired, awaiting the next sweep)"
+                        ))
                     );
                 }
             }
@@ -232,6 +244,9 @@ pub(super) fn stamp_offset_on_pinned(verbose: bool) {
     if let Err(e) = stamp
         && verbose
     {
-        eprintln_safe!("[limiter] wall_clock_offset refresh skipped: {e}");
+        eprintln_safe!(
+            "{}",
+            crate::output::grey(&format!("[limiter] wall_clock_offset refresh skipped: {e}"))
+        );
     }
 }

@@ -207,19 +207,22 @@ impl super::Limiter {
         match self.mmspa_generation_bump() {
             Ok((old, new)) => {
                 if self.verbose {
-                    eprintln_safe!("{}", bump_trace_line(old, new));
+                    eprintln_safe!("{}", crate::output::grey(&bump_trace_line(old, new)));
                 }
             }
             Err(bump_cause) => match self.mmspa_cache_flush() {
                 Ok(flushed) => {
                     if self.verbose {
-                        eprintln_safe!("{}", flush_trace_line(flushed));
+                        eprintln_safe!("{}", crate::output::grey(&flush_trace_line(flushed)));
                     }
                 }
                 Err(sweep_cause) => {
                     eprintln_safe!(
                         "{}",
-                        invalidate_failed_line(&bump_cause.to_string(), &sweep_cause.to_string())
+                        crate::output::grey(&invalidate_failed_line(
+                            &bump_cause.to_string(),
+                            &sweep_cause.to_string()
+                        ))
                     );
                 }
             },

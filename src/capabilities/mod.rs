@@ -360,7 +360,7 @@ fn print_report(report: &CapabilityReport) {
         println_safe!();
         println_safe!("{}", warn_bold("Warnings:"));
         for w in &report.warnings {
-            println_safe!("  ! {w}");
+            println_safe!("  {}", warn_bold(&format!("! {w}")));
         }
     }
 
@@ -386,7 +386,10 @@ fn print_report(report: &CapabilityReport) {
                 warn_bold("Limited:")
             );
             println_safe!(
-                "  reinstall with default features (or a release tarball) to enable limits."
+                "{}",
+                crate::output::grey(
+                    "  reinstall with default features (or a release tarball) to enable limits."
+                )
             );
         }
     }

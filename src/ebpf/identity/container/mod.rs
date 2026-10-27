@@ -212,8 +212,11 @@ fn resolve_k8s(namespace: &str, pod: &str, verbose: bool) -> Result<Vec<u32>> {
     };
     if verbose && uids.len() > 1 {
         eprintln_safe!(
-            "[container] k8s://{namespace}/{pod}: {} stale log dir(s) skipped, live uid {chosen}",
-            uids.len() - 1
+            "{}",
+            crate::output::grey(&format!(
+                "[container] k8s://{namespace}/{pod}: {} stale log dir(s) skipped, live uid {chosen}",
+                uids.len() - 1
+            ))
         );
     }
 
@@ -230,8 +233,11 @@ fn resolve_k8s(namespace: &str, pod: &str, verbose: bool) -> Result<Vec<u32>> {
         .ok_or_else(|| anyhow!("pod cgroup {} could not be stat()ed", dir.display()))?;
     if verbose {
         eprintln_safe!(
-            "[container] k8s://{namespace}/{pod} → {} (cgroup cg:{id})",
-            dir.display()
+            "{}",
+            crate::output::grey(&format!(
+                "[container] k8s://{namespace}/{pod} → {} (cgroup cg:{id})",
+                dir.display()
+            ))
         );
     }
     Ok(vec![id])

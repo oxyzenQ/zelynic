@@ -203,8 +203,11 @@ fn sweep_legacy_state_at(state_file: &std::path::Path) -> bool {
 fn sweep_legacy_state() {
     if sweep_legacy_state_at(std::path::Path::new(LEGACY_STATE_FILE)) {
         eprintln_safe!(
-            "[cleanup] legacy state swept: {LEGACY_STATE_FILE} \
-             (the retired snapshot/restore pair — nothing reads it)"
+            "{}",
+            crate::output::grey(&format!(
+                "[cleanup] legacy state swept: {LEGACY_STATE_FILE} \
+                 (the retired snapshot/restore pair — nothing reads it)"
+            ))
         );
     }
 }

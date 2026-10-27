@@ -91,10 +91,16 @@ impl Observer {
 
         if verbose {
             eprintln_safe!(
-                "[ebpf] Loading embedded BPF observer object ({} bytes)",
-                OBSERVER_ELF.len()
+                "{}",
+                crate::output::grey(&format!(
+                    "[ebpf] Loading embedded BPF observer object ({} bytes)",
+                    OBSERVER_ELF.len()
+                ))
             );
-            eprintln_safe!("{}", trace::kernel_line("ebpf", &kernel_release()));
+            eprintln_safe!(
+                "{}",
+                crate::output::grey(&trace::kernel_line("ebpf", &kernel_release()))
+            );
         }
 
         // NIGHT-hunt-30: alignment preflight — structurally impossible
@@ -119,12 +125,12 @@ impl Observer {
         if verbose {
             eprintln_safe!(
                 "{}",
-                trace::load_line(
+                crate::output::grey(&trace::load_line(
                     "ebpf",
                     bpf.programs().count(),
                     bpf.maps().count(),
                     load_started.elapsed()
-                )
+                ))
             );
             for (name, map) in bpf.maps() {
                 if let Some(info) = trace::map_info(map) {
@@ -134,7 +140,7 @@ impl Observer {
                         .unwrap_or("unknown");
                     eprintln_safe!(
                         "{}",
-                        trace::map_line(
+                        crate::output::grey(&trace::map_line(
                             "ebpf",
                             name,
                             info.id(),
@@ -142,7 +148,7 @@ impl Observer {
                             info.key_size(),
                             info.value_size(),
                             info.max_entries()
-                        )
+                        ))
                     );
                 }
             }
@@ -181,10 +187,16 @@ impl Observer {
 
         if verbose {
             eprintln_safe!(
-                "[ebpf] Observer attached to {cgroup_path} (egress + ingress) in {}ms",
-                trace::ms(started.elapsed())
+                "{}",
+                crate::output::ok(&format!(
+                    "[ebpf] Observer attached to {cgroup_path} (egress + ingress) in {}ms",
+                    trace::ms(started.elapsed())
+                ))
             );
-            eprintln_safe!("[ebpf] Monitoring traffic for all processes");
+            eprintln_safe!(
+                "{}",
+                crate::output::ok("[ebpf] Monitoring traffic for all processes")
+            );
         }
 
         Ok(Observer {

@@ -352,7 +352,7 @@ impl super::Limiter {
 
         if self.verbose {
             for line in group_apply_lines(group_id, rates, all_cgroup_ids.len()) {
-                eprintln_safe!("{line}");
+                eprintln_safe!("{}", crate::output::grey(&line));
             }
         }
 
@@ -375,7 +375,10 @@ impl super::Limiter {
     /// visit reaps what its own clock says is dead.
     pub fn sweep_expired_windows_best_effort(&mut self) {
         if let Err(e) = self.sweep_expired_windows() {
-            eprintln_safe!("[limiter] window sweep skipped: {e}");
+            eprintln_safe!(
+                "{}",
+                crate::output::grey(&format!("[limiter] window sweep skipped: {e}"))
+            );
         }
     }
 

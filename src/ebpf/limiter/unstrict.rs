@@ -110,8 +110,11 @@ impl super::Limiter {
                     },
                     Err(e) => {
                         eprintln_safe!(
-                            "[limiter] Unstrict: cg:{cgroup_id} {} not removed: {e}",
-                            direction.label()
+                            "{}",
+                            crate::output::grey(&format!(
+                                "[limiter] Unstrict: cg:{cgroup_id} {} not removed: {e}",
+                                direction.label()
+                            ))
                         );
                         failed.push(policy_survivor_line(*cgroup_id, direction));
                     }
@@ -130,7 +133,10 @@ impl super::Limiter {
             }
 
             if found {
-                eprintln_safe!("[limiter] Unstrict: {label} — limits removed");
+                eprintln_safe!(
+                    "{}",
+                    crate::output::ok(&format!("[limiter] Unstrict: {label} — limits removed"))
+                );
             }
         }
 

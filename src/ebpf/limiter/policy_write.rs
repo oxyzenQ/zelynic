@@ -90,13 +90,13 @@ impl super::Limiter {
             if self.verbose {
                 eprintln_safe!(
                     "{}",
-                    policy_write_line(
+                    crate::output::grey(&policy_write_line(
                         cgroup_id,
                         Direction::Download,
                         dl_rate,
                         bracket.download.floor_bps,
                         bracket.download.ceil_bps,
-                    )
+                    ))
                 );
             }
             applied += 1;
@@ -123,13 +123,13 @@ impl super::Limiter {
             if self.verbose {
                 eprintln_safe!(
                     "{}",
-                    policy_write_line(
+                    crate::output::grey(&policy_write_line(
                         cgroup_id,
                         Direction::Upload,
                         ul_rate,
                         bracket.upload.floor_bps,
                         bracket.upload.ceil_bps,
-                    )
+                    ))
                 );
             }
             applied += 1;
@@ -190,8 +190,11 @@ impl super::Limiter {
                 }
                 Err(e) => {
                     eprintln_safe!(
-                        "[limiter] Apply: cg:{cgroup_id} stale {} leg not removed: {e}",
-                        direction.label()
+                        "{}",
+                        crate::output::grey(&format!(
+                            "[limiter] Apply: cg:{cgroup_id} stale {} leg not removed: {e}",
+                            direction.label()
+                        ))
                     );
                 }
             }

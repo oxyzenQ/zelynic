@@ -483,8 +483,11 @@ impl Limiter {
                     }
                     Err(e) => {
                         eprintln_safe!(
-                            "[limiter] zombie sweep: cg:{id} {} policy delete failed: {e}",
-                            direction.label()
+                            "{}",
+                            crate::output::grey(&format!(
+                                "[limiter] zombie sweep: cg:{id} {} policy delete failed: {e}",
+                                direction.label()
+                            ))
                         );
                     }
                 }
@@ -502,11 +505,18 @@ impl Limiter {
         if self.verbose && retired > 0 {
             eprintln_safe!(
                 "{}",
-                zombie_sweep_trace_line(retired, state_reclaimed, fs_proven)
+                crate::output::grey(&zombie_sweep_trace_line(
+                    retired,
+                    state_reclaimed,
+                    fs_proven
+                ))
             );
         }
         if self.verbose && belt_held > 0 {
-            eprintln_safe!("{}", zombie_sweep_held_line(belt_held));
+            eprintln_safe!(
+                "{}",
+                crate::output::grey(&zombie_sweep_held_line(belt_held))
+            );
         }
         retired
     }
