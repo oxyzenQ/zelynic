@@ -148,6 +148,14 @@ ACCOUNTING_FLOOR_BYTES = 64 * 1024
 DEFAULT_BURST_CAP = 100_000_000  # mirror of the default_burst 100 MB ceiling
 DEFAULT_BURST_FLOOR = 65_536  # mirror of types.rs BURST_FLOOR_BYTES (NIGHT-lts-8)
 TCP_MIN_RTO_S = 0.2  # Linux TCP_RTO_MIN floor
+# The skb-refill beat regime's re-arm budget (see loopback_rate_floor):
+# five min-RTO steps of cumulative idle priced per admitted 64 KiB skb
+# at the trickle rungs. Field anchor: the supermassive e2e depth legs'
+# 100kb samples, binary unchanged, span 43.7-87.4% of configured
+# (nine legs across the 5.13 / 5.15 / latest matrix, 2026-10-27) —
+# the budget prices the floor at 39.6% there, under the observed
+# worst with margin, while genuine collapses sit far below it.
+RTO_REARM_BUDGET_S = 1.0
 
 
 def default_burst(rate_bps):
@@ -695,10 +703,44 @@ def loopback_rate_floor(rate_bps, window_s=1.0):
     full band (NIGHT-improve-15; DEFAULT_BURST_CAP's comment carries
     the physics and the nightpc evidence). Both regimes still cap at
     BAND_HI — a policer must never over-deliver past the band.
+
+    The third regime is the skb-refill BEAT: when the cushion cannot
+    bank TWO loopback skbs (cushion < 128 KiB — the 100kb rung's
+    bucket is 100 KB, ~1.5 skbs), one admitted skb leaves less than a
+    skb of tokens, the next skb drops, and the flow re-arms through
+    min-RTO backoff while the bucket sits full at the cap. The
+    aggregate becomes a phase race, not an enforcement measure: the
+    e2e depth legs' 100kb field samples, binary unchanged, span
+    43.7-87.4% (nine legs, 2026-10-27) while the same runs' 1mb and
+    10mb rungs ride 92.8-99.1% with clean accounting. The floor there
+    prices the re-arm ladder (RTO_REARM_BUDGET_S) instead of the full
+    band — under the observed worst with margin, collapses far below
+    it, the precise hunt carried by the smooth-regime rungs.
     """
     if rate_bps * window_s < LOOPBACK_GSO_SKB:
         return 0.0
     cushion = default_burst(rate_bps)
+    if cushion < 2 * LOOPBACK_GSO_SKB:
+        # The skb-refill beat regime: a bucket that cannot bank TWO
+        # loopback skbs (the 100kb rung's 100 KB bucket is ~1.5 skbs)
+        # admits one skb, drops the next, and the flow re-arms through
+        # min-RTO backoff while the bucket sits full at the cap burning
+        # refill it cannot spend. The aggregate stops tracking
+        # enforcement quality and becomes a phase race between the
+        # refill clock and the re-arm ladder — the min-RTO cushion
+        # model below does not apply (the cushion here is one skb, not
+        # one second of AIMD demand). Price the re-arm ladder instead:
+        # skb / (skb/rate + budget) / rate — under the observed field
+        # worst with margin, collapses sit far below it, and the
+        # precise enforcement hunt stays with the smooth-regime rungs
+        # at the full band (their ceiling, kernel-drop and accounting
+        # proofs are untouched here).
+        return min(
+            BAND_LO,
+            LOOPBACK_GSO_SKB
+            / (LOOPBACK_GSO_SKB / rate_bps + RTO_REARM_BUDGET_S)
+            / rate_bps,
+        )
     return min(BAND_LO, cushion / (TCP_MIN_RTO_S * rate_bps))
 
 
