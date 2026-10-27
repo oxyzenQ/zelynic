@@ -90,8 +90,14 @@ QUICK_SOAK_S = 10.0
 # first apply. The stale 13-member set meant a guaranteed pin-family
 # FAIL on HEAD; the members come from pin.rs + the loader's pin
 # surface, and a future family growth must grow this set with it.
+# Re-derived again from live CI reality (the E2E rig's own diff
+# output): schema v19-v23 grew the object by 12 more pinned maps
+# (the ECN debt pair, the CAKE per-flow trio x2 directions, the QUIC
+# CID hint pair, the --during side pair) — 34 maps + 2 programs +
+# 2 links, the 38-object family. The *_counters maps stay off the
+# rig on purpose: telemetry, never loader state.
 PIN_FAMILY = {
-    # the 22 pinned maps (the loader pins every map in the object)
+    # the 22 pinned maps the base loader pins (schema v18 and before)
     "cgroup_policy_dl",
     "cgroup_policy_ul",
     "cgroup_bucket_dl",
@@ -114,6 +120,24 @@ PIN_FAMILY = {
     "drr_leaf_state_ul",
     "drr_pool_state_dl",
     "drr_pool_state_ul",
+    # the schema v20-v23 additions, every one documented in
+    # ebpf/src/schema.rs and pinned by the same loader law (the
+    # object's maps all pin): v20's CAKE per-flow lane (cake_flow.rs),
+    # v19-v21's ECN-first debt maps, v22's QUIC CID hints, v23's
+    # --during side maps. The 4 *_counters maps stay unpinned by
+    # design (internal telemetry, not loader state).
+    "ecn_debt_dl",
+    "ecn_debt_ul",
+    "flow_bucket_dl",
+    "flow_bucket_ul",
+    "flow_ledger_dl",
+    "flow_ledger_ul",
+    "flow_share_dl",
+    "flow_share_ul",
+    "quic_cid_hint_dl",
+    "quic_cid_hint_ul",
+    "policy_window",
+    "wall_clock_offset",
     # the 2 enforcement programs + their 2 bpf_links (the 5.7+
     # capability rung pins links beside the programs)
     "enforce_dl",
@@ -332,7 +356,10 @@ def stage_pin_family(cg_id):
     lib.record(
         "pin-family: pin set",
         "PASS",
-        f"exactly the {len(PIN_FAMILY)}-member family (22 maps + 2 programs + 2 links)",
+        # no hardcoded breakdown here on purpose (NIGHT-harness-1's
+        # lesson, twice now): the count is derived from the set, and
+        # the set itself is the only member list this rig owns.
+        f"exactly the {len(PIN_FAMILY)}-member family (the loader's full pin surface)",
     )
     return True
 
