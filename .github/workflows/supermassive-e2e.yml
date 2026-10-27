@@ -471,9 +471,10 @@ jobs:
 
       # The userland, held CONSTANT across both legs on purpose (the
       # leg's only variables are the kernel and the envelope): the
-      # rootfs draws from the ubuntu:24.04 CONTAINER (the glibc the
-      # v3-gnu payload was built against; 2.39's kernel floor is 3.2,
-      # so the 5.13 guest kernel is safe). python3 + iproute2 + kmod
+      # rootfs draws from the ubuntu:24.04 CONTAINER — the guest
+      # tooling's ABI (python3, nft, bpftool), nothing the static
+      # musl payload depends on; 2.39's kernel floor is 3.2, so the
+      # 5.13 guest kernel is safe. python3 + iproute2 + kmod
       # + curl + nftables ride the plain apt line (the suites' own
       # needs: the engines' python, `ip link set lo up`, the insmod
       # pair, the loopback transfers, the nft snapshot rows).
