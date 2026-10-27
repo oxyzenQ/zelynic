@@ -4,50 +4,31 @@
 # CI Pipeline — runs on every push and PR to main
 # =============================================================================
 #
-# NIGHT-improve-13 (cosmostrix CI lineage): the `paths:` filter is
-# the single trigger gate — the former `changes` job (a full
-# fetch-depth: 0 clone plus a git-diff regex that re-implemented
-# what GitHub's native path filter already does) is gone. Builds
-# are Rust-surface-triggered; the non-code gates (codespell, shells,
-# headers, permissions, ruff, language, ...) live in
-# gate-keepers.yml, which runs on EVERY push unfiltered — a
-# docs-only change never skips the gates that police it.
+# The owner's unfiltered-CI simplification (night-dragon-maintenance-2,
+# the sibling's mature shape): the estate-wide path-filter spelling is
+# retired whole. Every push (any branch, any tag) and every pull
+# request (any base) burns every lane. The lineage that led here,
+# kept as the honest record: NIGHT-improve-13 replaced the changes
+# job (a full fetch-depth: 0 clone plus a git-diff regex
+# re-implementing the native path filter) with the native paths:
+# gate; NIGHT-boost-9 collapsed the per-consumer script list into
+# 'scripts/**'; NIGHT-boost-10 promoted one six-glob spelling
+# estate-wide. Each step shrank the filter's drift tax, and the tax
+# never reached zero: the spelling had to stay in sync across every
+# build workflow (the no-drift law between the push and pull_request
+# blocks), every new consumer needed a manual glob audit, and the
+# six globs' sync cost across the estate outgrew the runner minutes
+# they saved. Any change runs everything now — one blind posture, no
+# spelling to maintain.
 #
-# NIGHT-boost-9 (owner mandate, cosmostrix filter lineage): the
-# scripts surface is ONE directory glob — 'scripts/**' — never a
-# list of filenames. The per-consumer list NIGHT-improve-21 built
-# (six exact script paths by the end) was precision with a drift
-# tax: every new script a CI step consumed needed a manual filter
-# edit, and a missed edit meant a silently skipped run — the change
-# compiled fine locally and CI simply never saw it. One glob covers
-# every current and future consumer, subdirectories included. The
-# trade is honest and accepted: a docstring tweak in benchmarking.py
-# now buys the full Rust matrix (check + gnu-dynamic + the musl
-# twins). The owner's rule prefers robustness over trigger economy
-# — gate-keepers.yml runs on every push unfiltered, and this
-# workflow errs toward running more, not less.
-
-# NIGHT-boost-10 (owner mandate, the boost-9 one-glob law
-# promoted estate-wide): ONE trigger spelling for every
-# code-push workflow — six shared surface globs plus the
-# workflow's own file. The push estate had drifted into three
-# private spellings of one idea: this file's ten exact entries,
-# supermassive's eight hardcoded script paths, and the container
-# twin's redundant src/ sub-list (entries already inside
-# src/**). The per-consumer filename-list drift tax boost-9
-# closed for scripts/ is closed for the whole estate. The
-# efficiency contract is the owner's: a docs-only change matches
-# nothing below — gate-keepers.yml (unfiltered, every push) is
-# the only workflow that runs, the wholesale gates that police
-# docs, with zero build minutes; anything the project ships,
-# builds, or executes matches a glob and runs everything.
-# Coverage facts: '**/*.rs' spans src/, ebpf/, test/, and
-# build.rs (src/RULES.md is a doc and correctly builds nothing);
-# '**/*.toml' spans Cargo manifests, deny.toml, both toolchain
-# pins, and ebpf-prebuilt/manifest.toml — the prebuilt-refresh
-# drift hole: a parity regen now buys the builds that consume
-# the objects; '**/Cargo.lock' spans root and ebpf locks;
-# ebpf/** keeps the target-spec JSON no extension glob reaches.
+# The one deliberate exception lives outside this lane: the publish
+# lanes (release.yml, crates-io.yml) are not blind — they keep their
+# dedicated v* tag trigger, because a publish is the owner's
+# deliberate act, never a consequence of an arbitrary change. The
+# clock lanes (maintenance.yml plus the weekly schedules in
+# audit.yml, codeql.yml, and miri.yml) stay on their crons: they
+# watch external state (the advisory DB, the moving nightly), not
+# the tree.
 #
 # NIGHT-improve-22 (cosmostrix naming lineage): every workflow in
 # this repo carries its Dragon Guard name — the run list reads as
@@ -56,32 +37,10 @@
 name: Dragon Guard - CI
 
 on:
+  # Unfiltered: any push and any pull request burns this lane. The
+  # header carries the full simplification record.
   push:
-    branches: ["main"]
-    paths:
-      # NIGHT-boost-10: the estate-wide trigger spelling — six
-      # shared surface globs plus this file's own name, identical
-      # in every build workflow (the header carries the coverage
-      # facts). NIGHT-hunt-34 keeps the self-file entry: a workflow
-      # that can change its own contract owes itself a run.
-      - '**/*.rs'
-      - '**/*.toml'
-      - '**/Cargo.lock'
-      - '.cargo/**'
-      - 'ebpf/**'
-      - 'scripts/**'
-      - '.github/workflows/ci.yml'
   pull_request:
-    branches: ["main"]
-    paths:
-      # NIGHT-boost-10: same spelling as push (the no-drift law).
-      - '**/*.rs'
-      - '**/*.toml'
-      - '**/Cargo.lock'
-      - '.cargo/**'
-      - 'ebpf/**'
-      - 'scripts/**'
-      - '.github/workflows/ci.yml'
 
 # Least privilege (cosmostrix contract): every job in this workflow
 # only reads the repository.

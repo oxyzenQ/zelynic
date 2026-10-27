@@ -43,32 +43,13 @@
 name: Dragon Guard - Miri
 
 on:
+  # The owner's unfiltered-CI simplification
+  # (night-dragon-maintenance-2): the estate-wide surface globs are
+  # retired whole — any push and any pull request burns the
+  # interpreter lane, the same blind posture every push-triggered
+  # lane carries.
   push:
-    branches: ["main"]
-    paths:
-      # NIGHT-boost-10: the estate-wide trigger spelling — six
-      # shared surface globs plus this file's own name, identical
-      # in every build workflow (the header carries the coverage
-      # facts). A workflow that can change its own contract owes
-      # itself a run (NIGHT-hunt-34).
-      - '**/*.rs'
-      - '**/*.toml'
-      - '**/Cargo.lock'
-      - '.cargo/**'
-      - 'ebpf/**'
-      - 'scripts/**'
-      - '.github/workflows/miri.yml'
   pull_request:
-    branches: ["main"]
-    paths:
-      # NIGHT-boost-10: same spelling as push (the no-drift law).
-      - '**/*.rs'
-      - '**/*.toml'
-      - '**/Cargo.lock'
-      - '.cargo/**'
-      - 'ebpf/**'
-      - 'scripts/**'
-      - '.github/workflows/miri.yml'
   schedule:
     # Sunday 00:00 UTC (07:00 WIB) — picks up the week's commits in
     # one shot, the cosmostrix cadence.

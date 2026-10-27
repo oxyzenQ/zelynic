@@ -42,21 +42,25 @@ Rotation procedures:
 
 | Workflow | Cadence | Watches | On failure |
 |----------|---------|---------|------------|
-| `audit.yml` — Dragon Guard - Security Audit | weekly (Mon) 00:00 UTC + every dependency-surface push/PR (`**/*.toml`, `**/Cargo.lock` — NIGHT-boost-10) | `cargo audit` (RustSec) + `cargo deny` (licenses/advisories) over the locked tree | Observation-only by design: read the advisory, decide patch-vs-accept, record the decision in the audit trail. A weekly ping is information, not an emergency (NIGHT-improve-38: the cadence matches this table's clock) |
+| `audit.yml` — Dragon Guard - Security Audit | weekly (Mon) 00:00 UTC + every push/PR (unfiltered since night-dragon-maintenance-2) | `cargo audit` (RustSec) + `cargo deny` (licenses/advisories) over the locked tree | Observation-only by design: read the advisory, decide patch-vs-accept, record the decision in the audit trail. A weekly ping is information, not an emergency (NIGHT-improve-38: the cadence matches this table's clock) |
 | `codeql.yml` — Dragon Guard - CodeQL | weekly (Mon) | CodeQL security analysis of the userspace tree | Triage the alert; a confirmed finding gets a dated audit doc + a fix commit in the same task |
 | `maintenance.yml` — Dependency Maintenance | weekly (Mon) | GPG subkey expiry (30-day warning), stale dependencies | The GPG warning starts the §1 rotation; stale deps get a scheduled upgrade window |
 
 Plus the push-time guards (not scheduled, but part of the posture):
 `gate-keepers.yml` wholesale on every push and PR, `ci.yml`,
-`supermassive.yml`, `supermassive-container.yml`, `audit.yml`
-(dependency-surface pushes), and the three-arm
+`supermassive.yml`, `supermassive-container.yml`, `audit.yml`,
+`miri.yml`, `codeql.yml`, and the three-arm
 prebuilt-parity enforcement
-(NIGHT-dinner-1 — commit time, publish time, release time). The
-push filters share ONE estate-wide spelling (NIGHT-boost-10: every
-`*.rs`, every `*.toml`, every `Cargo.lock`, `.cargo/`, `ebpf/`,
-`scripts/`, plus each workflow's own file) — a docs-only change
-matches nothing, so `gate-keepers.yml` (unfiltered) is the only
-workflow that runs and no build minutes are spent on it.
+(NIGHT-dinner-1 — commit time, publish time, release time). Since
+the owner's unfiltered-CI simplification
+(night-dragon-maintenance-2) every push-triggered lane is blind:
+any change to anything burns every lane (the former estate-wide
+glob spelling's sync tax across seven workflows outgrew the runner
+minutes it saved). The deliberate exceptions are the publish lanes
+(`release.yml`, `crates-io.yml` — the dedicated `v*` tag trigger,
+because a publish is the owner's deliberate act) and the clock
+lanes (`maintenance.yml` plus the weekly audit/CodeQL/miri
+schedules — they watch external state, not the tree).
 
 ## 3. The prebuilt eBPF lane (the one ritual with a hard rule)
 
