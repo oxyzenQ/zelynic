@@ -1160,6 +1160,13 @@ def enforcement_proofs(label, got_bytes, name="a", baseline_allowed=0):
 
 SERVER_FLEET_N = 64
 SERVER_FLEET_PREFIX = "zelynic-server-fleet"
+# night-dragon-maintenance-4, the brutality row constants: the storm's
+# connection count and worker width (short 0.3s windows mean the storm
+# is connection CHURN, not throughput; 8 workers keep the guest's
+# quarter-envelope CPUs honest), sized to finish inside the e2e legs'
+# vm_timeout headroom at the low-specs envelope.
+STORM_CONN_N = 120
+STORM_WORKERS = 8
 
 # NIGHT-improve-50 (owner-approved 2026-10-07): the cap-crossing
 # fleet. The decision audit (docs/audits/
@@ -1654,6 +1661,273 @@ def stage_server_parallel_readers():
         == "PASS"
     )
     run_zel(["unstrict", "::".join(str(i) for i in subset)])
+    return ok
+
+
+def stage_server_conn_storm():
+    """night-dragon-maintenance-4, brutality row 1: the connection
+    storm. A server's real adversary is not one steady stream — it is
+    the churn of many SHORT-lived connections hammering through one
+    policed cgroup (every web workload's shape). STORM_CONN_N rapid
+    windowed downloads from a bounded thread pool, all inside member
+    cgroup [0] under one shared 4mb bucket. The detective's questions:
+    did every connection survive (the server accepted all, the limiter
+    dropped none at the socket layer), does the AGGREGATE of the storm
+    stay inside the shared ceiling band (N concurrent streams may not
+    sum past the bucket they share), and did the kernel-side drop
+    counter advance (policing stayed live, not bookkeeping)?"""
+    if FLEET is None:
+        record(
+            "server: connection storm (short-connection churn)",
+            "SKIP",
+            "fleet absent (dedicated cgroups not creatable)",
+        )
+        return False
+    out()
+    out(f"━━━ server depth: connection storm ({STORM_CONN_N} short connections) ━━━")
+    rc, stdout, stderr = run_zel(["strict", str(FLEET.ids[0]), "4mb"], timeout=60)
+    if rc != 0:
+        record(
+            "server: connection storm (short-connection churn)",
+            "FAIL",
+            f"strict exit {rc}: {(stderr or stdout).strip()[:200]}",
+        )
+        return False
+    time.sleep(0.5)
+    before_entry = limit_entry(status_json(), FLEET.ids[0])
+    drops_before = before_entry.get("packets_dropped", 0) if before_entry else 0
+    conns_before = SERVER.conn_count
+    storm_start = time.perf_counter()
+
+    def one_conn(_):
+        metric, err = spawn_in_cgroup_path(
+            FLEET.paths[0],
+            [sys.executable, "-c", _PY_DL_CLIENT, str(SERVER.port), "0.3"],
+            20,
+        )
+        return metric, err
+
+    with ThreadPoolExecutor(max_workers=STORM_WORKERS) as pool:
+        outcomes = list(pool.map(one_conn, range(STORM_CONN_N)))
+    wall = time.perf_counter() - storm_start
+    ok = True
+    dead = [err for metric, err in outcomes if metric is None]
+    ok = (
+        record(
+            "server: connection storm survived (no connection lost)",
+            "PASS" if not dead else "FAIL",
+            f"{STORM_CONN_N - len(dead)}/{STORM_CONN_N} connections completed"
+            + (f"; first failure: {dead[0][:120]}" if dead else ""),
+        )
+        == "PASS"
+        and ok
+    )
+    total_bytes = sum(metric for metric, _ in outcomes if metric is not None)
+    # The aggregate band: the storm's SUM rides ONE shared bucket, so
+    # bytes/wall against the 4mb ceiling is the physics verdict (a
+    # per-connection band would read 120x under the ceiling and prove
+    # nothing about the bucket).
+    ok = (
+        band_check(
+            "server: storm aggregate stays under the shared bucket",
+            total_bytes / wall,
+            4_000_000,
+        )
+        == "PASS"
+        and ok
+    )
+    accepted = SERVER.conn_count - conns_before
+    ok = (
+        record(
+            "server: storm accepted server-side (nothing lost at accept)",
+            "PASS" if accepted >= STORM_CONN_N else "FAIL",
+            f"{accepted} connections accepted (storm: {STORM_CONN_N})",
+        )
+        == "PASS"
+        and ok
+    )
+    after_entry = limit_entry(status_json(), FLEET.ids[0])
+    drops_after = after_entry.get("packets_dropped", 0) if after_entry else 0
+    ok = (
+        record(
+            "server: storm policed in kernel (drops advanced)",
+            "PASS" if drops_after > drops_before else "FAIL",
+            f"{drops_after - drops_before} packets dropped across the storm",
+        )
+        == "PASS"
+        and ok
+    )
+    return ok
+
+
+def stage_server_kill_mid_transfer():
+    """night-dragon-maintenance-4, brutality row 2: violence under
+    load. A server's processes die mid-flight — OOM kills, crash
+    loops, operator kill -9 — and the limiter must not just survive
+    the corpse, it must keep policing the cgroup EXACTLY as before:
+    the policy row intact, the next client measured in-band, no
+    phantom state. The transfer dies at the 2-second mark of a 10
+    second window; the detective reads the state the corpse left."""
+    if FLEET is None:
+        record(
+            "server: kill -9 mid-transfer (violence under load)",
+            "SKIP",
+            "fleet absent (dedicated cgroups not creatable)",
+        )
+        return False
+    out()
+    out("━━━ server depth: kill -9 mid-transfer ━━━")
+    rc, stdout, stderr = run_zel(["strict", str(FLEET.ids[1]), "8mb"], timeout=60)
+    if rc != 0:
+        record(
+            "server: kill -9 mid-transfer (violence under load)",
+            "FAIL",
+            f"strict exit {rc}: {(stderr or stdout).strip()[:200]}",
+        )
+        return False
+    time.sleep(0.5)
+    victim = spawn_bg_in_cgroup_path(
+        FLEET.paths[1],
+        [sys.executable, "-c", _PY_DL_CLIENT, str(SERVER.port), "10"],
+    )
+    if victim is None:
+        record(
+            "server: kill -9 mid-transfer (violence under load)",
+            "FAIL",
+            "the transfer client never settled in the cgroup",
+        )
+        return False
+    time.sleep(2.0)
+    victim.kill()
+    try:
+        victim.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        pass
+    ok = True
+    doc = status_json()
+    entry = limit_entry(doc, FLEET.ids[1]) if doc else None
+    ok = (
+        record(
+            "server: policy survived the corpse (row intact)",
+            "PASS"
+            if entry is not None
+            and entry.get("download_bps") == 8_000_000
+            and entry.get("upload_bps") == 8_000_000
+            else "FAIL",
+            f"row after kill: {entry if entry else 'missing'}",
+        )
+        == "PASS"
+        and ok
+    )
+    time.sleep(0.5)
+    metric, err = spawn_in_cgroup_path(
+        FLEET.paths[1],
+        [sys.executable, "-c", _PY_DL_CLIENT, str(SERVER.port), "3.0"],
+        20,
+    )
+    got = metric or 0
+    ok = (
+        band_check("server: next client measured in-band after the kill", got / 3.0, 8_000_000)
+        == "PASS"
+        and ok
+    )
+    return ok
+
+
+def stage_server_dual_dir_duel():
+    """night-dragon-maintenance-4, brutality row 3: the dual-direction
+    duel. Saturation in BOTH directions at once — download and upload
+    hammering the same cgroup simultaneously — the shape every real
+    server carries (it serves AND accepts). The detective's questions:
+    does each direction land in its own ceiling band INDEPENDENTLY
+    (cross-traffic may not starve a direction's accounting), does the
+    combined rate respect the per-direction bucket sum (dl traffic may
+    not eat the ul budget or vice versa), and does the kernel keep
+    dropping (saturated buckets police, they never silently pass)?"""
+    if FLEET is None:
+        record(
+            "server: dual-direction duel (simultaneous saturation)",
+            "SKIP",
+            "fleet absent (dedicated cgroups not creatable)",
+        )
+        return False
+    out()
+    out("━━━ server depth: dual-direction duel ━━━")
+    rc, stdout, stderr = run_zel(["strict", str(FLEET.ids[2]), "3mb"], timeout=60)
+    if rc != 0:
+        record(
+            "server: dual-direction duel (simultaneous saturation)",
+            "FAIL",
+            f"strict exit {rc}: {(stderr or stdout).strip()[:200]}",
+        )
+        return False
+    time.sleep(0.5)
+
+    def dl_leg(_):
+        return spawn_in_cgroup_path(
+            FLEET.paths[2],
+            [sys.executable, "-c", _PY_DL_CLIENT, str(SERVER.port), "5.0"],
+            25,
+        )
+
+    def ul_leg(_):
+        return spawn_in_cgroup_path(
+            FLEET.paths[2],
+            [sys.executable, "-c", _PY_UL_CLIENT, str(SERVER.port), "5.0"],
+            25,
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        dl_future = pool.submit(dl_leg, None)
+        ul_future = pool.submit(ul_leg, None)
+        dl_metric, dl_err = dl_future.result()
+        ul_metric, ul_err = ul_future.result()
+    ok = True
+    ok = (
+        band_check(
+            "server: duel download leg in-band (under cross-traffic)",
+            (dl_metric or 0) / 5.0,
+            3_000_000,
+            extra=dl_err[:120] if dl_err else "",
+        )
+        == "PASS"
+        and ok
+    )
+    ok = (
+        band_check(
+            "server: duel upload leg in-band (under cross-traffic)",
+            (ul_metric or 0) / 5.0,
+            3_000_000,
+            extra=ul_err[:120] if ul_err else "",
+        )
+        == "PASS"
+        and ok
+    )
+    # The no-cross-leak verdict: the two buckets are per-direction, so
+    # the combined rate may reach but never exceed their SUM (a
+    # combined rate over the sum would mean one direction's traffic
+    # rode the other direction's bucket).
+    combined = ((dl_metric or 0) + (ul_metric or 0)) / 5.0
+    ok = (
+        record(
+            "server: duel combined never exceeds the bucket sum",
+            "PASS" if combined <= 6_000_000 * BAND_HI else "FAIL",
+            f"combined {fmt_bps(combined)} vs sum ceiling {fmt_bps(6_000_000)} (hi band {BAND_HI})",
+        )
+        == "PASS"
+        and ok
+    )
+    entry = limit_entry(status_json(), FLEET.ids[2])
+    dropped = entry.get("packets_dropped", 0) if entry else 0
+    ok = (
+        record(
+            "server: duel policed in kernel (drops advanced)",
+            "PASS" if dropped > 0 else "FAIL",
+            f"{dropped} packets dropped across both saturated buckets",
+        )
+        == "PASS"
+        and ok
+    )
     return ok
 
 
@@ -2249,6 +2523,16 @@ def run_server_phase():
     stage_server_dense_policy()
     stage_server_daemon_traffic()
     stage_server_parallel_readers()
+    # night-dragon-maintenance-4: the brutality row — the connection
+    # storm (short-connection churn under one shared bucket), the
+    # kill -9 mid-transfer (violence under load), and the
+    # dual-direction duel (simultaneous saturation). All three run
+    # BEFORE the teardown: they police fleet members themselves, and
+    # the teardown's unstrict-all + residue ladder owns their exit.
+    # The cap-crossing stage still rides LAST, after the teardown.
+    stage_server_conn_storm()
+    stage_server_kill_mid_transfer()
+    stage_server_dual_dir_duel()
     stage_server_teardown()
     stage_server_cap_crossing()
     # NIGHT-hunt-42: the orphan-census live proof. Runs LAST, after
