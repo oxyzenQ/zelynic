@@ -177,7 +177,7 @@ v80.0.0
 - **docs(license): NIGHT-dinner-31 — the business tiers climb
   again.** Business $2,199 → $5,199/year, Company $20,199 →
   $110,199/year; Individual holds at $99/year, effective from the
-  first release tag after 2026-10-10. The masterpiece rationale
+  first release tag after 2026-10-10. The value rationale
   compounds: the value increases year by year and the price keeps
   tracking it upward. Grandfathering unchanged — buyers who paid
   before the move keep the price they paid, for the term they

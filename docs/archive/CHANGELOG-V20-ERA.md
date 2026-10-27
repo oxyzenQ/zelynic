@@ -2121,8 +2121,8 @@ NIGHT-hunt-18's git-history-only call.
   eBPF pin sites, and STABILITY.md's uninstall-recovery row.
   Historical records keep the paths of their day — history is not a
   stale reference.
-- **docs: NIGHT-dinner-26 — the README hero, made simply boring but
-  legendary: the cosmic-dragon ledger quote is promoted to the
+- **docs: NIGHT-dinner-26 — the README hero, made simply boring and
+  built to last: the cosmic-dragon ledger quote is promoted to the
   tagline seat** ("Run anything you like. Launch whatever you want.
   The cosmic dragon counts every byte that leaves the den — and the
   ledger never lies."), taking the place the old "Boring and silent
@@ -2337,8 +2337,8 @@ NIGHT-hunt-18's git-history-only call.
   again: Business $2,199/year, Company $20,199/year, and the
   unauthorized-use warning gets its teeth** (the owner's
   directive, 2026-09-30: raise the tag prices for individual
-  business and company only — the reason is that zelynic is a
-  masterpiece and its value keeps increasing year by year).
+  business and company only — the reason is that zelynic's value
+  keeps increasing year by year).
   Business $1,990 → $2,199/year and Company $14,990 →
   $20,199/year; Individual holds at $99/year — the directive's
   "only" honored, the consumer anchor untouched. The rationale
