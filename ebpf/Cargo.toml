@@ -49,7 +49,7 @@
 
 [package]
 name = "zelynic-ebpf"
-version = "80.0.1-night.1"
+version = "80.0.1-night.2"
 edition = "2024"
 publish = false
 # NIGHT-improve-77: metadata hygiene for the detached crate. It is
