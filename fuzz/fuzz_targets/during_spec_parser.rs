@@ -38,23 +38,28 @@ mod during_parse;
 
 use libfuzzer_sys::fuzz_target;
 
-use during_parse::{DURING_MAX_NS, DURING_MIN_NS, parse_during};
+use during_parse::{DURING_MAX_NS, DURING_MIN_NS, DuringSpec, parse_during};
 
 fuzz_target!(|data: &[u8]| {
     if let Ok(spec) = std::str::from_utf8(data) {
         match parse_during(spec) {
             Ok(during) => {
+                // The grammar's one shape today (the duration-only
+                // revision): the irrefutable let stops compiling the
+                // day the enum grows a second shape, forcing this
+                // harness to keep up with the exact contract it
+                // fuzzes - the same fail-closed posture the include
+                // law holds for the grammar bytes themselves.
+                let DuringSpec::Duration { ns } = during;
                 assert!(
-                    during.ns >= DURING_MIN_NS,
+                    ns >= DURING_MIN_NS,
                     "the parse accepted a duration under the 1s floor \
-                     (input {spec:?}, ns {})",
-                    during.ns
+                     (input {spec:?}, ns {ns})"
                 );
                 assert!(
-                    during.ns <= DURING_MAX_NS,
+                    ns <= DURING_MAX_NS,
                     "the parse accepted a duration over the 5y ceiling \
-                     (input {spec:?}, ns {})",
-                    during.ns
+                     (input {spec:?}, ns {ns})"
                 );
             }
             Err(_) => {
