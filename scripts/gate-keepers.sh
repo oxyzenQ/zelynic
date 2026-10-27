@@ -109,6 +109,17 @@
 #       failed — the gate inventory freeze is lifted for exactly
 #       this check, so the map can never drift behind the records
 #       again; coverage only, dead rows stay lts-6's instrument)
+#  21.  Secret-name consistency (night-dragon-maintenance-4 —
+#       scripts/gates/check-secret-names.sh: every secrets.X reference
+#       in any tracked file resolves to the canonical four-secret
+#       inventory (GITHUB_TOKEN, CRATES_IO_TOKEN, GPG_PRIVATE_KEY,
+#       GPG_PASSPHRASE); the crates.io alias spellings (CARGO_TOKEN,
+#       CRATES_TOKEN) are forbidden repo-wide and CARGO_REGISTRY_TOKEN
+#       lives only at the workflow consumption site; every managed
+#       secret stays wired to a workflow and named in
+#       docs/MAINTENANCE.md's rotation table. A rogue spelling is a
+#       silent no-op: Actions reads it as the empty string and the lane
+#       publishes unauthenticated or skips signing with nothing failing)
 # Pre-commit hook (NIGHT-dinner-1): the first wholesale run on a
 # clone self-installs .githooks/pre-commit (git config
 # core.hooksPath=.githooks — repo-local, never --global), so every
@@ -852,6 +863,25 @@ if [ -f scripts/gates/check-audits-index.sh ]; then
 	fi
 else
 	warn "check-audits-index.sh not found — skipping"
+fi
+
+# ── 21. Secret-Name Consistency (night-dragon-maintenance-4) ────────
+# The CI secret surface is exactly four names (see the gate header for
+# the inventory and the silent no-op failure mode). The gate holds all
+# four contracts — canonical references repo-wide, contained crates.io
+# alias spellings, workflow liveness, rotation-table parity — so a
+# renamed or rogue secret fails the push instead of shipping an
+# unauthenticated publish or an unsigned release.
+header "Secret-Name Consistency (check-secret-names.sh)"
+if [ -f scripts/gates/check-secret-names.sh ]; then
+	if bash scripts/gates/check-secret-names.sh 2>&1; then
+		info "secret names: the four-secret inventory is canonical across workflows, docs, and scripts"
+		PASS=$((PASS + 1))
+	else
+		fail "secret-name drift found (a secrets.X reference outside the canonical inventory, or the rotation table out of sync — see the gate output above)"
+	fi
+else
+	warn "check-secret-names.sh not found — skipping"
 fi
 
 # ── Summary ────────────────────────────────────────────────────────────────
