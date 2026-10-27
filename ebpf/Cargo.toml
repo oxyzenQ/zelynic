@@ -79,4 +79,19 @@ path = "src/main.rs"
 name = "zelynic-limiter"
 path = "src/bin/limiter.rs"
 
+# night-dragon-lts-2c: the standing SAFETY gate, the kernel half of
+# the root manifest's table (the owner call the lts-2b closure left
+# on the table, now taken). This crate is detached — the empty
+# [workspace] table below keeps it outside the root package's
+# manifest — so the deny must live here; there is no workspace
+# [lints] inheritance to receive it. The instrument it enforces is
+# the one the lts-2b round ran: all 41 kernel-crate unsafe block
+# openers carry their SAFETY contracts and the lint measured zero
+# before the gate landed. Level deny rides every clippy invocation
+# on this manifest (the manual nightly instrument and any future
+# lane); plain rustc builds — the nested nightly cross-compile
+# build.rs drives — ignore foreign tool lints entirely.
+[lints]
+clippy = { undocumented_unsafe_blocks = "deny" }
+
 [workspace]
