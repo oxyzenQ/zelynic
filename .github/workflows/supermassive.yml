@@ -287,6 +287,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          # GITHUB_TOKEN hardening: never persists into .git/config.
+          persist-credentials: false
 
       # The kernel can change; /dev/kvm is a GitHub runner guarantee
       # (nested virt is enabled on every current Linux hosted image) —

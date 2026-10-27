@@ -81,6 +81,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # The estate's JS-action runtime pin (every other workflow carries
+  # it; this lane was the one straggler, night-dragon-maintenance-6).
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   supermassive-e2e:
     name: ${{ matrix.title }}

@@ -286,6 +286,14 @@ jobs:
           ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
+          # The estate's one DELIBERATE persist-credentials exception
+          # (night-dragon-maintenance-6): this job commits the swept
+          # Cargo.lock and pushes it to main, so the checkout token
+          # must survive into the git client. Every other checkout in
+          # the estate pins persist-credentials: false — do not
+          # "normalize" this one without moving the push to an API
+          # call first.
+          persist-credentials: true
 
       - name: Download validated Cargo.lock
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8, NIGHT-hunt-20 SHA pin
