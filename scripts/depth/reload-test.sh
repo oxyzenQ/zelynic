@@ -58,7 +58,12 @@ cleanup() {
 	"$BINARY" u --all 2>/dev/null || true
 }
 
-# shellcheck disable=SC2317 # teardown rides the EXIT trap, never a call by name
+# shellcheck disable=SC2317,SC2329 # teardown rides the EXIT trap, never a call by
+# name — shellcheck generations disagree on the code: SC2317 is the older
+# unused-command diagnostic, SC2329 the newer function-never-invoked one, and a
+# trap-only reference fires either depending on the version (seen live
+# 2026-10-27: 0.10.0 stays silent, a rolling-distro build flagged SC2329 through
+# the standing gate). Suppressed together, both generations pass.
 teardown() {
 	cleanup
 	if [ -n "${SRV_PID:-}" ]; then

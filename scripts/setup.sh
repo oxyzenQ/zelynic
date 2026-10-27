@@ -97,7 +97,7 @@ ok "phase 1/3: bootstrap done (${SECONDS}s)"
 
 ok "phase 2/3: supermassive engine self-test (rootless)"
 if ! "${SCRIPT_DIR}/supermassive/supermassive-test.sh" --self-test; then
-	die "self-test failed — the harness engine itself is broken; run scripts/supermassive/supermassive-test.py --self-test for the failing rows."
+	die "self-test failed — read the failing rows: scripts/supermassive/supermassive-test.py --self-test. A server counter of 0 against live client bytes is the fold-at-close race, not a broken engine: live enforcement on this host (sudo zelynic status) polices the test's own loopback stream — clear it (sudo zelynic u --all) and re-run."
 fi
 ok "phase 2/3: self-test green"
 
