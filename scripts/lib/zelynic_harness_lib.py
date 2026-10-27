@@ -587,7 +587,9 @@ def resolve_binary(explicit, script_hint):
         out("One command: ./scripts/dev/bootstrap-ebpf.sh")
         out("  (installs the eBPF toolchain pair AND builds the flagship")
         out("   binary — clone, bootstrap, test, done)")
-        out(f"Or point at one: {script_hint} --binary ./target/x86_64-unknown-linux-musl/pro-native-musl/zelynic")
+        out(
+            f"Or point at one: {script_hint} --binary ./target/x86_64-unknown-linux-musl/pro-native-musl/zelynic"
+        )
         return False
 
     # ── version gate: this harness tests THIS checkout ────────────────
@@ -610,7 +612,9 @@ def resolve_binary(explicit, script_hint):
         out("  be decoy noise (the 2026-09-21 debian13 run lost 12 of 23 rows")
         out("  to a stale /usr/bin/zelynic v4.0.0-alpha this way).")
         out("One command: ./scripts/dev/bootstrap-ebpf.sh   (prerequisites + flagship build)")
-        out(f"Or point at a matching build: {script_hint} --binary ./target/x86_64-unknown-linux-musl/pro-native-musl/zelynic")
+        out(
+            f"Or point at a matching build: {script_hint} --binary ./target/x86_64-unknown-linux-musl/pro-native-musl/zelynic"
+        )
         return False
     return True
 
