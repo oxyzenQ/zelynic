@@ -842,8 +842,7 @@ def test_sustain(rate_bps, windows, window, baseline):
     if not passed:
         (p2, d2, m2), rates2 = run_series()
         attempts += (
-            f"; a2: median {m2 * 100:.0f}%, drift {d2 * 100:.0f}%"
-            " (the under-side re-attempt)"
+            f"; a2: median {m2 * 100:.0f}%, drift {d2 * 100:.0f}% (the under-side re-attempt)"
         )
         if p2:
             passed, drift, median_ratio, rates = p2, d2, m2, rates2
@@ -907,8 +906,7 @@ def test_overhead(baseline, window):
         limited2 = got2 / window
         drop2_pct = (baseline - limited2) / baseline * 100
         drop_detail = (
-            f"; attempt 2 {fmt_bps(limited2)} ({drop2_pct:+.1f}%)"
-            " (the under-side re-attempt)"
+            f"; attempt 2 {fmt_bps(limited2)} ({drop2_pct:+.1f}%) (the under-side re-attempt)"
         )
         if drop2_pct < drop_pct:
             limited, drop_pct = limited2, drop2_pct
