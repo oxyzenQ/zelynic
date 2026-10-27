@@ -23,6 +23,9 @@ pub fn monotonic_ns() -> u64 {
         tv_sec: 0,
         tv_nsec: 0,
     };
+    // SAFETY: clock_gettime takes a writable timespec slot of the
+    // exact expected size — a fixed-initialized local; the clock
+    // needs no resource and a failure reads zero below.
     unsafe {
         if libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut ts) != 0 {
             return 0;

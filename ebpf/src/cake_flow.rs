@@ -214,6 +214,9 @@ pub(super) fn try_flow_draw(
     now: u64,
 ) -> bool {
     // 1. The admission + the sparse evidence (the PRE-CAS stamp).
+    // SAFETY: one-field volatile read of the flow bucket's stamp —
+    // the READ_ONCE discipline the leaf belt pins over the same
+    // map-value contract; the projection stays inside the value.
     let stamp = unsafe { core::ptr::addr_of!(flow.last_refill_ns).read_volatile() };
     if !drr::draw_admitted(now, stamp) {
         return false;

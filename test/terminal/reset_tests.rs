@@ -156,7 +156,12 @@ fn every_mode_moves_toward_its_default() {
 /// The exact broken shape a violent TUI death leaves: cfmakeraw's
 /// full raw state with the monitor's VMIN=0/VTIME=0 poll pair.
 fn broken_raw_termios() -> libc::termios {
+    // SAFETY: zeroed() is the valid POD start for termios (tcgetattr
+    // would overwrite wholesale; here cfmakeraw rewrites it
+    // directly) — the returned struct is a fixture value.
     let mut t: libc::termios = unsafe { std::mem::zeroed() };
+    // SAFETY: cfmakeraw rewrites only the local fixture struct, no
+    // descriptor involved.
     unsafe { libc::cfmakeraw(&mut t) };
     t.c_cc[libc::VMIN] = 0;
     t.c_cc[libc::VTIME] = 0;

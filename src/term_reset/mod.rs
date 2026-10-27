@@ -129,6 +129,9 @@ mod outer;
 /// # Safety
 /// `fd` must be an open descriptor the process owns.
 pub(crate) unsafe fn set_fd_nonblocking(fd: std::os::unix::io::RawFd) -> libc::c_int {
+    // SAFETY: the caller's contract (documented above) guarantees fd
+    // is an open descriptor this process owns; F_GETFL/F_SETFL only
+    // read and re-state that descriptor's own status flags.
     unsafe {
         let flags = libc::fcntl(fd, libc::F_GETFL);
         if flags < 0 {
@@ -150,6 +153,9 @@ pub(crate) unsafe fn set_fd_nonblocking(fd: std::os::unix::io::RawFd) -> libc::c
 /// be a status-flags value previously returned by `fcntl(F_GETFL)`.
 pub(crate) unsafe fn restore_fd_flags(fd: std::os::unix::io::RawFd, prev: libc::c_int) {
     if prev >= 0 {
+        // SAFETY: the caller's contract (documented above) pins fd
+        // open-and-owned and prev a flags value F_GETFL returned;
+        // F_SETFL re-states exactly that value.
         unsafe {
             libc::fcntl(fd, libc::F_SETFL, prev);
         }
@@ -239,16 +245,30 @@ pub(crate) fn sane_cooked(t: &mut libc::termios) {
 /// that would otherwise land in the user's shell as garbage commands
 /// the instant echo returns.
 fn restore_termios_cooked() {
+    // SAFETY: zeroed() is valid for libc::termios — a POD byte
+    // struct tcgetattr overwrites wholesale before any field is
+    // read; the all-zero start is never observable.
     let mut buf: libc::termios = unsafe { std::mem::zeroed() };
+    // SAFETY: fd 0 is the process's standard input, a terminal in
+    // every caller of this rescue path; tcgetattr only reads that
+    // descriptor's termios into the local buffer.
     if unsafe { libc::tcgetattr(0, &mut buf) } == 0 {
         sane_cooked(&mut buf);
+        // SAFETY: tcsetattr writes the sanitized cooked termios back
+        // to the same fd 0 terminal tcgetattr just read; TCSAFLUSH
+        // drains before applying, the restore contract itself.
         unsafe { libc::tcsetattr(0, libc::TCSAFLUSH, &buf) };
         return;
     }
     if let Ok(tty) = std::fs::File::open("/dev/tty") {
         let fd = tty.as_raw_fd();
+        // SAFETY: fd is the freshly opened controlling terminal of
+        // this process; the same read-then-write-back termios pair
+        // as the fd-0 lane above, one local buffer.
         if unsafe { libc::tcgetattr(fd, &mut buf) } == 0 {
             sane_cooked(&mut buf);
+            // SAFETY: the same descriptor tcgetattr read above; the
+            // sanitized value is the rescue's whole purpose.
             unsafe { libc::tcsetattr(fd, libc::TCSAFLUSH, &buf) };
         }
     }
@@ -406,7 +426,15 @@ pub(crate) fn reset_terminal_emergency() {
     // Raw fd writes, never std::io::stdout(): the rescue runs with no
     // threads of its own, but it owes the same lock-free discipline
     // the guard child pays for after fork.
+    // SAFETY: fd 1 is the process's own stdout descriptor; the
+    // nonblocking round trip and the raw writes below own exactly
+    // that descriptor (set_fd_nonblocking's contract above).
     let prev_flags = unsafe { set_fd_nonblocking(1) };
+    // SAFETY: every call in this block either takes the same
+    // process-owned fd 1 (restore_fd_flags's caller contract, the
+    // same one set_fd_nonblocking ran under) or no descriptor at all
+    // (write_fd_best_effort is a safe wrapper around its own
+    // documented unsafe core).
     unsafe {
         write_fd_best_effort(1, TERMINAL_RESTORE_SEQUENCE.as_bytes());
         write_fd_best_effort(1, TERMINAL_RESET_SEQUENCE.as_bytes());

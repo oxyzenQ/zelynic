@@ -148,6 +148,8 @@ pub(crate) fn outer_tty_from_proc(
         .open(&target)
         .ok()?;
     let fd = file.as_raw_fd();
+    // SAFETY: fd is the descriptor this function just opened and
+    // owns; isatty only queries its type, no memory is written.
     if unsafe { libc::isatty(fd) } != 1 {
         return None;
     }
@@ -181,6 +183,9 @@ fn own_tty_name() -> Option<String> {
 /// over-long name is a failed probe).
 fn ttyname_of_fd(fd: std::os::unix::io::RawFd) -> Option<String> {
     let mut buf = [0u8; 64];
+    // SAFETY: ttyname_r writes at most buf.len() bytes into the
+    // caller's array for the process-owned fd; the NUL-terminated
+    // result is split below, no pointer escapes the call.
     if unsafe { libc::ttyname_r(fd, buf.as_mut_ptr().cast(), buf.len()) } != 0 {
         return None;
     }
@@ -215,6 +220,8 @@ pub(crate) fn discover() -> Option<OuterTty> {
         });
     }
     if nix::unistd::geteuid().is_root() {
+        // SAFETY: getppid takes no arguments and reads no memory —
+        // the libc query's only contract is the pid it returns.
         let ppid = unsafe { libc::getppid() };
         if ppid > 0 {
             let path = outer_tty_from_proc(Path::new("/proc"), ppid, own.as_deref())?;
@@ -246,12 +253,26 @@ pub(crate) fn apply_rescue_to_path(path: &Path) {
         return;
     };
     let fd = file.as_raw_fd();
+    // SAFETY: zeroed() is valid for libc::termios — a POD byte
+    // struct tcgetattr overwrites wholesale before any read (the
+    // same pattern the cooked rescue in mod.rs pins).
     let mut buf: libc::termios = unsafe { std::mem::zeroed() };
+    // SAFETY: fd is the outer tty this child opened and owns; the
+    // read-then-sanitized-write-back pair is the rescue contract.
     if unsafe { libc::tcgetattr(fd, &mut buf) } == 0 {
         sane_cooked(&mut buf);
+        // SAFETY: the same descriptor tcgetattr read above; the
+        // sanitized cooked value is this child's whole purpose.
         unsafe { libc::tcsetattr(fd, libc::TCSAFLUSH, &buf) };
     }
+    // SAFETY: the same process-owned fd; set_fd_nonblocking's own
+    // caller contract (mod.rs) covers the descriptor this child
+    // opened above.
     let prev_flags = unsafe { set_fd_nonblocking(fd) };
+    // SAFETY: every call here rides the same process-owned fd —
+    // restore_fd_flags's contract (fd open-and-owned, prev from
+    // F_GETFL) — or no descriptor at all (write_fd_best_effort's
+    // safe wrapper).
     unsafe {
         write_fd_best_effort(fd, super::TERMINAL_RESTORE_SEQUENCE.as_bytes());
         write_fd_best_effort(fd, super::TERMINAL_RESET_SEQUENCE.as_bytes());

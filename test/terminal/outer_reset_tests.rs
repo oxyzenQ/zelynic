@@ -81,11 +81,19 @@ fn alloc_pty() -> Pty {
     // the canonical pty allocation sequence, each step checked.
     let master = unsafe { libc::posix_openpt(libc::O_RDWR | libc::O_NOCTTY) };
     assert!(master >= 0, "posix_openpt failed — no pty allocator?");
+    // SAFETY: grantpt takes only the master fd this test just
+    // allocated — the canonical pty permission step.
     assert_eq!(unsafe { libc::grantpt(master) }, 0, "grantpt failed");
+    // SAFETY: unlockpt takes the same process-owned master fd —
+    // the canonical pty unlock step, each return checked.
     assert_eq!(unsafe { libc::unlockpt(master) }, 0, "unlockpt failed");
     let mut buf = [0u8; 64];
     assert_eq!(
-        unsafe { libc::ptsname_r(master, buf.as_mut_ptr().cast(), buf.len()) },
+        unsafe {
+            // SAFETY: ptsname_r writes at most buf.len() bytes into
+            // the local array for the process-owned master fd.
+            libc::ptsname_r(master, buf.as_mut_ptr().cast(), buf.len())
+        },
         0,
         "ptsname_r failed"
     );
@@ -104,6 +112,9 @@ fn alloc_pty() -> Pty {
 /// the close.
 fn open_slave(path: &str) -> i32 {
     let c_path = std::ffi::CString::new(path).expect("pty paths carry no NUL");
+    // SAFETY: open(2) with a valid CString path the pty allocator
+    // just produced; the descriptor is this test's own handle, the
+    // caller's documented close responsibility.
     let fd = unsafe { libc::open(c_path.as_ptr(), libc::O_RDWR | libc::O_NOCTTY) };
     assert!(fd >= 0, "opening the pty slave {path} failed");
     fd
@@ -208,9 +219,18 @@ fn by_path_apply_cooks_a_cfmakeraw_tty() {
     let slave = open_slave(&pty.slave_path);
 
     // Break it exactly the way a violent TUI death leaves a tty.
+    // SAFETY: zeroed() is valid for libc::termios — a POD byte
+    // struct tcgetattr overwrites wholesale before any read; the
+    // fd is this test's own pty slave.
     let mut broken: libc::termios = unsafe { std::mem::zeroed() };
+    // SAFETY: tcgetattr reads the test's own pty slave termios into
+    // the local buffer above.
     assert_eq!(unsafe { libc::tcgetattr(slave, &mut broken) }, 0);
+    // SAFETY: cfmakeraw only rewrites the local termios struct —
+    // no descriptor touched, the raw shape the test then applies.
     unsafe { libc::cfmakeraw(&mut broken) };
+    // SAFETY: tcsetattr applies that local struct to the same
+    // process-owned pty slave fd the reads above used.
     assert_eq!(unsafe { libc::tcsetattr(slave, libc::TCSANOW, &broken) }, 0);
 
     // The rescue's by-path apply — the same lane the interposed
@@ -220,7 +240,10 @@ fn by_path_apply_cooks_a_cfmakeraw_tty() {
     // Read the state back through the pin's own fd: termios is
     // per-terminal, so this sees the apply's work regardless of
     // which fd carried it.
+    // SAFETY: zeroed() is the same valid POD start for termios the
+    // broken read above used; tcgetattr overwrites before any read.
     let mut after: libc::termios = unsafe { std::mem::zeroed() };
+    // SAFETY: tcgetattr on the same process-owned pty slave fd.
     assert_eq!(unsafe { libc::tcgetattr(slave, &mut after) }, 0);
     assert!(
         after.c_oflag & libc::OPOST != 0 && after.c_oflag & libc::ONLCR != 0,
@@ -253,11 +276,19 @@ fn by_path_apply_cooks_a_cfmakeraw_tty() {
 fn with_pty_termios(mutate: impl FnOnce(&mut libc::termios)) -> bool {
     let pty = alloc_pty();
     let slave = open_slave(&pty.slave_path);
+    // SAFETY: zeroed() is the valid POD start for termios (tcgetattr
+    // overwrites wholesale); the fd is this test's own pty slave.
     let mut t: libc::termios = unsafe { std::mem::zeroed() };
+    // SAFETY: tcgetattr on the test's own pty slave fd.
     assert_eq!(unsafe { libc::tcgetattr(slave, &mut t) }, 0);
     mutate(&mut t);
+    // SAFETY: tcsetattr applies the mutated local struct back to the
+    // same process-owned slave fd.
     assert_eq!(unsafe { libc::tcsetattr(slave, libc::TCSANOW, &t) }, 0);
+    // SAFETY: the same valid zeroed start for the read-back struct.
     let mut cur: libc::termios = unsafe { std::mem::zeroed() };
+    // SAFETY: tcgetattr on the same slave fd, the state the mutation
+    // produced — what the discrimination test reads.
     assert_eq!(unsafe { libc::tcgetattr(slave, &mut cur) }, 0);
     // SAFETY: close(2) the pin's slave fd.
     unsafe { libc::close(slave) };
@@ -272,6 +303,9 @@ fn with_pty_termios(mutate: impl FnOnce(&mut libc::termios)) -> bool {
 #[test]
 fn discrimination_fires_on_the_monitors_raw_residue() {
     assert!(
+        // SAFETY: cfmakeraw rewrites only the callback's local
+        // termios struct — with_pty_termios owns the descriptor
+        // traffic; no fd touched inside this closure.
         with_pty_termios(|t| unsafe {
             libc::cfmakeraw(t);
         }),
@@ -336,7 +370,10 @@ fn cure_moves_the_output_lane_and_nothing_else() {
 
     // A zle-raw reader's state: input flags and modes set to a
     // distinctive, deliberately non-default shape.
+    // SAFETY: zeroed() is the valid POD start for termios; the fd is
+    // this test's own pty slave.
     let mut before: libc::termios = unsafe { std::mem::zeroed() };
+    // SAFETY: tcgetattr on the test's own pty slave fd.
     assert_eq!(unsafe { libc::tcgetattr(slave, &mut before) }, 0);
     before.c_lflag &= !(libc::ICANON | libc::ECHO | libc::IEXTEN);
     before.c_lflag |= libc::ISIG;
@@ -344,6 +381,8 @@ fn cure_moves_the_output_lane_and_nothing_else() {
     before.c_iflag |= libc::IGNBRK;
     before.c_cc[libc::VMIN] = 1;
     before.c_cc[libc::VTIME] = 0;
+    // SAFETY: tcsetattr applies the hand-shaped local struct back to
+    // the same process-owned slave fd the read above used.
     assert_eq!(unsafe { libc::tcsetattr(slave, libc::TCSANOW, &before) }, 0);
 
     // The cure.

@@ -369,6 +369,9 @@ impl PidFd {
     fn cookie_for(&mut self, pid: u32, fd_num: i32) -> Option<u64> {
         // Open (or remember the failure) exactly once per PID.
         if matches!(self, PidFd::Untried) {
+            // SAFETY: SYS_pidfd_open takes the numeric pid and flags
+            // — no pointers; the returned fd is this process's own
+            // handle or the error the match below consumes.
             *self = match unsafe { libc::syscall(libc::SYS_pidfd_open, pid as libc::pid_t, 0u32) } {
                 fd if fd >= 0 => PidFd::Open(fd as i32),
                 _ => PidFd::Failed,
@@ -381,12 +384,19 @@ impl PidFd {
         // cookie, close the local copy — three syscalls, the price of
         // the join (there is no other userspace path from an inode or
         // a /proc row to a socket cookie).
+        // SAFETY: pidfd is this process's own pidfd handle; the
+        // syscall duplicates the foreign descriptor (fd_num) into
+        // this process or fails — no pointer arguments, the result
+        // is a fresh fd this method owns and closes below.
         let local = unsafe { libc::syscall(libc::SYS_pidfd_getfd, pidfd, fd_num, 0u32) };
         if local < 0 {
             return None;
         }
         let mut cookie: u64 = 0;
         let mut len = std::mem::size_of::<u64>() as libc::socklen_t;
+        // SAFETY: getsockopt with a writable u64 slot and the exact
+        // socklen for it; local is the fresh duplicate fd owned by
+        // this method, SO_COOKIE writes at most that size.
         let rc = unsafe {
             libc::getsockopt(
                 local as i32,
@@ -396,6 +406,9 @@ impl PidFd {
                 &mut len,
             )
         };
+        // SAFETY: local is the fd this method just duplicated and
+        // consumed via getsockopt; closing it releases exactly that
+        // handle.
         unsafe { libc::close(local as i32) };
         if rc == 0 && len as usize == std::mem::size_of::<u64>() {
             Some(cookie)
@@ -407,6 +420,8 @@ impl PidFd {
     /// Release the pidfd, if one was opened.
     fn close(&mut self) {
         if let PidFd::Open(fd) = *self {
+            // SAFETY: fd is the pidfd this struct opened and owns;
+            // the close runs exactly once (Untried resets after).
             unsafe { libc::close(fd) };
         }
         *self = PidFd::Untried;
@@ -471,6 +486,9 @@ mod tests {
     /// that contract by EXERCISING the close path on an Open fd.
     #[test]
     fn pidfd_close_on_open_fd_terminates() {
+        // SAFETY: open(2) of a fixed /dev/null path, read-only — the
+        // returned descriptor is this test process's own handle, the
+        // exact shape the close path under test owns.
         let devnull = unsafe { libc::open(c"/dev/null".as_ptr().cast(), libc::O_RDONLY) };
         assert!(devnull >= 0, "the pin needs a real fd");
         let mut pidfd = PidFd::Open(devnull);

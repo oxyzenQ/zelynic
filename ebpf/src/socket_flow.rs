@@ -191,6 +191,10 @@ pub(super) fn socket_flow(
         // best-effort, documented, never silently re-engineered.
         None => return 1,
     };
+    // SAFETY: the socket bucket's map value (the socket map's own
+    // get_ptr contract) is stable kernel memory for this
+    // invocation; the exclusive borrow is the only deref this
+    // function takes before the belt's raw-place reads below.
     let sb = unsafe { &mut *ptr };
 
     // The stale-token belt (the DRR leaf belt, one lane over): a
@@ -203,11 +207,19 @@ pub(super) fn socket_flow(
     // the predecessor's debt (the repair-6 discipline, structural
     // here — the word lives in the bucket the belt already owns).
     let generation = u64::from(current_generation());
+    // SAFETY: volatile reads of one 8-aligned field each — the
+    // same READ_ONCE discipline math.rs pins for the map-value
+    // contract; the projection carries no offset beyond the field.
     if unsafe { core::ptr::addr_of!(sb.gen_stamp).read_volatile() } != generation {
+        // SAFETY: same one-field volatile read, the stale-token
+        // probe against the live generation stamp above.
         let stale = unsafe { core::ptr::addr_of!(sb.core.tokens).read_volatile() };
         if stale != 0 {
             let _ = tokens_cas(&mut sb.core, stale, 0);
         }
+        // SAFETY: the belt's own one-field volatile read of the debt
+        // word — the same READ_ONCE discipline the token probe above
+        // rides; the projection stays inside the map value.
         let stale_debt = unsafe { core::ptr::addr_of!(sb.ecn_debt).read_volatile() };
         if stale_debt != 0 {
             // Plain volatile write, the gen_stamp's own form: the
@@ -217,8 +229,13 @@ pub(super) fn socket_flow(
             // raced stale charge from the dead generation lands at
             // most one cap and pays down through the fresh stream —
             // the budget bound never depends on the belt's timing.
+            // SAFETY: one-field volatile write to the same
+            // 8-aligned map value, idempotent under the belt race
+            // (the comment above owns the semantics).
             unsafe { core::ptr::addr_of_mut!(sb.ecn_debt).write_volatile(0) };
         }
+        // SAFETY: the belt's stamp advance — the same one-field
+        // volatile write form, idempotent under the same race.
         unsafe { core::ptr::addr_of_mut!(sb.gen_stamp).write_volatile(generation) };
     }
 
@@ -230,6 +247,9 @@ pub(super) fn socket_flow(
     // wholesale clobbered by the other's write-back). The addr_of
     // borrow keeps the gen_stamp field above and the core below
     // from aliasing as simultaneous &mut borrows.
+    // SAFETY: the projection targets the sb.core field of the same
+    // map value — addr_of_mut! derives the place without touching
+    // gen_stamp, so the two fields never alias as live borrows.
     let bkt = unsafe { &mut *core::ptr::addr_of_mut!(sb.core) };
     refill_window(pol, bkt, now);
     let allowed = try_consume(bkt, pkt_len);
@@ -262,6 +282,9 @@ pub(super) fn socket_flow(
     // an unlimited pass). A rescued packet is DELIVERED: book the
     // drop first, then the rescue's correction pair moves it to the
     // allowed column exactly (the math.rs book_rescue contract).
+    // SAFETY: the helper call takes the program's own skb pointer
+    // (the bpf_skb_ecn_set_ce signature contract); the return is a
+    // plain i64, no pointer crosses back.
     if unsafe { super::bpf_skb_ecn_set_ce(skb) } == 0 {
         return match stats {
             Some(s) => {
