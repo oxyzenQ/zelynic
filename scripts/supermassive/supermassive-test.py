@@ -6803,11 +6803,25 @@ def self_test():
 
     def agree(name, client_bytes, server_bytes):
         ratio = client_bytes / server_bytes if server_bytes else 0.0
-        return record(
-            name,
-            "PASS" if 0.5 <= ratio <= 1.5 else "FAIL",
-            f"client {client_bytes} vs server {server_bytes} ({ratio * 100:.1f}%)",
-        )
+        detail = f"client {client_bytes} vs server {server_bytes} ({ratio * 100:.1f}%)"
+        if client_bytes and not server_bytes:
+            # A zero fold against live client bytes is the fold-at-close
+            # race, not a broken engine: the /dl counter lands only when
+            # the server thread notices the client's close, and under
+            # live enforcement on this host the policer shapes the
+            # test's OWN loopback stream — the policed close path can
+            # land after settle()'s window (seen live 2026-10-27: the
+            # terminal's cgroup was still pinned, every download row
+            # read server 0 at ~130 KB/s client-side, and the same tree
+            # scored 37/0 on the unpoliced host). Name the way out
+            # instead of blaming the harness.
+            detail += (
+                " — server counter never folded: live enforcement on"
+                " this host shapes this test's own loopback traffic"
+                " (check: zelynic status; clear: sudo zelynic u --all;"
+                " then re-run)"
+            )
+        return record(name, "PASS" if 0.5 <= ratio <= 1.5 else "FAIL", detail)
 
     SERVER = HttpServer()
     SERVER.reset()

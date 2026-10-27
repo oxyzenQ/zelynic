@@ -34,8 +34,8 @@
 #       tracked executables and directories 755, shebang parity;
 #       scripts/gates/check-permissions.sh, --fix chmods)
 #   8.  Emoji sweep (owner rule — no emoji-class codepoints in ANY
-#       tracked text file; cosmostrix fail blocks, strict detector,
-#       exit 1 on hits)
+#       working-tree text file, tracked or not — new files fail before
+#       commit; cosmostrix fail blocks, strict detector, exit 1 on hits)
 #   9.  Rust source LOC cap (owner rule — scripts/gates/check-loc.sh,
 #       NIGHT-improve-44: hard limit 600 lines, tree-wide by file type,
 #       no exemptions — over the cap means split, no mercy)
@@ -551,10 +551,11 @@ if len(hits) > 20:
 sys.exit(1 if hits else 0)
 PYEOF
 	if [ "$EMOJI_RC" -eq 0 ]; then
-		info "emoji sweep: no emoji-class codepoints in tracked text files"
+		info "emoji sweep: no emoji-class codepoints in working-tree text files (tracked + untracked)"
 		PASS=$((PASS + 1))
 	else
 		fail "emoji sweep: emoji found (review the file:line list above)"
+		warn "the sweep is working-tree-wide by design — untracked local artifacts (session logs, scratch dumps) are swept too; move them out of the repo or delete them"
 	fi
 else
 	warn "python3 not installed — skipping"
