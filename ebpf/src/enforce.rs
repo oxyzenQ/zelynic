@@ -93,7 +93,7 @@ pub(crate) fn try_enforce(
     // itself is unpoliced, but MMSPA must still ask whether an
     // ANCESTOR of it is: a strict on cgroup A covers every socket
     // born under A/** (the subtree contract), resolved per packet.
-    let (cgroup_id, pol) = match policy_map.get_ptr(&leaf) {
+    let (cgroup_id, pol) = match policy_map.get_ptr(leaf) {
         // SAFETY: aya's get_ptr hands a pointer into stable kernel
         // map memory, valid for this program invocation's lifetime;
         // the shared read borrow never outlives the invocation and
@@ -104,7 +104,7 @@ pub(crate) fn try_enforce(
             if root == 0 {
                 return 1;
             }
-            match policy_map.get_ptr(&root) {
+            match policy_map.get_ptr(root) {
                 // SAFETY: same map-value contract as the leaf lookup
                 // above — stable kernel memory, one invocation
                 // lifetime, the walk's root is a live map key.
@@ -332,15 +332,15 @@ pub(crate) fn try_enforce(
         // on every packet would drain the token stock toward the
         // debt and starve the lane below the policy. The raw place
         // never overlaps the &mut borrow the lane consumed above.
-        if verdict == 1 {
-            if let Some(dp) = get_debt_ptr(debt_map, &debt_key) {
-                // SAFETY: the raw place targets one 8-aligned field
-                // of the same map value the lane borrowed — the &mut
-                // borrow was consumed by enforce's return, so no
-                // live alias overlaps; dp is the debt map's own
-                // valid value pointer (get_debt_ptr's contract).
-                unsafe { ecn::debt_pay(core::ptr::addr_of_mut!((*bkt_raw).tokens), dp) };
-            }
+        if verdict == 1
+            && let Some(dp) = get_debt_ptr(debt_map, &debt_key)
+        {
+            // SAFETY: the raw place targets one 8-aligned field
+            // of the same map value the lane borrowed — the &mut
+            // borrow was consumed by enforce's return, so no
+            // live alias overlaps; dp is the debt map's own
+            // valid value pointer (get_debt_ptr's contract).
+            unsafe { ecn::debt_pay(core::ptr::addr_of_mut!((*bkt_raw).tokens), dp) };
         }
         // The ECN-first rescue: a drop verdict asks the kernel for a
         // CE mark first; only a refusal (or a debt at its cap, or a
@@ -414,14 +414,14 @@ pub(crate) fn try_enforce(
     // the leaf draws, AFTER the lane delivered: the call-site law
     // (ecn.rs debt_pay docs — the starvation close). The raw place
     // never overlaps the &mut borrow the lane consumed above.
-    if verdict == 1 {
-        if let Some(dp) = get_debt_ptr(debt_map, &debt_key) {
-            // SAFETY: same raw-place discipline as the group lane's
-            // debt pay — one 8-aligned field of the map value whose
-            // &mut borrow drr_flow consumed, no live alias; dp is
-            // the debt map's valid value pointer.
-            unsafe { ecn::debt_pay(core::ptr::addr_of_mut!((*pool_ptr).tokens), dp) };
-        }
+    if verdict == 1
+        && let Some(dp) = get_debt_ptr(debt_map, &debt_key)
+    {
+        // SAFETY: same raw-place discipline as the group lane's
+        // debt pay — one 8-aligned field of the map value whose
+        // &mut borrow drr_flow consumed, no live alias; dp is
+        // the debt map's valid value pointer.
+        unsafe { ecn::debt_pay(core::ptr::addr_of_mut!((*pool_ptr).tokens), dp) };
     }
     // The ECN-first rescue: a drop verdict asks the kernel for a CE
     // mark first; only a refusal (or a debt at its cap, or a debt-map

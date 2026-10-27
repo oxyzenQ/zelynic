@@ -238,7 +238,7 @@ pub(super) fn try_flow_draw(
     //    leaf's budget, the flow allowance.
     let pool_share_key = (generation << 32) | u64::from(*root);
     let leaf_peak = pool_share_map
-        .get_ptr(&pool_share_key)
+        .get_ptr(pool_share_key)
         .map(|p| drr::pool_share_peak(word_read(p)))
         .unwrap_or(0);
     let leaf_budget = drr::flow_leaf_budget(pol.rate_bps, leaf_peak);
