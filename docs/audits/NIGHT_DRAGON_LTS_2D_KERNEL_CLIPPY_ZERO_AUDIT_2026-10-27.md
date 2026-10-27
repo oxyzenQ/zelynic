@@ -15,8 +15,8 @@
 
 The lts-2c record wired the SAFETY gate and left the kernel crate's
 warn-level clippy noise as the honest residual: "the kernel shape's
-pre-existing warn-level clippy lints (the needless-borrow family, 15
-+ 23 across the two bins) remain a future owner's hunt." The owner
+pre-existing warn-level clippy lints (the needless-borrow family,
+15 + 23 across the two bins) remain a future owner's hunt." The owner
 called the hunt. The mandate is exactly that hunt and nothing more:
 no lint level changes, no new gates, the CI workflow untouched — the
 warning count itself goes to zero, and the nightly instrument becomes
@@ -38,14 +38,14 @@ dropped (`enforce_helpers.rs:216`, the debt map's get-or-create) —
 
 ## 3. The fixes — three mechanics, one house allow, one demotion
 
-- **Needless borrows (30)**: the redundant `&` dropped at each call
++ **Needless borrows (30)**: the redundant `&` dropped at each call
   site — the auto-reborrow shape (the callee's generic parameter
   already takes the value; the compiler verifies each site, and a
   wrong drop would not type-check). The aya map-call sites
   (`get_ptr`/`get_ptr_mut`/`insert`/`remove`) carry no unsafe of
   their own — every SAFETY comment around them comments the pointer
   derefs, which did not move.
-- **Collapsed ifs (6)**: the nested
++ **Collapsed ifs (6)**: the nested
   `if cond { if let Some(x) = e { ... } }` pairs fused through the
   edition-2024 let-chain form (`if cond && let Some(x) = e`). The
   short-circuit CFG is the branch structure the nesting already was.
@@ -53,19 +53,19 @@ dropped (`enforce_helpers.rs:216`, the debt map's get-or-create) —
   comments immediately above their `unsafe` blocks — the lts-2c deny
   gate was live during every edit and the final build is green under
   it, so the three-line window provably held.
-- **The demotion (1)**: the limiter's pre-`enforce_dl` narrative
++ **The demotion (1)**: the limiter's pre-`enforce_dl` narrative
   block (the think-like-light-years-3 get-stats lineage note) was a
   `///` doc block attached to nothing, split from the function's own
   doc by a blank line — demoted to plain `//` comments, text
   preserved byte-for-byte, and the function's real doc block now
   attaches to its function alone.
-- **The house allow (1)**: `try_draw`'s nine names are the fixed
++ **The house allow (1)**: `try_draw`'s nine names are the fixed
   operand set of the v13 draw sequence (policy, two buckets, two
   maps, two keys, stamp, now); the repo's own answer to the same lint
   on the same crate already exists at `enforce.rs:42` (`try_enforce`
   carries `#[allow(clippy::too_many_arguments)]`) — the draw
   orchestrator mirrors it, zero body churn, no call-site edits.
-- **The eta reduction (1)**: `.map(|p| word_read(p))` is
++ **The eta reduction (1)**: `.map(|p| word_read(p))` is
   `.map(word_read)` — `word_read` is exactly the `*const u64 -> u64`
   the closure spelled.
 
@@ -85,15 +85,15 @@ live-eBPF legs remain CI-owned — the standing boundary of the series.
 
 ## 5. The verification stack
 
-- Kernel clippy: **zero warnings** — the first silent run of the
++ Kernel clippy: **zero warnings** — the first silent run of the
   series (`cargo clippy` in `ebpf/`, pinned nightly, exit 0, no
   warning footer).
-- rustfmt clean on both crates (`cargo fmt --all -- --check`, exit 0
++ rustfmt clean on both crates (`cargo fmt --all -- --check`, exit 0
   each — the kernel crate through its pinned toolchain).
-- The full default-features suite on the new objects: 975 passed,
++ The full default-features suite on the new objects: 975 passed,
   0 failed, 4 ignored (the benchmark harnesses, by design).
-- The gate-keeper battery: 24/0.
-- The SAFETY gate: live and green throughout — no annotation moved
++ The gate-keeper battery: 24/0.
++ The SAFETY gate: live and green throughout — no annotation moved
   out of its window, zero undocumented-unsafe findings before and
   after.
 
@@ -110,14 +110,14 @@ live-eBPF legs remain CI-owned — the standing boundary of the series.
 
 ## 7. Honest residuals
 
-- The nightly clippy run inside `ebpf/` stays a manual instrument —
++ The nightly clippy run inside `ebpf/` stays a manual instrument —
   but it is now a SILENT instrument: any future kernel-side warning
   will be new, not inherited noise. Wiring it as a standing CI lane
   remains the owner's gate-inventory call (the freeze that held for
   lts-2c's gate holds here; this round changed no wiring).
-- The live-eBPF legs (crash recovery, races, reload, endurance, the
++ The live-eBPF legs (crash recovery, races, reload, endurance, the
   VM matrix) remain CI-owned — no root or KVM on the audit host.
-- The observer object grew 80 bytes while the limiter shed 400:
++ The observer object grew 80 bytes while the limiter shed 400:
   section-alignment movement from the same fix set, structurally
   verified on both sides; recorded here so the movement is on the
   record, not a surprise for the next byte-pinned round.
