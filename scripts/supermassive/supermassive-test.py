@@ -1877,11 +1877,38 @@ def stage_server_dual_dir_duel():
             25,
         )
 
+    # The upload leg is judged on DELIVERED bytes - the server's own
+    # /ul counter averaged over the real delivery horizon. The
+    # client-side send count is an upper bound a drop-based policer
+    # cannot bound: the kernel's socket buffers absorb what the bucket
+    # refuses, and on a contended low-spec runner that headroom
+    # measured 137.6% of a 3mb limit the kernel was actively policing
+    # (the drop row below proves it was dropping all along). Delivered
+    # bytes are what the bucket actually let through; the horizon runs
+    # until the counter stabilizes, so the post-window socket-buffer
+    # drain lands in the denominator, not just the numerator.
+    SERVER.reset()
+    started_at = time.perf_counter()
     with ThreadPoolExecutor(max_workers=2) as pool:
         dl_future = pool.submit(dl_leg, None)
         ul_future = pool.submit(ul_leg, None)
         dl_metric, dl_err = dl_future.result()
         ul_metric, ul_err = ul_future.result()
+    deadline = time.monotonic() + 10.0
+    last, stable = -1, 0
+    while time.monotonic() < deadline:
+        current = SERVER.peek()["ul"]
+        if current == last:
+            stable += 1
+            if stable >= 2:
+                break
+        else:
+            stable = 0
+        last = current
+        time.sleep(0.2)
+    horizon = time.perf_counter() - started_at
+    ul_delivered = SERVER.peek()["ul"]
+    ul_delivered_rate = ul_delivered / horizon if horizon else 0.0
     ok = True
     ok = (
         band_check(
@@ -1896,18 +1923,23 @@ def stage_server_dual_dir_duel():
     ok = (
         band_check(
             "server: duel upload leg in-band (under cross-traffic)",
-            (ul_metric or 0) / 5.0,
+            ul_delivered_rate,
             3_000_000,
-            extra=ul_err[:120] if ul_err else "",
+            extra=(
+                f"client sent {fmt_bps((ul_metric or 0) / 5.0)}, "
+                f"delivered over {horizon:.1f}s horizon" + (f"; {ul_err[:80]}" if ul_err else "")
+            ),
         )
         == "PASS"
         and ok
     )
     # The no-cross-leak verdict: the two buckets are per-direction, so
-    # the combined rate may reach but never exceed their SUM (a
-    # combined rate over the sum would mean one direction's traffic
-    # rode the other direction's bucket).
-    combined = ((dl_metric or 0) + (ul_metric or 0)) / 5.0
+    # the combined DELIVERED rate may reach but never exceed their SUM
+    # (dl's client-side recv count is delivered by construction; the
+    # upload side is the server's own delivered counter now - a
+    # combined delivered rate over the sum would mean one direction's
+    # traffic rode the other direction's bucket).
+    combined = (dl_metric or 0) / 5.0 + ul_delivered_rate
     ok = (
         record(
             "server: duel combined never exceeds the bucket sum",
