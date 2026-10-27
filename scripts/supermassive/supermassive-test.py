@@ -6517,6 +6517,11 @@ def self_test():
     # one behind a too-low floor.
     floor_pins = {
         1_000: 0.0,  # windowed sub-skb regime: drops carry the verdict
+        # the skb-refill beat: the 100kb bucket banks ~1.5 skbs, so the
+        # floor prices the min-RTO re-arm ladder, not the full band
+        100_000: lib.LOOPBACK_GSO_SKB
+        / (lib.LOOPBACK_GSO_SKB / 100_000 + lib.RTO_REARM_BUDGET_S)
+        / 100_000,
         100_000_000: lib.BAND_LO,  # clamp binds, cushion still 1 s: full band
         1_000_000_000: 0.5,  # clamp leaves 0.1 s: cushion / min-RTO
     }
