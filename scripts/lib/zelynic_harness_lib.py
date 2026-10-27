@@ -65,7 +65,7 @@ BAND_HI = 1.30
 #   clears the worst with 6-10% margin (~3x the cross-leg spread),
 #   and any sustained delivery under half the configured rate - a
 #   real regression, not steal - goes red;
-# - the drift guard trims exactly one window, the minimum: steal can
+# - the drift guard drops exactly one window, the minimum: steal can
 #   only DEPRESS a window (the limiter cannot over-deliver past
 #   rate+burst, so the maximum is always trusted) - a second slow
 #   window still fails it. Floor 0.5, the original guard's floor.
