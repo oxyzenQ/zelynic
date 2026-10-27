@@ -87,7 +87,7 @@ BAND_HI = 1.30
 #   filed trimmed drifts of 0.434 and 0.464 (medians 46% and 45%,
 #   BPF accounting clean, the same VM's single-shot rows healthy)
 #   while a genuine steal burst (run 40480466520's 11/13/18/60
-#   percent sweep) trims to 0.217 — an order-of-magnitude gap
+#   percent sweep) sits at 0.217 — an order-of-magnitude gap
 #   between the noise shape and the collapse shape. The floor
 #   follows the ledger's own principle (sit below the observed
 #   noise-worst with margin): 0.40 clears the 0.434 observed worst
