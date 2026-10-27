@@ -359,25 +359,43 @@ pub fn reset() -> &'static str {
 
 // ── Color application helpers ──────────────────────────────────────────────
 //
-// Every wrapper short-circuits Mono to the plain message — no escape
-// concatenation, no allocation of style bytes that would never render.
+// Every wrapper routes through [`wrap_single_line`]: Mono resolves
+// inside the capability-aware open/reset sequences (both empty), so
+// a Mono host gets the plain message with no escape concatenation
+// and no allocation of style bytes that would never render.
+
+/// The single-line wrap choke point (night-dragon-maintenance-8).
+///
+/// ONE enforcement seat for the contract every wrapper shares: `msg`
+/// must be a SINGLE line. A color wrap around a multi-line string
+/// opens one SGR span that paints every line after the first with it
+/// — the named incident is the `-V` version report, whose whole
+/// six-line build-facts body rode one grey wrap and rendered grey
+/// below the description on every TTY (the estate siblings —
+/// zejtron, zylaxion, cosmostrix — print their build facts in the
+/// default terminal color). Per-line coloring is the caller's
+/// discipline: split the lines, wrap each, join. Debug builds (the
+/// test battery included) panic with this reason; release builds
+/// keep zero added cost.
+#[inline]
+fn wrap_single_line(open: &str, msg: &str) -> String {
+    debug_assert!(
+        !msg.contains('\n'),
+        "color helpers wrap single lines only — a multi-line msg paints every line after the first with it (night-dragon-maintenance-8, the -V body field report); split the lines and wrap each"
+    );
+    format!("{}{msg}{}", open, reset())
+}
 
 /// Wrap `msg` in bold brand purple. Plain text when color is off.
 #[must_use]
 pub fn brand_bold(msg: &str) -> String {
-    match capability() {
-        ColorCapability::Mono => msg.to_string(),
-        _ => format!("{}{msg}{}", brand_bold_open(), reset()),
-    }
+    wrap_single_line(brand_bold_open(), msg)
 }
 
 /// Wrap `msg` in brand purple (regular weight). Plain text when color is off.
 #[must_use]
 pub fn brand(msg: &str) -> String {
-    match capability() {
-        ColorCapability::Mono => msg.to_string(),
-        _ => format!("{}{msg}{}", brand_open(), reset()),
-    }
+    wrap_single_line(brand_open(), msg)
 }
 
 /// Wrap `msg` in status green (regular weight). Plain text when color
@@ -388,56 +406,38 @@ pub fn brand(msg: &str) -> String {
 /// below the bold purple section headings in the visual hierarchy.
 #[must_use]
 pub fn ok(msg: &str) -> String {
-    match capability() {
-        ColorCapability::Mono => msg.to_string(),
-        _ => format!("{}{msg}{}", ok_open(), reset()),
-    }
+    wrap_single_line(ok_open(), msg)
 }
 
 /// Wrap `msg` in bold status green. Plain text when color is off.
 #[must_use]
 pub fn ok_bold(msg: &str) -> String {
-    match capability() {
-        ColorCapability::Mono => msg.to_string(),
-        _ => format!("{}{msg}{}", ok_bold_open(), reset()),
-    }
+    wrap_single_line(ok_bold_open(), msg)
 }
 
 /// Wrap `msg` in error red (regular weight). Plain text when color is off.
 #[must_use]
 pub fn error(msg: &str) -> String {
-    match capability() {
-        ColorCapability::Mono => msg.to_string(),
-        _ => format!("{}{msg}{}", error_open(), reset()),
-    }
+    wrap_single_line(error_open(), msg)
 }
 
 /// Wrap `msg` in bold error red. Plain text when color is off.
 #[must_use]
 pub fn error_bold(msg: &str) -> String {
-    match capability() {
-        ColorCapability::Mono => msg.to_string(),
-        _ => format!("{}{msg}{}", error_bold_open(), reset()),
-    }
+    wrap_single_line(error_bold_open(), msg)
 }
 
 /// Wrap `msg` in warning yellow (regular weight). Plain text when color is off.
 #[cfg(feature = "ebpf")]
 #[must_use]
 pub fn warn(msg: &str) -> String {
-    match capability() {
-        ColorCapability::Mono => msg.to_string(),
-        _ => format!("{}{msg}{}", warn_open(), reset()),
-    }
+    wrap_single_line(warn_open(), msg)
 }
 
 /// Wrap `msg` in bold warning yellow. Plain text when color is off.
 #[must_use]
 pub fn warn_bold(msg: &str) -> String {
-    match capability() {
-        ColorCapability::Mono => msg.to_string(),
-        _ => format!("{}{msg}{}", warn_bold_open(), reset()),
-    }
+    wrap_single_line(warn_bold_open(), msg)
 }
 
 /// Wrap `msg` in suggestion crystal white. Plain text when color is off.
@@ -445,10 +445,7 @@ pub fn warn_bold(msg: &str) -> String {
 #[cfg(feature = "ebpf")]
 #[must_use]
 pub fn suggestion(msg: &str) -> String {
-    match capability() {
-        ColorCapability::Mono => msg.to_string(),
-        _ => format!("{}{msg}{}", suggestion_open(), reset()),
-    }
+    wrap_single_line(suggestion_open(), msg)
 }
 
 // ── Champion tier (NIGHT-boost-5; NIGHT-boost-14 calmed it) ─────────────
@@ -468,10 +465,7 @@ pub fn hot_open() -> &'static str {
 #[cfg(feature = "ebpf")] // only the eagle-eyes renderer crowns a champion
 #[must_use]
 pub fn hot(msg: &str) -> String {
-    match capability() {
-        ColorCapability::Mono => msg.to_string(),
-        _ => format!("{}{msg}{}", hot_open(), reset()),
-    }
+    wrap_single_line(hot_open(), msg)
 }
 
 // ── Grey tier (NIGHT-boost-14) ────────────────────────────────────────
@@ -503,10 +497,7 @@ pub fn grey_open() -> &'static str {
 /// Wrap `msg` in calm grey. Plain text when off.
 #[must_use]
 pub fn grey(msg: &str) -> String {
-    match capability() {
-        ColorCapability::Mono => msg.to_string(),
-        _ => format!("{}{msg}{}", grey_open(), reset()),
-    }
+    wrap_single_line(grey_open(), msg)
 }
 
 // NIGHT-boost-23: the color pins live under the single test/ tree

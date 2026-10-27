@@ -141,7 +141,16 @@ fn version_body() -> String {
 /// Print the full version report for `-V` / `--version`.
 ///
 /// cosmostrix masterclass layout: brand header (name + version, then
-/// the one-line description), followed by plain build facts. The
+/// the one-line description), followed by plain build facts. **Plain
+/// is a law, not a default (night-dragon-maintenance-8):** the body
+/// rides the terminal's default color — the estate siblings
+/// (zejtron, zylaxion, cosmostrix) print their build facts
+/// uncolored, and a field report caught the whole body grey below
+/// the description when a single grey() wrap spanned the six lines
+/// (one SGR open, six painted lines). The color layer now refuses a
+/// multi-line wrap in debug builds, and the only color decision this
+/// report makes — the brand-wrapped two-line header — lives in
+/// [`version_report_payload`], pinned by test. The
 /// header is rendered in brand purple #A855F7 (regular weight,
 /// exactly as the cosmostrix `version_report()` does) on a TTY,
 /// degrading through 256-color/16-color tiers; when piped (non-TTY)
@@ -178,14 +187,51 @@ fn version_body() -> String {
 /// architecture story in the tagline's "Pure eBPF" and
 /// docs/COSMIC_DRAGON_ARCHITECTURE.md.
 pub fn print_version_report() {
-    let header = format!("{NAME}: v{VERSION}\n{DESCRIPTION}");
-    println_safe!("{}", crate::output::brand(&header));
-    println_safe!("{}", crate::output::grey(&version_body()));
+    let (header, body) = version_report_payload();
+    println_safe!("{header}");
+    println_safe!("{body}");
+}
+
+/// The `-V` payload in its two terminal shapes, separated so the
+/// color law is testable without capturing stdout (the
+/// [`version_body`] precedent): the brand-wrapped header lines and
+/// the PLAIN build-facts body. Each header line carries its own
+/// brand wrap — the single-line law (the two-line header was a
+/// second latent instance the choke point caught the day it landed);
+/// the body carries no color wrap by construction, so the
+/// estate-parity law (default terminal color below the description)
+/// cannot regress at the print site.
+fn version_report_payload() -> (String, String) {
+    (
+        format!(
+            "{}\n{}",
+            crate::output::brand(&format!("{NAME}: v{VERSION}")),
+            crate::output::brand(DESCRIPTION),
+        ),
+        version_body(),
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// night-dragon-maintenance-8 contract: the version report's body
+    /// reaches the terminal in the DEFAULT terminal color — the estate
+    /// siblings (zejtron, zylaxion, cosmostrix) print their build
+    /// facts plain, and the field report was the whole body grey
+    /// below the description (one grey() wrap spanning six lines).
+    /// The payload pins the split: the body carries no ANSI escape
+    /// bytes at all, on every color capability, and the brand header
+    /// is the only colored surface this report emits.
+    #[test]
+    fn version_report_body_is_plain_estate_parity() {
+        let (_header, body) = version_report_payload();
+        assert!(
+            !body.contains('\x1b'),
+            "the -V body must print plain — no color wrap around the multi-line build facts"
+        );
+    }
+
     /// NIGHT-blade-4 contract: the license line exists as ONE
     /// contiguous literal (LICENSE_LINE) — the release pipeline's
     /// AVX-512 legs grep exactly those bytes out of `strings` on

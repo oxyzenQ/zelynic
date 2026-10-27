@@ -81,6 +81,21 @@ v80.0.0
 
 ### Fixed
 
+- **fix(ux): night-dragon-maintenance-8 — the -V version report's
+  body prints plain (the owner's field report).** The whole
+  build-facts body (Build through Source) rendered grey below the
+  description on every TTY: one grey() wrap spanned the six-line
+  body, one SGR open painting every line after the first with it,
+  while the estate siblings (zejtron, zylaxion, cosmostrix) print
+  their build facts in the default terminal color — the report's own
+  rustdoc already promised "plain build facts", the wrap broke its
+  own contract. The body now prints plain (the brand header keeps
+  its wrap), the header/body split is pinned by a no-ANSI test, and
+  the color layer gained the single-line wrap choke point: all
+  eleven wrappers route through one seat that refuses a multi-line
+  message in debug builds, so this class cannot come back on any
+  CLI output path silently.
+
 - **fix(cli): NIGHT-improve-73 — one color law for every error
   surface.** The clap error half of a usage error ran its own private
   color probe (clap `Error::print` → AutoStream), so `--color-mode 0`

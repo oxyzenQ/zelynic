@@ -109,3 +109,33 @@ fn color_mode_grammar_parses_every_alias() {
         );
     }
 }
+
+/// night-dragon-maintenance-8: the single-line wrap choke point.
+/// Every color wrapper routes through one seat, and that seat refuses
+/// a multi-line message in debug builds — one SGR open around N lines
+/// paints lines 2..N with it (the named incident: the whole -V
+/// build-facts body rode one grey wrap and rendered grey below the
+/// description; the estate siblings print their build facts plain).
+/// The pin runs in the debug test profile, exactly where the
+/// debug_assert fires; release builds keep zero added cost.
+#[test]
+#[should_panic(expected = "single lines only")]
+fn wrap_choke_point_refuses_a_multi_line_msg() {
+    let _ = grey("line one\nline two");
+}
+
+/// The choke point stays a pass-through for honest single-line calls:
+/// the message survives untouched, bracketed by the capability-aware
+/// open and reset of the same tier (both empty on a Mono host, so the
+/// assertion holds on every capability the suite runs under).
+#[test]
+fn wrap_choke_point_wraps_a_single_line_unchanged() {
+    let wrapped = grey("single line");
+    assert!(wrapped.contains("single line"), "msg survives: {wrapped}");
+    let open = grey_open();
+    let close = reset();
+    assert!(
+        wrapped.starts_with(open) && wrapped.ends_with(close),
+        "the wrap pairs its own open and reset: {open:?} .. {close:?}"
+    );
+}
