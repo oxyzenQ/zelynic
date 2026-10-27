@@ -93,6 +93,11 @@ jobs:
     # such tests out of the audited families lives in
     # scripts/lib/miri.sh's header; the escape hatch for a genuine
     # whole-suite probe is `./scripts/build.sh miri --full` (local).
+    # night-dragon-maintenance-4 added the STRUCTURAL half: the lane
+    # walks pass --tests (the doctest lane never interprets — the
+    # docs/burden class cannot re-enter by shape) and each lane runs
+    # under its own 900s coreutils budget, so the containment also
+    # holds on a local run where this job-level cap does not reach.
     timeout-minutes: 40
 
     steps:

@@ -47,6 +47,27 @@
 # run past that boundary fails loudly inside the budget instead of
 # hanging the runner for 30+ minutes.
 #
+# The structural containment (night-dragon-maintenance-4, the second
+# half of the incident's lesson — the audit found the port held the
+# families-level admission law but left two class-level doors open):
+#   1. the lane invocations pass --tests, so the DOCTEST lane never
+#      rides the interpreter — cargo miri test compiles and runs
+#      rustdoc examples by default, and a future doc example is
+#      exactly the docs/burden shape the sibling hung on (23 of its
+#      33 hang-minutes were docs full-text scans). Today the repo
+#      carries zero runnable doctests (verified: the one doc block is
+#      ```text); --tests makes that an INVARIANT instead of an audit
+#      fact. Doctests stay natively verified in every other lane,
+#      where the docs gates own them.
+#   2. every lane walk runs under a coreutils timeout budget
+#      (MIRI_LANE_BUDGET, default 900s — ~5.6x the measured per-lane
+#      record) so the containment holds on a LOCAL run too: the
+#      workflow's timeout-minutes protects CI, but ./scripts/build.sh
+#      miri used to hang a dev machine indefinitely on the same
+#      burden shape. A budget expiry dies loudly with the incident
+#      framing (rc 124/137), stamping FAILED — it can never read
+#      like a pass.
+#
 # Scope (substring filters against the full test path):
 #   - limiter::during::    the --during grammar, translation, verdict twin
 #   - ebpf::display::      the status table + the ceil countdown pins
@@ -72,6 +93,12 @@
 MIRI_FILTER="${MIRI_FILTER:-}"
 MIRI_NO_INSTALL="${MIRI_NO_INSTALL:-0}"
 MIRI_FULL="${MIRI_FULL:-0}"
+# The per-lane wall-clock budget in seconds (night-dragon-maintenance-4,
+# the structural containment — see the header). 900s is ~5.6x the
+# measured per-lane record (319.7s total / 2 lanes on an 8-core host,
+# a 2-core box compiles ~2-3x slower and still fits). The CI job's
+# timeout-minutes is the outer belt; this is the local-run belt.
+MIRI_LANE_BUDGET="${MIRI_LANE_BUDGET:-900}"
 
 readonly MIRI_STAMP_FILE="target/miri-stamp"
 readonly MIRI_LOG_FILE="target/miri-log.txt"
@@ -272,15 +299,33 @@ run_miri() {
 			;;
 		esac
 		local -a harness_args=("$@")
+		# --tests (night-dragon-maintenance-4): the doctest lane never
+		# rides the interpreter — the structural containment the header
+		# documents. The audited families are unit/integration targets;
+		# a future doc example cannot re-enter the run by shape.
+		local -a miri_cmd=(cargo "+${nightly_name}" miri test --locked --tests "${lane_args[@]}")
 		if [ "${#harness_args[@]}" -gt 0 ]; then
-			MIRIFLAGS="${MIRIFLAGS:--Zmiri-disable-isolation}" \
-				cargo "+${nightly_name}" miri test --locked "${lane_args[@]}" -- "${harness_args[@]}" \
-				2>&1 | tee -a "${MIRI_LOG_FILE}" || return 1
-		else
-			MIRIFLAGS="${MIRIFLAGS:--Zmiri-disable-isolation}" \
-				cargo "+${nightly_name}" miri test --locked "${lane_args[@]}" \
-				2>&1 | tee -a "${MIRI_LOG_FILE}" || return 1
+			miri_cmd+=(-- "${harness_args[@]}")
 		fi
+		# The per-lane wall-clock budget (night-dragon-maintenance-4):
+		# the CI job's timeout-minutes is the outer belt; this is the
+		# belt that also holds on a local run. A burden shape dies
+		# loudly (rc 124 = budget, 137 = kill-after) instead of
+		# hanging the runner or a dev machine indefinitely.
+		local rc=0
+		if command -v timeout >/dev/null 2>&1; then
+			MIRIFLAGS="${MIRIFLAGS:--Zmiri-disable-isolation}" \
+				timeout --kill-after=30s "${MIRI_LANE_BUDGET}" \
+				"${miri_cmd[@]}" 2>&1 | tee -a "${MIRI_LOG_FILE}" || rc=$?
+		else
+			log_warning "coreutils timeout not found — the per-lane budget guard is off (the structural containment runs unbelted)"
+			MIRIFLAGS="${MIRIFLAGS:--Zmiri-disable-isolation}" \
+				"${miri_cmd[@]}" 2>&1 | tee -a "${MIRI_LOG_FILE}" || rc=$?
+		fi
+		if [ "${rc}" -eq 124 ] || [ "${rc}" -eq 137 ]; then
+			log_error "the ${lane} lane hit its ${MIRI_LANE_BUDGET}s wall-clock budget (rc=${rc}) — a burden shape (a docs full-text scan, an unbounded loop) died the loud death the containment law promises instead of hanging the run. Inspect ${MIRI_LOG_FILE} for the last family alive."
+		fi
+		return "${rc}"
 	}
 
 	local start_ms end_ms duration_ms
