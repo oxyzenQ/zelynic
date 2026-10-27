@@ -1,0 +1,160 @@
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# The fuzz lane (night-dragon-maintenance-5, the zejtron estate's
+# fuzz architecture ported to zelynic's own hostile surfaces): the
+# owner-lazy insurance that keeps the parsers honest without a local
+# fuzz session. zelynic reads bytes a hostile party controls - the
+# /proc/net socket tables a compromised host or container netns
+# fills, the process labels prctl(PR_SET_NAME) lets any unprivileged
+# process forge, the --during string any CLI caller types - and the
+# reliability claim is only honest if it is tested against hostile
+# input, not just the happy path. One cargo-fuzz target per surface:
+#
+# - proc_net_parser:    the /proc/net/{tcp,tcp6,udp,udp6,raw,raw6}
+#                       row grammar (src/ebpf/connections/parse.rs +
+#                       types.rs) - totality against any line a host
+#                       can serve;
+# - during_spec_parser: the --duration grammar
+#                       (src/ebpf/limiter/during_parse.rs) - bounded
+#                       results or named errors, never a panic on the
+#                       rootless pin path;
+# - sanitize_display:   the terminal-safety neutralizer
+#                       (src/output/sanitize.rs) - no control char
+#                       and no bidi format char survives, honest
+#                       data byte-identical (the CWE-150 and
+#                       CVE-2021-42574 gates).
+#
+# The harnesses path-include the parser sources (see fuzz/Cargo.toml):
+# the fuzzer compiles the same bytes the binary ships, so a guarantee
+# the lane proves is a guarantee the binary carries. The include law -
+# every included file crate-import-free - is held locally by
+# scripts/gates/check-fuzz-includes.sh (gate 22). The eBPF kernel-side
+# code is deliberately not fuzzed: it runs behind the kernel verifier,
+# not in userspace.
+#
+# Nightly is the fuzzer's standard toolchain (cargo-fuzz builds the
+# harness with the libFuzzer runtime); the main crate's stable pin in
+# rust-toolchain.toml is untouched - the env-var override below is
+# scoped to this lane's cargo invocations, including the nested ones
+# cargo-fuzz spawns. Each target runs for a bounded 60 seconds per
+# push: the lane's job is the regression net (a crash fails CI with
+# the input in the log), not exhaustive coverage - depth comes from
+# the corpus that accumulates between runs via the cache. A found
+# crash is a parser bug: fix the parser to return the named error,
+# never the panic.
+#
+# The committed seed anchors (fuzz/seeds/): hand-built inputs the
+# workflow copies into the working corpus before every run, so the
+# fuzzer starts inside the parsers' real paths from run one. The grown
+# corpus stays out of git (fuzz/.gitignore); the seeds are the lane's
+# definition.
+#
+# The weekly deep session: the same three targets run for 15 minutes
+# each every Monday 07:30 WIB (00:30 UTC) - the continuous 60s net
+# cannot buy this depth. The corpus cache restores the accumulated
+# corpus under the same restore-keys, so the deep session and the push
+# sessions grow one asset; a scheduled run and a push on the same ref
+# share the concurrency group, the newer run wins (the estate shape).
+
+name: zelynic - Fuzz
+
+"on":
+  push:
+  pull_request:
+  schedule:
+    # The weekly deep session: Monday 00:30 UTC = 07:30 WIB.
+    - cron: "30 0 * * 1"
+
+permissions:
+  contents: read
+
+# One run per ref: a new push supersedes the previous run's verdict
+# (the sibling's concurrency shape, every workflow in the estate).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  fuzz:
+    # The budget rides the event (the Fuzz step's table): 60s on
+    # push and PR, 900s on the weekly deep session.
+    name: cargo fuzz ${{ matrix.target }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [proc_net_parser, during_spec_parser, sanitize_display]
+    env:
+      # The fuzzer's toolchain, set by environment rather than by
+      # `+nightly` on the command line: cargo-fuzz re-invokes cargo
+      # internally, and this is the one override rustup honors through
+      # every nested invocation - the repo-root rust-toolchain.toml
+      # (the stable pin the main crate's lanes ride) cannot leak into
+      # the fuzz build.
+      RUSTUP_TOOLCHAIN: nightly
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7, NIGHT-hunt-20 SHA pin
+        with:
+          persist-credentials: false
+
+      - name: Install nightly Rust
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87  # NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: nightly
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0  # v2, NIGHT-hunt-20 SHA pin
+        with:
+          # Only the fuzz workspace rides this lane's cache: the
+          # harnesses path-include the parser sources, so the root
+          # crate (its dependencies, its build script) is never built
+          # here at all.
+          workspaces: fuzz
+
+      - name: Restore the fuzz corpus cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6, NIGHT-hunt-20 SHA pin
+        with:
+          path: fuzz/corpus/${{ matrix.target }}
+          # The run id keys a fresh save per run; the restore keys
+          # pull the latest accumulated corpus from any prior run, so
+          # the fuzzer keeps growing where the last one stopped.
+          key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-${{ matrix.target }}-
+
+      # The committed anchors: copied into the corpus AFTER the cache
+      # restore, so the seeds ride every session - push or weekly -
+      # and land in the cache the run saves.
+      - name: Seed the corpus from the committed anchors
+        run: |
+          if [ -d "fuzz/seeds/${{ matrix.target }}" ]; then
+            mkdir -p "fuzz/corpus/${{ matrix.target }}"
+            cp "fuzz/seeds/${{ matrix.target }}"/* "fuzz/corpus/${{ matrix.target }}"/
+            echo "seeded $(find "fuzz/seeds/${{ matrix.target }}" -type f | wc -l) committed anchor(s) into the corpus"
+          else
+            echo "no committed anchors for ${{ matrix.target }} - the corpus cache still applies"
+          fi
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+
+      - name: Fuzz
+        run: |
+          # The budget table: 60s on every push and pull request (the
+          # regression net), 900s on the weekly deep session (the
+          # corpus keeps growing between runs either way).
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            BUDGET=900
+          else
+            BUDGET=60
+          fi
+          echo "fuzz budget: ${BUDGET}s (event: ${{ github.event_name }})"
+          cargo fuzz run ${{ matrix.target }} \
+            -- -max_total_time="${BUDGET}" -rss_limit_mb=4096 -timeout=25

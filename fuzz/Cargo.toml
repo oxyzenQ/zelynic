@@ -1,0 +1,73 @@
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: GPL-3.0-only
+
+# The fuzz lane's workspace (night-dragon-maintenance-5, the zejtron
+# estate's fuzz architecture ported whole). A separate cargo workspace
+# on purpose: the fuzzer's dependency graph (libfuzzer-sys and its
+# bundled runtime) never touches the main crate's Cargo.lock, and the
+# main crate's stable/MSRV lanes never see the fuzzer's nightly-only
+# needs. The two never build together - the root manifest is a single
+# package, this directory is its own workspace root, and
+# .github/workflows/fuzz.yml is the only automation that enters here.
+#
+# The crate under test is NOT a path dependency: zelynic is a bin-only
+# crate (no lib target), and inventing one for the fuzzer's sake would
+# reshape the main build the whole CI estate vets. Instead each target
+# path-includes the exact parser source it protects - the harness
+# compiles the same src/output/sanitize.rs, src/ebpf/connections/
+# {types,parse}.rs and src/ebpf/limiter/during_parse.rs bytes the
+# binary ships, so a guarantee the lane proves is a guarantee the
+# binary carries, with no harness drift and no copied grammar. Every
+# included file is std-only (during_parse.rs adds anyhow, a normal
+# dependency below) and crate-import-free - parse.rs reaches its
+# sibling types through `super::types`, never through the crate - so
+# the includes compile standalone, and
+# scripts/gates/check-fuzz-includes.sh (gate 22) holds the law
+# locally. The eBPF kernel-side code is deliberately not fuzzed:
+# it runs behind the kernel verifier, not in userspace.
+#
+# The committed seed anchors (fuzz/seeds/) ride the same
+# tracked-definition law: hand-built inputs the workflow copies into
+# the working corpus before every run, so the fuzzer starts inside the
+# parsers' real paths from run one instead of spending its budget
+# rediscovering a valid row or spec byte by byte. The grown corpus
+# stays out of git (fuzz/.gitignore); the seeds are the lane's
+# definition, the same law as the targets and the manifests.
+
+[package]
+name = "zelynic-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+# The marker cargo-fuzz itself demands (it refuses to drive a
+# manifest without it - the guard against fuzzing the wrong crate).
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+anyhow = "1"
+
+[[bin]]
+name = "proc_net_parser"
+path = "fuzz_targets/proc_net_parser.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "during_spec_parser"
+path = "fuzz_targets/during_spec_parser.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "sanitize_display"
+path = "fuzz_targets/sanitize_display.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]

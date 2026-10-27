@@ -44,12 +44,13 @@ Rotation procedures:
 |----------|---------|---------|------------|
 | `audit.yml` — Dragon Guard - Security Audit | weekly (Mon) 00:00 UTC + every push/PR (unfiltered since night-dragon-maintenance-2) | `cargo audit` (RustSec) + `cargo deny` (licenses/advisories) over the locked tree | Observation-only by design: read the advisory, decide patch-vs-accept, record the decision in the audit trail. A weekly ping is information, not an emergency (NIGHT-improve-38: the cadence matches this table's clock) |
 | `codeql.yml` — Dragon Guard - CodeQL | weekly (Mon) | CodeQL security analysis of the userspace tree | Triage the alert; a confirmed finding gets a dated audit doc + a fix commit in the same task |
+| `fuzz.yml` — zelynic - Fuzz | 60s/target on every push + PR; deep session weekly (Mon) 00:30 UTC | `cargo fuzz` over the three hostile-input parser surfaces (/proc/net rows, --during grammar, comm sanitizer), corpus cached between runs, seeds committed under `fuzz/seeds/` | A crash is a parser bug: fix the parser to return the named error, never the panic; the failing input rides the CI log |
 | `maintenance.yml` — Dependency Maintenance | weekly (Mon) | GPG subkey expiry (30-day warning), stale dependencies | The GPG warning starts the §1 rotation; stale deps get a scheduled upgrade window |
 
 Plus the push-time guards (not scheduled, but part of the posture):
 `gate-keepers.yml` wholesale on every push and PR, `ci.yml`,
 `supermassive.yml`, `supermassive-container.yml`, `audit.yml`,
-`miri.yml`, `codeql.yml`, and the three-arm
+`miri.yml`, `codeql.yml`, `fuzz.yml`, and the three-arm
 prebuilt-parity enforcement
 (NIGHT-dinner-1 — commit time, publish time, release time). Since
 the owner's unfiltered-CI simplification

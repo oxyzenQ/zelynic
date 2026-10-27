@@ -1,0 +1,10 @@
+# The fuzz lane's generated artifacts (night-dragon-maintenance-5,
+# the zejtron estate's law): the corpus the fuzzer grows, the coverage
+# reports, and the crash artifacts all stay out of git - the CI lane
+# caches the corpus between runs via the workflow cache, and a crash
+# found there is reproduced from the CI artifact, not from a committed
+# blob. The targets, the manifests, the lockfile, and the seed anchors
+# ARE tracked: the lane's definition travels with the repo.
+corpus/
+coverage/
+artifacts/
