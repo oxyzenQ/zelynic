@@ -20,7 +20,11 @@ source license — the two are negotiated independently.
 
 ## 1. Trademark Ownership
 
-The name **"zelynic"** and all associated logos, icons, artwork, and visual identifiers (collectively, the **"Marks"**) are trademarks of the project creator (`rezky_nightky (oxyzenQ)`). These Marks are **not** covered by the GPL-3.0-only license granted to the source code.
+The name **"zelynic"** and all associated logos, icons, artwork, and visual identifiers (collectively, the **"Marks"**) are trademarks of the project creator (`rezky_nightky (oxyzenQ)`). These Marks are **not** covered by the GPL-3.0-only license granted to the source code and are reserved by the owner in full.
+
+The zelynic logo was created through AI-assisted generation under the direct, original creative direction and specific prompting of the owner. It is claimed and used exclusively as the brand identity (Trademark) of this project.
+
+This project is NOT for sale. Source-code theft, rebranding, or re-distribution under a different license without the express written consent of rezky_nightky (oxyzenQ) is strictly prohibited.
 
 Use of the Marks is permitted only as described in this policy. All other uses require prior written consent.
 
@@ -42,7 +46,7 @@ You may use the zelynic name and logo in a purely **attributive** manner to accu
 
 Distributing **unmodified** copies of the zelynic binary or source code (including the original name, logo, and README) is permitted under the GPL-3.0-only license, provided that the license and copyright notices are preserved.
 
-### 2.4. Contribution forks (the cosmostrix lineage)
+### 2.3. Contribution forks (the cosmostrix lineage)
 
 Forking the source code under the terms of GPL-3.0-only for the purpose
 of contributing back to zelynic (bug fixes, features, PRs) is allowed
@@ -52,7 +56,7 @@ fork is clearly labeled as a contribution fork (e.g. the fork description
 says "WIP: <feature> for zelynic upstream") and the owner is notified via
 a GitHub Issue or PR. The full contract lives in §4a.
 
-### 2.5. Community and educational use
+### 2.4. Community and educational use
 
 Using the name in community discussions, issue trackers, forums, educational materials, or presentations about the project is always welcome.
 
@@ -126,14 +130,16 @@ would compete with, dilute, or confuse the zelynic brand.
 
 ---
 
-## 5. Enforcement Philosophy
+## 5. Enforcement
 
 The goal of this policy is to **prevent confusion**, not to restrict the open source community. The project creator reserves the right to:
 
 - Request that a fork or derivative stop using the zelynic Marks.
 - Require a renamed fork to update its branding if it causes user confusion or misattribution.
+- File takedown requests (DMCA or platform-equivalent) against distributions that ship the Marks without permission.
+- Pursue legal action to protect the intellectual property where a request goes unheeded.
 
-Enforcement will always begin with a polite request before any formal action.
+Enforcement begins with a polite request before any formal action — but the teeth behind the request are real, and unauthorized use of the Marks may result in takedown requests and legal action.
 
 ---
 
@@ -144,6 +150,11 @@ For trademark inquiries, permission requests, or clarifications, please open an 
 ---
 
 *This policy may be updated at any time. The most current version is always available in the repository root.*
+
+---
+
+© 2026 rezky_nightky (oxyzenQ). All rights reserved.
+zelynic and the zelynic logo are trademarks of rezky_nightky (oxyzenQ).
 
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
