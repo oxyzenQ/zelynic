@@ -222,8 +222,14 @@ pub use labeled::eprintln_error_labeled;
 // night-dragon-maintenance-4: the loading indicator — the live
 // elapsed/total spinner for the surfaces that hold (the depth
 // report's traffic-focus window; the monitor boot owns the
-// alt-screen loading frame instead, NIGHT-boost-25).
+// alt-screen loading frame instead, NIGHT-boost-25). Gated like the
+// width tier above: the one consumer is the ebpf-gated eagle depth
+// window, and the dormant (--no-default-features) lane must not
+// compile dead code — CI's workflow-level RUSTFLAGS -D warnings
+// turns that into a hard error the local gate never sees.
+#[cfg(feature = "ebpf")]
 pub(crate) mod spinner;
+#[cfg(feature = "ebpf")]
 pub(crate) use spinner::Spinner;
 
 #[cfg(feature = "ebpf")]
