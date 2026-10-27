@@ -183,13 +183,18 @@ else takes v3.
 
 Uninstall is `rm` on the binary — the release payload is that one
 file, so there is nothing else to clean (no /usr/lib payload, no
-service, no man page). Building from source? Bootstrap with
-`scripts/dev/bootstrap-ebpf.sh`, then land the binary on PATH with
-`scripts/package/install-on-my-machine.sh` — the install twin of
-`scripts/package/uninstall.sh` (builds the flagship when the checkout
-has none, refreshes wherever an older install lives, and verifies the
-`-V` verdict at the destination; teardown clears kernel enforcement
-first — see below).
+service, no man page). Building from source?
+`scripts/package/install-on-my-machine.sh` does the whole job: it
+detects the CPU's x86-64-v3/v4 level, builds the release-tier musl
+binary the release matrix parity-gates against, and installs it to
+`/usr/bin` — the one install path, by law, no flags
+(night-dragon-maintenance-7, the zejtron mature-infra shape; a stale
+`~/.local/bin/zelynic` is removed first so nothing shadows
+`/usr/bin`). It is the install twin of `scripts/package/uninstall.sh`
+— the `-V` verdict is verified at the destination, and teardown
+clears kernel enforcement first (see below). A v1/v2 core gets the
+honest pointer to the native dev tier: bootstrap with
+`scripts/dev/bootstrap-ebpf.sh`.
 
 Each release tarball carries three checksums (SHA-512 + BLAKE3 +
 SHAKE256) and a detached GPG signature from the maintainer's
