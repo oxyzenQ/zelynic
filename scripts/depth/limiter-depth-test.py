@@ -700,7 +700,14 @@ def test_rate(rate_bps, window, baseline, label):
     # 92.8-99.1% and the ceiling carries the over-delivery side.
     floor = lib.loopback_rate_floor(rate_bps, window)
     windows = 2 if floor < BAND_LO else 1
-    measured = max(download(window, SERVER.port) for _ in range(windows)) / window
+    downloads = [download(window, SERVER.port) for _ in range(windows)]
+    measured = max(downloads) / window
+    # The BPF byte counter is cumulative over the limit's whole span
+    # (both windows bank into one ledger), so the accounting row's
+    # client-side comparator is the total bytes delivered across the
+    # span — not the max window's bytes, which would read ~2x against
+    # the kernel ledger on two-window rungs and trip the 1.5 band.
+    got = sum(downloads)
     name = f"rate {label}: enforced download"
     extra = (
         f"max of two {window:.0f}s windows (the one-sided noise law); "
