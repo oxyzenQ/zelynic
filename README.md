@@ -178,9 +178,12 @@ else takes v3.
 Uninstall is `rm` on the binary — the release payload is that one
 file, so there is nothing else to clean (no /usr/lib payload, no
 service, no man page). Building from source? Bootstrap with
-`scripts/dev/bootstrap-ebpf.sh`, then land the binary on PATH with a
-plain `cp` — and when a teardown is needed, `scripts/package/uninstall.sh`
-clears kernel enforcement first (see below).
+`scripts/dev/bootstrap-ebpf.sh`, then land the binary on PATH with
+`scripts/package/install-on-my-machine.sh` — the install twin of
+`scripts/package/uninstall.sh` (builds the flagship when the checkout
+has none, refreshes wherever an older install lives, and verifies the
+`-V` verdict at the destination; teardown clears kernel enforcement
+first — see below).
 
 Each release tarball carries three checksums (SHA-512 + BLAKE3 +
 SHAKE256) and a detached GPG signature from the maintainer's
