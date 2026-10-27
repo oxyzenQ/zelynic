@@ -88,6 +88,21 @@ concurrency:
 # the branch CI of the same commit: the tag is the owner's verdict
 # that the commit ships, and serializing a release behind a 40-minute
 # check run would trade a non-race for a real delay.
+#
+# night-dragon-maintenance-6 — the IMMUTABLE-RELEASE fix (the
+# reference's mature shape): repos with GitHub's immutable-release
+# feature lock the asset set the moment a release becomes PUBLISHED,
+# and softprops/action-gh-release publishes on creation — so on an
+# immutable repo the tail of a multi-asset upload gets rejected
+# mid-flight (the reference's live incident: 7 of 10 assets landed,
+# 3 rejected after the publish event had already fired). The Create
+# Release step therefore runs with draft: true — a draft stays
+# mutable for the whole upload — and the follow-up "Publish Release
+# (un-draft)" step flips it to published atomically AFTER every
+# asset is in place, setting the prerelease/latest flags explicitly
+# so the post-publish state is exactly what the pre-fix workflow
+# intended. A draft still standing at the un-draft step is a red
+# pipeline, never a silent half-publish.
 
 jobs:
   # ===========================================================================
@@ -894,6 +909,15 @@ jobs:
             exit 1
           fi
 
+      # IMMUTABLE-RELEASE FIX (night-dragon-maintenance-6, the
+      # reference's shape): create as a DRAFT. GitHub's
+      # immutable-release feature locks assets the moment the release
+      # becomes published, and softprops/action-gh-release publishes
+      # on creation — so on an immutable repo the tail of the
+      # multi-asset upload gets rejected once the first asset trips
+      # the publish event. With draft: true the release stays mutable
+      # for the whole upload, and the next step publishes it
+      # atomically after every asset is in place.
       - name: Create Release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3, NIGHT-hunt-20 SHA pin
         with:
@@ -907,10 +931,33 @@ jobs:
           # inventory tripwire above gives the precise diagnosis; this
           # makes the third-party action itself refuse the silent path.
           fail_on_unmatched_files: true
-          draft: false
+          draft: true
           # Pre-releases (dev/nightly/alpha/beta/rc) are never marked
           # "latest" — the latest pointer only tracks stable releases.
+          # The flags below are re-asserted authoritatively by the
+          # un-draft step, the one that actually publishes.
           prerelease: ${{ needs.validate.outputs.prerelease }}
           make_latest: ${{ needs.validate.outputs.prerelease != 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # The un-draft half of the immutable-release fix: flip the draft
+      # to published only AFTER every asset has uploaded, setting the
+      # prerelease and latest flags explicitly so the post-publish
+      # state is exactly what the pre-fix workflow intended. The final
+      # gh release view is the post-condition read — a release still
+      # in draft here fails the step, never a silent half-publish.
+      - name: Publish Release (un-draft)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.validate.outputs.tag }}
+          IS_PRERELEASE: ${{ needs.validate.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          if [ "${IS_PRERELEASE}" = "true" ]; then
+            gh release edit "${TAG}" --draft=false --prerelease=true --latest=false
+          else
+            gh release edit "${TAG}" --draft=false --prerelease=false --latest=true
+          fi
+          echo "--- Published release ---"
+          gh release view "${TAG}" --json url,isDraft,isPrerelease,isImmutable --jq '.'
