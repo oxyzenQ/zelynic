@@ -3,10 +3,12 @@
 #
 # Gate-keepers — the one wholesale gate workflow (NIGHT-hunt-23 class
 # closure, NIGHT-improve-13 split from ci.yml to mirror the cosmostrix
-# CI lineage: ci.yml carries the path-filtered build/test jobs, this
-# workflow runs scripts/gate-keepers.sh wholesale on EVERY push and
-# PR with NO paths filter — a docs-only or workflow-only change never
-# skips the gates that police it).
+# CI lineage: this workflow runs scripts/gate-keepers.sh wholesale on
+# EVERY push and PR with NO filter — a docs-only or workflow-only
+# change never skips the gates that police it; since
+# night-dragon-maintenance-2's unfiltered-CI simplification the build
+# lanes carry the same blind posture, so this lane is no longer the
+# lone unfiltered run, just the same law's original home).
 #
 # Checks performed by gate-keepers.sh (20 numbered sections; the
 # shell quad's four sub-checks count separately, so the summary
@@ -65,10 +67,10 @@
 name: Dragon Guard - Gate-keepers
 
 'on':
+  # Unfiltered: every push (any branch, any tag) and every pull
+  # request (any base) burns the wholesale gate.
   push:
-    branches: ["main"]
   pull_request:
-    branches: ["main"]
 
 permissions:
   contents: read

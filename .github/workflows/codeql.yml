@@ -16,10 +16,13 @@
 # push, unfiltered (NIGHT-hunt-23; the non-code gates moved out of
 # ci.yml's path-filtered lane in NIGHT-improve-13 — the stale
 # "codespell gate in ci.yml" seat this comment carried was the
-# NIGHT-hunt-Z8 find). The paths filters are Rust-only for the same
-# reason (NIGHT-improve-11): the old scripts/** and root '*.py'/'*.sh'
-# push entries only woke a rust-language scan that had nothing new
-# to find on a tooling-only diff.
+# NIGHT-hunt-Z8 find). The paths filters are retired whole
+# (night-dragon-maintenance-2, the owner's unfiltered-CI
+# simplification): the scanner editions of the surface globs
+# (NIGHT-improve-11's carry-what-you-scan rule, NIGHT-boost-10's
+# estate spelling) shared the whole estate's sync tax, and every
+# push and every pull request gets the scan now — the same blind
+# posture every push-triggered lane carries.
 #
 # Weekly scheduled scan Monday 00:00 UTC (07:00 WIB) for full
 # coverage — the owner's morning, one clock for every scheduled
@@ -28,38 +31,10 @@
 name: Dragon Guard - CodeQL
 
 'on':
+  # Unfiltered: any push and any pull request burns this scan. The
+  # header carries the simplification record.
   push:
-    branches: ["main"]
-    paths:
-      # NIGHT-boost-10: the estate-wide spelling, scanner edition
-      # — the surface this scan actually reads. improve-11's
-      # documented rule stays: scripts/** wakes a Rust-language
-      # scan that has nothing new to find on a tooling-only diff,
-      # so the scanner workflows carry the surface they scan, not
-      # the surface the build estate executes. '**/*.rs'
-      # subsumes the old src/** + test/** pair (improve-38's
-      # ebpf/** entry rides in ebpf/**); '**/*.toml' subsumes
-      # deny.toml and both toolchain pins; the self-file line
-      # closes the NIGHT-hunt-34 gap this workflow carried — an
-      # edit to its own analysis steps used to go live unexecuted.
-      # A docs-only change matches nothing here — gate-keepers.yml
-      # (unfiltered) runs alone.
-      - '**/*.rs'
-      - '**/*.toml'
-      - '**/Cargo.lock'
-      - '.cargo/**'
-      - 'ebpf/**'
-      - '.github/workflows/codeql.yml'
   pull_request:
-    branches: ["main"]
-    paths:
-      # NIGHT-boost-10: same spelling as push (the no-drift law).
-      - '**/*.rs'
-      - '**/*.toml'
-      - '**/Cargo.lock'
-      - '.cargo/**'
-      - 'ebpf/**'
-      - '.github/workflows/codeql.yml'
   schedule:
     # Monday 00:00 UTC (07:00 WIB) — the owner's morning, one clock
     # for every scheduled workflow (NIGHT-improve-9).

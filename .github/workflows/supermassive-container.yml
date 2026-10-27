@@ -51,37 +51,16 @@
 name: Dragon Guard - Supermassive Container E2E
 
 on:
+  # The owner's unfiltered-CI simplification
+  # (night-dragon-maintenance-2): the estate-wide surface globs are
+  # retired whole — the spelling's sync tax across every build
+  # workflow (the no-drift law between the push and pull_request
+  # blocks, the manual glob audit every new consumer needed) outgrew
+  # the runner minutes it saved. Any push (any branch, any tag) and
+  # any pull request burns the container E2E legs now, the same
+  # blind posture every push-triggered lane carries.
   push:
-    branches: ["main"]
-    paths:
-      # NIGHT-boost-10: the estate-wide trigger spelling — six
-      # shared surface globs plus this file's own name, identical
-      # in every build workflow (ci.yml's header carries the
-      # coverage facts). The redundant entries this list used to
-      # carry (the identity/ and strict/safety src files, the two
-      # harness scripts — all already inside src/** and scripts/**)
-      # were the drift tax boost-9 named. NIGHT-hunt-34 keeps the
-      # self-file entry: a workflow that can change its own
-      # contract owes itself a run. A docs-only change matches
-      # nothing here — gate-keepers.yml (unfiltered) runs alone.
-      - '**/*.rs'
-      - '**/*.toml'
-      - '**/Cargo.lock'
-      - '.cargo/**'
-      - 'ebpf/**'
-      - 'scripts/**'
-      - '.github/workflows/supermassive-container.yml'
   pull_request:
-    branches: ["main"]
-    paths:
-      # NIGHT-boost-10: same spelling as push (the no-drift law).
-      - '**/*.rs'
-      - '**/*.toml'
-      - '**/Cargo.lock'
-      - '.cargo/**'
-      - 'ebpf/**'
-      - 'scripts/**'
-      - '.github/workflows/supermassive-container.yml'
 
 # Least privilege (cosmostrix contract): every job in this workflow
 # only reads the repository.

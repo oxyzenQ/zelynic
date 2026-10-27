@@ -92,13 +92,15 @@ PY
 ```
 
 CI re-proves continuously: the wholesale gate suite on every push
-(gate-keepers.yml, unfiltered), the engine self-test and the Rust
-matrix on every code-surface push (ci.yml, path-filtered), the
-claims harness LIVE on the supermassive legs when their surface
-moves, the release invariants on every tag, and CodeQL weekly plus
-on every Rust-surface push — the cadence row names the filters
-every lane actually carries (NIGHT-hunt-Z8: the former "on every
-push" wording claimed surfaces the path filters never woke).
+(gate-keepers.yml), the engine self-test and the Rust matrix on
+every push and PR (ci.yml), the claims harness LIVE on the
+supermassive legs when their surface moves, the release invariants
+on every tag, and CodeQL on every push and PR plus its weekly
+clock — since the owner's unfiltered-CI simplification
+(night-dragon-maintenance-2) every push-triggered lane carries the
+same blind posture, so this row no longer names per-lane filters:
+there are none (NIGHT-hunt-Z8's honest-wording law is what made
+the drift to "no filters" visible the moment it became true).
 
 ## The honest residuals (claimed limits, not hidden ones)
 
