@@ -838,10 +838,11 @@ def test_sustain(rate_bps, windows, window, baseline):
     # A persistent deficit - a real enforcement regression - fails
     # both series and still goes red; the attempt is named in the
     # detail either way (the house honesty convention).
-    attempts = f"a1: median {median_ratio * 100:.0f}%, drift {drift * 100:.0f}%"
+    attempts = ""
     if not passed:
         (p2, d2, m2), rates2 = run_series()
-        attempts += (
+        attempts = (
+            f"a1: median {median_ratio * 100:.0f}%, drift {drift * 100:.0f}%"
             f"; a2: median {m2 * 100:.0f}%, drift {d2 * 100:.0f}% (the under-side re-attempt)"
         )
         if p2:
@@ -852,8 +853,7 @@ def test_sustain(rate_bps, windows, window, baseline):
         verdict,
         "; ".join(f"w{i + 1} {fmt_bps(r)} ({r / rate_bps * 100:.0f}%)" for i, r in enumerate(rates))
         + f" — median {median_ratio * 100:.0f}%, drift {drift * 100:.0f}%"
-        f" (floor {lib.SUSTAIN_DRIFT_FLOOR * 100:.0f}%)"
-        + (f" — {attempts}" if "a2" in attempts else ""),
+        f" (floor {lib.SUSTAIN_DRIFT_FLOOR * 100:.0f}%)" + (f" — {attempts}" if attempts else ""),
         {
             "rates": [round(r) for r in rates],
             "drift": round(drift, 3),
