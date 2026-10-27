@@ -134,6 +134,23 @@ autotests = false
 autobenches = false
 autoexamples = false
 
+# night-dragon-lts-2c: the standing SAFETY gate — the owner call the
+# lts-2b closure left on the table, now taken. Level deny, not warn:
+# every clippy invocation (CI's -D warnings lane, maintenance, a
+# casual local run) fails on the first unsafe block without an
+# inline contract, so the LTS-14 memory-safety basis ("every unsafe
+# site speaks its own safety contract") stays mechanically true on
+# every future lane, not just at audit time. The gate adopts a
+# proven floor, it does not create one: the lint measured zero here
+# AFTER the 109-site annotation round (98d1a1e — 68 root + 41 kernel
+# sites, each carrying its real local invariant) and before this
+# table landed. Clippy-namespace only: plain rustc (cargo
+# check/build, the nested nightly cross-compile behind the ebpf
+# feature, the registry install lane) silently ignores foreign tool
+# lints, so no non-clippy lane moves.
+[lints]
+clippy = { undocumented_unsafe_blocks = "deny" }
+
 [dependencies]
 # Explicit feature set (cosmostrix contract): std + color + help + usage +
 # error-context + suggestions are the exact default set, pinned explicitly
