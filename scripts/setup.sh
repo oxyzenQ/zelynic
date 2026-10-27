@@ -138,7 +138,7 @@ if [ "${BUILD_MUSL}" = true ]; then
 fi
 echo ""
 echo "next steps — the menu:"
-echo "  want it installed system-wide?   ./scripts/package/install.sh --system"
+echo "  want it on PATH?                 cp target/pro-native-gnu/zelynic ~/.local/bin/ (or /usr/local/bin)"
 echo "  want it gone again?              ./scripts/package/uninstall.sh"
 echo "  explore the CLI:                 ${BUILT} --help"
 echo "  check kernel support:            sudo ${BUILT} doctor"
