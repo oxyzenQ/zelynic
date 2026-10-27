@@ -143,9 +143,8 @@ bundle have different economics:
   runs zelynic on its own infrastructure (servers, containers,
   multi-tenant SaaS internal to the company). No redistribution.
   Priced against the enterprise IT budget for QoS/compliance tooling,
-  not against the cost of replicating MMSPA in-house (which is
-  6–12 months of R&D, per the ledger in
-  docs/CLAIMS_VERIFICATION.md).
+  not against the cost of replicating MMSPA in-house (an
+  order-of-magnitude estimate, not a formal ledger entry).
 
 - **OEM / Redistribution** ($110,199/year): a company that embeds
   the architectural patterns (MMSPA subtree law, pinned bpf_links,

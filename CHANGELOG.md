@@ -154,6 +154,11 @@ v80.0.0
 
 ### Changed
 
+- Commercial licensing prose: the '6–12 months of R&D' claim no
+  longer cites docs/CLAIMS_VERIFICATION.md (that ledger has no such
+  entry); the sentence now states it as an order-of-magnitude
+  estimate, honestly.
+
 - Commercial licensing: the Company tier split into Enterprise Internal
   ($49,999/year, internal use only) and OEM / Redistribution
   ($110,199/year, embedding in shipped products). Business raised
