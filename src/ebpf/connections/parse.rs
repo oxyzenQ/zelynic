@@ -10,7 +10,7 @@
 
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 
-use super::{Proto, SocketInfo};
+use super::types::{Proto, SocketInfo};
 
 // ── Pure parsers (unit-tested) ──────────────────────────────────────────────
 
