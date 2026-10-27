@@ -749,9 +749,7 @@ def loopback_rate_floor(rate_bps, window_s=1.0):
         # proofs are untouched here).
         return min(
             BAND_LO,
-            LOOPBACK_GSO_SKB
-            / (LOOPBACK_GSO_SKB / rate_bps + RTO_REARM_BUDGET_S)
-            / rate_bps,
+            LOOPBACK_GSO_SKB / (LOOPBACK_GSO_SKB / rate_bps + RTO_REARM_BUDGET_S) / rate_bps,
         )
     return min(BAND_LO, cushion / (TCP_MIN_RTO_S * rate_bps))
 
