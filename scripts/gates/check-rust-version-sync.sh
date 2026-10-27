@@ -21,7 +21,6 @@
 #      == every `toolchain: nightly-*` install in the workflows
 #      == build.rs's EBPF_TOOLCHAIN const (what build.rs actually
 #         invokes for the nested build)
-#      == scripts/package/install.sh's EBPF_TOOLCHAIN (the from-source path)
 #      == scripts/package/uninstall.sh's uninstall hint (the cleanup path)
 #
 # Fails if any source disagrees with the others. The write counterpart is
@@ -154,21 +153,7 @@ if [ -f "$EBPF_TOOLCHAIN_FILE" ]; then
 			FAILED=$((FAILED + 1))
 		fi
 
-		# 4c. scripts/package/install.sh — the from-source install path.
-		if grep -q '^EBPF_TOOLCHAIN=' scripts/package/install.sh; then
-			INSTALL_TOOLCHAIN=$(grep '^EBPF_TOOLCHAIN=' scripts/package/install.sh | sed 's/EBPF_TOOLCHAIN= *"\(.*\)".*/\1/')
-			if [ "$INSTALL_TOOLCHAIN" != "$EBPF_NIGHTLY" ]; then
-				echo "FAIL: scripts/package/install.sh EBPF_TOOLCHAIN = \"$INSTALL_TOOLCHAIN\" — expected \"$EBPF_NIGHTLY\""
-				FAILED=$((FAILED + 1))
-			else
-				echo "OK: scripts/package/install.sh EBPF_TOOLCHAIN = \"$INSTALL_TOOLCHAIN\""
-			fi
-		else
-			echo "FAIL: scripts/package/install.sh EBPF_TOOLCHAIN not found (renamed?)"
-			FAILED=$((FAILED + 1))
-		fi
-
-		# 4d. scripts/package/uninstall.sh — the cleanup hint names the pin.
+		# 4c. scripts/package/uninstall.sh — the cleanup hint names the pin.
 		if grep -q "rustup toolchain uninstall $EBPF_NIGHTLY" scripts/package/uninstall.sh; then
 			echo "OK: scripts/package/uninstall.sh hints the pinned nightly"
 		else

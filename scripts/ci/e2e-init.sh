@@ -21,7 +21,7 @@
 # depth belongs to root by design, never to sudo-of-convenience).
 #
 # The suite is canonical invocations only (the e2e house rule, the
-# same law supermassive-init.sh carries): the five depth suites the
+# same law supermassive-init.sh carries): the four depth suites the
 # owner runs locally, each with --binary pinned, each its own
 # E2E-RESULT row:
 #   1. scripts/depth/nonroot-depth-test.sh   - the USER-mode leg
@@ -36,9 +36,6 @@
 #   4. scripts/sandbox/smoke-cli.sh          - the whole CLI surface
 #      battery as root (every verb, every guard, real policing,
 #      leak postconditions, the unprivileged refusal row)
-#   5. scripts/depth/install-flow-test.sh    - the install/uninstall
-#      lifecycle as root (last: it owns /usr/bin and clears kernel
-#      state by design)
 #
 # Verdict relay: the VM cannot pass exit codes through qemu — the
 # E2E-RESULT / E2E-VERDICT sentinel lines ARE the relay (the
@@ -174,7 +171,7 @@ if ./zelynic doctor >/dev/null 2>&1; then
 else
 	note "doctor (bpf syscall answers on this kernel)" FAIL
 fi
-# ── the suite: five canonical invocations, USER leg first ─────────────
+# ── the suite: four canonical invocations, USER leg first ─────────────
 # 1. The USER-mode leg (night-dragon-maintenance-2's "real user"):
 #    the full command surface as an unprivileged user — setpriv into
 #    nobody's uid/gid from a writable cwd. The rig REFUSES euid 0 by
@@ -210,14 +207,6 @@ if ./scripts/sandbox/smoke-cli.sh --binary "$Z/zelynic"; then
 	note "ROOT leg - CLI surface smoke (every verb, every guard)" PASS
 else
 	note "ROOT leg - CLI surface smoke (every verb, every guard)" FAIL
-fi
-# 5. The install/uninstall lifecycle as root, LAST: it installs to
-#    /usr/bin, enforces, and clears kernel state by design — it owns
-#    its own teardown, and nothing after it needs the binary.
-if ./scripts/depth/install-flow-test.sh --binary "$Z/zelynic"; then
-	note "ROOT leg - install flow lifecycle (install, enforce, uninstall)" PASS
-else
-	note "ROOT leg - install flow lifecycle (install, enforce, uninstall)" FAIL
 fi
 # ── the verdict relay ──────────────────────────────────────────────────
 if [ "$FAILURES" -eq 0 ]; then

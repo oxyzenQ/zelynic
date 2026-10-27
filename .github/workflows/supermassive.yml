@@ -34,8 +34,8 @@
 # ("supermassive test - low specs (musl)") instead of the unnamed
 # default it silently was. The gnu legs close a hole the blade-12 hunt
 # found while mapping the ask: the gnu flagship — the default
-# source-build shape (setup.sh phase 1), the binary install.sh
-# installs, and half the release matrix (v3-gnu, v4-gnu) — had ZERO
+# source-build shape (setup.sh phase 1, bootstrap-ebpf.sh's alias
+# build) and half the release matrix (v3-gnu, v4-gnu) — had ZERO
 # root E2E anywhere in the estate. ci.yml's gnu-dynamic job compiles
 # it and greps build labels; every runtime battery (the v1 limiter
 # matrix, the v2 survival pty work, the live claims proof) ran on the

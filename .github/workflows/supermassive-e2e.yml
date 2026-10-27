@@ -29,9 +29,8 @@
 # enforcement depth is root by design): the limiter depth
 # stresstest (measured rates + BPF-counter cross-checks, full
 # depth), the endurance clocks (full churn + monitor soak), the
-# whole-CLI-surface smoke battery, and the install/uninstall
-# lifecycle. Real KVM, real eBPF, real user AND real root - no
-# container shortcut, no simulation.
+# whole-CLI-surface smoke battery. Real KVM, real eBPF, real user
+# AND real root - no container shortcut, no simulation.
 #
 # Why a separate lane from supermassive.yml: that lane owns the
 # limiter matrix and its engine batteries (v1-v4, the MMSPA A/B,

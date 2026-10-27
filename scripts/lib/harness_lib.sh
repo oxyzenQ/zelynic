@@ -164,8 +164,8 @@ resolve_binary() {
 }
 
 # The rig-suite contract: resolve at source time unless the harness
-# already chose (a pre-set BINARY is the harness's own pick — a
-# sandbox-lane suite like install-flow-test.sh uses that hook).
+# already chose (a pre-set BINARY is the harness's own pick — the
+# supermassive engines use that hook when they drive a rig suite).
 if [ -z "${BINARY:-}" ]; then
 	resolve_binary "$@"
 fi

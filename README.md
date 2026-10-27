@@ -176,8 +176,10 @@ else takes v3.
 
 Uninstall is `rm` on the binary — the release payload is that one
 file, so there is nothing else to clean (no /usr/lib payload, no
-service, no man page). Building from source keeps the richer
-`scripts/package/install.sh` / `uninstall.sh` flow in the repo.
+service, no man page). Building from source? Bootstrap with
+`scripts/dev/bootstrap-ebpf.sh`, then land the binary on PATH with a
+plain `cp` — and when a teardown is needed, `scripts/package/uninstall.sh`
+clears kernel enforcement first (see below).
 
 Each release tarball carries three checksums (SHA-512 + BLAKE3 +
 SHAKE256) and a detached GPG signature from the maintainer's
@@ -346,14 +348,15 @@ across all six build shapes. A v3 build runs on any x86_64 CPU from
 ~2013 onward; a v4 build needs AVX-512 (check with `grep -o
 'avx512f' /proc/cpuinfo`).
 
-`scripts/package/install.sh` builds through the same alias — default
-`cargo pro-native-gnu`, `--musl` for the static x86_64 build — and
-verifies the binary answers `-V` before anything is installed
-(NIGHT-improve-15). `scripts/package/uninstall.sh` clears kernel enforcement
-first: while BPF pins are still live under `/sys/fs/bpf/zelynic` it
-runs `u --all` (or prints the exact manual steps when no binary
-is left) before deleting files, so active limits never outlive the
-tool that can remove them.
+From source, `scripts/dev/bootstrap-ebpf.sh` builds the same alias
+lineage — default `cargo pro-native-gnu`, `--musl` for the static
+x86_64 build — and verifies the binary answers `-V`; land it on PATH
+with a plain `cp target/pro-native-gnu/zelynic ~/.local/bin/`
+(NIGHT-improve-15). `scripts/package/uninstall.sh` clears kernel
+enforcement first: while BPF pins are still live under
+`/sys/fs/bpf/zelynic` it runs `u --all` (or prints the exact manual
+steps when no binary is left) before deleting files, so active limits
+never outlive the tool that can remove them.
 
 ### Usage
 
@@ -686,15 +689,15 @@ v3, v4, in that order — runs on CI on every push (real root, real BPF,
 real KVM micro-VMs), and the 5.13 floor lane is proven on the TRUE
 documented floor kernel (impish indri 5.13, the oldest kernel in the
 verified matrix) inside its own KVM micro-VM workflow. The E2E depth
-lane runs the five depth suites no other lane carries — the full
+lane runs the four depth suites no other lane carries — the full
 command surface as an unprivileged user (the honest refusal contract)
-plus the limiter depth stresstest, the endurance clocks, the whole-CLI
-smoke battery, and the install lifecycle as root — on both ends of the
-kernel span: the 5.13 floor and the archive's dynamically resolved
-latest kernel, each leg against the release-tier alias build. The v3
-container E2E lanes (docker + k8s via kind) run on their own CI
-workflow against real runtimes — the micro-VM pair ships no docker
-daemon and no kubelet, so the container-native round trip (resolve
+plus the limiter depth stresstest, the endurance clocks, and the
+whole-CLI smoke battery as root — on both ends of the kernel span:
+the 5.13 floor and the archive's dynamically resolved latest kernel,
+each leg against the release-tier alias build. The v3 container E2E
+lanes (docker + k8s via kind) run on their own CI workflow against
+real runtimes — the micro-VM pair ships no docker daemon and no
+kubelet, so the container-native round trip (resolve
 `docker://`/`k8s://` to a real cgroup, enforce, teardown) has its own
 honest lane. A green Actions run is the same verdict these commands
 produce locally.

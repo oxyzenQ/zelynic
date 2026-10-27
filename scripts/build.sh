@@ -468,8 +468,10 @@ COMMANDS:
 
 PRODUCT BUILDS (NIGHT-cleanup-3): this script is the CHECK
 orchestrator — release binaries do not come from here. Build with
-./scripts/dev/bootstrap-ebpf.sh (dev, cargo pro-native-gnu) or
-./scripts/package/install.sh (user install, pro-native gnu/musl). The old
+./scripts/dev/bootstrap-ebpf.sh (the flagship, cargo pro-native-gnu),
+then land it on PATH yourself (cp target/pro-native-gnu/zelynic
+~/.local/bin/ — the release payload is that one file; the uninstall
+tool stays: ./scripts/package/uninstall.sh). The old
 basic-profile release/release-debug/ci/all/bench subcommands were
 retired: nobody called them, cargo bench had zero [[bench]]
 targets to run, and a plain --profile release path contradicts
