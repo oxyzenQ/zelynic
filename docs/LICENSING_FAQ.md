@@ -22,15 +22,17 @@ that is exactly what it is for. See
 
 Tiers follow your total annual revenue:
 
-| Your annual revenue                | Tier                     |
-| ---------------------------------- | ------------------------ |
-| No commercial use (hobby/personal) | Personal (free, GPL-3.0) |
-| Solo dev / freelancer, < $100K     | Individual ($99/year)    |
-| $100K – $10M                       | Business ($5,199/year)   |
-| > $10M, or any redistribution      | Company ($110,199/year)  |
+| Your annual revenue                | Tier                                 |
+| ---------------------------------- | ------------------------------------ |
+| No commercial use (hobby/personal) | Personal (free, GPL-3.0)             |
+| Solo dev / freelancer, < $100K     | Individual ($99/year)                |
+| $100K – $10M                       | Business ($9,999/year)               |
+| > $10M, internal use only          | Enterprise Internal ($49,999/year)   |
+| Embedding in a shipped product     | OEM / Redistribution ($110,199/year) |
 
-Redistribution under your own terms is the Company tier regardless of
-revenue — it is the only tier that carries redistribution rights.
+Redistribution under your own terms is the OEM / Redistribution tier
+regardless of revenue — it is the only tier that carries
+redistribution rights.
 
 ## Do contributors need to sign anything?
 
@@ -65,15 +67,15 @@ free path is not a trial.
 No. Two separate locks apply:
 
 1. **Redistribution** of zelynic or a derivative under your own terms
-   requires the Company tier of the Commercial License — see
-   [COMMERCIAL_LICENSE.md](../COMMERCIAL_LICENSE.md).
+   requires the OEM / Redistribution tier of the Commercial License —
+   see [COMMERCIAL_LICENSE.md](../COMMERCIAL_LICENSE.md).
 2. **The Marks** (name, logo, branding) are governed by
    [TRADEMARK.md](../TRADEMARK.md) and require separate trademark
    permission for any rebrand or relaunch — a commercial source
    license does not grant them.
 
-Both locks must be opened to rebrand and sell: Company tier **plus**
-trademark permission.
+Both locks must be opened to rebrand and sell: the OEM / Redistribution
+tier **plus** trademark permission.
 
 ## What if I just take it — fork it illegally, close the source, and sell it?
 
