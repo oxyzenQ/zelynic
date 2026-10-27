@@ -11,14 +11,19 @@
 # zelynic's own physics).
 #
 # The contract: every surface, every guard, every error path,
-# exercised against the REAL compiled binary, on two KVM micro-VM
+# exercised against the REAL compiled binary, on three KVM micro-VM
 # legs - the low-spec leg boots the TRUE documented floor kernel
 # (impish 5.13, the oldest kernel in the verified matrix, from the
-# frozen old-releases archive) and the best-spec leg boots the
-# archive's dynamically resolved LATEST kernel (nothing pinned, the
-# resolver walks onto each new release by itself). Both legs run
-# the IDENTICAL suite and the IDENTICAL check depth: the budget
-# buys headroom, never depth.
+# frozen old-releases archive), the jammy leg boots the 5.15.0 LTS
+# line (night-dragon-maintenance-4, the owner's reinstatement of the
+# NIGHT-improve-31 floor: a kernel "inside the proven span" never
+# actually BOOTS in the low-specs envelope, so a 5.15-ABI regression
+# was invisible until this leg existed; jammy is a live LTS, its
+# 5.15.0-ABI point releases resolve dynamically from the main
+# archive), and the best-spec leg boots the archive's dynamically
+# resolved LATEST kernel (nothing pinned, the resolver walks onto
+# each new release by itself). All legs run the IDENTICAL suite and
+# the IDENTICAL check depth: the budget buys headroom, never depth.
 #
 # The suite lives in scripts/ci/e2e-init.sh (its header is the
 # contract's home); this file only makes the legs run. Five
@@ -83,15 +88,19 @@ jobs:
       fail-fast: false
       matrix:
         # The estate's envelope vocabulary (supermassive.yml's pair):
-        # low = the TRUE documented floor kernel, best = the archive's
-        # dynamic latest. The vm_timeout is the wedge-guard outer
-        # bound (a wedged guest can never burn the job budget); both
-        # legs run the identical suite at identical depth, so the
-        # low leg's larger bound is headroom for its quarter-core
-        # serialization, never less depth.
+        # low = the TRUE documented floor kernel, jammy = the 5.15.0
+        # LTS line (night-dragon-maintenance-4's reinstated leg), best
+        # = the archive's dynamic latest. The vm_timeout is the
+        # wedge-guard outer bound (a wedged guest can never burn the
+        # job budget); every leg runs the identical suite at identical
+        # depth, so the low legs' larger bound is headroom for their
+        # quarter-core serialization, never less depth.
         include:
           - title: supermassive e2e - low specs (the 5.13 floor kernel)
             profile: low
+            vm_timeout: 2400
+          - title: supermassive e2e - low specs (the jammy 5.15.0 LTS kernel)
+            profile: jammy
             vm_timeout: 2400
           - title: supermassive e2e - best specs (the archive's latest kernel)
             profile: best
@@ -226,6 +235,89 @@ jobs:
           # failover.ko under net/core owns the symbols
           # net_failover.ko imports, so the pair alone fails every
           # insmod with Unknown symbol - three modules, bottom-up.
+          KVER="${IMG#linux-image-unsigned-}"
+          MODPKG="linux-modules-$KVER"
+          apt-get -o Acquire::Retries=5 download "$MODPKG"
+          rm -rf mods /tmp/kfloor/virtio-mods
+          dpkg-deb -x "${MODPKG}"*_amd64.deb mods
+          CFG="mods/boot/config-$KVER"
+          test -f "$CFG" || {
+            echo "FAIL: no config-$KVER inside $MODPKG - deb contents:"
+            ls mods/boot || true
+            exit 1
+          }
+          VNET=$(sed -n 's/^CONFIG_VIRTIO_NET=\(.*\)$/\1/p' "$CFG")
+          case "$VNET" in
+            y)  echo "virtio_net built-in (=y) - no modules to stage" ;;
+            m)  STG="/tmp/kfloor/virtio-mods/lib/modules/$KVER/kernel"
+                mkdir -p "$STG/net/core" "$STG/drivers/net"
+                stage_mod() {
+                  mod=$1; dir=$2; flag=$3
+                  WANT=$(sed -n "s/^CONFIG_$flag=\(.*\)$/\1/p" "$CFG")
+                  if [ "$WANT" = "m" ]; then
+                    SRC="mods/lib/modules/$KVER/kernel/$dir/$mod.ko"
+                    test -f "$SRC" || { echo "FAIL: $mod.ko absent from $MODPKG (config says =m)"; exit 1; }
+                    cp "$SRC" "$STG/$dir/"
+                  fi
+                }
+                stage_mod failover net/core FAILOVER
+                stage_mod net_failover drivers/net NET_FAILOVER
+                stage_mod virtio_net drivers/net VIRTIO_NET
+                echo "staged virtio modules: $(du -sh /tmp/kfloor/virtio-mods | cut -f1) at /tmp/kfloor/virtio-mods" ;;
+            *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET - no usable virtio-net driver on this kernel"; exit 1 ;;
+          esac
+
+      # The jammy 5.15.0 leg (night-dragon-maintenance-4, the owner's
+      # reinstatement of the NIGHT-improve-31 floor: improve-33 had
+      # dropped a dedicated jammy leg because 5.15 "sits inside the
+      # proven span" - but a kernel inside the span never BOOTS in
+      # the low-specs envelope, so a 5.15-ABI regression (a verifier
+      # change, a map-layout shift) was invisible until this leg
+      # existed. Jammy is a LIVE LTS: the kernels come from the main
+      # archive (not the frozen old-releases mirror the impish floor
+      # needs), dynamically resolved to the newest 5.15.0-ABI
+      # jammy-updates point release - no URL rot, no pinned ABI. The
+      # 5\.15\.0- anchor deliberately excludes jammy's HWE 6.x
+      # images - those are the best leg's jurisdiction. The same
+      # config-driven virtio staging walk as the impish leg (the
+      # walk stages whatever the deb's own config names, =y or =m).
+      - name: Fetch the jammy 5.15.0 LTS kernel (low specs)
+        if: matrix.profile == 'jammy'
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/kfloor && cd /tmp/kfloor
+          {
+            echo "deb http://archive.ubuntu.com/ubuntu/ jammy main"
+            echo "deb http://archive.ubuntu.com/ubuntu/ jammy-updates main"
+          } | sudo tee /etc/apt/sources.list.d/jammy-floor.list >/dev/null
+          sudo apt-get -o Acquire::Retries=5 update \
+            -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/jammy-floor.list \
+            -o Dir::Etc::sourceparts=/dev/null \
+            -o APT::Get::List-Cleanup=0
+          IMG=$(apt-cache search --names-only \
+            'linux-image-unsigned-5\.15\.0-.*-generic' 2>/dev/null \
+            | grep -oE 'linux-image-unsigned-5\.15\.0-[0-9]+-generic' \
+            | sort -V | tail -1 || true)
+          if test -z "$IMG"; then
+            echo "FAIL: no linux-image-unsigned-5.15.0-*-generic in the jammy pockets - resolver evidence:"
+            apt-cache search --names-only 'linux-image-unsigned-5\.15' || true
+            exit 1
+          fi
+          echo "resolved: $IMG"
+          apt-get -o Acquire::Retries=5 download "$IMG"
+          dpkg -x "${IMG}"*_amd64.deb pkg
+          VMLINUZ=$(find pkg/boot -name 'vmlinuz-5.15.*' | head -1)
+          if test -z "$VMLINUZ"; then
+            echo "FAIL: no vmlinuz inside the deb - pkg/boot contents:"
+            ls -la pkg/boot || true
+            exit 1
+          fi
+          cp "$VMLINUZ" /tmp/kfloor/vmlinuz-floor
+          echo "kernel: $(du -h /tmp/kfloor/vmlinuz-floor | cut -f1) at /tmp/kfloor/vmlinuz-floor"
+          # The egress half: the SAME config-driven staging walk the
+          # impish leg runs (failover.ko under net/core owns the
+          # symbols net_failover.ko imports - three modules,
+          # bottom-up, when the driver is a module).
           KVER="${IMG#linux-image-unsigned-}"
           MODPKG="linux-modules-$KVER"
           apt-get -o Acquire::Retries=5 download "$MODPKG"
@@ -484,7 +576,7 @@ jobs:
           cd /tmp/kfloor
           CORES=$(nproc)
           TOTAL_MB=$(free -m | awk '/^Mem:/{print $2}')
-          if [ "${{ matrix.profile }}" = "low" ]; then
+          if [ "${{ matrix.profile }}" != "best" ]; then
             SMP=$(( CORES / 4 )); [ "$SMP" -lt 1 ] && SMP=1
             MEM=$(( TOTAL_MB / 8 )); [ "$MEM" -lt 1024 ] && MEM=1024
           else
