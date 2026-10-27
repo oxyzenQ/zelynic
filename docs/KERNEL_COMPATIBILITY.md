@@ -185,8 +185,12 @@ Check: `stat -fc %T /sys/fs/cgroup` should return `cgroup2fs`.
 
 ### Binary types
 
-- [x] GNU (glibc, dynamic) — Arch, Ubuntu, Fedora, Debian
-- [x] MUSL (static) — Ubuntu 21.10, CachyOS VM, Debian 13
+- [x] MUSL (static) — Ubuntu 21.10, CachyOS VM, Debian 13 — the
+  shipped shape (night-dragon-maintenance-6: the gnu packages are
+  retired; musl is the only build and release flavor)
+- [x] GNU (glibc, dynamic) — Arch, Ubuntu, Fedora, Debian — RETIRED
+  as a shipped package (the historical verifications above stand;
+  the runs predate the musl-only estate)
 
 ### Test coverage
 

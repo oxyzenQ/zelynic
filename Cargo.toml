@@ -242,40 +242,31 @@ panic = "unwind"    # Must be unwind — aya BPF library can panic internally
 overflow-checks = false
 incremental = false
 
-# Native-CPU host build profiles for the cargo aliases
-# pro-native-gnu / pro-native-musl (see .cargo/config.toml [alias]).
-# They inherit release unchanged — the only delta is the alias-injected
-# `-C target-cpu=native` — so alias binaries are bit-for-bit the same
-# optimization tier as release. Separate profile names exist so the
-# binaries land in target/<profile>/ and never clobber
-# target/release/zelynic (cosmostrix pro-native contract).
-[profile.pro-native-gnu]
-inherits = "release"
-
+# Native-CPU host build profile for the cargo alias pro-native-musl
+# (see .cargo/config.toml [alias]; the gnu profiles are retired —
+# night-dragon-maintenance-6: musl is the only libc shape built or
+# shipped). It inherits release unchanged — the only delta is the
+# alias-injected `-C target-cpu=native` (plus +crt-static, mirroring
+# the file's [target] block) — so the alias binary is bit-for-bit the
+# same optimization tier as release. The separate profile name lands
+# the binary in target/x86_64-unknown-linux-musl/pro-native-musl/ and
+# never clobbers target/release/zelynic (cosmostrix pro-native
+# contract).
 [profile.pro-native-musl]
 inherits = "release"
 
 # Arch-baseline release profiles for the cargo aliases
-# pro-linux-amd64-v3-gnu / pro-linux-amd64-v4-gnu /
 # pro-linux-amd64-v3-musl / pro-linux-amd64-v4-musl
 # (NIGHT-improve-22; NIGHT-boost-30 renamed both the aliases and the
 # profiles to carry the arch, matching the release matrix platform
 # ids; see .cargo/config.toml [alias]). They inherit release
 # unchanged — the only delta is the alias-injected
-# -C target-cpu=x86-64-v3/v4 (plus +crt-static on the musl pair,
-# mirroring the file's [target] block) — so alias binaries are
-# bit-for-bit the same optimization tier as the release packages
-# they reproduce. Separate profile names exist so the four artifacts
-# land in target/<profile>/ (gnu) and
-# target/x86_64-unknown-linux-musl/<profile>/ (musl) and never
-# clobber each other or target/release/zelynic (cosmostrix
-# pro-linux contract).
-[profile.pro-linux-amd64-v3-gnu]
-inherits = "release"
-
-[profile.pro-linux-amd64-v4-gnu]
-inherits = "release"
-
+# -C target-cpu=x86-64-v3/v4 (plus +crt-static, mirroring the file's
+# [target] block) — so alias binaries are bit-for-bit the same
+# optimization tier as the release packages they reproduce. Separate
+# profile names exist so the two artifacts land in
+# target/x86_64-unknown-linux-musl/<profile>/ and never clobber each
+# other or target/release/zelynic (cosmostrix pro-linux contract).
 [profile.pro-linux-amd64-v3-musl]
 inherits = "release"
 

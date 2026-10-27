@@ -146,29 +146,30 @@ no clang, no cargo, and no installer is needed on the target machine.
 Releases are arch-baseline builds (NIGHT-improve-22, cosmostrix
 pro-linux lineage): every package is x86-64-v3 (AVX/AVX2/BMI1/BMI2/
 FMA — any x86_64 CPU from ~2013 Haswell onward) or x86-64-v4
-(AVX-512), in both libc flavors — four packages per tag, and only
-those four. The native v1 baseline is retired from releases: every
-CPU that can run a release at all can run v3, and v3's vector paths
-are what the limiter's hot loops actually use. Pick `gnu` normally,
-`musl` for old glibc systems (fully static):
+(AVX-512), fully static musl — two packages per tag, and only those
+two (night-dragon-maintenance-6: the gnu/glibc packages are retired;
+a static binary runs on every distro and every glibc version, the
+old "which libc leg" question no longer exists). The native v1
+baseline is retired from releases: every CPU that can run a release
+at all can run v3, and v3's vector paths are what the limiter's hot
+loops actually use.
 
 ```bash
 mkdir /tmp/zelynic-rel
 # v3 runs on any x86_64 machine from ~2013 onward:
-tar -xzf zelynic-vX.Y.Z-linux-amd64-v3-gnu.tar.gz -C /tmp/zelynic-rel
-# AVX-512 machines (Zen 4/5, Ice Lake and newer): -v4-gnu
-# old glibc / fully static: -v3-musl / -v4-musl
+tar -xzf zelynic-vX.Y.Z-linux-amd64-v3-musl.tar.gz -C /tmp/zelynic-rel
+# AVX-512 machines (Zen 4/5, Ice Lake and newer): -v4-musl
 
 # user install
 install -Dm755 /tmp/zelynic-rel/zelynic ~/.local/bin/zelynic
 # or: sudo install -Dm755 /tmp/zelynic-rel/zelynic /usr/local/bin/zelynic
 ```
 
-Every package name carries its libc leg (NIGHT-boost-36): the four
-tarballs are `zelynic-vX.Y.Z-linux-amd64-v3-gnu.tar.gz`, `-v4-gnu`,
-`-v3-musl`, and `-v4-musl` — the same id the binary inside reports
-in `Build:` (`linux-amd64-v3-gnu`): one string names the download and
-the binary's own self-description, so the two can never drift.
+Every package name carries its platform id (NIGHT-boost-36): the two
+tarballs are `zelynic-vX.Y.Z-linux-amd64-v3-musl.tar.gz` and
+`-v4-musl` — the same id the binary inside reports in `Build:`
+(`linux-amd64-v3-musl`): one string names the download and the
+binary's own self-description, so the two can never drift.
 
 Not sure which baseline your CPU takes? `grep -o 'avx512f'
 /proc/cpuinfo` answers v4 eligibility — any hit means yes, everything
@@ -218,13 +219,12 @@ owner's first-publish manual).
 ### Install from source
 
 Lazy? Skip the manual order entirely — one command runs the WHOLE
-bring-up (bootstrap + pro-native-gnu build + engine self-test + the
-full supermassive matrix) and ends with a next-steps menu
+bring-up (bootstrap + static musl flagship build + engine self-test +
+the full supermassive matrix) and ends with a next-steps menu
 (NIGHT-improve-18):
 
 ```bash
 ./scripts/setup.sh               # everything
-./scripts/setup.sh --musl        # also build the static musl twin
 ./scripts/setup.sh --skip-heavy  # bootstrap + build + self-test only
 ```
 
@@ -245,19 +245,15 @@ the frozen old-releases archive) and "supermassive test - best
 specs" (every core + three quarters of the RAM, the big-host width,
 booting the Ubuntu archive's LATEST kernel, resolved dynamically at
 run time — nothing pinned, the resolver walks onto each new release
-by itself). Each envelope is crossed with the payload's libc
-(NIGHT-blade-12, the "low/best with musl version" ask): four legs
-total — the musl legs keep the static twin on the frozen
-ubuntu:22.04 userland it has always ridden, and the gnu legs boot
-the pro-native-gnu flagship on a ubuntu:24.04 rootfs (same-distro
-as the runner that built the dynamic binary), so the default
-source-build shape finally gets the live batteries — limiter
-matrix, survival, rig suites (the three root rigs, NIGHT-hunt-35),
-claims proof — that the static twin had alone.
-So "does it work end to end?" is answered per push across the whole
-kernel span AND the machine span AND both libc flavors — no
-VirtualBox session needed; `workflow_dispatch` fires the same four
-legs on demand as the pre-release qualification run, and a weekly
+by itself). The payload is the static musl flagship on the frozen
+ubuntu:22.04 userland it has always ridden (NIGHT-blade-12's
+"low/best with musl version" ask, made the WHOLE story by
+night-dragon-maintenance-6: the gnu legs retired with the gnu
+packaging — musl is the only shape built and shipped). So "does it
+work end to end?" is answered per push across the whole kernel span
+AND the machine span — no VirtualBox session needed;
+`workflow_dispatch` fires the same two legs on demand as the
+pre-release qualification run, and a weekly
 run keeps the span proven between pushes (a plain container cannot
 change the host kernel; the micro-VM is the honest container-shaped
 answer).
@@ -276,7 +272,7 @@ cd zelynic
 # ~/.local/bin (no sudo, no system LLVM) + the PATH fix persisted
 # to ~/.profile + the flagship build — bootstrap ends ready to test:
 ./scripts/dev/bootstrap-ebpf.sh
-# (binary lands in target/pro-native-gnu/zelynic)
+# (binary lands in target/x86_64-unknown-linux-musl/pro-native-musl/zelynic)
 
 # Plain release-profile build (the manual alternative — the BPF
 # objects are built pure-Rust, aya-ebpf nested nightly build in
@@ -291,21 +287,19 @@ performance on the machine it runs on, cosmostrix `pro-native`
 lineage):
 
 ```bash
-# Dynamic linking (glibc) — lands in target/pro-native-gnu/zelynic
-cargo pro-native-gnu
-
-# Static linking (musl) — lands in
+# Static linking (musl — the only libc shape, night-dragon-
+# maintenance-6) — lands in
 # target/x86_64-unknown-linux-musl/pro-native-musl/zelynic
 cargo pro-native-musl
 ```
 
-Both aliases build the full flagship binary (`--features ebpf`,
+The alias builds the full flagship binary (`--features ebpf`,
 same optimization tier as release) with `-C target-cpu=native`, and
-report their build label in the version output:
+reports its build label in the version output:
 
 ```bash
-$ ./target/pro-native-gnu/zelynic -V
-Build: local-native-gnu (<hash>)
+$ ./target/x86_64-unknown-linux-musl/pro-native-musl/zelynic -V
+Build: local-native-musl (<hash>)
 Build-time: 9/18/2026 01:30 (UTC)
 Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)
 ```
@@ -332,26 +326,25 @@ names the shape, and a separate profile per shape so nothing
 clobbers anything:
 
 ```bash
-cargo pro-linux-amd64-v3-gnu  # target/pro-linux-amd64-v3-gnu/zelynic
-cargo pro-linux-amd64-v4-gnu  # target/pro-linux-amd64-v4-gnu/zelynic
 cargo pro-linux-amd64-v3-musl # target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic
 cargo pro-linux-amd64-v4-musl # target/x86_64-unknown-linux-musl/pro-linux-amd64-v4-musl/zelynic
 ```
 
-Each alias injects `-C target-cpu=x86-64-v3` (or `-v4`) — plus
-`-C target-feature=+crt-static` on the musl pair — so a local build
-reproduces the release artifact's optimization tier bit-for-bit
-(same flags the release workflow composes). build.rs strips the
-baseline flags from the nested eBPF build (NIGHT-hunt-28), exactly
-as for the native aliases, so the bpfel objects stay identical
-across all six build shapes. A v3 build runs on any x86_64 CPU from
+Each alias injects `-C target-cpu=x86-64-v3` (or `-v4`) plus
+`-C target-feature=+crt-static` — so a local build reproduces the
+release artifact's optimization tier bit-for-bit (same flags the
+release workflow composes). build.rs strips the baseline flags from
+the nested eBPF build (NIGHT-hunt-28), exactly as for the native
+alias, so the bpfel objects stay identical across the three build
+shapes. A v3 build runs on any x86_64 CPU from
 ~2013 onward; a v4 build needs AVX-512 (check with `grep -o
 'avx512f' /proc/cpuinfo`).
 
 From source, `scripts/dev/bootstrap-ebpf.sh` builds the same alias
-lineage — default `cargo pro-native-gnu`, `--musl` for the static
-x86_64 build — and verifies the binary answers `-V`; land it on PATH
-with a plain `cp target/pro-native-gnu/zelynic ~/.local/bin/`
+lineage — the static `cargo pro-native-musl` flagship (the only libc
+shape, night-dragon-maintenance-6) — and verifies the binary answers
+`-V`; land it on PATH with a plain
+`cp target/x86_64-unknown-linux-musl/pro-native-musl/zelynic ~/.local/bin/`
 (NIGHT-improve-15). `scripts/package/uninstall.sh` clears kernel
 enforcement first: while BPF pins are still live under
 `/sys/fs/bpf/zelynic` it runs `u --all` (or prints the exact manual
@@ -647,6 +640,10 @@ details, and the accuracy table live in
 [docs/CROSS_DISTRO_RESULTS.md](docs/CROSS_DISTRO_RESULTS.md), told
 once there:
 
+The Binary column records the package each run drove at the time
+(the GNU rows predate the musl-only estate — those packages are
+retired, the recorded results stand as history):
+
 | Distro | Kernel | Binary | Enforcement |
 |--------|--------|--------|-------------|
 | Arch Linux | 6.18 | GNU | brave 100kb → 730 Kbps |
@@ -714,7 +711,7 @@ gpg --keyserver keyserver.ubuntu.com \
   --recv-keys F5324E0967F104D58CE025F347A50AEF4B65AAC2
 
 # per download: prove the tarball came from the maintainer
-gpg --verify zelynic-vX.Y.Z-linux-amd64-v3-gnu.tar.gz.asc
+gpg --verify zelynic-vX.Y.Z-linux-amd64-v3-musl.tar.gz.asc
 ```
 
 — and the checksum one-liners, the key details, and the algorithm

@@ -468,8 +468,10 @@ COMMANDS:
 
 PRODUCT BUILDS (NIGHT-cleanup-3): this script is the CHECK
 orchestrator — release binaries do not come from here. Build with
-./scripts/dev/bootstrap-ebpf.sh (the flagship, cargo pro-native-gnu),
-then land it on PATH yourself (cp target/pro-native-gnu/zelynic
+./scripts/dev/bootstrap-ebpf.sh (the flagship, cargo pro-native-musl
+— musl is the only libc shape, night-dragon-maintenance-6), then
+land it on PATH yourself (cp
+target/x86_64-unknown-linux-musl/pro-native-musl/zelynic
 ~/.local/bin/ — the release payload is that one file; the uninstall
 tool stays: ./scripts/package/uninstall.sh). The old
 basic-profile release/release-debug/ci/all/bench subcommands were

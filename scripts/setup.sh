@@ -6,27 +6,29 @@
 # scripts/setup.sh — the lazy one-command pipeline (NIGHT-improve-18).
 #
 # For the owner who does not want to remember the order: this runs
-# the WHOLE bring-up — toolchain bootstrap, the pro-native build,
-# the rootless engine self-test, and the full supermassive matrix —
+# the WHOLE bring-up — toolchain bootstrap, the flagship build, the
+# rootless engine self-test, and the full supermassive matrix —
 # then hands back a menu of next steps. Every phase is idempotent:
 # re-running skips satisfied work (bootstrap re-checks in seconds,
 # cargo rebuilds incrementally, tests just run again).
 #
 # The pipeline (each phase must pass before the next starts):
 #   1. bootstrap-ebpf.sh  — dated nightly pin + bpf-linker 0.11.1 +
-#                           the flagship pro-native-gnu build
-#   2. (opt-in --musl)    — the static pro-native-musl twin build
-#   3. self-test          — supermassive engine smoke, rootless
-#   4. supermassive matrix — the 5+ min full command-surface sweep,
+#                           the static pro-native-musl flagship build
+#                           (night-dragon-maintenance-6: musl is the
+#                           only libc shape — the old gnu flagship and
+#                           the opt-in --musl twin phase retired with
+#                           the gnu packaging)
+#   2. self-test          — supermassive engine smoke, rootless
+#   3. supermassive matrix — the 5+ min full command-surface sweep,
 #                           run under sudo (setup asks once)
 #
 # Usage:
-#   ./scripts/setup.sh              # everything, gnu build
-#   ./scripts/setup.sh --musl      # also build the static musl twin
+#   ./scripts/setup.sh              # everything
 #   ./scripts/setup.sh --skip-heavy # bootstrap + build + self-test only
 #
-# Run as your NORMAL user (not root): phases 1-3 install into $HOME
-# and the script elevates itself with sudo for phase 4 only.
+# Run as your NORMAL user (not root): phases 1-2 install into $HOME
+# and the script elevates itself with sudo for phase 3 only.
 
 set -euo pipefail
 
@@ -45,16 +47,12 @@ die() {
 	exit 1
 }
 
-BUILD_MUSL=false
 SKIP_HEAVY=false
 
 usage() {
 	cat <<'EOF'
-Usage: ./scripts/setup.sh [--musl] [--skip-heavy]
+Usage: ./scripts/setup.sh [--skip-heavy]
 
-  --musl        Also build the static pro-native-musl twin
-                (x86_64 hosts only; lands in
-                target/x86_64-unknown-linux-musl/pro-native-musl/)
   --skip-heavy  Stop after bootstrap + build + self-test
                 (skip the 5+ min root supermassive matrix)
   -h, --help    Show this help
@@ -63,10 +61,6 @@ EOF
 
 while [ $# -gt 0 ]; do
 	case "$1" in
-	--musl)
-		BUILD_MUSL=true
-		shift
-		;;
 	--skip-heavy)
 		SKIP_HEAVY=true
 		shift
@@ -83,47 +77,34 @@ while [ $# -gt 0 ]; do
 done
 
 if [ "$(id -u)" -eq 0 ]; then
-	die "run as your normal user, not root — phases 1-3 install into \$HOME, and this script calls sudo itself for the matrix."
+	die "run as your normal user, not root — phases 1-2 install into \$HOME, and this script calls sudo itself for the matrix."
 fi
 
 cd "${REPO_ROOT}"
 
 # bootstrap fixes ~/.profile PATH persistence for FUTURE shells; the
-# current shell still needs the two cargo/local entries for the musl
-# phase and any cargo re-invocation.
+# current shell still needs the two cargo/local entries for any cargo
+# re-invocation.
 PATH="${HOME}/.cargo/bin:${HOME}/.local/bin:${PATH}"
 
 SECONDS=0
 
-ok "phase 1/4: bootstrap (toolchain + bpf-linker + pro-native-gnu flagship build)"
+ok "phase 1/3: bootstrap (toolchain + bpf-linker + static musl flagship build)"
 if ! "${SCRIPT_DIR}/dev/bootstrap-ebpf.sh"; then
 	die "bootstrap failed — read its output above; fix and re-run ./scripts/setup.sh (idempotent)."
 fi
-ok "phase 1/4: bootstrap done (${SECONDS}s)"
+ok "phase 1/3: bootstrap done (${SECONDS}s)"
 
-if [ "${BUILD_MUSL}" = true ]; then
-	ok "phase 2/4 (--musl): static pro-native-musl build"
-	if [ "$(uname -m)" != "x86_64" ]; then
-		die "--musl is x86_64-only (the alias pins x86_64-unknown-linux-musl; see .cargo/config.toml)."
-	fi
-	if ! cargo pro-native-musl --locked; then
-		die "pro-native-musl build failed — read the compiler output above (is the musl target installed? see .cargo/config.toml)."
-	fi
-	ok "phase 2/4: musl twin ready at target/x86_64-unknown-linux-musl/pro-native-musl/zelynic"
-else
-	ok "phase 2/4: musl twin skipped (opt in with --musl)"
-fi
-
-ok "phase 3/4: supermassive engine self-test (rootless)"
+ok "phase 2/3: supermassive engine self-test (rootless)"
 if ! "${SCRIPT_DIR}/supermassive/supermassive-test.sh" --self-test; then
 	die "self-test failed — the harness engine itself is broken; run scripts/supermassive/supermassive-test.py --self-test for the failing rows."
 fi
-ok "phase 3/4: self-test green"
+ok "phase 2/3: self-test green"
 
 if [ "${SKIP_HEAVY}" = true ]; then
-	ok "phase 4/4: matrix skipped (--skip-heavy)"
+	ok "phase 3/3: matrix skipped (--skip-heavy)"
 else
-	ok "phase 4/4: the supermassive matrix (5+ min, sudo)"
+	ok "phase 3/3: the supermassive matrix (5+ min, sudo)"
 	if ! sudo "${SCRIPT_DIR}/supermassive/supermassive-test.sh"; then
 		warn "the matrix reported FAILURES — read the marked rows above (they are the verdict, not this script)."
 		warn "re-run just the matrix: sudo ./scripts/supermassive/supermassive-test.sh"
@@ -146,15 +127,12 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 	fi
 fi
 
-BUILT="${REPO_ROOT}/target/pro-native-gnu/zelynic"
+BUILT="${REPO_ROOT}/target/x86_64-unknown-linux-musl/pro-native-musl/zelynic"
 echo ""
 ok "setup finished in ${SECONDS}s — binary: ${BUILT}"
-if [ "${BUILD_MUSL}" = true ]; then
-	ok "static twin: target/x86_64-unknown-linux-musl/pro-native-musl/zelynic"
-fi
 echo ""
 echo "next steps — the menu:"
-echo "  want it on PATH?                 cp target/pro-native-gnu/zelynic ~/.local/bin/ (or /usr/local/bin)"
+echo "  want it on PATH?                 cp target/x86_64-unknown-linux-musl/pro-native-musl/zelynic ~/.local/bin/ (or /usr/local/bin)"
 echo "  want it gone again?              ./scripts/package/uninstall.sh"
 echo "  explore the CLI:                 ${BUILT} --help"
 echo "  check kernel support:            sudo ${BUILT} doctor"

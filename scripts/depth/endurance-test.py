@@ -46,8 +46,8 @@ Usage:
   sudo ./scripts/depth/endurance-test.sh                # full run (~100s)
   sudo ./scripts/depth/endurance-test.sh --quick        # fast pass (~40s)
   sudo ./scripts/depth/endurance-test.sh --json         # machine-readable
-  sudo ./scripts/depth/endurance-test.sh --binary ./target/pro-native-gnu/zelynic
-  ZELYNIC_BINARY=./target/pro-native-gnu/zelynic sudo -E ./scripts/depth/endurance-test.sh
+  sudo ./scripts/depth/endurance-test.sh --binary ./target/x86_64-unknown-linux-musl/pro-native-musl/zelynic
+  ZELYNIC_BINARY=./target/x86_64-unknown-linux-musl/pro-native-musl/zelynic sudo -E ./scripts/depth/endurance-test.sh
 
 Quick mode runs fewer cycles (120) and a shorter soak (10s) — a
 smoke of the same proof, not the full exhaustion math (the 256-cap

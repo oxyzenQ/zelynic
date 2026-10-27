@@ -106,7 +106,7 @@ pub struct BuildInfo {
     /// .cargo_vcs_info.json; "unknown" only when every lane failed).
     pub git_sha: String,
     /// The canonical build label — `ZELYNIC_BUILD` (the release
-    /// matrix platform id, e.g. "linux-amd64-v3-gnu") or the
+    /// matrix platform id, e.g. "linux-amd64-v3-musl") or the
     /// detected arch+libc fallback for plain builds.
     pub variant: String,
     /// The UTC build timestamp (Hinnant algorithm, no time crate).
@@ -172,14 +172,14 @@ fn build_string() -> String {
 /// (cosmostrix `canonical_build_label()` lineage).
 ///
 /// Source of truth: the `ZELYNIC_BUILD` env var forwarded at compile
-/// time by build.rs — set by the cargo aliases `pro-native-gnu` /
-/// `pro-native-musl` (labels `local-native-gnu` / `local-native-musl`,
-/// see .cargo/config.toml), the arch-baseline aliases
-/// `pro-linux-amd64-v3-gnu` / `pro-linux-amd64-v4-gnu` /
-/// `pro-linux-amd64-v3-musl` / `pro-linux-amd64-v4-musl` (labels
-/// `local-linux-amd64-v3-gnu` etc., the release matrix platform id
-/// under the `local-` marker, NIGHT-boost-30), or by CI/release
-/// scripts (the platform id verbatim, e.g. `linux-amd64-v3-gnu`).
+/// time by build.rs — set by the cargo alias `pro-native-musl` (label
+/// `local-native-musl`, see .cargo/config.toml), the arch-baseline
+/// aliases `pro-linux-amd64-v3-musl` / `pro-linux-amd64-v4-musl`
+/// (labels `local-linux-amd64-v3-musl` etc., the release matrix
+/// platform id under the `local-` marker, NIGHT-boost-30), or by
+/// CI/release scripts (the platform id verbatim, e.g.
+/// `linux-amd64-v3-musl`). night-dragon-maintenance-6 retired the
+/// gnu aliases with the gnu packaging — musl is the only libc shape.
 /// When unset (plain `cargo build`), it falls back to the
 /// compile-time arch+libc detection, e.g. `linux-amd64-gnu`.
 pub(crate) fn build_label() -> String {
@@ -212,7 +212,7 @@ mod tests {
     /// Fallback contract: in a plain `cargo test` build ZELYNIC_BUILD is
     /// not forwarded by build.rs, so the canonical label must equal the
     /// compile-time arch+libc detection. The override path (alias builds
-    /// reporting `local-native-gnu` / `local-native-musl`) is verified
+    /// reporting `local-native-musl` etc.) is verified
     /// live by building with the aliases and reading `zelynic -V`.
     #[test]
     fn build_label_falls_back_to_detected_target_when_env_unset() {

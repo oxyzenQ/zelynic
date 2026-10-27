@@ -218,14 +218,16 @@ fi
 # built"), the same rule the harness twin resolves with
 # (scripts/lib/harness_lib.sh, the bash twin of the python lib's
 # REPO_BINARY_CANDIDATES scan). One launcher doctrine survives on
-# purpose: under TCG the STATIC group outranks the dynamic gnu group
+# purpose: under TCG only the STATIC alias builds are candidates
 # (-cpu max emulates the ISA, not the host — the SIGILL warning
-# below), so TCG packs the newest static build and only falls back to
-# a gnu build when no static one exists; under KVM the newest build
-# wins outright (host-passthrough runs every shape). The plain-release
-# arms are GONE (night-dragon-maintenance-3, the owner's from-source
-# law): a sandbox payload is an alias-built release-tier binary or an
-# explicit pick, never a bare cargo build --release artifact.
+# below; night-dragon-maintenance-6 made this the WHOLE story: musl
+# is the only shape built, so the old static-over-gnu ranking and
+# the gnu fallback arms lost their objects); under KVM the newest
+# build wins outright (host-passthrough runs every shape). The
+# plain-release arms are GONE (night-dragon-maintenance-3, the
+# owner's from-source law): a sandbox payload is an alias-built
+# release-tier binary or an explicit pick, never a bare cargo build
+# --release artifact.
 newest_binary() {
 	local best="" cand
 	for cand in "$@"; do
@@ -243,10 +245,7 @@ if [ -z "${BINARY}" ]; then
 	if [ -w /dev/kvm ]; then
 		BINARY="$(newest_binary \
 			"${REPO_ROOT}/zelynic" \
-			"${REPO_ROOT}/target/pro-native-gnu/zelynic" \
 			"${MUSL_DIR}/pro-native-musl/zelynic" \
-			"${REPO_ROOT}/target/pro-linux-amd64-v3-gnu/zelynic" \
-			"${REPO_ROOT}/target/pro-linux-amd64-v4-gnu/zelynic" \
 			"${MUSL_DIR}/pro-linux-amd64-v3-musl/zelynic" \
 			"${MUSL_DIR}/pro-linux-amd64-v4-musl/zelynic")"
 	else
@@ -254,18 +253,11 @@ if [ -z "${BINARY}" ]; then
 			"${MUSL_DIR}/pro-native-musl/zelynic" \
 			"${MUSL_DIR}/pro-linux-amd64-v3-musl/zelynic" \
 			"${MUSL_DIR}/pro-linux-amd64-v4-musl/zelynic")"
-		if [ -z "${BINARY}" ]; then
-			BINARY="$(newest_binary \
-				"${REPO_ROOT}/zelynic" \
-				"${REPO_ROOT}/target/pro-native-gnu/zelynic" \
-				"${REPO_ROOT}/target/pro-linux-amd64-v3-gnu/zelynic" \
-				"${REPO_ROOT}/target/pro-linux-amd64-v4-gnu/zelynic")"
-		fi
 	fi
 fi
 if [ -n "${BINARY}" ] && [ -x "${BINARY}" ]; then
-	# Under TCG the v3/v4 arch-baseline glibc builds may SIGILL
-	# (-cpu max emulates the ISA, not the host's speed). The
+	# Under TCG a dynamic build may SIGILL (-cpu max emulates the
+	# ISA, not the host's speed). The
 	# path-name heuristic stays, but a STATIC binary (the release
 	# musl tarball extracted anywhere) never draws the warning —
 	# ldd fails on static-pie, which is exactly the tell
@@ -276,13 +268,13 @@ if [ -n "${BINARY}" ] && [ -x "${BINARY}" ]; then
 		*musl*) ;;
 		*)
 			if ldd "${BINARY}" >/dev/null 2>&1; then
-				note "WARNING: ${BINARY} is a dynamic glibc build — under TCG the v3/v4 arch-baseline may SIGILL"
+				note "WARNING: ${BINARY} is a dynamic build — under TCG the v3/v4 arch-baseline may SIGILL"
 			fi
 			;;
 		esac
 	fi
 else
-	die "no zelynic binary — build one (./scripts/setup.sh --skip-heavy --musl) or pass --binary PATH"
+	die "no zelynic binary — build one (./scripts/setup.sh --skip-heavy) or pass --binary PATH"
 fi
 note "binary: ${BINARY}"
 

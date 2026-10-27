@@ -6684,15 +6684,13 @@ def self_test():
         and all(
             any(f"pro-linux-{kind}" in c for c in lib.REPO_BINARY_CANDIDATES)
             for kind in (
-                "amd64-v3-gnu",
-                "amd64-v4-gnu",
                 "amd64-v3-musl",
                 "amd64-v4-musl",
             )
         )
     )
     record(
-        "engine: binary candidates repo-anchored (native + v3/v4, gnu/musl, release)",
+        "engine: binary candidates repo-anchored (native + v3/v4 musl, release)",
         "PASS" if ok_candidates else "FAIL",
         f"{len(lib.REPO_BINARY_CANDIDATES)} absolute candidates under {lib.REPO_ROOT}",
     )

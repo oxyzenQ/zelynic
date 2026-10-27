@@ -1789,7 +1789,7 @@ def main():
     # 2026-09-21 debian13 incident closed for v1.
     if not lib.resolve_binary(
         args.binary,
-        "./scripts/supermassive/supermassive-test-v4.sh --binary ./target/pro-native-gnu/zelynic",
+        "./scripts/supermassive/supermassive-test-v4.sh --binary ./target/x86_64-unknown-linux-musl/pro-native-musl/zelynic",
     ):
         return 1
 
