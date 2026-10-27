@@ -130,6 +130,22 @@ else
 	fi
 fi
 
+# The commit-time prebuilt gate self-install (the same arm
+# gate-keepers.sh carries, now on the bring-up path too): a fresh
+# clone that never ran gate-keepers still gets the auto-heal law -
+# any commit touching ebpf/ regenerates the lane and stages it
+# (night-dragon-maintenance-3: the unkillable ebpf law's commit
+# trigger must not depend on remembering a second script).
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+	hook_path="$(git config --local core.hooksPath || true)"
+	if [ "${hook_path}" != ".githooks" ]; then
+		git config --local core.hooksPath .githooks
+		ok "pre-commit gate wired (core.hooksPath=.githooks — commit-time auto-heal live)"
+	else
+		ok "pre-commit gate already wired (core.hooksPath=.githooks)"
+	fi
+fi
+
 BUILT="${REPO_ROOT}/target/pro-native-gnu/zelynic"
 echo ""
 ok "setup finished in ${SECONDS}s — binary: ${BUILT}"
