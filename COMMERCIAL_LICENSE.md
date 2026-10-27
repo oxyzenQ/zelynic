@@ -64,12 +64,13 @@ good faith — pick the tier that honestly matches your situation; nobody
 audits you, but misrepresenting revenue to underpay is a breach of the
 license terms.
 
-| Tier       | Price          | Target                                                       |
-| ---------- | -------------- | ------------------------------------------------------------ |
-| Personal   | Free (GPL-3.0) | Hobby, personal, non-commercial, open-source contributions   |
-| Individual | $99/year       | Solo devs, freelancers, revenue < $100K/year                 |
-| Business   | $5,199/year    | SMB, revenue $100K – $10M/year                               |
-| Company    | $110,199/year  | Enterprise (>$10M/year revenue) OR any redistribution rights |
+| Tier                 | Price          | Target                                                        |
+| -------------------- | -------------- | ------------------------------------------------------------- |
+| Personal             | Free (GPL-3.0) | Hobby, personal, non-commercial, contributions                |
+| Individual           | $99/year       | Solo devs, freelancers, revenue < $100K/year                  |
+| Business             | $9,999/year    | SMB, revenue $100K – $10M/year                                |
+| Enterprise Internal  | $49,999/year   | Enterprise (>$10M/year), internal use only, NO redistribution |
+| OEM / Redistribution | $110,199/year  | Embedding the architectural patterns in a shipped product     |
 
 Notes:
 
@@ -101,11 +102,68 @@ Notes:
   stands for the term you bought. Rationale record:
   [docs/research/NIGHT_DINNER_14_PRICING_RESEARCH.md](docs/research/NIGHT_DINNER_14_PRICING_RESEARCH.md)
   (section 7: the owner's executed decision).
-- **Redistribution rights** are granted at the Company tier only.
-  Trademark licensing is separate — see
+- **Redistribution rights** are granted at the OEM / Redistribution
+  tier only. Trademark licensing is separate — see
   [TRADEMARK.md](TRADEMARK.md).
 - No free tier above Personal is granted without explicit owner
   approval.
+
+### What You're Actually Licensing
+
+Companies that buy the Enterprise Internal or OEM / Redistribution
+tiers are not just getting a bandwidth limiter binary. They are
+licensing the architectural patterns that power it:
+
+1. **The MMSPA subtree law** — limits applied to a cgroup cover every
+   process spawned beneath it, any depth, born any time, sharing one
+   budget.
+2. **The pinned bpf_links pattern** — enforcement that survives
+   process exit without a daemon.
+3. **The self-expiring rows** — kernel-side expiry, no cron,
+   drift-free monotonic spans.
+4. **The floor/ceil pool math** — HTB-level fairness in pure eBPF.
+5. **The schema migration contract** — BPF struct changes
+   auto-detected and auto-cleaned on upgrade.
+6. **The crash recovery contract** — `zelynic recover` as orphan
+   sweeper.
+7. **The container-native grammar** — `docker://` / `k8s://` resolve
+   to cgroup IDs.
+
+**Enterprise Internal** licenses these patterns for internal use
+only. **OEM / Redistribution** licenses them for embedding in a
+shipped product. For a redistribution license, the OEM tier is the
+entry price; contact with.rezky@gmail.com for the agreement.
+
+### Why the Ladder Splits at Enterprise
+
+The Company tier split into two because the two buyers it used to
+bundle have different economics:
+
+- **Enterprise Internal** ($49,999/year): a $50M–$10B company that
+  runs zelynic on its own infrastructure (servers, containers,
+  multi-tenant SaaS internal to the company). No redistribution.
+  Priced against the enterprise IT budget for QoS/compliance tooling,
+  not against the cost of replicating MMSPA in-house (which is
+  6–12 months of R&D, per the ledger in
+  docs/CLAIMS_VERIFICATION.md).
+
+- **OEM / Redistribution** ($110,199/year): a company that embeds
+  the architectural patterns (MMSPA subtree law, pinned bpf_links,
+  self-expiring rows, floor/ceil pool math, schema migration,
+  container-native grammar) in a product it ships or sells. Priced
+  against the value of the embedded patterns in a commercial product,
+  not against the binary license.
+
+Both tiers are self-declared in good faith. If your case sits at the
+boundary, contact with.rezky@gmail.com — the pricing philosophy
+favors honest conversations over silent mis-tier.
+
+### Business tier note
+
+The Business tier moved from $5,199 to $9,999 effective
+2026-10-27. Pre-existing Business licenses are grandfathered at
+$5,199 for the term they bought; renewals and new licenses are
+$9,999.
 
 ### Unauthorized Use
 
@@ -121,8 +179,9 @@ for the license first. That is not a loophole, a gray area, or a
 clever business move. It is theft of one person's years of work,
 a breach of GPL-3.0-only and of this Commercial License, and —
 in the owner's own words — the mark of the worst kind of human:
-a rotten one. If closed source is what you need, the Company
-tier exists precisely for that; buy it. If you cannot or will
+a rotten one. If closed source is what you need, the commercial
+tiers exist precisely for that; buy the one that matches your
+use. If you cannot or will
 not pay, the GPL path is complete and free — open-source what
 you build. There is no third path that leaves you clean.
 
@@ -138,7 +197,7 @@ Every paid tier grants, for the license term:
 - **Internal modification rights** — private forks and patches for your
   own use, with no disclosure requirement.
 
-The **Company** tier additionally grants:
+The **OEM / Redistribution** tier additionally grants:
 
 - **Redistribution rights** — the right to distribute zelynic (or your
   derivative of it) as part of your own offering, under your own terms,

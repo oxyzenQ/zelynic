@@ -154,6 +154,13 @@ v80.0.0
 
 ### Changed
 
+- Commercial licensing: the Company tier split into Enterprise Internal
+  ($49,999/year, internal use only) and OEM / Redistribution
+  ($110,199/year, embedding in shipped products). Business raised
+  from $5,199 to $9,999. Individual unchanged at $99. Existing
+  Business licenses grandfathered. Pricing rationale in
+  COMMERCIAL_LICENSE.md.
+
 - **ci(supermassive): NIGHT-reject-1 — the weekly clock is retired,
   the owner's call: the schedule is not needed.** The Monday
   03:00 UTC cron comes off the supermassive trigger surface (the

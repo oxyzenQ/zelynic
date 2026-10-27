@@ -769,6 +769,32 @@ For trademark licensing or written permission, see
 [TRADEMARK.md §6](TRADEMARK.md) — the contact channels live there, told
 once.
 
+### What You're Actually Licensing
+
+Companies that buy the Enterprise Internal or OEM / Redistribution
+tiers are not just getting a bandwidth limiter binary. They are
+licensing the architectural patterns that power it:
+
+1. **The MMSPA subtree law** — limits applied to a cgroup cover every
+   process spawned beneath it, any depth, born any time, sharing one
+   budget.
+2. **The pinned bpf_links pattern** — enforcement that survives
+   process exit without a daemon.
+3. **The self-expiring rows** — kernel-side expiry, no cron,
+   drift-free monotonic spans.
+4. **The floor/ceil pool math** — HTB-level fairness in pure eBPF.
+5. **The schema migration contract** — BPF struct changes
+   auto-detected and auto-cleaned on upgrade.
+6. **The crash recovery contract** — `zelynic recover` as orphan
+   sweeper.
+7. **The container-native grammar** — `docker://` / `k8s://` resolve
+   to cgroup IDs.
+
+**Enterprise Internal** licenses these patterns for internal use
+only. **OEM / Redistribution** licenses them for embedding in a
+shipped product. For a redistribution license, the OEM tier is the
+entry price; contact with.rezky@gmail.com for the agreement.
+
 ## Commercial Licensing
 
 Companies using this in production need a commercial license.
@@ -779,19 +805,22 @@ internal tools that cannot meet copyleft, redistribution under your own
 terms). Full details, payment instructions, and the verification process
 live in [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md); the short version:
 
-| Tier       | Price          | Target                                           |
-| ---------- | -------------- | ------------------------------------------------ |
-| Personal   | Free (GPL-3.0) | Hobby, personal, non-commercial, contributions   |
-| Individual | $99/year       | Solo devs, freelancers, revenue < $100K/year     |
-| Business   | $5,199/year    | SMB, revenue $100K – $10M/year                   |
-| Company    | $110,199/year  | Enterprise (>$10M/year) OR redistribution rights |
+| Tier                 | Price          | Target                                                        |
+| -------------------- | -------------- | ------------------------------------------------------------- |
+| Personal             | Free (GPL-3.0) | Hobby, personal, non-commercial, contributions                |
+| Individual           | $99/year       | Solo devs, freelancers, revenue < $100K/year                  |
+| Business             | $9,999/year    | SMB, revenue $100K – $10M/year                                |
+| Enterprise Internal  | $49,999/year   | Enterprise (>$10M/year), internal use only, NO redistribution |
+| OEM / Redistribution | $110,199/year  | Embedding the architectural patterns in a shipped product     |
 
 The business end of the ladder follows the value upward
 (NIGHT-dinner-31, the second move after NIGHT-dinner-25): zelynic's
 value increases year by year — the
 price tracks the value, and it will keep rising as the work
 compounds. Buyers who paid before a move are grandfathered at the
-price they bought, for the term they bought.
+price they bought, for the term they bought. Business tier
+customers who paid $5,199 before this revision are grandfathered at
+$5,199 for the term they bought; new Business licenses are $9,999.
 
 **Unauthorized use is theft.** Taking this code — stealing it,
 forking it illegally, stripping the license, or building a
