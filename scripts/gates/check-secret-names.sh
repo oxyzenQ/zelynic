@@ -74,8 +74,8 @@ FAILED=0
 # instruction surface, and an archive doc re-linked as guidance is exactly
 # how drift re-enters. If the archive ever grows a historical secrets.X
 # mention, this gate forces a conscious exclusion decision, not silence.
-ALL_REFS=$(git grep -hoE 'secrets\.[A-Z_][A-Z0-9_]*' | sed 's/^secrets\.//' | sort -u)
-REF_COUNT=$(git grep -oE 'secrets\.[A-Z_][A-Z0-9_]*' | wc -l | tr -d ' ')
+ALL_REFS=$(git grep -hoE 'secrets\.[A-Z_][A-Z0-9_]*' '--' ':!scripts/gates/check-secret-names.sh' ':!scripts/gate-keepers.sh' | sed 's/^secrets\.//' | sort -u)
+REF_COUNT=$(git grep -oE 'secrets\.[A-Z_][A-Z0-9_]*' '--' ':!scripts/gates/check-secret-names.sh' ':!scripts/gate-keepers.sh' | wc -l | tr -d ' ')
 while IFS= read -r name; do
 	if [ -z "$name" ]; then
 		continue
@@ -92,7 +92,10 @@ fi
 
 # ── 2. crates.io alias spellings are contained ───────────────────────────────
 # CARGO_TOKEN / CRATES_TOKEN: no legal use anywhere in the repo.
-ALIAS_HITS=$(git grep -nE '\b(CARGO_TOKEN|CRATES_TOKEN)\b' || true)
+# ':!scripts/gates/check-secret-names.sh' — the gate's own evidence
+# strings name the aliases it forbids; a gate is not an instruction
+# to misconfigure, it is the instrument.
+ALIAS_HITS=$(git grep -nE '\b(CARGO_TOKEN|CRATES_TOKEN)\b' '--' ':!scripts/gates/check-secret-names.sh' ':!scripts/gate-keepers.sh' || true)
 if [ -n "$ALIAS_HITS" ]; then
 	echo "FAIL: forbidden crates.io token alias spelling(s) found (the secret is CRATES_IO_TOKEN):"
 	echo "$ALIAS_HITS" | indent
@@ -100,7 +103,7 @@ if [ -n "$ALIAS_HITS" ]; then
 fi
 # CARGO_REGISTRY_TOKEN: the consumption env var — legal only under
 # .github/workflows/. Anywhere else it is an instruction to misconfigure.
-REGISTRY_HITS=$(git grep -nE '\bCARGO_REGISTRY_TOKEN\b' -- ':!.github/workflows' || true)
+REGISTRY_HITS=$(git grep -nE '\bCARGO_REGISTRY_TOKEN\b' -- ':!.github/workflows' ':!scripts/gates/check-secret-names.sh' ':!scripts/gate-keepers.sh' || true)
 if [ -n "$REGISTRY_HITS" ]; then
 	echo "FAIL: CARGO_REGISTRY_TOKEN outside .github/workflows/ (it is the workflow-side env var, not a secret name — docs and scripts say CRATES_IO_TOKEN):"
 	echo "$REGISTRY_HITS" | indent
