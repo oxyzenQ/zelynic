@@ -55,6 +55,24 @@ v80.0.0
   greps, README's alias recipe sample, VERIFY_RELEASE.md's package
   identity paragraph.
 
+- **fix(scripts): the root-owned pycache guard — every python entry
+  point stops writing repo-local bytecode
+  (night-dragon-maintenance-T1).** The harnesses under scripts/ run
+  under sudo for their eBPF work, and CPython caches the bytecode of
+  every imported module beside its source; caches written by the
+  root process carry root ownership, and the later non-root teardown
+  of the tree died with Permission denied on each .pyc (the
+  2026-10-28 field report). All eleven entry points now set
+  sys.dont_write_bytecode = True immediately before their first
+  local import, so no __pycache__ is written at any privilege level
+  (proven A/B: without the guard one .pyc lands, with it zero); the
+  cost is a per-run recompile of milliseconds. docs/MAINTENANCE.md
+  gained the Workspace hygiene section (the full incident record for
+  both this class and the unknown-commit-id class — the publish-from-
+  a-clean-checkout rule that keeps the registry sha lane honest),
+  and VERIFY_RELEASE.md's source-revision bullet carries the sibling
+  incident that motivates the rule.
+
 ### Fixed
 
 - **fix(ci): the supermassive e2e depth lane's chronic throughput

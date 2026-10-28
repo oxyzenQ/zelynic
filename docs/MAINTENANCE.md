@@ -186,7 +186,68 @@ discipline: any *claim* (a number, a "fastest", a "zero") that appears
 in public-facing text must have a verifying mechanism recorded there —
 a claim without a ledger entry is a bug in the docs.
 
-## 7. Cadence summary
+## 7. Workspace hygiene
+
+Two incident classes that live in the workspace rather than the
+source — both recorded here with their fix so the next maintainer
+recognizes them on sight instead of rediscovering them.
+
+### The root-owned `__pycache__` class (fixed, night-dragon-maintenance-T1)
+
+The python harnesses under `scripts/` (depth, supermassive, bench)
+are documented to run under `sudo` — their eBPF work needs the
+privilege. CPython caches the bytecode of every IMPORTED module
+beside its source, so running any harness wrote
+`__pycache__/*.pyc` files under `scripts/lib/` (the shared
+`zelynic_harness_lib` is the imported module; an entry script itself
+runs as `__main__` and is never cached). When the interpreter ran as
+root, those cache files carried root ownership — and the later,
+perfectly normal non-root cleanup of the tree died with
+`Permission denied` on each `.pyc` (the 2026-10-28 field report:
+`rm -rfv zelynic` blocked on
+`scripts/__pycache__/zelynic_harness_lib.cpython-314.pyc` and two
+siblings). The files were never tracked — `.gitignore` carries
+`__pycache__/` and `*.pyc` — the damage was purely local, which is
+exactly why it sat unnoticed until a teardown hit it.
+
+The shipped fix removes the phenomenon instead of documenting
+around it: every python entry point under `scripts/` now sets
+`sys.dont_write_bytecode = True` immediately BEFORE its first local
+import (the guard block sits directly above the
+`import zelynic_harness_lib` line in all eleven files), so no
+repo-local bytecode is written at any privilege level. The cost is a
+per-run recompile of the shared lib — milliseconds for test
+harnesses, invisible next to the eBPF work they drive. The rule
+going forward: a new harness copies the guard block; a python file
+under `scripts/` that imports repo-local code without the guard is a
+regression of this class. A checkout already poisoned by pre-fix
+root-owned caches recovers with one sudo cleanup:
+`sudo find . -name __pycache__ -type d -prune -exec rm -rf {} +` —
+after that the tree is normal-user-owned again and the guard keeps
+it that way.
+
+### The unknown commit id class (armed since NIGHT-ask-1)
+
+A binary that cannot name its commit prints `unknown` in the
+version report's `Build:` line — the incident class a sibling
+project hit on its registry-installed binary (`Build: linux-amd64-gnu
+(unknown)`). zelynic is armed against it: build.rs's commit-sha
+chain (git -> `GITHUB_SHA` -> the registry tarball's
+`.cargo_vcs_info.json`, NIGHT-ask-1 with the NIGHT-improve-44
+normalizer) recovers the exact short sha on a `cargo install`
+build, so the registry lane reports the commit it was packed from,
+never `unknown` (VERIFY_RELEASE.md §4, "Verifying a crates.io
+install"). The chain degrades to `unknown` only when every lane
+fails, and the realistic causes are all publish-time: the crate was
+packed outside a git checkout (cargo then writes no vcs document at
+all), or the document carries no usable sha. The rule that keeps the
+lane honest permanently: publish only from a clean git checkout of
+the tagged commit — the `crates-io.yml` workflow does, and the
+manual procedure in VERIFY_RELEASE.md does — never `cargo publish`
+from a plain source export, and never from a tree whose HEAD is not
+the tagged commit.
+
+## 8. Cadence summary
 
 | Every | Do |
 |-------|----|
