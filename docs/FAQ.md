@@ -115,6 +115,54 @@ against the fingerprint recorded in docs/VERIFY_RELEASE.md. The
 registry lane (crates.io) and the release binaries carry the same
 embedded object bytes, so verifying one lane verifies the objects.
 
+## Deployment shapes: desktop, server, ultra scale
+
+### Q: Is zelynic a desktop tool or a server tool?
+
+A: Both, with different surfaces earning their keep on each shape. On
+a desktop, the interactive lane is the point: `eagle-eyes` renders the
+live per-app board at the product's 1 fps cadence, `strict` and
+`recover` answer to a human in the loop, and the render path spends
+its budget in string building — the frame harness measures the render
+ceiling thousands of times above what the cadence needs
+(docs/PERFORMANCE.md). On a server, the headless lane is the point:
+`strict`, `rates`, `list-apps`, and `doctor` run as one-shot commands
+from cron, units, or orchestration, the eBPF programs do their work in
+the kernel, and there is no resident userspace daemon to babysit — the
+binary acts, reports, and exits.
+
+### Q: What holds at ultra scale (many apps, high packet rates, long sessions)?
+
+A: The counters and the maps are sized for fleet-grade sessions, and
+the limits that DO exist are documented rather than hidden. The render
+path's figures divide and accumulate through u128 (`format_bytes_wide`
+/ `rate_bps_wide`, NIGHT-lts-5), so multi-terabyte session totals and
+wide rate figures never overflow the SI ladder — the NIGHT-lts-5 A/B
+held every desktop-sized figure byte-identical while widening the
+ceiling. On the datapath, the NIGHT-perf-1 shape removed 200k BPF
+helper calls per second at 100 kpps from the observer's hot path, and
+the enforcement path's math keeps its bounds under burst (NIGHT-lts-8
+consume-retry). The honest ceiling to plan around: the eBPF maps carry
+1024-entry class limits (docs/COSMIC_DRAGON_ARCHITECTURE.md, "known
+limits, documented not hidden"), so a host with more concurrently
+tracked identities than the map ceilings allow is outside the
+supported envelope — check `zelynic doctor` and the architecture doc
+before sizing a deployment beyond it.
+
+### Q: Which build shape should I deploy where?
+
+A: Ship the static musl release shapes to machines you cannot
+rebuild: `pro-linux-amd64-v3-musl` is the portability baseline (Haswell
+and newer, every x86_64 server fleet), `pro-linux-amd64-v4-musl`
+targets AVX-512 fleets where the runner or the whole node has the
+baseline, and both are fully static — no glibc version dance, the ldd
+gate proves zero dynamic dependencies. Reserve
+`cargo pro-native-musl` (target-cpu=native) for the one machine the
+binary will never leave: maximum per-machine performance, but the ISA
+it bakes in makes it the WRONG artifact to copy around a fleet
+(docs/USAGE.md, README build recipes). A plain `cargo build --release`
+is the development lane, not a deployment lane.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
