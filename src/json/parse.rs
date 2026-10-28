@@ -388,15 +388,32 @@ impl Parser<'_> {
         Ok(())
     }
 
+    /// Four ASCII hex digits, nothing else. Byte-wise validation,
+    /// not `u16::from_str_radix`: the radix parser accepts a leading
+    /// `+` sign (`u16::from_str_radix("+abc", 16)` is `Ok(2748)`),
+    /// so a from_str_radix draft parsed `"\u+abc"` as U+0ABC — a
+    /// strictness deviation serde_json never allowed (the T1 re-audit
+    /// catch, the one bug the S1 lane shipped with). Every non-hex
+    /// byte, sign included, is an error; non-UTF-8 needs no separate
+    /// check because a byte that is not a hex digit is rejected on
+    /// sight.
     fn hex4(&mut self) -> Result<u16, Error> {
         let slice = self
             .b
             .get(self.pos..self.pos + 4)
             .ok_or_else(|| self.err("truncated \\u escape"))?;
-        let text = std::str::from_utf8(slice).map_err(|_| self.err("invalid \\u escape"))?;
-        let v = u16::from_str_radix(text, 16).map_err(|_| self.err("invalid \\u escape"))?;
+        let mut value: u16 = 0;
+        for &byte in slice {
+            let digit = match byte {
+                b'0'..=b'9' => u16::from(byte - b'0'),
+                b'a'..=b'f' => u16::from(byte - b'a') + 10,
+                b'A'..=b'F' => u16::from(byte - b'A') + 10,
+                _ => return Err(self.err("invalid \\u escape")),
+            };
+            value = value * 16 + digit;
+        }
         self.pos += 4;
-        Ok(v)
+        Ok(value)
     }
 
     /// The RFC 8259 number grammar, lexeme-preserved: `-`? (`0` |

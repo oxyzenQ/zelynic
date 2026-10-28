@@ -95,6 +95,39 @@ fn strict_strings_reject_the_hostile_classes() {
     assert!(Value::parse_str("\"\u{1}\"").is_err(), "raw control byte");
 }
 
+/// The hex window is four ASCII hex digits, nothing else. A sign
+/// inside the window is not a digit: the from_str_radix draft
+/// accepted `"\u+abc"` (the radix parser reads the sign-prefixed
+/// slice as 0xabc), a strictness deviation serde_json never
+/// allowed — the T1 re-audit catch; byte-wise validation closes
+/// the class.
+#[test]
+fn hex_window_rejects_non_digits() {
+    assert!(
+        Value::parse_str(r#""\u+abc""#).is_err(),
+        "sign is not a digit"
+    );
+    assert!(
+        Value::parse_str(r#""\u-abc""#).is_err(),
+        "minus is not a digit"
+    );
+    assert!(
+        Value::parse_str(r#""\u abf""#).is_err(),
+        "space is not a digit"
+    );
+    assert!(Value::parse_str(r#""\u0xff""#).is_err(), "x is not a digit");
+    assert!(Value::parse_str(r#""\u00""#).is_err(), "truncated window");
+    // The legal shapes still parse: both cases, the BMP edge.
+    assert_eq!(
+        Value::parse_str(r#""\u0041""#).unwrap(),
+        Value::Str("A".to_string())
+    );
+    assert_eq!(
+        Value::parse_str(r#""\uFa9C""#).unwrap(),
+        Value::Str("\u{fa9c}".to_string())
+    );
+}
+
 // ── structure ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 /// A docker-shaped reply: the accessors the lane actually calls,

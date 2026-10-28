@@ -196,6 +196,27 @@ v80.0.0
 
 ### Fixed
 
+- **fix(json): the \u escape's hex window is byte-validated — the
+  sign-prefixed slice class is closed
+  (night-dragon-maintenance-T1 (S2)).** The T1 re-audit of the
+  hand-written JSON parser (the task-C full-supercharger verify)
+  found the one bug the S1 lane shipped with: `hex4()` read its
+  four-digit window through `u16::from_str_radix`, and the radix
+  parser accepts a leading `+` sign
+  (`u16::from_str_radix("+abc", 16)` is `Ok(2748)`), so
+  `"\u+abc"` parsed as U+0ABC — a strictness deviation serde_json
+  never allowed, live on the docker Engine API lane's
+  foreign-bytes surface. The window is now validated byte-wise
+  (each of the four bytes must be an ASCII hex digit; sign, space,
+  and non-UTF-8 are rejected on sight, the last needing no
+  separate check), and the regression is pinned as
+  test/json/parse_tests.rs's `hex_window_rejects_non_digits` (the
+  sign, minus, space, and x classes refused; both letter cases and
+  the BMP edge still parse). The sibling `from_str_radix` sites
+  were audited for the same class: terminal/raw.rs pre-validates
+  with `is_ascii_hexdigit`, and ebpf/connections/parse.rs parses
+  kernel-owned /proc fields — neither is a foreign-bytes surface,
+  so both stay as they are.
 - **fix(ci): night-dragon-maintenance-10 — the crates.io publish
   lane installs its own tools, and the wholesale verdict names its
   skips.** Two seats of the same class, both found red: (1) the
