@@ -18,9 +18,11 @@ pub fn handle_status(verbose: bool, json: bool) -> Result<()> {
 
     if !pin_dir_has_files() {
         if json {
-            print_json(&serde_json::json!({
-                "watchdog": "clean", "active_limits": 0, "limits": []
-            }));
+            // S1: the hand-written lane — the clean verdict is a
+            // fixed document, so the writer IS the literal. Same
+            // bytes the json! macro emitted before the derive stack
+            // left the graph.
+            print_json("{\"watchdog\":\"clean\",\"active_limits\":0,\"limits\":[]}");
         } else {
             // NIGHT-engrave-5: the clean verdict carries the flagship
             // chrome (title bar, breathing gap, stamp) — one grey
@@ -35,9 +37,9 @@ pub fn handle_status(verbose: bool, json: bool) -> Result<()> {
 
     if !Limiter::is_pinned() {
         if json {
-            print_json(&serde_json::json!({
-                "error": "stale pins detected", "hint": "run 'zelynic recover'"
-            }));
+            // S1: the stale-pins verdict, the same fixed-document
+            // literal treatment (bytes unchanged).
+            print_json("{\"error\":\"stale pins detected\",\"hint\":\"run 'zelynic recover'\"}");
         } else {
             // NIGHT-engrave-5: the warning state carries the same
             // chrome — warn yellow for the finding, suggestion white

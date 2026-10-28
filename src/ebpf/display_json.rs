@@ -22,13 +22,12 @@ use crate::ebpf::limiter::{wall_minus_mono, window_state};
 /// Print JSON status (for --print-json / scripting).
 ///
 /// NIGHT-boost-3: the write rides the unified
-/// [`crate::output::print_json`] primitive — one compact line,
-/// serialized field-by-field straight into the locked stdout (the old
-/// path allocated the full pretty document as a String, then copied
-/// it a second time through the format machinery). The document shape
-/// (field names, order) is unchanged; scripts that parsed the pretty
-/// layout with `jq` are unaffected, and the one-line contract is the
-/// machine-first format the scripting docs promise.
+/// [`crate::output::print_json`] primitive — one compact line. S1:
+/// the document is composed by the hand-written lane below (the
+/// serde derive stack left the graph; `to_json` is reviewable code
+/// whose bytes the pins hold exactly). The document shape (field
+/// names, order, the skip semantics) is unchanged; scripts are
+/// unaffected.
 pub fn print_status_json(
     dl_policies: &[(u32, PolicyRaw)],
     ul_policies: &[(u32, PolicyRaw)],
@@ -49,7 +48,7 @@ pub fn print_status_json(
         wall_now_ns(),
         monotonic_ns(),
     );
-    crate::output::print_json(&status);
+    crate::output::print_json(&status.to_json());
     Ok(())
 }
 
@@ -212,39 +211,189 @@ fn ring_dir_json(
     })
 }
 
-#[derive(serde::Serialize)]
+/// The status document's writer law (S1, the hand-written lane): the
+/// shapes below are plain data — the derives are gone, and each
+/// `write_json` reproduces the exact wire contract the serde derive
+/// emitted (field order = declaration order; `skip_serializing_if =
+/// "Not::not"` becomes the false branch, `Option::is_none` the None
+/// branch; plain Options ride JSON null). Field names are the pinned
+/// scripting contract (docs/USAGE.md JSON reference).
+impl StatusJson {
+    fn write_json(&self, out: &mut String) {
+        use crate::json::write::{write_array, write_number, write_string};
+
+        out.push_str("{\"watchdog\":");
+        write_string(out, self.watchdog);
+        out.push_str(",\"active_limits\":");
+        write_number(out, self.active_limits);
+        out.push_str(",\"limits\":");
+        write_array(out, self.limits.len(), |out, i| {
+            self.limits[i].write_json(out);
+        });
+        out.push('}');
+    }
+
+    /// The status document as one compact JSON line.
+    #[must_use]
+    pub(crate) fn to_json(&self) -> String {
+        let mut out = String::with_capacity(128 + self.limits.len() * 256);
+        self.write_json(&mut out);
+        out
+    }
+}
+
+impl LimitEntry {
+    fn write_json(&self, out: &mut String) {
+        use crate::json::write::{write_number, write_opt_number, write_string};
+
+        out.push_str("{\"cgroup_id\":");
+        write_number(out, self.cgroup_id);
+        out.push_str(",\"label\":");
+        write_string(out, &self.label);
+        out.push_str(",\"download_bps\":");
+        write_opt_number(out, self.download_bps);
+        out.push_str(",\"upload_bps\":");
+        write_opt_number(out, self.upload_bps);
+        // The additive per-socket markers (improve-40): false is
+        // ABSENCE — the additive rule the derive's Not::not held.
+        if self.download_per_socket {
+            out.push_str(",\"download_per_socket\":true");
+        }
+        if self.upload_per_socket {
+            out.push_str(",\"upload_per_socket\":true");
+        }
+        for (key, value) in [
+            ("floor_bps", self.floor_bps),
+            ("ceil_bps", self.ceil_bps),
+            ("download_floor_bps", self.download_floor_bps),
+            ("download_ceil_bps", self.download_ceil_bps),
+            ("upload_floor_bps", self.upload_floor_bps),
+            ("upload_ceil_bps", self.upload_ceil_bps),
+        ] {
+            // The improve-40/v24 floors and ceilings: None (unset or
+            // the split shape) is absence, never a fabricated zero.
+            if let Some(v) = value {
+                out.push_str(",\"");
+                out.push_str(key);
+                out.push_str("\":");
+                write_number(out, v);
+            }
+        }
+        out.push_str(",\"packets_allowed\":");
+        write_number(out, self.packets_allowed);
+        out.push_str(",\"packets_dropped\":");
+        write_number(out, self.packets_dropped);
+        out.push_str(",\"bytes_allowed\":");
+        write_number(out, self.bytes_allowed);
+        out.push_str(",\"bytes_dropped\":");
+        write_number(out, self.bytes_dropped);
+        if let Some(ring) = &self.rate_ring {
+            out.push_str(",\"rate_ring\":");
+            ring.write_json(out);
+        }
+        if let Some(window) = &self.window {
+            out.push_str(",\"window\":");
+            window.write_json(out);
+        }
+        out.push('}');
+    }
+}
+
+impl WindowJson {
+    fn write_json(&self, out: &mut String) {
+        use crate::json::write::{write_number, write_string};
+
+        out.push_str("{\"kind\":");
+        write_string(out, self.kind);
+        out.push_str(",\"state\":");
+        write_string(out, self.state);
+        // SPAN rides the wall instants, DAILY the seconds-of-day —
+        // the other pair is honestly absent (the derive's
+        // Option::is_none branches).
+        if let Some(start) = self.start_wall_ns {
+            out.push_str(",\"start_wall_ns\":");
+            write_number(out, start);
+        }
+        if let Some(end) = self.end_wall_ns {
+            out.push_str(",\"end_wall_ns\":");
+            write_number(out, end);
+        }
+        if let Some(start) = self.start_s {
+            out.push_str(",\"start_s\":");
+            write_number(out, start);
+        }
+        if let Some(end) = self.end_s {
+            out.push_str(",\"end_s\":");
+            write_number(out, end);
+        }
+        out.push('}');
+    }
+}
+
+impl RateRingDirectionJson {
+    fn write_json(&self, out: &mut String) {
+        use crate::json::write::{write_array, write_number};
+
+        out.push_str("{\"bytes\":");
+        write_array(out, self.bytes.len(), |out, i| {
+            write_number(out, self.bytes[i]);
+        });
+        out.push_str(",\"live\":");
+        write_number(out, self.live);
+        out.push_str(",\"peak_bytes\":");
+        write_number(out, self.peak_bytes);
+        out.push('}');
+    }
+}
+
+impl RateRingJson {
+    fn write_json(&self, out: &mut String) {
+        use crate::json::write::write_number;
+
+        out.push_str("{\"window_secs\":");
+        write_number(out, self.window_secs);
+        out.push_str(",\"download\":");
+        match &self.download {
+            Some(dir) => dir.write_json(out),
+            None => out.push_str("null"),
+        }
+        out.push_str(",\"upload\":");
+        match &self.upload {
+            Some(dir) => dir.write_json(out),
+            None => out.push_str("null"),
+        }
+        out.push('}');
+    }
+}
+
+#[derive(Debug, Clone)]
 struct LimitEntry {
     cgroup_id: u32,
     label: String,
     download_bps: Option<u64>,
     upload_bps: Option<u64>,
-    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    /// The additive per-socket markers (improve-40): false is
+    /// ABSENCE in the document (the writer's branch, the derive's
+    /// old Not::not semantics).
     download_per_socket: bool,
-    #[serde(skip_serializing_if = "std::ops::Not::not")]
     upload_per_socket: bool,
     /// The per-subprocess guaranteed minimum (improve-40, schema
     /// v24) — absent when the row carries none (the zero sentinel)
     /// or when the directions' pairs DIFFER (the split rides the
     /// per-direction fields below, never a fabricated merge).
-    #[serde(skip_serializing_if = "Option::is_none")]
     floor_bps: Option<u64>,
     /// The per-subprocess maximum (improve-40, schema v24) —
     /// absent when unset or when the pairs differ.
-    #[serde(skip_serializing_if = "Option::is_none")]
     ceil_bps: Option<u64>,
     /// The DOWNLOAD pair's floor (improve-40-b, the per-direction
     /// split) — present only when the directions' pairs differ,
     /// the asymmetric link's own shape.
-    #[serde(skip_serializing_if = "Option::is_none")]
     download_floor_bps: Option<u64>,
     /// The DOWNLOAD pair's ceiling (improve-40-b) — split only.
-    #[serde(skip_serializing_if = "Option::is_none")]
     download_ceil_bps: Option<u64>,
     /// The UPLOAD pair's floor (improve-40-b) — split only.
-    #[serde(skip_serializing_if = "Option::is_none")]
     upload_floor_bps: Option<u64>,
     /// The UPLOAD pair's ceiling (improve-40-b) — split only.
-    #[serde(skip_serializing_if = "Option::is_none")]
     upload_ceil_bps: Option<u64>,
     packets_allowed: u64,
     packets_dropped: u64,
@@ -255,17 +404,15 @@ struct LimitEntry {
     /// byte totals oldest-first, per direction. Absent when the
     /// pinned object predates the ring or the cgroup booked no
     /// traffic under the policy — the absent-lens contract.
-    #[serde(skip_serializing_if = "Option::is_none")]
     rate_ring: Option<RateRingJson>,
     /// The row's --during window (night-during, schema v23),
     /// absent when the row carries none — the additive-field rule
     /// the rate_ring join set.
-    #[serde(skip_serializing_if = "Option::is_none")]
     window: Option<WindowJson>,
 }
 
 /// One row's window (see [`LimitEntry::window`]).
-#[derive(serde::Serialize)]
+#[derive(Debug, Clone)]
 struct WindowJson {
     /// "span" or "daily".
     kind: &'static str,
@@ -273,21 +420,17 @@ struct WindowJson {
     /// vocabulary the status pins own).
     state: &'static str,
     /// SPAN: inclusive start, wall ns since epoch. DAILY: absent.
-    #[serde(skip_serializing_if = "Option::is_none")]
     start_wall_ns: Option<u64>,
     /// SPAN: exclusive end, wall ns since epoch. DAILY: absent.
-    #[serde(skip_serializing_if = "Option::is_none")]
     end_wall_ns: Option<u64>,
     /// DAILY: window start, seconds-of-day UTC. SPAN: absent.
-    #[serde(skip_serializing_if = "Option::is_none")]
     start_s: Option<u32>,
     /// DAILY: window end, seconds-of-day UTC. SPAN: absent.
-    #[serde(skip_serializing_if = "Option::is_none")]
     end_s: Option<u32>,
 }
 
 /// One direction's window series (see [`LimitEntry::rate_ring`]).
-#[derive(serde::Serialize)]
+#[derive(Debug, Clone)]
 struct RateRingDirectionJson {
     /// The last eight one-second byte totals, OLDEST first; the last
     /// entry is the current (still-filling) window.
@@ -300,7 +443,7 @@ struct RateRingDirectionJson {
     peak_bytes: u64,
 }
 
-#[derive(serde::Serialize)]
+#[derive(Debug, Clone)]
 struct RateRingJson {
     /// The number of seconds the series spans: RATE_RING_SLOTS
     /// one-second windows (NIGHT-hunt-30 — was the per-slot width,
@@ -312,7 +455,7 @@ struct RateRingJson {
     upload: Option<RateRingDirectionJson>,
 }
 
-#[derive(serde::Serialize)]
+#[derive(Debug, Clone)]
 struct StatusJson {
     watchdog: &'static str,
     active_limits: usize,

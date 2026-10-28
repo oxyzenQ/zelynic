@@ -119,7 +119,7 @@ fn window_json_pins_span_and_daily_shapes() {
         0,
     );
     assert!(json.limits[0].window.is_none());
-    let doc = serde_json::to_value(&json).unwrap();
+    let doc = crate::json::Value::parse_str(&json.to_json()).unwrap();
     assert!(
         doc["limits"][0].get("window").is_none(),
         "the field serializes only when the row carries one"

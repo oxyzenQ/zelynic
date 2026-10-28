@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Result, anyhow, bail};
 
 use super::{cgroup_id_of, find_cgroup_dir};
+use crate::json::Value;
 // NIGHT-cybersecurity-2's always-compiled re-export — the output
 // lane module is private from here (the ebpf-lane compile pinned it).
 use crate::ebpf::identity::sanitize_comm;
@@ -58,7 +59,7 @@ pub(super) struct DockerState {
 /// ancient list shape carried a bare status string ("running" is
 /// the only live word). Anything else is unknown — None, so the
 /// caller keeps its old error instead of guessing.
-pub(super) fn docker_state_parse(state: &serde_json::Value) -> Option<DockerState> {
+pub(super) fn docker_state_parse(state: &Value) -> Option<DockerState> {
     if let Some(running) = state.get("Running").and_then(|v| v.as_bool()) {
         let status = sanitize_comm(
             state
@@ -229,8 +230,10 @@ pub(super) fn parse_docker_reply(reply: Vec<u8>) -> Result<Vec<DockerEntry>> {
             head.lines().next().unwrap_or("(no status line)")
         );
     }
-    let value: serde_json::Value =
-        serde_json::from_slice(body).map_err(|e| anyhow!("docker API reply is not JSON: {e}"))?;
+    // S1: the reply parses through the hand-written lane (crate::json)
+    // — no serde in the graph. The error wording keeps its sentence
+    // shape; the offset detail rides the parser's Display.
+    let value = Value::parse(body).map_err(|e| anyhow!("docker API reply is not JSON: {e}"))?;
     let arr = value
         .as_array()
         .ok_or_else(|| anyhow!("docker API reply is not a container list"))?;

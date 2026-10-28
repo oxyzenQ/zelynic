@@ -36,7 +36,7 @@ use crate::ebpf::render::report::{cgroup_abs_path, oldest_started_secs, represen
 use super::report::{DepthReport, Enforcement};
 
 /// One process row of the JSON document.
-#[derive(serde::Serialize)]
+#[derive(Debug, Clone)]
 pub struct ProcJson {
     pub pid: u32,
     pub comm: String,
@@ -63,7 +63,7 @@ pub struct ProcJson {
 /// (NIGHT-private-research-3) carry the endpoint's focus-window
 /// bytes when a window ran and the cookie join resolved this
 /// socket; null otherwise — absence, never zero-as-fact.
-#[derive(serde::Serialize)]
+#[derive(Debug, Clone)]
 pub struct EndpointJson {
     pub pid: u32,
     pub comm: String,
@@ -95,7 +95,7 @@ pub struct EndpointJson {
 /// reads `targets[0].traffic.endpoints` and gets the window's
 /// who-moved-what answer without re-deriving the cookie join from
 /// the census rows.
-#[derive(serde::Serialize)]
+#[derive(Debug, Clone)]
 pub struct TrafficJson {
     /// The measured focus window in seconds.
     pub window_secs: u64,
@@ -117,7 +117,7 @@ pub struct TrafficJson {
 /// enforcement — the same counters `zelynic rates` reads, carried on
 /// the depth document so the verdict line's "limited" comes with its
 /// consequences attached.
-#[derive(serde::Serialize)]
+#[derive(Debug, Clone)]
 pub struct EnforcementStatsJson {
     pub packets_allowed: u64,
     pub packets_dropped: u64,
@@ -126,7 +126,7 @@ pub struct EnforcementStatsJson {
 }
 
 /// One resolved target's JSON object.
-#[derive(serde::Serialize)]
+#[derive(Debug, Clone)]
 pub struct DepthTargetJson {
     pub target: String,
     pub cgroup_id: u32,
@@ -138,10 +138,9 @@ pub struct DepthTargetJson {
     pub download_bps: Option<u64>,
     pub upload_bps: Option<u64>,
     /// charger-core-3c: the bps figures above name per-CONNECTION
-    /// budgets when true (skip when false — the additive rule).
-    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    /// budgets when true (skip when false — the additive rule, the
+    /// writer's own branch below).
     pub download_per_socket: bool,
-    #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub upload_per_socket: bool,
     pub group_id: Option<u32>,
     /// The kernel's allowed/dropped ledger when this cgroup is
@@ -168,7 +167,7 @@ pub struct DepthTargetJson {
 }
 
 /// A target that resolved to nothing (multi-target partial miss).
-#[derive(serde::Serialize)]
+#[derive(Debug, Clone)]
 pub struct DepthMissJson {
     pub target: String,
     pub error: String,
@@ -179,7 +178,7 @@ pub struct DepthMissJson {
 /// interface counters against the cgroup_skb hooks' own totals —
 /// `shadow_*_bytes` is the gap, `verdict` one of "clean",
 /// "bypassed_tx", "bypassed_rx", "bypassed_both", "unavailable".
-#[derive(serde::Serialize)]
+#[derive(Debug, Clone)]
 pub struct BypassAuditJson {
     pub window_secs: u64,
     pub nic_tx_bytes: u64,
@@ -212,16 +211,17 @@ fn bypass_audit_json(audit: Option<&ShadowAudit>) -> Option<BypassAuditJson> {
     })
 }
 
-/// One entry of the targets array: a report or a miss.
-#[derive(serde::Serialize)]
-#[serde(untagged)]
+/// One entry of the targets array: a report or a miss. S1: the
+/// untagged enum's serialization is the writer's own match — the
+/// inner shape rides bare, no tag between the verdict and the bytes.
+#[derive(Debug, Clone)]
 pub enum DepthEntryJson {
     Report(Box<DepthTargetJson>),
     Miss(DepthMissJson),
 }
 
 /// The whole `--depth --print-json` document.
-#[derive(serde::Serialize)]
+#[derive(Debug, Clone)]
 pub struct DepthDocJson {
     pub targets: Vec<DepthEntryJson>,
     /// The bypass-shadow audit (NIGHT-upgrade-charger-core-1-a;
@@ -229,6 +229,11 @@ pub struct DepthDocJson {
     /// fields). Additive: scripts predating the field ignore it.
     pub bypass_audit: Option<BypassAuditJson>,
 }
+
+// The writer impls live in the child module below (the docker_tests
+// sibling-split lineage): same private-field access, two files under
+// the 600-line LOC law. Wired at the bottom of this file.
+mod write;
 
 /// The ledger row as JSON (None stays null — the honest absence).
 fn stats_json(stats: &Option<LimiterStatsRaw>) -> Option<EnforcementStatsJson> {
@@ -384,5 +389,5 @@ pub fn depth_doc_json(
 // Pattern C), #[path]-wired exactly like the report pins they grew
 // from (NIGHT-blade-5: the JSON contract pins moved with the code).
 #[cfg(test)]
-#[path = "../../../test/ebpf/render/depth_json_tests.rs"]
+#[path = "../../../../test/ebpf/render/depth_json_tests.rs"]
 mod tests;

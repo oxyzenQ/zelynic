@@ -43,8 +43,8 @@ updated so the next re-audit starts from fresh evidence, not from the
 |------------|----------------------------------|---------|
 | clap | src/cli/ (derive + 8 ux/suggestion files); the `suggestions` feature provably renders "tip: some similar subcommands exist" (verified live) | keep, features exact |
 | anyhow | every module (`Result` + `Context` + `anyhow!`) | keep |
-| serde | derive on the status/doctor JSON surface (src/ebpf/display.rs) | keep |
-| serde_json | status/doctor/list-apps JSON output (src/ebpf/display.rs) | keep |
+| serde | **removed** (night-dragon-maintenance-T1 (S1)): the JSON lane is hand-written in src/json/ — the derive stack (serde, serde_core, serde_derive) left the graph; regressions blocked by the deny.toml ban | removed |
+| serde_json | **removed** (S1): src/json/parse.rs (the Value tree, the docker lane's deserializer) + write.rs (the escape law) replace it; wire bytes verified byte-identical against the pre-S1 binary | removed |
 | nix | features user/term/feature exactly as pinned (geteuid, termios, uname — update/mod.rs re-verified) | keep, features exact |
 | libc | clock_gettime, TIOCGWINSZ, flock, termios constants (format.rs, terminal/, lock.rs) | keep |
 | aya (optional) | the whole `ebpf` feature surface | keep |
@@ -62,10 +62,15 @@ small, silent but killer. This pass goes beyond call-site liveness
 (the improve-11 security-4 scope) into actual attack surface: what
 code runs, from whom, with which tokens.
 
-**Crates verdict: nothing removable.** All 7 direct dependencies
-carry live call sites (independently re-verified by grep this pass:
-clap 12 sites, anyhow 42, aya 19, nix 13, libc 14, serde 3,
-serde_json 8; aya-ebpf in both ebpf/ programs). `aya` 0.14.0 (the NIGHT-depthtest wave) has an
+**Crates verdict: six direct dependencies, every one with live call
+sites.** S1 (night-dragon-maintenance-T1, 2026-10-28) removed serde
+and serde_json — the JSON lane is hand-written in src/json/ (the
+zejtron peak-lean law: no crate exists only to move JSON), and the
+locked graph dropped from 50 to 44 crates (serde, serde_core,
+serde_derive, serde_json, itoa, zmij gone). The remaining six carry
+live call sites (independently re-verified by grep this pass:
+clap 12 sites, anyhow 42, aya 19, nix 13, libc 14; aya-ebpf in both
+ebpf/ programs). `aya` 0.14.0 (the NIGHT-depthtest wave) has an
 empty default feature set (its only non-default feature is the
 development-only `test-helpers`, unused by zelynic) — there is no
 compiled surface left to trim. `anyhow` and
@@ -256,8 +261,8 @@ blocks. Keeping it is the lower-risk option.
 |-----------|---------|--------------------------------|
 | `clap` 4 | keep | CLI parser; explicit feature set (std, color, help, usage, error-context, derive, suggestions) pinned so no default-feature creep |
 | `anyhow` 1 | keep | error handling backbone, 20+ files |
-| `serde` 1 + derive | keep | JSON output structs (`--print-json`: capabilities, monitor, display) |
-| `serde_json` 1 | keep | JSON serialization for the same three modules |
+| `serde` 1 + derive | **removed (S1)** | the JSON lane is hand-written in src/json/; the derive stack (serde, serde_core, serde_derive) left the graph; deny.toml bans re-adding it |
+| `serde_json` 1 | **removed (S1)** | src/json/parse.rs (Value tree, docker-lane deserializer, 128-frame depth cap) + write.rs (escape law) replace it; doctor/list-apps wire bytes verified byte-identical |
 | `nix` 0.31 | keep, trimmed | safe geteuid/uname/termios wrappers; features `user`+`term`+`feature` only |
 | `libc` 0.2 | keep | flock (src/ebpf/lock.rs), raw BPF syscalls (src/ebpf/bpf_syscall.rs), termios constants |
 | `aya` 0.14 (optional) | keep | the entire point of the project; gated behind the `ebpf` feature; NIGHT-depthtest rode the 0.14 wave |

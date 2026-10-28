@@ -571,11 +571,9 @@ pub(crate) fn handle_eagle_eyes_depth(
     }
 
     if json {
-        print_json(&depth_doc_json(
-            &reports,
-            &misses,
-            focus_measure.as_ref().map(|m| &m.shadow),
-        ));
+        print_json(
+            &depth_doc_json(&reports, &misses, focus_measure.as_ref().map(|m| &m.shadow)).to_json(),
+        );
     } else {
         for line in depth_report_lines(&reports, terminal_width()) {
             println_safe!("{line}");

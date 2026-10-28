@@ -16,6 +16,13 @@ mod cli;
 mod commands;
 mod ebpf;
 mod info;
+// night-dragon-maintenance-T1 (S1): the std-only JSON lane — the
+// writer helpers every document lane shares (doctor's report_json
+// rides them in EVERY build flavor) and — under the ebpf graph —
+// the parse tree (the docker lane's foreign-bytes deserializer +
+// the tests' assertion lens). No serde, no serde_json: the
+// peak-lean dependency law.
+mod json;
 #[cfg(feature = "ebpf")]
 mod terminal;
 // NIGHT-hunt-31: the emergency terminal reset compiles in EVERY

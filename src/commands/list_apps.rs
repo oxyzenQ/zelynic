@@ -57,11 +57,12 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
     entries.retain(|e| !e.comm.is_empty());
 
     if json {
-        // NIGHT-boost-3: typed structs serialize field-by-field straight
-        // through the unified print_json writer — no serde_json::Value
-        // tree (one allocation per node) for the biggest document the
-        // CLI emits. Field names and order are the pinned scripting
-        // contract (docs/USAGE.md JSON reference).
+        // S1: the document is composed by the hand-written writer
+        // below (list_apps_json) straight into one compact String —
+        // no serde_json::Value tree (one allocation per node) for the
+        // biggest document the CLI emits, and no derive stack behind
+        // it. Field names and order are the pinned scripting contract
+        // (docs/USAGE.md JSON reference).
         //
         // night-improve-64: the census's TWO numbers and its honesty
         // flag join the document (additive, the improve-63 rule) — the
@@ -148,9 +149,12 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
 /// Assemble the list-apps JSON document (pure, night-improve-64:
 /// extracted so the scripting contract — field names, census
 /// semantics, the honesty flag — is unit-pinnable without capturing
-/// stdout, the hunt-22 pattern status_json set). Additive fields ride
-/// the improve-63 rule: they join the END of the document, older
-/// consumers parse the prefix untouched.
+/// stdout, the hunt-22 pattern status_json set). S1: the writer is
+/// the hand-written lane's own composition — field order is the
+/// pinned contract, `total` leads and the census pair trails (the
+/// improve-63 additive rule: older consumers parse the prefix
+/// untouched). Returns the compact document line, ready for
+/// [`crate::output::print_json`].
 #[cfg(feature = "ebpf")]
 fn list_apps_json(
     entries: &[&crate::ebpf::identity::ProcessIdentity],
@@ -158,54 +162,33 @@ fn list_apps_json(
     socket_cgroups: usize,
     census_complete: bool,
     conns: &crate::ebpf::connections::ConnectionMap,
-) -> ListAppsJson {
-    let apps: Vec<AppEntryJson> = entries
-        .iter()
-        .map(|e| AppEntryJson {
-            process: e.comm.clone(),
-            cgroup_id: e.cgroup_id,
-            uid: e.uid,
-            processes: conns.proc_count(e.cgroup_id),
-            sockets: conns.socket_count(e.cgroup_id),
-        })
-        .collect();
-    ListAppsJson {
-        total,
-        apps,
-        socket_cgroups,
-        census_complete,
-    }
-}
+) -> String {
+    use crate::json::write::{write_array, write_bool, write_number, write_string};
 
-/// One `apps[]` row of the `list-apps --print-json` document.
-#[cfg(feature = "ebpf")]
-#[derive(serde::Serialize)]
-struct AppEntryJson {
-    process: String,
-    cgroup_id: u32,
-    uid: u32,
-    processes: usize,
-    sockets: usize,
-}
-
-/// The `list-apps --print-json` document:
-/// `{"total": N, "apps": [], "socket_cgroups": M, "census_complete": bool}`
-/// (night-improve-64 added the trailing pair, additive).
-#[cfg(feature = "ebpf")]
-#[derive(serde::Serialize)]
-struct ListAppsJson {
-    total: usize,
-    apps: Vec<AppEntryJson>,
-    /// The census's second number — cgroups with at least one live
-    /// socket — the figure the human table's grey census line has
-    /// always carried beside `total`. night-improve-64, additive.
-    socket_cgroups: usize,
-    /// The machine form of the partial-census disclosure
-    /// (night-improve-64): false when unprivileged — the socket
-    /// census is per-pid privilege-gated, so rows may under-read
-    /// (other users' sockets count zero). The stderr note rides
-    /// beside it for humans; stdout stays byte-clean either way.
-    census_complete: bool,
+    let mut out = String::with_capacity(64 + entries.len() * 96);
+    out.push_str("{\"total\":");
+    write_number(&mut out, total);
+    out.push_str(",\"apps\":");
+    write_array(&mut out, entries.len(), |out, i| {
+        let entry = entries[i];
+        out.push_str("{\"process\":");
+        write_string(out, &entry.comm);
+        out.push_str(",\"cgroup_id\":");
+        write_number(out, entry.cgroup_id);
+        out.push_str(",\"uid\":");
+        write_number(out, entry.uid);
+        out.push_str(",\"processes\":");
+        write_number(out, conns.proc_count(entry.cgroup_id));
+        out.push_str(",\"sockets\":");
+        write_number(out, conns.socket_count(entry.cgroup_id));
+        out.push('}');
+    });
+    out.push_str(",\"socket_cgroups\":");
+    write_number(&mut out, socket_cgroups);
+    out.push_str(",\"census_complete\":");
+    write_bool(&mut out, census_complete);
+    out.push('}');
+    out
 }
 
 /// The partial-census note's wording (pure, NIGHT-master-4) — the

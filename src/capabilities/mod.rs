@@ -7,13 +7,12 @@
 //! kernel version, root privileges.
 
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
 
 pub mod pins;
 pub use pins::PinState;
 
 /// System information relevant to eBPF support.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct SystemInfo {
     pub kernel: String,
     pub cgroup_v2: bool,
@@ -23,7 +22,7 @@ pub struct SystemInfo {
 }
 
 /// Capability detection result.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct CapabilityReport {
     pub system: SystemInfo,
     pub ebpf_supported: bool,
@@ -53,7 +52,6 @@ pub struct CapabilityReport {
     /// output always carries it (detect() always collects), older
     /// JSON without the field still deserializes — honestly absent,
     /// never fabricated.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub build: Option<crate::info::BuildInfo>,
     pub warnings: Vec<String>,
     /// The BPF pin lattice's verdict (night-improve-64, additive):
@@ -64,9 +62,9 @@ pub struct CapabilityReport {
     /// no lattice, and an unprivileged run must not audit a root's
     /// pins (the human report skips it for the same reason); an
     /// unreadable directory is absent too — never a fabricated
-    /// verdict. `default` keeps the additive rule: older JSON
-    /// without the field still deserializes.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// verdict. The None case serializes as ABSENCE (the additive
+    /// rule the writer branches on below — the old
+    /// `skip_serializing_if` semantics, now reviewable code).
     pub pins: Option<PinState>,
 }
 
@@ -255,16 +253,64 @@ fn find_cgroup2_mount() -> Option<String> {
     None
 }
 
+/// Serialize the capability report (S1, the hand-written lane): the
+/// exact wire contract the serde derive emitted before the stack
+/// left the graph — field order is declaration order, the two
+/// Option verdicts (`build`, `pins`) ride as ABSENCE when None (the
+/// additive rule, now reviewable branches instead of
+/// `skip_serializing_if`), and `cgroup2_mount_path` rides as JSON
+/// null when the mount probe found nothing. Field names are the
+/// pinned scripting contract (docs/USAGE.md JSON reference).
+fn report_json(report: &CapabilityReport) -> String {
+    use crate::json::write::{
+        write_array, write_bool, write_number, write_opt_string, write_string,
+    };
+
+    let mut out = String::with_capacity(256);
+    out.push_str("{\"system\":{\"kernel\":");
+    write_string(&mut out, &report.system.kernel);
+    out.push_str(",\"cgroup_v2\":");
+    write_bool(&mut out, report.system.cgroup_v2);
+    out.push_str(",\"cgroup2_mount_path\":");
+    write_opt_string(&mut out, report.system.cgroup2_mount_path.as_deref());
+    out.push_str(",\"bpf_fs_mounted\":");
+    write_bool(&mut out, report.system.bpf_fs_mounted);
+    out.push_str(",\"is_root\":");
+    write_bool(&mut out, report.system.is_root);
+    out.push_str("},\"ebpf_supported\":");
+    write_bool(&mut out, report.ebpf_supported);
+    out.push_str(",\"build_flavor\":");
+    write_string(&mut out, &report.build_flavor);
+    out.push_str(",\"ebpf_lane\":");
+    write_string(&mut out, &report.ebpf_lane);
+    if let Some(build) = &report.build {
+        out.push_str(",\"build\":");
+        build.write_json(&mut out);
+    }
+    out.push_str(",\"warnings\":");
+    write_array(&mut out, report.warnings.len(), |out, i| {
+        write_string(out, &report.warnings[i]);
+    });
+    if let Some(pins) = &report.pins {
+        out.push_str(",\"pins\":{\"state\":");
+        write_string(&mut out, &pins.state);
+        out.push_str(",\"files\":");
+        write_number(&mut out, pins.files);
+        out.push('}');
+    }
+    out.push('}');
+    out
+}
+
 /// Run capability detection and print report.
 pub fn run_doctor(json: bool) -> Result<()> {
     let report = detect();
     if json {
         // NIGHT-boost-3: the unified compact writer — same single-line
-        // contract as status and list-apps (the two sites that already
-        // printed compact via json! + Display; doctor and status were
-        // the pretty stragglers the owner's "optimize json print"
-        // mandate folded in).
-        crate::output::print_json(&report);
+        // contract as status and list-apps. S1: the document is
+        // composed by the hand-written lane above (report_json), no
+        // serde in the graph.
+        crate::output::print_json(&report_json(&report));
     } else {
         print_report(&report);
     }
@@ -494,7 +540,7 @@ mod tests {
             warnings: vec![],
             pins: None,
         };
-        let json = serde_json::to_string(&report).unwrap();
+        let json = report_json(&report);
         assert!(json.contains("cgroup_v2"));
         assert!(json.contains("ebpf_supported"));
         // NIGHT-dinner-3: the flavor verdict is first-class JSON —
@@ -543,7 +589,7 @@ mod tests {
             warnings: vec![],
             pins: None,
         };
-        let json = serde_json::to_string(&report).unwrap();
+        let json = report_json(&report);
         assert!(json.contains("half-life"));
     }
 }

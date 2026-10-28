@@ -62,7 +62,7 @@ fn list_apps_json_carries_the_full_census() {
     let entries = identity.all();
     let conns = crate::ebpf::connections::ConnectionMap::new();
     let doc = list_apps_json(&entries, 142, 57, false, &conns);
-    let json = serde_json::to_string(&doc).unwrap();
+    let json = doc;
     assert!(json.contains(r#""total":142"#), "{json}");
     assert!(json.contains(r#""socket_cgroups":57"#), "{json}");
     assert!(json.contains(r#""census_complete":false"#), "{json}");
@@ -88,11 +88,11 @@ fn list_apps_json_census_complete_reflects_privilege() {
     let entries = identity.all();
     let conns = crate::ebpf::connections::ConnectionMap::new();
     let privileged = list_apps_json(&entries, 1, 1, true, &conns);
-    let json = serde_json::to_string(&privileged).unwrap();
+    let json = privileged;
     assert!(json.contains(r#""census_complete":true"#), "{json}");
     // The unprivileged document keeps the same shape — the flag is
     // the only honesty surface the field owns.
     let unprivileged = list_apps_json(&entries, 1, 0, false, &conns);
-    let json = serde_json::to_string(&unprivileged).unwrap();
+    let json = unprivileged;
     assert!(json.contains(r#""census_complete":false"#), "{json}");
 }

@@ -69,8 +69,8 @@ fn test_doctor_print_json_is_one_compact_line() {
         !doc.contains("  "),
         "no pretty-print indentation, got: {doc}"
     );
-    let parsed: serde_json::Value =
-        serde_json::from_str(doc).expect("the line must parse as one JSON document");
+    let parsed = crate::zelynic_json::Value::parse_str(doc)
+        .expect("the line must parse as one JSON document");
     assert!(
         parsed.get("system").is_some() && parsed.get("ebpf_supported").is_some(),
         "field contract intact, got: {doc}"
@@ -96,9 +96,11 @@ fn test_doctor_print_json_is_one_compact_line() {
     // field-for-field with the human report's lines, so machine
     // consumers identify the exact artifact without re-deriving
     // anything from the version report.
+    // S1: the lens is the binary's own parser — `get` on a
+    // non-object is None, so an absent or malformed build block
+    // trips the same panic the as_object chain produced.
     let build = parsed
         .get("build")
-        .and_then(|v| v.as_object())
         .unwrap_or_else(|| panic!("the build object must ride the JSON contract, got: {doc}"));
     for key in [
         "version",
