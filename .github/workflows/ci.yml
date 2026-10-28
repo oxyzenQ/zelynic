@@ -355,14 +355,14 @@ jobs:
         run: |
           set -euo pipefail
           RUSTFLAGS="-D warnings -C target-cpu=native -C target-feature=+crt-static" cargo pro-native-musl --locked
-          grep -aF "local-native-musl" ./target/x86_64-unknown-linux-musl/pro-native-musl/zelynic
+          grep -aF "local-pro-native-musl" ./target/x86_64-unknown-linux-musl/pro-native-musl/zelynic
           RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3 -C target-feature=+crt-static" \
             cargo pro-linux-amd64-v3-musl --locked
           ./target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic -V \
-            | grep -F "Build: local-linux-amd64-v3-musl"
+            | grep -F "Build: local-pro-linux-amd64-v3-musl"
           RUSTFLAGS="-D warnings -C target-cpu=x86-64-v4 -C target-feature=+crt-static" \
             cargo pro-linux-amd64-v4-musl --locked
-          grep -aF "local-linux-amd64-v4-musl" \
+          grep -aF "local-pro-linux-amd64-v4-musl" \
             ./target/x86_64-unknown-linux-musl/pro-linux-amd64-v4-musl/zelynic
 
   # NIGHT-boost-2, renamed again by night-dragon-maintenance-6 (the

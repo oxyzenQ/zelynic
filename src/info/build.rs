@@ -105,9 +105,12 @@ pub struct BuildInfo {
     /// version report's own chain: git -> GITHUB_SHA -> registry
     /// .cargo_vcs_info.json; "unknown" only when every lane failed).
     pub git_sha: String,
-    /// The canonical build label — `ZELYNIC_BUILD` (the release
-    /// matrix platform id, e.g. "linux-amd64-v3-musl") or the
-    /// detected arch+libc fallback for plain builds.
+    /// The canonical build label — `ZELYNIC_BUILD` when the build
+    /// lane stamped it (release binaries carry `pro-<platform id>`,
+    /// e.g. "pro-linux-amd64-v3-musl"; local alias builds carry the
+    /// alias name under the `local-` marker, e.g.
+    /// "local-pro-native-musl"), or the `local-` prefixed detected
+    /// arch+libc shape for plain local builds.
     pub variant: String,
     /// The UTC build timestamp (Hinnant algorithm, no time crate).
     pub build_time: String,
@@ -169,23 +172,28 @@ fn build_string() -> String {
 }
 
 /// Canonical build label for the `Build:` line of the version report
-/// (cosmostrix `canonical_build_label()` lineage).
+/// (cosmostrix `canonical_build_label()` lineage; the T1 estate-wide
+/// label contract, night-dragon-maintenance-T1).
 ///
 /// Source of truth: the `ZELYNIC_BUILD` env var forwarded at compile
 /// time by build.rs — set by the cargo alias `pro-native-musl` (label
-/// `local-native-musl`, see .cargo/config.toml), the arch-baseline
+/// `local-pro-native-musl`, see .cargo/config.toml), the arch-baseline
 /// aliases `pro-linux-amd64-v3-musl` / `pro-linux-amd64-v4-musl`
-/// (labels `local-linux-amd64-v3-musl` etc., the release matrix
-/// platform id under the `local-` marker, NIGHT-boost-30), or by
-/// CI/release scripts (the platform id verbatim, e.g.
-/// `linux-amd64-v3-musl`). night-dragon-maintenance-6 retired the
-/// gnu aliases with the gnu packaging — musl is the only libc shape.
-/// When unset (plain `cargo build`), it falls back to the
-/// compile-time arch+libc detection, e.g. `linux-amd64-gnu`.
+/// (labels `local-pro-linux-amd64-v3-musl` etc., the alias name under
+/// the `local-` marker, NIGHT-boost-30 plus the T1 `pro-` rung), or
+/// by CI/release scripts (`pro-` + the platform id, e.g.
+/// `pro-linux-amd64-v3-musl` — a downloaded release binary names its
+/// shape with the estate `pro-` prefix and never the `local-` one).
+/// night-dragon-maintenance-6 retired the gnu aliases with the gnu
+/// packaging — musl is the only libc shape. When unset (plain
+/// `cargo build`, a crates.io install), it falls back to the
+/// `local-` prefixed compile-time arch+libc detection, e.g.
+/// `local-linux-amd64-gnu`: the build ran on the machine that runs
+/// it, and the label says so.
 pub(crate) fn build_label() -> String {
     match option_env!("ZELYNIC_BUILD") {
         Some(label) if !label.is_empty() => label.to_string(),
-        _ => build_string(),
+        _ => format!("local-{}", build_string()),
     }
 }
 
@@ -211,20 +219,24 @@ mod tests {
 
     /// Fallback contract: in a plain `cargo test` build ZELYNIC_BUILD is
     /// not forwarded by build.rs, so the canonical label must equal the
-    /// compile-time arch+libc detection. The override path (alias builds
-    /// reporting `local-native-musl` etc.) is verified
-    /// live by building with the aliases and reading `zelynic -V`.
+    /// `local-` prefixed compile-time arch+libc detection (the T1
+    /// estate contract: every local build names itself with the
+    /// `local-` marker). The override path (alias builds reporting
+    /// `local-pro-native-musl` etc.) is verified live by building
+    /// with the aliases and reading `zelynic -V`.
     #[test]
-    fn build_label_falls_back_to_detected_target_when_env_unset() {
+    fn build_label_falls_back_to_the_local_marker_plus_detected_target() {
         match option_env!("ZELYNIC_BUILD") {
             Some(_) => { /* alias/CI build: override path, verified live */ }
-            None => assert_eq!(build_label(), build_string()),
+            None => assert_eq!(build_label(), format!("local-{}", build_string())),
         }
     }
 
-    /// The detected fallback label must stay lowercase and carry the
-    /// arch-libc shape the docs promise (`linux-amd64-gnu` style), so a
-    /// drift in build_target() cannot silently reshape the Build: line.
+    /// The detected fallback ingredient must stay lowercase and carry
+    /// the arch-libc shape the docs promise (`linux-amd64-gnu` style —
+    /// the `local-` marker prefixes it in [`build_label`]), so a
+    /// drift in build_target() cannot silently reshape the Build:
+    /// line.
     #[test]
     fn detected_build_label_shape_is_os_arch_libc() {
         let label = build_string();

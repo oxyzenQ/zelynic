@@ -161,7 +161,7 @@ fn version_body() -> String {
 /// ```text
 /// zelynic: v11.0.0
 /// Per-app network rate limiter and traffic monitor for Linux. Pure eBPF. Boring and silent but killer.
-/// Build: linux-amd64-v3-musl (ad36a81)
+/// Build: pro-linux-amd64-v3-musl (ad36a81)
 /// Build-time: 9/18/2026 01:30 (UTC)
 /// Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)
 /// Copyright: (c) 2026 rezky_nightky (oxyzenQ)
@@ -170,8 +170,11 @@ fn version_body() -> String {
 /// ```
 ///
 /// The `Build:` line carries the canonical label from [`build_label`]:
-/// `local-native-musl` etc. for alias builds, the detected
-/// `linux-<arch>-<libc>` string for plain builds. The
+/// `local-pro-native-musl` etc. for local alias builds (the alias
+/// name under the `local-` marker), `pro-<platform id>` for release
+/// binaries a user downloaded (the estate `pro-` prefix, no
+/// `local-`), and `local-` + the detected `linux-<arch>-<libc>`
+/// string for plain local builds (a crates.io install included). The
 /// `Build-time:` line (NIGHT-hunt-6, cosmostrix parity) is stamped by
 /// build.rs via the Hinnant civil-from-days algorithm — UTC-only, so
 /// no timezone database is pulled into the binary and the stamp is

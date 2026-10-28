@@ -104,8 +104,11 @@ x86_64 CPU from ~2013 onward) and `v4` (AVX-512), e.g.
 `zelynic-v50.0.0-rc.1-linux-amd64-v4-musl`. Every package name carries
 its platform id (NIGHT-boost-36): the `-musl` leg names the libc
 shape. The binary's embedded `Build:`
-label is the same id (`linux-amd64-v3-musl`): one string names what
-the binary is and what you downloaded, so the two can never drift.
+label is that platform id under the estate `pro-` prefix
+(`pro-linux-amd64-v3-musl`, night-dragon-maintenance-T1): one
+sentence names what the binary is and what you downloaded — the
+tarball carries the id, the `Build:` line carries the same id with
+the fixed `pro-` brand rung — so the two can never drift.
 The verification flow is identical for both.
 
 ## 3. Why both GPG + checksums

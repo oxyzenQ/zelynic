@@ -32,6 +32,29 @@ v80.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **refactor(build): the estate-wide build-label contract — every
+  `Build:` shape now carries the `pro-` rung
+  (night-dragon-maintenance-T1).** The owner's estate rule ("every
+  build shape starts with `pro-`") applied to the label chain: local
+  alias builds stamp the ALIAS NAME under the `local-` marker
+  (`local-pro-native-musl`, `local-pro-linux-amd64-v3-musl`,
+  `local-pro-linux-amd64-v4-musl` — the pre-T1 labels lacked the
+  `pro-` rung), release binaries stamp `pro-` + the platform id
+  (`pro-linux-amd64-v3-musl` — a downloaded binary is never a local
+  build, so `local-` is absent by construction), and a plain local
+  build (a crates.io install included) falls back to the `local-`
+  prefixed detected shape (`local-linux-amd64-gnu`). The package and
+  tarball names are unchanged — the platform id stays the download
+  identity; the label is its branded shape. Synced surfaces:
+  .cargo/config.toml alias labels and comments, build_label() and
+  its fallback test, the version-report docstring example,
+  release.yml (ZELYNIC_BUILD pro- prefix + the verify greps riding
+  the new LABEL variable), ci.yml and the supermassive lanes' -V
+  greps, README's alias recipe sample, VERIFY_RELEASE.md's package
+  identity paragraph.
+
 ### Fixed
 
 - **fix(ci): the supermassive e2e depth lane's chronic throughput
