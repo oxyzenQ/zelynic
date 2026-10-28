@@ -150,7 +150,8 @@ macro_rules! println_safe {
 
 /// Print one JSON document to stdout as a single compact line.
 ///
-/// Contract (NIGHT-boost-3, owner mandate "optimize json print"):
+/// Contract (NIGHT-boost-3, owner mandate "optimize json print";
+/// hardened by night-dragon-maintenance-T1 (s)):
 /// - compact single line — the machine-first format. One document
 ///   per invocation, `jq`-ready and NDJSON-friendly; pretty-printing
 ///   belongs to the consumer (`... | jq '.'`), not the producer.
@@ -160,10 +161,45 @@ macro_rules! println_safe {
 /// - broken-pipe-safe — write errors are discarded exactly like
 ///   [`println_safe!`], so a piped reader exiting early truncates
 ///   the document instead of panicking the process.
+/// - never a complete-looking line from a failed document — the
+///   trailing newline is written only after a clean serialization
+///   ([`write_json_line`]). Before it, a serialization failure could
+///   only leave a truncated line; now it can never leave the ONE
+///   output shape no JSON consumer can parse: a partial document
+///   that ends in a newline.
+/// - the grammar-violation class dies in debug — every debug build
+///   (the test battery, a dev run) pre-serializes into a sink and
+///   panics with the incident-class name before any byte reaches
+///   stdout, so a future call site that hands this primitive a value
+///   the JSON grammar cannot represent (the non-string map key class)
+///   fails at development time, not in a user's pipe. Release builds
+///   keep the single-pass zero-allocation write.
 pub fn print_json<T: serde::Serialize + ?Sized>(value: &T) {
-    use std::io::Write as _;
+    #[cfg(debug_assertions)]
+    if serde_json::to_writer(std::io::sink(), value).is_err() {
+        panic!(
+            "print_json: the value violates the JSON grammar (the non-string map key class) \
+             — refusing to emit a partial document; fix the call site's type"
+        );
+    }
     let mut out = std::io::stdout().lock();
-    let _ = serde_json::to_writer(&mut out, value);
+    write_json_line(&mut out, value);
+}
+
+/// The one JSON write path, generic over the destination so the pins
+/// can assert the exact bytes (and the newline law below) without
+/// capturing the process stdout. Callers own the lock; this function
+/// owns the shape: compact serialization straight into the writer,
+/// then — only after a clean serialization — the NDJSON newline.
+/// A serialization failure (an io error on the writer, or the grammar
+/// class debug builds pre-flight above) leaves the buffer without the
+/// trailing newline: an incomplete line is the honest shape of an
+/// incomplete document, the one shape no consumer mistakes for a
+/// whole document.
+fn write_json_line<W: std::io::Write, T: serde::Serialize + ?Sized>(out: &mut W, value: &T) {
+    if serde_json::to_writer(&mut *out, value).is_err() {
+        return;
+    }
     let _ = out.write_all(b"\n");
     let _ = out.flush();
 }
@@ -210,6 +246,9 @@ pub fn signature_footer() -> String {
 #[path = "../../test/output/field_tests.rs"]
 mod field_tests;
 mod labeled;
+#[cfg(test)]
+#[path = "../../test/output/print_json_tests.rs"]
+mod print_json_tests;
 mod sanitize;
 // The width discipline's consumers (render tree, border, list-apps)
 // all live under the ebpf feature graph — the same gate the grey/

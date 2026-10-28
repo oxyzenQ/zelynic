@@ -34,6 +34,25 @@ v80.0.0
 
 ### Changed
 
+- **refactor(output): the print_json failure law — a serialization
+  failure can never produce a complete-looking JSON line
+  (night-dragon-maintenance-T1 (s)).** The depth audit of the
+  --print-json primitive found the one latent future bug class: a
+  serialization failure mid-write (the non-string map key class a
+  future call site could introduce) silently emitted a partial
+  document followed by the trailing newline — the one output shape
+  no JSON consumer can parse, with exit 0. The write path is now
+  `write_json_line`, generic over the destination (testable over a
+  buffer): the NDJSON newline is written only after a clean
+  serialization, so a failed document stays an obviously incomplete
+  line, and print_json pre-flights the grammar into a sink in every
+  debug build (the test battery included), panicking with the
+  incident-class name before any byte reaches stdout — the class
+  dies at development time; release keeps the single-pass
+  zero-allocation write. Pinned three ways in
+  test/output/print_json_tests.rs: exact compact bytes on success,
+  the no-newline-after-failure law, the debug preflight panic.
+
 - **refactor(build): the estate-wide build-label contract — every
   `Build:` shape now carries the `pro-` rung
   (night-dragon-maintenance-T1).** The owner's estate rule ("every
@@ -72,8 +91,6 @@ v80.0.0
   a-clean-checkout rule that keeps the registry sha lane honest),
   and VERIFY_RELEASE.md's source-revision bullet carries the sibling
   incident that motivates the rule.
-
-### Fixed
 
 - **fix(ci): the supermassive e2e depth lane's chronic throughput
   reds — three shared-runner calibration fixes, field-evidenced.**
