@@ -66,6 +66,13 @@ deny = [
     # comment in Cargo.toml). If a future feature genuinely needs
     # calendar math, prefer the in-house Hinnant module first.
     { crate = "chrono", reason = "removed NIGHT-hunt-6: zero call sites; Hinnant civil_from_days in build.rs replaces it" },
+    # night-dragon-maintenance-T1 (S1) (2026-10-28): serde and
+    # serde_json removed — the JSON lane is hand-written in src/json/
+    # (the zejtron peak-lean law: no crate exists only to move JSON).
+    # The parse tree serves the docker Engine API lane, the writer
+    # helpers serve every --print-json document; both std-only.
+    { crate = "serde", reason = "removed S1: the JSON lane is hand-written in src/json/; the derive stack left the graph" },
+    { crate = "serde_json", reason = "removed S1: src/json/parse.rs (Value tree) + write.rs (the escape law) replace it" },
 ]
 skip = []
 skip-tree = []

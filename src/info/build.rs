@@ -13,9 +13,8 @@
 //! one side, the build-facts lane on the other); a cohesive sibling
 //! module gives both files headroom. The version report consumes
 //! this lane through `pub(crate)` re-exports in the parent; the
-//! capability doctor serializes [`BuildInfo`] directly.
-
-use serde::{Deserialize, Serialize};
+//! capability doctor serializes [`BuildInfo`] through the
+//! hand-written lane (S1) below.
 
 /// `CARGO_PKG_VERSION` — the crate version this binary was cut from.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -96,7 +95,7 @@ fn profile_line() -> String {
 /// (night-improve-66) — the cosmostrix BUILD completeness, zelynic
 /// lean. Machine scope mirrors the human scope field-for-field so
 /// the two surfaces can never drift apart.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct BuildInfo {
     /// The crate version this binary was cut from (raw semver, no
     /// "v" — the human report adds the brand prefix).
@@ -133,6 +132,41 @@ impl BuildInfo {
             rustc_version: rustc_version().to_string(),
             profile: profile_line(),
         }
+    }
+
+    /// Serialize the BUILD block (S1, the hand-written lane): the
+    /// exact wire contract the serde derive emitted before the stack
+    /// left the graph — six string fields in declaration order, every
+    /// one present (the collector never fabricates an empty). Field
+    /// names are the pinned scripting contract.
+    pub(crate) fn write_json(&self, out: &mut String) {
+        use crate::json::write::write_string;
+
+        out.push_str("{\"version\":");
+        write_string(out, &self.version);
+        out.push_str(",\"git_sha\":");
+        write_string(out, &self.git_sha);
+        out.push_str(",\"variant\":");
+        write_string(out, &self.variant);
+        out.push_str(",\"build_time\":");
+        write_string(out, &self.build_time);
+        out.push_str(",\"rustc_version\":");
+        write_string(out, &self.rustc_version);
+        out.push_str(",\"profile\":");
+        write_string(out, &self.profile);
+        out.push('}');
+    }
+
+    /// The BUILD block as one compact JSON object line. The test
+    /// lens's entry — the doctor composes through `write_json` into
+    /// its own buffer, so this whole-document sibling is
+    /// cfg(test)-gated (the -D warnings law).
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn to_json(&self) -> String {
+        let mut out = String::with_capacity(256);
+        self.write_json(&mut out);
+        out
     }
 }
 
@@ -336,7 +370,7 @@ mod tests {
         ] {
             assert!(!field.is_empty(), "no BUILD field may be empty: {info:?}");
         }
-        let json = serde_json::to_string(&info).unwrap();
+        let json = info.to_json();
         for key in [
             "version",
             "git_sha",

@@ -156,12 +156,8 @@ fn parse_docker_reply_ok_and_non_200() {
 /// asserts the clean shape unchanged).
 #[test]
 fn daemon_supplied_strings_are_sanitized_at_the_choke_point() {
-    let value = serde_json::json!([{
-        "Id": "abc\u{1b}]52;p;SGVsbG8=\u{7}def1234567890",
-        "Names": ["/evil\u{a}nginx"],
-        "State": {"Status": "run\u{d}ning", "Running": true},
-    }]);
-    let body = serde_json::to_string(&value).unwrap();
+    // S1: the fixture is the raw reply bytes — no serde behind it.
+    let body = r#"[{"Id":"abc\u001b]52;p;SGVsbG8=\u0007def1234567890","Names":["/evil\u000anginx"],"State":{"Status":"run\u000dning","Running":true}}]"#;
     let reply = format!("HTTP/1.0 200 OK\r\n\r\n{body}");
     let entries = parse_docker_reply(reply.into_bytes()).expect("canned reply must parse");
     let e = &entries[0];
@@ -212,27 +208,26 @@ fn ambiguous_verdict_survives_a_multibyte_id() {
 /// guesses, so the caller keeps its old error wording.
 #[test]
 fn docker_state_parse_shapes() {
-    let obj: serde_json::Value =
-        serde_json::from_str(r#"{"Status":"exited","Running":false}"#).unwrap();
+    let obj = Value::parse_str(r#"{"Status":"exited","Running":false}"#).unwrap();
     assert_eq!(docker_state_parse(&obj), running_state(false, "exited"));
 
     // No Status word: derived from the bool.
-    let obj: serde_json::Value = serde_json::from_str(r#"{"Running":true}"#).unwrap();
+    let obj = Value::parse_str(r#"{"Running":true}"#).unwrap();
     assert_eq!(docker_state_parse(&obj), running_state(true, "running"));
-    let obj: serde_json::Value = serde_json::from_str(r#"{"Running":false}"#).unwrap();
+    let obj = Value::parse_str(r#"{"Running":false}"#).unwrap();
     assert_eq!(docker_state_parse(&obj), running_state(false, "stopped"));
 
     // The ancient bare-string shape: "running" is the only live word.
-    let obj: serde_json::Value = serde_json::from_str("\"paused\"").unwrap();
+    let obj = Value::parse_str("\"paused\"").unwrap();
     assert_eq!(docker_state_parse(&obj), running_state(false, "paused"));
-    let obj: serde_json::Value = serde_json::from_str("\"running\"").unwrap();
+    let obj = Value::parse_str("\"running\"").unwrap();
     assert_eq!(docker_state_parse(&obj), running_state(true, "running"));
 
     // Unknown shapes: null, a number, an object without a Running
     // bool — None keeps the caller's old error wording.
-    assert_eq!(docker_state_parse(&serde_json::Value::Null), None);
-    assert_eq!(docker_state_parse(&serde_json::json!(7)), None);
-    let obj: serde_json::Value = serde_json::from_str(r#"{"Status":"running"}"#).unwrap();
+    assert_eq!(docker_state_parse(&Value::Null), None);
+    assert_eq!(docker_state_parse(&Value::parse_str("7").unwrap()), None);
+    let obj = Value::parse_str(r#"{"Status":"running"}"#).unwrap();
     assert_eq!(docker_state_parse(&obj), None);
 
     // A missing State field parses as unknown too (the entry-level

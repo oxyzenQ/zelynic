@@ -34,6 +34,30 @@ v80.0.0
 
 ### Changed
 
+- **refactor(deps): serde and serde_json removed — the JSON lane is
+  hand-written (night-dragon-maintenance-T1 (S1), the zejtron
+  peak-lean dependency law).** The runtime graph carries no crate
+  that exists only to move JSON: the supply-chain surface loses six
+  locked crates (`serde`, `serde_core`, `serde_derive`,
+  `serde_json`, `itoa`, `zmij` — 50 down to 44), and the scripting
+  surface is now the crate's own std-only lane in `src/json/`:
+  `parse.rs` (the RFC 8259 `Value` tree — the docker Engine API
+  lane's foreign-bytes deserializer and every test's assertion
+  lens, strict strings, lexeme-preserved numbers, a 128-frame
+  container depth cap) and `write.rs` (the one escape law, array
+  grammar, and typed-absence vocabulary every document lane
+  shares). Each `--print-json` document type owns a reviewable
+  `write_json`/`to_json` pair reproducing the derive's exact wire
+  bytes — field order, the `skip_serializing_if` semantics, the
+  untagged enum — so the stable v11 scripting API is unchanged:
+  `doctor --print-json` and `list-apps --print-json` verified
+  byte-identical against the pre-S1 binary (modulo the build-time
+  stamp), and the former grammar-violation class (a `Serialize`
+  impl emitting a non-string map key) died structurally with the
+  derive stack it grew from. Regressions are blocked by the
+  serde/serde_json bans in `deny.toml`, recorded in
+  docs/DEPENDENCY_AUDIT.md.
+
 - **refactor(output): the print_json failure law — a serialization
   failure can never produce a complete-looking JSON line
   (night-dragon-maintenance-T1 (s)).** The depth audit of the

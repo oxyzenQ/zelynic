@@ -7,12 +7,13 @@
 //! [`pin_verdict`] law, the [`collect_pin_state`] collector, and the
 //! human "Pins:" line both surfaces render from.
 
-use serde::{Deserialize, Serialize};
-
 /// The BPF pin lattice's machine verdict (night-improve-64): the
 /// shape `doctor --print-json` carries under `pins`, one object for
-/// the state the human report renders as its "Pins:" line.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+/// the state the human report renders as its "Pins:" line. S1: the
+/// JSON shape is written by the hand-written lane — the doctor's
+/// `report_json` branches on the Option and emits `state`/`files`
+/// in this order (the serde derive's exact bytes, no derive stack).
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PinState {
     /// "clean" (no pins under the directory — nothing is active),
     /// "active" (the four enforcement pins all present — BPF is
@@ -160,42 +161,48 @@ mod tests {
     }
 
     /// night-improve-64: a populated verdict serializes under `pins`
-    /// with the state/files pair, and the report round-trips through
-    /// Deserialize with the additive default (old JSON without the
-    /// field still parses).
+    /// with the state/files pair (S1: pinned through the hand-written
+    /// report_json lane — same bytes the derive emitted), and the
+    /// additive rule is the writer's own branch: an absent verdict is
+    /// ABSENCE in the document, never a fabricated "clean".
     #[test]
     fn pin_state_serializes_and_defaults() {
-        let report = CapabilityReport {
-            system: SystemInfo {
-                kernel: "6.18.0".to_string(),
-                cgroup_v2: true,
-                cgroup2_mount_path: Some("/sys/fs/cgroup".to_string()),
-                bpf_fs_mounted: true,
-                is_root: true,
-            },
-            ebpf_supported: true,
-            build_flavor: BUILD_FLAVOR_FULL_LIFE.to_string(),
-            ebpf_lane: "source-built".to_string(),
-            build: Some(crate::info::BuildInfo::collect()),
-            warnings: vec![],
-            pins: Some(PinState {
-                state: "active".to_string(),
-                files: 4,
-            }),
-        };
-        let json = serde_json::to_string(&report).unwrap();
-        assert!(json.contains("\"pins\":{\"state\":\"active\",\"files\":4}"));
-        let back: CapabilityReport = serde_json::from_str(&json).unwrap();
-        assert_eq!(back.pins.as_ref().unwrap().files, 4);
+        fn base_report(pins: Option<PinState>) -> CapabilityReport {
+            CapabilityReport {
+                system: SystemInfo {
+                    kernel: "6.18.0".to_string(),
+                    cgroup_v2: true,
+                    cgroup2_mount_path: Some("/sys/fs/cgroup".to_string()),
+                    bpf_fs_mounted: true,
+                    is_root: true,
+                },
+                ebpf_supported: true,
+                build_flavor: BUILD_FLAVOR_FULL_LIFE.to_string(),
+                ebpf_lane: "source-built".to_string(),
+                build: Some(crate::info::BuildInfo::collect()),
+                warnings: vec![],
+                pins,
+            }
+        }
+        let populated = super::super::report_json(&base_report(Some(PinState {
+            state: "active".to_string(),
+            files: 4,
+        })));
+        assert!(
+            populated.contains("\"pins\":{\"state\":\"active\",\"files\":4}"),
+            "the pins pair rides verbatim: {populated}"
+        );
 
-        // The additive rule: a document from before the field parses
-        // untouched, the verdict honestly absent. The same rule holds
-        // for the night-improve-66 build object: a pre-improve-66
-        // doctor document parses with the block honestly absent —
-        // never fabricated, never a parse failure.
-        let legacy = r#"{"system":{"kernel":"6.18.0","cgroup_v2":true,"cgroup2_mount_path":null,"bpf_fs_mounted":true,"is_root":false},"ebpf_supported":true,"build_flavor":"full-life","ebpf_lane":"source-built","warnings":[]}"#;
-        let old: CapabilityReport = serde_json::from_str(legacy).unwrap();
-        assert!(old.pins.is_none());
-        assert!(old.build.is_none());
+        // The additive rule: a verdict the report cannot speak
+        // honestly stays ABSENT — the key never rides, never a
+        // fabricated "clean". (The pre-S1 Deserialize roundtrip and
+        // legacy-parse halves of this pin died with the derive
+        // stack: absence is now the writer's own branch, reviewable
+        // in capabilities::report_json.)
+        let absent = super::super::report_json(&base_report(None));
+        assert!(
+            !absent.contains("pins"),
+            "an absent verdict is absence, never a fabrication: {absent}"
+        );
     }
 }

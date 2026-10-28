@@ -84,7 +84,7 @@ fn json_document_shape_is_the_scripting_contract() {
         &[("ghost".to_string(), "no live cgroup matches".to_string())],
         None,
     );
-    let text = serde_json::to_string(&doc).expect("the document serializes");
+    let text = doc.to_json();
     assert!(text.starts_with("{\"targets\":[{"), "got: {text}");
     for field in [
         "\"target\":\"cg:1234\"",
@@ -118,7 +118,7 @@ fn json_document_shape_is_the_scripting_contract() {
     }
     // The unlimited shape: nulls, never fabricated zeroes.
     let doc = depth_doc_json(&[report_fixture(Enforcement::Unlimited)], &[], None);
-    let text = serde_json::to_string(&doc).expect("serializes");
+    let text = doc.to_json();
     assert!(text.contains("\"enforcement\":\"unlimited\""));
     assert!(text.contains("\"download_bps\":null"));
     assert!(text.contains("\"upload_bps\":null"));
@@ -158,7 +158,7 @@ fn json_carries_the_bypass_audit() {
         3,
     );
     let doc = depth_doc_json(&[report_fixture(Enforcement::Unlimited)], &[], Some(&clean));
-    let text = serde_json::to_string(&doc).expect("serializes");
+    let text = doc.to_json();
     assert!(
         text.contains("\"bypass_audit\":{\"window_secs\":3"),
         "the audit object carries the window, got: {text}"
@@ -215,7 +215,7 @@ fn json_carries_the_bypass_audit() {
         &[],
         Some(&flagged),
     );
-    let text = serde_json::to_string(&doc).expect("serializes");
+    let text = doc.to_json();
     assert!(
         text.contains("\"verdict\":\"bypassed_tx\""),
         "the flagged verdict names its side, got: {text}"
@@ -230,7 +230,7 @@ fn json_carries_the_bypass_audit() {
         &[],
         Some(&unreadable),
     );
-    let text = serde_json::to_string(&doc).expect("serializes");
+    let text = doc.to_json();
     assert!(
         text.contains("\"verdict\":\"unavailable\""),
         "the sysfs failure is honest, got: {text}"
@@ -245,7 +245,7 @@ fn json_carries_the_deleted_exe_flag() {
     let mut report = report_fixture(Enforcement::Unlimited);
     report.depth.procs[0].exe_deleted = true;
     let doc = depth_doc_json(&[report], &[], None);
-    let text = serde_json::to_string(&doc).expect("serializes");
+    let text = doc.to_json();
     assert!(
         text.contains("\"exe_deleted\":true"),
         "the deleted marker must serialize as true, got:\n{text}"
@@ -327,7 +327,7 @@ fn json_carries_the_traffic_focus_window() {
     report.conns = conns.get(1234).cloned();
     report.traffic = Some(focus);
     let doc = depth_doc_json(&[report], &[], None);
-    let text = serde_json::to_string(&doc).expect("serializes");
+    let text = doc.to_json();
     for field in [
         // NIGHT-improve-63: the traffic object carries the window's
         // own ranked endpoint attribution — movers first (the 10 MB
@@ -390,7 +390,7 @@ fn json_carries_the_ledger_and_controller_resources() {
         cpu_usage_usec: Some(62_000_000),
     };
     let doc = depth_doc_json(&[report], &[], None);
-    let text = serde_json::to_string(&doc).expect("serializes");
+    let text = doc.to_json();
     for field in [
         "\"enforcement_stats\":{\"packets_allowed\":9001",
         "\"packets_dropped\":42",
@@ -427,7 +427,7 @@ fn per_socket_fields_join_the_depth_row() {
     };
     let report = report_fixture(enforcement);
     let doc = depth_doc_json(&[report], &[], None);
-    let text = serde_json::to_string(&doc).unwrap();
+    let text = doc.to_json();
     assert!(
         text.contains("\"download_per_socket\":true"),
         "the dl marker serializes, got: {text}"

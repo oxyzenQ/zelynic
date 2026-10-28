@@ -29,6 +29,13 @@
 
 use std::process::Command;
 
+// S1: the assertion lens for the JSON surfaces — the binary's own
+// hand-written parser, path-included (the file is std-self-contained
+// by design, so the black-box harness can share it without linking
+// the binary crate). Reachable as `crate::zelynic_json`.
+#[path = "../../src/json/parse.rs"]
+mod zelynic_json;
+
 mod architecture_pins;
 mod cli_ux;
 mod help_pins;

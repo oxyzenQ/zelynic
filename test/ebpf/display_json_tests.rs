@@ -223,7 +223,7 @@ fn status_json_field_names_are_pinned() {
         0,
         0,
     );
-    let text = serde_json::to_string(&json).unwrap();
+    let text = json.to_json();
     for field in [
         "\"watchdog\"",
         "\"active_limits\"",
@@ -443,13 +443,17 @@ fn per_socket_fields_serialize_only_when_set() {
     let row = &plain.limits[0];
     assert!(!row.download_per_socket && !row.upload_per_socket);
 
-    // serde: the false markers do not serialize (additive contract).
-    let doc = serde_json::to_value(&plain).unwrap();
+    // S1: the false markers do not serialize (additive contract —
+    // the writer's own branch, pinned through the parse lens).
+    let doc = crate::json::Value::parse_str(&plain.to_json()).unwrap();
     let row_doc = &doc["limits"][0];
     assert!(row_doc.get("download_per_socket").is_none());
     assert!(row_doc.get("upload_per_socket").is_none());
-    let per_socket_doc = serde_json::to_value(&json).unwrap();
-    assert_eq!(per_socket_doc["limits"][0]["download_per_socket"], true);
+    let per_socket_doc = crate::json::Value::parse_str(&json.to_json()).unwrap();
+    assert_eq!(
+        per_socket_doc["limits"][0]["download_per_socket"],
+        crate::json::Value::Bool(true)
+    );
     assert!(
         per_socket_doc["limits"][0]
             .get("upload_per_socket")

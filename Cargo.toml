@@ -164,8 +164,12 @@ clippy = { undocumented_unsafe_blocks = "deny" }
 # the chrono ban in deny.toml (cargo deny check all).
 clap = { version = "4", default-features = false, features = ["std", "color", "help", "usage", "error-context", "derive", "suggestions"] }
 anyhow = "1"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+# S1 (night-dragon-maintenance-T1): serde and serde_json REMOVED —
+# the JSON lane is hand-written in src/json/ (the zejtron lineage's
+# peak-lean law: the runtime graph carries no crate that exists only
+# to move JSON, and the supply-chain surface loses the serde derive
+# stack: serde_core, serde_derive, itoa, ryu, memchr). Regressions
+# are blocked by the serde/serde_json bans in deny.toml.
 # Minimal safe-syscall wrapper. Feature list is exactly what the source
 # uses (NIGHT-hunt-6 trim; was process+fs+feature+user+signal+term):
 #   user    -> nix::unistd::geteuid()   (capabilities/mod.rs, commands/mod.rs)
