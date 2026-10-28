@@ -162,6 +162,15 @@ _LIB_DIR = os.path.join(_HERE, "..", "lib")
 if _LIB_DIR not in sys.path:
     sys.path.insert(0, _LIB_DIR)
 
+# Root-owned pycache guard (night-dragon-maintenance-T1; the full story
+# lives in docs/MAINTENANCE.md, "Workspace hygiene"). These harnesses run
+# under sudo for their eBPF work, and CPython caches the bytecode of every
+# imported module beside its source (__pycache__/); caches written by the
+# root process carry root ownership and a later non-root cleanup dies with
+# "Permission denied". The interpreter-wide switch goes BEFORE the first
+# local import so no repo-local bytecode is ever written, at any privilege
+# level; the per-run recompile cost is milliseconds for a test harness.
+sys.dont_write_bytecode = True
 import zelynic_harness_lib as lib  # noqa: E402
 from zelynic_harness_lib import (  # noqa: E402
     RESULTS,

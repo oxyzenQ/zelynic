@@ -229,7 +229,19 @@ carry.
   cosmostrix lineage) reads `.cargo_vcs_info.json` when no `.git`
   directory exists, so a registry build's `zelynic -V` reports the
   exact short sha the crate was packed from — not `unknown`.
-  Cross-check it against the tag on the GitHub Release page.
+  Cross-check it against the tag on the GitHub Release page. The
+  `unknown` degradation needs every lane to fail, and its realistic
+  causes are all publish-time: packing outside a git checkout (no vcs
+  document is written at all) or a document with no usable sha. The
+  sibling-project incident that motivates the rule
+  (night-dragon-maintenance-T1): a registry-installed binary printed
+  `Build: linux-amd64-gnu (unknown)` — packed without the vcs
+  document. zelynic's publish lanes (the `crates-io.yml` workflow and
+  the manual procedure above) both run from a clean git checkout of
+  the tagged commit, which is the standing rule: never `cargo
+  publish` from a plain source export or a HEAD that is not the tag.
+  The full incident record lives in docs/MAINTENANCE.md §7, "The
+  unknown commit id class".
 
 ### Owner manual — first publish (one-time)
 
