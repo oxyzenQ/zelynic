@@ -40,6 +40,13 @@ rustflags = ["-C", "target-feature=+crt-static"]
 # target/x86_64-unknown-linux-musl/pro-native-musl/zelynic so a native
 # build never clobbers target/release/zelynic.
 #
+# night-dragon-maintenance-T1 (the owner's estate-wide build-label
+# contract): every local alias build stamps the ALIAS NAME under the
+# `local-` marker ("local-pro-native-musl"), so `zelynic -V` names
+# the exact alias that produced the binary. The `pro-` prefix inside
+# the label is the estate branding rule ("every build shape starts
+# with pro-") applied to the label itself, not a second marker.
+#
 # Precedence note (verified live on cargo 1.98.1): target-level
 # rustflags SHADOW build-level rustflags, so the musl alias must set
 # target.x86_64-unknown-linux-musl.rustflags directly — passing only
@@ -66,7 +73,7 @@ pro-native-musl = [
   "--features",
   "ebpf",
   "--config",
-  "env.ZELYNIC_BUILD=\"local-native-musl\"",
+  "env.ZELYNIC_BUILD=\"local-pro-native-musl\"",
   "--config",
   "target.x86_64-unknown-linux-musl.rustflags=[\"-C\",\"target-cpu=native\",\"-C\",\"target-feature=+crt-static\"]",
   "--target",
@@ -85,11 +92,13 @@ pro-native-musl = [
 # alias carries `--features ebpf` (full flagship binary), its own
 # profile so the two artifacts land in separate target dirs and never
 # clobber each other or target/release/zelynic, and a ZELYNIC_BUILD
-# label that is the release matrix platform id VERBATIM under the
-# `local-` marker ("local-linux-amd64-v3-musl" etc.), so `-V` names
-# the shape the same way the release Build: line does, arch included
-# — the pre-boost-30 labels (`local-linux-gnu-v3`) hid the arch and
-# scrambled the platform id's token order.
+# label that is the ALIAS NAME under the `local-` marker
+# ("local-pro-linux-amd64-v3-musl" etc.), so `-V` names the shape the
+# same way the release Build: line does, arch included — the
+# pre-boost-30 labels (`local-linux-gnu-v3`) hid the arch and
+# scrambled the platform id's token order, and the pre-T1 labels
+# (`local-linux-amd64-v3-musl`) lacked the `pro-` brand rung the
+# estate-wide label contract now carries on every shape.
 #
 # The aliases set the target-level rustflags directly (the SHADOW
 # rule documented above applies — the file's
@@ -109,7 +118,7 @@ pro-linux-amd64-v3-musl = [
   "--features",
   "ebpf",
   "--config",
-  "env.ZELYNIC_BUILD=\"local-linux-amd64-v3-musl\"",
+  "env.ZELYNIC_BUILD=\"local-pro-linux-amd64-v3-musl\"",
   "--config",
   "target.x86_64-unknown-linux-musl.rustflags=[\"-C\",\"target-cpu=x86-64-v3\",\"-C\",\"target-feature=+crt-static\"]",
   "--target",
@@ -122,7 +131,7 @@ pro-linux-amd64-v4-musl = [
   "--features",
   "ebpf",
   "--config",
-  "env.ZELYNIC_BUILD=\"local-linux-amd64-v4-musl\"",
+  "env.ZELYNIC_BUILD=\"local-pro-linux-amd64-v4-musl\"",
   "--config",
   "target.x86_64-unknown-linux-musl.rustflags=[\"-C\",\"target-cpu=x86-64-v4\",\"-C\",\"target-feature=+crt-static\"]",
   "--target",

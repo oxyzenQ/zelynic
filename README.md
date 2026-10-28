@@ -313,7 +313,7 @@ reports its build label in the version output:
 
 ```bash
 $ ./target/x86_64-unknown-linux-musl/pro-native-musl/zelynic -V
-Build: local-native-musl (<hash>)
+Build: local-pro-native-musl (<hash>)
 Build-time: 9/18/2026 01:30 (UTC)
 Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)
 ```
