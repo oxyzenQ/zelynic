@@ -2024,7 +2024,7 @@ Field shapes:
 `status --print-json`:
 
 ```json
-{"watchdog":"enforcing","active_limits":2,"limits":[{"cgroup_id":18571,"label":"brave","download_bps":100000,"upload_bps":100000,"packets_allowed":232,"packets_dropped":4718,"bytes_allowed":29520,"bytes_dropped":8031234}]}
+{"watchdog":"enforcing","active_limits":2,"limits":[{"cgroup_id":18571,"label":"brave","download_bytes_per_sec":100000,"upload_bytes_per_sec":100000,"packets_allowed":232,"packets_dropped":4718,"bytes_allowed":29520,"bytes_dropped":8031234}]}
 ```
 
 The complete field reference (night-improve-60 — the owner read
@@ -2038,10 +2038,10 @@ one table, script-facing):
 | `active_limits` | number | how many limit ROWS follow (one per policed cgroup — a cgroup with both directions policed is still one row) |
 | `limits[].cgroup_id` | number | the cgroup v2 id the policy is pinned to |
 | `limits[].label` | string | the resolved identity, majority vote over the live processes inside the cgroup (`cg:89976 (brave)`) |
-| `limits[].download_bps` / `upload_bps` | number \| `null` | the enforced rate per direction; `null` when that direction is unlimited (never a fabricated zero) |
+| `limits[].download_bytes_per_sec` / `upload_bytes_per_sec` | number \| `null` | the enforced rate per direction, in BYTES per second (the name spells the unit — a `_bps` reading, bits, would mislead by a factor of 8); `null` when that direction is unlimited (never a fabricated zero) |
 | `limits[].download_per_socket` / `upload_per_socket` | boolean | present only when the direction was applied `--per-socket`: the rate names a PER-CONNECTION budget, not the cgroup cap |
-| `limits[].floor_bps` / `ceil_bps` | number | the per-subprocess guarantee pair, present when both directions carry the SAME pair |
-| `limits[].download_floor_bps` / `download_ceil_bps` / `upload_floor_bps` / `upload_ceil_bps` | number | the per-subprocess pair when the directions DIFFER (the split shape; the merged pair above is then absent) |
+| `limits[].floor_bytes_per_sec` / `ceil_bytes_per_sec` | number | the per-subprocess guarantee pair, present when both directions carry the SAME pair |
+| `limits[].download_floor_bytes_per_sec` / `download_ceil_bytes_per_sec` / `upload_floor_bytes_per_sec` / `upload_ceil_bytes_per_sec` | number | the per-subprocess pair when the directions DIFFER (the split shape; the merged pair above is then absent) |
 | `limits[].packets_allowed` / `packets_dropped` | number | cumulative packet counts under the limit (both directions booked into one row) |
 | `limits[].bytes_allowed` / `bytes_dropped` | number | cumulative BYTES: what passed enforcement, what the token bucket discarded. Lifetime counters — re-applying `strict` keeps them continuous; `unstrict` reclaims the row |
 | `limits[].rate_ring` | object | the last eight seconds' per-second delivered bytes, per direction — a traffic MONITOR, not the policy window (see the callout below) |
@@ -2134,18 +2134,18 @@ nothing to a script), and a daily window's `start_s` / `end_s`
 without a window carry no field at all:
 
 ```json
-{"cgroup_id":18571,"label":"brave","download_bps":100000,"window":{"kind":"span","state":"active","start_wall_ns":1791288000000000000,"end_wall_ns":1791291600000000000}}
+{"cgroup_id":18571,"label":"brave","download_bytes_per_sec":100000,"window":{"kind":"span","state":"active","start_wall_ns":1791288000000000000,"end_wall_ns":1791291600000000000}}
 ```
 
 `download_per_socket` / `upload_per_socket`
 (NIGHT-upgrade-charger-core-3b) appear on a limit row only when that
 direction's policy was applied with `--per-socket` — the boolean that
-says the row's `download_bps`/`upload_bps` number names a
+says the row's `download_bytes_per_sec`/`upload_bytes_per_sec` number names a
 PER-CONNECTION budget (the cgroup total is rate x concurrent
 sockets), never the cgroup cap:
 
 ```json
-{"cgroup_id":18571,"label":"nginx","download_bps":500000,"download_per_socket":true,"packets_allowed":232}
+{"cgroup_id":18571,"label":"nginx","download_bytes_per_sec":500000,"download_per_socket":true,"packets_allowed":232}
 ```
 
 `list-apps --print-json` (the `total` field counts every cgroup the
@@ -2171,7 +2171,7 @@ for humans, stdout stays byte-clean either way):
 (multi-target specs only; a full miss exits 1 with the text error):
 
 ```json
-{"targets":[{"target":"cg:1234","cgroup_id":1234,"name":"cat-test","cgroup_path":"/sys/fs/cgroup/cat-test","uid":1000,"user":"cat","enforcement":"limited","download_bps":100000,"upload_bps":100000,"group_id":0,"oldest_started_secs":620,"processes":1,"socket_holders":1,"sockets":2,"traffic":{"window_secs":3,"download_bytes":12400000,"upload_bytes":340000,"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null}]},"procs":[{"pid":1234,"comm":"cat-test","uid":1000,"user":"cat","ppid":1,"state":"S (sleeping)","threads":4,"rss_kb":1234,"exe":"/home/cat/cat-test","exe_deleted":false,"kind":"binary","script":null,"permission":"755","cwd":"/home/cat","cmdline":"./cat-test --serve","started_ago_secs":620,"started_epoch":1758900000}],"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null}]}],"bypass_audit":{"window_secs":3,"nic_tx_bytes":12900000,"nic_rx_bytes":13000000,"bpf_tx_bytes":340000,"bpf_rx_bytes":12450000,"shadow_tx_bytes":12560000,"shadow_rx_bytes":550000,"verdict":"bypassed_tx"}}
+{"targets":[{"target":"cg:1234","cgroup_id":1234,"name":"cat-test","cgroup_path":"/sys/fs/cgroup/cat-test","uid":1000,"user":"cat","enforcement":"limited","download_bytes_per_sec":100000,"upload_bytes_per_sec":100000,"group_id":0,"oldest_started_secs":620,"processes":1,"socket_holders":1,"sockets":2,"traffic":{"window_secs":3,"download_bytes":12400000,"upload_bytes":340000,"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null}]},"procs":[{"pid":1234,"comm":"cat-test","uid":1000,"user":"cat","ppid":1,"state":"S (sleeping)","threads":4,"rss_kb":1234,"exe":"/home/cat/cat-test","exe_deleted":false,"kind":"binary","script":null,"permission":"755","cwd":"/home/cat","cmdline":"./cat-test --serve","started_ago_secs":620,"started_epoch":1758900000}],"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null}]}],"bypass_audit":{"window_secs":3,"nic_tx_bytes":12900000,"nic_rx_bytes":13000000,"bpf_tx_bytes":340000,"bpf_rx_bytes":12450000,"shadow_tx_bytes":12560000,"shadow_rx_bytes":550000,"verdict":"bypassed_tx"}}
 ```
 
 `enforcement` is `"unlimited"` | `"blocked"` | `"limited"`; an

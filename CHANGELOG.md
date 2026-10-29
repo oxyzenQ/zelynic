@@ -34,6 +34,31 @@ v80.0.0
 
 ### Changed
 
+- **fix(json): the rate wire fields renamed `_bps` -> `_bytes_per_sec`
+  — the wire name is now the unit contract (night-verdict-closure-T1
+  (B5), the honest-API law).** Every rate figure this binary emits is
+  BYTES per second — `parse_rate` multiplies the `kb`/`mb`/`gb`/`tb`
+  suffixes by decimal byte factors, the kernel token bucket spends
+  `burst_bytes` against the same unit, and the text surfaces render
+  `100.0 KB/s` from the identical integer — but the JSON wire called
+  the fields `download_bps`/`upload_bps`, and `_bps` reads as BITS
+  per second in every industry convention: a standard consumer
+  dividing by 8 to recover bytes per second would misread a 100 KB/s
+  policy as 12.5 KB/s, an 8x error. The wire names now spell the
+  unit out: `download_bytes_per_sec` / `upload_bytes_per_sec` on
+  both `status --print-json` (`limits[]`) and `ee --depth
+  --print-json` (`targets[]`), and the improve-40 guarantee pair
+  rides the same law — `floor_bytes_per_sec` / `ceil_bytes_per_sec`
+  plus the four split-shape fields (`download_floor_bytes_per_sec`
+  and siblings). The kernel-side `Policy::floor_bps`/`ceil_bps`
+  struct names are unchanged (the eBPF ABI and its map layout are
+  bytes-honest already; only the scripting wire lied). The rename
+  lands before any external consumer exists — the v11 scripting
+  contract's field spellings are the owner's to evolve, and a
+  factor-of-8 misreading left in place is a worse break than a
+  pre-adoption rename. Schema prose and example documents in
+  docs/USAGE.md updated in step.
+
 - **refactor(deps): serde and serde_json removed — the JSON lane is
   hand-written (night-dragon-maintenance-T1 (S1), the zejtron
   peak-lean dependency law).** The runtime graph carries no crate

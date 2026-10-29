@@ -108,8 +108,8 @@ fn json_document_shape_is_the_scripting_contract() {
         "\"uid\":1000",
         "\"user\":\"cat\"",
         "\"enforcement\":\"limited\"",
-        "\"download_bps\":100000",
-        "\"upload_bps\":100000",
+        "\"download_bytes_per_sec\":100000",
+        "\"upload_bytes_per_sec\":100000",
         "\"group_id\":0",
         "\"oldest_started_secs\":620",
         "\"processes\":1",
@@ -131,8 +131,8 @@ fn json_document_shape_is_the_scripting_contract() {
     let doc = depth_doc_json(&[report_fixture(Enforcement::Unlimited)], &[], None);
     let text = doc.to_json();
     assert!(text.contains("\"enforcement\":\"unlimited\""));
-    assert!(text.contains("\"download_bps\":null"));
-    assert!(text.contains("\"upload_bps\":null"));
+    assert!(text.contains("\"download_bytes_per_sec\":null"));
+    assert!(text.contains("\"upload_bytes_per_sec\":null"));
     // The blade-5 layers are null in the unlimited shape too.
     assert!(text.contains("\"enforcement_stats\":null"));
     assert!(text.contains("\"cgroup_memory_bytes\":null"));
@@ -447,5 +447,5 @@ fn per_socket_fields_join_the_depth_row() {
         !text.contains("\"upload_per_socket\""),
         "the false ul marker is omitted"
     );
-    assert!(text.contains("\"download_bps\":500000"));
+    assert!(text.contains("\"download_bytes_per_sec\":500000"));
 }
