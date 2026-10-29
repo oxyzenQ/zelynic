@@ -347,7 +347,13 @@ the essentials — per-check OK lines, warnings, failures, no banners — and is
 the exact shape the CI "build.sh check-all -q" job runs (NIGHT-boost-7;
 renamed from "Lint & Test" in NIGHT-boost-11): the gate
 CI enforces and the gate the owner runs before a commit are one
-invocation, so the two can never drift apart.
+invocation, so the two can never drift apart. One environment note for
+shallow clones (`--depth=1`): cargo-deny reads `.git/FETCH_HEAD` for the
+commit timestamp, and the clone only writes it on its first fetch —
+run `git fetch` once before the first deny check. `check-all` now names
+that fix up front instead of letting the cryptic
+"failed to get 'FETCH_HEAD' metadata" error surface (the
+night-verdict-closure-T8 find).
 
 `gate-keepers.sh` runs the 20 numbered non-code gate sections (the shell
 quad's four sub-checks count separately, so the summary line prints 23
