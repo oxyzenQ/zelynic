@@ -822,8 +822,13 @@ live in [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md); the short version:
 | Personal             | Free (GPL-3.0) | Hobby, personal, non-commercial, contributions                |
 | Individual           | $99/year       | Solo devs, freelancers, revenue < $100K/year                  |
 | Business             | $9,999/year    | SMB, revenue $100K – $10M/year                                |
-| Enterprise Internal  | $49,999/year   | Enterprise (>$10M/year), internal use only, NO redistribution |
-| OEM / Redistribution | $110,199/year  | Embedding the architectural patterns in a shipped product     |
+| Enterprise Node      | $2,499/node/year (min 5, max 19 nodes) | Enterprise deployments of 5–19 nodes, unlimited internal use   |
+| Enterprise Internal  | $49,999/year   | Enterprise (>$10M/year), unlimited nodes, internal use only, NO redistribution |
+| OEM / Redistribution | $149,999/year (annual) OR $249,999 one-time + 20%/year maintenance (perpetual) | Embedding or reselling in a shipped product; redistribution rights |
+
+Full terms, payment instructions, the two OEM paths (annual vs
+perpetual), and the grandfathering clause live in
+[COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md).
 
 The business end of the ladder follows the value upward
 (NIGHT-dinner-31, the second move after NIGHT-dinner-25): zelynic's
