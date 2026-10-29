@@ -73,3 +73,73 @@ fn no_rates_still_yields_the_empty_spec() {
     assert_eq!(rates.download, None);
     assert_eq!(rates.upload, None);
 }
+
+// ── The zero refusal on the limit verb (night-peak-lts FIX-2) ─────────
+//
+// `validate_rate` deliberately lets 0 pass (the BPF schema's BLOCK
+// verdict), and the `block` verb writes that shape directly. The
+// LIMIT verb must not reach it silently: `s brave 0kb` used to
+// apply a full block under the strict surface, past the docs' own
+// 1kb minimum. These pins hold the refusal, the pointer to the verb
+// that owns the intent, and the --force-this escape hatch.
+
+#[cfg(feature = "ebpf")]
+#[test]
+fn strict_zero_rate_is_refused_with_the_block_pointer() {
+    let err = resolve_rates(Some("0kb"), None, None, false)
+        .expect_err("0kb on the limit verb must be refused without the override");
+    let msg = format!("{err}");
+    assert!(
+        msg.contains("rate must be at least 1kb (1000 B/s)"),
+        "the minimum must be named, got: {msg}"
+    );
+    assert!(
+        msg.contains("use 'zelynic block <target>'"),
+        "the block intent must be pointed at its own verb, got: {msg}"
+    );
+}
+
+#[cfg(feature = "ebpf")]
+#[test]
+fn strict_bare_zero_and_fractional_zero_are_refused_too() {
+    for shape in ["0", "0b", "0.0kb"] {
+        let err = resolve_rates(Some(shape), None, None, false)
+            .expect_err("every zero spelling must be refused on the limit verb");
+        let msg = format!("{err}");
+        // Two refusal classes, both honest: the plain-zero shapes hit
+        // the limit-verb refusal (the block pointer), a fractional
+        // zero like 0.0kb is caught earlier by the parser's own
+        // rounds-to-zero guard (pass '0' if you mean block). Either
+        // way nothing silently applies.
+        assert!(
+            msg.contains("rate must be at least 1kb") || msg.contains("rounds to zero bytes/s"),
+            "{shape} must be refused, got: {msg}"
+        );
+    }
+}
+
+#[cfg(feature = "ebpf")]
+#[test]
+fn force_this_keeps_zero_as_the_documented_escape_hatch() {
+    let rates = resolve_rates(Some("0kb"), None, None, true)
+        .expect("--force-this is the yes-really-zero hatch the docs pin");
+    assert_eq!(rates.download, Some(0));
+    assert_eq!(rates.upload, Some(0));
+}
+
+#[cfg(feature = "ebpf")]
+#[test]
+fn per_direction_zero_is_refused_on_both_flags() {
+    let err = resolve_rates(None, Some("0kb"), None, false)
+        .expect_err("-d 0kb must hit the same refusal");
+    assert!(format!("{err}").contains("use 'zelynic block <target>'"));
+
+    let err = resolve_rates(None, None, Some("0kb"), false)
+        .expect_err("-u 0kb must hit the same refusal");
+    assert!(format!("{err}").contains("use 'zelynic block <target>'"));
+
+    let rates = resolve_rates(None, Some("0kb"), Some("0kb"), true)
+        .expect("--force-this covers the per-direction hatch too");
+    assert_eq!(rates.download, Some(0));
+    assert_eq!(rates.upload, Some(0));
+}
