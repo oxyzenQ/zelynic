@@ -196,6 +196,26 @@ v80.0.0
 
 ### Fixed
 
+- **fix(json): the dormant test build rides the -D warnings law —
+  the S1 cfg gate artifacts close
+  (night-dragon-maintenance-T1 (S3)).** main was red on both S1
+  and S2 with the same two errors (pre-existing from S1, not an
+  S2 regression): ci.yml's workflow-level RUSTFLAGS="-D warnings"
+  compiles the check-all job's dormant test lane with every
+  warning fatal, and the S1 gates armed two json-lane items for
+  `test` with zero dormant consumers — the `pub use parse::Value`
+  re-export (an unused import in the dormant bin-test build; its
+  sole consumer is the docker lane, the parse tests go through
+  super::* and the harness binds its own #[path] copy) and
+  write_opt_number (dead code; its callers are the ebpf-gated
+  document lanes and no test calls it). Both gates drop the test
+  arm and are feature-only now; the parse module keeps its
+  any(ebpf, test) gate because its #[cfg(test)] pins ride it on
+  every lane. Verified under the law itself: the dormant test
+  lane (161 + 62 green, the exact seat that was red), the ebpf
+  feature lane (935 + 70), and the CI musl clippy lane, all
+  green with fmt clean. No behavior change at any feature level:
+  the ebpf build compiles both items exactly as before.
 - **fix(json): the \u escape's hex window is byte-validated — the
   sign-prefixed slice class is closed
   (night-dragon-maintenance-T1 (S2)).** The T1 re-audit of the
