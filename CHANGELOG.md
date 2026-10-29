@@ -196,6 +196,31 @@ v80.0.0
 
 ### Fixed
 
+- **fix(test): the assert-message law — failure diagnostics stop
+  embedding the composed JSON documents
+  (night-dragon-maintenance-T1 (S4)).** The CodeQL code-scanning
+  board carried twenty standing High "cleartext logging of
+  sensitive information" alerts on main, all in the two test files
+  whose documents ride the socket-cookie joins (the depth
+  scripting document's per-socket rows, the list-apps census
+  document): CodeQL models a cookie-named field as a sensitive
+  source and a panic format string as a logging sink, so every
+  `assert!(.., "got: {text}")` / bare `"{json}"` failure dump was
+  one High finding. No secret ever moved — the fixture values are
+  synthetic kernel socket cookies, and the production tree never
+  logs one (the single cookie-named message in src/ is an error
+  context on a failed map lookup, unflagged) — but twenty standing
+  Highs bury the real findings. The two files now speak the
+  message law in their module docs: an assert failure names the
+  violated contract piece (the field, the verdict — the pin a
+  triage actually needs) and never embeds the document. Alerts
+  close on the next analysis of main; the embedding idiom stays
+  retired with the law written where the next contributor reads
+  it. Untainted `got: {text}` text-report asserts elsewhere
+  (depth_traffic_tests and siblings print no cookie fields) keep
+  their dumps — the fix is scoped to the flagged class, verified
+  by the same green lanes as S3 (935 + 70 ebpf, 161 + 62 dormant,
+  RUSTFLAGS=-D warnings, fmt clean).
 - **fix(json): the dormant test build rides the -D warnings law —
   the S1 cfg gate artifacts close
   (night-dragon-maintenance-T1 (S3)).** main was red on both S1
