@@ -69,15 +69,40 @@ license terms.
 | Personal             | Free (GPL-3.0) | Hobby, personal, non-commercial, contributions                |
 | Individual           | $99/year       | Solo devs, freelancers, revenue < $100K/year                  |
 | Business             | $9,999/year    | SMB, revenue $100K – $10M/year                                |
-| Enterprise Internal  | $49,999/year   | Enterprise (>$10M/year), internal use only, NO redistribution |
-| OEM / Redistribution | $110,199/year  | Embedding the architectural patterns in a shipped product     |
+| Enterprise Node      | $2,499/node/year (min 5, max 19 nodes) | Enterprise deployments of 5–19 nodes, unlimited internal use   |
+| Enterprise Internal  | $49,999/year   | Enterprise (>$10M/year), unlimited nodes, internal use only, NO redistribution |
+| OEM / Redistribution | $149,999/year (annual) OR $249,999 one-time + 20%/year maintenance (perpetual) | Embedding or reselling in a shipped product; redistribution rights |
+
+**OEM pricing note:** the OEM tier offers two equivalent paths —
+annual ($149,999/year) for buyers who prefer opex, and perpetual
+($249,999 one-time + $49,999.80/year maintenance, i.e. 20%) for
+buyers who prefer capex and want to cap long-term risk. Total cost
+comparison over multi-year horizons (annual figures undiscounted):
+
+- 1 year: annual = $149,999; perpetual = $299,998.80
+- 3 years: annual = $449,997; perpetual = $399,998.40
+- 5 years: annual = $749,995; perpetual = $499,998
+- 10 years: annual = $1,499,990; perpetual = $749,997
 
 Notes:
 
 - **Revenue thresholds** refer to your total annual revenue (company or
   individual, whichever applies), not your zelynic-specific revenue.
 - **Multi-year discount** (owner discretion): 20% off a 2-year term,
-  30% off a 3-year term.
+  30% off a 3-year term. The OEM perpetual path is a single payment
+  plus maintenance — the discount does not stack on it.
+- **2026-10-30 price move** (current revision, effective from the
+  first release tag after that date): OEM annual $110,199 →
+  $149,999/year (+36%); the OEM perpetual path added at $249,999
+  one-time + 20%/year maintenance; the Enterprise Node bridge tier
+  added at $2,499/node/year (min 5, max 19 nodes). Enterprise
+  Internal unchanged at $49,999. Business and Individual unchanged.
+  Grandfathering unchanged: buyers who paid before the move keep
+  the price they paid, for the term they bought.
+- **OEM grandfathering**: existing OEM-tier customers at
+  $110,199/year keep their purchased price for their purchased
+  term. New OEM licenses follow the current table. Existing
+  Business-tier grandfathering ($5,199) stands unchanged.
 - **2026-10-10 price move** (NIGHT-dinner-31, effective from the
   first release tag after that date): Business $2,199 →
   $5,199/year, Company $20,199 → $110,199/year; Individual holds
@@ -146,10 +171,12 @@ bundle have different economics:
   not against the cost of replicating MMSPA in-house (an
   order-of-magnitude estimate, not a formal ledger entry).
 
-- **OEM / Redistribution** ($110,199/year): a company that embeds
-  the architectural patterns (MMSPA subtree law, pinned bpf_links,
-  self-expiring rows, floor/ceil pool math, schema migration,
-  container-native grammar) in a product it ships or sells. Priced
+- **OEM / Redistribution** ($149,999/year annual, or the perpetual
+  path at $249,999 one-time + 20%/year maintenance): a company that
+  embeds the architectural patterns (MMSPA subtree law, pinned
+  bpf_links, self-expiring rows, floor/ceil pool math, schema
+  migration, container-native grammar) in a product it ships or
+  sells. Priced
   against the value of the embedded patterns in a commercial product,
   not against the binary license.
 
