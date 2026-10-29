@@ -173,6 +173,13 @@ impl EndpointJson {
         write_opt_number(out, self.download_bytes);
         out.push_str(",\"upload_bytes\":");
         write_opt_number(out, self.upload_bytes);
+        // night-verdict-closure-T6 (H3): the dedupe key rides
+        // TRAILING (the additive rule — existing consumers' prefix
+        // matching is untouched): one inode = one socket held by
+        // several fds; distinct inodes = distinct sockets even when
+        // the (pid, proto, remote, state) tuple collides.
+        out.push_str(",\"socket_inode\":");
+        write_number(out, self.socket_inode);
         out.push('}');
     }
 }

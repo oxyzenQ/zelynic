@@ -69,6 +69,11 @@ pub struct TrafficEndpoint {
     pub remote: String,
     pub proto: &'static str,
     pub state: &'static str,
+    /// The socket's kernel inode (night-verdict-closure-T6 (H3)) —
+    /// the dedupe key: two rows sharing it are one socket held by
+    /// several fds; distinct inodes are distinct sockets even when
+    /// the (pid, proto, remote, state) tuple collides.
+    pub inode: u64,
     /// Window download bytes (None = the join resolved no entry —
     /// the socket moved nothing the maps booked, or the cookie
     /// discovery was refused; absence, never zero-as-fact).
@@ -229,6 +234,7 @@ pub fn traffic_focus(
                     remote: socket.remote.clone(),
                     proto: socket.proto.as_str(),
                     state: socket.state,
+                    inode: socket.inode,
                     dl: joined.map(|b| b.dl),
                     ul: joined.map(|b| b.ul),
                 });

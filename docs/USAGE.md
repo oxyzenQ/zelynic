@@ -2197,7 +2197,7 @@ are churn, not drift.
 (multi-target specs only; a full miss exits 1 with the text error):
 
 ```json
-{"targets":[{"target":"cg:1234","cgroup_id":1234,"name":"cat-test","cgroup_path":"/sys/fs/cgroup/cat-test","uid":1000,"user":"cat","enforcement":"limited","download_bytes_per_sec":100000,"upload_bytes_per_sec":100000,"group_id":0,"oldest_started_secs":620,"processes":1,"socket_holders":1,"sockets":2,"traffic":{"window_secs":3,"download_bytes":12400000,"upload_bytes":340000,"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null}]},"procs":[{"pid":1234,"comm":"cat-test","uid":1000,"user":"cat","ppid":1,"state":"S (sleeping)","threads":4,"rss_kb":1234,"exe":"/home/cat/cat-test","exe_deleted":false,"kind":"binary","script":null,"permission":"755","cwd":"/home/cat","cmdline":"./cat-test --serve","started_ago_secs":620,"started_epoch":1758900000}],"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null}]}],"bypass_audit":{"window_secs":3,"nic_tx_bytes":12900000,"nic_rx_bytes":13000000,"bpf_tx_bytes":340000,"bpf_rx_bytes":12450000,"shadow_tx_bytes":12560000,"shadow_rx_bytes":550000,"verdict":"bypassed_tx","shadow_tx_percent":97,"shadow_rx_percent":4}}
+{"targets":[{"target":"cg:1234","cgroup_id":1234,"name":"cat-test","cgroup_path":"/sys/fs/cgroup/cat-test","uid":1000,"user":"cat","enforcement":"limited","download_bytes_per_sec":100000,"upload_bytes_per_sec":100000,"group_id":0,"oldest_started_secs":620,"processes":1,"socket_holders":1,"sockets":2,"traffic":{"window_secs":3,"download_bytes":12400000,"upload_bytes":340000,"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000,"socket_inode":120888},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null,"socket_inode":120889}]},"procs":[{"pid":1234,"comm":"cat-test","uid":1000,"user":"cat","ppid":1,"state":"S (sleeping)","threads":4,"rss_kb":1234,"exe":"/home/cat/cat-test","exe_deleted":false,"kind":"binary","script":null,"permission":"755","cwd":"/home/cat","cmdline":"./cat-test --serve","started_ago_secs":620,"started_epoch":1758900000}],"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000,"socket_inode":120888},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null,"socket_inode":120889}]}],"bypass_audit":{"window_secs":3,"nic_tx_bytes":12900000,"nic_rx_bytes":13000000,"bpf_tx_bytes":340000,"bpf_rx_bytes":12450000,"shadow_tx_bytes":12560000,"shadow_rx_bytes":550000,"verdict":"bypassed_tx","shadow_tx_percent":97,"shadow_rx_percent":4}}
 ```
 
 `enforcement` is `"unlimited"` | `"blocked"` | `"limited"`; an
@@ -2237,7 +2237,16 @@ answers "who moved the window's bytes" straight from the object
 that owns the window, without re-deriving the cookie join from the
 census rows (the target-level `endpoints` array stays the full
 live socket census, untouched — the two arrays answer different
-questions).
+questions). Both arrays' rows carry `socket_inode`
+(night-verdict-closure-T6 (H3), additive trailing): the socket's
+kernel inode, the dedupe key for the identical-looking rows a
+forked or multi-fd process produces — one inode = ONE socket held
+by several fds (a dup or an inherited descriptor); distinct
+inodes = distinct sockets even when `(pid, proto, remote, state)`
+collides. "How many connections to 8.8.4.4:853?" is therefore
+`[.endpoints[] | select(.remote == "8.8.4.4:853") |
+.socket_inode] | unique | length`, and the same key collapses a
+per-fd census into a per-socket one with `unique by`.
 `bypass_audit` (NIGHT-upgrade-charger-core-1-a) is the focus
 window's interface-vs-hooks shadow verdict, machine-scope:
 `{"window_secs":3,"nic_tx_bytes":...,"nic_rx_bytes":...,"bpf_tx_bytes":...,"bpf_rx_bytes":...,"shadow_tx_bytes":...,"shadow_rx_bytes":...,"verdict":"clean","shadow_tx_percent":2,"shadow_rx_percent":2}`

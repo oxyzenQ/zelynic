@@ -28,6 +28,7 @@ fn displayable_connected_udp_is_traffic() {
     use crate::ebpf::connections::{Proto, SocketInfo};
 
     let udp = |remote: &str, state: &'static str| SocketInfo {
+        inode: 42,
         proto: Proto::Udp,
         remote: remote.to_string(),
         state,
@@ -44,6 +45,7 @@ fn displayable_connected_udp_is_traffic() {
     assert!(!is_displayable(&udp("[::]:0", "CLOSE")));
     // The TCP law is untouched.
     assert!(is_displayable(&SocketInfo {
+        inode: 42,
         proto: Proto::Tcp,
         remote: "10.90.170.143:443".to_string(),
         state: "ESTABLISHED",
@@ -51,6 +53,7 @@ fn displayable_connected_udp_is_traffic() {
         cookie: None,
     }));
     assert!(!is_displayable(&SocketInfo {
+        inode: 42,
         proto: Proto::Tcp,
         remote: "0.0.0.0:22".to_string(),
         state: "LISTEN",
@@ -77,6 +80,7 @@ fn displayable_raw_sockets_show_unconditionally() {
     use crate::ebpf::connections::{Proto, SocketInfo};
 
     let raw = |remote: &str, state: &'static str| SocketInfo {
+        inode: 42,
         proto: Proto::Raw,
         remote: remote.to_string(),
         state,
@@ -107,6 +111,7 @@ fn displayable_v6_arms_ride_the_same_gates() {
     use crate::ebpf::connections::{Proto, SocketInfo};
 
     let mk = |proto: Proto, remote: &'static str, state: &'static str| SocketInfo {
+        inode: 42,
         proto,
         remote: remote.to_string(),
         state,

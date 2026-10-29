@@ -393,6 +393,7 @@ fn footer_discovery_pair_renders_with_the_autodetect_name() {
                 pid: 4242,
                 comm: "curl".to_string(),
                 sockets: vec![SocketInfo {
+                    inode: 42,
                     proto: Proto::Tcp,
                     remote: "10.90.170.143:443".to_string(),
                     state: "ESTABLISHED",

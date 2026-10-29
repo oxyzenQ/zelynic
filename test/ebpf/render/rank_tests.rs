@@ -18,6 +18,7 @@ use crate::ebpf::render::rank::top_consumer;
 
 fn sock(cookie: Option<u64>) -> SocketInfo {
     SocketInfo {
+        inode: 42,
         proto: Proto::Tcp,
         remote: "10.90.170.143:443".to_string(),
         state: "ESTABLISHED",

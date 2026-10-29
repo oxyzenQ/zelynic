@@ -34,6 +34,25 @@ v80.0.0
 
 ### Added
 
+- **feat(json): every endpoint row carries its socket's kernel inode
+  — the dedupe key the per-fd census needed
+  (night-verdict-closure-T6 (H3), the one-socket-one-inode law).**
+  The depth document's endpoint rows (both the target-level census
+  and the focus window's ranked attribution) are per-FD rows: a
+  forked or multi-descriptor process legitimately produces several
+  rows with an identical `(pid, proto, remote, state)` tuple, and a
+  consumer had no way to tell "one socket held by three fds" from
+  "three connections to the same remote". Every row now carries
+  `socket_inode` (additive trailing — existing consumers' prefix
+  matching is untouched): the kernel inode the /proc/net table row
+  was parsed from, carried through `SocketInfo` and
+  `TrafficEndpoint` into the wire. One inode = one socket (dup /
+  inherited fds share it); distinct inodes = distinct sockets.
+  Per-socket counts are a `unique` away
+  (`[.endpoints[] | select(.remote == "8.8.4.4:853") |
+  .socket_inode] | unique | length`); docs/USAGE.md pins the
+  semantics and the recipes, the depth JSON pins assert the field.
+
 - **feat(json): the bypass audit's shadow percentages ride the wire —
   the text report's 16% claim is now machine-checkable
   (night-verdict-closure-T3 (B4), the one-document law).** The depth
