@@ -1064,7 +1064,11 @@ def block_target(cmd, names):
     doc = status_json()
     for n in names:
         entry = limit_entry(doc, CG.ids[n])
-        if entry is None or entry.get("download_bytes_per_sec") != 0 or entry.get("upload_bytes_per_sec") != 0:
+        if (
+            entry is None
+            or entry.get("download_bytes_per_sec") != 0
+            or entry.get("upload_bytes_per_sec") != 0
+        ):
             return False, f"blocked row for {CG.ids[n]} missing or not 0/0"
     return True, target
 
@@ -2945,7 +2949,11 @@ def test_download_only(window, baseline):
     if rc != 0:
         return record(name, "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}")
     entry = limit_entry(status_json(), CG.ids["a"])
-    if entry is None or entry.get("download_bytes_per_sec") != 500_000 or entry.get("upload_bytes_per_sec") is not None:
+    if (
+        entry is None
+        or entry.get("download_bytes_per_sec") != 500_000
+        or entry.get("upload_bytes_per_sec") is not None
+    ):
         return record(name, "FAIL", f"policy row wrong: {entry}")
     time.sleep(0.5)
     got = py_download(window)

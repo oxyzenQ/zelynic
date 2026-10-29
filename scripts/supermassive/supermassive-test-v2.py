@@ -1434,7 +1434,10 @@ def test_kill_midflight():
             and all(
                 _rate_leg_coherent(e.get("download_bytes_per_sec"))
                 and _rate_leg_coherent(e.get("upload_bytes_per_sec"))
-                and (e.get("download_bytes_per_sec") is not None or e.get("upload_bytes_per_sec") is not None)
+                and (
+                    e.get("download_bytes_per_sec") is not None
+                    or e.get("upload_bytes_per_sec") is not None
+                )
                 for e in limit_rows
             )
         )
