@@ -2213,7 +2213,22 @@ when a window ran, `null` when it could not (observer attach or
 poll failure — distinguishable from a zero-traffic window, which
 serializes with zero totals); each endpoint row's
 `download_bytes`/`upload_bytes` carry that socket's window bytes,
-`null` when the join resolved nothing for it.
+`null` when the join resolved nothing for it. The null's exact
+vocabulary (night-verdict-closure-T5 (H2)): the top-level totals
+are the KERNEL's window truth and always numbers, while a row's
+bytes ride the per-cookie attribution join — `null` says THIS
+socket's contribution was not attributed, which conflates three
+causes the wire cannot tell apart: the socket booked zero bytes in
+the window (kernel maps only open an entry on the first byte), the
+map entry was evicted under pressure, or the socket's cookie could
+not be resolved. Writing `0` would claim the attribution succeeded
+and measured zero — a fact the wire does not have; `null` is the
+honest shape, and a consumer's sum MUST guard it:
+`[.traffic.endpoints[].download_bytes // 0] | add`. The guarded sum
+reconciles against the top-level totals minus the sockets that died
+mid-window (their bytes stay booked in the kernel maps but their
+rows leave the /proc census — both numbers are true, they answer
+different questions).
 The traffic object's own `endpoints` array (night-improve-63,
 additive) is the window's ranked attribution — the same rows the
 text focus view renders, movers first (bytes descending), the
