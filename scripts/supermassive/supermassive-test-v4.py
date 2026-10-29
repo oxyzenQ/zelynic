@@ -383,7 +383,17 @@ ECHO_PAYLOADS = [
 ECHO_PATHS = [
     (lambda p: ["s", p, "1mb"], "is a system process"),
     (lambda p: ["s", "brave" + p + "/x::curl", "1mb"], "not a valid app name"),
-    (lambda p: ["s", "brave", "1" + p + "kb"], "Invalid"),
+    # The rate echo (night-peak-lts FIX-3): a whitespace-carrying
+    # forgery lands on the grammar's own refusal ("no whitespace in
+    # rate ... — use ... (no space)") BEFORE the number layer's
+    # "Invalid" — the gap names its own fix now — while the
+    # non-whitespace families still ride the Invalid lane.
+    (
+        lambda p: ["s", "brave", "1" + p + "kb"],
+        "no whitespace in rate"
+        if any(c.isspace() for c in p)
+        else "Invalid",
+    ),
     (lambda p: ["eagle-eyes", "--interval", "a" + p + "b"], "Invalid duration"),
 ]
 
