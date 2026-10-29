@@ -75,6 +75,15 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
         // `census_complete` is the machine form of the stderr note
         // (false = unprivileged, other users' socket counts may read
         // zero).
+        //
+        // night-verdict-closure-T2 (B3), the census semantics note:
+        // the line above and the JSON figure share THIS variable, so
+        // one invocation can never disagree with itself; two
+        // invocations a minute apart can (socket tables churn).
+        // `socket_cgroups` counts socket-bearing cgroups system-wide
+        // (unnamed included), while `apps[]` rows carry named
+        // cgroups only — a row-derived count can legitimately come
+        // out lower. Both points are spelled out in docs/USAGE.md.
         let json_doc = list_apps_json(
             &entries,
             count,

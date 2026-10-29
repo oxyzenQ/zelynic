@@ -2159,7 +2159,17 @@ and its honesty flag (additive, trailing): `socket_cgroups` is the
 partial-census note — `false` when unprivileged, because the socket
 census is per-pid privilege-gated and rows may under-read (other
 users' sockets count zero; the stderr note rides beside the JSON
-for humans, stdout stays byte-clean either way):
+for humans, stdout stays byte-clean either way). Two census
+semantics a consumer must not misread (night-verdict-closure-T2
+(B3)): first, `socket_cgroups` counts socket-bearing cgroups
+SYSTEM-WIDE — including the unnamed ones `total` already covers —
+so a row-derived count (rows with `sockets > 0`) can legitimately
+come out lower; the figure and the census line come from the same
+scan, one invocation, and cannot diverge within one document.
+Second, the figure is a live census, not a stable state: two
+invocations seconds apart sample different socket tables (a
+connection closes, a daemon respawns), so cross-invocation deltas
+are churn, not drift.
 
 ```json
 {"total":142,"apps":[{"process":"brave","cgroup_id":18571,"uid":1000,"processes":4,"sockets":9}],"socket_cgroups":57,"census_complete":true}
