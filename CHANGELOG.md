@@ -196,6 +196,30 @@ v80.0.0
 
 ### Fixed
 
+- **fix(ci): the guest verdict buys its serial drain — the
+  isa-debug-exit truncation race closes on every VM seat
+  (night-dragon-maintenance-T1 (S5)).** The c012c19 supermassive
+  E2E run died red on the best-specs seat with EVERY leg green:
+  vm.log carried `E2E-VERDICT: PA` — the "SS" never crossed the
+  wire. Root cause: the guest's exit rides qemu's isa-debug-exit
+  device, which ends the VM the instant one byte lands on port
+  0xf4, and the emulated 16550's TX shift is not guaranteed
+  finished by then — the verdict echo returns from the kernel
+  write with bytes still in the UART, the dd port write races the
+  shift, and the workflow's exact-match `grep -q
+  '^E2E-VERDICT: PASS'` reads a truncated line as a red suite.
+  The drain is now bought where the race lives: every guest_exit
+  (e2e-init, supermassive-init, sandbox-init — the whole
+  port-device class) sleeps two seconds before the port write,
+  with the seat lesson written at the site. Every row ahead of
+  the verdict always drained inside the next test's runtime; the
+  verdict is the one line whose drain had to be bought. The
+  sibling S1 E2E red was audited separately and is NOT this
+  class: the sustain drift row measured a genuine
+  contended-runner collapse (median 39%, windows 60/50/25/29%,
+  both re-attempts red — the persistent-deficit shape the
+  calibrated guard deliberately fails), and the same leg passed
+  green one commit later at 62% median on the identical engine.
 - **fix(test): the assert-message law — failure diagnostics stop
   embedding the composed JSON documents
   (night-dragon-maintenance-T1 (S4)).** The CodeQL code-scanning

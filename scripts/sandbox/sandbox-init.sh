@@ -36,6 +36,16 @@ note() {
 }
 
 guest_exit() {
+	# The serial drain (the 2026-10-28 e2e best-specs seat lesson,
+	# the class fix): the final sentinel row's only drain window
+	# is the gap between its echo and this exit — isa-debug-exit
+	# ends the VM the instant the port write lands, and the
+	# emulated 16550's TX shift is not guaranteed done by then
+	# (the e2e seat lost the race with every leg green: vm.log
+	# carried a verdict cut mid-word). Two seconds of quiet
+	# before the port write buys the drain for the SANDBOX-
+	# verdict the same way.
+	sleep 2
 	# The deterministic VM exit (the kernel-floor run-4 lesson):
 	# qemu's isa-debug-exit device ends the VM the moment one byte
 	# lands on port 0xf4; /dev/port is the root-writable port-I/O

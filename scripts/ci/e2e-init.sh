@@ -57,6 +57,18 @@ note() {
 	fi
 }
 guest_exit() {
+	# The serial drain (the 2026-10-28 best-specs seat lesson):
+	# the verdict line's only drain window is the gap between its
+	# echo and this exit — isa-debug-exit ends the VM the instant
+	# the port write lands, and the emulated 16550's TX shift is
+	# not guaranteed done by then. The c012c19 seat lost the race
+	# with EVERY leg green: vm.log carried "E2E-VERDICT: PA", the
+	# "SS" died in the UART, and the workflow's exact-match grep
+	# read a red suite. Two seconds of quiet before the port
+	# write — every row ahead of the verdict drained inside the
+	# next test's runtime; the verdict is the one line whose drain
+	# had to be bought.
+	sleep 2
 	# The deterministic VM exit (the kernel-floor run-4 lesson):
 	# qemu's isa-debug-exit device ends the VM the moment one
 	# byte lands on port 0xf4; /dev/port is the root-writable
