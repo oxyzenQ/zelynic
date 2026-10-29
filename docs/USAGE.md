@@ -874,6 +874,26 @@ The pin family in test/ebpf/display_json_window_tests.rs holds the
 contract end to end: the span's instants (a 1h span lands on
 start + 3600e9), the daily pair, and the no-window absence.
 
+**Two response shapes.** `status --print-json` returns one of two
+top-level shapes, and a script that consumes both must branch on
+`.error` first:
+
+- **Status report** (`"watchdog"` key present — clean or live):
+  consumed with `.limits[]`, `.active_limits`, etc. The clean state
+  (`"watchdog":"clean"`, nothing pinned) is the empty member of
+  the same shape.
+- **Error object** (`"error"` key present): the state is not
+  readable — e.g. stale BPF pins from a crash. Consumed with
+  `.error` / `.hint`, never with `.limits[]`.
+
+```bash
+jq 'if .error then "error: \(.error) — \(.hint)" else .limits[] end'
+```
+
+The branch is on the document, not the exit code (both shapes exit
+0). This is honest, not a bug: a corrupt state should never render
+as a report that silently omits the corruption.
+
 NIGHT-private-research-3 (the compact-and-simple pass, the owner's
 directive): the breathing-gap filler lines retired on every report
 surface — the title bar, the watchdog, the census, the header row,
@@ -2007,6 +2027,14 @@ group. No in-process handler can see a signal that is not sent:
 `pkill zelynic` cleans up, `zelynic u --all` is a no-op on the
 orphan (its pins are kernel-side and survive by design), and the
 terminal itself is restored by the guard child either way.
+
+**14. `status --print-json` has two response shapes (report vs
+error); scripts must handle both.**
+The report carries the `"watchdog"` key (clean or live); the error
+object carries `.error` / `.hint` (stale BPF pins from a crash) —
+branch on `.error` first, the exit code does not distinguish them.
+This is deliberate: a corrupt state should never masquerade as a
+report that silently omits the corruption.
 
 ---
 
