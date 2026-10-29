@@ -790,8 +790,8 @@ def apply_and_verify(rate_bps, cgroup_id):
     entry = lib.limit_entry(doc, cgroup_id)
     if entry is None:
         return False, "no limit row for the proof cgroup in status JSON"
-    if entry.get("download_bps") != rate_bps:
-        return False, f"download_bps {entry.get('download_bps')} != {rate_bps}"
+    if entry.get("download_bytes_per_sec") != rate_bps:
+        return False, f"download_bytes_per_sec {entry.get('download_bytes_per_sec')} != {rate_bps}"
     if doc.get("watchdog") not in ("enforcing", "active"):
         return False, f"watchdog state {doc.get('watchdog')!r}"
     return True, entry

@@ -1017,10 +1017,10 @@ def apply_single(name, rate_str, exp_dl, exp_ul, extra=()):
     entry = limit_entry(status_json(), CG.ids[name])
     if entry is None:
         return False, f"no limit row for cgroup {CG.ids[name]} in status JSON"
-    if exp_dl is not None and entry.get("download_bps") != exp_dl:
-        return False, f"download_bps {entry.get('download_bps')} != {exp_dl}"
-    if exp_ul is not None and entry.get("upload_bps") != exp_ul:
-        return False, f"upload_bps {entry.get('upload_bps')} != {exp_ul}"
+    if exp_dl is not None and entry.get("download_bytes_per_sec") != exp_dl:
+        return False, f"download_bytes_per_sec {entry.get('download_bytes_per_sec')} != {exp_dl}"
+    if exp_ul is not None and entry.get("upload_bytes_per_sec") != exp_ul:
+        return False, f"upload_bytes_per_sec {entry.get('upload_bytes_per_sec')} != {exp_ul}"
     return True, entry
 
 
@@ -1048,10 +1048,10 @@ def apply_group(names, rate_str, exp):
         entry = limit_entry(doc, CG.ids[n])
         if entry is None:
             return False, f"no limit row for cgroup {CG.ids[n]}"
-        if entry.get("download_bps") != exp or entry.get("upload_bps") != exp:
+        if entry.get("download_bytes_per_sec") != exp or entry.get("upload_bytes_per_sec") != exp:
             return (
                 False,
-                f"row for {CG.ids[n]} is {entry.get('download_bps')}/{entry.get('upload_bps')}, want {exp}",
+                f"row for {CG.ids[n]} is {entry.get('download_bytes_per_sec')}/{entry.get('upload_bytes_per_sec')}, want {exp}",
             )
     return True, target
 
@@ -1064,7 +1064,7 @@ def block_target(cmd, names):
     doc = status_json()
     for n in names:
         entry = limit_entry(doc, CG.ids[n])
-        if entry is None or entry.get("download_bps") != 0 or entry.get("upload_bps") != 0:
+        if entry is None or entry.get("download_bytes_per_sec") != 0 or entry.get("upload_bytes_per_sec") != 0:
             return False, f"blocked row for {CG.ids[n]} missing or not 0/0"
     return True, target
 
@@ -1496,8 +1496,8 @@ def stage_server_dense_policy():
         FLEET.ids[i]
         for i, entry in enumerate([limit_entry(doc, cid) for cid in FLEET.ids])
         if entry is None
-        or entry.get("download_bps") != 2_000_000
-        or entry.get("upload_bps") != 2_000_000
+        or entry.get("download_bytes_per_sec") != 2_000_000
+        or entry.get("upload_bytes_per_sec") != 2_000_000
     ]
     ok = (
         record(
@@ -1812,8 +1812,8 @@ def stage_server_kill_mid_transfer():
             "server: policy survived the corpse (row intact)",
             "PASS"
             if entry is not None
-            and entry.get("download_bps") == 8_000_000
-            and entry.get("upload_bps") == 8_000_000
+            and entry.get("download_bytes_per_sec") == 8_000_000
+            and entry.get("upload_bytes_per_sec") == 8_000_000
             else "FAIL",
             f"row after kill: {entry if entry else 'missing'}",
         )
@@ -2187,8 +2187,8 @@ def stage_server_cap_crossing():
             cid
             for cid in control_ids
             if (entry := limit_entry(doc, cid)) is None
-            or entry.get("download_bps") != 2_000_000
-            or entry.get("upload_bps") != 2_000_000
+            or entry.get("download_bytes_per_sec") != 2_000_000
+            or entry.get("upload_bytes_per_sec") != 2_000_000
         ]
         ok = (
             record(
@@ -2889,8 +2889,8 @@ def test_upload(window, baseline):
     entry = limit_entry(status_json(), CG.ids["a"])
     if (
         entry is None
-        or entry.get("upload_bps") != 1_000_000
-        or entry.get("download_bps") is not None
+        or entry.get("upload_bytes_per_sec") != 1_000_000
+        or entry.get("download_bytes_per_sec") is not None
     ):
         return record("upload (-u only): enforced", "FAIL", f"policy row wrong: {entry}")
     time.sleep(0.5)
@@ -2945,7 +2945,7 @@ def test_download_only(window, baseline):
     if rc != 0:
         return record(name, "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}")
     entry = limit_entry(status_json(), CG.ids["a"])
-    if entry is None or entry.get("download_bps") != 500_000 or entry.get("upload_bps") is not None:
+    if entry is None or entry.get("download_bytes_per_sec") != 500_000 or entry.get("upload_bytes_per_sec") is not None:
         return record(name, "FAIL", f"policy row wrong: {entry}")
     time.sleep(0.5)
     got = py_download(window)
@@ -3002,8 +3002,8 @@ def test_asymmetric(window, baseline):
     entry = limit_entry(status_json(), CG.ids["a"])
     if (
         entry is None
-        or entry.get("download_bps") != 100_000
-        or entry.get("upload_bps") != 1_000_000
+        or entry.get("download_bytes_per_sec") != 100_000
+        or entry.get("upload_bytes_per_sec") != 1_000_000
     ):
         clear_all()
         return record(name, "FAIL", f"policy row wrong: {entry}")
@@ -3372,7 +3372,7 @@ def test_per_socket_burst(window, clients, rate_bps, baseline):
     record(
         f"{label}: status JSON carries the tier flag",
         "PASS",
-        f"download_per_socket true at {rate_str}/socket (download_bps {entry.get('download_bps')})",
+        f"download_per_socket true at {rate_str}/socket (download_bytes_per_sec {entry.get('download_bytes_per_sec')})",
     )
     time.sleep(0.5)
     totals = [None] * clients
@@ -5454,7 +5454,7 @@ def test_unstrict_multi():
         name,
         verdict,
         f"cgroup {CG.ids['a']} still limited at "
-        f"{fmt_bps((entry or {}).get('download_bps') or 0)}, b/c rows removed",
+        f"{fmt_bps((entry or {}).get('download_bytes_per_sec') or 0)}, b/c rows removed",
     )
     clear_all()
     return verdict == "PASS"
@@ -5525,7 +5525,7 @@ def test_strict_all(window, baseline):
         if rc != 0:
             return record(name, "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}")
         entry = limit_entry(status_json(), CG.ids["a"])
-        if entry is None or entry.get("download_bps") != 2_000_000:
+        if entry is None or entry.get("download_bytes_per_sec") != 2_000_000:
             clear_all()
             return record(name, "FAIL", f"fleet cgroup a row wrong: {entry}")
         time.sleep(0.5)
