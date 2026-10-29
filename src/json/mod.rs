@@ -37,5 +37,13 @@ pub mod write;
 #[cfg(any(feature = "ebpf", test))]
 pub mod parse;
 
-#[cfg(any(feature = "ebpf", test))]
+// The re-export is ebpf-ONLY (no test arm): its sole consumer is the
+// docker lane's `use crate::json::Value` — the parse tests reach the
+// type through `super::*` inside the module, and the black-box
+// integration harness binds its own #[path] copy, so no test rides
+// this alias. A test-armed re-export with zero dormant consumers is
+// an unused import the moment ci.yml's workflow-level
+// RUSTFLAGS="-D warnings" law compiles the dormant test build — the
+// S1 shape that kept main red, closed by the S3 gate tightening.
+#[cfg(feature = "ebpf")]
 pub use parse::Value;

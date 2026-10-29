@@ -67,8 +67,14 @@ pub fn write_opt_string(out: &mut String, value: Option<&str>) {
 /// Same typed-absence law, for the numeric fields the /proc reads
 /// leave unanswered. The ebpf graph's own vocabulary (the status and
 /// depth lanes' null-riding numerics) — the dormant lane's doctor
-/// emits no such field.
-#[cfg(any(feature = "ebpf", test))]
+/// emits no such field, and no test calls it either (the harness
+/// #[path]-includes the parse sibling, never this file), so the
+/// gate is feature-ONLY: a test-armed helper with zero dormant
+/// callers is dead code the moment ci.yml's workflow-level
+/// RUSTFLAGS="-D warnings" law compiles the dormant test build —
+/// the S1 shape that kept main red, closed by the S3 gate
+/// tightening.
+#[cfg(feature = "ebpf")]
 pub fn write_opt_number<T: fmt::Display>(out: &mut String, value: Option<T>) {
     match value {
         Some(value) => write_number(out, value),
