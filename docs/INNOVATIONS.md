@@ -158,6 +158,10 @@ to keep alive: the window rides the policy row itself, wall-clock
 translated to the monotonic clock at write time so NTP slew and
 manual `date -s` cannot move an expiry. The grammar is one shape
 (a span from the apply instant); legacy rows are honored forever.
+Scripts read the expiry straight off `status --print-json`:
+`limits[].window` carries the state vocabulary and the span's wall
+instants (`end_wall_ns` is the expiry, ns since epoch), and is
+honestly absent on windowless rows.
 
 ## Retired by verdict
 

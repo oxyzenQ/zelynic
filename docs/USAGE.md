@@ -850,6 +850,30 @@ prints nothing ("Watchdog: not set (enforcing)" was retired as noise
 — it read like a state, but it was the absence of one).
 `--print-json` keeps the `"watchdog"` field unchanged for scripts.
 
+The `--during` expiry is machine-readable (the night-peak-lts
+review's FIX-4 find — the field existed and was undocumented): every
+limit row carrying a time window exposes a `window` object, and a
+row without one exposes no `window` key at all (honest absence, not
+a fabricated null for old scripts to trip on):
+
+- `window.kind` — `"span"` (one interval from the apply instant, the
+  `--during 5y` shape) or `"daily"` (a seconds-of-day band).
+- `window.state` — `"active"`, `"dormant"`, `"outside"`, or
+  `"expired"`, the same vocabulary the status pins own.
+- `window.start_wall_ns` / `window.end_wall_ns` — SPAN only: the
+  wall-clock instants in nanoseconds since the epoch, reconstructed
+  through the same wall-minus-monotonic offset pair the kernel row
+  was written with (NTP slew and manual `date -s` cannot move an
+  expiry the grammar never wrote in wall time). `end_wall_ns` IS the
+  expiry: `jq '.limits[0].window.end_wall_ns / 1e9 | floor | todate'`
+  prints it as a human date.
+- `window.start_s` / `window.end_s` — DAILY only: the band's
+  seconds-of-day pair (UTC).
+
+The pin family in test/ebpf/display_json_window_tests.rs holds the
+contract end to end: the span's instants (a 1h span lands on
+start + 3600e9), the daily pair, and the no-window absence.
+
 NIGHT-private-research-3 (the compact-and-simple pass, the owner's
 directive): the breathing-gap filler lines retired on every report
 surface — the title bar, the watchdog, the census, the header row,
