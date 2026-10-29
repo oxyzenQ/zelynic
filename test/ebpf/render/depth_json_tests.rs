@@ -6,6 +6,17 @@
 //! when the JSON half of the depth report split into the depth_json
 //! sibling — same fixtures, same stable v11 vocabulary, plus the
 //! blade-5 ledger and controller-resource fields).
+//!
+//! Message law (night-dragon-maintenance-T1 (S4)): assert failures
+//! name the missing contract piece — the field, the verdict — and
+//! never embed the composed document. The document carries the
+//! socket-cookie join's fields, CodeQL models a cookie-named field
+//! as a sensitive source and a panic format string as a logging
+//! sink, so every `got: {text}` diagnostic stood as a High
+//! cleartext-logging alert on main (15 in this file alone). The
+//! fixture values are synthetic — no secret ever moved — but the
+//! standing noise buried real findings, so the embedding idiom
+//! retired; the missing-field name IS the pin a triage needs.
 
 use super::*;
 
@@ -85,7 +96,10 @@ fn json_document_shape_is_the_scripting_contract() {
         None,
     );
     let text = doc.to_json();
-    assert!(text.starts_with("{\"targets\":[{"), "got: {text}");
+    assert!(
+        text.starts_with("{\"targets\":[{"),
+        "the scripting document opens with the targets array head"
+    );
     for field in [
         "\"target\":\"cg:1234\"",
         "\"cgroup_id\":1234",
@@ -111,10 +125,7 @@ fn json_document_shape_is_the_scripting_contract() {
         // (additive — a script that ignores it is untouched).
         "\"exe_deleted\":false",
     ] {
-        assert!(
-            text.contains(field),
-            "the JSON contract must carry {field}, got:\n{text}"
-        );
+        assert!(text.contains(field), "the JSON contract must carry {field}");
     }
     // The unlimited shape: nulls, never fabricated zeroes.
     let doc = depth_doc_json(&[report_fixture(Enforcement::Unlimited)], &[], None);
@@ -161,23 +172,23 @@ fn json_carries_the_bypass_audit() {
     let text = doc.to_json();
     assert!(
         text.contains("\"bypass_audit\":{\"window_secs\":3"),
-        "the audit object carries the window, got: {text}"
+        "the audit object carries the window"
     );
     assert!(
         text.contains("\"nic_tx_bytes\":10000000"),
-        "the interface totals ride, got: {text}"
+        "the interface totals ride"
     );
     assert!(
         text.contains("\"bpf_tx_bytes\":9800000"),
-        "the hook totals ride, got: {text}"
+        "the hook totals ride"
     );
     assert!(
         text.contains("\"shadow_tx_bytes\":200000"),
-        "the shadow is the gap, got: {text}"
+        "the shadow is the gap"
     );
     assert!(
         text.contains("\"verdict\":\"clean\""),
-        "a healthy window is clean, got: {text}"
+        "a healthy window is clean"
     );
 
     // The flagged shape: every side of the verdict vocabulary the
@@ -218,7 +229,7 @@ fn json_carries_the_bypass_audit() {
     let text = doc.to_json();
     assert!(
         text.contains("\"verdict\":\"bypassed_tx\""),
-        "the flagged verdict names its side, got: {text}"
+        "the flagged verdict names its side"
     );
 
     // The unavailable shape: a window that ran against unreadable
@@ -233,7 +244,7 @@ fn json_carries_the_bypass_audit() {
     let text = doc.to_json();
     assert!(
         text.contains("\"verdict\":\"unavailable\""),
-        "the sysfs failure is honest, got: {text}"
+        "the sysfs failure is honest"
     );
 }
 
@@ -248,7 +259,7 @@ fn json_carries_the_deleted_exe_flag() {
     let text = doc.to_json();
     assert!(
         text.contains("\"exe_deleted\":true"),
-        "the deleted marker must serialize as true, got:\n{text}"
+        "the deleted marker must serialize as true"
     );
 }
 
@@ -345,7 +356,7 @@ fn json_carries_the_traffic_focus_window() {
     ] {
         assert!(
             text.contains(field),
-            "the private-research-3 JSON contract must carry {field}, got:\n{text}"
+            "the private-research-3 JSON contract must carry {field}"
         );
     }
     // The ranking contract, pinned positionally: inside the traffic
@@ -366,7 +377,7 @@ fn json_carries_the_traffic_focus_window() {
         .expect("the byteless row rides the window ranking");
     assert!(
         mover < quiet,
-        "movers first: the window ranking leads with the byte mover, got:\n{traffic}"
+        "movers first: the window ranking leads with the byte mover"
     );
 }
 
@@ -401,7 +412,7 @@ fn json_carries_the_ledger_and_controller_resources() {
     ] {
         assert!(
             text.contains(field),
-            "the blade-5 JSON contract must carry {field}, got:\n{text}"
+            "the blade-5 JSON contract must carry {field}"
         );
     }
 }
@@ -430,11 +441,11 @@ fn per_socket_fields_join_the_depth_row() {
     let text = doc.to_json();
     assert!(
         text.contains("\"download_per_socket\":true"),
-        "the dl marker serializes, got: {text}"
+        "the dl marker serializes"
     );
     assert!(
         !text.contains("\"upload_per_socket\""),
-        "the false ul marker is omitted, got: {text}"
+        "the false ul marker is omitted"
     );
     assert!(text.contains("\"download_bps\":500000"));
 }

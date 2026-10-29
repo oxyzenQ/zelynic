@@ -11,6 +11,16 @@
 //! greps for; the delivery contract (stderr only, both output modes,
 //! stdout and exit codes untouched) is the --print-json ignored-note
 //! pattern the note deliberately reuses.
+//!
+//! Message law (night-dragon-maintenance-T1 (S4)): assert failures
+//! name the violated contract piece and never embed the composed
+//! document. The list-apps document is built over the socket-census
+//! joins, CodeQL models the cookie-named join fields as sensitive
+//! sources and a panic format string as a logging sink, so the old
+//! bare `{json}` failure dump stood as a High cleartext-logging
+//! alert per assert (five here). The fixture data is synthetic — no
+//! secret ever moved — but standing noise buries real findings, so
+//! the dump retired.
 
 use super::*;
 
@@ -63,9 +73,18 @@ fn list_apps_json_carries_the_full_census() {
     let conns = crate::ebpf::connections::ConnectionMap::new();
     let doc = list_apps_json(&entries, 142, 57, false, &conns);
     let json = doc;
-    assert!(json.contains(r#""total":142"#), "{json}");
-    assert!(json.contains(r#""socket_cgroups":57"#), "{json}");
-    assert!(json.contains(r#""census_complete":false"#), "{json}");
+    assert!(
+        json.contains(r#""total":142"#),
+        "the census carries the total"
+    );
+    assert!(
+        json.contains(r#""socket_cgroups":57"#),
+        "the census carries the socket_cgroups count"
+    );
+    assert!(
+        json.contains(r#""census_complete":false"#),
+        "the census_complete flag is honest at false"
+    );
     // The additive rule: the pinned prefix (total, apps) rides
     // FIRST — an older consumer parsing those two fields is
     // untouched by the trailing pair.
@@ -89,10 +108,16 @@ fn list_apps_json_census_complete_reflects_privilege() {
     let conns = crate::ebpf::connections::ConnectionMap::new();
     let privileged = list_apps_json(&entries, 1, 1, true, &conns);
     let json = privileged;
-    assert!(json.contains(r#""census_complete":true"#), "{json}");
+    assert!(
+        json.contains(r#""census_complete":true"#),
+        "the privileged document reports census_complete true"
+    );
     // The unprivileged document keeps the same shape — the flag is
     // the only honesty surface the field owns.
     let unprivileged = list_apps_json(&entries, 1, 0, false, &conns);
     let json = unprivileged;
-    assert!(json.contains(r#""census_complete":false"#), "{json}");
+    assert!(
+        json.contains(r#""census_complete":false"#),
+        "the unprivileged document reports census_complete false"
+    );
 }
