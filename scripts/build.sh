@@ -343,6 +343,17 @@ run_deny_check() {
 		return 0
 	fi
 
+	# The shallow-clone blind spot (the night-verdict-closure-T8 find):
+	# cargo-deny shells out to git for the commit timestamp and reads
+	# .git/FETCH_HEAD, which a --depth=1 clone only writes on its first
+	# fetch. Without it the check dies with the cryptic "failed to get
+	# 'FETCH_HEAD' metadata: fatal: not a git repository instead of a
+	# verdict. Name the one-command fix where the confusion is born.
+	if [ -d ".git" ] && [ -f ".git/shallow" ] && [ ! -f ".git/FETCH_HEAD" ]; then
+		log_error "shallow clone without FETCH_HEAD — cargo-deny cannot read the commit metadata it needs. One-command fix: git fetch origin"
+		return 1
+	fi
+
 	if cargo deny check all; then
 		log_success "Dependency policy checks passed"
 	else
