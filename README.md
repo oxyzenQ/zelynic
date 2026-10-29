@@ -478,13 +478,16 @@ see [docs/USAGE.md](docs/USAGE.md) `eagle-eyes`.
 
 ## Limitations (honest)
 
-zelynic is deliberately small and stateless — the full eleven-item
+zelynic is deliberately small and stateless — the full twelve-item
 list, with examples and the exact snapshot rule, lives in
 [USAGE.md](docs/USAGE.md#honest-limitations--read-this). In one
 breath: rules are a snapshot (new apps need a re-run), limits do not
 survive reboot, name resolution needs the app running, one name can
 match several cgroups, rates are decimal SI per direction, monitoring
 surfaces need root too, and status counters are cumulative evidence.
+Closing the terminal is a clean monitor exit (SIGHUP rides q's own
+chain); a monitor can only orphan where the kernel never delivers
+the signal (a detached multiplexer pane) — `pkill zelynic` cleans up.
 
 ### The nightly eBPF toolchain (honest)
 

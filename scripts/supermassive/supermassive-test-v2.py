@@ -1365,6 +1365,76 @@ def test_kill_tui():
     )
 
 
+def test_hup_tui():
+    """SIGHUP the live TUI (night-peak-lts FIX-5): closing the
+    terminal must end the session GRACEFULLY — exit 0 through q's
+    own Drop chain (the parent's alt-screen restore, the guard child
+    stood down with the clean byte, the observer detached) — instead
+    of the kernel's default kill, which reaps as -1 and skips every
+    cleanup. The finding's 500 ms contract bounds the wait; the
+    render proof mirrors the kill battery's so a cycle that never
+    took the terminal cannot fake a pass, and the restore-bytes
+    proof pins the terminal the graceful path leaves behind.
+    """
+    hup_cycles = 3
+    rendered = 0
+    exited0 = 0
+    restored = 0
+    exits = []
+    for cycle in range(hup_cycles):
+        ok, payload = sm1.apply_group(["a"], "200kb", 200_000)
+        if not ok:
+            record("hup tui: strict applied", "FAIL", f"cycle {cycle + 1}: {payload}")
+            break
+        proc, master = _spawn_tui_on_pty(["eagle-eyes", "--interval", "1s"])
+        try:
+            pty_bytes = _drain_pty(master, KILL_TUI_RENDER_S)
+            if pty_bytes:
+                rendered += 1
+            # The terminal-closed signal, delivered to the TUI alone.
+            proc.send_signal(signal.SIGHUP)
+            # The 500 ms contract: the session loop's 50 ms wake
+            # bounds the flag read, the Drop chain is the q path.
+            try:
+                proc.wait(timeout=0.5)
+            except subprocess.TimeoutExpired:
+                pass  # surfaced by the exit-0 row (returncode stays None)
+            # Whatever the session left on the pty: the graceful
+            # path's own restore (the parent's AltScreen::drop writes
+            # the same contract the guard child writes on a violent
+            # death; the clean byte stands the child down silently).
+            post_hup = _drain_pty(master, KILL_TUI_GUARD_SETTLE_S)
+        finally:
+            os.close(master)
+        exits.append(proc.returncode)
+        if proc.returncode == 0:
+            exited0 += 1
+            if KILL_TUI_RESTORE_BYTES in post_hup:
+                restored += 1
+        sm1.clear_all()
+    record(
+        "hup tui: TUI rendered before every SIGHUP",
+        "PASS" if rendered == hup_cycles else "FAIL",
+        f"{rendered}/{hup_cycles} cycles produced pty output",
+    )
+    record(
+        "hup tui: every SIGHUP reaped as exit 0 within 500ms",
+        "PASS" if exited0 == rendered and rendered == hup_cycles else "FAIL",
+        f"{exited0}/{hup_cycles} cycles exited 0 in time"
+        + (
+            ""
+            if exited0 == hup_cycles
+            else " — exits: " + ", ".join(f"c{i + 1}={code}" for i, code in enumerate(exits))
+        ),
+    )
+    record(
+        "hup tui: terminal restored after every SIGHUP",
+        "PASS" if restored == exited0 and exited0 == hup_cycles else "FAIL",
+        f"{restored}/{exited0} graceful exits carried the ALT_EXIT restore bytes",
+    )
+    return rendered == hup_cycles and exited0 == rendered and restored == exited0
+
+
 def _rate_leg_coherent(value):
     """One leg of a status row read back after a mid-write kill.
 
@@ -2024,8 +2094,11 @@ def run_survival(phases):
 
     # phase base+1/total: the brutal battery
     out()
-    out(f"━━━ phase {base + 1}/{total}: kills (SIGKILL the TUI and the mid-flight writers) ━━━")
+    out(
+        f"━━━ phase {base + 1}/{total}: kills (SIGKILL/SIGHUP the TUI, kill the mid-flight writers) ━━━"
+    )
     test_kill_tui()
+    test_hup_tui()
     test_kill_midflight()
 
     # NIGHT-improve-1b (the DeepSeek checklist, item 1): the
