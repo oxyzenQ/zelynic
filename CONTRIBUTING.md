@@ -355,6 +355,14 @@ that fix up front instead of letting the cryptic
 "failed to get 'FETCH_HEAD' metadata" error surface (the
 night-verdict-closure-T8 find).
 
+Tests are hermetic by contract (the night-peak-lts closure review's
+CLAR-2): every color/term environment variable a test depends on is
+pinned by the test itself — `env -i HOME=$HOME PATH=$PATH cargo
+test` must pass, and the CI's does. If a test fails under your
+shell's `NO_COLOR`/`CLICOLOR*`/`TERM` but passes under `env -i`,
+that is the test's bug, not your environment's — fix the pin, never
+the shell.
+
 `gate-keepers.sh` runs the 20 numbered non-code gate sections (the shell
 quad's four sub-checks count separately, so the summary line prints 23
 gates) — the shell quad (bash -n + shellcheck + shfmt + source resolution) on shell scripts, yamllint + actionlint
