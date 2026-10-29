@@ -3336,6 +3336,24 @@ v80.0.0
   lane refreshed with the tree pin per the parity gate's contract
   (the objects reproduced byte-identical, only the manifest moved).
 
+### license: pricing restructure — OEM hybrid + per-node bridge + positioning
+
+- OEM annual raised $110,199 → $149,999 (+36%); perpetual path added
+  at $249,999 one-time + 20%/year maintenance. The OEM tier now
+  reflects the true value delivered to redistribution buyers
+  (100K-1M+ unit embeds at $0.15-$1.50/unit effective).
+- Enterprise Node bridge tier added: $2,499/node/year, min 5, max
+  19 nodes. Sits between Business ($9,999 flat) and Enterprise
+  Internal ($49,999 unlimited).
+- New "Why 'just a rate limiter' is the wrong comparison" section
+  in COMMERCIAL_LICENSE.md closes the positioning gap — the
+  simplicity of the CLI is the product, not a discount.
+- Grandfathering extended: existing OEM buyers at $110,199 keep
+  their price for their term. Existing Business grandfathering
+  ($5,199) unchanged.
+- Docs-only change: no source, build, or test surface touched, so
+  no A/B benchmark per house rule.
+
 ## History
 
 The changelog's per-era split, newest era first:
