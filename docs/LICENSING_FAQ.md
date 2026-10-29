@@ -27,12 +27,50 @@ Tiers follow your total annual revenue:
 | No commercial use (hobby/personal) | Personal (free, GPL-3.0)             |
 | Solo dev / freelancer, < $100K     | Individual ($99/year)                |
 | $100K – $10M                       | Business ($9,999/year)               |
+| 5–19 nodes, internal use           | Enterprise Node ($2,499/node/year)   |
 | > $10M, internal use only          | Enterprise Internal ($49,999/year)   |
-| Embedding in a shipped product     | OEM / Redistribution ($110,199/year) |
+| Embedding in a shipped product     | OEM / Redistribution ($149,999/year annual, or $249,999 one-time + 20%/year maintenance) |
 
 Redistribution under your own terms is the OEM / Redistribution tier
 regardless of revenue — it is the only tier that carries
 redistribution rights.
+
+## Isn't $149,999 for an OEM license too expensive for a rate limiter?
+
+Compare it to what the license replaces, not to the CLI's length.
+Reaching zelynic's enforcement depth in-house means senior
+kernel-engineer months (the 3–6 months to reach half of it is an
+estimate from the R&D shape, not a measurement), the R&D budget that
+precedes the first production line, and kernel-side bug risk that
+never leaves — the full framing lives in
+[COMMERCIAL_LICENSE.md](../COMMERCIAL_LICENSE.md#why-just-a-rate-limiter-is-the-wrong-comparison).
+Against commercial embedding benchmarks — large-OEM Qt Commercial
+deals are commonly cited in the $500K–$2M range, Elastic OEM
+agreements in the $250K–$2M range (ballpark figures, not quotes) —
+$149,999/year for the redistribution rights sits on the low end of
+the industry band. The perpetual path ($249,999 one-time +
+20%/year maintenance) additionally caps the long-term cost: by year
+3 it is already cheaper than three annual terms.
+
+## Why is there a per-node tier? Enterprise Internal is already unlimited.
+
+Because between 5 and 19 nodes, a $49,999 flat tier is hard to
+justify internally, and the Individual/Business tiers do not fit an
+enterprise deployment either. Enterprise Node prices that shape
+honestly: $2,499/node/year, minimum 5 nodes, maximum 19 — a
+10-node deployment pays $24,990, proportional and approvable. At
+20 nodes the flat tier wins ($49,999 for unlimited nodes), so the
+per-node tier is a bridge, not a destination: the tier you outgrow
+on purpose.
+
+## Can I mix annual and perpetual across different OEM products?
+
+Yes — the two paths are per-product, and they can coexist in one
+portfolio: Product A on the annual path, Product B on the perpetual
+path. What a license does not do is span products: a perpetual
+license for Product A does not cover Product B, and each embedded
+product needs its own OEM license — its own tier, its own path, its
+own license PDF.
 
 ## Do contributors need to sign anything?
 
