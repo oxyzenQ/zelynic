@@ -3,7 +3,7 @@
 
 //! CLI rate-string resolution — positional rate vs per-direction flags.
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 
 // NIGHT-hunt-Z9: the shadowed-positional pins live under the single
 // test/ tree (cosmostrix Pattern C), #[path]-wired exactly like the
@@ -25,11 +25,27 @@ mod rates_shadow_tests;
 // visible in 'zelynic status' for the verification.
 
 /// Parse a rate string with validation.
+///
+/// The zero refusal (the night-peak-lts review's FIX-2 find): the
+/// parser accepts `0` and `validate_rate` deliberately lets it pass
+/// (the BPF schema's BLOCK verdict, which the `block` verb owns),
+/// so `zelynic s brave 0kb` used to apply a silent full block under
+/// the LIMIT verb — the docs' own `1kb` minimum never reached it.
+/// On the strict surface zero is refused with the pointer to the
+/// verb that owns the intent; `--force-this` stays the documented
+/// "yes, really zero" escape hatch (rate 0 through the limit lane
+/// is a legitimate shape the block verb itself writes).
 #[cfg(feature = "ebpf")]
 fn parse_rate_checked(s: &str, force_this: bool) -> Result<u64> {
     use crate::ebpf::limiter::{parse_rate, validate_rate};
     let rate = parse_rate(s)?;
     if !force_this {
+        if rate == 0 {
+            bail!(
+                "rate must be at least 1kb (1000 B/s). \
+                 To block traffic entirely, use 'zelynic block <target>'."
+            );
+        }
         validate_rate(rate)?;
     }
     Ok(rate)
@@ -106,6 +122,12 @@ fn parse_rates(
         Some(s) => {
             let rate = parse_rate(s)?;
             if !force_this {
+                if rate == 0 {
+                    bail!(
+                        "rate must be at least 1kb (1000 B/s). \
+                         To block traffic entirely, use 'zelynic block <target>'."
+                    );
+                }
                 validate_rate(rate)?;
             }
             Some(rate)
@@ -117,6 +139,12 @@ fn parse_rates(
         Some(s) => {
             let rate = parse_rate(s)?;
             if !force_this {
+                if rate == 0 {
+                    bail!(
+                        "rate must be at least 1kb (1000 B/s). \
+                         To block traffic entirely, use 'zelynic block <target>'."
+                    );
+                }
                 validate_rate(rate)?;
             }
             Some(rate)
