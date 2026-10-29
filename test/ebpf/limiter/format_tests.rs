@@ -498,3 +498,41 @@ fn test_fractional_parse_format_round_trip() {
     let rate = parse_rate("0.75tb").unwrap();
     assert_eq!(format_rate(rate), "750.0 GB/s");
 }
+
+// ── The whitespace refusal (night-peak-lts FIX-3) ─────────────────────
+//
+// "100 kb" (one argv, embedded space) used to parse silently: the
+// suffix strip handed "100 " to the number layer and its trim
+// swallowed the gap. The tolerance was an accident the docs never
+// promised — every documented rate shape is glued. Now the gap
+// names its own fix; leading/trailing whitespace stays trimmed
+// shell convenience.
+
+#[test]
+fn test_parse_rate_internal_whitespace_is_refused_with_the_fix() {
+    let err = parse_rate("100 kb").expect_err("the embedded-space shape must be refused");
+    let msg = format!("{err}");
+    assert!(
+        msg.contains("no whitespace in rate '100 kb'"),
+        "the input must be echoed as typed, got: {msg}"
+    );
+    assert!(
+        msg.contains("use '100kb' (no space)"),
+        "the glued correction must be suggested, got: {msg}"
+    );
+}
+
+#[test]
+fn test_parse_rate_internal_whitespace_is_refused_on_any_unit() {
+    for shape in ["1 000", "5 mb", "2.5 gb", "10\tkb"] {
+        let err = match parse_rate(shape) {
+            Ok(v) => panic!("no rate with an internal gap may parse: {shape} (parsed {v})"),
+            Err(e) => e,
+        };
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("no whitespace in rate"),
+            "{shape} must hit the whitespace refusal, got: {msg}"
+        );
+    }
+}

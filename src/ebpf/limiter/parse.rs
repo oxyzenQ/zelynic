@@ -142,6 +142,19 @@ pub fn parse_focus_window(s: &str) -> Result<u64> {
 pub fn parse_rate(s: &str) -> Result<u64> {
     let s = s.trim();
 
+    // Internal whitespace is refused, not silently tolerated (the
+    // night-peak-lts review's FIX-3 find): the suffix strip used to
+    // hand "100 kb" a num_part of "100 " and the inner trim quietly
+    // accepted it — an accidental leniency the docs never promised
+    // (every documented shape is glued: 100kb, 5.5mb, plain number).
+    // Leading/trailing whitespace stays trimmed shell convenience;
+    // a gap BETWEEN number and unit is a typo class of its own and
+    // names its own fix instead of parsing as if typed glued.
+    if s.chars().any(char::is_whitespace) {
+        let compact: String = s.split_whitespace().collect::<Vec<_>>().join("");
+        bail!("no whitespace in rate '{s}' — use '{compact}' (no space).");
+    }
+
     if let Ok(n) = s.parse::<u64>() {
         return Ok(n);
     }
@@ -312,7 +325,7 @@ pub fn validate_rate(rate_bps: u64) -> Result<()> {
     if rate_bps > 0 && rate_bps < MIN_RATE {
         bail!(
             "Rate {} is below minimum ({} B/s = 1 KB/s, decimal SI).\n\
-             Use --force-this to override. Use 0 for block.",
+             Use --force-this to override. To block traffic entirely, use 'zelynic block <target>'.",
             rate_bps,
             MIN_RATE
         );
