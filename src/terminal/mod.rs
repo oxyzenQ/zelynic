@@ -88,6 +88,7 @@
 mod beat;
 mod diff;
 mod guard;
+mod hup;
 mod raw;
 mod screen;
 
@@ -297,6 +298,17 @@ fn run_loop<F: FnMut(&mut Vec<String>, InputAction)>(
     let mut bg_ask = raw::BgAsk::new();
     let mut last_ask = crate::terminal::beat_epoch(raw::BG_ASK_INTERVAL);
     loop {
+        // night-peak-lts FIX-5: a delivered SIGHUP ends the session
+        // through q's own break — the terminal-closed signal rides
+        // the same Drop chain as the quit key (alt screen restored,
+        // the guard child stood down with the clean byte, the
+        // caller's observer detached, exit 0), instead of the
+        // kernel's default kill. Checked at the top of every wake:
+        // the 50 ms beat cadence bounds the delivery latency well
+        // under the 500 ms contract the finding named.
+        if hup::requested() {
+            break;
+        }
         // NIGHT-boost-18: one drain, six recognized keys — q
         // quits, t cycles the theme (the uppercase twin retired
         // by NIGHT-engrave-2), and the night-improve-58 arrows
@@ -437,6 +449,11 @@ impl Monitor {
         // mode lands. None (no tty, no fork) is fail-open:
         // insurance, never a precondition.
         let mut term_guard = guard::TerminalGuard::arm();
+        // night-peak-lts FIX-5: arm the SIGHUP flag beside it — the
+        // two insurance policies for a closed terminal arm together.
+        // The handler is one atomic store; the loop reads it per
+        // wake and exits through q's own Drop chain.
+        hup::arm();
         let alt = AltScreen::enter()?;
         // The alt screen is live: the monitor's Drop owns the restore
         // now, so the guard's Drop sends the stand-down byte (the
