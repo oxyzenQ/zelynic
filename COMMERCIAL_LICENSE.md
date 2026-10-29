@@ -159,6 +159,43 @@ only. **OEM / Redistribution** licenses them for embedding in a
 shipped product. For a redistribution license, the OEM tier is the
 entry price; contact <with.rezky@gmail.com> for the agreement.
 
+### Why "just a rate limiter" is the wrong comparison
+
+A buyer who sees `sudo zelynic s brave 100kb` and thinks "just a
+limiter" is comparing the wrong thing. That one line hides thirteen
+kernel-level innovations — MMSPA subtree law, DRR fair-share,
+CAKE-shaped flow isolation, per-socket buckets, QUIC-aware
+attribution, ECN-first policing, guaranteed floor/ceil, in-kernel
+time-series rings, self-proving enforcement, bypass shadow
+detection, container-native resolution, atomic multi-target
+rollback, and time-windowed expiry — each one pinned by rootless
+unit tests, each one proven on six distributions.
+
+Building this yourself means:
+
+- **3–6 months** of senior kernel engineer time to reach half of it
+  (an estimate from the R&D shape, not a measurement).
+- **$75K–$150K** in R&D cost before the first line of production
+  code (the same estimate's other half).
+- **High risk of kernel-side bugs** — eBPF is a discipline, not a
+  feature.
+- **Schema versioning and crash recovery** that take another 6
+  months to get right (same estimate).
+
+zelynic licenses those thirteen patterns for **8–12% of what it
+would cost to rebuild them**, with zero kernel risk and the
+discipline already proven in CI.
+
+The simplicity of the CLI **is the product**, not a discount. It
+means you do not need to know what MMSPA is to benefit from it. You
+type one line. The kernel does the rest. You sleep well.
+
+— *the honest framing: if you only need to slow down one app on
+your laptop, buy NetLimiter for $30. If you need to enforce per-app
+policy on a fleet without a daemon, without a config file, and
+without trusting userspace, you are licensing zelynic's patterns —
+not a rate limiter.*
+
 ### Why the Ladder Splits at Enterprise
 
 The Company tier split into two because the two buyers it used to

@@ -807,6 +807,11 @@ only. **OEM / Redistribution** licenses them for embedding in a
 shipped product. For a redistribution license, the OEM tier is the
 entry price; contact <with.rezky@gmail.com> for the agreement.
 
+If your use case is a single-user laptop limiter, NetLimiter at $30
+does that job honestly. If it is per-app enforcement on a fleet
+without a daemon, a config file, or userspace trust, you are
+licensing the patterns above — not a limiter.
+
 ## Commercial Licensing
 
 Companies using this in production need a commercial license.
