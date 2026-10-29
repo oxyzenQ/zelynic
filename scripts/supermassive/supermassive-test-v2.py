@@ -264,8 +264,8 @@ def test_rate_guard():
     plain_ok = (
         rc == 0
         and entry is not None
-        and entry.get("download_bps") == 1_000_000
-        and entry.get("upload_bps") == 1_000_000
+        and entry.get("download_bytes_per_sec") == 1_000_000
+        and entry.get("upload_bytes_per_sec") == 1_000_000
     )
     ok_all = (
         record(
@@ -286,8 +286,8 @@ def test_rate_guard():
     override_ok = (
         rc == 0
         and entry is not None
-        and entry.get("download_bps") == 500
-        and entry.get("upload_bps") == 500
+        and entry.get("download_bytes_per_sec") == 500
+        and entry.get("upload_bytes_per_sec") == 500
     )
     ok_all = (
         record(
@@ -1297,8 +1297,8 @@ def test_kill_tui():
             entry = limit_entry(doc, sm1.CG.ids[n]) if rows_intact else None
             if (
                 entry is None
-                or entry.get("download_bps") != exp[cycle]
-                or entry.get("upload_bps") != exp[cycle]
+                or entry.get("download_bytes_per_sec") != exp[cycle]
+                or entry.get("upload_bytes_per_sec") != exp[cycle]
             ):
                 rows_intact = False
         if rows_intact:
@@ -1432,9 +1432,9 @@ def test_kill_midflight():
             doc is not None
             and isinstance(limit_rows, list)
             and all(
-                _rate_leg_coherent(e.get("download_bps"))
-                and _rate_leg_coherent(e.get("upload_bps"))
-                and (e.get("download_bps") is not None or e.get("upload_bps") is not None)
+                _rate_leg_coherent(e.get("download_bytes_per_sec"))
+                and _rate_leg_coherent(e.get("upload_bytes_per_sec"))
+                and (e.get("download_bytes_per_sec") is not None or e.get("upload_bytes_per_sec") is not None)
                 for e in limit_rows
             )
         )

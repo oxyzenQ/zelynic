@@ -647,10 +647,10 @@ def apply_and_verify(rate_str, expect_dl, expect_ul, flags=()):
     entry = limit_entry(doc, CG.id)
     if entry is None:
         return False, "no limit row for the test cgroup in status JSON"
-    if expect_dl is not None and entry.get("download_bps") != expect_dl:
-        return False, f"download_bps {entry.get('download_bps')} != {expect_dl}"
-    if expect_ul is not None and entry.get("upload_bps") != expect_ul:
-        return False, f"upload_bps {entry.get('upload_bps')} != {expect_ul}"
+    if expect_dl is not None and entry.get("download_bytes_per_sec") != expect_dl:
+        return False, f"download_bytes_per_sec {entry.get('download_bytes_per_sec')} != {expect_dl}"
+    if expect_ul is not None and entry.get("upload_bytes_per_sec") != expect_ul:
+        return False, f"upload_bytes_per_sec {entry.get('upload_bytes_per_sec')} != {expect_ul}"
     if doc.get("watchdog") not in ("enforcing", "active"):
         return False, f"watchdog state {doc.get('watchdog')!r}"
     return True, entry
@@ -771,8 +771,8 @@ def test_upload(rate_bps, window, baseline):
     entry = limit_entry(doc, CG.id)
     if (
         entry is None
-        or entry.get("upload_bps") != rate_bps
-        or entry.get("download_bps") is not None
+        or entry.get("upload_bytes_per_sec") != rate_bps
+        or entry.get("download_bytes_per_sec") is not None
     ):
         return record("upload rate: enforced (-u only)", "FAIL", f"policy row wrong: {entry}")
     time.sleep(0.5)

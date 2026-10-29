@@ -474,7 +474,7 @@ def run_live():
                 and "floor_bps" not in entry
                 and "ceil_bps" not in entry
                 and entry.get("upload_floor_bps") is None
-                and entry.get("download_bps") == RATE_BPS
+                and entry.get("download_bytes_per_sec") == RATE_BPS
             )
             detail = (
                 f"download_floor_bps={entry.get('download_floor_bps')} "
