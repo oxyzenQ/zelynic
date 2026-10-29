@@ -32,6 +32,28 @@ v80.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **feat(json): the bypass audit's shadow percentages ride the wire —
+  the text report's 16% claim is now machine-checkable
+  (night-verdict-closure-T3 (B4), the one-document law).** The depth
+  report's text section prints derived percentages ("tx shadow 16%,
+  rx shadow 1%") while the `--print-json` document carried only the
+  raw byte counters — a consumer could not verify the human line's
+  claim without re-deriving the ratio, and the verdict's audit
+  flagged the pair as two narratives from one binary. The
+  `bypass_audit` object now carries `shadow_tx_percent` /
+  `shadow_rx_percent` (trailing, additive — existing consumers'
+  prefix matching is untouched): the SAME whole-percent figures the
+  text section prints, derived by the shared `shadow_percent`
+  (0 when the interface moved nothing — a quiet window is clean,
+  not a division by zero). The raw bytes stay the authority; the
+  percentages are the display form. Also pinned in prose: the text
+  section and the JSON object come from the ONE audit value per
+  invocation — they cannot disagree within a single run;
+  cross-invocation deltas are window churn, not drift. docs/USAGE.md
+  schema and example documents updated in step.
+
 ### Changed
 
 - **fix(json): the rate wire fields renamed `_bps` -> `_bytes_per_sec`

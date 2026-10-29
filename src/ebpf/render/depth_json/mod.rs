@@ -26,7 +26,7 @@
 //! indicator a scripted triage pipeline wants as a boolean instead
 //! of parsing the text report's marker.
 
-use crate::ebpf::bypass::{ShadowAudit, ShadowVerdict};
+use crate::ebpf::bypass::{ShadowAudit, ShadowVerdict, shadow_percent};
 use crate::ebpf::identity::depth::ProcessFacts;
 use crate::ebpf::limiter::types::POLICY_FLAG_PER_SOCKET;
 use crate::ebpf::limiter::{LimiterStatsRaw, PolicyRaw};
@@ -193,6 +193,13 @@ pub struct BypassAuditJson {
     pub shadow_tx_bytes: u64,
     pub shadow_rx_bytes: u64,
     pub verdict: &'static str,
+    /// night-verdict-closure-T3 (B4): the text report's shadow
+    /// percentages, machine-checkable — the same whole-percent
+    /// figures the human section prints (shadow share of the
+    /// interface's own window traffic; 0 when the interface moved
+    /// nothing). Derived, never authoritative over the raw bytes.
+    pub shadow_tx_percent: u64,
+    pub shadow_rx_percent: u64,
 }
 
 /// The audit as JSON (None stays null — the window did not run, the
@@ -213,6 +220,8 @@ fn bypass_audit_json(audit: Option<&ShadowAudit>) -> Option<BypassAuditJson> {
             ShadowVerdict::BypassedBoth => "bypassed_both",
             ShadowVerdict::Unavailable => "unavailable",
         },
+        shadow_tx_percent: shadow_percent(a.shadow_tx, a.nic_tx),
+        shadow_rx_percent: shadow_percent(a.shadow_rx, a.nic_rx),
     })
 }
 
