@@ -2093,6 +2093,22 @@ slots, so the SHAPE of the last eight seconds survives between
 polls (a monitor sampling at `--interval 30s` reads the true peak
 and cadence, not a 30s mean):
 
+The absence law a scripting consumer must expect
+(night-verdict-closure-T4 (H1)): `rate_ring` is ABSENT — the key
+itself does not appear, the skip_serializing_if shape, not `null`
+and never a zero-filled series — on every row whose cgroup booked
+no traffic under the policy in the ring window (or whose ring was
+not readable). This is the document's own honest-absence vocabulary:
+a fabricated all-zero ring would read as "measured zero" when the
+truth is "nothing measured". The practical consequence: a jq path
+that assumes the key on every row
+(`[.limits[].rate_ring.download.live] | add`) FAILS on the first
+idle row — guard the path, exactly the way the recipes above do
+(`select(.rate_ring != null)` first, `// 0` inside), e.g.
+`[.limits[] | .rate_ring.download.live // 0] | add`. Within one
+row the split stays per-direction: a download-only policy's ring
+carries `"upload": null` while `download` rides present.
+
 ```json
 "rate_ring":{"window_secs":8,"download":{"bytes":[0,0,0,1048576,1048576,524288,1048576,655360],"live":5,"peak_bytes":1048576},"upload":null}
 ```
