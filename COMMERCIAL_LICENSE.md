@@ -182,9 +182,9 @@ Building this yourself means:
 - **Schema versioning and crash recovery** that take another 6
   months to get right (same estimate).
 
-zelynic licenses those thirteen patterns for **8–12% of what it
-would cost to rebuild them**, with zero kernel risk and the
-discipline already proven in CI.
+zelynic licenses those thirteen patterns at a fraction of what an
+enterprise would spend to rebuild them with the same production
+discipline.
 
 The simplicity of the CLI **is the product**, not a discount. It
 means you do not need to know what MMSPA is to benefit from it. You
