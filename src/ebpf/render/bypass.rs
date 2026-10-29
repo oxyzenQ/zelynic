@@ -35,7 +35,12 @@ fn side_figures(bytes: u64, window_secs: u64) -> String {
 /// Render the bypass audit section (pure). One line when clean, the
 /// full block when a side exceeded its thresholds, one line when the
 /// window ran but the interface counters could not be read — every
-/// verdict says what it is, none is silent.
+/// verdict says what it is, none is silent. The printed percents are
+/// the shadow's whole-window share, not the flag bands themselves: a
+/// side flags only past both gates (share tx 25% / rx 40% AND floor
+/// tx 1 MiB / rx 2 MiB — `SHADOW_*_NUM_PERCENT`, `SHADOW_*_FLOOR_BYTES`
+/// in `ebpf/bypass.rs`), so "clean" under a 22% tx figure is the band
+/// holding, not the figure being unread.
 #[must_use]
 pub fn bypass_section(audit: &ShadowAudit) -> Vec<String> {
     let mut lines = Vec::new();

@@ -203,6 +203,17 @@ pub struct BypassAuditJson {
     /// figures the human section prints (shadow share of the
     /// interface's own window traffic; 0 when the interface moved
     /// nothing). Derived, never authoritative over the raw bytes.
+    ///
+    /// Reading a percent against the verdict (the night-verdict
+    /// closure review's find): the verdict does not flag on the
+    /// percent alone. A side is flagged only past BOTH gates — the
+    /// whole-window share (tx 25%, rx 40%, `SHADOW_*_NUM_PERCENT` in
+    /// `ebpf/bypass.rs`) AND the absolute floor (tx 1 MiB, rx 2 MiB,
+    /// `SHADOW_*_FLOOR_BYTES`) — so percent noise on a quiet window
+    /// (a small denominator swinging 0% to 22% between invocations)
+    /// and a real-but-small shadow both read clean by design. A
+    /// percent above the band with verdict "clean" means the floor
+    /// gate held, not that the percent was unseen.
     pub shadow_tx_percent: u64,
     pub shadow_rx_percent: u64,
 }
