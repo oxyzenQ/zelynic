@@ -135,11 +135,16 @@ pub struct DepthTargetJson {
     pub uid: Option<u32>,
     pub user: Option<String>,
     pub enforcement: &'static str,
-    pub download_bps: Option<u64>,
-    pub upload_bps: Option<u64>,
-    /// charger-core-3c: the bps figures above name per-CONNECTION
-    /// budgets when true (skip when false — the additive rule, the
-    /// writer's own branch below).
+    /// The enforced rate per direction, in BYTES per second (the
+    /// unit is spelled out in the field name — `_bps` read as bits
+    /// would mislead every consumer by a factor of 8; the wire name
+    /// is the unit contract, the rename pre-dates any external
+    /// consumer). `null` when that direction is unlimited.
+    pub download_bytes_per_sec: Option<u64>,
+    pub upload_bytes_per_sec: Option<u64>,
+    /// charger-core-3c: the byte-rate figures above name
+    /// per-CONNECTION budgets when true (skip when false — the
+    /// additive rule, the writer's own branch below).
     pub download_per_socket: bool,
     pub upload_per_socket: bool,
     pub group_id: Option<u32>,
@@ -308,8 +313,8 @@ pub fn depth_doc_json(
             uid: rep.map(|p| p.uid),
             user: rep.and_then(|p| p.user.clone()),
             enforcement: super::report::enforcement_word(&report.enforcement),
-            download_bps: download,
-            upload_bps: upload,
+            download_bytes_per_sec: download,
+            upload_bytes_per_sec: upload,
             download_per_socket: dl_ps,
             upload_per_socket: ul_ps,
             group_id,

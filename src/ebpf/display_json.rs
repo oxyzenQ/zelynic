@@ -127,22 +127,24 @@ fn status_json(
             LimitEntry {
                 cgroup_id: d.cgroup_id,
                 label: identity.label(d.cgroup_id),
-                download_bps: d.dl_bps,
-                upload_bps: d.ul_bps,
+                download_bytes_per_sec: d.dl_bps,
+                upload_bytes_per_sec: d.ul_bps,
                 download_per_socket: d.dl_per_socket,
                 upload_per_socket: d.ul_per_socket,
-                floor_bps: equal_pair.map(|(floor, _)| floor).filter(|v| *v != 0),
-                ceil_bps: equal_pair.map(|(_, ceil)| ceil).filter(|v| *v != 0),
-                download_floor_bps: split
+                floor_bytes_per_sec: equal_pair.map(|(floor, _)| floor).filter(|v| *v != 0),
+                ceil_bytes_per_sec: equal_pair.map(|(_, ceil)| ceil).filter(|v| *v != 0),
+                download_floor_bytes_per_sec: split
                     .map(|(download, _)| download.floor_bps)
                     .filter(|v| *v != 0),
-                download_ceil_bps: split
+                download_ceil_bytes_per_sec: split
                     .map(|(download, _)| download.ceil_bps)
                     .filter(|v| *v != 0),
-                upload_floor_bps: split
+                upload_floor_bytes_per_sec: split
                     .map(|(_, upload)| upload.floor_bps)
                     .filter(|v| *v != 0),
-                upload_ceil_bps: split.map(|(_, upload)| upload.ceil_bps).filter(|v| *v != 0),
+                upload_ceil_bytes_per_sec: split
+                    .map(|(_, upload)| upload.ceil_bps)
+                    .filter(|v| *v != 0),
                 packets_allowed: d.packets_allowed,
                 packets_dropped: d.packets_dropped,
                 bytes_allowed: d.bytes_allowed,
@@ -250,10 +252,10 @@ impl LimitEntry {
         write_number(out, self.cgroup_id);
         out.push_str(",\"label\":");
         write_string(out, &self.label);
-        out.push_str(",\"download_bps\":");
-        write_opt_number(out, self.download_bps);
-        out.push_str(",\"upload_bps\":");
-        write_opt_number(out, self.upload_bps);
+        out.push_str(",\"download_bytes_per_sec\":");
+        write_opt_number(out, self.download_bytes_per_sec);
+        out.push_str(",\"upload_bytes_per_sec\":");
+        write_opt_number(out, self.upload_bytes_per_sec);
         // The additive per-socket markers (improve-40): false is
         // ABSENCE — the additive rule the derive's Not::not held.
         if self.download_per_socket {
@@ -263,12 +265,21 @@ impl LimitEntry {
             out.push_str(",\"upload_per_socket\":true");
         }
         for (key, value) in [
-            ("floor_bps", self.floor_bps),
-            ("ceil_bps", self.ceil_bps),
-            ("download_floor_bps", self.download_floor_bps),
-            ("download_ceil_bps", self.download_ceil_bps),
-            ("upload_floor_bps", self.upload_floor_bps),
-            ("upload_ceil_bps", self.upload_ceil_bps),
+            ("floor_bytes_per_sec", self.floor_bytes_per_sec),
+            ("ceil_bytes_per_sec", self.ceil_bytes_per_sec),
+            (
+                "download_floor_bytes_per_sec",
+                self.download_floor_bytes_per_sec,
+            ),
+            (
+                "download_ceil_bytes_per_sec",
+                self.download_ceil_bytes_per_sec,
+            ),
+            (
+                "upload_floor_bytes_per_sec",
+                self.upload_floor_bytes_per_sec,
+            ),
+            ("upload_ceil_bytes_per_sec", self.upload_ceil_bytes_per_sec),
         ] {
             // The improve-40/v24 floors and ceilings: None (unset or
             // the split shape) is absence, never a fabricated zero.
@@ -370,31 +381,40 @@ impl RateRingJson {
 struct LimitEntry {
     cgroup_id: u32,
     label: String,
-    download_bps: Option<u64>,
-    upload_bps: Option<u64>,
+    /// The enforced rate per direction, in BYTES per second (the
+    /// wire name spells the unit out — a `_bps` reading (bits)
+    /// would mislead every consumer by a factor of 8). `null` when
+    /// that direction is unlimited (never a fabricated zero).
+    download_bytes_per_sec: Option<u64>,
+    upload_bytes_per_sec: Option<u64>,
     /// The additive per-socket markers (improve-40): false is
     /// ABSENCE in the document (the writer's branch, the derive's
     /// old Not::not semantics).
     download_per_socket: bool,
     upload_per_socket: bool,
-    /// The per-subprocess guaranteed minimum (improve-40, schema
-    /// v24) — absent when the row carries none (the zero sentinel)
-    /// or when the directions' pairs DIFFER (the split rides the
-    /// per-direction fields below, never a fabricated merge).
-    floor_bps: Option<u64>,
-    /// The per-subprocess maximum (improve-40, schema v24) —
-    /// absent when unset or when the pairs differ.
-    ceil_bps: Option<u64>,
-    /// The DOWNLOAD pair's floor (improve-40-b, the per-direction
-    /// split) — present only when the directions' pairs differ,
-    /// the asymmetric link's own shape.
-    download_floor_bps: Option<u64>,
-    /// The DOWNLOAD pair's ceiling (improve-40-b) — split only.
-    download_ceil_bps: Option<u64>,
-    /// The UPLOAD pair's floor (improve-40-b) — split only.
-    upload_floor_bps: Option<u64>,
-    /// The UPLOAD pair's ceiling (improve-40-b) — split only.
-    upload_ceil_bps: Option<u64>,
+    /// The per-subprocess guaranteed minimum, in BYTES per second
+    /// (improve-40, schema v24) — absent when the row carries none
+    /// (the zero sentinel) or when the directions' pairs DIFFER
+    /// (the split rides the per-direction fields below, never a
+    /// fabricated merge). The wire name spells the unit out: a
+    /// `_bps` reading (bits) would mislead by a factor of 8.
+    floor_bytes_per_sec: Option<u64>,
+    /// The per-subprocess maximum, in BYTES per second (improve-40,
+    /// schema v24) — absent when unset or when the pairs differ.
+    ceil_bytes_per_sec: Option<u64>,
+    /// The DOWNLOAD pair's floor, bytes per second (improve-40-b,
+    /// the per-direction split) — present only when the directions'
+    /// pairs differ, the asymmetric link's own shape.
+    download_floor_bytes_per_sec: Option<u64>,
+    /// The DOWNLOAD pair's ceiling, bytes per second (improve-40-b)
+    /// — split only.
+    download_ceil_bytes_per_sec: Option<u64>,
+    /// The UPLOAD pair's floor, bytes per second (improve-40-b) —
+    /// split only.
+    upload_floor_bytes_per_sec: Option<u64>,
+    /// The UPLOAD pair's ceiling, bytes per second (improve-40-b) —
+    /// split only.
+    upload_ceil_bytes_per_sec: Option<u64>,
     packets_allowed: u64,
     packets_dropped: u64,
     bytes_allowed: u64,

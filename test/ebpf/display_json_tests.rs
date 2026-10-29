@@ -58,8 +58,8 @@ fn status_json_counts_cgroups_not_direction_policies() {
     let row = &json.limits[0];
     assert_eq!(row.cgroup_id, 73386);
     assert_eq!(row.label, "cg:73386");
-    assert_eq!(row.download_bps, Some(100_000));
-    assert_eq!(row.upload_bps, Some(50_000));
+    assert_eq!(row.download_bytes_per_sec, Some(100_000));
+    assert_eq!(row.upload_bytes_per_sec, Some(50_000));
 }
 
 /// A cgroup limited in one direction only: the other renders null,
@@ -81,8 +81,8 @@ fn status_json_single_direction_limit_renders_null_other_side() {
     );
 
     assert_eq!(json.active_limits, 1);
-    assert_eq!(json.limits[0].download_bps, Some(0));
-    assert_eq!(json.limits[0].upload_bps, None);
+    assert_eq!(json.limits[0].download_bytes_per_sec, Some(0));
+    assert_eq!(json.limits[0].upload_bytes_per_sec, None);
 }
 
 /// Stats join by cgroup; a cgroup without a stats entry shows zeros
@@ -230,8 +230,8 @@ fn status_json_field_names_are_pinned() {
         "\"limits\"",
         "\"cgroup_id\"",
         "\"label\"",
-        "\"download_bps\"",
-        "\"upload_bps\"",
+        "\"download_bytes_per_sec\"",
+        "\"upload_bytes_per_sec\"",
         "\"packets_allowed\"",
         "\"packets_dropped\"",
         "\"bytes_allowed\"",
@@ -424,8 +424,8 @@ fn per_socket_fields_serialize_only_when_set() {
     let row = &json.limits[0];
     assert!(row.download_per_socket, "the dl leg carries the bit");
     assert!(!row.upload_per_socket, "the ul leg is the cgroup lane");
-    assert_eq!(row.download_bps, Some(500_000));
-    assert_eq!(row.upload_bps, Some(200_000));
+    assert_eq!(row.download_bytes_per_sec, Some(500_000));
+    assert_eq!(row.upload_bytes_per_sec, Some(200_000));
 
     // The cgroup-lane row: both markers false (and omitted by serde
     // — pinned by the serialization shape below).

@@ -67,10 +67,10 @@ impl DepthTargetJson {
         write_opt_string(out, self.user.as_deref());
         out.push_str(",\"enforcement\":");
         write_string(out, self.enforcement);
-        out.push_str(",\"download_bps\":");
-        write_opt_number(out, self.download_bps);
-        out.push_str(",\"upload_bps\":");
-        write_opt_number(out, self.upload_bps);
+        out.push_str(",\"download_bytes_per_sec\":");
+        write_opt_number(out, self.download_bytes_per_sec);
+        out.push_str(",\"upload_bytes_per_sec\":");
+        write_opt_number(out, self.upload_bytes_per_sec);
         if self.download_per_socket {
             out.push_str(",\"download_per_socket\":true");
         }
