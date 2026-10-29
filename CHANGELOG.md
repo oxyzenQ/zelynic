@@ -34,6 +34,21 @@ v80.0.0
 
 ### Added
 
+- **fix(json): `live` renamed `live_samples` — the field name says
+  what it counts (night-verdict-closure-T7 (H4), the nameable-unit
+  law).** The rate ring's per-direction series carried a `live`
+  field whose semantics no consumer could guess: it counts how many
+  of the eight one-second slots carry a stamp matching the window
+  they represent — the honest horizon — and is NEITHER a rate NOR
+  the count of non-zero slots (a stamped ZERO-byte window counts:
+  the kernel stamps every elapsed window, the bytes are what that
+  window booked). A consumer reading `live: 2` as "current rate" or
+  as "two active connections" misreads both ways; the rename makes
+  the figure's unit the field's own documentation. Wire renamed
+  `live` -> `live_samples` (the internal `RingSeries` field
+  follows), docs/USAGE.md schema, example, and the jq guard recipes
+  updated in step; the ring pins assert the rename.
+
 - **feat(json): every endpoint row carries its socket's kernel inode
   — the dedupe key the per-fd census needed
   (night-verdict-closure-T6 (H3), the one-socket-one-inode law).**

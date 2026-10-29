@@ -208,7 +208,7 @@ fn ring_dir_json(
     let series = ring_series(&ring.1, now);
     Some(RateRingDirectionJson {
         bytes: series.bytes,
-        live: series.live,
+        live_samples: series.live_samples,
         peak_bytes: series.peak_bytes,
     })
 }
@@ -349,8 +349,8 @@ impl RateRingDirectionJson {
         write_array(out, self.bytes.len(), |out, i| {
             write_number(out, self.bytes[i]);
         });
-        out.push_str(",\"live\":");
-        write_number(out, self.live);
+        out.push_str(",\"live_samples\":");
+        write_number(out, self.live_samples);
         out.push_str(",\"peak_bytes\":");
         write_number(out, self.peak_bytes);
         out.push('}');
@@ -455,9 +455,14 @@ struct RateRingDirectionJson {
     /// The last eight one-second byte totals, OLDEST first; the last
     /// entry is the current (still-filling) window.
     bytes: [u64; RATE_RING_SLOTS],
-    /// How many of the eight windows hold live stamps (the honest
-    /// horizon: 3 means only the last three seconds had data).
-    live: u32,
+    /// How many of the eight slots carry a stamp matching the
+    /// window they represent (night-verdict-closure-T7 (H4), the
+    /// wire name was `live` — renamed because a bare `live` reads
+    /// as a rate): a stamped ZERO-byte window counts, so the figure
+    /// is the honest horizon, neither a rate nor the count of
+    /// non-zero slots (3 means only the last three seconds had
+    /// stamped windows).
+    live_samples: u32,
     /// The largest COMPLETED window (the current window never
     /// qualifies — it can only grow).
     peak_bytes: u64,
