@@ -136,7 +136,7 @@ fn derivation_walks_oldest_first_and_counts_live() {
     raw.slots[(23 % 8) as usize] = slot(23, 230);
     let s = ring_series(&raw, 23 * SEC + 500_000_000);
     assert_eq!(s.bytes, [0, 0, 0, 0, 200, 210, 220, 230]);
-    assert_eq!(s.live, 4);
+    assert_eq!(s.live_samples, 4);
     // The peak counts only COMPLETED windows: 230 is the current
     // (still-filling) window and never qualifies.
     assert_eq!(s.peak_bytes, 220);
@@ -155,7 +155,7 @@ fn derivation_pre_boot_horizon_never_double_counts_window_zero() {
     raw.slots[3] = slot(3, 130);
     let s = ring_series(&raw, 3 * SEC + 100);
     assert_eq!(s.bytes, [0, 0, 0, 0, 100, 110, 120, 130]);
-    assert_eq!(s.live, 4);
+    assert_eq!(s.live_samples, 4);
     assert_eq!(s.peak_bytes, 120);
 }
 
@@ -169,7 +169,7 @@ fn derivation_drops_stale_and_future_stamps() {
     raw.slots[(31 % 8) as usize] = slot(99, 999); // future poison in slot (31%8)
     raw.slots[(32 % 8) as usize] = slot(32, 320); // live
     let s = ring_series(&raw, 32 * SEC + 1);
-    assert_eq!(s.live, 1);
+    assert_eq!(s.live_samples, 1);
     // The live window is the CURRENT one: out index 7 (newest),
     // which lands on slot (32 % 8) — a different index than the
     // out-slot, the exact confusion this pin exists to catch.
@@ -210,6 +210,6 @@ fn write_protocol_and_derivation_agree_end_to_end() {
     // window 43 is current with no book yet: the horizon 36..43
     // puts 40/41/42 at out indices 4/5/6 and 0 at the newest slot.
     assert_eq!(s.bytes, [0, 0, 0, 0, 100, 200, 300, 0]);
-    assert_eq!(s.live, 3);
+    assert_eq!(s.live_samples, 3);
     assert_eq!(s.peak_bytes, 300, "the completed peak is window 42");
 }

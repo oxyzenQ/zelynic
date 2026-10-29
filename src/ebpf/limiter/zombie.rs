@@ -253,7 +253,7 @@ fn ring_census(rows: Option<&[(u32, RateRingRaw)]>, now: u64) -> Option<HashSet<
     let rows = rows?;
     let mut traffic = HashSet::new();
     for (root, raw) in rows {
-        if ring_series(raw, now).live > 0 {
+        if ring_series(raw, now).live_samples > 0 {
             traffic.insert(*root);
         }
     }

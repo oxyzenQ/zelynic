@@ -339,7 +339,7 @@ fn rate_ring_field_joins_series_by_cgroup() {
         "the completed window's bytes are the peak"
     );
     assert_eq!(
-        dl_series.live, 1,
+        dl_series.live_samples, 1,
         "window 0 stamps are stale under the pinned now of eight windows"
     );
 

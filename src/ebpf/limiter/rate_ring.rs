@@ -100,7 +100,12 @@ impl RingReads {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RingSeries {
     pub bytes: [u64; RATE_RING_SLOTS],
-    pub live: u32,
+    /// night-verdict-closure-T7 (H4): renamed from `live` — the name
+    /// now says what it counts. How many of the eight slots carry a
+    /// stamp matching the window they represent (a stamped ZERO-byte
+    /// window counts; the count is neither a rate nor the number of
+    /// non-zero slots).
+    pub live_samples: u32,
     pub peak_bytes: u64,
 }
 
@@ -111,7 +116,7 @@ pub fn ring_series(ring: &RateRingRaw, now: u64) -> RingSeries {
     let w = now / RATE_RING_WINDOW_NS;
     let mut out = RingSeries {
         bytes: [0; RATE_RING_SLOTS],
-        live: 0,
+        live_samples: 0,
         peak_bytes: 0,
     };
     for i in 0..RATE_RING_SLOTS {
@@ -128,7 +133,7 @@ pub fn ring_series(ring: &RateRingRaw, now: u64) -> RingSeries {
         let slot = &ring.slots[(win % RATE_RING_SLOTS as u64) as usize];
         if slot.window == win {
             out.bytes[i] = slot.bytes;
-            out.live += 1;
+            out.live_samples += 1;
             // The peak counts only COMPLETED windows: the current
             // window (last index) is still filling.
             if i + 1 < RATE_RING_SLOTS {

@@ -2102,15 +2102,15 @@ not readable). This is the document's own honest-absence vocabulary:
 a fabricated all-zero ring would read as "measured zero" when the
 truth is "nothing measured". The practical consequence: a jq path
 that assumes the key on every row
-(`[.limits[].rate_ring.download.live] | add`) FAILS on the first
+(`[.limits[].rate_ring.download.live_samples] | add`) FAILS on the first
 idle row — guard the path, exactly the way the recipes above do
 (`select(.rate_ring != null)` first, `// 0` inside), e.g.
-`[.limits[] | .rate_ring.download.live // 0] | add`. Within one
+`[.limits[] | .rate_ring.download.live_samples // 0] | add`. Within one
 row the split stays per-direction: a download-only policy's ring
 carries `"upload": null` while `download` rides present.
 
 ```json
-"rate_ring":{"window_secs":8,"download":{"bytes":[0,0,0,1048576,1048576,524288,1048576,655360],"live":5,"peak_bytes":1048576},"upload":null}
+"rate_ring":{"window_secs":8,"download":{"bytes":[0,0,0,1048576,1048576,524288,1048576,655360],"live_samples":5,"peak_bytes":1048576},"upload":null}
 ```
 
 `window_secs` is the SPAN the series covers — eight one-second
@@ -2119,8 +2119,12 @@ which read as the whole window and made `sum(bytes) / window_secs`
 overcount eight-fold; the per-slot granularity is `bytes.len()`,
 one sample per second, so the average rate over the horizon is
 `sum(bytes) / window_secs`). `bytes` is OLDEST-first (the last entry is the current, still-filling
-window — a window mid-second reads low); `live` counts how many of
-the eight windows hold data (the honest horizon); `peak_bytes` is
+window — a window mid-second reads low); `live_samples` (night-verdict-closure-T7 (H4), the wire name was
+`live` — renamed because a bare `live` reads as a rate) counts how
+many of the eight slots carry a stamp matching the window they
+represent — a stamped ZERO-byte window counts, so the figure is
+the honest horizon, neither a rate nor the count of non-zero
+slots; `peak_bytes` is
 the largest COMPLETED window (the current one never qualifies — it
 can only grow). A direction with no ring entry renders `null`, and a
 limit row with no ring at all omits the field entirely — absent is
