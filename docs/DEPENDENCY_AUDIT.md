@@ -285,6 +285,18 @@ blocks. Keeping it is the lower-risk option.
 4. CONTRIBUTING.md Coding Standard 8 requires updating this document
    with any dependency change, the same way LICENSE headers are not
    optional.
+5. The serde/serde_json bans are LIVE-FIRE VERIFIED
+   (night-verdict-closure-T8 (B2), 2026-10-29): the verdict's audit
+   flagged that the ban had never been proven to fire. Proof, on a
+   clean depth-1 clone at the S5 head: `cargo add --dev serde`
+   (resolving serde 1.0.229 into the dev graph) makes
+   `cargo deny check bans` fail with `error[banned]: crate
+   'serde = 1.0.229' is explicitly banned`, quoting the deny.toml
+   reason string; reverting the working tree restores `bans ok`. A
+   prior `cargo deny` FETCH_HEAD timestamp failure on the owner's
+   seat reproduced ZERO times here and traces to a damaged or
+   .git-less workspace (cargo-deny probes git metadata; a healthy
+   clone — even shallow — passes).
 
 ## Accepted risks (tracked, warn-level)
 
