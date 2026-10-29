@@ -1002,6 +1002,22 @@ PROBE_FLAG_SUPPORTED = True
 PROBE_FLAG = "--no-test"
 
 
+def rate_wire_leg(entry, leg):
+    # One row, two wire dialects. T1 (B5) renamed the rate fields to
+    # download_bytes_per_sec/upload_bytes_per_sec; the legacy v11.0.0
+    # side of the mmspa A/B (run_battery_side rebinds lib.BINARY) is a
+    # pinned relic that predates the rename and still spells
+    # download_bps/upload_bps. The shared verifier reads whichever
+    # side it just applied: prefer the new name, fall back to the
+    # old, so the current binary never needs the relic's vocabulary
+    # and the relic never needs the current one.
+    if leg == "download":
+        v = entry.get("download_bytes_per_sec")
+        return entry.get("download_bps") if v is None else v
+    v = entry.get("upload_bytes_per_sec")
+    return entry.get("upload_bps") if v is None else v
+
+
 def apply_single(name, rate_str, exp_dl, exp_ul, extra=()):
     # The verification-skip flag rides the CURRENT binary only
     # (--no-test since improve-54; --no-probe before it): the legacy
@@ -1017,10 +1033,10 @@ def apply_single(name, rate_str, exp_dl, exp_ul, extra=()):
     entry = limit_entry(status_json(), CG.ids[name])
     if entry is None:
         return False, f"no limit row for cgroup {CG.ids[name]} in status JSON"
-    if exp_dl is not None and entry.get("download_bytes_per_sec") != exp_dl:
-        return False, f"download_bytes_per_sec {entry.get('download_bytes_per_sec')} != {exp_dl}"
-    if exp_ul is not None and entry.get("upload_bytes_per_sec") != exp_ul:
-        return False, f"upload_bytes_per_sec {entry.get('upload_bytes_per_sec')} != {exp_ul}"
+    if exp_dl is not None and rate_wire_leg(entry, "download") != exp_dl:
+        return False, f"download rate {rate_wire_leg(entry, 'download')} != {exp_dl}"
+    if exp_ul is not None and rate_wire_leg(entry, "upload") != exp_ul:
+        return False, f"upload rate {rate_wire_leg(entry, 'upload')} != {exp_ul}"
     return True, entry
 
 
