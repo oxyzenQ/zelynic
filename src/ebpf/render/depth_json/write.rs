@@ -243,6 +243,15 @@ impl BypassAuditJson {
         write_number(out, self.shadow_rx_bytes);
         out.push_str(",\"verdict\":");
         write_string(out, self.verdict);
+        // night-verdict-closure-T3 (B4): the derived shadow
+        // percentages ride TRAILING (the additive rule — existing
+        // consumers' prefix matching is untouched), the same
+        // whole-percent figures the text report's bypass section
+        // prints.
+        out.push_str(",\"shadow_tx_percent\":");
+        write_number(out, self.shadow_tx_percent);
+        out.push_str(",\"shadow_rx_percent\":");
+        write_number(out, self.shadow_rx_percent);
         out.push('}');
     }
 }

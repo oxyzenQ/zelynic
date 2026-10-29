@@ -190,6 +190,18 @@ fn json_carries_the_bypass_audit() {
         text.contains("\"verdict\":\"clean\""),
         "a healthy window is clean"
     );
+    // night-verdict-closure-T3 (B4): the derived percentages ride
+    // trailing — the same whole-percent figures the text report's
+    // bypass section prints (200000/10000000 = 2%, 300000/11000000
+    // = 2%), machine-checkable from the one document.
+    assert!(
+        text.contains("\"shadow_tx_percent\":2"),
+        "the tx shadow percent is the text figure"
+    );
+    assert!(
+        text.contains("\"shadow_rx_percent\":2"),
+        "the rx shadow percent is the text figure"
+    );
 
     // The flagged shape: every side of the verdict vocabulary the
     // constructor can produce.
