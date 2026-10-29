@@ -298,6 +298,7 @@ fn json_carries_the_traffic_focus_window() {
                 comm: "curl".to_string(),
                 sockets: vec![
                     SocketInfo {
+                        inode: 42,
                         proto: Proto::Tcp,
                         remote: "142.250.191.78:443".to_string(),
                         state: "ESTABLISHED",
@@ -305,6 +306,7 @@ fn json_carries_the_traffic_focus_window() {
                         cookie: Some(1001),
                     },
                     SocketInfo {
+                        inode: 42,
                         proto: Proto::Tcp,
                         remote: "93.184.216.34:443".to_string(),
                         state: "ESTABLISHED",
@@ -316,6 +318,7 @@ fn json_carries_the_traffic_focus_window() {
                     // ss/netstat vocabulary, the same as_str the trees
                     // and the depth rows speak.
                     SocketInfo {
+                        inode: 42,
                         proto: Proto::Tcp6,
                         remote: "[2001:db8::1]:443".to_string(),
                         state: "ESTABLISHED",
@@ -355,7 +358,9 @@ fn json_carries_the_traffic_focus_window() {
         // NIGHT-improve-63: the traffic object carries the window's
         // own ranked endpoint attribution — movers first (the 10 MB
         // join leads), the byteless rows behind it, nulls honest.
-        "\"traffic\":{\"window_secs\":3,\"download_bytes\":10000000,\"upload_bytes\":300000,\"endpoints\":[{\"pid\":4242,\"comm\":\"curl\",\"proto\":\"tcp\",\"remote\":\"142.250.191.78:443\",\"state\":\"ESTABLISHED\",\"download_bytes\":10000000,\"upload_bytes\":300000},{\"pid\":4242,\"comm\":\"curl\",\"proto\":\"tcp\",\"remote\":\"93.184.216.34:443\",\"state\":\"ESTABLISHED\",\"download_bytes\":null,\"upload_bytes\":null},{\"pid\":4242,\"comm\":\"curl\",\"proto\":\"tcp6\",\"remote\":\"[2001:db8::1]:443\",\"state\":\"ESTABLISHED\",\"download_bytes\":null,\"upload_bytes\":null}]}",
+        // night-verdict-closure-T6 (H3): every row's dedupe key
+        // (socket_inode) rides trailing — the fixtures' 42.
+        "\"traffic\":{\"window_secs\":3,\"download_bytes\":10000000,\"upload_bytes\":300000,\"endpoints\":[{\"pid\":4242,\"comm\":\"curl\",\"proto\":\"tcp\",\"remote\":\"142.250.191.78:443\",\"state\":\"ESTABLISHED\",\"download_bytes\":10000000,\"upload_bytes\":300000,\"socket_inode\":42},{\"pid\":4242,\"comm\":\"curl\",\"proto\":\"tcp\",\"remote\":\"93.184.216.34:443\",\"state\":\"ESTABLISHED\",\"download_bytes\":null,\"upload_bytes\":null,\"socket_inode\":42},{\"pid\":4242,\"comm\":\"curl\",\"proto\":\"tcp6\",\"remote\":\"[2001:db8::1]:443\",\"state\":\"ESTABLISHED\",\"download_bytes\":null,\"upload_bytes\":null,\"socket_inode\":42}]}",
         "\"remote\":\"142.250.191.78:443\"",
         "\"download_bytes\":10000000",
         "\"upload_bytes\":300000",
@@ -365,6 +370,9 @@ fn json_carries_the_traffic_focus_window() {
         "\"remote\":\"[2001:db8::1]:443\"",
         "\"download_bytes\":null",
         "\"upload_bytes\":null",
+        // The dedupe key's own pin: distinct rows are distinguishable
+        // even when the (pid, proto, remote, state) tuple collides.
+        "\"socket_inode\":42",
     ] {
         assert!(
             text.contains(field),

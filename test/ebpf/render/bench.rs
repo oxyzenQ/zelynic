@@ -156,6 +156,7 @@ fn frame_bench_eagle() {
             // ran under this harness.
             let cookie_base = 0x5EED_0000_u64 + 16 * i as u64;
             let socket = |idx: usize| SocketInfo {
+                inode: 42,
                 proto: if idx == 2 { Proto::Udp } else { Proto::Tcp },
                 remote: remotes[if idx == 3 { 0 } else { idx } % remotes.len()].to_string(),
                 state: if idx == 2 { "CLOSE" } else { "ESTABLISHED" },

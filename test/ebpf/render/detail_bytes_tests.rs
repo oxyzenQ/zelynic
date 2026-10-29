@@ -38,6 +38,7 @@ fn endpoint_bytes_ride_the_tree_lines() {
     use std::collections::HashMap;
 
     let socket = |remote: &str, cookie: Option<u64>| SocketInfo {
+        inode: 42,
         proto: Proto::Tcp,
         remote: remote.to_string(),
         state: "ESTABLISHED",
@@ -124,6 +125,7 @@ fn focus_ranks_endpoints_by_bytes() {
     use std::collections::HashMap;
 
     let socket = |remote: &str, cookie: Option<u64>| SocketInfo {
+        inode: 42,
         proto: Proto::Tcp,
         remote: remote.to_string(),
         state: "ESTABLISHED",
@@ -194,6 +196,7 @@ fn the_ranked_tree_cap_shows_the_hungriest_endpoints() {
     use std::collections::HashMap;
 
     let socket = |remote: &str, cookie: Option<u64>| SocketInfo {
+        inode: 42,
         proto: Proto::Tcp,
         remote: remote.to_string(),
         state: "ESTABLISHED",
@@ -274,6 +277,7 @@ fn socket_cookies_are_the_deduped_join_keys() {
     };
 
     let socket = |cookie: Option<u64>| SocketInfo {
+        inode: 42,
         proto: Proto::Tcp,
         remote: "10.0.0.9:443".to_string(),
         state: "ESTABLISHED",
@@ -315,6 +319,7 @@ fn socket_cookies_preserve_first_seen_order() {
     };
 
     let socket = |cookie: Option<u64>| SocketInfo {
+        inode: 42,
         proto: Proto::Tcp,
         remote: "10.0.0.9:443".to_string(),
         state: "ESTABLISHED",
@@ -370,6 +375,7 @@ fn socket_cookies_dense_fixture_stays_exact() {
     for cg in 0..CGROUPS {
         let sockets: Vec<SocketInfo> = (0..SOCKETS_PER_HOLDER)
             .map(|i| SocketInfo {
+                inode: 42,
                 proto: Proto::Tcp,
                 remote: format!("10.{}.{}.{}:443", cg, i / 256, i % 256),
                 state: "ESTABLISHED",
@@ -464,6 +470,7 @@ fn the_quiet_leg_renders_an_honest_zero_never_blocked() {
     use std::collections::HashMap;
 
     let socket = |remote: &str, cookie: Option<u64>| SocketInfo {
+        inode: 42,
         proto: Proto::Tcp,
         remote: remote.to_string(),
         state: "ESTABLISHED",

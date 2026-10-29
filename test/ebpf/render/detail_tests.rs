@@ -98,6 +98,7 @@ fn fixture() -> (
     use crate::ebpf::identity::{IdentityMap, ProcessIdentity};
 
     let socket = |proto: Proto, remote: &str, state: &'static str, queued: bool| SocketInfo {
+        inode: 42,
         proto,
         remote: remote.to_string(),
         state,
@@ -198,6 +199,7 @@ fn detail_lines_tree_budget() {
     };
 
     let tcp = |remote: &str| SocketInfo {
+        inode: 42,
         proto: Proto::Tcp,
         remote: remote.to_string(),
         state: "ESTABLISHED",
@@ -318,6 +320,7 @@ fn detail_lines_three_endpoints() {
     };
 
     let tcp = |remote: &str| SocketInfo {
+        inode: 42,
         proto: Proto::Tcp,
         remote: remote.to_string(),
         state: "ESTABLISHED",
@@ -397,6 +400,7 @@ fn detail_hides_and_cuts_on_narrow_frames() {
                 // well past the inset naturally, so the trim path is
                 // the one under test at the boundary width.
                 sockets: vec![SocketInfo {
+                    inode: 42,
                     proto: Proto::Tcp,
                     remote: "2001:0db8:85a3:0000:0000:8a2e:0370:7334:443".to_string(),
                     state: "ESTABLISHED",

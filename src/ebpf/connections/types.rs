@@ -81,6 +81,13 @@ impl Proto {
 /// One live socket endpoint, as the kernel sees it.
 #[derive(Debug, Clone)]
 pub struct SocketInfo {
+    /// The socket's kernel inode from the /proc/net table row it was
+    /// parsed from (night-verdict-closure-T6 (H3)): the stable
+    /// kernel-global identity that distinguishes "one socket held by
+    /// several fds" (one inode) from "two sockets to the same remote"
+    /// (two inodes) — the join key the JSON document's per-endpoint
+    /// `socket_inode` field carries so a consumer can dedupe.
+    pub inode: u64,
     pub proto: Proto,
     /// Remote endpoint formatted for display ("142.250.191.78:443").
     pub remote: String,

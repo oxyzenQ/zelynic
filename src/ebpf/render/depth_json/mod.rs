@@ -75,6 +75,11 @@ pub struct EndpointJson {
     pub download_bytes: Option<u64>,
     /// Focus-window upload bytes (null = the same absence).
     pub upload_bytes: Option<u64>,
+    /// The socket's kernel inode (night-verdict-closure-T6 (H3),
+    /// additive trailing): the dedupe key across identical
+    /// (pid, proto, remote, state) rows — one inode = one socket
+    /// held by several fds, distinct inodes = distinct sockets.
+    pub socket_inode: u64,
 }
 
 /// The focus-window measurement for one cgroup
@@ -280,6 +285,7 @@ fn traffic_json(focus: &Option<TrafficFocus>) -> Option<TrafficJson> {
                 state: e.state,
                 download_bytes: e.dl,
                 upload_bytes: e.ul,
+                socket_inode: e.inode,
             })
             .collect(),
     })
@@ -380,6 +386,7 @@ pub fn depth_doc_json(
                                 state: s.state,
                                 download_bytes: joined.map(|b| b.dl),
                                 upload_bytes: joined.map(|b| b.ul),
+                                socket_inode: s.inode,
                             }
                         })
                     })

@@ -39,6 +39,7 @@ fn delta(cgroup_id: u32, bytes: u64, ingress_bytes: u64) -> CgroupDelta {
 /// a cookie the join can resolve.
 fn socket(remote: &str, cookie: Option<u64>) -> SocketInfo {
     SocketInfo {
+        inode: 42,
         proto: Proto::Tcp,
         remote: remote.to_string(),
         state: "ESTABLISHED",
@@ -71,6 +72,7 @@ fn census() -> ConnectionMap {
                     sockets: vec![
                         socket("10.0.0.9:22", Some(1003)),
                         SocketInfo {
+                            inode: 42,
                             proto: Proto::Tcp,
                             remote: "0.0.0.0:8080".to_string(),
                             state: "LISTEN",
@@ -298,6 +300,7 @@ fn missing_delta_row_composes_zero_totals() {
 fn connected_udp_reaches_the_traffic_rows() {
     let mut conns = ConnectionMap::new();
     let udp_sock = SocketInfo {
+        inode: 42,
         proto: Proto::Udp,
         remote: "142.250.191.78:443".to_string(),
         state: "ESTABLISHED",
@@ -352,6 +355,7 @@ fn connected_udp_reaches_the_traffic_rows() {
 fn raw_socket_reaches_the_traffic_rows() {
     let mut conns = ConnectionMap::new();
     let raw_sock = SocketInfo {
+        inode: 42,
         proto: Proto::Raw,
         remote: "1.2.3.4:0".to_string(),
         state: "ESTABLISHED",
@@ -410,6 +414,7 @@ fn raw_socket_reaches_the_traffic_rows() {
 fn unbound_raw_socket_reaches_the_traffic_rows() {
     let mut conns = ConnectionMap::new();
     let raw_sock = SocketInfo {
+        inode: 42,
         proto: Proto::Raw,
         remote: "0.0.0.0:0".to_string(),
         state: "CLOSE",
@@ -491,6 +496,7 @@ fn window_figures_divide_by_the_windows_own_seconds() {
 fn v6_sockets_reach_the_traffic_rows_with_their_family_tag() {
     let mut conns = ConnectionMap::new();
     let tcp6_sock = SocketInfo {
+        inode: 42,
         proto: Proto::Tcp6,
         remote: "[2001:db8::1]:443".to_string(),
         state: "ESTABLISHED",

@@ -38,6 +38,7 @@ pub(crate) fn parse_proc_net_line(line: &str, proto: Proto) -> Option<(u64, Sock
     Some((
         inode,
         SocketInfo {
+            inode,
             proto,
             remote: remote_addr,
             state: state_name(state)?,

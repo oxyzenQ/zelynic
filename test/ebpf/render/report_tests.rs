@@ -262,6 +262,7 @@ fn socket_section_lists_endpoints_and_caps_overflow() {
     use crate::ebpf::connections::{CgroupConnections, ProcessDetail, Proto, SocketInfo};
     let sockets: Vec<SocketInfo> = (0..15)
         .map(|i| SocketInfo {
+            inode: 42,
             proto: Proto::Tcp,
             remote: format!("10.0.0.{i}:443"),
             state: "ESTABLISHED",
