@@ -51,6 +51,14 @@ fn test_format_bytes_exact_minimal_digits() {
 /// rate twin's rendering parses back through the PRODUCTION parser
 /// to exactly the integer it came from — display and grammar are
 /// one round-trip, pinned.
+///
+/// The crossing normalizes the DISPLAY chrome (night-peak-lts
+/// FIX-3): the display is human SI — spaced, uppercase ("100.51
+/// KB/s") — while the input grammar refuses internal whitespace
+/// ("100 kb" names its own fix now) and wants lowercase. The
+/// round-trip therefore crosses at the glued lowercase form, the
+/// same case boundary the test always crossed at; the numeric
+/// fidelity invariant (rendered → parsed == original) is untouched.
 #[test]
 fn test_format_rate_exact_round_trips_through_parse_rate() {
     let spread = [
@@ -73,9 +81,10 @@ fn test_format_rate_exact_round_trips_through_parse_rate() {
     ];
     for value in spread {
         let rendered = format_rate_exact(value);
-        // The parser wants lowercase units; the display is uppercase
-        // SI — the round-trip crosses at the case boundary.
-        let parseable = rendered.to_lowercase().replace("/s", "");
+        // The parser wants lowercase units and glued shapes; the
+        // display is uppercase SI with the human space — the
+        // round-trip crosses at that chrome boundary.
+        let parseable = rendered.to_lowercase().replace("/s", "").replace(' ', "");
         let parsed =
             parse_rate(&parseable).unwrap_or_else(|e| panic!("'{rendered}' must round-trip: {e}"));
         assert_eq!(
