@@ -379,7 +379,10 @@ ECHO_PAYLOADS = [
 # hunt-30's one-distinct rung means the payload member rides with a
 # partner, or the count refusal would shadow the grammar echo), the
 # rate parse echo, and the duration parse echo (interval and focus).
-# Post as (argv-builder, needle that proves the refusal fired).
+# Post as (argv-builder, needle that proves the refusal fired); the
+# needle may be a callable taking the payload when the refusal class
+# itself forks on the payload (night-peak-lts FIX-3: the whitespace
+# families hit the grammar's own refusal before the number layer).
 ECHO_PATHS = [
     (lambda p: ["s", p, "1mb"], "is a system process"),
     (lambda p: ["s", "brave" + p + "/x::curl", "1mb"], "not a valid app name"),
@@ -390,9 +393,7 @@ ECHO_PATHS = [
     # non-whitespace families still ride the Invalid lane.
     (
         lambda p: ["s", "brave", "1" + p + "kb"],
-        "no whitespace in rate"
-        if any(c.isspace() for c in p)
-        else "Invalid",
+        lambda p: "no whitespace in rate" if any(c.isspace() for c in p) else "Invalid",
     ),
     (lambda p: ["eagle-eyes", "--interval", "a" + p + "b"], "Invalid duration"),
 ]
@@ -1440,6 +1441,10 @@ def test_echo_boundary():
     for payload_name, payload, subst_needle in ECHO_PAYLOADS:
         for path_i, (argv_builder, refusal_needle) in enumerate(ECHO_PATHS):
             argv = argv_builder(payload)
+            # A callable needle forks on the payload itself (the rate
+            # echo's two refusal classes); resolve it here so the
+            # check below stays one `in` for every path.
+            needle = refusal_needle(payload) if callable(refusal_needle) else refusal_needle
             label = f"echo: {payload_name} path-{path_i} renders '?' not bytes"
             rc, output = _run_cli_case(argv)
             if rc is None:
@@ -1457,8 +1462,8 @@ def test_echo_boundary():
                 record(label, "FAIL", f"raw control bytes leaked: {leaked}")
                 all_ok = False
                 continue
-            if refusal_needle not in output:
-                record(label, "FAIL", f"refusal needle missing: {refusal_needle!r}")
+            if needle not in output:
+                record(label, "FAIL", f"refusal needle missing: {needle!r}")
                 all_ok = False
                 continue
             record(label, "PASS", "no raw control byte, refusal intact")
