@@ -25,6 +25,7 @@ NIGHT-hunt-18's git-history-only call.
 
 ## [Released]
 
+v80.0.2
 v80.0.1
 v80.0.1-night.2
 v80.0.1-night.1
