@@ -2036,6 +2036,45 @@ branch on `.error` first, the exit code does not distinguish them.
 This is deliberate: a corrupt state should never masquerade as a
 report that silently omits the corruption.
 
+**15. Ingress drops do not save download quota — the WiFi
+asymmetry.**
+The question every metered-connection user eventually asks: "I
+capped an app at 100kb and status shows packets dropping — is that
+saving my data cap, or spending it?" The honest answer splits by
+direction, because the two enforcement programs sit on opposite
+sides of the radio link: `enforce_dl` runs on `cgroup_skb/ingress`
+(download), `enforce_ul` on `cgroup_skb/egress` (upload).
+
+- **Egress drops save quota directly.** The hook runs inside the
+  kernel before the packet reaches the NIC — a dropped upload
+  never crosses the WiFi air or any metered link behind it. For
+  upload-heavy traffic (telemetry, backups, sync clients) the
+  refusal is the saving.
+- **Ingress drops cost quota anyway.** The hook runs after the
+  packet has already crossed every link between the sender and
+  your NIC — the ISP's, the router's, the WiFi air. Every drop
+  point a host can own (XDP, tc, netfilter, cgroup_skb) sits
+  behind the radio: a dropped download has already been paid for,
+  and the sender retries (TCP and QUIC both retransmit what was
+  never acknowledged), so the same bytes can be paid for twice.
+  Only shaping upstream of the radio — a router or an ISP cap —
+  can drop a download before it crosses the WiFi hop.
+
+What limiting does save is indirect, and real: at 100kb/s an
+autoplay queue, an infinite feed, or a background sync becomes
+unusable and gets abandoned — the bytes it would have pulled are
+never requested. The budget is planable (limitation 5's decimal
+SI: 100kb for one hour admits at most 360 MB per direction). And
+fair-share keeps one app from saturating the link for everyone
+else. For hard per-byte savings on download, zelynic is the wrong
+tool — close the app or shape at the router; zelynic's contract is
+fair-share and predictable budgets. Reading the counters honestly
+(see `status --help`): `allowed` is what got through, retransmits
+included (limitation 9); `dropped` is not "quota saved" — on
+ingress it is quota already spent on packets that delivered
+nothing, on egress it is the saving. Read them together, never as
+one savings number.
+
 ---
 
 ## Troubleshooting
@@ -2410,6 +2449,15 @@ nanosecond-scale work, no userspace involved. Benchmarks live in
 A positional rate means both directions. Use `-d`/`-u` to split them
 (and if you pass both a positional and `-d`/`-u`, one stderr note
 names the positional that was ignored — the flags decide).
+
+**Does capping an app to 100kb/s save my WiFi quota?**
+On upload, yes — egress drops happen before the packet reaches the
+NIC, so they never cross the WiFi link. On download, no — ingress
+drops run after the packet has already crossed WiFi, and the
+sender's retransmits bill the cap again. The real savings are
+indirect: at 100kb/s autoplay and background syncs become unusable
+and get abandoned before they finish. The full asymmetry is
+[limitation #15](#honest-limitations--read-this).
 
 **I limited an app but a speed test shows full speed.**
 Three usual causes: (1) the app was restarted after you set the limit —
