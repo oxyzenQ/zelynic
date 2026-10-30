@@ -3354,6 +3354,23 @@ v80.0.0
 - Docs-only change: no source, build, or test surface touched, so
   no A/B benchmark per house rule.
 
+### docs: the ingress/egress quota asymmetry, named honestly
+
+- New limitation #15 in docs/USAGE.md: dropped downloads do not
+  save WiFi quota — the cgroup_skb/ingress hook runs after the
+  packet has already crossed the radio (and retransmits bill it
+  again), while cgroup_skb/egress drops save directly (the packet
+  never reaches the NIC). No host-side tool can drop a download
+  before the WiFi hop; only router- or ISP-level shaping can.
+- The honest framing: zelynic's contract is fair-share and
+  predictable budgets, not per-byte quota protection on ingress.
+  Real savings come from runaway prevention (the abandoned load is
+  never requested) and egress drops.
+- README limitations mirrored; the USAGE FAQ gains the question
+  with the two-line answer and a pointer to #15.
+- Docs-only change: no source, build, or test surface touched, so
+  no A/B benchmark per house rule.
+
 ## History
 
 The changelog's per-era split, newest era first:

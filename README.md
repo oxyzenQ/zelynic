@@ -493,6 +493,15 @@ the signal (a detached multiplexer pane) — `pkill zelynic` cleans up.
 scripts must handle both. This is deliberate: a corrupt state should
 never masquerade as a report.
 
+Dropped downloads do not save quota: the ingress hook runs after
+packets have already crossed the WiFi link (retransmits bill them
+again), while egress drops do save — the packet never reaches the
+NIC. Real savings are indirect (runaway loads abandoned, planable
+budgets) plus upload drops. For hard download-quota savings, shape
+at the router or close the app; zelynic's contract is fair-share
+and predictable budgets. The full asymmetry is limitation #15 in
+[USAGE.md](docs/USAGE.md#honest-limitations--read-this).
+
 ### The nightly eBPF toolchain (honest)
 
 The eBPF build dependencies (`aya-ebpf` on a pinned nightly rustc,
