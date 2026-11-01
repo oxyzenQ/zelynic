@@ -12,7 +12,7 @@ vulnerability, and where the audit trail lives.
 
 | Version | Branch | Status |
 |---------|--------|--------|
-| 11.x (main) | `main` | **supported** — active maintenance (bug fixes, kernel compatibility, hardening) |
+| latest (main) | `main` | **supported** — active maintenance (bug fixes, kernel compatibility, hardening) |
 
 Pre-release channels (`dev`, `nightly`, `alpha`, `beta`) are
 development artifacts: reports against them are welcome and triaged,
