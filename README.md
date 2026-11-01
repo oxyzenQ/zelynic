@@ -783,7 +783,7 @@ prohibited.
 **Forking policy** — two categories with different rules (full text in
 [TRADEMARK.md §4](TRADEMARK.md)):
 
-- **Contribution forks** (bug fixes, features, PRs back to upstream): allowed without permission. Keep the zelynic name, logo, and branding unchanged — no rename or rebrand required. Just open a PR.
+- **Contribution forks** (bug fixes, features, PRs back to upstream): allowed without permission. Keep the zelynic name, logo, and branding unchanged — no rename or rebrand required. Just open a PR. "Unchanged" is checkable: every image under `assets/` carries a BLAKE3 signature checksum in [assets/signature-assets.md](assets/signature-assets.md) — one `b3sum -c` run names a swapped or re-encoded logo.
 - **Non-contribution forks** (rebrand, relaunch, derivative product, commercial offering): require owner discussion first. MUST use a different project name + different branding. Open a GitHub Issue before public release.
 
 For trademark licensing or written permission, see
