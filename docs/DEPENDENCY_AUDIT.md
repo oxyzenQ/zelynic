@@ -261,7 +261,7 @@ blocks. Keeping it is the lower-risk option.
 |-----------|---------|--------------------------------|
 | `clap` 4 | keep | CLI parser; explicit feature set (std, color, help, usage, error-context, derive, suggestions) pinned so no default-feature creep |
 | `anyhow` 1 | keep | error handling backbone, 20+ files |
-| `serde` 1 + derive | **removed (S1)** | the JSON lane is hand-written in src/json/; the derive stack (serde, serde_core, serde_derive) left the graph; deny.toml bans re-adding it |
+| `serde` 1 + derive | **removed (S1)** | the JSON lane is hand-written in src/json/; the derive stack (serde, serde_core, serde_derive) left the graph; deny.toml bans re-adding it — widened X1 across all four serde-family names |
 | `serde_json` 1 | **removed (S1)** | src/json/parse.rs (Value tree, docker-lane deserializer, 128-frame depth cap) + write.rs (escape law) replace it; doctor/list-apps wire bytes verified byte-identical |
 | `nix` 0.31 | keep, trimmed | safe geteuid/uname/termios wrappers; features `user`+`term`+`feature` only |
 | `libc` 0.2 | keep | flock (src/ebpf/lock.rs), raw BPF syscalls (src/ebpf/bpf_syscall.rs), termios constants |
@@ -297,19 +297,29 @@ blocks. Keeping it is the lower-risk option.
    seat reproduced ZERO times here and traces to a damaged or
    .git-less workspace (cargo-deny probes git metadata; a healthy
    clone — even shallow — passes).
+6. The X1 pass (night-dragon-maintenance-X1, 2026-11-02) widened the
+   serde ban across the full derive stack: `serde_core` and
+   `serde_derive` are banned names too. The S1 list pinned only the
+   two facade names, leaving the derive crates a legal
+   direct-dependency path around the gate; both ship only inside the
+   serde monorepo, so the widened ban cannot collide with a
+   legitimate third-party use. The root lockfile re-verified
+   serde-family-free this pass (zero serde, serde_json, serde_core,
+   serde_derive entries), and the ebpf/ nested crate's build-time
+   aya-build chain stays outside the root `cargo deny check all`
+   scan (accepted risk, documented above).
 
 ## Accepted risks (tracked, warn-level)
 
-- `hashbrown` 0.15.5 + 0.17.1 duplicate: pulled by `aya-obj`,
-  `indexmap`, `object` (upstream mix). Warn in `cargo deny check
-  bans` (`multiple-versions = "warn"`). Resolves itself when aya's
-  chain consolidates; not worth forking or patching.
-- `syn` 2.0.119 + 3.0.6 duplicate: `thiserror-impl` 1.0.69 (via
-  aya's thiserror 1) stays on syn 2 while `clap_derive` and
-  `serde_derive` use syn 3 (versions re-verified by the NIGHT-hunt-20
-  audit). Proc-macro only — never linked into the release binary.
-  Same warn policy.
-- Neither duplicate involves a crate with an open RustSec advisory
+- Both historical duplicates RESOLVED (re-verified live by the X1
+  pass, 2026-11-02, against the committed lockfile): `hashbrown` is
+  now a single 0.17.1 entry (was 0.15.5 + 0.17.1 via the aya-obj /
+  indexmap / object mix) and `syn` is a single entry shared by
+  `clap_derive` and `thiserror-impl` 2.0.21 (was 2.x + 3.x while
+  `serde_derive` still rode the graph — S1 removed that consumer).
+  The warn-level `multiple-versions` policy stays as the tripwire;
+  nothing to fork or patch.
+- Neither entry involves a crate with an open RustSec advisory
   (`cargo deny check advisories` passes clean over the full tree).
 
 ## Policy for adding dependencies

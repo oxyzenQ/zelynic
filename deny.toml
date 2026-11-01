@@ -71,8 +71,21 @@ deny = [
     # (the zejtron peak-lean law: no crate exists only to move JSON).
     # The parse tree serves the docker Engine API lane, the writer
     # helpers serve every --print-json document; both std-only.
+    #
+    # night-dragon-maintenance-X1 (2026-11-02): the ban widens across
+    # the full derive stack. The S1 list pinned only the two facade
+    # names, leaving serde_core and serde_derive ban-free — a future
+    # dependency could legally depend on the derive crates directly
+    # (macros without the facade) and cargo deny would stay silent.
+    # Both names ship only inside the serde monorepo, so the widened
+    # ban cannot collide with a legitimate third-party use. The
+    # ebpf/ nested crate's build-time aya-build chain (the one
+    # documented serde consumer, docs/DEPENDENCY_AUDIT.md) is not
+    # scanned by the root `cargo deny check all` invocation.
     { crate = "serde", reason = "removed S1: the JSON lane is hand-written in src/json/; the derive stack left the graph" },
     { crate = "serde_json", reason = "removed S1: src/json/parse.rs (Value tree) + write.rs (the escape law) replace it" },
+    { crate = "serde_core", reason = "removed S1, ban widened X1: serde-family-only crate; closes the direct-dependency loophole the facade-only ban left open" },
+    { crate = "serde_derive", reason = "removed S1, ban widened X1: serde-family-only proc-macro crate; a direct derive dependency must fail the policy gate like its facade" },
 ]
 skip = []
 skip-tree = []
