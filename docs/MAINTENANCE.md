@@ -171,6 +171,22 @@ binaries).
   contributor commit — and they age loudly, not silently (a
   scheduled lane goes red on a truly broken pin; GitHub keeps old
   major tags working for years, so age is not rot).
+- The **API reads behind the pins** ride the authenticated tier and a
+  pinned wire contract (night-dragon-maintenance-X1, 2026-11-02):
+  the sweep and the pin health check resolve their reads with the
+  machine's own credential (NIGHT-improve-69 — env, gh, or the git
+  credential helper; never a new standing secret), and every request
+  carries the dated `X-GitHub-Api-Version: 2022-11-28` header, so
+  GitHub's default-version drift cannot silently change the response
+  shape both tiers parse. The failure class this closes is the one
+  the shfmt-resolve incident named: unauthenticated API reads share
+  the 60 req/h per-IP pool, a busy pool outlives any 300 s retry
+  window, and the retry contract alone cannot clear the failure —
+  the Bearer header lifts the cap to the authenticated 1,000 req/h
+  and the version header freezes the wire behavior on top.
+  Release-asset downloads stay bare on purpose: they redirect onto
+  the release CDN and a forwarded Authorization header can taint
+  the signed asset URL.
 
 ## 6. Docs hygiene
 
