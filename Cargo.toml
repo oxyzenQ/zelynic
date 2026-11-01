@@ -170,6 +170,13 @@ anyhow = "1"
 # to move JSON, and the supply-chain surface loses the serde derive
 # stack: serde_core, serde_derive, itoa, ryu, memchr). Regressions
 # are blocked by the serde/serde_json bans in deny.toml.
+#
+# X1 (night-dragon-maintenance-X1, 2026-11-02): the deny.toml ban
+# widened across the full derive stack — serde, serde_json,
+# serde_core and serde_derive all fail `cargo deny check all` now,
+# so a future dependency cannot re-enter through the derive crates
+# alone. itoa/ryu/memchr stay unbanned on purpose: generic crates
+# with legitimate non-serde consumers elsewhere in the graph.
 # Minimal safe-syscall wrapper. Feature list is exactly what the source
 # uses (NIGHT-hunt-6 trim; was process+fs+feature+user+signal+term):
 #   user    -> nix::unistd::geteuid()   (capabilities/mod.rs, commands/mod.rs)
