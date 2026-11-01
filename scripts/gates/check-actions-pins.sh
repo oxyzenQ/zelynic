@@ -129,12 +129,12 @@ QUOTA_LIMIT=""
 
 health() { echo "HEALTH: $*"; }
 skip_check() {
-	health "skipped — $*"
-	exit 0
+        health "skipped — $*"
+        exit 0
 }
 
 usage() {
-	cat <<'EOF'
+        cat <<'EOF'
 scripts/gates/check-actions-pins.sh — the commit-time actions-pin
 health check (NIGHT-improve-40; the contract story lives in this
 file's header and in scripts/gates/check-commit-gate.sh).
@@ -162,81 +162,81 @@ EOF
 # ── environment readers ────────────────────────────────────────────────────
 
 resolve_mode() {
-	local mode
-	if [ -n "${ZELYNIC_ACTIONS_HEALTH:-}" ]; then
-		mode="$ZELYNIC_ACTIONS_HEALTH"
-	else
-		mode="$(git config --get zelynic.actionsHealthCheck 2>/dev/null || true)"
-	fi
-	case "$mode" in
-	off | warn | strict | auto) printf '%s' "$mode" ;;
-	"") printf 'warn' ;;
-	*)
-		# stderr, not stdout: this function is consumed by a
-		# command substitution, and a stdout note here would
-		# be captured into the mode variable itself (an
-		# unknown-mode note that corrupts the mode it warns
-		# about — pre-existing bug, caught by the auto-mode
-		# fixture battery)
-		health "unknown mode '${mode}' — treating as warn" >&2
-		printf 'warn'
-		;;
-	esac
+        local mode
+        if [ -n "${ZELYNIC_ACTIONS_HEALTH:-}" ]; then
+                mode="$ZELYNIC_ACTIONS_HEALTH"
+        else
+                mode="$(git config --get zelynic.actionsHealthCheck 2>/dev/null || true)"
+        fi
+        case "$mode" in
+        off | warn | strict | auto) printf '%s' "$mode" ;;
+        "") printf 'warn' ;;
+        *)
+                # stderr, not stdout: this function is consumed by a
+                # command substitution, and a stdout note here would
+                # be captured into the mode variable itself (an
+                # unknown-mode note that corrupts the mode it warns
+                # about — pre-existing bug, caught by the auto-mode
+                # fixture battery)
+                health "unknown mode '${mode}' — treating as warn" >&2
+                printf 'warn'
+                ;;
+        esac
 }
 
 ttl_seconds() {
-	local t="${ZELYNIC_ACTIONS_HEALTH_TTL:-$DEFAULT_TTL}"
-	[[ $t =~ ^[0-9]+$ ]] || t="$DEFAULT_TTL"
-	printf '%s' "$t"
+        local t="${ZELYNIC_ACTIONS_HEALTH_TTL:-$DEFAULT_TTL}"
+        [[ $t =~ ^[0-9]+$ ]] || t="$DEFAULT_TTL"
+        printf '%s' "$t"
 }
 
 timeout_seconds() {
-	local t="${ZELYNIC_ACTIONS_HEALTH_TIMEOUT:-$DEFAULT_TIMEOUT}"
-	[[ $t =~ ^[0-9]+$ ]] || t="$DEFAULT_TIMEOUT"
-	printf '%s' "$t"
+        local t="${ZELYNIC_ACTIONS_HEALTH_TIMEOUT:-$DEFAULT_TIMEOUT}"
+        [[ $t =~ ^[0-9]+$ ]] || t="$DEFAULT_TIMEOUT"
+        printf '%s' "$t"
 }
 
 cache_file() {
-	printf '%s/zelynic/actions-pins.cache' "$(git rev-parse --git-dir)"
+        printf '%s/zelynic/actions-pins.cache' "$(git rev-parse --git-dir)"
 }
 
 workflows_hash() {
-	local files
-	files=(.github/workflows/*.yml)
-	sha256sum "${files[@]}" | sha256sum | cut -d' ' -f1
+        local files
+        files=(.github/workflows/*.yml)
+        sha256sum "${files[@]}" | sha256sum | cut -d' ' -f1
 }
 
 # ── version math (classification only; the sweep owns the truth) ───────────
 
 bump_class() {
-	local cur="$1" new="$2"
-	local c1 c2 c3 n1 n2 n3
-	IFS='.' read -r c1 c2 c3 <<<"${cur#v}"
-	IFS='.' read -r n1 n2 n3 <<<"${new#v}"
-	[[ ${c1:-x} =~ ^[0-9]+$ && ${n1:-x} =~ ^[0-9]+$ ]] || {
-		printf 'MOVE'
-		return 0
-	}
-	if [ "${c1:-0}" -ne "${n1:-0}" ]; then
-		printf 'MAJOR'
-	elif [ "${c2:-0}" -ne "${n2:-0}" ]; then
-		printf 'MINOR'
-	elif [ "${c3:-0}" -ne "${n3:-0}" ]; then
-		printf 'PATCH'
-	else
-		printf 'RE-PIN'
-	fi
+        local cur="$1" new="$2"
+        local c1 c2 c3 n1 n2 n3
+        IFS='.' read -r c1 c2 c3 <<<"${cur#v}"
+        IFS='.' read -r n1 n2 n3 <<<"${new#v}"
+        [[ ${c1:-x} =~ ^[0-9]+$ && ${n1:-x} =~ ^[0-9]+$ ]] || {
+                printf 'MOVE'
+                return 0
+        }
+        if [ "${c1:-0}" -ne "${n1:-0}" ]; then
+                printf 'MAJOR'
+        elif [ "${c2:-0}" -ne "${n2:-0}" ]; then
+                printf 'MINOR'
+        elif [ "${c3:-0}" -ne "${n3:-0}" ]; then
+                printf 'PATCH'
+        else
+                printf 'RE-PIN'
+        fi
 }
 
 age_label() {
-	local age="$1"
-	if [ "$age" -lt 90 ]; then
-		printf 'checked just now'
-	elif [ "$age" -lt 5400 ]; then
-		printf 'cache %dm old' "$(((age + 59) / 60))"
-	else
-		printf 'cache %dh old' "$(((age + 3599) / 3600))"
-	fi
+        local age="$1"
+        if [ "$age" -lt 90 ]; then
+                printf 'checked just now'
+        elif [ "$age" -lt 5400 ]; then
+                printf 'cache %dm old' "$(((age + 59) / 60))"
+        else
+                printf 'cache %dh old' "$(((age + 3599) / 3600))"
+        fi
 }
 
 # ── verdict rendering ──────────────────────────────────────────────────────
@@ -248,110 +248,110 @@ RE_HEAL='^SWEEP: ([^ ]+) \([^)]+\) — ([^ ,]+) -> ([^ ,]+)'
 RE_VERDICT='^sweep verdict: ([0-9]+) healed, ([0-9]+) kept, ([0-9]+) skipped'
 
 render_verdict() {
-	local payload="$1" label="$2" mode="$3"
-	local line repo cur new key uses cls
-	healed=""
-	kept=0
-	skipped=0
-	local -A seen=()
-	local -a keys=()
-	local major_n=0 minor_n=0 patch_n=0 repin_n=0 move_n=0 pin_n=0
+        local payload="$1" label="$2" mode="$3"
+        local line repo cur new key uses cls
+        healed=""
+        kept=0
+        skipped=0
+        local -A seen=()
+        local -a keys=()
+        local major_n=0 minor_n=0 patch_n=0 repin_n=0 move_n=0 pin_n=0
 
-	# Honesty first: any pin the sweep could not size up makes the
-	# whole verdict unknown — "api unreachable" (quota, network) and
-	# "unresolvable" (a release whose commit SHA would not resolve)
-	# never read as "current".
-	if grep -Eq 'api unreachable|unresolvable' "$payload"; then
-		health "skipped — the sweep could not size up every pin (API unreachable mid-sweep); no verdict"
-		return 2
-	fi
+        # Honesty first: any pin the sweep could not size up makes the
+        # whole verdict unknown — "api unreachable" (quota, network) and
+        # "unresolvable" (a release whose commit SHA would not resolve)
+        # never read as "current".
+        if grep -Eq 'api unreachable|unresolvable' "$payload"; then
+                health "skipped — the sweep could not size up every pin (API unreachable mid-sweep); no verdict"
+                return 2
+        fi
 
-	while IFS= read -r line; do
-		if [[ $line =~ $RE_HEAL ]] && [[ $line == *" HEAL"* ]]; then
-			repo="${BASH_REMATCH[1]}"
-			cur="${BASH_REMATCH[2]}"
-			new="${BASH_REMATCH[3]}"
-			key="${repo}|${cur}|${new}"
-			if [ -n "${seen[$key]:-}" ]; then
-				seen[$key]=$((seen[$key] + 1))
-			else
-				seen[$key]=1
-				keys+=("$key")
-			fi
-		elif [[ $line =~ $RE_VERDICT ]]; then
-			healed="${BASH_REMATCH[1]}"
-			kept="${BASH_REMATCH[2]}"
-			skipped="${BASH_REMATCH[3]}"
-		fi
-	done <"$payload"
+        while IFS= read -r line; do
+                if [[ $line =~ $RE_HEAL ]] && [[ $line == *" HEAL"* ]]; then
+                        repo="${BASH_REMATCH[1]}"
+                        cur="${BASH_REMATCH[2]}"
+                        new="${BASH_REMATCH[3]}"
+                        key="${repo}|${cur}|${new}"
+                        if [ -n "${seen[$key]:-}" ]; then
+                                seen[$key]=$((seen[$key] + 1))
+                        else
+                                seen[$key]=1
+                                keys+=("$key")
+                        fi
+                elif [[ $line =~ $RE_VERDICT ]]; then
+                        healed="${BASH_REMATCH[1]}"
+                        kept="${BASH_REMATCH[2]}"
+                        skipped="${BASH_REMATCH[3]}"
+                fi
+        done <"$payload"
 
-	if [ -z "$healed" ]; then
-		health "skipped — the sweep's verdict line did not parse; no verdict"
-		return 2
-	fi
-	if [ "$healed" -gt 0 ] && [ "${#keys[@]}" -eq 0 ]; then
-		health "skipped — the sweep's HEAL lines did not parse; no verdict"
-		return 2
-	fi
+        if [ -z "$healed" ]; then
+                health "skipped — the sweep's verdict line did not parse; no verdict"
+                return 2
+        fi
+        if [ "$healed" -gt 0 ] && [ "${#keys[@]}" -eq 0 ]; then
+                health "skipped — the sweep's HEAL lines did not parse; no verdict"
+                return 2
+        fi
 
-	if [ "$healed" -eq 0 ]; then
-		if [ "$((kept + skipped))" -gt 0 ]; then
-			health "CI actions pins current — ${kept} kept, ${skipped} skipped-for-cause (${label})"
-		else
-			health "CI actions pins current — no version pins found (${label})"
-		fi
-		return 0
-	fi
+        if [ "$healed" -eq 0 ]; then
+                if [ "$((kept + skipped))" -gt 0 ]; then
+                        health "CI actions pins current — ${kept} kept, ${skipped} skipped-for-cause (${label})"
+                else
+                        health "CI actions pins current — no version pins found (${label})"
+                fi
+                return 0
+        fi
 
-	# The classified table: one row per distinct pin move, with the
-	# pin count when the same action is pinned in many files.
-	local repo_w=0 cur_w=0 new_w=0 r c n
-	for key in "${keys[@]}"; do
-		IFS='|' read -r r c n <<<"$key"
-		[ "${#r}" -gt "$repo_w" ] && repo_w="${#r}"
-		[ "${#c}" -gt "$cur_w" ] && cur_w="${#c}"
-		[ "${#n}" -gt "$new_w" ] && new_w="${#n}"
-	done
-	if [ "$mode" = "strict" ]; then
-		health "FAIL — CI actions pins are behind upstream (strict mode; the commit is blocked):"
-	else
-		health "WARNING — CI actions pins are behind upstream (advisory mode; the commit proceeds):"
-	fi
-	echo ""
-	for key in "${keys[@]}"; do
-		IFS='|' read -r r c n <<<"$key"
-		uses="${seen[$key]}"
-		cls="$(bump_class "$c" "$n")"
-		pin_n=$((pin_n + uses))
-		move_n=$((move_n + 1))
-		case "$cls" in
-		MAJOR) major_n=$((major_n + 1)) ;;
-		MINOR) minor_n=$((minor_n + 1)) ;;
-		PATCH) patch_n=$((patch_n + 1)) ;;
-		RE-PIN) repin_n=$((repin_n + 1)) ;;
-		esac
-		printf '    %-*s  %-*s -> %-*s  [%s]' "$repo_w" "$r" "$cur_w" "$c" "$new_w" "$n" "$cls"
-		[ "$uses" -gt 1 ] && printf '  (%d pins)' "$uses"
-		echo ""
-	done
-	local repin_note=""
-	[ "$repin_n" -gt 0 ] && repin_note=" (+${repin_n} SHA re-pin)"
-	echo ""
-	health "${pin_n} pins behind across ${move_n} moves — ${major_n} MAJOR, ${minor_n} MINOR, ${patch_n} PATCH${repin_note}"
-	if [ "$mode" = "strict" ]; then
-		echo ""
-		echo "    heal and re-commit:  scripts/ci/actions-version-sweep.sh --apply"
-		echo "    or update first:     git pull (a contributor may have healed them on origin)"
-		echo "    one-shot advisory:   ZELYNIC_ACTIONS_HEALTH=warn git commit ..."
-		echo "    skip every hook:     git commit --no-verify"
-	else
-		echo ""
-		echo "    heal locally:        scripts/ci/actions-version-sweep.sh --apply"
-		echo "    or update first:     git pull (a contributor may have healed them on origin)"
-		echo "    make it blocking:    git config zelynic.actionsHealthCheck strict"
-		echo "    silence for once:    ZELYNIC_ACTIONS_HEALTH=off git commit ..."
-	fi
-	return 1
+        # The classified table: one row per distinct pin move, with the
+        # pin count when the same action is pinned in many files.
+        local repo_w=0 cur_w=0 new_w=0 r c n
+        for key in "${keys[@]}"; do
+                IFS='|' read -r r c n <<<"$key"
+                [ "${#r}" -gt "$repo_w" ] && repo_w="${#r}"
+                [ "${#c}" -gt "$cur_w" ] && cur_w="${#c}"
+                [ "${#n}" -gt "$new_w" ] && new_w="${#n}"
+        done
+        if [ "$mode" = "strict" ]; then
+                health "FAIL — CI actions pins are behind upstream (strict mode; the commit is blocked):"
+        else
+                health "WARNING — CI actions pins are behind upstream (advisory mode; the commit proceeds):"
+        fi
+        echo ""
+        for key in "${keys[@]}"; do
+                IFS='|' read -r r c n <<<"$key"
+                uses="${seen[$key]}"
+                cls="$(bump_class "$c" "$n")"
+                pin_n=$((pin_n + uses))
+                move_n=$((move_n + 1))
+                case "$cls" in
+                MAJOR) major_n=$((major_n + 1)) ;;
+                MINOR) minor_n=$((minor_n + 1)) ;;
+                PATCH) patch_n=$((patch_n + 1)) ;;
+                RE-PIN) repin_n=$((repin_n + 1)) ;;
+                esac
+                printf '    %-*s  %-*s -> %-*s  [%s]' "$repo_w" "$r" "$cur_w" "$c" "$new_w" "$n" "$cls"
+                [ "$uses" -gt 1 ] && printf '  (%d pins)' "$uses"
+                echo ""
+        done
+        local repin_note=""
+        [ "$repin_n" -gt 0 ] && repin_note=" (+${repin_n} SHA re-pin)"
+        echo ""
+        health "${pin_n} pins behind across ${move_n} moves — ${major_n} MAJOR, ${minor_n} MINOR, ${patch_n} PATCH${repin_note}"
+        if [ "$mode" = "strict" ]; then
+                echo ""
+                echo "    heal and re-commit:  scripts/ci/actions-version-sweep.sh --apply"
+                echo "    or update first:     git pull (a contributor may have healed them on origin)"
+                echo "    one-shot advisory:   ZELYNIC_ACTIONS_HEALTH=warn git commit ..."
+                echo "    skip every hook:     git commit --no-verify"
+        else
+                echo ""
+                echo "    heal locally:        scripts/ci/actions-version-sweep.sh --apply"
+                echo "    or update first:     git pull (a contributor may have healed them on origin)"
+                echo "    make it blocking:    git config zelynic.actionsHealthCheck strict"
+                echo "    silence for once:    ZELYNIC_ACTIONS_HEALTH=off git commit ..."
+        fi
+        return 1
 }
 
 # ── the auto mode (NIGHT-improve-40 fixup 1: skip-if-latest, auto-heal) ───
@@ -365,9 +365,9 @@ render_verdict() {
 # writes provably stayed inside .github/workflows/, auto_heal).
 
 heal_timeout_seconds() {
-	local t="${ZELYNIC_ACTIONS_HEAL_TIMEOUT:-$DEFAULT_HEAL_TIMEOUT}"
-	[[ $t =~ ^[0-9]+$ ]] || t="$DEFAULT_HEAL_TIMEOUT"
-	printf '%s' "$t"
+        local t="${ZELYNIC_ACTIONS_HEAL_TIMEOUT:-$DEFAULT_HEAL_TIMEOUT}"
+        [[ $t =~ ^[0-9]+$ ]] || t="$DEFAULT_HEAL_TIMEOUT"
+        printf '%s' "$t"
 }
 
 # cold_check — one cold re-verify for the write decision: pre-flight,
@@ -378,75 +378,75 @@ heal_timeout_seconds() {
 # behind) is written to the cache, the same read contract as the main
 # cold path; rc=2 stays uncached exactly as there.
 cold_check() {
-	local payload rc
-	rc=0
-	preflight || rc=$?
-	if [ "$rc" -eq 1 ]; then
-		health "re-verify: GitHub API unreachable (offline or blocked${PREFLIGHT_NOTE:+ — ${PREFLIGHT_NOTE}}); pins unchecked"
-		return 3
-	elif [ "$rc" -eq 2 ]; then
-		if [ -n "$QUOTA_LIMIT" ] && [ "$QUOTA_LIMIT" -lt "$QUOTA_FLOOR" ]; then
-			if [ -n "${GITHUB_TOKEN:-}" ]; then
-				health "re-verify: API ceiling ${QUOTA_LIMIT}/h under the resolved token can never cover the ${QUOTA_FLOOR}-call cold-sweep floor"
-			else
-				health "re-verify: API ceiling ${QUOTA_LIMIT}/h can never cover the ${QUOTA_FLOOR}-call cold-sweep floor — no token resolved (export GITHUB_TOKEN, gh auth login, or store a github.com credential)"
-			fi
-		else
-			health "re-verify: GitHub API quota below ${QUOTA_FLOOR} calls; retry after the quota resets"
-		fi
-		return 3
-	fi
-	payload="$(mktemp /tmp/zelynic-health-reverify.XXXXXX)"
-	if timeout "$(timeout_seconds)" bash "$SWEEP_SCRIPT" --dry-run >"$payload" 2>&1; then
-		rc=0
-		render_verdict "$payload" "checked just now" warn || rc=$?
-		if [ "$rc" -ne 2 ]; then
-			write_cache "$payload"
-		fi
-		rm -f "$payload"
-		return "$rc"
-	fi
-	rm -f "$payload"
-	health "re-verify: the sweep overran its $(timeout_seconds)s budget; refreshing in the background"
-	mkdir -p "$(dirname "$(cache_file)")"
-	nohup bash "$REPO_ROOT/scripts/gates/check-actions-pins.sh" --refresh-cache >/dev/null 2>&1 &
-	return 3
+        local payload rc
+        rc=0
+        preflight || rc=$?
+        if [ "$rc" -eq 1 ]; then
+                health "re-verify: GitHub API unreachable (offline or blocked${PREFLIGHT_NOTE:+ — ${PREFLIGHT_NOTE}}); pins unchecked"
+                return 3
+        elif [ "$rc" -eq 2 ]; then
+                if [ -n "$QUOTA_LIMIT" ] && [ "$QUOTA_LIMIT" -lt "$QUOTA_FLOOR" ]; then
+                        if [ -n "${GITHUB_TOKEN:-}" ]; then
+                                health "re-verify: API ceiling ${QUOTA_LIMIT}/h under the resolved token can never cover the ${QUOTA_FLOOR}-call cold-sweep floor"
+                        else
+                                health "re-verify: API ceiling ${QUOTA_LIMIT}/h can never cover the ${QUOTA_FLOOR}-call cold-sweep floor — no token resolved (export GITHUB_TOKEN, gh auth login, or store a github.com credential)"
+                        fi
+                else
+                        health "re-verify: GitHub API quota below ${QUOTA_FLOOR} calls; retry after the quota resets"
+                fi
+                return 3
+        fi
+        payload="$(mktemp /tmp/zelynic-health-reverify.XXXXXX)"
+        if timeout "$(timeout_seconds)" bash "$SWEEP_SCRIPT" --dry-run >"$payload" 2>&1; then
+                rc=0
+                render_verdict "$payload" "checked just now" warn || rc=$?
+                if [ "$rc" -ne 2 ]; then
+                        write_cache "$payload"
+                fi
+                rm -f "$payload"
+                return "$rc"
+        fi
+        rm -f "$payload"
+        health "re-verify: the sweep overran its $(timeout_seconds)s budget; refreshing in the background"
+        mkdir -p "$(dirname "$(cache_file)")"
+        nohup bash "$REPO_ROOT/scripts/gates/check-actions-pins.sh" --refresh-cache >/dev/null 2>&1 &
+        return 3
 }
 
 # auto_cached_verdict <payload-file> <age-label> — the cache-hit seat.
 # Current: silent. Indeterminate: the skip note. Clean-behind: today's
 # truth first — a cached behind is a read, not a write mandate.
 auto_cached_verdict() {
-	local payload="$1" label="$2" out rc cold_rc cold_out
-	rc=0
-	out="$(render_verdict "$payload" "$label" warn)" || rc=$?
-	rm -f "$payload"
-	if [ "$rc" -eq 0 ]; then
-		exit 0
-	fi
-	if [ "$rc" -eq 2 ]; then
-		printf '%s\n' "$out"
-		exit 0
-	fi
-	health "auto: the cache says behind — re-verifying cold before any heal"
-	cold_rc=0
-	cold_out="$(cold_check)" || cold_rc=$?
-	case "$cold_rc" in
-	0)
-		health "auto: the re-verify says current — the cached behind was stale; nothing to heal"
-		exit 0
-		;;
-	2)
-		printf '%s\n' "$cold_out"
-		exit 0
-		;;
-	1) auto_heal "$cold_out" ;;
-	*)
-		printf '%s\n' "$cold_out"
-		printf '%s\n' "$out"
-		exit 0
-		;;
-	esac
+        local payload="$1" label="$2" out rc cold_rc cold_out
+        rc=0
+        out="$(render_verdict "$payload" "$label" warn)" || rc=$?
+        rm -f "$payload"
+        if [ "$rc" -eq 0 ]; then
+                exit 0
+        fi
+        if [ "$rc" -eq 2 ]; then
+                printf '%s\n' "$out"
+                exit 0
+        fi
+        health "auto: the cache says behind — re-verifying cold before any heal"
+        cold_rc=0
+        cold_out="$(cold_check)" || cold_rc=$?
+        case "$cold_rc" in
+        0)
+                health "auto: the re-verify says current — the cached behind was stale; nothing to heal"
+                exit 0
+                ;;
+        2)
+                printf '%s\n' "$cold_out"
+                exit 0
+                ;;
+        1) auto_heal "$cold_out" ;;
+        *)
+                printf '%s\n' "$cold_out"
+                printf '%s\n' "$out"
+                exit 0
+                ;;
+        esac
 }
 
 # auto_cold_verdict <payload-file> — the cold seat: the verdict is
@@ -454,20 +454,20 @@ auto_cached_verdict() {
 # lands in the cache for the next commit), indeterminate prints its
 # skip note, and clean-behind heals immediately.
 auto_cold_verdict() {
-	local payload="$1" out rc
-	rc=0
-	out="$(render_verdict "$payload" "checked just now" warn)" || rc=$?
-	if [ "$rc" -eq 2 ]; then
-		printf '%s\n' "$out"
-		rm -f "$payload"
-		exit 0
-	fi
-	write_cache "$payload"
-	rm -f "$payload"
-	if [ "$rc" -eq 0 ]; then
-		exit 0
-	fi
-	auto_heal "$out"
+        local payload="$1" out rc
+        rc=0
+        out="$(render_verdict "$payload" "checked just now" warn)" || rc=$?
+        if [ "$rc" -eq 2 ]; then
+                printf '%s\n' "$out"
+                rm -f "$payload"
+                exit 0
+        fi
+        write_cache "$payload"
+        rm -f "$payload"
+        if [ "$rc" -eq 0 ]; then
+                exit 0
+        fi
+        auto_heal "$out"
 }
 
 # auto_heal <warn-shape output for the fallback> — the write seat.
@@ -496,101 +496,101 @@ auto_cold_verdict() {
 # Exits: 1 = healed and staged (the commit fails once on purpose);
 # 0 = fallback (advisory table) or the verdict moved to current.
 auto_heal() {
-	local warn_table="$1"
-	local backup pre_list post_list heal_out
-	local rc heals
-	local delta offenders nonwf_pre nonwf_post applied
+        local warn_table="$1"
+        local backup pre_list post_list heal_out
+        local rc heals
+        local delta offenders nonwf_pre nonwf_post applied
 
-	backup="$(mktemp -d /tmp/zelynic-heal-backup.XXXXXX)"
-	cp .github/workflows/*.yml "$backup/"
-	pre_list="$(mktemp /tmp/zelynic-heal-pre.XXXXXX)"
-	post_list="$(mktemp /tmp/zelynic-heal-post.XXXXXX)"
-	heal_out="$(mktemp /tmp/zelynic-heal-apply.XXXXXX)"
+        backup="$(mktemp -d /tmp/zelynic-heal-backup.XXXXXX)"
+        cp .github/workflows/*.yml "$backup/"
+        pre_list="$(mktemp /tmp/zelynic-heal-pre.XXXXXX)"
+        post_list="$(mktemp /tmp/zelynic-heal-post.XXXXXX)"
+        heal_out="$(mktemp /tmp/zelynic-heal-apply.XXXXXX)"
 
-	# Nested helpers (bash dynamic scope: they read this frame's
-	# locals — the backup, the delta, the fallback table).
-	heal_cleanup() {
-		rm -rf "$backup"
-		rm -f "$pre_list" "$post_list" "$heal_out"
-	}
-	heal_abort() {
-		local reason="$1"
-		# Restore the pre-apply tree exactly: workflows from the
-		# backup (a contributor's unstaged workflow edits ride back
-		# too); out-of-bounds files were clean pre-apply by delta
-		# definition, so checkout returns them untouched.
-		cp "$backup"/*.yml .github/workflows/ 2>/dev/null || true
-		[ -z "$offenders" ] || printf '%s\n' "$offenders" | xargs -r git checkout -- 2>/dev/null || true
-		heal_cleanup
-		health "auto-heal aborted — ${reason}; nothing staged, the advisory verdict follows"
-		printf '%s\n' "$warn_table"
-		exit 0
-	}
-	heal_moved() {
-		local moved_rc=0 moved_out
-		moved_out="$(render_verdict "$heal_out" "checked just now" warn)" || moved_rc=$?
-		heal_cleanup
-		if [ "$moved_rc" -eq 0 ]; then
-			health "auto: the apply re-read upstream and found the pins current — the dry-run's verdict was stale, nothing to heal"
-			exit 0
-		fi
-		printf '%s\n' "$moved_out"
-		printf '%s\n' "$warn_table"
-		exit 0
-	}
-	heal_succeed() {
-		if ! git add .github/workflows/; then
-			heal_abort "staging the healed workflows failed (git add)"
-		fi
-		heal_cleanup
-		health "auto-heal: ${heals} pin(s) healed into the index — this commit was stopped ONCE on purpose"
-		health "review git diff --cached, then re-commit; the re-commit reads the healed pins as current and stays silent"
-		health "prefer the manual lane instead: ZELYNIC_ACTIONS_HEALTH=warn, then scripts/ci/actions-version-sweep.sh --apply"
-		exit 1
-	}
+        # Nested helpers (bash dynamic scope: they read this frame's
+        # locals — the backup, the delta, the fallback table).
+        heal_cleanup() {
+                rm -rf "$backup"
+                rm -f "$pre_list" "$post_list" "$heal_out"
+        }
+        heal_abort() {
+                local reason="$1"
+                # Restore the pre-apply tree exactly: workflows from the
+                # backup (a contributor's unstaged workflow edits ride back
+                # too); out-of-bounds files were clean pre-apply by delta
+                # definition, so checkout returns them untouched.
+                cp "$backup"/*.yml .github/workflows/ 2>/dev/null || true
+                [ -z "$offenders" ] || printf '%s\n' "$offenders" | xargs -r git checkout -- 2>/dev/null || true
+                heal_cleanup
+                health "auto-heal aborted — ${reason}; nothing staged, the advisory verdict follows"
+                printf '%s\n' "$warn_table"
+                exit 0
+        }
+        heal_moved() {
+                local moved_rc=0 moved_out
+                moved_out="$(render_verdict "$heal_out" "checked just now" warn)" || moved_rc=$?
+                heal_cleanup
+                if [ "$moved_rc" -eq 0 ]; then
+                        health "auto: the apply re-read upstream and found the pins current — the dry-run's verdict was stale, nothing to heal"
+                        exit 0
+                fi
+                printf '%s\n' "$moved_out"
+                printf '%s\n' "$warn_table"
+                exit 0
+        }
+        heal_succeed() {
+                if ! git add .github/workflows/; then
+                        heal_abort "staging the healed workflows failed (git add)"
+                fi
+                heal_cleanup
+                health "auto-heal: ${heals} pin(s) healed into the index — this commit was stopped ONCE on purpose"
+                health "review git diff --cached, then re-commit; the re-commit reads the healed pins as current and stays silent"
+                health "prefer the manual lane instead: ZELYNIC_ACTIONS_HEALTH=warn, then scripts/ci/actions-version-sweep.sh --apply"
+                exit 1
+        }
 
-	{
-		git diff --name-only
-		git diff --cached --name-only
-	} | sort -u >"$pre_list"
-	nonwf_pre="$(git diff -- . ':(exclude).github/workflows/' | sha256sum | cut -d' ' -f1)"
+        {
+                git diff --name-only
+                git diff --cached --name-only
+        } | sort -u >"$pre_list"
+        nonwf_pre="$(git diff -- . ':(exclude).github/workflows/' | sha256sum | cut -d' ' -f1)"
 
-	rc=0
-	timeout "$(heal_timeout_seconds)" bash "$SWEEP_SCRIPT" --apply >"$heal_out" 2>&1 || rc=$?
+        rc=0
+        timeout "$(heal_timeout_seconds)" bash "$SWEEP_SCRIPT" --apply >"$heal_out" 2>&1 || rc=$?
 
-	{
-		git diff --name-only
-		git diff --cached --name-only
-	} | sort -u >"$post_list"
-	nonwf_post="$(git diff -- . ':(exclude).github/workflows/' | sha256sum | cut -d' ' -f1)"
-	delta="$(comm -13 "$pre_list" "$post_list")"
-	offenders="$(printf '%s' "$delta" | grep -Ev '^\.github/workflows/[A-Za-z0-9_.-]+\.yml$' || true)"
-	heals="$(grep -c ' HEAL' "$heal_out" || true)"
-	heals="${heals:-0}"
-	applied=""
-	if grep -q '^sweep verdict:' "$heal_out"; then
-		applied="verdict"
-	elif grep -q '^FAIL: tracked files outside' "$heal_out"; then
-		applied="guard"
-	fi
+        {
+                git diff --name-only
+                git diff --cached --name-only
+        } | sort -u >"$post_list"
+        nonwf_post="$(git diff -- . ':(exclude).github/workflows/' | sha256sum | cut -d' ' -f1)"
+        delta="$(comm -13 "$pre_list" "$post_list")"
+        offenders="$(printf '%s' "$delta" | grep -Ev '^\.github/workflows/[A-Za-z0-9_.-]+\.yml$' || true)"
+        heals="$(grep -c ' HEAL' "$heal_out" || true)"
+        heals="${heals:-0}"
+        applied=""
+        if grep -q '^sweep verdict:' "$heal_out"; then
+                applied="verdict"
+        elif grep -q '^FAIL: tracked files outside' "$heal_out"; then
+                applied="guard"
+        fi
 
-	if grep -Eq 'api unreachable|unresolvable' "$heal_out"; then
-		heal_abort "the sweep could not size up every pin mid-apply (API unreachable)"
-	elif [ -z "$applied" ]; then
-		heal_abort "the apply never reached its write stage (budget $(heal_timeout_seconds)s, network, or an early crash)"
-	elif [ "$heals" -eq 0 ]; then
-		# A completed apply with zero heals: upstream moved — the
-		# apply's own payload is the verdict now, not the dry's.
-		heal_moved
-	elif [ -n "$offenders" ]; then
-		heal_abort "the sweep's writes left .github/workflows/ (the offenders were restored)"
-	elif [ "$nonwf_pre" != "$nonwf_post" ]; then
-		heal_abort "the non-workflow tree changed under the apply"
-	elif [ -z "$delta" ]; then
-		heal_abort "the apply completed but the tree shows no pin changes"
-	else
-		heal_succeed
-	fi
+        if grep -Eq 'api unreachable|unresolvable' "$heal_out"; then
+                heal_abort "the sweep could not size up every pin mid-apply (API unreachable)"
+        elif [ -z "$applied" ]; then
+                heal_abort "the apply never reached its write stage (budget $(heal_timeout_seconds)s, network, or an early crash)"
+        elif [ "$heals" -eq 0 ]; then
+                # A completed apply with zero heals: upstream moved — the
+                # apply's own payload is the verdict now, not the dry's.
+                heal_moved
+        elif [ -n "$offenders" ]; then
+                heal_abort "the sweep's writes left .github/workflows/ (the offenders were restored)"
+        elif [ "$nonwf_pre" != "$nonwf_post" ]; then
+                heal_abort "the non-workflow tree changed under the apply"
+        elif [ -z "$delta" ]; then
+                heal_abort "the apply completed but the tree shows no pin changes"
+        else
+                heal_succeed
+        fi
 }
 
 # ── network pre-flight ─────────────────────────────────────────────────────
@@ -606,46 +606,53 @@ auto_heal() {
 # reset that cannot reach the floor.
 
 preflight() {
-	local body status remaining limit
-	# NIGHT-improve-69: resolve the machine's own token on the one
-	# path that pays for the network (env -> gh -> git credential
-	# helper, never a new standing secret) and hand it to every
-	# child the sweep spawns; a cache hit never reaches here.
-	if [ -z "${GITHUB_TOKEN:-}" ]; then
-		GITHUB_TOKEN="$(resolve_github_token)"
-		if [ -n "$GITHUB_TOKEN" ]; then
-			export GITHUB_TOKEN
-		fi
-	fi
-	PREFLIGHT_NOTE=""
-	local args=(-sS --connect-timeout 5 --max-time 8 -w '\n%{http_code}')
-	args+=("${API_ROOT}/rate_limit")
-	if [ -n "${GITHUB_TOKEN:-}" ]; then
-		args+=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
-	fi
-	body="$(curl "${args[@]}" 2>/dev/null || true)"
-	status="${body##*$'\n'}"
-	status="${status:-000}"
-	# The unreachable note names the shape (NIGHT-improve-69): "no
-	# HTTP answer" is a network fact, HTTP 401 names a rejected
-	# token, any other code names the middlebox — the old bare
-	# "offline or blocked" left the owner guessing which one.
-	if [ "$status" = "000" ]; then
-		PREFLIGHT_NOTE="no HTTP answer — connection failed, DNS, or a blocking middlebox"
-	elif [ "$status" = "401" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
-		PREFLIGHT_NOTE="HTTP 401 — the resolved token was rejected (check GITHUB_TOKEN, gh auth, or the git credential helper)"
-	elif [ "$status" != "200" ]; then
-		PREFLIGHT_NOTE="HTTP ${status}"
-	fi
-	[ "$status" = "200" ] || return 1
-	remaining="$(printf '%s' "${body%$'\n'*}" | jq -r '.resources.core.remaining // empty' 2>/dev/null || true)"
-	[[ $remaining =~ ^[0-9]+$ ]] || return 0
-	limit="$(printf '%s' "${body%$'\n'*}" | jq -r '.resources.core.limit // empty' 2>/dev/null || true)"
-	if [[ $limit =~ ^[0-9]+$ ]]; then
-		QUOTA_LIMIT="$limit"
-	fi
-	[ "$remaining" -ge "$QUOTA_FLOOR" ] || return 2
-	return 0
+        local body status remaining limit
+        # NIGHT-improve-69: resolve the machine's own token on the one
+        # path that pays for the network (env -> gh -> git credential
+        # helper, never a new standing secret) and hand it to every
+        # child the sweep spawns; a cache hit never reaches here.
+        if [ -z "${GITHUB_TOKEN:-}" ]; then
+                GITHUB_TOKEN="$(resolve_github_token)"
+                if [ -n "$GITHUB_TOKEN" ]; then
+                        export GITHUB_TOKEN
+                fi
+        fi
+        PREFLIGHT_NOTE=""
+        local args=(-sS --connect-timeout 5 --max-time 8 -w '\n%{http_code}')
+        args+=("${API_ROOT}/rate_limit")
+        # X1 (night-dragon-maintenance-X1): the dated version header
+        # rides every API read this script makes (here and in the
+        # sweep child, which pins its own api_get) — GitHub's default
+        # version drifts without it, and a silent wire change reads
+        # exactly like the rate-limit failure class the Bearer header
+        # answers on the same request.
+        args+=(-H "X-GitHub-Api-Version: 2022-11-28")
+        if [ -n "${GITHUB_TOKEN:-}" ]; then
+                args+=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+        fi
+        body="$(curl "${args[@]}" 2>/dev/null || true)"
+        status="${body##*$'\n'}"
+        status="${status:-000}"
+        # The unreachable note names the shape (NIGHT-improve-69): "no
+        # HTTP answer" is a network fact, HTTP 401 names a rejected
+        # token, any other code names the middlebox — the old bare
+        # "offline or blocked" left the owner guessing which one.
+        if [ "$status" = "000" ]; then
+                PREFLIGHT_NOTE="no HTTP answer — connection failed, DNS, or a blocking middlebox"
+        elif [ "$status" = "401" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
+                PREFLIGHT_NOTE="HTTP 401 — the resolved token was rejected (check GITHUB_TOKEN, gh auth, or the git credential helper)"
+        elif [ "$status" != "200" ]; then
+                PREFLIGHT_NOTE="HTTP ${status}"
+        fi
+        [ "$status" = "200" ] || return 1
+        remaining="$(printf '%s' "${body%$'\n'*}" | jq -r '.resources.core.remaining // empty' 2>/dev/null || true)"
+        [[ $remaining =~ ^[0-9]+$ ]] || return 0
+        limit="$(printf '%s' "${body%$'\n'*}" | jq -r '.resources.core.limit // empty' 2>/dev/null || true)"
+        if [[ $limit =~ ^[0-9]+$ ]]; then
+                QUOTA_LIMIT="$limit"
+        fi
+        [ "$remaining" -ge "$QUOTA_FLOOR" ] || return 2
+        return 0
 }
 
 # ── cache ──────────────────────────────────────────────────────────────────
@@ -655,135 +662,135 @@ preflight() {
 # never hands a reader a half-written verdict.
 
 write_cache() {
-	local payload="$1" epoch hash tmp
-	epoch="$(date +%s)"
-	hash="$(workflows_hash)"
-	tmp="$(cache_file).tmp.$$"
-	mkdir -p "$(dirname "$(cache_file)")"
-	{
-		printf '%s\t%s\n' "$epoch" "$hash"
-		cat "$payload"
-	} >"$tmp"
-	mv "$tmp" "$(cache_file)"
+        local payload="$1" epoch hash tmp
+        epoch="$(date +%s)"
+        hash="$(workflows_hash)"
+        tmp="$(cache_file).tmp.$$"
+        mkdir -p "$(dirname "$(cache_file)")"
+        {
+                printf '%s\t%s\n' "$epoch" "$hash"
+                cat "$payload"
+        } >"$tmp"
+        mv "$tmp" "$(cache_file)"
 }
 
 # ── the background refresh (internal) ──────────────────────────────────────
 
 refresh_cache() {
-	local payload rc
-	payload="$(mktemp /tmp/zelynic-health-refresh.XXXXXX)"
-	trap 'rm -f "$payload"' EXIT
-	preflight || exit 0
-	rc=0
-	bash "$SWEEP_SCRIPT" --dry-run >"$payload" 2>&1 || rc=$?
-	if [ "$rc" -eq 0 ] && ! grep -Eq 'api unreachable|unresolvable' "$payload"; then
-		write_cache "$payload"
-	fi
-	exit 0
+        local payload rc
+        payload="$(mktemp /tmp/zelynic-health-refresh.XXXXXX)"
+        trap 'rm -f "$payload"' EXIT
+        preflight || exit 0
+        rc=0
+        bash "$SWEEP_SCRIPT" --dry-run >"$payload" 2>&1 || rc=$?
+        if [ "$rc" -eq 0 ] && ! grep -Eq 'api unreachable|unresolvable' "$payload"; then
+                write_cache "$payload"
+        fi
+        exit 0
 }
 
 # ── main ───────────────────────────────────────────────────────────────────
 
 main() {
-	local mode hash epoch c_hash age payload rc
-	case "${1:-}" in
-	--refresh-cache) refresh_cache ;;
-	-h | --help)
-		usage
-		exit 0
-		;;
-	"") ;;
-	*)
-		echo "unknown argument: $1 (this gate takes none; --refresh-cache is internal)" >&2
-		exit 2
-		;;
-	esac
+        local mode hash epoch c_hash age payload rc
+        case "${1:-}" in
+        --refresh-cache) refresh_cache ;;
+        -h | --help)
+                usage
+                exit 0
+                ;;
+        "") ;;
+        *)
+                echo "unknown argument: $1 (this gate takes none; --refresh-cache is internal)" >&2
+                exit 2
+                ;;
+        esac
 
-	# Guards: every one of these is a skip, never a failure — a
-	# contributor's commit never dies because a health probe could
-	# not run.
-	command -v git >/dev/null 2>&1 || skip_check "git not found"
-	git rev-parse --git-dir >/dev/null 2>&1 || skip_check "not inside a git work tree"
-	local tools_missing=""
-	for tool in curl jq sha256sum timeout; do
-		command -v "$tool" >/dev/null 2>&1 || tools_missing="${tools_missing} ${tool}"
-	done
-	[ -z "$tools_missing" ] || skip_check "missing tools:${tools_missing} (the check needs curl, jq, sha256sum, timeout)"
-	[ -f "$SWEEP_SCRIPT" ] || skip_check "the sweep engine ${SWEEP_SCRIPT} is not in this tree"
-	shopt -s nullglob
-	local workflows=(.github/workflows/*.yml)
-	shopt -u nullglob
-	[ "${#workflows[@]}" -gt 0 ] || skip_check "no .github/workflows/*.yml in this tree"
+        # Guards: every one of these is a skip, never a failure — a
+        # contributor's commit never dies because a health probe could
+        # not run.
+        command -v git >/dev/null 2>&1 || skip_check "git not found"
+        git rev-parse --git-dir >/dev/null 2>&1 || skip_check "not inside a git work tree"
+        local tools_missing=""
+        for tool in curl jq sha256sum timeout; do
+                command -v "$tool" >/dev/null 2>&1 || tools_missing="${tools_missing} ${tool}"
+        done
+        [ -z "$tools_missing" ] || skip_check "missing tools:${tools_missing} (the check needs curl, jq, sha256sum, timeout)"
+        [ -f "$SWEEP_SCRIPT" ] || skip_check "the sweep engine ${SWEEP_SCRIPT} is not in this tree"
+        shopt -s nullglob
+        local workflows=(.github/workflows/*.yml)
+        shopt -u nullglob
+        [ "${#workflows[@]}" -gt 0 ] || skip_check "no .github/workflows/*.yml in this tree"
 
-	mode="$(resolve_mode)"
-	[ "$mode" = "off" ] && exit 0
+        mode="$(resolve_mode)"
+        [ "$mode" = "off" ] && exit 0
 
-	# Cache hit: same workflows content, within the TTL. Costs zero
-	# API calls and no network.
-	hash="$(workflows_hash)"
-	if [ -f "$(cache_file)" ]; then
-		local meta
-		meta="$(head -n 1 "$(cache_file)" 2>/dev/null || true)"
-		epoch="${meta%%$'\t'*}"
-		c_hash="${meta##*$'\t'}"
-		if [[ $epoch =~ ^[0-9]+$ ]] && [ "$c_hash" = "$hash" ]; then
-			age=$(($(date +%s) - epoch))
-			if [ "$age" -lt "$(ttl_seconds)" ]; then
-				payload="$(mktemp /tmp/zelynic-health-hit.XXXXXX)"
-				trap 'rm -f "$payload"' EXIT
-				tail -n +2 "$(cache_file)" >"$payload"
-				if [ "$mode" = "auto" ]; then
-					auto_cached_verdict "$payload" "$(age_label "$age")"
-				fi
-				rc=0
-				render_verdict "$payload" "$(age_label "$age")" "$mode" || rc=$?
-				if [ "$rc" -eq 1 ] && [ "$mode" = "strict" ]; then
-					exit 1
-				fi
-				exit 0
-			fi
-		fi
-	fi
+        # Cache hit: same workflows content, within the TTL. Costs zero
+        # API calls and no network.
+        hash="$(workflows_hash)"
+        if [ -f "$(cache_file)" ]; then
+                local meta
+                meta="$(head -n 1 "$(cache_file)" 2>/dev/null || true)"
+                epoch="${meta%%$'\t'*}"
+                c_hash="${meta##*$'\t'}"
+                if [[ $epoch =~ ^[0-9]+$ ]] && [ "$c_hash" = "$hash" ]; then
+                        age=$(($(date +%s) - epoch))
+                        if [ "$age" -lt "$(ttl_seconds)" ]; then
+                                payload="$(mktemp /tmp/zelynic-health-hit.XXXXXX)"
+                                trap 'rm -f "$payload"' EXIT
+                                tail -n +2 "$(cache_file)" >"$payload"
+                                if [ "$mode" = "auto" ]; then
+                                        auto_cached_verdict "$payload" "$(age_label "$age")"
+                                fi
+                                rc=0
+                                render_verdict "$payload" "$(age_label "$age")" "$mode" || rc=$?
+                                if [ "$rc" -eq 1 ] && [ "$mode" = "strict" ]; then
+                                        exit 1
+                                fi
+                                exit 0
+                        fi
+                fi
+        fi
 
-	# Cold check: pre-flight, then the sweep under a budget.
-	rc=0
-	preflight || rc=$?
-	if [ "$rc" -eq 1 ]; then
-		skip_check "GitHub API unreachable (offline or blocked${PREFLIGHT_NOTE:+ — ${PREFLIGHT_NOTE}}); pins unchecked"
-	elif [ "$rc" -eq 2 ]; then
-		if [ -n "$QUOTA_LIMIT" ] && [ "$QUOTA_LIMIT" -lt "$QUOTA_FLOOR" ]; then
-			if [ -n "${GITHUB_TOKEN:-}" ]; then
-				skip_check "API ceiling ${QUOTA_LIMIT}/h under the resolved token can never cover the ${QUOTA_FLOOR}-call cold-sweep floor"
-			else
-				skip_check "API ceiling ${QUOTA_LIMIT}/h can never cover the ${QUOTA_FLOOR}-call cold-sweep floor — no token resolved (export GITHUB_TOKEN, gh auth login, or store a github.com credential in the git credential helper)"
-			fi
-		fi
-		skip_check "GitHub API quota below ${QUOTA_FLOOR} calls; pins unchecked (retry after the quota resets${GITHUB_TOKEN:+ under the resolved token})"
-	fi
+        # Cold check: pre-flight, then the sweep under a budget.
+        rc=0
+        preflight || rc=$?
+        if [ "$rc" -eq 1 ]; then
+                skip_check "GitHub API unreachable (offline or blocked${PREFLIGHT_NOTE:+ — ${PREFLIGHT_NOTE}}); pins unchecked"
+        elif [ "$rc" -eq 2 ]; then
+                if [ -n "$QUOTA_LIMIT" ] && [ "$QUOTA_LIMIT" -lt "$QUOTA_FLOOR" ]; then
+                        if [ -n "${GITHUB_TOKEN:-}" ]; then
+                                skip_check "API ceiling ${QUOTA_LIMIT}/h under the resolved token can never cover the ${QUOTA_FLOOR}-call cold-sweep floor"
+                        else
+                                skip_check "API ceiling ${QUOTA_LIMIT}/h can never cover the ${QUOTA_FLOOR}-call cold-sweep floor — no token resolved (export GITHUB_TOKEN, gh auth login, or store a github.com credential in the git credential helper)"
+                        fi
+                fi
+                skip_check "GitHub API quota below ${QUOTA_FLOOR} calls; pins unchecked (retry after the quota resets${GITHUB_TOKEN:+ under the resolved token})"
+        fi
 
-	payload="$(mktemp /tmp/zelynic-health-cold.XXXXXX)"
-	trap 'rm -f "$payload"' EXIT
-	if timeout "$(timeout_seconds)" bash "$SWEEP_SCRIPT" --dry-run >"$payload" 2>&1; then
-		rc=0
-		if [ "$mode" = "auto" ]; then
-			auto_cold_verdict "$payload"
-		fi
-		render_verdict "$payload" "checked just now" "$mode" || rc=$?
-		if [ "$rc" -eq 2 ]; then
-			exit 0
-		fi
-		write_cache "$payload"
-		if [ "$rc" -eq 1 ] && [ "$mode" = "strict" ]; then
-			exit 1
-		fi
-		exit 0
-	fi
-	# Overran the budget (or the sweep itself failed): skip loudly,
-	# refresh in the background so the next commit reads a verdict.
-	health "skipped — the sweep overran its $(timeout_seconds)s budget; refreshing in the background, the next commit reads the verdict"
-	mkdir -p "$(dirname "$(cache_file)")"
-	nohup bash "$REPO_ROOT/scripts/gates/check-actions-pins.sh" --refresh-cache >/dev/null 2>&1 &
-	exit 0
+        payload="$(mktemp /tmp/zelynic-health-cold.XXXXXX)"
+        trap 'rm -f "$payload"' EXIT
+        if timeout "$(timeout_seconds)" bash "$SWEEP_SCRIPT" --dry-run >"$payload" 2>&1; then
+                rc=0
+                if [ "$mode" = "auto" ]; then
+                        auto_cold_verdict "$payload"
+                fi
+                render_verdict "$payload" "checked just now" "$mode" || rc=$?
+                if [ "$rc" -eq 2 ]; then
+                        exit 0
+                fi
+                write_cache "$payload"
+                if [ "$rc" -eq 1 ] && [ "$mode" = "strict" ]; then
+                        exit 1
+                fi
+                exit 0
+        fi
+        # Overran the budget (or the sweep itself failed): skip loudly,
+        # refresh in the background so the next commit reads a verdict.
+        health "skipped — the sweep overran its $(timeout_seconds)s budget; refreshing in the background, the next commit reads the verdict"
+        mkdir -p "$(dirname "$(cache_file)")"
+        nohup bash "$REPO_ROOT/scripts/gates/check-actions-pins.sh" --refresh-cache >/dev/null 2>&1 &
+        exit 0
 }
 
 main "$@"
