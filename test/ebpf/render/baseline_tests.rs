@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! EAGLE EYES V2 pins (NIGHT-improve-1a): the baseline lane's fold
 //! lifecycle, the deviation bands, the dedupe, the convergence

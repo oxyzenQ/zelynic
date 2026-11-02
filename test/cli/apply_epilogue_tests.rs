@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Unit pins for the apply-verb success epilogue (NIGHT-improve-28):
 //! the owner's de-noised success surface — a green "OK." verdict plus

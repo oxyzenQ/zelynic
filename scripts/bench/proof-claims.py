@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-only
 # LOC_EXEMPT: one self-contained claims harness by design — the four
 # NIGHT-boost-12 false-negative fixes live with their evidence (the
 # owner-run numbers that motivated them, the mechanism comments, and

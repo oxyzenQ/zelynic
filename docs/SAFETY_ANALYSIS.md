@@ -1,5 +1,5 @@
 <!-- Copyright (C) 2026 rezky_nightky -->
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
 # Safety Analysis
 
@@ -1888,7 +1888,7 @@ had. ruff clean.
 
 ## License
 
-GPL-3.0-only — source code is fully open. Anyone can audit, modify, and
+AGPL-3.0-only — source code is fully open. Anyone can audit, modify, and
 verify every line of code.
 
 ## Conclusion
@@ -1896,7 +1896,7 @@ verify every line of code.
 zelynic is safe, non-malicious, and fails in the safe direction (allow all
 traffic on any error). It does not collect data, make network connections,
 or modify system files beyond BPF pin files. The source code is open for
-full audit under GPL-3.0-only.
+full audit under AGPL-3.0-only.
 
 <!-- ZELYNIC-DISCLAIMER -->
 <!--

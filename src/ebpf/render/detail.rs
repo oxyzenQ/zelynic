@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Connection detail lines (NIGHT-hunt-8 eagle eyes): the per-cgroup
 //! process-count label suffix and the indented socket-endpoint lines

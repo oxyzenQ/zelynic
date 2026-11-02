@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Unit pins for the zombie-policy sweep (NIGHT-hunt-43) — kept in
 //! the repo's single test/ tree (cosmostrix Pattern C) and

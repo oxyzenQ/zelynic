@@ -1,4 +1,4 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <!-- Copyright (C) 2026 rezky_nightky (oxyzenQ) -->
 
 # Release Asset Regression — v11.0.0-beta.3 / v11.0.0-beta.4

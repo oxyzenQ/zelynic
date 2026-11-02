@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The print_json primitive pins (night-dragon-maintenance-T1 (s),
 //! rewritten onto the hand-written lane by (S1)): the one write

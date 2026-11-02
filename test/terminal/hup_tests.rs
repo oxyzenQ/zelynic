@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The SIGHUP flag pins (night-peak-lts FIX-5). The live end-to-end
 //! proof — a real eagle-eyes session on a real pty exiting 0 on a

@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The SIGHUP graceful exit (night-peak-lts FIX-5): the eagle-eyes
 //! monitor takes the terminal-closed signal through the same Drop

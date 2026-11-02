@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-only
 """Check zelynic source policy rules."""
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MAX_LOC = 1000
 COPYRIGHT = "Copyright (C) 2026 rezky_nightky"
-SPDX = "SPDX-License-Identifier: GPL-3.0-only"
+SPDX = "SPDX-License-Identifier: AGPL-3.0-only"
 
 # Self-declared LOC exemption (NIGHT-hunt-29; NIGHT-improve-44 narrowed
 # it): a non-Rust file over MAX_LOC passes only when it carries the
@@ -108,7 +108,7 @@ def main() -> int:
     print(f"LOC limit: <= {MAX_LOC} for checked core/code files.")
     if exempt_over_cap:
         print(f"LOC exemptions (self-declared marker): {exempt_over_cap} file(s).")
-    print("Headers: copyright + GPL-3.0-only SPDX present.")
+    print("Headers: copyright + AGPL-3.0-only SPDX present.")
     return 0
 
 

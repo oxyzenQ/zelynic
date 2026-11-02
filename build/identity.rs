@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 // night-improve-66 (the build.rs split the 600-line law demanded):
 // the binary's own identity stamps — the rustc that compiled it and

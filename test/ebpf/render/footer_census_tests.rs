@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Footer census pins (NIGHT-engrave-7) — the counter-explosion
 //! ladder and the limit line's brand tier, split from footer_tests.rs

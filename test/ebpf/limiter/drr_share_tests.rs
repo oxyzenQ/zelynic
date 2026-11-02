@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! dinner-28: the learned-share simulation battery — the K-leaf
 //! decay class the live fair-share battery caught on every CI leg,

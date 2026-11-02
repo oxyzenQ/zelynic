@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! CLI suggestion ENGINE — the closest-match core (cosmostrix
 //! `cli/suggestion.rs` lineage, ported in NIGHT-hunt-5).

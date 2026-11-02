@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The unstrict family (NIGHT-hunt-29's LOC-cap split of
 //! reclaim.rs: the one-walk batch pushed the parent past the

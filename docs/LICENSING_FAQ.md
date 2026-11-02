@@ -1,18 +1,18 @@
 <!-- Copyright (C) 2026 rezky_nightky -->
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
 # zelynic Licensing FAQ
 
 Short answers to the questions that reach the licensing inbox most.
-The authoritative documents are [LICENSE](../LICENSE) (GPL-3.0-only),
+The authoritative documents are [LICENSE](../LICENSE) (AGPL-3.0-only),
 [COMMERCIAL_LICENSE.md](../COMMERCIAL_LICENSE.md) (the commercial
 offer), and [TRADEMARK.md](../TRADEMARK.md) (the Marks).
 
 ## Can I use this at my company for free?
 
-Only if you comply with GPL-3.0 — which means, among its obligations,
+Only if you comply with AGPL-3.0 — which means, among its obligations,
 open-sourcing your modifications and integrations and offering them
-under GPL-3.0-only to anyone you distribute to. If that works for you,
+under AGPL-3.0-only to anyone you distribute to. If that works for you,
 use it for free with the project's blessing. If your company cannot or
 will not meet the copyleft obligations, buy a commercial license —
 that is exactly what it is for. See
@@ -24,7 +24,7 @@ Tiers follow your total annual revenue:
 
 | Your annual revenue                | Tier                                 |
 | ---------------------------------- | ------------------------------------ |
-| No commercial use (hobby/personal) | Personal (free, GPL-3.0)             |
+| No commercial use (hobby/personal) | Personal (free, AGPL-3.0)             |
 | Solo dev / freelancer, < $100K     | Individual ($99/year)                |
 | $100K – $10M                       | Business ($9,999/year)               |
 | 5–19 nodes, internal use           | Enterprise Node ($2,499/node/year)   |
@@ -96,7 +96,7 @@ the owner verifies it on-chain. Full instructions and QR codes:
 
 ## Do I need a license for hobby use?
 
-No. GPL-3.0 covers personal, hobby, educational, and non-commercial
+No. AGPL-3.0 covers personal, hobby, educational, and non-commercial
 research use completely — no payment, no registration, no ask. The
 free path is not a trial.
 
@@ -121,11 +121,11 @@ Then you are the person the licensing docs warn about. Taking
 zelynic's code — stealing it, forking it illegally, stripping the
 license, or building a closed-source commercial product on it —
 without contacting the owner (rezky_nightky / oxyzenQ) and paying
-for the license is theft, not a gray area: a breach of GPL-3.0-only
+for the license is theft, not a gray area: a breach of AGPL-3.0-only
 and the Commercial License alike, and — in the owner's own words —
 the mark of the worst kind of human, a rotten one. The honest
 options are exactly two: open-source what you build under
-GPL-3.0-only (free and first-class), or buy the tier your revenue
+AGPL-3.0-only (free and first-class), or buy the tier your revenue
 honestly matches. Closed source without a license is not a third
 option — it is the one this warning exists for.
 

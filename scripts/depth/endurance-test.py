@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-only
 """zelynic endurance test — the ultra-long-horizon audit harness (NIGHT-blade-6).
 
 Design: the owner's blade-6 ask is a depth audit for ULTRA LONG

@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Eagle-eyes renderer pins (NIGHT-boost-1): rank ordering, column
 //! degradation ladder, footer honesty, target autodetect, and the

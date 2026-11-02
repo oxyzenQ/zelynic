@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The types.rs pins (Target parsing, rate bounds, the schema-layout
 //! size pins, the burst family) — split from types.rs's inline test

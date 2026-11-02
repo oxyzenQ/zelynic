@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 // The MMSPA resolution core, extracted pure (NIGHT-private-research-2
 // & think-like-light-years-2): the walk state machine and the cache

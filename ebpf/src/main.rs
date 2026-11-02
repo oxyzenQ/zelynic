@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 // zelynic eBPF observer, the pure-Rust BPF source (NIGHT-improve-1,
 // stage 3 port of the former bpf/observer.bpf.c; phase 3 deleted

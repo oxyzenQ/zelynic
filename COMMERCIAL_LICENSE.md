@@ -1,15 +1,15 @@
 <!-- Copyright (C) 2026 rezky_nightky -->
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
 # zelynic Commercial License
 
 zelynic is dual-licensed:
 
-- **GPL-3.0-only** for open-source use (see [LICENSE](LICENSE)).
+- **AGPL-3.0-only** for open-source use (see [LICENSE](LICENSE)).
 - **Commercial License** for proprietary and commercial use (this document).
 
 If your use of zelynic can satisfy the copyleft obligations of the
-GPL-3.0-only — including releasing your modifications, integrations, and
+AGPL-3.0-only — including releasing your modifications, integrations, and
 the corresponding source code to anyone you distribute to — you do not
 need to pay anything. The GPL path is complete, free, and first-class;
 it is not a trial. The Commercial License exists for the uses GPL
@@ -24,25 +24,25 @@ different terms.
 You need a Commercial License if any of the following describe your use:
 
 - **Production use at a company** — running zelynic to shape, limit, or
-  monitor traffic on commercial infrastructure, where the GPL's
+  monitor traffic on commercial infrastructure, where the AGPL's
   copyleft obligations (open-sourcing your modifications and
   integrations) cannot or will not be met.
 - **SaaS offerings** — providing a hosted service whose value depends on
   zelynic, where you would otherwise be obligated to release your
   service's zelynic-related source code.
 - **Internal business tools** — shipping zelynic inside a closed
-  internal tool, appliance, or image beyond what the GPL permits
+  internal tool, appliance, or image beyond what the AGPL permits
   without disclosure.
 - **Redistribution under different terms** — distributing zelynic (or a
-  derivative) under terms other than GPL-3.0-only.
-- **Any use that cannot meet GPL-3.0 copyleft obligations** — when in
+  derivative) under terms other than AGPL-3.0-only.
+- **Any use that cannot meet AGPL-3.0 copyleft obligations** — when in
   doubt about whether your use complies, that doubt is the signal to
   either study [LICENSE](LICENSE) carefully or buy the license that
   removes the question.
 
 ## 2. Who Does NOT Need One
 
-The following uses are fully covered by GPL-3.0-only and cost nothing:
+The following uses are fully covered by AGPL-3.0-only and cost nothing:
 
 - **Personal use** — limiting and monitoring bandwidth on your own
   machines.
@@ -66,7 +66,7 @@ license terms.
 
 | Tier                 | Price          | Target                                                        |
 | -------------------- | -------------- | ------------------------------------------------------------- |
-| Personal             | Free (GPL-3.0) | Hobby, personal, non-commercial, contributions                |
+| Personal             | Free (AGPL-3.0) | Hobby, personal, non-commercial, contributions                |
 | Individual           | $99/year       | Solo devs, freelancers, revenue < $100K/year                  |
 | Business             | $9,999/year    | SMB, revenue $100K – $10M/year                                |
 | Enterprise Node      | $2,499/node/year (min 5, max 19 nodes) | Enterprise deployments of 5–19 nodes, unlimited internal use   |
@@ -231,7 +231,7 @@ $9,999.
 ### Unauthorized Use
 
 zelynic's code is open to read, learn from, and build on — under
-GPL-3.0-only's honest terms, or under a paid Commercial License.
+AGPL-3.0-only's honest terms, or under a paid Commercial License.
 What is NOT open is taking it: stealing the code, forking it
 illegally, stripping or ignoring the license, or shipping it
 inside a closed-source commercial product — whether done by a
@@ -240,12 +240,12 @@ company or by an individual — without contacting the owner
 [with.rezky@gmail.com](mailto:with.rezky@gmail.com)) and paying
 for the license first. That is not a loophole, a gray area, or a
 clever business move. It is theft of one person's years of work,
-a breach of GPL-3.0-only and of this Commercial License, and —
+a breach of AGPL-3.0-only and of this Commercial License, and —
 in the owner's own words — the mark of the worst kind of human:
 a rotten one. If closed source is what you need, the commercial
 tiers exist precisely for that; buy the one that matches your
 use. If you cannot or will
-not pay, the GPL path is complete and free — open-source what
+not pay, the AGPL path is complete and free — open-source what
 you build. There is no third path that leaves you clean.
 
 ## 4. What Each Tier Grants

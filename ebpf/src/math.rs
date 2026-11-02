@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 // The zelynic enforcement math, extracted pure (NIGHT-depthbore-1):
 // the token-bucket arithmetic that runs inside the BPF program, with

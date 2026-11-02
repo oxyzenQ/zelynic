@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Pins for the bypass-shadow audit core (NIGHT-upgrade-charger-core-1-a):
 //! the sysfs aggregation seam (a /sys/class/net-shaped fixture, not the

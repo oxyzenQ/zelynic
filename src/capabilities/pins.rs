@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The BPF pin lattice (night-improve-64) — split from capabilities
 //! mod.rs by the NIGHT-improve-44 LOC law (a pure move, gates green

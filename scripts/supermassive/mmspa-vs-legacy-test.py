@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-only
 """zelynic MMSPA-vs-legacy depth test (NIGHT-perf-1) — the subtree
 contract proven as a DELTA between two real binaries.
 

@@ -1,5 +1,5 @@
 # Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-only
 
 # Python lint + format config for the gate-keepers ruff section
 # (NIGHT-improve-13, cosmostrix gate parity: "lint python").

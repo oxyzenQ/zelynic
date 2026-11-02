@@ -1,5 +1,5 @@
 <!-- Copyright (C) 2026 rezky_nightky -->
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
 # zelynic Q&A Record
 
@@ -417,7 +417,7 @@ carry the same narrative shape).
 - **The sign-off closes the provenance**: every commit carries
   `Signed-off-by` (DCO-style) — the audit trail states who
   researched and applied the change, which matters for a
-  dual-licensed (GPL-3.0-only + commercial) tree where contribution
+  dual-licensed (AGPL-3.0-only + commercial) tree where contribution
   provenance is a legal fact, not a courtesy
   (docs/LICENSING_FAQ.md).
 

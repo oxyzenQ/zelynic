@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 // NIGHT-improve-44 executes the NIGHT-improve-31 split plan: the
 // commit-sha chain (git / env / the registry vcs document) and its

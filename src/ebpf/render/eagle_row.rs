@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The eagle-eyes ranked data row (split from eagle.rs at the
 //! 600-LOC owner cap, night-improve-72 — the same pure-move

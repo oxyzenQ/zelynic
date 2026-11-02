@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The field-row primitive pins (night-dragon-maintenance-1, the
 //! masterclass UX-consistency law): the doctor's geometry is the one

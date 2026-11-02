@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Interactive-stdio guard pins (NIGHT-boost-28) — the monitor
 //! refuses to start unless BOTH stdio streams are terminals.

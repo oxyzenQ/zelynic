@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Target resolution (night-during's LOC-cap split of policy.rs: the
 //! --during threading pushed the parent past the 500-line owner cap;

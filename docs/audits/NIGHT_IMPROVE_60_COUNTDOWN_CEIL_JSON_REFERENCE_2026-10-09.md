@@ -1,4 +1,4 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <!-- Copyright (C) 2026 rezky_nightky (oxyzenQ) -->
 
 # The night-improve-60 audit — the countdown that rounded its own promise away

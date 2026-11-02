@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 // NIGHT-improve-44: the flow lane's pure law (schema v20,
 // CAKE-shaped isolation — the budget/allowance/sparse/take

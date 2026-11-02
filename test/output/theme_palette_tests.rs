@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The NIGHT-lts-9 computed accuracy pin: the xterm-256 cube,
 //! rebuilt in test code, grades the catalog's own rendered escapes.

@@ -1,5 +1,5 @@
 <!-- Copyright (C) 2026 rezky_nightky -->
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
 # Contributor License Agreement (CLA)
 
@@ -17,11 +17,11 @@ royalty-free, irrevocable** license to:
 
 - Use, reproduce, modify, and distribute your Contribution.
 - **Relicense your Contribution under any license**, including but not
-  limited to GPL-3.0-only, commercial licenses, or any future license
+  limited to AGPL-3.0-only, commercial licenses, or any future license
   the Owner chooses.
 
 This grant is necessary because zelynic is dual-licensed
-(GPL-3.0-only + Commercial). Without it, the Owner cannot legally
+(AGPL-3.0-only + Commercial). Without it, the Owner cannot legally
 offer commercial licenses for code that includes your Contribution.
 
 ## 2. Ownership

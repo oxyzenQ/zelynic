@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Untrusted-string sanitization — the terminal display boundary
 //! (NIGHT-cybersecurity-1; relocated from src/ebpf/identity/ by

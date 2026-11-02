@@ -1,4 +1,4 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <!-- Copyright (C) 2026 rezky_nightky (oxyzenQ) -->
 
 # The NIGHT-hunt-29 audit — the probe family, round four, and the synthetic-cookie fixture that closed lts-7's residual

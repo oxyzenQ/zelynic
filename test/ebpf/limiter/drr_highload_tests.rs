@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! NIGHT-hunt-Z6: the high-load shapes — the fair-share law's last
 //! open area (the Z4 offer's remaining candidate: DRR fairness

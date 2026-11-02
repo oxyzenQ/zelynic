@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! CLI UX contract — the single authority for user-facing CLI errors,
 //! tips, and usage lines (cosmostrix `cli/ux.rs` lineage, ported in

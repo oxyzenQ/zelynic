@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! CLI UX bridge pins: the single help footer, the help-position
 //! rescue, the case-insensitive flag fallback, the rate/duration

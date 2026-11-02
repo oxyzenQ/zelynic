@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The `eagle-eyes --depth --print-json` document (NIGHT-master-1;
 //! split from report.rs at NIGHT-blade-5 to hold both files under the

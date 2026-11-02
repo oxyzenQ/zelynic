@@ -1,4 +1,4 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <!-- Copyright (C) 2026 rezky_nightky (oxyzenQ) -->
 
 # The NIGHT-hunt-38 audit — eagle eyes walked to peak: the owner's transcript decoded, the max line's wobble, and the cap that could hide the answer

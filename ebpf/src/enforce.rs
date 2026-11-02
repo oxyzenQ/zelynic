@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 // NIGHT-improve-44: try_enforce — the one verdict path every
 // packet rides — moved out of limiter.rs at the 600-line cap.

@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The monitor loop's beat scheduler (NIGHT-improve-29 split, the
 //! screen.rs one-file-per-contract precedent — terminal/mod.rs sat

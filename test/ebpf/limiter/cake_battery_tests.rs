@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! schema v20, CAKE-shaped flow isolation: the battery pins — the
 //! find, the close, the edges, and the A/B fingerprint, calibrated

@@ -1,4 +1,4 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <!-- Copyright (C) 2026 rezky_nightky (oxyzenQ) -->
 
 # The NIGHT-mitigate-2 audit — the claims proof's lone red CI row root-caused and closed, the held-rate rows handed the fleet instrument

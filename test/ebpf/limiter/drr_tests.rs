@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! NIGHT-upgrade-charger-core-1c: precision pins for the DRR
 //! fair-share core (ebpf/src/drr.rs — the same file the BPF object

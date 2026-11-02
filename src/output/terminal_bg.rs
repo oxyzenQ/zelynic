@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The terminal-following background (NIGHT-boost-26, live since
 //! NIGHT-boost-32; its own module since NIGHT-dinner-30, when the

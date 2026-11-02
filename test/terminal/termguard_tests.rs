@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The violent-death terminal guard's pure pins (NIGHT-boost-33):
 //! the restore bytes' lockstep with the alt-screen contract and

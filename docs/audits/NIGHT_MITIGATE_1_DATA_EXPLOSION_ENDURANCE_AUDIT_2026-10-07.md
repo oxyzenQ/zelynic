@@ -1,4 +1,4 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <!-- Copyright (C) 2026 rezky_nightky (oxyzenQ) -->
 
 # The NIGHT-mitigate-1 / improve-51 audit — the data-explosion question, every counter surface answered with arithmetic (1 trillion packets, a 10-year monitor)

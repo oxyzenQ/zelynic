@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 // The zelynic ECN-first debt core (NIGHT-private-research-4, schema
 // v19): the pure arithmetic behind mark-instead-of-drop policing,

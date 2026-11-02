@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The one-color-law pins (NIGHT-improve-73): the clap error surface
 //! renders through the same capability ladder every other surface

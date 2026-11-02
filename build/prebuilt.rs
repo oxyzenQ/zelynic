@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 // The registry-prebuilt lane's manifest verification
 // (night-dragon-maintenance-0, the sibling zejtron build/prebuilt.rs

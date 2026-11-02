@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Terminal-background pins (NIGHT-boost-26/32): the pure escape
 //! cores, the paintable-depth filter, and the live word's packing —

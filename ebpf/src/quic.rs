@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 // The zelynic QUIC-aware attribution core (NIGHT-private-research-4
 // candidate, schema v22): the pure header arithmetic behind

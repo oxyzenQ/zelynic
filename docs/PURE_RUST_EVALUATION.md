@@ -1,5 +1,5 @@
 <!-- Copyright (C) 2026 rezky_nightky -->
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
 # Pure Rust eBPF Evaluation (NIGHT-improve-1, stage 1 + phase 2 + phase 3)
 

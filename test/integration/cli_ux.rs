@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Flag and error UX contract pins: rejected flags name themselves,
 //! typos get did-you-mean tips, global flags parse globally, and a

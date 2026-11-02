@@ -1,5 +1,5 @@
 # Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-only
 """zelynic test-harness shared engine (NIGHT-improve-11 / security-4).
 
 The flagship harnesses — supermassive-test.py (NIGHT-master-2, the

@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Pins for the per-endpoint byte attribution (NIGHT-boost-26, the
 //! 2.4 frontier closed): the `[dl X | ul Y]` figures riding the tree

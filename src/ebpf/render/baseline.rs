@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! EAGLE EYES V2 — baseline detection in the live monitor TUI
 //! (NIGHT-improve-1a), the purpose the in-kernel time-series ring

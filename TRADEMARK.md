@@ -1,9 +1,9 @@
 <!-- Copyright (C) 2026 rezky_nightky -->
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
 # zelynic Trademark Policy
 
-This document governs the use of the **zelynic** name, logo, and associated branding assets. It supplements, but does not replace, the GPL-3.0-only license that covers the source code.
+This document governs the use of the **zelynic** name, logo, and associated branding assets. It supplements, but does not replace, the AGPL-3.0-only license that covers the source code.
 
 Commercial licensing is separate from trademark licensing. A commercial
 source license (see [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md)) does
@@ -20,7 +20,7 @@ source license — the two are negotiated independently.
 
 ## 1. Trademark Ownership
 
-The name **"zelynic"** and all associated logos, icons, artwork, and visual identifiers (collectively, the **"Marks"**) are trademarks of the project creator (`rezky_nightky (oxyzenQ)`). These Marks are **not** covered by the GPL-3.0-only license granted to the source code and are reserved by the owner in full.
+The name **"zelynic"** and all associated logos, icons, artwork, and visual identifiers (collectively, the **"Marks"**) are trademarks of the project creator (`rezky_nightky (oxyzenQ)`). These Marks are **not** covered by the AGPL-3.0-only license granted to the source code and are reserved by the owner in full.
 
 The zelynic logo was created through AI-assisted generation under the direct, original creative direction and specific prompting of the owner. It is claimed and used exclusively as the brand identity (Trademark) of this project.
 
@@ -40,15 +40,15 @@ You may use the zelynic name and logo in a purely **attributive** manner to accu
 
 - Crediting zelynic in a "powered by" or "built with" section of your documentation or website.
 - Referencing the original project by name in articles, reviews, or academic papers.
-- Including the original name in source file headers as required by the GPL-3.0-only license attribution clause.
+- Including the original name in source file headers as required by the AGPL-3.0-only license attribution clause.
 
 ### 2.2. Non-commercial redistribution of unmodified copies
 
-Distributing **unmodified** copies of the zelynic binary or source code (including the original name, logo, and README) is permitted under the GPL-3.0-only license, provided that the license and copyright notices are preserved.
+Distributing **unmodified** copies of the zelynic binary or source code (including the original name, logo, and README) is permitted under the AGPL-3.0-only license, provided that the license and copyright notices are preserved.
 
 ### 2.3. Contribution forks (the cosmostrix lineage)
 
-Forking the source code under the terms of GPL-3.0-only for the purpose
+Forking the source code under the terms of AGPL-3.0-only for the purpose
 of contributing back to zelynic (bug fixes, features, PRs) is allowed
 without permission. Contribution forks may keep the zelynic name, logo,
 and branding unchanged — no rename or rebrand required — as long as the
@@ -114,7 +114,7 @@ redistribution under a different identity. These forks:
   confusingly similar name — "zelynic Pro", "zelynic Plus",
   "zelynicX" included).
 - MUST use different branding (logo, color scheme, artwork).
-- MUST preserve the GPL-3.0-only license and copyright notice.
+- MUST preserve the AGPL-3.0-only license and copyright notice.
 - MUST clearly state that the fork is derived from zelynic but is
   NOT zelynic and is NOT endorsed by the owner.
 

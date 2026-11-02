@@ -91,6 +91,22 @@ v80.0.0
 
 ### Changed
 
+- **chore(license): the open-source license upgraded GPL-3.0-only ->
+  AGPL-3.0-only (night-dragon-maintenance-xenric-1, the owner's
+  relicense call; the sibling zejtron precedent).** LICENSE now
+  ships the full GNU Affero General Public License text, every
+  SPDX header states `AGPL-3.0-only`, and the manifest, the deny
+  allow list, the version report's `License:` literal, the release
+  lane's embedded-literal probe, and every living doc (README,
+  NOTICE, CONTRIBUTING, CLA, COMMERCIAL_LICENSE, the licensing FAQ,
+  TRADEMARK, AI_AGENTS_READ_THIS) moved in step. The dual-license
+  shape is unchanged: AGPL-3.0-only for open-source use, the
+  Commercial License for proprietary use. The frozen history files
+  (this changelog's past entries and the two archived era records)
+  keep their original GPL wording on purpose — they record what
+  past releases stated, and rewriting history is falsification.
+  No version bump rides this change (the owner owns the version).
+
 - **fix(json): the rate wire fields renamed `_bps` -> `_bytes_per_sec`
   — the wire name is now the unit contract (night-verdict-closure-T1
   (B5), the honest-API law).** Every rate figure this binary emits is

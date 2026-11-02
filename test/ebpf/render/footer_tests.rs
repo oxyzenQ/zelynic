@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Pinned footer composition pins (NIGHT-boost-14; re-cut by
 //! NIGHT-engrave-3, REBUILT by NIGHT-engrave-4): the owner's

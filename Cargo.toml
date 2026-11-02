@@ -1,5 +1,5 @@
 # Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-only
 
 [package]
 name = "zelynic"
@@ -16,7 +16,7 @@ version = "80.0.2"
 edition = "2024"
 description = "Per-app network rate limiter and traffic monitor for Linux. Pure eBPF. Boring and silent but killer."
 authors = ["rezky_nightky (oxyzenQ) <with dot rezky at gmail dot com>"]
-license = "GPL-3.0-only"
+license = "AGPL-3.0-only"
 repository = "https://github.com/oxyzenQ/zelynic"
 # NIGHT-improve-77: the docs.rs rustdoc tree is hosted and green
 # (verified live against the registry lane at audit time). The

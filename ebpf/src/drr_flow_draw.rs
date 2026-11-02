@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 // NIGHT-improve-44: try_draw — the leaf's draw orchestration —
 // moved out of drr_flow.rs at the 600-line cap, #[path]-wired as

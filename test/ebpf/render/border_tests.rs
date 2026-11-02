@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Border pins (NIGHT-boost-20): the triangle wave, the rail ramp,
 //! the capability ladder (including the 256-cube quantization landing

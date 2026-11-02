@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 // NIGHT-improve-31 phase 3, executed by NIGHT-improve-44: the
 // toolchain preflight (NIGHT-host-1) — the rustup and PATH probes

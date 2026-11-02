@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The alt-screen contract (NIGHT-boost-28 split, the raw.rs
 //! precedent — mod.rs sat at the owner's 500-LOC cap): the enter and

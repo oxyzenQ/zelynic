@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! End-to-end surface checks: the binary runs, reports its version,
 //! and the strict/unstrict lifecycle works (root-gated cases are
@@ -266,7 +266,7 @@ fn test_version() {
     assert!(
         stdout.contains("zelynic: v")
             && stdout.contains("Build: ")
-            && stdout.contains("License: GPL-3.0-only")
+            && stdout.contains("License: AGPL-3.0-only")
             && stdout.contains("Source: https://github.com/oxyzenQ/zelynic"),
         "Version report must contain the full zelynic metadata, got:\n{stdout}"
     );

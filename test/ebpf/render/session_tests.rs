@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Session leaderboard pins (NIGHT-boost-5 lineage): the owner's
 //! accumulated-total ranking contract (A eats 10 GB and stops; B

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-only
 # OS: Linux only — zelynic is a Linux eBPF tool; no other OS is supported.
 #
 # ZELYNIC SPDX HEADER CHECK
@@ -11,9 +11,9 @@
 #
 # Required (both lines, within the first 10 lines of the file):
 #   Copyright (C) 2026 rezky_nightky
-#   SPDX-License-Identifier: GPL-3.0-only
+#   SPDX-License-Identifier: AGPL-3.0-only
 # Rejected: any other SPDX-License-Identifier value (project is
-# GPL-3.0-only licensed).
+# AGPL-3.0-only licensed).
 #
 # dinner-28: every *.sh ADDITIONALLY requires the OS line within the
 # first 10 lines — '# OS: Linux only' — the owner's rule, enforced as
@@ -54,7 +54,7 @@ WRONG=0
 CHECKED=0
 
 EXPECTED_COPYRIGHT="Copyright (C) 2026 rezky_nightky"
-EXPECTED_LICENSE_NAME="GPL-3.0-only"
+EXPECTED_LICENSE_NAME="AGPL-3.0-only"
 
 while IFS= read -r -d '' file; do
 	CHECKED=$((CHECKED + 1))
