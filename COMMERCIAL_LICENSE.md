@@ -137,7 +137,10 @@ Notes:
 
 Companies that buy the Enterprise Internal or OEM / Redistribution
 tiers are not just getting a bandwidth limiter binary. They are
-licensing the architectural patterns that power it:
+licensing the **cosmic dragon arc** — zelynic's enforcement core,
+the thirteen kernel scales and the engines, eyes, and claws around
+them (see docs/COSMIC_DRAGON_ARC.md) — summarized by the patterns
+below:
 
 1. **The MMSPA subtree law** — limits applied to a cgroup cover every
    process spawned beneath it, any depth, born any time, sharing one
@@ -162,14 +165,15 @@ entry price; contact <with.rezky@gmail.com> for the agreement.
 ### Why "just a rate limiter" is the wrong comparison
 
 A buyer who sees `sudo zelynic s brave 100kb` and thinks "just a
-limiter" is comparing the wrong thing. That one line hides thirteen
-kernel-level innovations — MMSPA subtree law, DRR fair-share,
-CAKE-shaped flow isolation, per-socket buckets, QUIC-aware
-attribution, ECN-first policing, guaranteed floor/ceil, in-kernel
-time-series rings, self-proving enforcement, bypass shadow
-detection, container-native resolution, atomic multi-target
-rollback, and time-windowed expiry — each one pinned by rootless
-unit tests, each one proven on six distributions.
+limiter" is comparing the wrong thing. That one line hides the
+**cosmic dragon arc** — thirteen kernel-level scales composing one
+enforcement core: MMSPA subtree law, DRR fair-share, CAKE-shaped
+flow isolation, per-socket buckets, QUIC-aware attribution,
+ECN-first policing, guaranteed floor/ceil, in-kernel time-series
+rings, self-proving enforcement, bypass shadow detection,
+container-native resolution, atomic multi-target rollback, and
+time-windowed expiry — each one pinned by rootless unit tests,
+each one proven on six distributions.
 
 Building this yourself means:
 
@@ -182,9 +186,9 @@ Building this yourself means:
 - **Schema versioning and crash recovery** that take another 6
   months to get right (same estimate).
 
-zelynic licenses those thirteen patterns at a fraction of what an
-enterprise would spend to rebuild them with the same production
-discipline.
+zelynic licenses the arc — those thirteen scales and the
+production discipline around them — at a fraction of what an
+enterprise would spend to rebuild it with the same rigor.
 
 The simplicity of the CLI **is the product**, not a discount. It
 means you do not need to know what MMSPA is to benefit from it. You

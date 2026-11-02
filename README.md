@@ -71,7 +71,10 @@ same WiFi interface. No `tc`, no `nftables`, no `LD_PRELOAD`, no daemon.
 Every claim below maps to a mechanism that verifies it — the full
 ledger (live proof harness, rootless pins, CI surfaces, and the
 honest residuals) lives in
-[docs/CLAIMS_VERIFICATION.md](docs/CLAIMS_VERIFICATION.md).
+[docs/CLAIMS_VERIFICATION.md](docs/CLAIMS_VERIFICATION.md). The
+rows are the scales of the **cosmic dragon arc** — the official
+name for zelynic's entire architectural stack, indexed in
+[docs/COSMIC_DRAGON_ARC.md](docs/COSMIC_DRAGON_ARC.md).
 
 | Edge | Detail |
 |------|--------|
@@ -552,6 +555,10 @@ the feature table above; the full audit trail is
 └───────────────────────────────────────────────────┘
 ```
 
+The arc living in that diagram — the thirteen scales, the heart,
+the eyes, the claws — is indexed in
+[docs/COSMIC_DRAGON_ARC.md](docs/COSMIC_DRAGON_ARC.md).
+
 ## Philosophy
 
 **Boring and silent but killer.**
@@ -633,6 +640,7 @@ policy, supported versions, and what counts as a vulnerability live in
 
 - [Complete Usage Guide](docs/USAGE.md) — every command, workflows, honest limitations, troubleshooting (the flagship reference)
 - [Security Policy](SECURITY.md) — reporting, scope, supported versions
+- [the cosmic dragon arc](docs/COSMIC_DRAGON_ARC.md) — the canonical index of the enforcement core: the thirteen scales, the estate map, the v81 roadmap
 - [the cosmic dragon architecture](docs/COSMIC_DRAGON_ARCHITECTURE.md) — design + principles
 - [Kernel Compatibility](docs/KERNEL_COMPATIBILITY.md) — requirements + distro matrix
 - [Performance Metrics](docs/PERFORMANCE.md) — deep benchmark results + targets
@@ -748,6 +756,31 @@ gpg --verify zelynic-vX.Y.Z-linux-amd64-v3-musl.tar.gz.asc
 rationale live in [docs/VERIFY_RELEASE.md](docs/VERIFY_RELEASE.md),
 told once there.
 
+## The cosmic dragon arc — the enforcement core of zelynic
+
+The thirteen mechanisms in the table above are not a feature
+list — they are the **cosmic dragon arc**, the official name for
+zelynic's entire architectural stack: the thirteen kernel scales
+(MMSPA through time windows), the heart (the MMSPA and DRR
+engines), the eyes (the lazy camera and bypass detection), and
+the claws (the pure-Rust eBPF objects and their userspace
+loaders). The canonical index — the estate map, the 2026-11-03
+depth audit, and the owner's v81 roadmap — lives in
+[docs/COSMIC_DRAGON_ARC.md](docs/COSMIC_DRAGON_ARC.md).
+
+The arc is the reason zelynic can evolve from a rate limiter into
+a **quota saver**. A dropped download does not save quota — the
+packets already crossed the link (limitation #15 above) — so
+saving quota means making senders slow down before the bytes
+cross, and the arc already holds the kernel machinery that makes
+that possible: the ECN-first mark-instead-of-drop law, the
+QUIC-aware attribution that names individual HTTP/3 connections,
+the per-connection buckets that can carry per-connection signals.
+The next evolution (v81) stands on those scales — TCP receive
+window (RWND) enforcement, ECN CE-marking for QUIC backoff, and
+EDT pacing for egress — and its roadmap is recorded verbatim in
+the arc doc, so the owner's vision survives every maintainer.
+
 ## Support
 
 Built and maintained independently by **rezky_nightky (oxyzenQ)**.
@@ -794,7 +827,9 @@ once.
 
 Companies that buy the Enterprise Internal or OEM / Redistribution
 tiers are not just getting a bandwidth limiter binary. They are
-licensing the architectural patterns that power it:
+licensing the **cosmic dragon arc** — zelynic's enforcement core
+(see [docs/COSMIC_DRAGON_ARC.md](docs/COSMIC_DRAGON_ARC.md)) —
+summarized by the patterns below:
 
 1. **The MMSPA subtree law** — limits applied to a cgroup cover every
    process spawned beneath it, any depth, born any time, sharing one

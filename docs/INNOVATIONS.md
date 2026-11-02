@@ -54,6 +54,21 @@ hook, damped by the burst allowance and the GSO admit floor, never
 hidden. "Polices smooth" is exact for the lane that can hear the
 signal, and the ledger never pretends otherwise.
 
+## The arc above the engine
+
+The thirteen scales, the heart they beat with (MMSPA and DRR), the
+eyes that watch (the lazy camera and bypass detection), and the
+claws that grip the kernel (the eBPF objects and their loaders)
+compose one whole with its own name (the arc consolidation,
+2026-11-03): **the cosmic dragon arc** — the official umbrella for
+zelynic's entire architectural stack. Where this page is the
+per-scale ledger and the architecture doc is the body, the arc is
+the whole animal: the canonical index, the estate map (Scales,
+Heart, Eyes, Claws), and the owner's v81 quota-saver roadmap all
+live in [COSMIC_DRAGON_ARC.md](COSMIC_DRAGON_ARC.md). When a doc,
+a license, or a roadmap says "the cosmic dragon arc", it means
+everything the entries below detail.
+
 ## The thirteen, in dependency order
 
 **1. MMSPA — Multi-Micro Sub-Process Aware** (`ebpf/src/mmspa.rs`).
