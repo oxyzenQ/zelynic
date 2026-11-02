@@ -40,7 +40,7 @@ fn recwn_limits_fields_are_pinned_when_the_lane_is_planted() {
         &[],
         &super::RecwnLane {
             planted: true,
-            window_bytes: Some(5000),
+            window_bytes: Some(20_000),
         },
         0,
         0,
@@ -70,14 +70,14 @@ fn recwn_limits_carries_the_derived_window_and_rtt_estimate() {
         &[],
         &super::RecwnLane {
             planted: true,
-            window_bytes: Some(5000),
+            window_bytes: Some(20_000),
         },
         0,
         0,
     );
     assert!(
         json.to_json().contains(
-            "\"recwn_limits\":{\"enabled\":true,\"window_bytes\":5000,\"rtt_estimate_us\":50000}"
+            "\"recwn_limits\":{\"enabled\":true,\"window_bytes\":20000,\"rtt_estimate_us\":200000}"
         ),
         "the owner-defined recwn_limits shape drifted: {}",
         json.to_json()
@@ -104,7 +104,7 @@ fn recwn_limits_enabled_false_omits_the_window() {
     );
     assert!(
         json.to_json()
-            .contains("\"recwn_limits\":{\"enabled\":false,\"rtt_estimate_us\":50000}"),
+            .contains("\"recwn_limits\":{\"enabled\":false,\"rtt_estimate_us\":200000}"),
         "the enabled:false shape drifted: {}",
         json.to_json()
     );

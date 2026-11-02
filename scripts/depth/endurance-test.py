@@ -95,7 +95,10 @@ QUICK_SOAK_S = 10.0
 # output): schema v19-v23 grew the object by 12 more pinned maps
 # (the ECN debt pair, the CAKE per-flow trio x2 directions, the QUIC
 # CID hint pair, the --during side pair) — 34 maps + 2 programs +
-# 2 links, the 38-object family. The *_counters maps stay off the
+# 2 links, the 38-object family. Grown once more with schema v25
+# (night-spark-2, RECWN): the recwn_socket_hint map + the
+# zelynic_recwn sock_ops program + its link — 35 maps + 3 programs
+# + 3 links, the 41-object family. The *_counters maps stay off the
 # rig on purpose: telemetry, never loader state.
 PIN_FAMILY = {
     # the 22 pinned maps the base loader pins (schema v18 and before)
@@ -139,12 +142,21 @@ PIN_FAMILY = {
     "quic_cid_hint_ul",
     "policy_window",
     "wall_clock_offset",
-    # the 2 enforcement programs + their 2 bpf_links (the 5.7+
-    # capability rung pins links beside the programs)
+    # the schema v25 addition (night-spark-2, RECWN — the quota
+    # saver's Layer 1): the cookie-keyed receive-window hint map the
+    # ingress hook primes, plus the sock_ops program and its
+    # BPF_CGROUP_SOCK_OPS link — the loader's third program/link
+    # pair, pinned beside the two enforcement hooks by the same law.
+    "recwn_socket_hint",
+    # the 2 enforcement programs + the RECWN sock_ops program, with
+    # their 3 bpf_links (the 5.7+ capability rung pins links beside
+    # the programs)
     "enforce_dl",
     "enforce_ul",
     "enforce_dl_link",
     "enforce_ul_link",
+    "zelynic_recwn",
+    "zelynic_recwn_link",
 }
 RSS_BUDGET_MB = 12.0  # post-warmup growth allowance for the TUI process
 FD_DRIFT = 3  # max open-fd drift across the soak window

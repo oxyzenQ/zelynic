@@ -42,22 +42,23 @@ use self::ebpf_recwn::{
 /// clamped to [2 x MSS, 1 MiB], 50 ms assumed RTT.
 #[test]
 fn owner_matrix_reads_its_exact_windows() {
-    // 1 kb/s x 50 ms = 50 B -> the 2 x MSS floor (2920 B): a
+    // 1 kb/s x 200 ms = 200 B -> the 2 x MSS floor (2920 B): a
     // sub-two-segment window would invite delayed-ACK stall
     // pathologies, so the clamp lifts it.
     assert_eq!(layer1_window(1_000), RECWN_WINDOW_MIN_BYTES);
-    // 100 kb/s x 50 ms = 5000 B — the owner's brief's own example
-    // band, in-band exactly.
-    assert_eq!(layer1_window(100_000), 5000);
-    // 1 mb/s x 50 ms = 50 KB — in-band.
-    assert_eq!(layer1_window(1_000_000), 50_000);
+    // 100 kb/s x 200 ms = 20_000 B — the delivery-cadence estimate
+    // the live E2E evidence set (recwn.rs's doc owns the record),
+    // in-band exactly.
+    assert_eq!(layer1_window(100_000), 20_000);
+    // 1 mb/s x 200 ms = 200 KB — in-band.
+    assert_eq!(layer1_window(1_000_000), 200_000);
     // 0 (the block verdict) reads as the floor — though the prime
     // lane never carries it there (enforce returns before the
     // prime site on rate 0; the law documents the shape anyway).
     assert_eq!(layer1_window(0), RECWN_WINDOW_MIN_BYTES);
-    // The extremes: 8 mb/s x 50 ms = 400 KB, in-band; 40 mb/s x
-    // 50 ms = 2 MB -> the 1 MiB ceiling (over-buffering guard).
-    assert_eq!(layer1_window(8_000_000), 400_000);
+    // The extremes: 8 mb/s x 200 ms = 1.6 MB -> the 1 MiB ceiling
+    // (over-buffering guard); 40 mb/s lands deeper into it.
+    assert_eq!(layer1_window(8_000_000), RECWN_WINDOW_MAX_BYTES);
     assert_eq!(layer1_window(40_000_000), RECWN_WINDOW_MAX_BYTES);
     // u64::MAX saturates the product before the divide, lands above
     // the ceiling, clamps back down — never wraps.
@@ -72,14 +73,14 @@ fn clamp_band_edges_are_pinned() {
     assert_eq!(RECWN_WINDOW_MIN_BYTES, 2 * RECWN_MSS_ASSUME_BYTES);
     assert_eq!(RECWN_WINDOW_MIN_BYTES, 2920);
     assert_eq!(RECWN_WINDOW_MAX_BYTES, 1_048_576);
-    // Just inside the floor (58_400 B/s x 50 ms = 2920) and just
-    // below it (58_399 -> 2919.95 -> 2919 -> clamped up).
-    assert_eq!(layer1_window(58_400), 2920);
-    assert_eq!(layer1_window(58_399), 2920);
-    // Just below the ceiling (20_971_520 B/s x 50 ms = 1_048_576)
+    // Just inside the floor (14_600 B/s x 200 ms = 2920) and just
+    // below it (14_599 -> 2919.8 -> 2919 -> clamped up).
+    assert_eq!(layer1_window(14_600), 2920);
+    assert_eq!(layer1_window(14_599), 2920);
+    // Just below the ceiling (5_242_880 B/s x 200 ms = 1_048_576)
     // and just above it.
-    assert_eq!(layer1_window(20_971_520), 1_048_576);
-    assert_eq!(layer1_window(20_971_521), 1_048_576);
+    assert_eq!(layer1_window(5_242_880), 1_048_576);
+    assert_eq!(layer1_window(5_242_881), 1_048_576);
 }
 
 /// The RTT is a parameter: a longer estimate widens the window
@@ -87,9 +88,10 @@ fn clamp_band_edges_are_pinned() {
 /// the whole lane carries.
 #[test]
 fn rtt_is_a_parameter_with_the_documented_default() {
-    assert_eq!(RECWN_DEFAULT_RTT_US, 50_000);
-    // 100 kb/s at 20 ms -> 2000 B -> floored; at 50 ms -> 5000; at
-    // 100 ms -> 10_000 — linear in the estimate, band intact.
+    assert_eq!(RECWN_DEFAULT_RTT_US, 200_000);
+    // 100 kb/s at 20 ms -> 2000 B -> floored; at 50 ms -> 5000 (the
+    // briefed estimate's own window); at 100 ms -> 10_000 — linear
+    // in the estimate, band intact.
     assert_eq!(target_window_bytes(100_000, 20_000), RECWN_WINDOW_MIN_BYTES);
     assert_eq!(target_window_bytes(100_000, 50_000), 5000);
     assert_eq!(target_window_bytes(100_000, 100_000), 10_000);
@@ -110,13 +112,13 @@ fn userspace_status_twin_agrees_with_the_kernel_core() {
         0u64,
         1,
         1_000,
-        58_399,
-        58_400,
+        14_599,
+        14_600,
         100_000,
         1_000_000,
+        5_242_880,
+        5_242_881,
         8_000_000,
-        20_971_520,
-        40_000_000,
         u64::MAX,
     ];
     for rate in rates {
@@ -155,19 +157,19 @@ fn recwn_lane_reports_the_binding_window() {
         }
     );
 
-    // The owner's single-policy scenario: 100 kb/s -> 5000 B.
+    // The owner's single-policy scenario: 100 kb/s -> 20_000 B.
     assert_eq!(
         recwn_lane(&[(7, pol(100_000))], true),
         RecwnLane {
             planted: true,
-            window_bytes: Some(5000),
+            window_bytes: Some(20_000),
         }
     );
 
     // Multi-policy: the BINDING (minimum) window wins.
     assert_eq!(
         recwn_lane(&[(7, pol(1_000_000)), (9, pol(100_000))], true).window_bytes,
-        Some(5000),
+        Some(20_000),
     );
 
     // Block-only (rate 0) and upload-only census: no window shaped.

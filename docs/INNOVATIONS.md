@@ -182,7 +182,9 @@ honestly absent on windowless rows.
 the quota saver's Layer 1). The owner's coined name for the
 receive-window lane: a policed cgroup's own sockets advertise a
 window shaped like the policy's bandwidth-delay product (rate x
-50 ms assumed RTT, clamped to [2 x MSS, 1 MiB]), so the remote TCP
+200 ms delivery-cadence estimate — raised from the briefed 50 ms
+by the live E2E evidence, the scale-14 entry below names why —
+clamped to [2 x MSS, 1 MiB]), so the remote TCP
 sender holds its in-flight bytes down BEFORE the ingress link
 bills them — the one knob that answers README limitation #15's
 physics (a dropped download saves no quota; a slowed sender does).

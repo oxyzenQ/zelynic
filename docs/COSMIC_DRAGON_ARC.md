@@ -177,8 +177,15 @@ that goal, the arc holds four gaps:
    `SO_RCVBUF` through `bpf_setsockopt` on the connection
    callbacks, primed cookie-keyed by the ingress hook — the
    advertised window now caps a policed cgroup's senders before
-   the link bills the bytes. The RTT estimate is a fixed 50 ms in
-   Layer 1; the per-RTT re-tuning is a stated residue, not a gap.
+   the link bills the bytes. The estimate is a fixed 200 ms
+   delivery-cadence assumption in Layer 1 — raised from the
+   briefed 50 ms by the live E2E evidence (the 100 kb rung
+   measured 29-37% of budget on all three CI kernels: with the
+   buffer locked, delivery rides the receiver's window-update
+   cadence (~145-160 ms on the test links, delayed-ACK bounded at
+   200 ms), not the link RTT, so a rate x 50 ms window delivered
+   a third of budget — recwn.rs's doc owns the full record); a
+   measured-RTT re-tune is a stated residue, not a gap.
 3. **ECN is enforcement-driven, not quota-driven — and invisible.**
    CE marking exists (v19 budget lanes, v21 per-socket lane,
    `ecn.rs`), and QUIC stacks that implement RFC 9002 ECN react to
@@ -207,7 +214,8 @@ owner's build order says so.
   (schema v25, night-spark-2). The owner's coined name for the
   receive-window lane: a policed cgroup's own sockets advertise a
   window shaped like the policy's bandwidth-delay product (rate x
-  50 ms, clamped to [2 x MSS, 1 MiB]), so remote TCP senders hold
+  200 ms delivery-cadence estimate, clamped to [2 x MSS, 1 MiB]),
+  so remote TCP senders hold
   their in-flight bytes down before the link bills them — the
   mechanism that actually saves download quota. Two kernel truths
   shaped the build (both verified against v5.15 source, recorded

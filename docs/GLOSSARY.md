@@ -61,7 +61,8 @@ first-time reader, and this page pays it once, up front.
 - **RECWN — Receive Window Control**: the owner's coined name for
   the receive-window lane (deliberately NOT "RWND" — brand identity
   over the standard acronym): a policed cgroup's own sockets
-  advertise a rate-shaped window (rate x 50 ms clamped to
+  advertise a rate-shaped window (rate x 200 ms — the
+  delivery-cadence estimate the live E2E evidence set — clamped to
   [2 x MSS, 1 MiB]) via the sock_ops program clamping SO_RCVBUF,
   so remote TCP senders hold their in-flight bytes down before the
   ingress link bills them — the quota saver's Layer 1. The cookie
