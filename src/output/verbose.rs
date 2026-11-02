@@ -59,6 +59,16 @@ pub fn log(tag: &str, msg: &str) {
 /// costs one atomic load when the lane is silent. Arguments are NOT
 /// evaluated when the lane is off (the guard sits in front of the
 /// format machinery), so logging never allocates on a quiet run.
+// The macros ride the ebpf gate like the call sites they serve:
+// every reader lives under the ebpf graph (src/ebpf/ and the
+// ebpf-gated command handlers), so the dormant test flavor — the
+// module compiles there for its flag pins, which read the
+// functions, never the macros — would otherwise hold two defined
+// but never-read macros, a hard error under CI's -D warnings
+// (unused_macros). Gating the definitions keeps the documented
+// law true in every build flavor: a featureless build never arms
+// what it never reads.
+#[cfg(feature = "ebpf")]
 macro_rules! vlog {
     ($tag:expr, $($arg:tt)*) => {
         if $crate::output::verbose::enabled() {
@@ -67,6 +77,7 @@ macro_rules! vlog {
     };
 }
 
+#[cfg(feature = "ebpf")]
 pub(crate) use vlog;
 
 /// The pre-rendered line door: `vlog_line!(trace::kernel_line(...))`
@@ -76,6 +87,7 @@ pub(crate) use vlog;
 /// the guard, so a silent run never builds the line), or a literal
 /// template plus arguments (the format machinery also sits inside
 /// the guard).
+#[cfg(feature = "ebpf")]
 macro_rules! vlog_line {
     ($line:expr) => {
         if $crate::output::verbose::enabled() {
@@ -91,6 +103,7 @@ macro_rules! vlog_line {
     };
 }
 
+#[cfg(feature = "ebpf")]
 pub(crate) use vlog_line;
 
 // The verbose pins live under the single test/ tree (cosmostrix

@@ -33,6 +33,24 @@ v80.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **fix(build): the dormant test build compiles clean under CI's
+  `-D warnings` (the red-lane repair, night-dragon-maintenance-xenric-1
+  follow-up).** The xenric-1 squash landed the verbose module with
+  its two trace macros defined unconditionally while every macro
+  call site lives under the ebpf graph: in the dormant test flavor
+  (the module compiles for its flag pins) the macros were defined
+  but never read, and CI's `-D warnings` turned unused_macros plus
+  the re-export's unused_imports into four hard errors at the
+  check-all tests leg. The macros and their re-exports now ride the
+  same ebpf gate as their call sites — the shape the audit record
+  already documented (a featureless build never arms what it never
+  reads). The sibling commit repairs the audit doc's list grammar
+  that red-flagged the wholesale markdownlint lane (one wrapped
+  line born mid-paragraph parsed as a plus-style list and flipped
+  MD004's consistency anchor).
+
 ### Added
 
 - **fix(json): `live` renamed `live_samples` — the field name says
