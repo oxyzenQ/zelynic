@@ -248,9 +248,9 @@ impl super::Limiter {
         self.sweep_census_orphans();
         self.mmspa_memo_invalidate_best_effort();
 
-        if self.verbose {
+        if crate::output::verbose::enabled() {
             for line in group_apply_lines(group_id, rates, all_cgroup_ids.len()) {
-                eprintln_safe!("{}", crate::output::grey(&line));
+                crate::output::verbose::vlog_line!("{}", line);
             }
         }
 
@@ -282,15 +282,11 @@ impl super::Limiter {
                     match self.restore_policy(cgroup_id, direction, raw) {
                         Ok(()) => {
                             rolled_back += 1;
-                            if self.verbose {
-                                eprintln_safe!(
-                                    "{}",
-                                    crate::output::grey(&format!(
-                                        "[limiter] rolled back cg:{cgroup_id} {} (pre-apply policy restored)",
-                                        direction.label()
-                                    ))
-                                );
-                            }
+                            crate::output::verbose::vlog!(
+                                "limiter",
+                                "rolled back cg:{cgroup_id} {} (pre-apply policy restored)",
+                                direction.label()
+                            );
                         }
                         Err(e) => {
                             eprintln_safe!(
@@ -304,15 +300,11 @@ impl super::Limiter {
                 RestoreAction::Remove => match self.delete_policy(cgroup_id, direction) {
                     Ok(_) => {
                         rolled_back += 1;
-                        if self.verbose {
-                            eprintln_safe!(
-                                "{}",
-                                crate::output::grey(&format!(
-                                    "[limiter] rolled back cg:{cgroup_id} {} (was absent before this apply)",
-                                    direction.label()
-                                ))
-                            );
-                        }
+                        crate::output::verbose::vlog!(
+                            "limiter",
+                            "rolled back cg:{cgroup_id} {} (was absent before this apply)",
+                            direction.label()
+                        );
                     }
                     Err(e) => {
                         eprintln_safe!(

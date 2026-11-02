@@ -56,7 +56,7 @@ fn spec_parse_accepts_names_ids_and_cg_prefix() {
 /// invocation (`zelynic ee --depth`) teaches the target it needs.
 #[test]
 fn depth_without_target_surfaces_before_root_guard() {
-    let err = handle_eagle_eyes_depth(None, None, false, false).expect_err("no target must fail");
+    let err = handle_eagle_eyes_depth(None, None, false).expect_err("no target must fail");
     let msg = format!("{err}");
     assert!(
         msg.contains("--depth needs a TARGET"),
@@ -76,8 +76,7 @@ fn depth_without_target_surfaces_before_root_guard() {
 /// also before the root guard (the live monitor's own pin shape).
 #[test]
 fn empty_spec_under_depth_surfaces_before_root_guard() {
-    let err =
-        handle_eagle_eyes_depth(Some("/"), None, false, false).expect_err("empty spec must fail");
+    let err = handle_eagle_eyes_depth(Some("/"), None, false).expect_err("empty spec must fail");
     let msg = format!("{err}");
     assert!(msg.contains("No targets in"), "got: {msg}");
     assert!(
@@ -92,7 +91,7 @@ fn empty_spec_under_depth_surfaces_before_root_guard() {
 /// (safe on any uid: the parse returns before any observer work).
 #[test]
 fn focus_window_typo_surfaces_before_root_guard() {
-    let err = handle_eagle_eyes_depth(Some("brave"), Some("3min"), false, false)
+    let err = handle_eagle_eyes_depth(Some("brave"), Some("3min"), false)
         .expect_err("a typo'd focus window must fail");
     let msg = format!("{err}");
     assert!(
@@ -115,7 +114,7 @@ fn focus_window_typo_surfaces_before_root_guard() {
 #[test]
 fn focus_window_bounds_surface_before_root_guard() {
     for bad in ["0", "31", "60s", "1m"] {
-        let err = handle_eagle_eyes_depth(Some("brave"), Some(bad), false, false)
+        let err = handle_eagle_eyes_depth(Some("brave"), Some(bad), false)
             .expect_err("an out-of-bounds focus window must fail");
         let msg = format!("{err}");
         assert!(
@@ -130,7 +129,7 @@ fn focus_window_bounds_surface_before_root_guard() {
     // The legal edge values parse (and then fail on the root guard —
     // the proof the bounds check PASSED for them).
     for good in ["1", "1s", "30", "30s"] {
-        let err = handle_eagle_eyes_depth(Some("brave"), Some(good), false, false)
+        let err = handle_eagle_eyes_depth(Some("brave"), Some(good), false)
             .expect_err("an in-bounds window proceeds to the root guard");
         let msg = format!("{err}");
         assert!(

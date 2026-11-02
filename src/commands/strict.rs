@@ -43,7 +43,6 @@ pub(crate) fn handle_strict(
     // per-direction spellings included — the resolver's own shape).
     bracket_flags: super::guarantee::BracketFlags<'_>,
     during: Option<&str>,
-    verbose: bool,
 ) -> Result<()> {
     if target_is_list(target_str) {
         // The scope call rides FIRST, before any parsing — the
@@ -68,7 +67,6 @@ pub(crate) fn handle_strict(
             no_test,
             bracket_flags,
             during,
-            verbose,
         )
     } else {
         handle_strict_single(
@@ -81,7 +79,6 @@ pub(crate) fn handle_strict(
             per_socket,
             bracket_flags,
             during,
-            verbose,
         )
     }
 }
@@ -107,7 +104,6 @@ fn handle_strict_single(
     // per-direction spellings included — the resolver's own shape).
     bracket_flags: super::guarantee::BracketFlags<'_>,
     during: Option<&str>,
-    verbose: bool,
 ) -> Result<()> {
     use crate::ebpf::limiter::{Limiter, Target, parse_during};
 
@@ -185,10 +181,10 @@ fn handle_strict_single(
         let _lock = crate::ebpf::lock::acquire()?;
 
         // Attach BPF programs (pins to /sys/fs/bpf/zelynic/ — survives exit).
-        crate::ebpf::limiter::Limiter::attach(verbose)?;
+        crate::ebpf::limiter::Limiter::attach()?;
 
         // Open pinned maps and write policy.
-        limiter = Limiter::open_pinned(verbose)?;
+        limiter = Limiter::open_pinned()?;
         let applied = limiter.apply_single(
             &target,
             &rates,
@@ -315,7 +311,6 @@ fn handle_strict_multi(
     no_test: bool,
     bracket_flags: super::guarantee::BracketFlags<'_>,
     during: Option<&str>,
-    verbose: bool,
 ) -> Result<()> {
     use crate::ebpf::limiter::{Limiter, Target, parse_during};
 
@@ -396,9 +391,9 @@ fn handle_strict_multi(
         // stale-schema pins would write policies into old-layout maps while
         // strict-single and the block family already ran the full ladder.
         // With healthy, current pins attach() is a few stats + one read.
-        crate::ebpf::limiter::Limiter::attach(verbose)?;
+        crate::ebpf::limiter::Limiter::attach()?;
 
-        limiter = Limiter::open_pinned(verbose)?;
+        limiter = Limiter::open_pinned()?;
         // NIGHT-upgrade-charger-core-2 (TIER A #6): the atomic apply —
         // every segment resolves BEFORE the first map write (one miss
         // aborts the whole invocation with nothing limited), and a

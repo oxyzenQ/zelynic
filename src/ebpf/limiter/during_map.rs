@@ -179,14 +179,10 @@ impl super::Limiter {
         }
         let mut swept = 0usize;
         for cgroup_id in ended {
-            if self.verbose {
-                eprintln_safe!(
-                    "{}",
-                    crate::output::grey(&format!(
-                        "[limiter] window sweep: cg:{cgroup_id} span ended — removing the row"
-                    ))
-                );
-            }
+            crate::output::verbose::vlog!(
+                "limiter",
+                "window sweep: cg:{cgroup_id} span ended — removing the row"
+            );
             // The unstrict path is the removal the repo already
             // owns: both legs, the state reclaim, the window row at
             // row death (the stats gate), the group supersession.
@@ -228,7 +224,7 @@ impl super::Limiter {
 /// A fresh LOAD stamps nothing on purpose — a reload unpins every map
 /// first, so no window row exists until the next apply stamps through
 /// the lane. Best-effort: a visit never fails on a refresh.
-pub(super) fn stamp_offset_on_pinned(verbose: bool) {
+pub(super) fn stamp_offset_on_pinned() {
     use aya::maps::Array as BpfArray;
     let offset = wall_minus_mono(wall_now_ns(), monotonic_ns());
     let stamp = crate::ebpf::pin::open_pinned_array_map(PIN_MAP_WALL_CLOCK_OFFSET)
@@ -241,12 +237,7 @@ pub(super) fn stamp_offset_on_pinned(verbose: bool) {
                         .map_err(|e| anyhow!("failed to stamp: {e}"))
                 })
         });
-    if let Err(e) = stamp
-        && verbose
-    {
-        eprintln_safe!(
-            "{}",
-            crate::output::grey(&format!("[limiter] wall_clock_offset refresh skipped: {e}"))
-        );
+    if let Err(e) = stamp {
+        crate::output::verbose::vlog!("limiter", "wall_clock_offset refresh skipped: {e}");
     }
 }

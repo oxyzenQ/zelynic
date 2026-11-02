@@ -206,15 +206,11 @@ impl super::Limiter {
     pub(super) fn mmspa_memo_invalidate_best_effort(&mut self) {
         match self.mmspa_generation_bump() {
             Ok((old, new)) => {
-                if self.verbose {
-                    eprintln_safe!("{}", crate::output::grey(&bump_trace_line(old, new)));
-                }
+                crate::output::verbose::vlog_line!(bump_trace_line(old, new));
             }
             Err(bump_cause) => match self.mmspa_cache_flush() {
                 Ok(flushed) => {
-                    if self.verbose {
-                        eprintln_safe!("{}", crate::output::grey(&flush_trace_line(flushed)));
-                    }
+                    crate::output::verbose::vlog_line!(flush_trace_line(flushed));
                 }
                 Err(sweep_cause) => {
                     eprintln_safe!(

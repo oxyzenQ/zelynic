@@ -142,7 +142,6 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                             ceil_upload: ceil_upload.as_deref(),
                         },
                         during.as_deref(),
-                        cli.verbose,
                     );
                 }
                 match target.as_deref() {
@@ -166,7 +165,6 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                                 ceil_upload: ceil_upload.as_deref(),
                             },
                             during.as_deref(),
-                            cli.verbose,
                         )
                     }
                     // clap's required_unless_present owns this rung;
@@ -202,7 +200,6 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     ceil_download,
                     ceil_upload,
                     during,
-                    cli.verbose,
                 );
                 ebpf_disabled()
             }
@@ -225,10 +222,10 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                              tip: zelynic b --all (drop '{stray}', or drop --all)"
                         ));
                     }
-                    return block::handle_block_all(force_this, during.as_deref(), cli.verbose);
+                    return block::handle_block_all(force_this, during.as_deref());
                 }
                 match target.as_deref() {
-                    Some(t) => block::handle_block(t, force_this, during.as_deref(), cli.verbose),
+                    Some(t) => block::handle_block(t, force_this, during.as_deref()),
                     None => Err(anyhow::anyhow!(
                         "a target is required unless --all sweeps the fleet\n  \
                          tip: zelynic b brave, or zelynic b --all"
@@ -237,7 +234,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (target, all, force_this, during, cli.verbose);
+                let _ = (target, all, force_this, during);
                 ebpf_disabled()
             }
         }
@@ -256,10 +253,10 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                              tip: zelynic u --all (drop '{stray}', or drop --all)"
                         ));
                     }
-                    return cleanup::handle_unstrict_all(cli.verbose);
+                    return cleanup::handle_unstrict_all();
                 }
                 match target.as_deref() {
-                    Some(t) => cleanup::handle_unstrict(t, cli.verbose),
+                    Some(t) => cleanup::handle_unstrict(t),
                     None => Err(anyhow::anyhow!(
                         "a target is required unless --all resets the fleet\n  \
                          tip: zelynic u brave, or zelynic u --all"
@@ -268,7 +265,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (target, all, cli.verbose);
+                let _ = (target, all);
                 ebpf_disabled()
             }
         }
@@ -276,7 +273,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
         Some(Commands::Recover) => {
             #[cfg(feature = "ebpf")]
             {
-                recover::handle_recover(cli.verbose)
+                recover::handle_recover()
             }
             #[cfg(not(feature = "ebpf"))]
             {
@@ -287,7 +284,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
         Some(Commands::Status) => {
             #[cfg(feature = "ebpf")]
             {
-                monitor::handle_status(cli.verbose, cli.print_json)
+                monitor::handle_status(cli.print_json)
             }
             #[cfg(not(feature = "ebpf"))]
             {
@@ -332,7 +329,6 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                         targets.as_deref(),
                         focus.as_deref(),
                         cli.print_json,
-                        cli.verbose,
                     )
                 } else {
                     // NIGHT-private-research-3: the mirror image of
@@ -349,12 +345,12 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                             )
                         );
                     }
-                    monitor::handle_eagle_eyes(targets.as_deref(), interval.as_deref(), cli.verbose)
+                    monitor::handle_eagle_eyes(targets.as_deref(), interval.as_deref())
                 }
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (targets, interval, focus, depth, cli.verbose);
+                let _ = (targets, interval, focus, depth);
                 ebpf_disabled()
             }
         }

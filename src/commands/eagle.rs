@@ -187,14 +187,14 @@ pub(crate) fn resolve_name(name: &str) -> Vec<u32> {
 /// honestly `None` (every target unlimited), pins that exist but
 /// cannot be opened are the stale-pins error with its recover tip —
 /// never a fabricated "unlimited".
-fn open_enforcement(verbose: bool) -> Result<Option<Limiter>> {
+fn open_enforcement() -> Result<Option<Limiter>> {
     if !pin_dir_has_files() {
         return Ok(None);
     }
     if !Limiter::is_pinned() {
         anyhow::bail!("stale pins detected\n  tip: run 'zelynic recover'");
     }
-    Ok(Some(Limiter::open_pinned(verbose)?))
+    Ok(Some(Limiter::open_pinned()?))
 }
 
 /// The per-id enforcement join over the maps read ONCE (NIGHT-
@@ -258,7 +258,6 @@ struct FocusMeasure {
 fn run_focus_window(
     conns: &mut ConnectionMap,
     focus_secs: u64,
-    verbose: bool,
 ) -> (Option<FocusMeasure>, Option<String>) {
     // The loading indicator (night-dragon-maintenance-4): one announce
     // line used to be all the window said before going silent for the
@@ -266,15 +265,11 @@ fn run_focus_window(
     // (inert when piped) and Drop erases its line on every exit path.
     let _window_spinner =
         crate::output::Spinner::start("capturing traffic window".to_string(), focus_secs);
-    if verbose {
-        eprintln_safe!(
-            "{}",
-            crate::output::grey(&format!(
-                "[eagle-eyes] traffic focus: attaching observer for a {focus_secs}s window"
-            ))
-        );
-    }
-    let mut observer = match Observer::attach(verbose) {
+    crate::output::verbose::vlog!(
+        "eagle-eyes",
+        "traffic focus: attaching observer for a {focus_secs}s window"
+    );
+    let mut observer = match Observer::attach() {
         Ok(o) => o,
         Err(e) => return (None, Some(format!("observer attach failed: {e}"))),
     };
@@ -334,7 +329,6 @@ pub(crate) fn handle_eagle_eyes_depth(
     targets: Option<&str>,
     focus: Option<&str>,
     json: bool,
-    verbose: bool,
 ) -> Result<()> {
     // Parse-before-execute ladder (no privileges needed): a missing
     // target and a spec that reduces to nothing both surface BEFORE
@@ -368,7 +362,7 @@ pub(crate) fn handle_eagle_eyes_depth(
     identity.refresh();
     let mut conns = ConnectionMap::new();
     conns.refresh();
-    let limiter = open_enforcement(verbose)?;
+    let limiter = open_enforcement()?;
     // The ledger's BASELINE read (night-private-research-7): brackets
     // the focus window's START — the dropped counter's delta across
     // the bracket is the window's own shaping verdict (the
@@ -394,7 +388,7 @@ pub(crate) fn handle_eagle_eyes_depth(
             "[eagle-eyes] traffic focus: measuring a {focus_secs}s window"
         ))
     );
-    let (focus_measure, traffic_note) = run_focus_window(&mut conns, focus_secs, verbose);
+    let (focus_measure, traffic_note) = run_focus_window(&mut conns, focus_secs);
     // The ledger's CLOSING read (night-private-research-7): the
     // accounting line renders the ledger AS OF PRINT — including the
     // window the report just measured (the pre-window read the line
@@ -455,7 +449,7 @@ pub(crate) fn handle_eagle_eyes_depth(
                 crate::ebpf::identity::name_walk::matched_pairs_to_ids(&pairs)
             }
             Target::Container(c) => {
-                crate::ebpf::identity::container::resolve(c, false).unwrap_or_default()
+                crate::ebpf::identity::container::resolve(c).unwrap_or_default()
             }
         })
         .collect();
@@ -501,16 +495,7 @@ pub(crate) fn handle_eagle_eyes_depth(
             misses.push((token.label(), "no live cgroup matches".to_string()));
             continue;
         }
-        if verbose {
-            eprintln_safe!(
-                "{}",
-                crate::output::grey(&format!(
-                    "[eagle-eyes] {} -> {} cgroup(s)",
-                    token.label(),
-                    ids.len()
-                ))
-            );
-        }
+        crate::output::verbose::vlog!("eagle-eyes", "{} -> {} cgroup(s)", token.label(), ids.len());
         for id in ids {
             let target = token.label();
             let facts = facts_by_id.get(&id).cloned().unwrap_or_default();

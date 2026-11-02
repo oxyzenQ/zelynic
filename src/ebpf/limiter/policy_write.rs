@@ -87,18 +87,13 @@ impl super::Limiter {
                 direction: Direction::Download,
                 previous: previous[0],
             });
-            if self.verbose {
-                eprintln_safe!(
-                    "{}",
-                    crate::output::grey(&policy_write_line(
-                        cgroup_id,
-                        Direction::Download,
-                        dl_rate,
-                        bracket.download.floor_bps,
-                        bracket.download.ceil_bps,
-                    ))
-                );
-            }
+            crate::output::verbose::vlog_line!(policy_write_line(
+                cgroup_id,
+                Direction::Download,
+                dl_rate,
+                bracket.download.floor_bps,
+                bracket.download.ceil_bps,
+            ));
             applied += 1;
         }
 
@@ -120,18 +115,13 @@ impl super::Limiter {
                 direction: Direction::Upload,
                 previous: previous[1],
             });
-            if self.verbose {
-                eprintln_safe!(
-                    "{}",
-                    crate::output::grey(&policy_write_line(
-                        cgroup_id,
-                        Direction::Upload,
-                        ul_rate,
-                        bracket.upload.floor_bps,
-                        bracket.upload.ceil_bps,
-                    ))
-                );
-            }
+            crate::output::verbose::vlog_line!(policy_write_line(
+                cgroup_id,
+                Direction::Upload,
+                ul_rate,
+                bracket.upload.floor_bps,
+                bracket.upload.ceil_bps,
+            ));
             applied += 1;
         }
 

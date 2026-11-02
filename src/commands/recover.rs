@@ -43,7 +43,7 @@ use super::cleanup::unpin_if_no_policies;
 /// incomplete recovery exits 1 so scripts retry instead of trusting
 /// a success the filesystem did not grant.
 #[cfg(feature = "ebpf")]
-pub fn handle_recover(verbose: bool) -> Result<()> {
+pub fn handle_recover() -> Result<()> {
     use crate::ebpf::limiter::{Limiter, pin_dir_has_files, unpin_all};
 
     super::ensure_root()?;
@@ -86,7 +86,7 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
         );
         eprintln_safe!("  Checking for orphan policies...");
 
-        let mut limiter = Limiter::open_pinned(verbose)?;
+        let mut limiter = Limiter::open_pinned()?;
         limiter.refresh_identity();
 
         // NIGHT-hunt-30 (the session's core find): the window-death
@@ -339,7 +339,7 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
             // zero unpins it; a read failure keeps it (the warning
             // names the repair tool); a leftover survivor errors the
             // command (the verified unpin's own contract).
-            unpin_if_no_policies(&limiter, verbose)?;
+            unpin_if_no_policies(&limiter)?;
             return Ok(());
         } else {
             // NIGHT-dinner-23: a partial-failure Result renders in
@@ -424,7 +424,9 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
         crate::output::field("Action:", "removing all pin files...")
     );
 
-    if verbose && let Ok(entries) = std::fs::read_dir(pin_dir) {
+    if crate::output::verbose::enabled()
+        && let Ok(entries) = std::fs::read_dir(pin_dir)
+    {
         for entry in entries.flatten() {
             if let Some(name) = entry.file_name().to_str() {
                 eprintln_safe!("{}", crate::output::grey(&format!("    - {name}")));

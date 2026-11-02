@@ -350,9 +350,9 @@ impl super::Limiter {
         // once-per-invocation tail as apply_single's.
         self.mmspa_memo_invalidate_best_effort();
 
-        if self.verbose {
+        if crate::output::verbose::enabled() {
             for line in group_apply_lines(group_id, rates, all_cgroup_ids.len()) {
-                eprintln_safe!("{}", crate::output::grey(&line));
+                crate::output::verbose::vlog_line!("{}", line);
             }
         }
 

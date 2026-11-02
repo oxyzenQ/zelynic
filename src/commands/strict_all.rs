@@ -47,7 +47,6 @@ pub(crate) fn handle_strict_all(
     no_test: bool,
     bracket_flags: crate::commands::guarantee::BracketFlags<'_>,
     during: Option<&str>,
-    verbose: bool,
 ) -> Result<()> {
     use crate::ebpf::identity::IdentityMap;
     use crate::ebpf::limiter::{Limiter, Target, parse_during};
@@ -190,9 +189,9 @@ pub(crate) fn handle_strict_all(
     let saturated;
     {
         let _lock = crate::ebpf::lock::acquire()?;
-        crate::ebpf::limiter::Limiter::attach(verbose)?;
+        crate::ebpf::limiter::Limiter::attach()?;
 
-        limiter = Limiter::open_pinned(verbose)?;
+        limiter = Limiter::open_pinned()?;
         let (applied_count, saturated_count) =
             limiter.apply_group_sweep(&targets, &rates, &bracket, during_spec.as_ref())?;
         applied = applied_count;
