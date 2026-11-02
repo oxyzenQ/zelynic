@@ -451,7 +451,7 @@
 ///     primes the hint on the policed path, and the sock_ops
 ///     program clamps SO_RCVBUF at the connection callbacks so a
 ///     policed cgroup's sockets advertise a rate-shaped receive
-///     window (rate x 50ms, clamped [2 x MSS, 1 MiB]) — the
+///     window (rate x 200ms, clamped [2 x MSS, 1 MiB]) — the
 ///     sender-side slowdown that saves download quota BEFORE the
 ///     link bills the bytes. Userspace mirrors: every policy
 ///     REMOVAL sweeps the hint map whole (limiter/recwn.rs, the

@@ -416,7 +416,7 @@
 ///     both ESTABLISHED dispatches) and clamps SO_RCVBUF through
 ///     bpf_setsockopt, so a policed cgroup's own sockets advertise a
 ///     receive window shaped like their rate's bandwidth-delay
-///     product (rate x 50ms default RTT, clamped to [2 x MSS,
+///     product (rate x 200ms delivery-cadence estimate, clamped to [2 x MSS,
 ///     1 MiB]) — the sender-side slowdown that stops download quota
 ///     burning BEFORE the link bills the bytes. Two kernel truths
 ///     the lane is built on (both verified against v5.15 source,

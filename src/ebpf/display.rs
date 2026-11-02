@@ -142,11 +142,13 @@ pub(crate) struct RecwnLane {
 }
 
 /// The Layer 1 RTT assumption, microseconds — the userspace twin
-/// of ebpf/src/recwn.rs's RECWN_DEFAULT_RTT_US (50 ms). The twin
-/// discipline default_burst carries: each tree states its own
-/// constant, and test/ebpf/limiter/recwn_tests.rs pins the derived
-/// windows against the kernel core so the pair can never drift.
-pub(crate) const RECWN_RTT_ESTIMATE_US: u32 = 50_000;
+/// of ebpf/src/recwn.rs's RECWN_DEFAULT_RTT_US (200 ms, the
+/// delivery-cadence estimate the live E2E evidence set — the
+/// kernel core's doc owns the full record). The twin discipline
+/// default_burst carries: each tree states its own constant, and
+/// test/ebpf/limiter/recwn_tests.rs pins the derived windows
+/// against the kernel core so the pair can never drift.
+pub(crate) const RECWN_RTT_ESTIMATE_US: u32 = 200_000;
 
 /// The window-band clamps — the userspace twins of the kernel
 /// core's RECWN_WINDOW_MIN_BYTES / RECWN_WINDOW_MAX_BYTES (2 x MSS

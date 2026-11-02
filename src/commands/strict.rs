@@ -239,7 +239,7 @@ fn handle_strict_single(
         if let Some(rate) = rates.download.filter(|r| *r > 0) {
             crate::output::verbose::vlog!(
                 "limiter",
-                "RECWN armed: receive window clamps to {} (est. RTT 50ms) for this policy's \
+                "RECWN armed: receive window clamps to {} (est. RTT 200ms) for this policy's \
                  sockets",
                 crate::ebpf::limiter::format_bytes(crate::ebpf::display::recwn_window_bytes(rate))
             );

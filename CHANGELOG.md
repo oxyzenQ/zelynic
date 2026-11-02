@@ -77,7 +77,8 @@ v80.0.0
   Layer 1 (night-spark-2, schema v25).** The owner's coined name
   for the receive-window lane: a policed cgroup's own sockets
   advertise a window shaped like the policy's bandwidth-delay
-  product (rate x 50 ms assumed RTT, clamped to [2 x MSS,
+  product (rate x 200 ms delivery-cadence estimate, clamped to
+  [2 x MSS,
   1 MiB]), so remote TCP senders hold their in-flight bytes down
   BEFORE the ingress link bills the bytes — the one knob that
   answers README limitation #15's physics. The limiter object
@@ -124,7 +125,20 @@ v80.0.0
   scripts/bench/recwn-probe.sh (the owner's verification recipe:
   100 kb/s apply, a curl child moved into the cgroup, ss -ti
   clamp evidence, the throughput band, retransmits near zero —
-  self-test lane 11/11).
+  self-test lane 11/11). The delivery-cadence estimate itself is
+  the follow-up find this same cycle closed: the first cut carried
+  the briefed 50 ms and the E2E legs measured 29-37% of budget at
+  the 100 kb rung and 34% at 500 kb on ALL THREE CI kernels (with
+  zero drops — the window, not the policer, had become the binding
+  constraint); the mechanism is the receiver's window-update
+  cadence (~145-160 ms on the test links, delayed-ACK bounded at
+  200 ms) gating delivery when the buffer is locked, so the
+  estimate rose to 200 ms — delivered matches the limit again, the
+  policer stays binding, and the trade (4x BDP in-flight on a
+  genuinely 50 ms link; the measured-RTT re-tune as the Layer-1+
+  close) is stated in ebpf/src/recwn.rs. The same follow-up grew
+  the endurance harness's PIN_FAMILY census to the 41-object
+  family (35 maps + 3 programs + 3 links) the v25 object pins.
 
 - **docs(arc): the cosmic dragon arc — the official umbrella name
   for zelynic's entire architectural stack (the arc consolidation,
