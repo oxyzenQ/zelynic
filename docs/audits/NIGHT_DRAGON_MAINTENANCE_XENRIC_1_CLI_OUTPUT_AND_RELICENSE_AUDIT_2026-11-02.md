@@ -15,8 +15,8 @@ Method note, stated honestly: the audit host is a rootless sandbox
 the pinned stable 1.98.1 toolchain. The dormant lane ran for real
 (compile, clippy, 164 unit + 62 integration tests, the CLI surface
 matrix); the full-featured userspace lane was compiled and tested
-through the committed prebuilt objects (the registry lane — 946 unit
-+ 70 integration green); the eBPF cross-compile lane (bpf-linker +
+through the committed prebuilt objects (the registry lane — 946 unit +
+70 integration green); the eBPF cross-compile lane (bpf-linker +
 system LLVM) was unavailable locally and stays CI-owned.
 
 ## Lane 1: the CLI output lane, measured against the zejtron law
