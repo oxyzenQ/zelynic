@@ -53,6 +53,28 @@ v80.0.0
 
 ### Added
 
+- **docs(arc): the cosmic dragon arc — the official umbrella name
+  for zelynic's entire architectural stack (the arc consolidation,
+  the depth audit before the quota-saver build).** The thirteen
+  kernel innovations (the Scales), the MMSPA and DRR engines (the
+  Heart), the lazy camera and bypass detection (the Eyes), and the
+  eBPF object structure with its userspace loaders (the Claws) now
+  compose one named whole: the new docs/COSMIC_DRAGON_ARC.md is
+  the canonical index — the estate map, the 2026-11-03 depth audit
+  (QUIC v22 verified end to end: stateless long-header CID parse,
+  confirmation-gated short-header learning, cookie on every
+  refusal; all thirteen scales green on Code/Doc/Test), the quota
+  gap (no quota accumulator, no RWND, ECN enforcement-driven and
+  uncounted, no EDT), and the owner's v81 roadmap recorded verbatim
+  (Layer 1 TCP receive window enforcement, Layer 2 ECN CE-marking
+  for QUIC backoff, Layer 3 EDT pacing for egress). INNOVATIONS.md
+  introduces the arc above the engine; README.md carries the new
+  "The cosmic dragon arc — the enforcement core of zelynic"
+  section and groups the sharp-table scales and the commercial
+  patterns under the arc banner; COMMERCIAL_LICENSE.md names the
+  arc in both the licensing list and the wrong-comparison ledger;
+  the docs index carries the new row.
+
 - **fix(json): `live` renamed `live_samples` — the field name says
   what it counts (night-verdict-closure-T7 (H4), the nameable-unit
   law).** The rate ring's per-direction series carried a `live`
