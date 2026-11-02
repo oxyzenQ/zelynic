@@ -35,6 +35,26 @@ v80.0.0
 
 ### Fixed
 
+- **fix(harness): the unlock row rides one-sided post-unlock
+  patience (the low-specs musl boundary straddle, night-spark-1).**
+  The 5825ee1 push's only red lane was the supermassive low-specs
+  musl leg reading "unlock: unstrict restores speed — 1.9 GB/s
+  after unlock (floor 1.9 GB/s)" — display-equal, byte-below the
+  0.3 x baseline bound, with every enforcement sibling row green.
+  The row measured exactly one 4 s window immediately after
+  unstrict lifted a 500kb policy that had just dropped hundreds of
+  packets on the same flow: the policer collapsed the congestion
+  window into deep-RTO backoff, and unstrict removes the policer
+  instantly but TCP's recovery ramp refills cwnd over several RTO
+  cycles — the same physics lib.patient_rate_window was built for
+  on the trickle rungs. test_unlock now re-samples while under the
+  floor, bounded at three windows, breaking on the first in-floor
+  sample; every sample rides the row detail (the honesty contract
+  — the row never hides a retry), and all attempts under the floor
+  still FAIL, so a systematically strangling datapath cannot pass
+  by retry. Verified by the engine self-test (37 passed, 0 failed),
+  ruff check + format, and codespell on the touched file.
+
 - **fix(build): the dormant test build compiles clean under CI's
   `-D warnings` (the red-lane repair, night-dragon-maintenance-xenric-1
   follow-up).** The xenric-1 squash landed the verbose module with
