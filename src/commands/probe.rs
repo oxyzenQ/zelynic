@@ -131,9 +131,7 @@ pub(crate) fn run_enforcement_probe(
     let ids = match target {
         Target::CgroupId(id) => vec![*id],
         Target::ProcessName(name) => resolve_name(name),
-        Target::Container(c) => {
-            crate::ebpf::identity::container::resolve(c, false).unwrap_or_default()
-        }
+        Target::Container(c) => crate::ebpf::identity::container::resolve(c).unwrap_or_default(),
     };
     let Some(&target_id) = ids.first() else {
         return unverified("target resolved to nothing at probe time".to_string());

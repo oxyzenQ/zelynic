@@ -41,14 +41,10 @@ impl super::Limiter {
     pub(super) fn resolve_target(&mut self, target: &Target) -> Result<Vec<u32>> {
         match target {
             Target::CgroupId(id) => {
-                if self.verbose {
-                    eprintln_safe!(
-                        "{}",
-                        crate::output::grey(&format!(
-                            "[limiter] cg:{id} targeted directly (no /proc walk)"
-                        ))
-                    );
-                }
+                crate::output::verbose::vlog!(
+                    "limiter",
+                    "cg:{id} targeted directly (no /proc walk)"
+                );
                 Ok(vec![*id])
             }
             Target::Container(c) => {
@@ -56,7 +52,7 @@ impl super::Limiter {
                 // becomes the workload's cgroup id, the rest is the
                 // single lane's machinery (specific infrastructure errors,
                 // never the generic no-match; the trace is resolve's own).
-                crate::ebpf::identity::container::resolve(c, self.verbose)
+                crate::ebpf::identity::container::resolve(c)
             }
             Target::ProcessName(name) => {
                 // Direct /proc walk: find all PIDs whose comm matches —
@@ -65,12 +61,7 @@ impl super::Limiter {
                 // are the same code the batched twin runs, so a name
                 // resolves identically however it is spelled in).
                 let matched = name_pairs(name);
-                if self.verbose {
-                    eprintln_safe!(
-                        "{}",
-                        crate::output::grey(&resolution_trace_line(name, &matched))
-                    );
-                }
+                crate::output::verbose::vlog_line!(resolution_trace_line(name, &matched));
 
                 // Also refresh identity map for display purposes.
                 self.identity.maybe_refresh();
@@ -113,30 +104,21 @@ impl super::Limiter {
         for target in targets {
             match target {
                 Target::CgroupId(id) => {
-                    if self.verbose {
-                        eprintln_safe!(
-                            "{}",
-                            crate::output::grey(&format!(
-                                "[limiter] cg:{id} targeted directly (no /proc walk)"
-                            ))
-                        );
-                    }
+                    crate::output::verbose::vlog!(
+                        "limiter",
+                        "cg:{id} targeted directly (no /proc walk)"
+                    );
                     out.push(vec![*id]);
                 }
                 Target::Container(c) => {
-                    out.push(crate::ebpf::identity::container::resolve(c, self.verbose)?);
+                    out.push(crate::ebpf::identity::container::resolve(c)?);
                 }
                 Target::ProcessName(name) => {
                     let matched = matched_by_name
                         .get(&name.to_lowercase())
                         .cloned()
                         .unwrap_or_default();
-                    if self.verbose {
-                        eprintln_safe!(
-                            "{}",
-                            crate::output::grey(&resolution_trace_line(name, &matched))
-                        );
-                    }
+                    crate::output::verbose::vlog_line!(resolution_trace_line(name, &matched));
                     out.push(matched_pairs_to_ids(&matched));
                     walked_names = true;
                 }

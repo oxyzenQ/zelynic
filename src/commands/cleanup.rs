@@ -18,17 +18,17 @@ use crate::commands::target_grammar::{target_is_list, validate_multi_targets};
 /// the single lane. The lanes are the former unstrict-single /
 /// unstrict-multi handlers, unchanged.
 #[cfg(feature = "ebpf")]
-pub fn handle_unstrict(target_str: &str, verbose: bool) -> Result<()> {
+pub fn handle_unstrict(target_str: &str) -> Result<()> {
     if target_is_list(target_str) {
-        handle_unstrict_multi(target_str, verbose)
+        handle_unstrict_multi(target_str)
     } else {
-        handle_unstrict_single(target_str, verbose)
+        handle_unstrict_single(target_str)
     }
 }
 
 /// Remove the rate limit from one app — the single lane.
 #[cfg(feature = "ebpf")]
-fn handle_unstrict_single(target_str: &str, verbose: bool) -> Result<()> {
+fn handle_unstrict_single(target_str: &str) -> Result<()> {
     // NIGHT-dinner-16: the single-target input boundary — an empty
     // target dies before the root ask (the parse-before-execute
     // ladder), instead of reading as a no-match with an invisible
@@ -50,7 +50,7 @@ fn handle_unstrict_single(target_str: &str, verbose: bool) -> Result<()> {
         ));
     }
 
-    let mut limiter = crate::ebpf::limiter::Limiter::open_pinned(verbose)?;
+    let mut limiter = crate::ebpf::limiter::Limiter::open_pinned()?;
     let removed = remove_limits(&mut limiter, &[target_str])?;
 
     if removed > 0 {
@@ -92,7 +92,7 @@ fn handle_unstrict_single(target_str: &str, verbose: bool) -> Result<()> {
     // (dinner-11 move: the old early return skipped it) — a walk
     // that removed nothing may still have emptied the maps, and an
     // empty-but-pinned skeleton is residue.
-    unpin_if_no_policies(&limiter, verbose)?;
+    unpin_if_no_policies(&limiter)?;
 
     if removed == 0 {
         // NIGHT-dinner-11: the no-match hard error.
@@ -109,7 +109,7 @@ fn handle_unstrict_single(target_str: &str, verbose: bool) -> Result<()> {
 /// (NIGHT-hunt-10: the unstrict family previously had no list form;
 /// NIGHT-improve-53: the '::' grammar, same law as strict).
 #[cfg(feature = "ebpf")]
-fn handle_unstrict_multi(targets_str: &str, verbose: bool) -> Result<()> {
+fn handle_unstrict_multi(targets_str: &str) -> Result<()> {
     // Same parsing contract as strict's group lane — and
     // NIGHT-blade-18: the list grammar (validate_multi_targets), so a
     // malformed removal list is refused with the same wording
@@ -132,7 +132,7 @@ fn handle_unstrict_multi(targets_str: &str, verbose: bool) -> Result<()> {
         ));
     }
 
-    let mut limiter = crate::ebpf::limiter::Limiter::open_pinned(verbose)?;
+    let mut limiter = crate::ebpf::limiter::Limiter::open_pinned()?;
     let removed = remove_limits(&mut limiter, &targets)?;
 
     if removed > 0 {
@@ -171,7 +171,7 @@ fn handle_unstrict_multi(targets_str: &str, verbose: bool) -> Result<()> {
 
     // The no-residue ladder before the verdict (dinner-11 move, same
     // as handle_unstrict).
-    unpin_if_no_policies(&limiter, verbose)?;
+    unpin_if_no_policies(&limiter)?;
 
     if removed == 0 {
         // NIGHT-dinner-11: the no-match hard error.
@@ -231,14 +231,11 @@ fn count_remaining_policies(limiter: &crate::ebpf::limiter::Limiter) -> Result<u
 /// handler (commands/recover.rs) runs the same ladder after an
 /// orphan sweep that took the last policies.
 #[cfg(feature = "ebpf")]
-pub(crate) fn unpin_if_no_policies(
-    limiter: &crate::ebpf::limiter::Limiter,
-    verbose: bool,
-) -> Result<()> {
+pub(crate) fn unpin_if_no_policies(limiter: &crate::ebpf::limiter::Limiter) -> Result<()> {
     match count_remaining_policies(limiter) {
         Ok(0) => {
             super::unpin_all_bpf()?;
-            if verbose {
+            if crate::output::verbose::enabled() {
                 eprintln_safe!(
                     "{}",
                     crate::output::ok("[limiter] No policies remain — BPF unpinned, no residue")
@@ -261,7 +258,7 @@ pub(crate) fn unpin_if_no_policies(
 /// machine (the former unstrict-all verb, NIGHT-improve-54);
 /// exits 0 on an already-clean system.
 #[cfg(feature = "ebpf")]
-pub fn handle_unstrict_all(verbose: bool) -> Result<()> {
+pub fn handle_unstrict_all() -> Result<()> {
     use crate::ebpf::limiter::pin_dir_has_files;
 
     super::ensure_root()?;
@@ -290,7 +287,9 @@ pub fn handle_unstrict_all(verbose: bool) -> Result<()> {
     // NIGHT-hunt-9: verbose lists exactly which pin files are being torn
     // down before the wipe — the same evidence recover() prints for its
     // stale-state branch. Previously this handler discarded the flag.
-    if verbose && let Ok(entries) = std::fs::read_dir(crate::ebpf::limiter::PIN_DIR) {
+    if crate::output::verbose::enabled()
+        && let Ok(entries) = std::fs::read_dir(crate::ebpf::limiter::PIN_DIR)
+    {
         for entry in entries.flatten() {
             if let Some(name) = entry.file_name().to_str() {
                 eprintln_safe!("{}", crate::output::grey(&format!("  - {name}")));

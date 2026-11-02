@@ -24,16 +24,11 @@ use crate::ebpf::limiter::types::POLICY_MAP_CAPACITY as POLICY_CAP;
 /// handlers, unchanged, so every contract (the parse-before-execute
 /// ladder, the batched danger guard, the rate-0 catch-all check,
 /// the race guards) rides the merge.
-pub fn handle_block(
-    target_str: &str,
-    force_this: bool,
-    during: Option<&str>,
-    verbose: bool,
-) -> Result<()> {
+pub fn handle_block(target_str: &str, force_this: bool, during: Option<&str>) -> Result<()> {
     if target_is_list(target_str) {
-        handle_block_multi(target_str, force_this, during, verbose)
+        handle_block_multi(target_str, force_this, during)
     } else {
-        handle_block_single(target_str, force_this, during, verbose)
+        handle_block_single(target_str, force_this, during)
     }
 }
 
@@ -41,12 +36,7 @@ pub fn handle_block(
 /// `during` (night-during, schema v23; the owner's duration-only
 /// revision): the block's own lifetime — a duration from the apply
 /// instant; the block lifts itself, no daemon.
-fn handle_block_single(
-    target_str: &str,
-    force_this: bool,
-    during: Option<&str>,
-    verbose: bool,
-) -> Result<()> {
+fn handle_block_single(target_str: &str, force_this: bool, during: Option<&str>) -> Result<()> {
     // Input validation first (fail-fast, no privileges needed): the
     // dangerous-target blocklist is pure string matching — a policy
     // refusal surfaces before the root requirement, the same
@@ -72,9 +62,9 @@ fn handle_block_single(
 
     let _lock = crate::ebpf::lock::acquire()?;
 
-    Limiter::attach(verbose)?;
+    Limiter::attach()?;
 
-    let mut limiter = Limiter::open_pinned(verbose)?;
+    let mut limiter = Limiter::open_pinned()?;
     let target = Target::parse(target_str);
 
     let rates = RateSpec {
@@ -137,12 +127,7 @@ fn handle_block_single(
 }
 
 /// Block multiple apps from the internet — the group lane.
-fn handle_block_multi(
-    targets_str: &str,
-    force_this: bool,
-    during: Option<&str>,
-    verbose: bool,
-) -> Result<()> {
+fn handle_block_multi(targets_str: &str, force_this: bool, during: Option<&str>) -> Result<()> {
     // Input validation first (fail-fast, no privileges needed) — same
     // parse-before-execute ladder as the strict group lane.
     //
@@ -179,8 +164,8 @@ fn handle_block_multi(
 
     let _lock = crate::ebpf::lock::acquire()?;
 
-    Limiter::attach(verbose)?;
-    let mut limiter = Limiter::open_pinned(verbose)?;
+    Limiter::attach()?;
+    let mut limiter = Limiter::open_pinned()?;
 
     let rates = RateSpec {
         download: Some(0),
@@ -223,7 +208,7 @@ fn handle_block_multi(
 
 /// The `b --all` sweep lane — block EVERY user app from the
 /// internet (the former block-all verb, NIGHT-improve-54).
-pub fn handle_block_all(force_this: bool, during: Option<&str>, verbose: bool) -> Result<()> {
+pub fn handle_block_all(force_this: bool, during: Option<&str>) -> Result<()> {
     use crate::ebpf::identity::IdentityMap;
 
     // night-during (schema v23): the fleet-wide window refuses
@@ -317,8 +302,8 @@ pub fn handle_block_all(force_this: bool, during: Option<&str>, verbose: bool) -
         ));
     }
 
-    Limiter::attach(verbose)?;
-    let mut limiter = Limiter::open_pinned(verbose)?;
+    Limiter::attach()?;
+    let mut limiter = Limiter::open_pinned()?;
 
     let rates = RateSpec {
         download: Some(0),

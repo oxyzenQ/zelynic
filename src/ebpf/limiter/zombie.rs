@@ -502,21 +502,15 @@ impl Limiter {
         // slots.
         self.reclaim_dead_groups(&captured_groups);
 
-        if self.verbose && retired > 0 {
-            eprintln_safe!(
-                "{}",
-                crate::output::grey(&zombie_sweep_trace_line(
-                    retired,
-                    state_reclaimed,
-                    fs_proven
-                ))
-            );
+        if retired > 0 {
+            crate::output::verbose::vlog_line!(zombie_sweep_trace_line(
+                retired,
+                state_reclaimed,
+                fs_proven
+            ));
         }
-        if self.verbose && belt_held > 0 {
-            eprintln_safe!(
-                "{}",
-                crate::output::grey(&zombie_sweep_held_line(belt_held))
-            );
+        if belt_held > 0 {
+            crate::output::verbose::vlog_line!(zombie_sweep_held_line(belt_held));
         }
         retired
     }

@@ -10,7 +10,7 @@ use anyhow::Result;
 
 /// Handle `zelynic status` — show active limits + watchdog.
 #[cfg(feature = "ebpf")]
-pub fn handle_status(verbose: bool, json: bool) -> Result<()> {
+pub fn handle_status(json: bool) -> Result<()> {
     use crate::ebpf::display::{status_clean_lines, status_stale_lines};
     use crate::ebpf::limiter::{Limiter, pin_dir_has_files, terminal_width};
 
@@ -51,7 +51,7 @@ pub fn handle_status(verbose: bool, json: bool) -> Result<()> {
         return Ok(());
     }
 
-    let mut limiter = Limiter::open_pinned(verbose)?;
+    let mut limiter = Limiter::open_pinned()?;
     limiter.refresh_identity();
 
     // NIGHT-hunt-30 (the session's core find — "the brave on status
@@ -111,7 +111,7 @@ pub fn handle_status(verbose: bool, json: bool) -> Result<()> {
     // visit already holds — a concurrent operation's own family
     // ladder owns the moment instead.
     if _sweep_lock.is_some() {
-        super::cleanup::unpin_if_no_policies(&limiter, verbose)?;
+        super::cleanup::unpin_if_no_policies(&limiter)?;
     }
     Ok(())
 }
@@ -154,11 +154,7 @@ pub fn handle_status(verbose: bool, json: bool) -> Result<()> {
 /// state or BPF work, the branded error teaching the scripted-output
 /// alternative (`status --print-json`).
 #[cfg(feature = "ebpf")]
-pub fn handle_eagle_eyes(
-    targets: Option<&str>,
-    interval: Option<&str>,
-    verbose: bool,
-) -> Result<()> {
+pub fn handle_eagle_eyes(targets: Option<&str>, interval: Option<&str>) -> Result<()> {
     use crate::ebpf::connections::ConnectionMap;
     use crate::ebpf::limiter::Target;
     use crate::ebpf::loader::{Observer, SocketBytes};
@@ -271,23 +267,15 @@ pub fn handle_eagle_eyes(
     // contract: bytes between attach and the first frame stay out of
     // the session ledger).
     let mut observer;
-    let monitor = if verbose {
-        observer = Observer::attach(verbose)?;
+    let monitor = if crate::output::verbose::enabled() {
+        observer = Observer::attach()?;
         observer.refresh_identity();
-        eprintln_safe!(
-            "{}",
-            crate::output::grey(&format!(
-                "[ebpf] {} cgroups resolved",
-                observer.identity().len()
-            ))
-        );
+        crate::output::verbose::vlog!("ebpf", "{} cgroups resolved", observer.identity().len());
         let first = observer.poll_and_summarize()?;
-        eprintln_safe!(
-            "{}",
-            crate::output::grey(&format!(
-                "[ebpf] first poll: {} cgroups with traffic since attach",
-                first.cgroups.len()
-            ))
+        crate::output::verbose::vlog!(
+            "ebpf",
+            "first poll: {} cgroups with traffic since attach",
+            first.cgroups.len()
         );
         terminal::Monitor::open(|_, _| Vec::new())?
     } else {
@@ -300,7 +288,7 @@ pub fn handle_eagle_eyes(
                 },
             )
         })?;
-        observer = Observer::attach(verbose)?;
+        observer = Observer::attach()?;
         observer.refresh_identity();
         let _ = observer.poll_and_summarize()?;
         monitor
@@ -477,8 +465,7 @@ mod tests {
     #[cfg(feature = "ebpf")]
     #[test]
     fn duration_typo_surfaces_before_root_guard() {
-        let err =
-            handle_eagle_eyes(None, Some("3min"), false).expect_err("typo'd interval must fail");
+        let err = handle_eagle_eyes(None, Some("3min")).expect_err("typo'd interval must fail");
         let msg = format!("{err}");
         assert!(
             msg.contains("Invalid duration '3min'"),
@@ -502,8 +489,8 @@ mod tests {
     #[test]
     fn interval_bounds_surface_before_root_guard() {
         for bad in ["0", "61", "90s", "2m"] {
-            let err = handle_eagle_eyes(None, Some(bad), false)
-                .expect_err("out-of-range interval must fail");
+            let err =
+                handle_eagle_eyes(None, Some(bad)).expect_err("out-of-range interval must fail");
             let msg = format!("{err}");
             assert!(
                 msg.contains("must be between 1s and 60s"),
@@ -524,8 +511,7 @@ mod tests {
     #[test]
     fn empty_target_spec_surfaces_before_root_guard() {
         for bad in ["/", " // "] {
-            let err =
-                handle_eagle_eyes(Some(bad), None, false).expect_err("empty target spec must fail");
+            let err = handle_eagle_eyes(Some(bad), None).expect_err("empty target spec must fail");
             let msg = format!("{err}");
             assert!(
                 msg.contains("No targets in"),

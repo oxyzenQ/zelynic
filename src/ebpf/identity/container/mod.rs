@@ -106,10 +106,10 @@ pub fn parse_container(s: &str) -> Option<ContainerRef> {
 /// error — "socket not found", "no container named X", "no cgroup
 /// directory" — never the generic no-match, because the input was
 /// a well-formed reference whose INFRASTRUCTURE answered.
-pub fn resolve(c: &ContainerRef, verbose: bool) -> Result<Vec<u32>> {
+pub fn resolve(c: &ContainerRef) -> Result<Vec<u32>> {
     match c {
-        ContainerRef::Docker { name } => docker::resolve_docker(name, verbose),
-        ContainerRef::K8s { namespace, pod } => resolve_k8s(namespace, pod, verbose),
+        ContainerRef::Docker { name } => docker::resolve_docker(name),
+        ContainerRef::K8s { namespace, pod } => resolve_k8s(namespace, pod),
     }
 }
 
@@ -162,7 +162,7 @@ pub(super) fn pod_uid_matches(
 /// disambiguated by the cgroup tree itself: only the LIVE pod owns
 /// a `pod<uid>` directory, so every candidate uid is probed and a
 /// single survivor wins; a tie stays an honest ambiguity.
-fn resolve_k8s(namespace: &str, pod: &str, verbose: bool) -> Result<Vec<u32>> {
+fn resolve_k8s(namespace: &str, pod: &str) -> Result<Vec<u32>> {
     let log_root = Path::new("/var/log/pods");
     let entries = std::fs::read_dir(log_root).map_err(|_| {
         anyhow!(
@@ -210,13 +210,11 @@ fn resolve_k8s(namespace: &str, pod: &str, verbose: bool) -> Result<Vec<u32>> {
             )
         }
     };
-    if verbose && uids.len() > 1 {
-        eprintln_safe!(
-            "{}",
-            crate::output::grey(&format!(
-                "[container] k8s://{namespace}/{pod}: {} stale log dir(s) skipped, live uid {chosen}",
-                uids.len() - 1
-            ))
+    if uids.len() > 1 {
+        crate::output::verbose::vlog!(
+            "container",
+            "k8s://{namespace}/{pod}: {} stale log dir(s) skipped, live uid {chosen}",
+            uids.len() - 1
         );
     }
 
@@ -231,15 +229,11 @@ fn resolve_k8s(namespace: &str, pod: &str, verbose: bool) -> Result<Vec<u32>> {
     })?;
     let id = cgroup_id_of(&dir)
         .ok_or_else(|| anyhow!("pod cgroup {} could not be stat()ed", dir.display()))?;
-    if verbose {
-        eprintln_safe!(
-            "{}",
-            crate::output::grey(&format!(
-                "[container] k8s://{namespace}/{pod} → {} (cgroup cg:{id})",
-                dir.display()
-            ))
-        );
-    }
+    crate::output::verbose::vlog!(
+        "container",
+        "k8s://{namespace}/{pod} → {} (cgroup cg:{id})",
+        dir.display()
+    );
     Ok(vec![id])
 }
 

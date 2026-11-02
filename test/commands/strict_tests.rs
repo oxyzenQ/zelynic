@@ -30,7 +30,6 @@ fn rate_typo_surfaces_before_root_guard() {
         false,
         super::super::guarantee::BracketFlags::default(),
         None,
-        false,
     )
     .expect_err("typo'd rate must fail");
     let msg = format!("{err}");
@@ -63,7 +62,6 @@ fn dangerous_target_refusal_surfaces_before_root_guard() {
         false,
         super::super::guarantee::BracketFlags::default(),
         None,
-        false,
     )
     .expect_err("dangerous target must be refused");
     let msg = format!("{err}");
@@ -95,7 +93,6 @@ fn empty_target_surfaces_before_root_guard() {
         false,
         super::super::guarantee::BracketFlags::default(),
         None,
-        false,
     )
     .expect_err("an empty target must be refused");
     let msg = format!("{err}");
@@ -125,10 +122,8 @@ fn router_picks_the_lane_the_target_grammar_names() {
     let bracket = super::super::guarantee::BracketFlags::default();
     // The single lane: the plain target reaches the single lane's
     // own no-rate rung, whose example names the single grammar.
-    let single = handle_strict(
-        "bash", None, None, None, false, false, false, bracket, None, false,
-    )
-    .expect_err("the single-lane no-rate case must fail");
+    let single = handle_strict("bash", None, None, None, false, false, false, bracket, None)
+        .expect_err("the single-lane no-rate case must fail");
     let msg = format!("{single}");
     assert!(
         msg.contains("No rate specified"),
@@ -152,7 +147,6 @@ fn router_picks_the_lane_the_target_grammar_names() {
         false,
         bracket,
         None,
-        false,
     )
     .expect_err("the group-lane no-rate case must fail");
     let msg = format!("{group}");
@@ -190,7 +184,6 @@ fn per_socket_is_refused_on_the_group_lane_before_any_parsing() {
         true,
         super::super::guarantee::BracketFlags::default(),
         None,
-        false,
     )
     .expect_err("per-socket on a list must be refused");
     let msg = format!("{err}");

@@ -133,7 +133,10 @@ fn link_mode_line(supports_link: bool) -> String {
 pub struct Limiter {
     bpf: Option<Ebpf>,
     identity: IdentityMap,
-    verbose: bool,
+    // night-dragon-maintenance-xenric-1: no `verbose` field — the
+    // diagnostic lane is process-global state (the output group's
+    // static flag), read through the one vlog door instead of
+    // threading a bool through every Limiter method.
 }
 
 impl Limiter {
@@ -144,7 +147,7 @@ impl Limiter {
     /// size, kernel release, load timing, the loaded map inventory
     /// (id / type / key / value / max_entries, the bpftool facts),
     /// and the total attach cost.
-    pub fn attach(verbose: bool) -> Result<()> {
+    pub fn attach() -> Result<()> {
         let started = std::time::Instant::now();
         let cgroup_path = "/sys/fs/cgroup";
         if !PathBuf::from(cgroup_path).exists() {
@@ -162,37 +165,27 @@ impl Limiter {
             // clean up + reload to avoid struct layout incompatibility.
             match read_pinned_schema_version() {
                 Some(v) if v == SCHEMA_VERSION_EXPECTED => {
-                    if verbose {
-                        eprintln_safe!(
-                            "{}",
-                            crate::output::grey(&format!(
-                                "[limiter] BPF programs + links already pinned (schema v{v}) — reusing"
-                            ))
-                        );
-                    }
+                    crate::output::verbose::vlog!(
+                        "limiter",
+                        "BPF programs + links already pinned (schema v{v}) — reusing"
+                    );
                     // night-during: refresh the wall-clock bridge
                     // on the reuse lane too (best-effort).
-                    during_map::stamp_offset_on_pinned(verbose);
+                    during_map::stamp_offset_on_pinned();
                     return Ok(());
                 }
                 Some(v) => {
-                    if verbose {
-                        eprintln_safe!(
-                            "{}",
-                            crate::output::grey(&format!(
-                                "[limiter] Schema version mismatch: pinned v{v} ≠ expected v{SCHEMA_VERSION_EXPECTED} — reloading"
-                            ))
-                        );
-                    }
+                    crate::output::verbose::vlog!(
+                        "limiter",
+                        "Schema version mismatch: pinned v{v} ≠ expected v{SCHEMA_VERSION_EXPECTED} — reloading"
+                    );
                     unpin_all()?;
                 }
                 None => {
-                    if verbose {
-                        eprintln_safe!(
-                            "{}",
-                            crate::output::grey("[limiter] Schema version map missing — reloading")
-                        );
-                    }
+                    crate::output::verbose::vlog!(
+                        "limiter",
+                        "Schema version map missing — reloading"
+                    );
                     unpin_all()?;
                 }
             }
@@ -200,30 +193,18 @@ impl Limiter {
             // If SOME pins exist but not all → stale state from old version or
             // crashed run. Clean up everything before reloading.
             if pin_dir_has_files() {
-                if verbose {
-                    eprintln_safe!(
-                        "{}",
-                        crate::output::grey("[limiter] Stale pin files detected — cleaning up")
-                    );
-                }
+                crate::output::verbose::vlog!("limiter", "Stale pin files detected — cleaning up");
                 unpin_all()?;
             }
         }
 
         let obj_data = LIMITER_ELF;
-        if verbose {
-            eprintln_safe!(
-                "{}",
-                crate::output::grey(&format!(
-                    "[limiter] Loading embedded BPF limiter object ({} bytes)",
-                    obj_data.len()
-                ))
-            );
-            eprintln_safe!(
-                "{}",
-                crate::output::grey(&trace::kernel_line("limiter", &kernel_release()))
-            );
-        }
+        crate::output::verbose::vlog!(
+            "limiter",
+            "Loading embedded BPF limiter object ({} bytes)",
+            obj_data.len()
+        );
+        crate::output::verbose::vlog_line!(trace::kernel_line("limiter", &kernel_release()));
 
         // NIGHT-hunt-30: alignment preflight — structurally impossible
         // with the AlignedElf embedding (src/ebpf/embedded.rs), kept
@@ -283,34 +264,28 @@ impl Limiter {
         // the object: the object's own view, printed at the moment it
         // loaded. Scoped so the immutable `bpf.maps()` borrow ends
         // before the map_mut section below takes the object over.
-        if verbose {
-            eprintln_safe!(
-                "{}",
-                trace::load_line(
-                    "limiter",
-                    bpf.programs().count(),
-                    bpf.maps().count(),
-                    load_started.elapsed()
-                )
-            );
+        if crate::output::verbose::enabled() {
+            crate::output::verbose::vlog_line!(trace::load_line(
+                "limiter",
+                bpf.programs().count(),
+                bpf.maps().count(),
+                load_started.elapsed()
+            ));
             for (name, map) in bpf.maps() {
                 if let Some(info) = trace::map_info(map) {
                     let kind = info
                         .map_type()
                         .map(trace::map_type_name)
                         .unwrap_or("unknown");
-                    eprintln_safe!(
-                        "{}",
-                        trace::map_line(
-                            "limiter",
-                            name,
-                            info.id(),
-                            kind,
-                            info.key_size(),
-                            info.value_size(),
-                            info.max_entries()
-                        )
-                    );
+                    crate::output::verbose::vlog_line!(trace::map_line(
+                        "limiter",
+                        name,
+                        info.id(),
+                        kind,
+                        info.key_size(),
+                        info.value_size(),
+                        info.max_entries()
+                    ));
                 }
             }
         }
@@ -341,9 +316,7 @@ impl Limiter {
 
         // Check kernel version for bpf_link support BEFORE borrowing ul_prog.
         let supports_link = kernel_supports_bpf_link();
-        if verbose {
-            eprintln_safe!("{}", link_mode_line(supports_link));
-        }
+        crate::output::verbose::vlog_line!(link_mode_line(supports_link));
 
         if supports_link {
             // Kernel 5.7+: extract fd, then borrow ul_prog separately.
@@ -417,12 +390,11 @@ impl Limiter {
             std::mem::forget(ul_link);
         }
 
-        if verbose {
-            eprintln_safe!(
-                "[limiter] Attached + pinned to {cgroup_path} (ingress + egress) in {}ms",
-                trace::ms(started.elapsed())
-            );
-        }
+        crate::output::verbose::vlog!(
+            "limiter",
+            "Attached + pinned to {cgroup_path} (ingress + egress) in {}ms",
+            trace::ms(started.elapsed())
+        );
 
         // Drop Ebpf object — programs stay loaded because pinned, links stay
         // attached because pinned. Maps stay loaded because pinned via
@@ -458,16 +430,13 @@ impl Limiter {
     /// Identity refresh is lazy — only triggered when `refresh_identity()`
     /// or `maybe_refresh_identity()` is called. This speeds up startup
     /// for write operations (`strict` etc.) that don't need identity.
-    pub fn open_pinned(verbose: bool) -> Result<Self> {
+    pub fn open_pinned() -> Result<Self> {
         let limiter = Limiter {
             bpf: None, // No Ebpf object — using pinned maps directly
             identity: IdentityMap::new(),
-            verbose,
         };
 
-        if verbose {
-            eprintln_safe!("[limiter] Opened pinned maps (identity lazy-loaded)");
-        }
+        crate::output::verbose::vlog!("limiter", "Opened pinned maps (identity lazy-loaded)");
 
         Ok(limiter)
     }

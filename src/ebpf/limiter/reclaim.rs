@@ -262,11 +262,8 @@ impl super::Limiter {
     /// unstrict loop in policy.rs prints it through this module's
     /// pure formatter.
     pub(super) fn print_reclaim_trace(&self, cgroup_id: u32, reclaimed: usize) {
-        if reclaimed > 0 && self.verbose {
-            eprintln_safe!(
-                "{}",
-                crate::output::grey(&reclaim_trace_line(cgroup_id, reclaimed))
-            );
+        if reclaimed > 0 {
+            crate::output::verbose::vlog_line!(reclaim_trace_line(cgroup_id, reclaimed));
         }
     }
 
@@ -465,11 +462,8 @@ impl super::Limiter {
                 }
             }
         }
-        if self.verbose && landed > 0 {
-            eprintln_safe!(
-                "{}",
-                crate::output::grey(&census_sweep_trace_line(map_name, landed))
-            );
+        if landed > 0 {
+            crate::output::verbose::vlog_line!(census_sweep_trace_line(map_name, landed));
         }
         landed
     }
@@ -548,12 +542,7 @@ impl super::Limiter {
                     ))
                 );
             }
-            if self.verbose {
-                eprintln_safe!(
-                    "{}",
-                    crate::output::grey(&group_reclaim_trace_line(gid, reclaimed_this_group))
-                );
-            }
+            crate::output::verbose::vlog_line!(group_reclaim_trace_line(gid, reclaimed_this_group));
         }
         reclaimed
     }

@@ -86,26 +86,19 @@ impl Observer {
     /// attach cost — all before the alt screen takes over in the
     /// eagle-eyes path, so the diagnostics are never swallowed by the
     /// TUI. Silent by default; stdout JSON stays clean.
-    pub fn attach(verbose: bool) -> Result<Self> {
+    pub fn attach() -> Result<Self> {
         let started = std::time::Instant::now();
         let cgroup_path = "/sys/fs/cgroup";
         if !PathBuf::from(cgroup_path).exists() {
             bail!("cgroup v2 not found at {cgroup_path}");
         }
 
-        if verbose {
-            eprintln_safe!(
-                "{}",
-                crate::output::grey(&format!(
-                    "[ebpf] Loading embedded BPF observer object ({} bytes)",
-                    OBSERVER_ELF.len()
-                ))
-            );
-            eprintln_safe!(
-                "{}",
-                crate::output::grey(&trace::kernel_line("ebpf", &kernel_release()))
-            );
-        }
+        crate::output::verbose::vlog!(
+            "ebpf",
+            "Loading embedded BPF observer object ({} bytes)",
+            OBSERVER_ELF.len()
+        );
+        crate::output::verbose::vlog_line!(trace::kernel_line("ebpf", &kernel_release()));
 
         // NIGHT-hunt-30: alignment preflight — structurally impossible
         // with the AlignedElf embedding, kept so a future regression
@@ -126,34 +119,28 @@ impl Observer {
         // capacities) before any traffic flows through them. Scoped
         // so the immutable borrows end before the program_mut
         // section below takes the object over.
-        if verbose {
-            eprintln_safe!(
-                "{}",
-                crate::output::grey(&trace::load_line(
-                    "ebpf",
-                    bpf.programs().count(),
-                    bpf.maps().count(),
-                    load_started.elapsed()
-                ))
-            );
+        if crate::output::verbose::enabled() {
+            crate::output::verbose::vlog_line!(trace::load_line(
+                "ebpf",
+                bpf.programs().count(),
+                bpf.maps().count(),
+                load_started.elapsed()
+            ));
             for (name, map) in bpf.maps() {
                 if let Some(info) = trace::map_info(map) {
                     let kind = info
                         .map_type()
                         .map(trace::map_type_name)
                         .unwrap_or("unknown");
-                    eprintln_safe!(
-                        "{}",
-                        crate::output::grey(&trace::map_line(
-                            "ebpf",
-                            name,
-                            info.id(),
-                            kind,
-                            info.key_size(),
-                            info.value_size(),
-                            info.max_entries()
-                        ))
-                    );
+                    crate::output::verbose::vlog_line!(trace::map_line(
+                        "ebpf",
+                        name,
+                        info.id(),
+                        kind,
+                        info.key_size(),
+                        info.value_size(),
+                        info.max_entries()
+                    ));
                 }
             }
         }
@@ -189,7 +176,10 @@ impl Observer {
             )
             .context("Failed to attach observe_ingress")?;
 
-        if verbose {
+        // The attach verdict rides the ok tier, not the grey trace
+        // tier — it is the "it works" confirmation (the status word
+        // law), still gated on the verbose lane.
+        if crate::output::verbose::enabled() {
             eprintln_safe!(
                 "{}",
                 crate::output::ok(&format!(

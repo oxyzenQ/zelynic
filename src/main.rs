@@ -112,6 +112,16 @@ fn try_main() -> Result<()> {
         Err(e) => cli::ux::exit_clap_error(e),
     };
 
+    // The diagnostic trace lane (night-dragon-maintenance-xenric-1):
+    // arm `-v` once, straight after the parse, before any command
+    // surface runs — every later verbose call site reads the output
+    // group's static flag instead of threading a bool through the
+    // dispatch tree (the zejtron verbose law, one door). Gated like
+    // the lane's module: every trace call site lives under the ebpf
+    // graph, so the dormant build never arms what it never reads.
+    #[cfg(feature = "ebpf")]
+    output::verbose::init(cli.verbose);
+
     // NIGHT-boost-23: --color-mode seeds the forced capability before
     // any output renders — help, errors, and the monitor all answer
     // to one ladder depth. Invalid values die at the input boundary

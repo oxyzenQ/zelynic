@@ -245,6 +245,17 @@ mod width;
 
 pub use labeled::eprintln_error_labeled;
 
+// The diagnostic trace lane (night-dragon-maintenance-xenric-1): the
+// -v one-liners on stderr — the zejtron verbose law, one door, one
+// static flag, no bool threading. Declared after the safe print
+// macros (the textual macro scope, the spinner placement law).
+// Gated like the chroma engine: every trace call site lives under
+// the ebpf graph (the dormant lane's refusal paths print no trace),
+// and CI's -D warnings makes a featureless compile of it a hard
+// error — the test lane keeps it compiled for the flag pins.
+#[cfg(any(feature = "ebpf", test))]
+pub mod verbose;
+
 // night-dragon-maintenance-4: the loading indicator — the live
 // elapsed/total spinner for the surfaces that hold (the depth
 // report's traffic-focus window; the monitor boot owns the
