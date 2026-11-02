@@ -41,7 +41,7 @@ use crate::ebpf::trace;
 /// host (see src/ebpf/embedded.rs for the hunt record).
 static OBSERVER_ELF: &[u8] = &crate::ebpf::embedded::AlignedElf::new(*include_bytes!(concat!(
     env!("OUT_DIR"),
-    "/zelynic-observer"
+    "/zelynic-observer.o"
 )))
 .bytes;
 

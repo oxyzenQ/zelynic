@@ -24,7 +24,7 @@
 /// time). See src/ebpf/embedded.rs for the full hunt record.
 pub static LIMITER_ELF: &[u8] = &crate::ebpf::embedded::AlignedElf::new(*include_bytes!(concat!(
     env!("OUT_DIR"),
-    "/zelynic-limiter"
+    "/zelynic-limiter.o"
 )))
 .bytes;
 

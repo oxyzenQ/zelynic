@@ -161,8 +161,8 @@ if [ "${1:-}" = "--check" ]; then
 		exit 1
 	}
 	for name in "${OBJECTS[@]}"; do
-		[ -f "${PREBUILT_DIR}/${name}" ] || {
-			echo "stale: the staged ${PREBUILT_DIR}/${name} is missing"
+		[ -f "${PREBUILT_DIR}/${name}.o" ] || {
+			echo "stale: the staged ${PREBUILT_DIR}/${name}.o is missing"
 			STALE=1
 		}
 	done
@@ -184,7 +184,7 @@ if [ "${1:-}" = "--check" ]; then
 	# staleness surface; the staged copy's pins are its own).
 	while read -r name want_sha want_size; do
 		[ -n "$name" ] || continue
-		file="${PREBUILT_DIR}/${name}"
+		file="${PREBUILT_DIR}/${name}.o"
 		if [ ! -f "$file" ]; then
 			echo "stale: manifest names ${name} but the file is absent"
 			STALE=1
@@ -297,7 +297,7 @@ log "ebpf tree b3:  ${TREE_B3}"
 # itself (a truncated copy would fail the gate one step later anyway).
 for name in "${OBJECTS[@]}"; do
 	src="${NESTED_OUT}/${name}"
-	dst="${PREBUILT_DIR}/${name}"
+	dst="${PREBUILT_DIR}/${name}.o"
 	[ -f "$src" ] || {
 		echo "FAIL: ${src} missing after a successful build" >&2
 		exit 1
@@ -349,8 +349,8 @@ done
 	echo "built_by = \"${BUILT_BY}\""
 	echo ""
 	for name in "${OBJECTS[@]}"; do
-		sha="$(b3sum "${PREBUILT_DIR}/${name}" | awk '{print $1}')"
-		size="$(stat -c%s "${PREBUILT_DIR}/${name}")"
+		sha="$(b3sum "${PREBUILT_DIR}/${name}.o" | awk '{print $1}')"
+		size="$(stat -c%s "${PREBUILT_DIR}/${name}.o")"
 		echo "[[object]]"
 		echo "name = \"${name}\""
 		echo "blake3 = \"${sha}\""

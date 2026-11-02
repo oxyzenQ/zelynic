@@ -220,7 +220,15 @@ fn build_ebpf_objects() {
         }
     }
     for (name, data) in staged {
-        let dst = out_dir.join(name);
+        // The OUT_DIR staging name carries the .o extension (the
+        // sibling zejtron staged-object convention): the loaders'
+        // include_bytes! concat paths name zelynic-observer.o and
+        // zelynic-limiter.o, and both lanes — this source-built one
+        // and the registry-prebuilt one in build/prebuilt.rs — must
+        // stage under exactly those names. The nested cargo artifact
+        // itself stays extensionless: that spelling is cargo's
+        // ([[bin]] name), read straight from its release directory.
+        let dst = out_dir.join(format!("{name}.o"));
         std::fs::write(&dst, &data)
             .unwrap_or_else(|e| panic!("failed to stage {} into OUT_DIR: {e}", dst.display()));
     }
