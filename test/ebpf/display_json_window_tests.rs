@@ -72,6 +72,7 @@ fn window_json_pins_span_and_daily_shapes() {
         Some(0),
         &RingReads::absent(),
         &windows,
+        &inert_recwn(),
         wall,
         mono,
     );
@@ -92,6 +93,7 @@ fn window_json_pins_span_and_daily_shapes() {
         Some(0),
         &RingReads::absent(),
         &windows,
+        &inert_recwn(),
         wall,
         mono,
     );
@@ -115,6 +117,7 @@ fn window_json_pins_span_and_daily_shapes() {
         Some(0),
         &RingReads::absent(),
         &[],
+        &inert_recwn(),
         0,
         0,
     );

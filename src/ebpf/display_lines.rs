@@ -158,6 +158,30 @@ pub(crate) fn active_limits_line(dl: usize, ul: usize) -> String {
     grey(&format!("  active limits: {dl} dl, {ul} ul"))
 }
 
+/// The RECWN lane's subordinate line (pure, night-spark-2, schema
+/// v25 — Receive Window Control, the quota saver's Layer 1): the
+/// binding receive window the lane derives and the RTT estimate it
+/// derived it from, in the watchdog's grey family. RECWN keeps its
+/// brand capitals — the owner's coined vocabulary, the BLOCKED
+/// verdict-value family (furniture stays lowercase, the brand is
+/// the message). None when the lane shapes no window (not planted,
+/// or no download policy with a live rate) — the dormant-watchdog
+/// honesty: an unenforcing lane prints nothing.
+pub(crate) fn recwn_line(lane: &super::display::RecwnLane) -> Option<String> {
+    // The belt the derivation already owns: an unplanted lane shapes
+    // nothing, whatever a stale census might claim — silence, never
+    // a phantom clamp printed as state.
+    if !lane.planted {
+        return None;
+    }
+    let window = lane.window_bytes?;
+    Some(grey(&format!(
+        "  RECWN: {} (est. RTT {}ms)",
+        format_bytes(window),
+        super::display::RECWN_RTT_ESTIMATE_US / 1000
+    )))
+}
+
 /// A compact human duration for the "(N left)" suffix (pure,
 /// night-during): one unit, CEILED — 45s, 47m, 3h, 20d, 5y; the
 /// sub-minute shapes print seconds so a short trial reads its own

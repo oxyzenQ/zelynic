@@ -144,6 +144,34 @@
 /// unchanged); the bump is load-bearing for the usual reason (new
 /// maps, and a field that was padding is now read), and the
 /// one-time re-apply contract holds as ever.
+/// v16 (NIGHT-dinner-28, the learned-share draw): the DRR draw's
+///     take is the residue law's bound FURTHER capped by the
+///     quantum's fair split across a LEARNED drawee count — the
+///     number of distinct leaves that drew in the last completed
+///     100ms epoch, kept per (pool, direction) in the two new pinned
+///     LRU maps drr_pool_state_dl/ul (ROOT cgroup id -> the packed
+///     word `last:u16 | running:u16 | epoch:u32`, drr.rs's packing).
+///     The find this closes is live, from the fair-share battery on
+///     every CI leg: the residue law splits a TWO-asker pool evenly
+///     but at K > 2 drawers the takes decay geometrically (50% /
+///     25% / 12.5% ... of the pool per epoch) — the worst leaf read
+///     3.35x its fair share while the quietest starved below one
+///     admit (78 B over the whole window), the aggregate staying
+///     exactly the policy the whole time. With the learned cap the
+///     first-asker position itself stops paying: every drawer's take
+///     is bounded by quantum/(K+1), a cold pool (learned 0) keeps
+///     the exact v13 shape, and a state-map miss fails OPEN onto
+///     the v13 law. The note rides the draw's success path; the
+///     state is an estimate (concurrent notes may lose one
+///     increment) whose slack the bounds absorb — pinned rootlessly
+///     by the simulation battery in drr_share_tests.rs, which
+///     reproduces the CI decay against the v13 law first. New maps,
+///     verdict math unchanged on every other lane; one-time re-apply
+///     as ever. (The history note this block carries was missing
+///     here while the userspace twin (src/ebpf/limiter/schema.rs)
+///     held it — comment-only drift the 2026-11-03 depth audit
+///     flagged; night-spark-2 restores the twin parity beside its
+///     own bump.)
 /// v17 (NIGHT-repair-3/4, the epoch ledger, the carry form): the
 /// DRR draw's take is further capped by the leaf's banked
 /// per-EPOCH allowance — the pool's 100ms refill split across the
@@ -217,6 +245,45 @@
 /// lanes; the bump forces pinned v18 programs to reload into the
 /// ECN-first object — active limits are dropped once, re-apply
 /// after upgrade, the same one-time contract as v4..v18.
+/// v20 (CAKE-shaped flow isolation): the DRR lane's leaf stops
+///     being one shared bucket for every socket the cgroup holds —
+///     an attributed packet (bpf_get_socket_cookie, the per-socket
+///     lane's own join, no new helper) spends from its own FLOW
+///     bucket and draws from the leaf under the DRR laws mirrored
+///     one level down: the learned flow count and drawee peak in
+///     the two new flow_share_dl/ul words ((generation << 32) |
+///     leaf), the epoch allowance and quantum-capped carry in the
+///     two new flow_ledger_dl/ul words (RAW cookie keyed — a u64
+///     the generation prefix cannot carry; a mutated budget's
+///     successor inherits at most one quantum of carry,
+///     availability-capped), the buckets themselves the pinned
+///     24-byte Bucket with the draw stamp on last_refill_ns and
+///     the generation belt on frac_rem (the leaf bucket's own
+///     trick). The SPARSE/DENSE distinction rides the flow
+///     bucket's draw-stamp epoch (a flow quiet for an epoch draws
+///     its packet's own bytes — the reserved small quantum; a flow
+///     drawing this epoch takes the quantum), and the OFF lane's
+///     take is the learned-share fraction leaf/(learned+2) — the
+///     rootless isolation battery's measured catch: the share
+///     word's peak decay reads MAX for the epochs between a decay
+///     and its re-ratchet, and a lane-law-only take there would
+///     drain the leaf whole once per transient epoch. The honest
+///     verdict the battery delivered first: the sketched
+///     starvation of the quiet flow does not reproduce (the
+///     banking's leftovers carry it, measured 100% admits in both
+///     lanes) — the race's real victims are the weaker demanders
+///     (a second download at 2.9:1 under the shared leaf, 1.1:1
+///     under the lane), and the quiet flow's protection is the
+///     zero-stranding demand-sized take (taken == got, measured).
+///     cookie == 0 (the hook's honest attribution limit) rides the
+///     leaf lane verbatim; the per-socket and group lanes are
+///     untouched by documented scope. Six new maps, all
+///     datapath-internal (the leaf_bucket family's contract); the
+///     bump forces pinned v19 programs to reload into the
+///     flow-isolated object — the same one-time re-apply contract
+///     as ever. (This block too was missing from this twin while
+///     the userspace side held it — restored with night-spark-2,
+///     the same drift fix.)
 /// v21 (the per-socket convergence closure): the v19 scope note's
 /// deferred question is answered and the per-socket lane joins the
 /// ECN-first family — mark before drop, per connection. The debt
@@ -335,8 +402,46 @@
 ///     into the bracketed object — active limits are dropped once,
 ///     re-apply after upgrade, the same one-time contract as every
 ///     bump before it.
+/// v25 (night-spark-2, RECWN — Receive Window Control, Layer 1 of
+///     the quota saver): the object grows its first sock_ops
+///     program, zelynic_recwn, attached at the cgroup root beside
+///     the two cgroup_skb hooks, plus ONE new pinned LRU map,
+///     recwn_socket_hint (socket cookie u64 -> the derived receive
+///     window in bytes, 4096 entries, the quic_cid_hint posture).
+///     The lane: the INGRESS enforcement hook primes the hint on
+///     the policed path (one cookie helper call + one LRU lookup,
+///     steady state no write — the cost class the overhead row
+///     owns), and the sock_ops program reads it back at the
+///     connection callbacks (the kernel's RWND_INIT dispatch and
+///     both ESTABLISHED dispatches) and clamps SO_RCVBUF through
+///     bpf_setsockopt, so a policed cgroup's own sockets advertise a
+///     receive window shaped like their rate's bandwidth-delay
+///     product (rate x 50ms default RTT, clamped to [2 x MSS,
+///     1 MiB]) — the sender-side slowdown that stops download quota
+///     burning BEFORE the link bills the bytes. Two kernel truths
+///     the lane is built on (both verified against v5.15 source,
+///     recorded in ebpf/src/recwn.rs): the RWND_INIT return value
+///     is an MSS multiplier where 0 is the OS default (the program
+///     answers 0 on every path; the buffer carries the clamp), and
+///     sock_ops on the 5.15 floor has no cgroup-id helper (the
+///     attribution rides the ingress prime's cookie). The RTT_CB
+///     flag arms only on establishment hits, so rate changes
+///     converge within one RTT on policed sockets while the
+///     unpoliced majority pays nothing. Userspace mirrors: the
+///     loader pins the program + its cgroup link (the third pair),
+///     every policy REMOVAL sweeps the hint map (the MMSPA flush's
+///     posture — limiter/recwn.rs), and `status --print-json` gains
+///     the additive top-level recwn_limits object (enabled,
+///     window_bytes, rtt_estimate_us — the binding window across
+///     active download policies). No existing struct layout
+///     changes; one new map, one new program, one new verdict-free
+///     lane (enforcement verdicts are untouched — RECWN refines the
+///     sender's behavior before the policer ever speaks); the bump
+///     forces pinned v24 programs to reload into the RECWN object —
+///     active limits are dropped once, re-apply after upgrade, the
+///     same one-time contract as every bump before it.
 #[allow(dead_code)]
-pub(crate) const SCHEMA_VERSION: u32 = 24;
+pub(crate) const SCHEMA_VERSION: u32 = 25;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs

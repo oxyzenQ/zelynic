@@ -226,7 +226,12 @@ fn test_schema_version_constant() {
     // move to 32/36) — the DRR pool's per-LEAF min/max brackets,
     // the zero sentinel unset on both sides (a 0/0 row is the
     // exact v23 arithmetic, the fail-open posture).
-    assert_eq!(SCHEMA_VERSION_EXPECTED, 24);
+    // v25 (night-spark-2, RECWN — Receive Window Control, the
+    // quota saver's Layer 1): the object's first sock_ops program
+    // (zelynic_recwn, the cgroup-root receive-window lane) plus the
+    // pinned cookie-keyed recwn_socket_hint LRU; no existing struct
+    // layout changes.
+    assert_eq!(SCHEMA_VERSION_EXPECTED, 25);
 }
 
 // ── night-during, schema v23: the window row's layout pins ────────

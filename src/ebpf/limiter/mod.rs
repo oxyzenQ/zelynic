@@ -13,6 +13,8 @@
 //! - `policy_lines.rs` — the policy surface's pure line formatters
 //! - `policy_write.rs` — the per-cgroup leg writer (improve-40 split)
 //! - `reclaim.rs` — the remove path (unstrict) + state reclamation
+//! - `recwn.rs`   — the RECWN userspace half: the hint-map sweep
+//!   every policy removal runs (night-spark-2, schema v25)
 //! - `stats.rs`   — status printing + map readers + identity
 //! - `mmspa.rs`   — the MMSPA userspace half: the leaf-cache flush
 //!   every policy mutation runs (private-research-2)
@@ -32,6 +34,7 @@ mod policy_lines;
 mod policy_write;
 pub mod rate_ring;
 mod reclaim;
+mod recwn;
 mod resolve;
 mod schema;
 mod stats;
@@ -77,17 +80,18 @@ use anyhow::{Context, Result, anyhow, bail};
 use aya::{
     Ebpf, EbpfLoader,
     maps::Array as BpfArray,
-    programs::{CgroupAttachMode, CgroupSkb, CgroupSkbAttachType},
+    programs::{CgroupAttachMode, CgroupSkb, CgroupSkbAttachType, SockOps},
 };
 use std::fs::File;
 use std::os::fd::{AsFd, AsRawFd};
 use std::path::PathBuf;
 
 use crate::ebpf::bpf_syscall::{
-    BPF_CGROUP_INET_EGRESS, BPF_CGROUP_INET_INGRESS, create_and_pin_link, kernel_release,
-    kernel_supports_bpf_link, load_with_verifier_verdict,
+    BPF_CGROUP_INET_EGRESS, BPF_CGROUP_INET_INGRESS, BPF_CGROUP_SOCK_OPS, create_and_pin_link,
+    kernel_release, kernel_supports_bpf_link, load_with_verifier_verdict,
 };
 use crate::ebpf::identity::IdentityMap;
+use crate::ebpf::pin::{PIN_LINK_RECWN, PIN_PROG_RECWN};
 use crate::ebpf::trace;
 use types::SCHEMA_VERSION_EXPECTED;
 
@@ -106,14 +110,16 @@ fn pins_operational(
     supports_link: bool,
     prog_dl: bool,
     prog_ul: bool,
+    prog_recwn: bool,
     link_dl: bool,
     link_ul: bool,
+    link_recwn: bool,
 ) -> bool {
-    if !(prog_dl && prog_ul) {
+    if !(prog_dl && prog_ul && prog_recwn) {
         return false;
     }
     if supports_link {
-        return link_dl && link_ul;
+        return link_dl && link_ul && link_recwn;
     }
     true
 }
@@ -309,7 +315,7 @@ impl Limiter {
             .program_mut("enforce_dl")
             .context("BPF program 'enforce_dl' not found")?
             .try_into()?;
-        load_with_verifier_verdict(dl_prog, "enforce_dl")?;
+        load_with_verifier_verdict(|| dl_prog.load(), "enforce_dl")?;
         dl_prog
             .pin(PIN_PROG_DL)
             .context("Failed to pin enforce_dl")?;
@@ -331,7 +337,7 @@ impl Limiter {
                 .program_mut("enforce_ul")
                 .context("BPF program 'enforce_ul' not found")?
                 .try_into()?;
-            load_with_verifier_verdict(ul_prog, "enforce_ul")?;
+            load_with_verifier_verdict(|| ul_prog.load(), "enforce_ul")?;
             ul_prog
                 .pin(PIN_PROG_UL)
                 .context("Failed to pin enforce_ul")?;
@@ -354,6 +360,41 @@ impl Limiter {
             .context("Failed to create + pin enforce_dl link")?;
             create_and_pin_link(ul_prog_raw, cgroup_raw, BPF_CGROUP_INET_EGRESS, PIN_LINK_UL)
                 .context("Failed to create + pin enforce_ul link")?;
+
+            // night-spark-2 (RECWN, schema v25 — the quota saver's
+            // Layer 1): the third program, the sock_ops
+            // receive-window lane. Loaded and pinned beside the two
+            // enforcement hooks, then attached at the same cgroup
+            // root through the SAME raw-syscall link lane — the
+            // create-and-pin discipline the cgroup_skb pair rides,
+            // one attach type over (BPF_CGROUP_SOCK_OPS). The
+            // program plants with the object on every strict-family
+            // attach, exactly when a rate limit is applied; its
+            // cookie-keyed hint map is pinned by name with every
+            // other map, and the unstrict teardown unlinks the whole
+            // pin directory as ever (unpin_all sweeps the third
+            // pair with the rest — the link pin's removal detaches
+            // it in-kernel, the bpf_syscall contract).
+            let recwn_prog: &mut SockOps = bpf
+                .program_mut("zelynic_recwn")
+                .context("BPF program 'zelynic_recwn' not found")?
+                .try_into()?;
+            load_with_verifier_verdict(|| recwn_prog.load(), "zelynic_recwn")?;
+            recwn_prog
+                .pin(PIN_PROG_RECWN)
+                .context("Failed to pin zelynic_recwn")?;
+            let recwn_prog_raw = recwn_prog
+                .fd()
+                .context("Failed to get zelynic_recwn fd")?
+                .as_fd()
+                .as_raw_fd();
+            create_and_pin_link(
+                recwn_prog_raw,
+                cgroup_raw,
+                BPF_CGROUP_SOCK_OPS,
+                PIN_LINK_RECWN,
+            )
+            .context("Failed to create + pin zelynic_recwn link")?;
         } else {
             // Kernel < 5.7: use legacy bpf_prog_attach via Aya.
             // Attach + take ownership of link + forget (leak) so it doesn't
@@ -375,7 +416,7 @@ impl Limiter {
                 .program_mut("enforce_ul")
                 .context("BPF program 'enforce_ul' not found")?
                 .try_into()?;
-            load_with_verifier_verdict(ul_prog, "enforce_ul")?;
+            load_with_verifier_verdict(|| ul_prog.load(), "enforce_ul")?;
             ul_prog
                 .pin(PIN_PROG_UL)
                 .context("Failed to pin enforce_ul")?;
@@ -388,6 +429,27 @@ impl Limiter {
                 .context("Failed to attach enforce_ul (legacy)")?;
             let ul_link = ul_prog.take_link(ul_link)?;
             std::mem::forget(ul_link);
+
+            // night-spark-2 (RECWN): the legacy-lane twin of the
+            // sock_ops plant above — aya's SockOps::attach carries
+            // the pre-5.7 ProgAttach shape the CgroupSkb pair rides
+            // here; take_link + forget keeps the attachment alive
+            // past the Ebpf drop, the pinned program holding it.
+            let recwn_prog: &mut SockOps = bpf
+                .program_mut("zelynic_recwn")
+                .context("BPF program 'zelynic_recwn' not found")?
+                .try_into()?;
+            load_with_verifier_verdict(|| recwn_prog.load(), "zelynic_recwn")?;
+            recwn_prog
+                .pin(PIN_PROG_RECWN)
+                .context("Failed to pin zelynic_recwn")?;
+            let cgroup_file_recwn =
+                File::open(cgroup_path).context("Failed to open cgroup root directory")?;
+            let recwn_link = recwn_prog
+                .attach(cgroup_file_recwn, CgroupAttachMode::default())
+                .context("Failed to attach zelynic_recwn (legacy)")?;
+            let recwn_link = recwn_prog.take_link(recwn_link)?;
+            std::mem::forget(recwn_link);
         }
 
         crate::output::verbose::vlog!(
@@ -417,8 +479,10 @@ impl Limiter {
             kernel_supports_bpf_link(),
             PathBuf::from(PIN_PROG_DL).exists(),
             PathBuf::from(PIN_PROG_UL).exists(),
+            PathBuf::from(PIN_PROG_RECWN).exists(),
             PathBuf::from(PIN_LINK_DL).exists(),
             PathBuf::from(PIN_LINK_UL).exists(),
+            PathBuf::from(PIN_LINK_RECWN).exists(),
         )
     }
 
@@ -461,18 +525,29 @@ mod tests {
     #[test]
     fn pins_operational_requires_link_pins_on_bpf_link_kernels() {
         // Fully operational.
-        assert!(pins_operational(true, true, true, true, true));
+        assert!(pins_operational(true, true, true, true, true, true, true));
         // Partial failure: programs pinned, a link missing — NOT
         // operational, must reload instead of reuse.
-        assert!(!pins_operational(true, true, true, false, false));
-        assert!(!pins_operational(true, true, true, true, false));
-        assert!(!pins_operational(true, true, true, false, true));
-        // Missing program pins: never operational (either one, or all).
-        assert!(!pins_operational(true, false, true, true, true));
-        assert!(!pins_operational(true, true, false, true, true));
-        assert!(!pins_operational(false, false, false, false, false));
+        assert!(!pins_operational(
+            true, true, true, true, false, false, false
+        ));
+        assert!(!pins_operational(true, true, true, true, true, false, true));
+        assert!(!pins_operational(true, true, true, true, false, true, true));
+        // night-spark-2: the RECWN pair is load-bearing the same
+        // way — a v24-era pin set (no third pair) must reload into
+        // the RECWN object, never reuse as-is.
+        assert!(!pins_operational(true, true, true, false, true, true, true));
+        assert!(!pins_operational(true, true, true, true, true, true, false));
+        // Missing program pins: never operational (any one, or all).
+        assert!(!pins_operational(true, false, true, true, true, true, true));
+        assert!(!pins_operational(true, true, false, true, true, true, true));
+        assert!(!pins_operational(
+            false, false, false, false, false, false, false
+        ));
         // Pre-5.7: legacy attach never pins links (program pins suffice).
-        assert!(pins_operational(false, true, true, false, false));
+        assert!(pins_operational(
+            false, true, true, true, false, false, false
+        ));
     }
 
     /// NIGHT-hunt-9 drift pin: the attach-strategy trace wording is part

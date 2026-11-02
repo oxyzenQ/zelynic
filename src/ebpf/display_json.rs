@@ -11,7 +11,7 @@
 
 use anyhow::Result;
 
-use super::display::collect_display_data;
+use super::display::{RECWN_RTT_ESTIMATE_US, RecwnLane, collect_display_data};
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::rate_ring::{RATE_RING_SLOTS, RateRingRaw, RingReads, ring_series};
 use crate::ebpf::limiter::types::PolicyWindowRaw;
@@ -28,6 +28,11 @@ use crate::ebpf::limiter::{wall_minus_mono, window_state};
 /// whose bytes the pins hold exactly). The document shape (field
 /// names, order, the skip semantics) is unchanged; scripts are
 /// unaffected.
+//
+// night-spark-2 (RECWN): the eighth argument is the lane join —
+// the same census-pass family the window join rode (the builder
+// below carries the allow for the same reason).
+#[allow(clippy::too_many_arguments)]
 pub fn print_status_json(
     dl_policies: &[(u32, PolicyRaw)],
     ul_policies: &[(u32, PolicyRaw)],
@@ -36,6 +41,7 @@ pub fn print_status_json(
     watchdog_deadline: Option<u64>,
     rings: &RingReads,
     windows: &[(u32, PolicyWindowRaw)],
+    recwn: &RecwnLane,
 ) -> Result<()> {
     let status = status_json(
         dl_policies,
@@ -45,6 +51,7 @@ pub fn print_status_json(
         watchdog_deadline,
         rings,
         windows,
+        recwn,
         wall_now_ns(),
         monotonic_ns(),
     );
@@ -70,6 +77,7 @@ fn status_json(
     watchdog_deadline: Option<u64>,
     rings: &RingReads,
     windows: &[(u32, PolicyWindowRaw)],
+    recwn: &RecwnLane,
     wall_now_ns: u64,
     mono_now_ns: u64,
 ) -> StatusJson {
@@ -159,6 +167,21 @@ fn status_json(
         watchdog,
         active_limits: limits.len(),
         limits,
+        // night-spark-2 (RECWN, schema v25): the owner-defined
+        // top-level object, present exactly when the sock_ops
+        // program's pin stands (the lane rides the v25 object —
+        // is_pinned covers it); `enabled` answers whether a live
+        // download policy stands for the lane to shape (window
+        // present), and the window itself is the BINDING (minimum)
+        // one across those policies — the derivation's own law,
+        // display.rs's recwn_lane doc. The clean-state and stale
+        // literals in monitor.rs stay additive-absent: no lane,
+        // no object.
+        recwn_limits: recwn.planted.then(|| RecwnLimitsJson {
+            enabled: recwn.window_bytes.is_some(),
+            window_bytes: recwn.window_bytes,
+            rtt_estimate_us: RECWN_RTT_ESTIMATE_US,
+        }),
     }
 }
 
@@ -232,6 +255,10 @@ impl StatusJson {
         write_array(out, self.limits.len(), |out, i| {
             self.limits[i].write_json(out);
         });
+        if let Some(recwn) = &self.recwn_limits {
+            out.push_str(",\"recwn_limits\":");
+            recwn.write_json(out);
+        }
         out.push('}');
     }
 
@@ -377,6 +404,26 @@ impl RateRingJson {
     }
 }
 
+impl RecwnLimitsJson {
+    fn write_json(&self, out: &mut String) {
+        use crate::json::write::write_number;
+
+        out.push_str("{\"enabled\":");
+        out.push_str(if self.enabled { "true" } else { "false" });
+        // The additive-field rule: a window the lane is not shaping
+        // is absent, never a fabricated zero (the enabled:false
+        // shape — the lane rides the object but no download policy
+        // stands).
+        if let Some(window) = self.window_bytes {
+            out.push_str(",\"window_bytes\":");
+            write_number(out, window);
+        }
+        out.push_str(",\"rtt_estimate_us\":");
+        write_number(out, self.rtt_estimate_us);
+        out.push('}');
+    }
+}
+
 #[derive(Debug, Clone)]
 struct LimitEntry {
     cgroup_id: u32,
@@ -485,6 +532,24 @@ struct StatusJson {
     watchdog: &'static str,
     active_limits: usize,
     limits: Vec<LimitEntry>,
+    /// The RECWN lane's top-level object (night-spark-2, schema
+    /// v25 — the owner-defined schema): `enabled`, `window_bytes`
+    /// (absent when the lane shapes no window — the additive-field
+    /// rule), `rtt_estimate_us`. Absent wholesale when the sock_ops
+    /// program is not planted (clean state, stale pins).
+    recwn_limits: Option<RecwnLimitsJson>,
+}
+
+/// The RECWN lane's JSON object (see [`StatusJson::recwn_limits`]).
+#[derive(Debug, Clone)]
+struct RecwnLimitsJson {
+    /// Whether a live download policy stands for the lane to shape.
+    enabled: bool,
+    /// The binding receive window in bytes (the minimum across
+    /// active download policies) — present only when enabled.
+    window_bytes: Option<u64>,
+    /// The Layer 1 RTT assumption the window derived from (us).
+    rtt_estimate_us: u32,
 }
 
 // The status-JSON pins (the hunt-22 field/wording/count contracts
@@ -500,3 +565,24 @@ mod display_json_tests;
 #[cfg(test)]
 #[path = "../../test/ebpf/display_json_window_tests.rs"]
 mod display_json_window_tests;
+
+// night-spark-2 (RECWN, schema v25): the recwn_limits object's
+// pins, one family over the window family (the same LOC-cap split
+// discipline — display_json_tests rode past 600 when this lane's
+// four pins joined it).
+#[cfg(test)]
+#[path = "../../test/ebpf/display_json_recwn_tests.rs"]
+mod display_json_recwn_tests;
+
+// night-spark-2 (RECWN, schema v25): the inert lane every legacy
+// status_json pin passes — planted false, window None — so the
+// pre-RECWN assertions ride the additive-absence shape exactly
+// (the object absent from the document), and the lane's own pins
+// carry the planted shapes.
+#[cfg(test)]
+fn inert_recwn() -> super::display::RecwnLane {
+    super::display::RecwnLane {
+        planted: false,
+        window_bytes: None,
+    }
+}

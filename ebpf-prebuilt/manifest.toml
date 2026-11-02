@@ -8,14 +8,6 @@
 # lane; regenerate after any change under ebpf/ (the parity
 # gate fails until the refresh lands, and the commit gate
 # auto-heals a stale lane through this script).
-# xenric-1 relicense note: the tree pin was advanced by hand (the
-# one writer's rebuild lane needs bpf-linker + system LLVM, absent on
-# this rootless host). The ebpf/ delta against the previously pinned
-# tree is license metadata ONLY - SPDX id lines plus the ebpf
-# manifest's license field, zero statement changes - and comments
-# compile to no bytes, so the staged objects remain the exact bytes
-# this tree compiles to. CI's full-life lanes rebuild the objects on
-# every push and the parity gate re-verifies there.
 # ebpf_tree_blake3 pins the exact ebpf/ source tree the
 # objects were built from: the blake3 over the byte-order-sorted
 # (LC_ALL=C) git-tracked ebpf/ file hashes (content + path
@@ -24,11 +16,11 @@
 # binaries embed.
 
 schema = 2
-generated = "2026-10-30T14:42:11Z"
+generated = "2026-11-02T19:18:42Z"
 toolchain = "nightly-2026-09-18"
 bpf_linker = "0.11.1"
-ebpf_tree_blake3 = "a7978970846e9191fbb3f67d7b7d16f0ca68a91afefcda878d9b7ea4c0f2e7ed"
-built_by = "rezky_nightky <130107241+oxyzenQ@users.noreply.github.com>"
+ebpf_tree_blake3 = "1e2cedb433b9c5078906d2419d8891f9864b87bdae13d8be554312f144644df9"
+built_by = "oxyzenQ <130107241+oxyzenQ@users.noreply.github.com>"
 
 [[object]]
 name = "zelynic-observer"
@@ -37,6 +29,6 @@ size = 3296
 
 [[object]]
 name = "zelynic-limiter"
-blake3 = "1c817b9e1cb25bfecd22feaae0a99a53cc3d73ca6f005081ef765f3b5dfc2da9"
-size = 79472
+blake3 = "63c54b3d9caa1f645139d6bd016933d1cc79758fbe21cc564f44ba2051df6c3b"
+size = 80352
 

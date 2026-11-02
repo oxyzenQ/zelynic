@@ -82,6 +82,7 @@ name for zelynic's entire architectural stack, indexed in
 | **Subtree-aware limits** | A limit on a cgroup covers every process spawned beneath it — any depth, born any time, sharing ONE budget (MMSPA, NIGHT-private-research-2). tc/nftables can't see the cgroup tree; zelynic polices it. |
 | **Guaranteed fair share** | `--floor 100kb` / `--ceil 300kb`: every subprocess under the target is guaranteed a minimum and capped at a maximum — the floor a PRIORITY (an idle subprocess lends its share back; the pool itself is the lender), the ceiling binding even a lone subprocess. HTB's rate/ceil idiom in a pure eBPF policer (improve-40, schema v24). Per-direction spellings for the asymmetric link: `--floor-download` / `--ceil-upload` bracket one direction's rows only, one spelling per side (improve-40-b). |
 | **Self-expiring limits** | `--during 20d` — a duration from the apply instant (units s, m, h, d, mn, y; bounds 1s..5y): the KERNEL expires the row, no daemon, no cron, drift-free monotonic spans (NIGHT-during, schema v23; the window and date forms are gone — the owner's duration-only revision, rows written by older builds keep their promises). |
+| **RECWN receive-window control** | A policed cgroup's own sockets advertise a rate-shaped receive window (rate x 50 ms, clamped [2 x MSS, 1 MiB]) — remote TCP senders hold their in-flight bytes down BEFORE the link bills them, the quota saver's Layer 1 (night-spark-2, schema v25; the owner's coined name, deliberately not "RWND"). |
 | **Pinned bpf_links** | Enforcement survives process exit — no daemon, no battery drain (RAM/CPU/IO measured live, not asserted: the proof harness's footprint claim). |
 | **Fractional precision** | 0.00% measured rate error, sub-byte token accumulation (reproduce: `sudo ./scripts/bench/proof-claims.sh`; math pins: test/ebpf/limiter/math_tests.rs). |
 | **Schema migration** | BPF struct changes auto-detected + auto-cleaned on upgrade. |
@@ -500,9 +501,15 @@ Dropped downloads do not save quota: the ingress hook runs after
 packets have already crossed the WiFi link (retransmits bill them
 again), while egress drops do save — the packet never reaches the
 NIC. Real savings are indirect (runaway loads abandoned, planable
-budgets) plus upload drops. For hard download-quota savings, shape
-at the router or close the app; zelynic's contract is fair-share
-and predictable budgets. The full asymmetry is limitation #15 in
+budgets) plus upload drops. Since schema v25 the RECWN lane
+(night-spark-2, the quota saver's Layer 1) softens the download
+side itself: a policed cgroup's sockets advertise a rate-shaped
+receive window, so cooperative TCP senders hold their in-flight
+bytes down before the bytes cross the link — the convergence a
+drop-only policer could never buy. For hard download-quota
+guarantees, shape at the router or close the app; zelynic's
+contract is fair-share and predictable budgets. The full
+asymmetry is limitation #15 in
 [USAGE.md](docs/USAGE.md#honest-limitations--read-this).
 
 ### The nightly eBPF toolchain (honest)
@@ -555,7 +562,7 @@ the feature table above; the full audit trail is
 └───────────────────────────────────────────────────┘
 ```
 
-The arc living in that diagram — the thirteen scales, the heart,
+The arc living in that diagram — the fourteen scales, the heart,
 the eyes, the claws — is indexed in
 [docs/COSMIC_DRAGON_ARC.md](docs/COSMIC_DRAGON_ARC.md).
 
@@ -640,7 +647,7 @@ policy, supported versions, and what counts as a vulnerability live in
 
 - [Complete Usage Guide](docs/USAGE.md) — every command, workflows, honest limitations, troubleshooting (the flagship reference)
 - [Security Policy](SECURITY.md) — reporting, scope, supported versions
-- [the cosmic dragon arc](docs/COSMIC_DRAGON_ARC.md) — the canonical index of the enforcement core: the thirteen scales, the estate map, the v81 roadmap
+- [the cosmic dragon arc](docs/COSMIC_DRAGON_ARC.md) — the canonical index of the enforcement core: the fourteen scales, the estate map, the v81 roadmap
 - [the cosmic dragon architecture](docs/COSMIC_DRAGON_ARCHITECTURE.md) — design + principles
 - [Kernel Compatibility](docs/KERNEL_COMPATIBILITY.md) — requirements + distro matrix
 - [Performance Metrics](docs/PERFORMANCE.md) — deep benchmark results + targets
@@ -758,10 +765,10 @@ told once there.
 
 ## The cosmic dragon arc — the enforcement core of zelynic
 
-The thirteen mechanisms in the table above are not a feature
+The mechanisms in the table above are not a feature
 list — they are the **cosmic dragon arc**, the official name for
-zelynic's entire architectural stack: the thirteen kernel scales
-(MMSPA through time windows), the heart (the MMSPA and DRR
+zelynic's entire architectural stack: the fourteen kernel scales
+(MMSPA through RECWN receive-window control), the heart (the MMSPA and DRR
 engines), the eyes (the lazy camera and bypass detection), and
 the claws (the pure-Rust eBPF objects and their userspace
 loaders). The canonical index — the estate map, the 2026-11-03
@@ -776,10 +783,16 @@ cross, and the arc already holds the kernel machinery that makes
 that possible: the ECN-first mark-instead-of-drop law, the
 QUIC-aware attribution that names individual HTTP/3 connections,
 the per-connection buckets that can carry per-connection signals.
-The next evolution (v81) stands on those scales — TCP receive
-window (RWND) enforcement, ECN CE-marking for QUIC backoff, and
-EDT pacing for egress — and its roadmap is recorded verbatim in
-the arc doc, so the owner's vision survives every maintainer.
+The next evolution (v81) stands on those scales: its Layer 1 —
+RECWN (Receive Window Control), the owner's coined name for the
+receive-window lane that clamps a policed cgroup's advertised
+window to the policy's bandwidth-delay product — landed as schema
+v25, so the sender throttles itself before the link bills the
+bytes (the recwn_limits object in `status --print-json` and the
+live proof in `scripts/bench/recwn-probe.sh`). ECN CE-marking for
+QUIC backoff and EDT pacing for egress remain the roadmap's next
+layers, recorded verbatim in the arc doc, so the owner's vision
+survives every maintainer.
 
 ## Support
 

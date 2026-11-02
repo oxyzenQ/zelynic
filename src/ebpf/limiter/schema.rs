@@ -441,7 +441,31 @@
 ///     bracketed object — active limits are dropped once, re-apply
 ///     after upgrade, the same one-time contract as every bump
 ///     before it.
-pub const SCHEMA_VERSION_EXPECTED: u32 = 24;
+/// v25 (night-spark-2, RECWN — Receive Window Control, Layer 1 of
+///     the quota saver): the object grows its first sock_ops
+///     program, zelynic_recwn (attached at the cgroup root beside
+///     the two cgroup_skb hooks — the loader's THIRD program/link
+///     pin pair, /sys/fs/bpf/zelynic/zelynic_recwn[+_link]), plus
+///     ONE new pinned LRU map, recwn_socket_hint (socket cookie ->
+///     the derived receive window). The lane: the ingress hook
+///     primes the hint on the policed path, and the sock_ops
+///     program clamps SO_RCVBUF at the connection callbacks so a
+///     policed cgroup's sockets advertise a rate-shaped receive
+///     window (rate x 50ms, clamped [2 x MSS, 1 MiB]) — the
+///     sender-side slowdown that saves download quota BEFORE the
+///     link bills the bytes. Userspace mirrors: every policy
+///     REMOVAL sweeps the hint map whole (limiter/recwn.rs, the
+///     MMSPA flush posture, best-effort), and `status
+///     --print-json` gains the additive top-level recwn_limits
+///     object (enabled / window_bytes / rtt_estimate_us — the
+///     binding window across active download policies, the twin
+///     formula pinned against the kernel core by
+///     test/ebpf/limiter/recwn_tests.rs). No existing struct
+///     layout changes; the bump forces pinned v24 programs to
+///     reload into the RECWN object — active limits are dropped
+///     once, re-apply after upgrade, the same one-time contract as
+///     every bump before it.
+pub const SCHEMA_VERSION_EXPECTED: u32 = 25;
 
 #[cfg(test)]
 mod sync_pin {

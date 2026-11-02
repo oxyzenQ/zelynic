@@ -443,3 +443,49 @@ fn collect_display_data_joins_windows_by_cgroup() {
     let data = collect_display_data(&dl, &[], &[], &[]);
     assert!(data[0].window.is_none(), "absent window = no lifetime line");
 }
+
+/// night-spark-2 (RECWN, schema v25): the receive-window lane's
+/// subordinate line — the owner's exact wording ("RECWN: 8.0 KB
+/// (est. RTT 50ms)"), the grey family, and the dormant silence when
+/// the lane shapes no window (the dormant-watchdog honesty).
+#[test]
+fn recwn_line_pins_the_owner_wording_and_stays_silent_when_unshaping() {
+    use super::{RECWN_RTT_ESTIMATE_US, RecwnLane, recwn_line};
+    assert_eq!(
+        recwn_line(&RecwnLane {
+            planted: true,
+            window_bytes: Some(5000),
+        })
+        .unwrap(),
+        "  RECWN: 5.0 KB (est. RTT 50ms)",
+        "the 100 kb/s policy's own line, wording and window"
+    );
+    assert_eq!(
+        recwn_line(&RecwnLane {
+            planted: true,
+            window_bytes: Some(1_048_576),
+        })
+        .unwrap(),
+        "  RECWN: 1.0 MB (est. RTT 50ms)",
+        "the ceiling's own tier"
+    );
+    // The dormant shapes: not planted, or planted with no window to
+    // shape — silence, never noise.
+    assert!(
+        recwn_line(&RecwnLane {
+            planted: false,
+            window_bytes: Some(5000),
+        })
+        .is_none()
+    );
+    assert!(
+        recwn_line(&RecwnLane {
+            planted: true,
+            window_bytes: None,
+        })
+        .is_none()
+    );
+    // The estimate constant the line prints is the lane's own twin
+    // of the kernel core's 50 ms.
+    assert_eq!(RECWN_RTT_ESTIMATE_US, 50_000);
+}

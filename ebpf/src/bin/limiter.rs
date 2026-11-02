@@ -154,6 +154,20 @@ mod quic_flow;
 #[path = "../during.rs"]
 mod during;
 
+// night-spark-2 (RECWN, Receive Window Control — schema v25, Layer
+// 1 of the quota saver): the pure window law lives in ../recwn.rs
+// (the same pure-core discipline the family above pins), and the
+// sock_ops program + the cookie-keyed hint map live in
+// ../recwn_flow.rs — the aya-touching split, the socket_flow
+// precedent one feature over. The program attaches at the cgroup
+// root beside the two enforcement hooks (the loader's third lane)
+// and reads the hint the ingress hook primes on the policed path.
+#[path = "../recwn.rs"]
+mod recwn;
+
+#[path = "../recwn_flow.rs"]
+mod recwn_flow;
+
 use math::{Bucket, LimiterStats, Policy};
 use rate_ring::RateRing;
 

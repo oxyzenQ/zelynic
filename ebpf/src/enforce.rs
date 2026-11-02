@@ -36,6 +36,7 @@ use crate::math::{Bucket, MAX_ENFORCABLE_BURST, POLICY_FLAG_PER_SOCKET, Policy, 
 use crate::mmspa_resolve::mmspa_resolve_root;
 use crate::quic_flow;
 use crate::rate_ring::RateRing;
+use crate::recwn_flow;
 use crate::socket_flow::{self, socket_flow};
 use crate::watchdog_deadline;
 #[inline(always)]
@@ -188,6 +189,32 @@ pub(crate) fn try_enforce(
             book(s, false, pkt_len);
         }
         return 0;
+    }
+
+    // night-spark-2 (RECWN, schema v25 — the quota saver's Layer
+    // 1): on the INGRESS policed path only, stamp the socket's
+    // cookie with the receive window the resolved policy derives
+    // (the rate is this row's own; the burst never enters the
+    // law). The sock_ops program reads the hint back at the
+    // connection callbacks and clamps SO_RCVBUF — the sender-side
+    // slowdown that makes the remote TCP hold its in-flight bytes
+    // down BEFORE the ingress link bills them, the one knob the
+    // README's limitation #15 physics named. Egress never primes:
+    // RECWN is the download spine. Steady state is one LRU lookup
+    // with no write (recwn_flow::recwn_prime's own contract); the
+    // per-socket lane below re-fetches the cookie it needs for
+    // its own keying, so the policed path pays one helper call
+    // more than before — the cost class the overhead row owns.
+    // The rate-0 block verdict returned above: a blocked lane
+    // delivers nothing, so no window shape can help it.
+    if is_ingress {
+        // SAFETY: helper call with the program's own skb context
+        // (the same cast the per-socket lane below rides); the
+        // return is a plain u64 cookie, no pointer crosses back.
+        let recwn_cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
+        if recwn_cookie != 0 {
+            recwn_flow::recwn_prime(recwn_cookie, pol.rate_bps);
+        }
     }
 
     // security-3 trust boundary: clamp the stored burst before ANY

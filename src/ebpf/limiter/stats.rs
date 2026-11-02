@@ -8,8 +8,9 @@ use anyhow::{Context, Result, anyhow};
 use aya::maps::{Array as BpfArray, HashMap as BpfHashMap};
 
 use super::types::{BucketRaw, Direction, LimiterStatsRaw, PolicyRaw};
+use crate::ebpf::display::recwn_lane;
 use crate::ebpf::pin::{
-    self, PIN_MAP_BUCKET_DL, PIN_MAP_BUCKET_UL, PIN_MAP_STATS, PIN_MAP_WATCHDOG,
+    self, PIN_MAP_BUCKET_DL, PIN_MAP_BUCKET_UL, PIN_MAP_STATS, PIN_MAP_WATCHDOG, PIN_PROG_RECWN,
 };
 
 impl super::Limiter {
@@ -30,7 +31,12 @@ impl super::Limiter {
         // empty, the row renders without its lifetime line, never a
         // failed status for a monitor-only map).
         let windows = self.read_policy_windows_all().unwrap_or_default();
-        crate::ebpf::display::print_status(&dl, &ul, &stats, &self.identity, wd, &windows);
+        // night-spark-2 (RECWN, schema v25): the lane's derivation
+        // rides the same read pass — planted is the sock_ops
+        // program pin's existence (is_pinned's own lane check), and
+        // the window comes from the download census already in hand.
+        let recwn = recwn_lane(&dl, std::path::PathBuf::from(PIN_PROG_RECWN).exists());
+        crate::ebpf::display::print_status(&dl, &ul, &stats, &self.identity, wd, &windows, &recwn);
         Ok(())
     }
 
@@ -53,6 +59,9 @@ impl super::Limiter {
         // night-during: the absent-lens window join (print_status's
         // own note owns the why).
         let windows = self.read_policy_windows_all().unwrap_or_default();
+        // night-spark-2 (RECWN): the lane derivation, print_status's
+        // own read pass — one census, both surfaces.
+        let recwn = recwn_lane(&dl, std::path::PathBuf::from(PIN_PROG_RECWN).exists());
         crate::ebpf::display_json::print_status_json(
             &dl,
             &ul,
@@ -61,6 +70,7 @@ impl super::Limiter {
             wd,
             &rings,
             &windows,
+            &recwn,
         )
     }
 

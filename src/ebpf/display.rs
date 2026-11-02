@@ -8,8 +8,10 @@
 use std::collections::HashMap;
 
 use crate::ebpf::identity::IdentityMap;
-use crate::ebpf::limiter::types::{BracketPair, POLICY_FLAG_PER_SOCKET, PolicyWindowRaw};
-use crate::ebpf::limiter::{LimiterStatsRaw, PolicyRaw, monotonic_ns, terminal_width, wall_now_ns};
+use crate::ebpf::limiter::types::{
+    BracketPair, POLICY_FLAG_PER_SOCKET, PolicyRaw, PolicyWindowRaw,
+};
+use crate::ebpf::limiter::{LimiterStatsRaw, monotonic_ns, terminal_width, wall_now_ns};
 use crate::ebpf::render::{grid_line, title_bar};
 use crate::output::{grey, signature_footer, suggestion, warn};
 
@@ -50,8 +52,8 @@ pub(crate) struct DisplayData {
 // (use super::*) and the list-apps surface see the same paths as
 // before the split.
 pub(crate) use super::display_lines::{
-    active_limits_line, guarantee_line, list_apps_header_line, status_cells, status_header_line,
-    status_row_line, watchdog_line, window_lifetime_line,
+    active_limits_line, guarantee_line, list_apps_header_line, recwn_line, status_cells,
+    status_header_line, status_row_line, watchdog_line, window_lifetime_line,
 };
 
 /// Collect display data from policies + stats (+ the window join).
@@ -119,6 +121,80 @@ pub(super) fn collect_display_data(
             }
         })
         .collect()
+}
+
+/// The RECWN lane's status derivation (night-spark-2, schema v25 —
+/// Receive Window Control, the quota saver's Layer 1): what the
+/// two status surfaces (human table + --print-json) report about
+/// the receive-window lane. `planted` says the sock_ops program's
+/// pin stands (the lane rides the limiter object — schema v25's
+/// is_pinned covers it); `window_bytes` is the BINDING window the
+/// lane currently derives — the smallest window across the active
+/// download policies (the single-policy case, the owner's brief's
+/// own scenario, reads exactly that policy's window; a multi-
+/// policy tree reports the tightest clamp the lane enforces
+/// anywhere). Absent when no download policy with a live rate
+/// stands (upload-only or block-only rows shape no window).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RecwnLane {
+    pub(crate) planted: bool,
+    pub(crate) window_bytes: Option<u64>,
+}
+
+/// The Layer 1 RTT assumption, microseconds — the userspace twin
+/// of ebpf/src/recwn.rs's RECWN_DEFAULT_RTT_US (50 ms). The twin
+/// discipline default_burst carries: each tree states its own
+/// constant, and test/ebpf/limiter/recwn_tests.rs pins the derived
+/// windows against the kernel core so the pair can never drift.
+pub(crate) const RECWN_RTT_ESTIMATE_US: u32 = 50_000;
+
+/// The window-band clamps — the userspace twins of the kernel
+/// core's RECWN_WINDOW_MIN_BYTES / RECWN_WINDOW_MAX_BYTES (2 x MSS
+/// and 1 MiB; ebpf/src/recwn.rs owns the law's rationale).
+pub(crate) const RECWN_WINDOW_MIN_BYTES: u64 = 2 * 1460;
+pub(crate) const RECWN_WINDOW_MAX_BYTES: u64 = 1_048_576;
+
+/// The sanitize guard on the rate input — the userspace twin of
+/// ebpf/src/recwn.rs's RECWN_RATE_SANITIZE_CAP (4 GiB/s). The
+/// kernel side must ride a plain 64-bit multiply (the BPF ISA has
+/// no widening multiply — a saturating one lowers to `__multi3`,
+/// which the kernel cannot relocate), so the twin carries the SAME
+/// clamp-then-multiply shape and the parity pin holds at every
+/// input, not just the sane ones.
+pub(crate) const RECWN_RATE_SANITIZE_CAP: u64 = 4_294_967_296;
+
+/// The RECWN window one download rate derives — the userspace twin
+/// of the kernel core's layer1_window (rate x RTT / 1e6, clamped
+/// to the [2 x MSS, 1 MiB] band). Parity-pinned against the core
+/// by test/ebpf/limiter/recwn_tests.rs across the rate matrix.
+pub(crate) fn recwn_window_bytes(rate_bps: u64) -> u64 {
+    let rate = rate_bps.min(RECWN_RATE_SANITIZE_CAP);
+    let raw = rate * u64::from(RECWN_RTT_ESTIMATE_US) / 1_000_000;
+    raw.clamp(RECWN_WINDOW_MIN_BYTES, RECWN_WINDOW_MAX_BYTES)
+}
+
+/// Derive the RECWN lane's status row from the download policy
+/// census and the program pin's existence: the BINDING window is
+/// the minimum the active download rates derive (a block verdict —
+/// rate 0 — shapes no window: the lane that delivers nothing has
+/// no receive window to shape), and a lane that is not planted
+/// shapes nothing at all — the window rides the program, not the
+/// census (an unplanted tree with stale map rows reports no window,
+/// never a phantom clamp).
+pub(crate) fn recwn_lane(dl_policies: &[(u32, PolicyRaw)], planted: bool) -> RecwnLane {
+    let window_bytes = planted
+        .then(|| {
+            dl_policies
+                .iter()
+                .filter(|(_, p)| p.rate_bps > 0)
+                .map(|(_, p)| recwn_window_bytes(p.rate_bps))
+                .min()
+        })
+        .flatten();
+    RecwnLane {
+        planted,
+        window_bytes,
+    }
 }
 
 /// The clean-state frame (no pins, NIGHT-engrave-5; compacted in
@@ -190,6 +266,7 @@ pub fn print_status(
     identity: &IdentityMap,
     watchdog_deadline: Option<u64>,
     windows: &[(u32, PolicyWindowRaw)],
+    recwn: &RecwnLane,
 ) {
     let data = collect_display_data(dl_policies, ul_policies, stats, windows);
     let rows: Vec<(String, String, String, String, String)> =
@@ -289,6 +366,16 @@ pub fn print_status(
         if let Some(line) = guarantee_line(d.download, d.upload) {
             println_safe!("{line}");
         }
+    }
+
+    // night-spark-2 (RECWN, schema v25): the receive-window lane's
+    // own subordinate line — the watchdog's grey family, one line
+    // under the table, rendered ONLY when the lane is actively
+    // shaping a window (the dormant-watchdog precedent: an unenforcing
+    // lane printing state noise is absence pretending to be
+    // information).
+    if let Some(line) = recwn_line(recwn) {
+        println_safe!("{line}");
     }
 
     // Signature footer (NIGHT-boost-5): bottom-left identity stamp,

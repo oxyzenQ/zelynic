@@ -874,6 +874,29 @@ The pin family in test/ebpf/display_json_window_tests.rs holds the
 contract end to end: the span's instants (a 1h span lands on
 start + 3600e9), the daily pair, and the no-window absence.
 
+**The RECWN lane's top-level object** (night-spark-2, schema v25 —
+Receive Window Control, the quota saver's Layer 1). A status report
+from a v25 object carries one more top-level key, `recwn_limits`,
+describing the receive-window lane that shapes a policed cgroup's
+own sockets (the sender-side slowdown; the human table prints it as
+its subordinate `RECWN: 8.0 KB (est. RTT 50ms)` line):
+
+- `recwn_limits.enabled` — `true` when a live download policy
+  stands for the lane to shape, `false` when the lane rides the
+  object but nothing download-shaped is policed.
+- `recwn_limits.window_bytes` — the binding receive window in
+  bytes: the smallest window across the active download policies
+  (the single-policy case reads exactly that policy's window —
+  `rate x 50ms`, clamped to [2 x MSS, 1 MiB]; a 100kb/s policy
+  reports 5000). Present only when `enabled` is true — absent,
+  never a fabricated zero, otherwise.
+- `recwn_limits.rtt_estimate_us` — the Layer 1 RTT assumption the
+  window derived from (50000 — 50 ms, the lane's own constant).
+
+The object as a whole is honestly absent on the clean state (no
+pins), on stale-pin error objects, and on pre-v25 pinned objects —
+the additive-field rule every other status field rides.
+
 **Two response shapes.** `status --print-json` returns one of two
 top-level shapes, and a script that consumes both must branch on
 `.error` first:

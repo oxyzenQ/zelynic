@@ -26,7 +26,7 @@
 //! closed and the process exits. Removing the pin file detaches the link.
 
 use anyhow::{Context, Result, bail};
-use aya::programs::{CgroupSkb, ProgramError};
+use aya::programs::ProgramError;
 use std::os::fd::RawFd;
 
 // ━━ BPF syscall constants (from linux/bpf.h) ━━
@@ -38,6 +38,11 @@ const BPF_OBJ_PIN: i32 = 6;
 /// BPF attach types for cgroup_skb.
 pub const BPF_CGROUP_INET_INGRESS: u32 = 0;
 pub const BPF_CGROUP_INET_EGRESS: u32 = 1;
+
+/// BPF attach type for sock_ops (night-spark-2, RECWN — the
+/// receive-window program's attachment at the cgroup root).
+/// include/uapi/linux/bpf.h enum bpf_attach_type: 3.
+pub const BPF_CGROUP_SOCK_OPS: u32 = 3;
 
 /// Kernel release string ("6.8.0-45-generic") for the verbose trace
 /// surface (NIGHT-boost-6): the release decides bpf_link support,
@@ -175,13 +180,13 @@ pub fn sys_bpf_obj_pin(fd: RawFd, path: &str) -> Result<()> {
     Ok(())
 }
 
-/// Load one cgroup_skb program, surfacing the kernel verifier's
-/// VERDICT LINE first on refusal (night-audit-1, the 5.13 floor
-/// diagnosis lane — split here from limiter/mod.rs when the loader
-/// block crossed the 500-line owner cap, the bpf-syscall module
-/// being where kernel refusals surface anyway): aya's LoadError
-/// message leads with the io error and the walk's HEAD — the same
-/// first instructions on every program — while the rejection line
+/// Load one program, surfacing the kernel verifier's VERDICT LINE
+/// first on refusal (night-audit-1, the 5.13 floor diagnosis lane
+/// — split here from limiter/mod.rs when the loader block crossed
+/// the 500-line owner cap, the bpf-syscall module being where
+/// kernel refusals surface anyway): aya's LoadError message leads
+/// with the io error and the walk's HEAD — the same first
+/// instructions on every program — while the rejection line
 /// ("invalid ...", "R1 ...", "processed N insns") rides the END of
 /// the 10 KB walk aya's retry lane already captured. Every CI
 /// harness prints only the first ~200 characters of a failure
@@ -191,8 +196,17 @@ pub fn sys_bpf_obj_pin(fd: RawFd, path: &str) -> Result<()> {
 /// rejection into a one-line diagnosis wherever it lands (the
 /// trace::kernel_line law: a report that opens with the answer
 /// needs no follow-up).
-pub fn load_with_verifier_verdict(prog: &mut CgroupSkb, name: &str) -> Result<()> {
-    if let Err(e) = prog.load() {
+///
+/// night-spark-2: the parameter became the load call itself (a
+/// closure returning the aya result) when the RECWN sock_ops
+/// program joined the load family — the verdict-tail picker is
+/// program-type-agnostic, and the CgroupSkb-only signature was
+/// the last type-shaped thing in it.
+pub fn load_with_verifier_verdict(
+    load: impl FnOnce() -> Result<(), ProgramError>,
+    name: &str,
+) -> Result<()> {
+    if let Err(e) = load() {
         let log = match &e {
             ProgramError::LoadError { verifier_log, .. } => verifier_log.to_string(),
             _ => String::new(),

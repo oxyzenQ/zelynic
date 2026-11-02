@@ -48,6 +48,7 @@ fn status_json_counts_cgroups_not_direction_policies() {
         Some(0),
         &RingReads::absent(),
         &[],
+        &inert_recwn(),
         0,
         0,
     );
@@ -76,6 +77,7 @@ fn status_json_single_direction_limit_renders_null_other_side() {
         Some(0),
         &RingReads::absent(),
         &[],
+        &inert_recwn(),
         0,
         0,
     );
@@ -101,6 +103,7 @@ fn status_json_joins_stats_and_zeroes_missing_entries() {
         None,
         &RingReads::absent(),
         &[],
+        &inert_recwn(),
         0,
         0,
     );
@@ -127,7 +130,19 @@ fn status_json_watchdog_wording_pins_all_three_states() {
 
     // Dormant: deadline 0, and the None display-contract variant.
     assert_eq!(
-        status_json(&[], &[], &[], &id, Some(0), &RingReads::absent(), &[], 0, 0).watchdog,
+        status_json(
+            &[],
+            &[],
+            &[],
+            &id,
+            Some(0),
+            &RingReads::absent(),
+            &[],
+            &inert_recwn(),
+            0,
+            0
+        )
+        .watchdog,
         "enforcing"
     );
     assert_eq!(
@@ -139,6 +154,7 @@ fn status_json_watchdog_wording_pins_all_three_states() {
             None,
             &RingReads::absent(),
             &[],
+            &inert_recwn(),
             0,
             0
         )
@@ -157,6 +173,7 @@ fn status_json_watchdog_wording_pins_all_three_states() {
             Some(u64::MAX),
             &RingReads::absent(),
             &[],
+            &inert_recwn(),
             0,
             0
         )
@@ -169,19 +186,55 @@ fn status_json_watchdog_wording_pins_all_three_states() {
     // deadline exactly at the snapshot instant — reads expired,
     // the deadline having been reached).
     assert_eq!(
-        status_json(&[], &[], &[], &id, Some(1), &RingReads::absent(), &[], 0, 2).watchdog,
+        status_json(
+            &[],
+            &[],
+            &[],
+            &id,
+            Some(1),
+            &RingReads::absent(),
+            &[],
+            &inert_recwn(),
+            0,
+            2
+        )
+        .watchdog,
         "expired"
     );
     // The boundary pinned, not just stated: deadline exactly AT the
     // snapshot instant reads expired (d > now is false at equality —
     // the deadline was reached, not still pending).
     assert_eq!(
-        status_json(&[], &[], &[], &id, Some(5), &RingReads::absent(), &[], 0, 5).watchdog,
+        status_json(
+            &[],
+            &[],
+            &[],
+            &id,
+            Some(5),
+            &RingReads::absent(),
+            &[],
+            &inert_recwn(),
+            0,
+            5
+        )
+        .watchdog,
         "expired"
     );
     // And one nanosecond before the deadline: still pending (active).
     assert_eq!(
-        status_json(&[], &[], &[], &id, Some(5), &RingReads::absent(), &[], 0, 4).watchdog,
+        status_json(
+            &[],
+            &[],
+            &[],
+            &id,
+            Some(5),
+            &RingReads::absent(),
+            &[],
+            &inert_recwn(),
+            0,
+            4
+        )
+        .watchdog,
         "active"
     );
 }
@@ -199,6 +252,7 @@ fn status_json_empty_policies_is_the_zero_state() {
         Some(0),
         &RingReads::absent(),
         &[],
+        &inert_recwn(),
         0,
         0,
     );
@@ -220,6 +274,7 @@ fn status_json_field_names_are_pinned() {
         Some(0),
         &RingReads::absent(),
         &[],
+        &inert_recwn(),
         0,
         0,
     );
@@ -241,6 +296,16 @@ fn status_json_field_names_are_pinned() {
     }
 }
 
+/// night-spark-2 (RECWN, schema v25): the owner-defined top-level
+/// object's three fields are pinned as literal JSON text — the
+/// The owner's own scenario, byte-exact: a planted lane with one
+/// 100 kb/s download policy reports the 5000-byte window the law
+/// derives and the 50 ms estimate it derived it from — the exact
+/// The enabled:false shape: a planted lane with no download policy
+/// to shape carries the honest absent window — never a fabricated
+/// zero — and the rtt estimate still rides (the lane's own
+/// The additive-absence contract: an unplanted lane (clean state,
+/// stale pins, a pre-v25 object) carries NO recwn_limits object at
 /// The absent-lens contract: with no ring readable (a pre-v14 pinned
 /// object, a torn-down map), the limit entries carry NO rate_ring
 /// field — absent is honestly absent, never a fabricated empty
@@ -256,6 +321,7 @@ fn rate_ring_field_is_omitted_when_the_lens_is_absent() {
         Some(0),
         &RingReads::absent(),
         &[],
+        &inert_recwn(),
         0,
         0,
     );
@@ -307,6 +373,7 @@ fn rate_ring_field_joins_series_by_cgroup() {
         Some(0),
         &rings,
         &[],
+        &inert_recwn(),
         0,
         now_ns,
     );
@@ -371,6 +438,7 @@ fn rate_ring_one_sided_entry_renders_null_direction() {
         Some(0),
         &rings,
         &[],
+        &inert_recwn(),
         0,
         0,
     );
@@ -417,6 +485,7 @@ fn per_socket_fields_serialize_only_when_set() {
         Some(0),
         &RingReads::absent(),
         &[],
+        &inert_recwn(),
         0,
         0,
     );
@@ -437,6 +506,7 @@ fn per_socket_fields_serialize_only_when_set() {
         Some(0),
         &RingReads::absent(),
         &[],
+        &inert_recwn(),
         0,
         0,
     );
