@@ -25,8 +25,7 @@ format so the check below is the whole protocol.
 | assets/qr/bitcoin.png | 575 | `09ec09fcdc4815e23373cb266bb120aa4e1af140fb9d598e117d05478a791b47` |
 | assets/qr/ethereum.png | 591 | `4eb520de0fe258d2c82ba07ccba8d9e48bafc63904d022a83cc42b59d1ed2ac7` |
 | assets/qr/solana.png | 595 | `bca56b0a454daf06ff2d57fe401719553e28733e73479de2652a0740a9e87d1a` |
-| assets/zelynic-original-logo-2026-old.png | 1,385,777 | `80f6a707f883df14fe6142707a846a7ab92d02530738f78111c537ca7d9360f1` |
-| assets/zelynic-original-logo-2026.png | 1,762,778 | `82a10e07aa78f814b8bb6358cf97116797e167dd1a362ea8fccaa6f621d156b5` |
+| assets/zelynic-original-logo-2026.png | 1,413,927 | `0e12f2a403b7a23ea637aa651b00d80bc58c2700321ab27ad386398eadbc944c` |
 
 `assets/tools.md` is a documentation file, not an image, so it stays
 outside the signed set.
