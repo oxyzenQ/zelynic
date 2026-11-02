@@ -1307,7 +1307,11 @@ def test_kill_tui():
         # never owned. enforcement_proofs records the kernel-drop and
         # byte-accounting rows per cycle.
         got = sm1.py_download(2.5, "a")
-        sm1.enforcement_proofs(f"kill tui c{cycle + 1}", got)
+        # night-spark-2 (schema v25): the battery names the cycle's
+        # budget so the drops row accepts the RECWN self-limited
+        # state (zero drops, allowed inside the span's ceiling) —
+        # the 3625c58 legs' only reds were exactly that state.
+        sm1.enforcement_proofs(f"kill tui c{cycle + 1}", got, budget_rate_bps=exp[cycle])
         # A fresh write must still land after the kill.
         ok, _ = sm1.apply_single("d", "750kb", 750_000, 750_000)
         if ok:

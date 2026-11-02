@@ -1106,7 +1106,9 @@ def clear_all():
     return rc == 0
 
 
-def enforcement_proofs(label, got_bytes, name="a", baseline_allowed=0):
+def enforcement_proofs(
+    label, got_bytes, name="a", baseline_allowed=0, budget_rate_bps=0, span_s=2.5
+):
     """Kernel-side proof under a binding limit: packets dropped and the
     BPF byte counter in agreement with the client's own count.
 
@@ -1114,6 +1116,18 @@ def enforcement_proofs(label, got_bytes, name="a", baseline_allowed=0):
     the caller weighs the window's own arrivals — allowed + dropped —
     while the policy is still live), or None when no row existed
     (the FAIL rows above already carry that loss).
+
+    night-spark-2 (schema v25, the RECWN era): a caller that knows
+    the policy's rate may pass budget_rate_bps, and the drops row
+    then accepts the SELF-LIMITED state — zero drops with the
+    ledger's allowed bytes inside the span's own budget ceiling
+    (lib.ledger_budget, the same arithmetic the upload rows ride).
+    The receive-window lane makes that state legitimate and even
+    desirable (the sender rides the window, the policer holds the
+    ceiling — retransmits near zero, the quota saver's promise);
+    the row's failure mode stays exactly what it always was, an
+    UNPOLICED flow blowing past the budget at line rate. Callers
+    without a budget keep the strict drops>0 verdict.
 
     The accounting row only runs above the accounting floor
     (lib.ACCOUNTING_FLOOR_BYTES): below it, loopback GSO starvation at
@@ -1136,11 +1150,36 @@ def enforcement_proofs(label, got_bytes, name="a", baseline_allowed=0):
         record(f"{label}: kernel drops engaged", "FAIL", "no limit row to read counters from")
         return None
     dropped = entry.get("packets_dropped", 0)
-    record(
-        f"{label}: kernel drops engaged",
-        "PASS" if dropped > 0 else "FAIL",
-        f"{dropped} packets dropped, {entry.get('bytes_allowed', 0)} bytes allowed",
-    )
+    if dropped > 0 or budget_rate_bps == 0:
+        record(
+            f"{label}: kernel drops engaged",
+            "PASS" if dropped > 0 else "FAIL",
+            f"{dropped} packets dropped, {entry.get('bytes_allowed', 0)} bytes allowed",
+        )
+    else:
+        # night-spark-2: the RECWN self-limited lane — the caller
+        # named the budget, the flow dropped nothing, and the ledger
+        # answers whether the policer held the ceiling: allowed
+        # bytes inside the span's budget (plus the one-skb GSO
+        # slop) is enforcement without a drop; anything past it is
+        # the unpoliced blow-through the row has always caught.
+        allowed = entry.get("bytes_allowed", 0) - baseline_allowed
+        ceiling = lib.ledger_budget(span_s, budget_rate_bps) + 65_536
+        if 0 <= allowed <= ceiling:
+            record(
+                f"{label}: kernel drops engaged",
+                "PASS",
+                f"{dropped} packets dropped, {entry.get('bytes_allowed', 0)} bytes allowed \
+inside the {ceiling:,}-byte budget (the RECWN self-limited state — the sender rides \
+the window, the policer holds the ceiling)",
+            )
+        else:
+            record(
+                f"{label}: kernel drops engaged",
+                "FAIL",
+                f"{dropped} packets dropped, {entry.get('bytes_allowed', 0)} bytes allowed \
+past the {ceiling:,}-byte budget — the flow is not policed",
+            )
     if CG.dedicated:
         allowed = entry.get("bytes_allowed", 0)
         if baseline_allowed:
