@@ -6,7 +6,7 @@
 // shape): a crates.io tarball carries no ebpf/ tree (cargo's package
 // walk cannot carry the detached nested workspace), so the feature's
 // two objects ride the tarball as the maintainer-built
-// ebpf-prebuilt/zelynic-{observer,limiter} with their provenance
+// ebpf-prebuilt/zelynic-{observer,limiter}.o with their provenance
 // manifest. This module verifies the manifest pins against the
 // staged bytes before anything is embedded.
 //
@@ -158,10 +158,15 @@ pub(crate) fn stage_registry_prebuilt_objects(manifest_dir: &std::path::Path) {
         });
     let pins = parse_prebuilt_manifest(&manifest_text);
     for name in ["zelynic-observer", "zelynic-limiter"] {
-        let data = crate::validate::read_validated_ebpf_object(&prebuilt_dir.join(name))
-            .unwrap_or_else(|problem| {
-                panic!(
-                    "the ebpf feature was requested from a registry tarball (no ebpf/ \
+        // The prebuilt file carries the .o extension (the sibling
+        // zejtron staged-object convention); the manifest's [[object]]
+        // name stays the stem, so the pin lookup below matches on the
+        // stem while the disk paths append it.
+        let data =
+            crate::validate::read_validated_ebpf_object(&prebuilt_dir.join(format!("{name}.o")))
+                .unwrap_or_else(|problem| {
+                    panic!(
+                        "the ebpf feature was requested from a registry tarball (no ebpf/ \
                  workspace rides a registry package — cargo's package walk cannot \
                  carry nested packages), and the prebuilt object {name} is missing or \
                  damaged ({problem}). This crate is INCOMPLETE: the ebpf-prebuilt/ lane \
@@ -170,8 +175,8 @@ pub(crate) fn stage_registry_prebuilt_objects(manifest_dir: &std::path::Path) {
                  clone https://github.com/oxyzenQ/zelynic, then cargo build --release \
                  --features ebpf) or install the flagship binary from GitHub Releases \
                  — see docs/VERIFY_RELEASE.md for both channels"
-                )
-            });
+                    )
+                });
         let pin = pins.iter().find(|row| row.name == name).unwrap_or_else(|| {
             panic!(
                 "the prebuilt lane's manifest.toml carries no parsable [[object]] row for \
@@ -188,7 +193,7 @@ pub(crate) fn stage_registry_prebuilt_objects(manifest_dir: &std::path::Path) {
                  unverified bytes is never an option"
             )
         });
-        let dst = out_dir.join(name);
+        let dst = out_dir.join(format!("{name}.o"));
         std::fs::write(&dst, &data)
             .unwrap_or_else(|e| panic!("failed to stage {} into OUT_DIR: {e}", dst.display()));
     }

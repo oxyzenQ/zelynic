@@ -129,7 +129,7 @@ else
 fi
 
 for name in zelynic-observer zelynic-limiter; do
-	file="${PREBUILT_DIR}/${name}"
+	file="${PREBUILT_DIR}/${name}.o"
 	if [ ! -f "$file" ]; then
 		fail "${file} is missing — regenerate with ./scripts/release/refresh-prebuilt.sh"
 		continue
@@ -174,7 +174,7 @@ if [ -f "$MANIFEST" ]; then
 	# One line per [[object]] block: "name blake3 size"
 	while read -r name want_sha want_size; do
 		[ -n "$name" ] || continue
-		file="${PREBUILT_DIR}/${name}"
+		file="${PREBUILT_DIR}/${name}.o"
 		if [ ! -f "$file" ]; then
 			fail "manifest names ${name} but the file is absent"
 			continue
