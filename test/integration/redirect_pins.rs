@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The removed/retired redirect pins (split from surface_pins.rs at
 //! the 600-line owner cap, NIGHT-improve-54 — the same one-theme-

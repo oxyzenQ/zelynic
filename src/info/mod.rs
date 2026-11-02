@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! zelynic package information constants and the version report.
 ///
@@ -29,9 +29,9 @@ pub const DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
 ///
 /// release.yml's AVX-512 (v4) legs verify the artifact WITHOUT
 /// executing it — the runner may lack the baseline, so `strings`
-/// must find "License: GPL-3.0-only" as contiguous bytes in the
+/// must find "License: AGPL-3.0-only" as contiguous bytes in the
 /// rodata. A format! inline capture (`{LICENSE}`) splits the line:
-/// the template keeps "License: " and the bare id "GPL-3.0-only"
+/// the template keeps "License: " and the bare id "AGPL-3.0-only"
 /// lands elsewhere in rodata, and the strings probe failed on both
 /// v4 legs (the v11.0.0-beta.2 release incident). This const IS the
 /// whole line, so the bytes stay contiguous by construction; the
@@ -39,7 +39,7 @@ pub const DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
 /// pre-blade-4 `pub const LICENSE` — the bare id, consumed only by
 /// the old inline capture — was removed with the capture: zero
 /// call sites left, the dependency-audit discipline.)
-const LICENSE_LINE: &str = "License: GPL-3.0-only";
+const LICENSE_LINE: &str = "License: AGPL-3.0-only";
 
 /// The `Signature:` line for full-life builds as ONE contiguous
 /// literal (NIGHT-dinner-4) — the NIGHT-blade-4 discipline applied to
@@ -165,7 +165,7 @@ fn version_body() -> String {
 /// Build-time: 9/18/2026 01:30 (UTC)
 /// Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)
 /// Copyright: (c) 2026 rezky_nightky (oxyzenQ)
-/// License: GPL-3.0-only
+/// License: AGPL-3.0-only
 /// Source: https://github.com/oxyzenQ/zelynic
 /// ```
 ///
@@ -243,7 +243,7 @@ mod tests {
     /// the unit run, not on a release day.
     #[test]
     fn license_line_is_the_contiguous_bytes_the_release_probe_greps() {
-        assert_eq!(LICENSE_LINE, "License: GPL-3.0-only");
+        assert_eq!(LICENSE_LINE, "License: AGPL-3.0-only");
     }
 
     /// NIGHT-hunt-6 contract: the version report carries the Build-time
@@ -255,7 +255,7 @@ mod tests {
         for line in [
             "Build-time: ",
             "Copyright: (c) 2026 rezky_nightky (oxyzenQ)",
-            "License: GPL-3.0-only",
+            "License: AGPL-3.0-only",
             "Source: https://github.com/oxyzenQ/zelynic",
         ] {
             let count = body.lines().filter(|l| l.contains(line)).count();

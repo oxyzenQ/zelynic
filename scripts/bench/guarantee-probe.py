@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-only
 """zelynic guarantee live probe (improve-40/improve-40-b follow-up) —
 the DRR pool's per-leaf floor/ceiling bracket, measured in REAL
 cgroups on the running kernel.

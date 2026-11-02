@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Unit pins for the embedded pure-Rust eBPF objects
 //! (NIGHT-improve-1 phase 3). Kept in the repo's single test/ tree

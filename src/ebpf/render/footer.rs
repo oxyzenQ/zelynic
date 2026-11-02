@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The pinned grip footer (NIGHT-boost-14) — the eagle-eyes frame's
 //! bottom block, split from the eagle renderer by the cohesion

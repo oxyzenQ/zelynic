@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Eagle-eyes target resolution (NIGHT-dinner-18, the render-family
 //! LOC-cap split — the beat.rs/screen.rs precedent): the per-frame

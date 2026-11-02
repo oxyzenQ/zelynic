@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! repair-7: the two-lane take law — the engaged lane's catch-up
 //! close, pinned at the arithmetic that convicted the fraction.

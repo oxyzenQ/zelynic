@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-only
 # LOC_EXEMPT: like supermassive-test.py and supermassive-test-v2.py, one
 # self-contained harness by design — v3 is a thin orchestrator over the
 # shared engine lib (scripts/lib/zelynic_harness_lib.py) plus the

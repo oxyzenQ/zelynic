@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The baseline panel's RENDERER (split from baseline.rs at the
 //! 600-LOC owner cap, the docker_tests lineage): the ruled section

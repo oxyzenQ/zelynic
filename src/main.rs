@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 //! zelynic — Per-app network rate limiter and traffic monitor for Linux
 //!
 //! Limit and observe any app's download/upload speed using eBPF.

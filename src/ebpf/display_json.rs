@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The status JSON assembly (charger-core-3b split from display.rs
 //! when the per-socket fields grew the file past the 500-LOC owner

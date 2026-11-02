@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Pins for the eagle-eyes connection-detail tree (NIGHT-boost-21):
 //! the label suffix, the cap-aware ranked-table composition, and the

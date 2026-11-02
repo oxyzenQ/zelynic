@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! OSC 11 answer parser pins (NIGHT-boost-26) — the pure core of the
 //! terminal-background query. The answer shapes are the ones real

@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The docker half of the container-native resolution (charger-
 //! core-2, TIER A #5) — the Engine API over the unix socket and

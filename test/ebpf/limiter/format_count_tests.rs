@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! format_count pins (NIGHT-engrave-7) — split from format_tests.rs
 //! when the counter-explosion pins pushed that file past the owner's

@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The zombie-policy sweep (NIGHT-hunt-43) — the reclamation
 //! family's third collector, named for the residue the census

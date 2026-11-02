@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The window JSON pins (night-during, schema v23 — split from
 //! display_json_tests.rs when the family crossed the 500-line owner

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-only
 # OS: Linux only — zelynic is a Linux eBPF tool; no other OS is supported.
 #
 # ZELYNIC PREBUILT eBPF OBJECT REFRESH (NIGHT-ask-2, refreshed by
@@ -325,7 +325,7 @@ done
 # gate parses exactly this shape and its header says so.
 {
 	echo "# Copyright (C) 2026 rezky_nightky"
-	echo "# SPDX-License-Identifier: GPL-3.0-only"
+	echo "# SPDX-License-Identifier: AGPL-3.0-only"
 	echo "#"
 	echo "# zelynic prebuilt eBPF object manifest (NIGHT-ask-2;"
 	echo "# schema 2 since night-dragon-maintenance-0 — the digest"

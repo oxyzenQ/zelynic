@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Selection-guard engine pins (NIGHT-improve-8) — kept in the
 //! repo's single test/ tree (NIGHT-hunt-17, cosmostrix Pattern C)

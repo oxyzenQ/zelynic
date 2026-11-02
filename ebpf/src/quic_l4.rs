@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 // NIGHT-improve-44: the L4 parsing family (L4Shape, parse_l4,
 // the remote-seed derivation, the bounded readers) moved out of

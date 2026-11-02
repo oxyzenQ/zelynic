@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The depth document's writer half (night-dragon-maintenance-T1
 //! (S1), split from depth_json.rs by the 600-line LOC law — the

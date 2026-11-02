@@ -1,5 +1,5 @@
 # Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-only
 
 # NIGHT-improve-22 (cosmostrix naming lineage — its release twin is
 # "Cosmic Dragon Guard - Release"; codeql.yml set zelynic's
@@ -436,7 +436,7 @@ jobs:
                 || { echo "::error::Expected embedded build label ${LABEL}"; exit 1; }
               grep -aFq "Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)" "${BIN}" \
                 || { echo "::error::Expected embedded version-report literals"; exit 1; }
-              grep -aFq "License: GPL-3.0-only" "${BIN}" \
+              grep -aFq "License: AGPL-3.0-only" "${BIN}" \
                 || { echo "::error::Expected embedded license literal"; exit 1; }
               # NIGHT-lts-9: the version literal (env!(CARGO_PKG_VERSION)
               # is a plain &str in the rodata) must match the tag — the

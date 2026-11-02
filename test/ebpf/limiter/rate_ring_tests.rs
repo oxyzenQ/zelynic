@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! charger-core-3a: rootless pins for the in-kernel time-series
 //! ring — the window WRITE protocol (ebpf/src/rate_ring.rs, the same

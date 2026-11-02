@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The eagle-eyes scroll state (night-improve-58) — the owner's
 //! six-key interactive contract: `q` quit, `t` theme, up/down

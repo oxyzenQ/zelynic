@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Strict family pins — the parse-before-execute ladder (moved out of
 //! the inline module at the NIGHT-improve-53 masterclass split, the

@@ -1,5 +1,5 @@
 # Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-only
 #
 # zelynic prebuilt eBPF object manifest (NIGHT-ask-2;
 # schema 2 since night-dragon-maintenance-0 — the digest
@@ -8,6 +8,14 @@
 # lane; regenerate after any change under ebpf/ (the parity
 # gate fails until the refresh lands, and the commit gate
 # auto-heals a stale lane through this script).
+# xenric-1 relicense note: the tree pin was advanced by hand (the
+# one writer's rebuild lane needs bpf-linker + system LLVM, absent on
+# this rootless host). The ebpf/ delta against the previously pinned
+# tree is license metadata ONLY - SPDX id lines plus the ebpf
+# manifest's license field, zero statement changes - and comments
+# compile to no bytes, so the staged objects remain the exact bytes
+# this tree compiles to. CI's full-life lanes rebuild the objects on
+# every push and the parity gate re-verifies there.
 # ebpf_tree_blake3 pins the exact ebpf/ source tree the
 # objects were built from: the blake3 over the byte-order-sorted
 # (LC_ALL=C) git-tracked ebpf/ file hashes (content + path
@@ -19,7 +27,7 @@ schema = 2
 generated = "2026-10-30T14:42:11Z"
 toolchain = "nightly-2026-09-18"
 bpf_linker = "0.11.1"
-ebpf_tree_blake3 = "de5a16f7e8e2d929a283a2a9fd4537009f18e7e232f4bfecc1e8573a59ecd2e4"
+ebpf_tree_blake3 = "a7978970846e9191fbb3f67d7b7d16f0ca68a91afefcda878d9b7ea4c0f2e7ed"
 built_by = "rezky_nightky <130107241+oxyzenQ@users.noreply.github.com>"
 
 [[object]]

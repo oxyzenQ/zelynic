@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Eagle-eyes theme catalog (NIGHT-boost-18, improve-27): the
 //! palettes the live monitor cycles with `t` — the cosmostrix

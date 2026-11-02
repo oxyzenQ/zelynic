@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The exact-twin and comma-lane pins (NIGHT-hunt-Z7, the owner's
 //! `-d 100.51kb` and `100,50kb` finds): the config-surface formatters

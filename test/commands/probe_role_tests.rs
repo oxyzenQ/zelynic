@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Pins for the enforcement probe's child roles
 //! (NIGHT-upgrade-charger-core-1-b): the mode validation (the only

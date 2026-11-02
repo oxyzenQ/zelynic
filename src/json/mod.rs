@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The hand-written JSON lane (night-dragon-maintenance-T1 (S1)) —
 //! the crate's one JSON module, std-only. No serde, no serde_json:

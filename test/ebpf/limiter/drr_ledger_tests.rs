@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! repair-3/4/6: the epoch-ledger battery — the kernel-shaped feedback
 //! simulation that reproduces the live fair-share battery's CI finds

@@ -1,5 +1,5 @@
 <!-- Copyright (C) 2026 rezky_nightky -->
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
 # Contributing to zelynic
 
@@ -8,7 +8,7 @@ the build process, project structure, and coding standards.
 
 ## Contributor License Agreement
 
-zelynic is dual-licensed (GPL-3.0-only + Commercial), so contributions
+zelynic is dual-licensed (AGPL-3.0-only + Commercial), so contributions
 ride on the [Contributor License Agreement](CLA.md): it grants the
 Owner the right to relicense your Contribution — including into the
 commercial lane — while you keep full copyright of your own work.
@@ -301,12 +301,12 @@ scripts/
 
    ```
    Copyright (C) 2026 rezky_nightky
-   SPDX-License-Identifier: GPL-3.0-only
+   SPDX-License-Identifier: AGPL-3.0-only
    ```
 
    (comments prefixed per language; `.md` uses HTML comments. Enforced by
    `scripts/gates/check-headers.sh`.)
-3. **License**: GPL-3.0-only
+3. **License**: AGPL-3.0-only
 4. **Rust toolchain**: pinned to a concrete X.Y.Z in `rust-toolchain.toml`
    (never `stable` — dormant-mode policy). Bump with
    `./scripts/dev/rust-version-to.sh <X.Y.Z>`; sync enforced by

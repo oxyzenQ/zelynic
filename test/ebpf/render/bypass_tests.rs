@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Pins for the bypass audit's report section
 //! (NIGHT-upgrade-charger-core-1-a): the one-glance shapes the depth

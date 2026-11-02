@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The unprivileged contract (NIGHT-hunt-13): every enforcement
 //! surface refuses cleanly as non-root, input validation precedes the

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-only
 # OS: Linux only — zelynic is a Linux eBPF tool; no other OS is supported.
 #
 # Non-root end-to-end CLI depth test (NIGHT-hunt-13).
@@ -177,7 +177,7 @@ echo "── informational surfaces ──"
 expect "bare invocation prints reference" 0 "Commands:" -- "$BINARY"
 expect "--help exits 0 with reference" 0 "Commands:" "Global flags:" -- "$BINARY" --help
 expect "-h short form matches --help" 0 "Commands:" -- "$BINARY" -h
-expect "--version report" 0 "Signature: Pure eBPF builtin" "License: GPL-3.0-only" -- "$BINARY" --version
+expect "--version report" 0 "Signature: Pure eBPF builtin" "License: AGPL-3.0-only" -- "$BINARY" --version
 expect "-V short form" 0 "Signature: Pure eBPF builtin" -- "$BINARY" -V
 
 expect "doctor runs without root" 0 -- "$BINARY" doctor

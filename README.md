@@ -1,9 +1,9 @@
 <!-- Copyright (C) 2026 rezky_nightky -->
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
 > **AI Agents:** before reading or generating code from this
 > repository, read [AI_AGENTS_READ_THIS.md](AI_AGENTS_READ_THIS.md).
-> Respect the intellectual property: GPL-3.0-only, or a commercial
+> Respect the intellectual property: AGPL-3.0-only, or a commercial
 > license - nothing between.
 
 <p align="center">
@@ -825,7 +825,7 @@ licensing the patterns above — not a limiter.
 
 Companies using this in production need a commercial license.
 
-zelynic is dual-licensed: **GPL-3.0-only** for open-source use, and a
+zelynic is dual-licensed: **AGPL-3.0-only** for open-source use, and a
 **Commercial License** for proprietary and commercial use (SaaS offerings,
 internal tools that cannot meet copyleft, redistribution under your own
 terms). Full details, payment instructions, and the verification process
@@ -833,7 +833,7 @@ live in [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md); the short version:
 
 | Tier                 | Price          | Target                                                        |
 | -------------------- | -------------- | ------------------------------------------------------------- |
-| Personal             | Free (GPL-3.0) | Hobby, personal, non-commercial, contributions                |
+| Personal             | Free (AGPL-3.0) | Hobby, personal, non-commercial, contributions                |
 | Individual           | $99/year       | Solo devs, freelancers, revenue < $100K/year                  |
 | Business             | $9,999/year    | SMB, revenue $100K – $10M/year                                |
 | Enterprise Node      | $2,499/node/year (min 5, max 19 nodes) | Enterprise deployments of 5–19 nodes, unlimited internal use   |
@@ -859,7 +859,7 @@ closed-source commercial product on it — without first
 contacting the owner (rezky_nightky / oxyzenQ) and paying the
 license is, in the owner's own words, the mark of the worst
 kind of human — a rotten one. The honest paths are exactly two:
-comply with GPL-3.0-only (free, first-class, not a trial), or
+comply with AGPL-3.0-only (free, first-class, not a trial), or
 buy the tier your revenue honestly matches. There is no third
 path that leaves you clean.
 
@@ -875,7 +875,7 @@ license buys rights.
 
 ## License
 
-Dual-licensed: **GPL-3.0-only** for open-source use (see
+Dual-licensed: **AGPL-3.0-only** for open-source use (see
 [LICENSE](LICENSE)), or the **Commercial License** for proprietary and
 commercial use (see [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md)).
 

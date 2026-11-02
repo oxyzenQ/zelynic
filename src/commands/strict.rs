@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Strict limiting handlers — the one `strict` verb's two lanes
 //! (NIGHT-improve-53, the masterclass unification: the former

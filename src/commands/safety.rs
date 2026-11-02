@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Dangerous-target guard — the blocklist of system processes that
 //! must not be limited without the unified `--force-this` override

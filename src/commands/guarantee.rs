@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! improve-40 (schema v24) / improve-40-b (the per-direction
 //! spellings): the guarantee bracket's CLI resolution — the six

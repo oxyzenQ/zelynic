@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Usage-line pins: subcommand-scoped usage (NIGHT-boost-13) — an
 //! error inside a subcommand shows that subcommand's grammar, the

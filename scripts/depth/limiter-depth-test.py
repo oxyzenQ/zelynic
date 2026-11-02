@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-only
 # LOC_EXEMPT: crossed the 1000-line cap in NIGHT-hunt-32 — the audit's
 # honest-verdict rows (the SKIP-with-reason arms that replaced silently
 # vanishing rows) and the corrected kernel-span ladder grew the file

@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The update-check cooldown (NIGHT-critical-infra-1 — the
 //! AI-agent-swarm threat model's one implemented mitigation).

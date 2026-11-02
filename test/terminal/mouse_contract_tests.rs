@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Unit pins for the NIGHT-improve-7 monitor terminal contract: the
 //! monitor TAKES the pointer while the box runs, and gives it back

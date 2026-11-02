@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The rootless test-tree wiring for the limiter's pure cores,
 //! split out of src/ebpf/limiter/mod.rs (NIGHT-private-research-4's

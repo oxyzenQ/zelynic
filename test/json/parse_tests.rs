@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The JSON parser pins (night-dragon-maintenance-T1 (S1)): the
 //! grammar the docker lane and every test lens rely on — strict

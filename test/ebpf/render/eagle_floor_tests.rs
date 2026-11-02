@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! night-improve-72 floor pins: the table never starves the baseline
 //! police. The owner's live find: scrolling the top process window

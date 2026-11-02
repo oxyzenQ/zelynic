@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! schema v21 (the per-socket convergence closure): the rootless
 //! fleet sims that closed the question the per-socket lane's ECN

@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Frame benchmark harness (NIGHT-hunt-7 A/B protocol; retargeted
 //! to the eagle-eyes renderer by NIGHT-boost-1).

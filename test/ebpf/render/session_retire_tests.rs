@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Session retirement pins (NIGHT-mitigate-1, the mitigate-1 audit's
 //! finding B): the freeze lifter's contract — the cap gate (the pass

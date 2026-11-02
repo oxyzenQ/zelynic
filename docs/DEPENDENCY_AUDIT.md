@@ -1,5 +1,5 @@
 <!-- Copyright (C) 2026 rezky_nightky -->
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
 # Dependency Audit (NIGHT-hunt-6)
 
@@ -228,7 +228,7 @@ over the full tree.
 
 Toolchain note: cargo-deny 0.18.2 cannot parse the current RustSec
 advisory database (CVSS 4.0 entries) and its config parser rejects
-`"GPL-3.0-only"` in the license allow list. CI installs the latest
+`"AGPL-3.0-only"` in the license allow list. CI installs the latest
 release, which handles both; the license list keeps the exact SPDX
 form. If a local run hits the CVSS parse error, update cargo-deny.
 

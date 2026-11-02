@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The footer's top-consumer ranking (NIGHT-dinner-6): the champion
 //! cgroup's hungriest process, picked by the per-socket byte join

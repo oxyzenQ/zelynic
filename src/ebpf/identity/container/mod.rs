@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Container-native target resolution (NIGHT-upgrade-
 //! charger-core-2, TIER A #5) — `docker://<name>` and

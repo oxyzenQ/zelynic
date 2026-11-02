@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! improve-40 (schema v24): the guarantee bracket's battery — the
 //! min/max laws the DRR pool's fair split is clamped between. Two

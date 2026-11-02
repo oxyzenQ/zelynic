@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The masterclass target grammar (NIGHT-improve-53) — the '::' list
 //! law the unified verbs (strict / block / unstrict) route by.

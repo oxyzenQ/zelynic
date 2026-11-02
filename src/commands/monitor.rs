@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! Monitor command handlers — status, eagle-eyes (the list-apps
 //! discovery surface lives in commands/list_apps.rs since

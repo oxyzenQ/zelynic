@@ -1,5 +1,5 @@
 <!-- Copyright (C) 2026 rezky_nightky -->
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
 # Pricing Research — Individual / Business / Company Tiers (NIGHT-dinner-14)
 
@@ -108,7 +108,7 @@ conversation, and the cheapest marketing the tier structure has.
   Linux-lane-monopoly argument (no alternative exists to buy), not
   on the comparables. Risk of a raise: $99 is already the price of
   "I trust this on my daily driver" for a solo dev; pushing to
-  $149 invites the GPL path to be chosen instead (which costs
+  $149 invites the AGPL path to be chosen instead (which costs
   nothing and is first-class by design).
 - **Business $1,000/year is underpriced 2x+ against its own
   budget line.** PRTG's entry monitoring product is $2,149–$2,400/
@@ -138,7 +138,7 @@ What NOT to do, regardless of option:
 
 - **Do not jump any tier more than ~1.5x in one step.** There is no
   sales motion, no trials-to-conversion funnel, and no volume — a
-  3x jump at zero friction just moves buyers to the GPL path (which
+  3x jump at zero friction just moves buyers to the AGPL path (which
   is a fine outcome for adoption, a poor one for revenue).
 - **Grandfather existing buyers.** The tiers are self-declared good
   faith; honoring the price someone already paid is the same

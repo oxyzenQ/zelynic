@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The flag estate of the --help reference (NIGHT-hunt-39: the
 //! split the 600-line no-mercy cap demanded, the cli/styles

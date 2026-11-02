@@ -1,4 +1,4 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <!-- Copyright (C) 2026 rezky_nightky (oxyzenQ) -->
 
 # The 100+ year survival strategy
@@ -92,7 +92,7 @@ compounds into when the surface is small:
 
 Sentiment does not patch kernels. The second century is paid for
 the same way the first one is: by the people who profit from the
-tool. The GPL-3.0-only core is free forever — that is not charity,
+tool. The AGPL-3.0-only core is free forever — that is not charity,
 that is distribution insurance, the widest possible base of users
 and auditors who can carry the tool forward. The commercial tiers
 (Individual, Business, Company — terms and current prices in
@@ -176,11 +176,11 @@ mechanism is documented:
 | Defense | unauthorized-use warnings + trademark | [TRADEMARK.md](../TRADEMARK.md), [LICENSING_FAQ.md](LICENSING_FAQ.md) |
 | Knowledge | the doc corpus + dated audits | [README.md](README.md) |
 | Standards without memory | the machine-enforced gate battery | [MAINTENANCE.md](MAINTENANCE.md) |
-| Succession | public repo, GPL-3.0-only, written rituals | [MAINTENANCE.md](MAINTENANCE.md), [../CONTRIBUTING.md](../CONTRIBUTING.md) |
+| Succession | public repo, AGPL-3.0-only, written rituals | [MAINTENANCE.md](MAINTENANCE.md), [../CONTRIBUTING.md](../CONTRIBUTING.md) |
 
 And the succession terms, said plainly, because a survival doc
 that flinches is worthless. If the owner stops: the repository is
-public, the GPL-3.0-only license makes carrying the tool legal
+public, the AGPL-3.0-only license makes carrying the tool legal
 for anyone who cares to, the gates encode the quality bar, and
 the docs encode the reasoning. The commercial line ends with the
 owner's signature unless reassigned — that is the owner's

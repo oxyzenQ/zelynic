@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! NIGHT-engrave-10 dock pins: the baseline panel's bottom-dock
 //! contract. The panel renders into a scratch buffer in the eagle

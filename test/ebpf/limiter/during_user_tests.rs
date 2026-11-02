@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! night-during, schema v23 (the owner's duration-only revision):
 //! rootless pins for the --during userspace half — the grammar

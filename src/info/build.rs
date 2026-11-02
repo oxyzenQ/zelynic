@@ -1,5 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! The build-facts lane (night-improve-66's split, the theme.rs →
 //! terminal_bg.rs precedent): everything the binary knows about its
