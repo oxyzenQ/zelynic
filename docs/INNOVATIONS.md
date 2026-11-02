@@ -22,7 +22,7 @@ pinned by rootless unit tests, not by hope.
 
 ## The engine, named
 
-The core these thirteen compose has a name (NIGHT-improve-68):
+The core these fourteen compose has a name (NIGHT-improve-68):
 **the cosmic dragon engine** — the zelynic enforcement core, the
 heart of the cosmic dragon architecture. The architecture is the
 body (pure eBPF, one hooking layer, no daemon); the engine is the
@@ -56,7 +56,7 @@ signal, and the ledger never pretends otherwise.
 
 ## The arc above the engine
 
-The thirteen scales, the heart they beat with (MMSPA and DRR), the
+The fourteen scales, the heart they beat with (MMSPA and DRR), the
 eyes that watch (the lazy camera and bypass detection), and the
 claws that grip the kernel (the eBPF objects and their loaders)
 compose one whole with its own name (the arc consolidation,
@@ -69,7 +69,7 @@ live in [COSMIC_DRAGON_ARC.md](COSMIC_DRAGON_ARC.md). When a doc,
 a license, or a roadmap says "the cosmic dragon arc", it means
 everything the entries below detail.
 
-## The thirteen, in dependency order
+## The fourteen, in dependency order
 
 **1. MMSPA — Multi-Micro Sub-Process Aware** (`ebpf/src/mmspa.rs`).
 The subtree hole: a policy written for cgroup A must
@@ -178,10 +178,47 @@ Scripts read the expiry straight off `status --print-json`:
 instants (`end_wall_ns` is the expiry, ns since epoch), and is
 honestly absent on windowless rows.
 
+**14. RECWN receive-window control** (schema v25, night-spark-2 —
+the quota saver's Layer 1). The owner's coined name for the
+receive-window lane: a policed cgroup's own sockets advertise a
+window shaped like the policy's bandwidth-delay product (rate x
+50 ms assumed RTT, clamped to [2 x MSS, 1 MiB]), so the remote TCP
+sender holds its in-flight bytes down BEFORE the ingress link
+bills them — the one knob that answers README limitation #15's
+physics (a dropped download saves no quota; a slowed sender does).
+The lane rides the limiter object's first sock_ops program
+(`zelynic_recwn`, attached at the cgroup root beside the two
+enforcement hooks) and one pinned cookie-keyed LRU hint map. Two
+kernel truths shaped the build, both verified against v5.15
+source: the `BPF_SOCK_OPS_RWND_INIT` return value is an MSS
+multiplier where 0 is the OS default (returning the sketched
+"1 for default" would have clamped every unpoliced socket on the
+machine to one segment — the program answers 0 and
+`bpf_setsockopt(SO_RCVBUF)` carries the clamp byte-exactly), and
+sock_ops on the 5.15 floor cannot resolve its own cgroup
+(`bpf_get_current_cgroup_id` is absent from `sock_ops_func_proto`)
+— so the ingress enforcement hook, which resolves every packet's
+socket cgroup exactly, primes the cookie hint on the policed path
+(one LRU lookup, steady state no write), and the program reads it
+back at the connection callbacks. Active connecters — the
+download-quota case — clamp at establishment; rate changes
+re-apply within one RTT on sockets whose establishment armed the
+RTT_CB flag; the unpoliced majority pays nothing. The status
+surfaces carry the owner-defined schema:
+`status --print-json` reports the top-level `recwn_limits`
+object (`enabled`, `window_bytes` — the binding window across
+active download policies, `rtt_estimate_us`), and the human table
+prints the lane's subordinate line. Rootless pins:
+`recwn_tests.rs` (the law's clamp table and the userspace-twin
+parity); live proof: `scripts/bench/recwn-probe.sh` (the owner's
+verification recipe — 100 kb/s apply, a curl child in the cgroup,
+`ss -ti` clamp evidence, the throughput band, retransmits near
+zero).
+
 ## Retired by verdict
 
 Honest research includes what was tried and rejected. Both
-rejections below are as load-bearing as the thirteen.
+rejections below are as load-bearing as the scales.
 
 - **snapshot/restore — "GitOps for bandwidth" without a daemon.**
   Implemented, live-tested by the owner, and retired whole

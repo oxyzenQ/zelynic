@@ -3,7 +3,7 @@
 
 # The cosmic dragon arc
 
-> One name for the whole animal. The thirteen scales, the heart
+> One name for the whole animal. The fourteen scales, the heart
 > that beats them, the eyes that watch, the claws that grip the
 > kernel — the official index of every architectural power zelynic
 > owns, and the roadmap for the power it is about to grow.
@@ -41,11 +41,12 @@ a partition — a scale can sit in two estates at once (MMSPA is a
 scale and half the heart), and that is the point: the estates
 describe how each part earns its name inside the whole.
 
-### The Scales — the thirteen kernel innovations
+### The Scales — the fourteen kernel innovations
 
-The thirteen research wins, in dependency order, each pinned by
+The fourteen research wins, in dependency order, each pinned by
 rootless tests (the ledger with the full story per scale is
-[INNOVATIONS.md](INNOVATIONS.md)):
+[INNOVATIONS.md](INNOVATIONS.md)). Scale 14 is the quota saver's
+Layer 1, landed by night-spark-2 (schema v25):
 
 | # | Scale | Schema | Code anchor | Rootless pin |
 |---|-------|--------|-------------|--------------|
@@ -62,10 +63,12 @@ rootless tests (the ledger with the full story per scale is
 | 11 | Container-native resolution | — | `src/ebpf/identity/container/mod.rs:160` | `supermassive-test-v3.sh`, CI kind lane |
 | 12 | Atomic multi-target rollback | — | `src/ebpf/limiter/atomic.rs:74` | `atomic_tests.rs` |
 | 13 | Time-windowed policies | v23 | `ebpf/src/during.rs:216` | `during_tests.rs`, `during_user_tests.rs` |
+| 14 | RECWN receive-window control | v25 | `ebpf/src/recwn.rs:98`, `recwn_flow.rs:114` | `recwn_tests.rs`, `recwn-probe.sh` |
 
-Status of the audit behind this table: all thirteen live in code
-today, all thirteen are documented, all thirteen are pinned — no
-dormant scale, no orphaned doc (the 2026-11-03 depth audit, below).
+Status of the audit behind this table: the first thirteen lived in
+code, doc, and pin at the 2026-11-03 depth audit (below); the
+fourteenth (RECWN, the quota saver's Layer 1) landed with it — no
+dormant scale, no orphaned doc.
 
 ### The Heart — the MMSPA and DRR engines
 
@@ -146,12 +149,12 @@ starts from evidence instead of folklore:
 - **All thirteen scales green on Code/Doc/Test** — the table above
   is the verdict, each anchor re-checked against the tree during
   this audit.
-- **One drift flagged, not fixed here** (kernel-side comment only):
-  `ebpf/src/schema.rs`'s history comment skips the v16 and v20
-  notes its userspace twin carries
-  (`src/ebpf/limiter/schema.rs:155` and `:271`). The twin plus the
-  rootless pins are the truth; the comment edit rides a future
-  ebpf-side commit so this one stays docs-only.
+- **One drift flagged at the audit, closed by night-spark-2**
+  (kernel-side comment only): `ebpf/src/schema.rs`'s history
+  comment skipped the v16 and v20 notes its userspace twin
+  carries (`src/ebpf/limiter/schema.rs:155` and `:271`). The
+  RECWN commit restored both notes beside its own v25 entry —
+  the twin parity the schema pins hold, comment-deep too.
 
 ## The quota gap
 
@@ -167,11 +170,15 @@ that goal, the arc holds four gaps:
    ledger's `bytes_allowed` is cumulative-since-apply. There is no
    volume budget (a human quota with its own window and reset), so
    there is nothing for an "80%" threshold to read.
-2. **No TCP receive-window enforcement.** Zero RWND code exists
-   (verified: no `rcv_wnd`, `sndbuf`, `rcvbuf`, or window-rewrite
-   path anywhere under `ebpf/src/` or `src/ebpf/`). The advertised
-   window is the one knob that caps a TCP sender's in-flight bytes
-   before they cross the link.
+2. **No TCP receive-window enforcement — CLOSED by Layer 1
+   (schema v25, night-spark-2).** The audit's absence proof stood:
+   zero RECWN code before v25. The close is the sock_ops program
+   `zelynic_recwn` (the owner's coined vocabulary) clamping
+   `SO_RCVBUF` through `bpf_setsockopt` on the connection
+   callbacks, primed cookie-keyed by the ingress hook — the
+   advertised window now caps a policed cgroup's senders before
+   the link bills the bytes. The RTT estimate is a fixed 50 ms in
+   Layer 1; the per-RTT re-tuning is a stated residue, not a gap.
 3. **ECN is enforcement-driven, not quota-driven — and invisible.**
    CE marking exists (v19 budget lanes, v21 per-socket lane,
    `ecn.rs`), and QUIC stacks that implement RFC 9002 ECN react to
@@ -190,15 +197,44 @@ that goal, the arc holds four gaps:
 
 The three layers below are the owner's stated vision, recorded
 verbatim in substance so a future agent neither invents a fourth
-layer nor reorders these. Docs and organization only landed this
-roadmap; no RWND/EDT code exists yet, and none should until the
+layer nor reorders these. Docs and organization landed this
+roadmap first; Layer 1 (RECWN) has since landed as schema v25
+(night-spark-2) — Layer 1 below reads as the implemented record.
+No ECN-for-QUIC or EDT code exists yet, and none should until the
 owner's build order says so.
 
-- **Layer 1 — TCP receive window (RWND) enforcement.** Clamp the
-  advertised window a policed cgroup's sockets advertise, so remote
-  TCP senders hold their in-flight bytes down before the link
-  bills them. The mechanism that actually saves download quota —
-  the sender throttles itself, no drop, no retransmit bill.
+- **Layer 1 — RECWN (Receive Window Control) — IMPLEMENTED**
+  (schema v25, night-spark-2). The owner's coined name for the
+  receive-window lane: a policed cgroup's own sockets advertise a
+  window shaped like the policy's bandwidth-delay product (rate x
+  50 ms, clamped to [2 x MSS, 1 MiB]), so remote TCP senders hold
+  their in-flight bytes down before the link bills them — the
+  mechanism that actually saves download quota. Two kernel truths
+  shaped the build (both verified against v5.15 source, recorded
+  in `ebpf/src/recwn.rs`): the `BPF_SOCK_OPS_RWND_INIT` return
+  value is an MSS multiplier where 0 is the OS default (returning
+  1 would clamp every unpoliced socket to one segment — the
+  program answers 0 and `bpf_setsockopt(SO_RCVBUF)` carries the
+  clamp), and sock_ops on the 5.15 floor has no cgroup-id helper
+  (the attribution rides a cookie-keyed hint the ingress
+  enforcement hook primes on the policed path, one LRU lookup,
+  steady state no write). Convergence: active connecters — the
+  download-quota case — clamp at establishment (the SYN-ACK
+  primes the socket's own cookie before the callback fires);
+  rate changes re-apply within one RTT on sockets whose
+  establishment armed the RTT_CB flag. The honest residues: the
+  initial window itself rides the default (~10 MSS once per
+  connection), a passive child's first window's worth rides the
+  default (its cookie is primed by its first DATA packet, after
+  the established callback), connections that outlived a removal
+  keep their last window until they close (the removal sweeps the
+  hint map; churn heals), and the kernel's `rmem_max` sysctl
+  ceiling bounds what a huge window could ever ask for. The
+  verification ladder: `recwn_tests.rs` (the law, rootless), the
+  `status --print-json` recwn_limits schema (pinned byte-exact),
+  and `scripts/bench/recwn-probe.sh` (the live proof — 100 kb/s
+  apply, a curl child in the cgroup, `ss -ti` clamp evidence,
+  the throughput band, retransmits near zero).
 - **Layer 2 — ECN CE-marking for QUIC backoff.** Reuse the
   ECN-first machinery (scale 6) as a quota signal: mark QUIC
   traffic toward the threshold so RFC 9002-ECN-capable QUIC

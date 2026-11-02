@@ -150,6 +150,12 @@ impl super::Limiter {
             // cheaper than reasoning about which half of it a given
             // removal needed.
             self.mmspa_memo_invalidate_best_effort();
+            // night-spark-2 (RECWN, schema v25): the hint-map
+            // sweep rides the same mutation tail — removals and
+            // unset-leg deletes leave stale receive-window hints
+            // the ingress path no longer overwrites (additions and
+            // rate changes self-heal through the upsert).
+            self.recwn_hint_invalidate_best_effort();
             return Err(anyhow!(
                 "{}",
                 unstrict_partial_failure_line(removed, &failed)
@@ -171,6 +177,12 @@ impl super::Limiter {
         // in one word so the re-walk cost is paid once, not per
         // packet, per leaf.
         self.mmspa_memo_invalidate_best_effort();
+        // night-spark-2 (RECWN, schema v25): the hint-map
+        // sweep rides the same mutation tail — removals and
+        // unset-leg deletes leave stale receive-window hints
+        // the ingress path no longer overwrites (additions and
+        // rate changes self-heal through the upsert).
+        self.recwn_hint_invalidate_best_effort();
 
         Ok(removed)
     }

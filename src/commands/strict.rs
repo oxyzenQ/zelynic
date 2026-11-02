@@ -228,6 +228,23 @@ fn handle_strict_single(
             ));
         }
 
+        // night-spark-2 (RECWN, schema v25 — the quota saver's
+        // Layer 1): the apply planted the receive-window lane with
+        // the object (attach() pins zelynic_recwn beside the two
+        // enforcement hooks — the program rides every strict-family
+        // attach, exactly when a rate limit is applied). A download
+        // leg means the lane will shape this policy's sockets: the
+        // trace names the window the law derives, so -v reads what
+        // the sender side is about to be held to.
+        if let Some(rate) = rates.download.filter(|r| *r > 0) {
+            crate::output::verbose::vlog!(
+                "limiter",
+                "RECWN armed: receive window clamps to {} (est. RTT 50ms) for this policy's \
+                 sockets",
+                crate::ebpf::limiter::format_bytes(crate::ebpf::display::recwn_window_bytes(rate))
+            );
+        }
+
         // NIGHT-dinner-16 (race-window parity with strict-multi/all): a
         // concurrent u --all can tear the pins down between apply
         // and the success verdict — the verdict is verified BEFORE it

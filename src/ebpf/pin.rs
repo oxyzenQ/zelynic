@@ -16,9 +16,25 @@ pub const PIN_DIR: &str = "/sys/fs/bpf/zelynic";
 pub const PIN_PROG_DL: &str = "/sys/fs/bpf/zelynic/enforce_dl";
 pub const PIN_PROG_UL: &str = "/sys/fs/bpf/zelynic/enforce_ul";
 
+/// The RECWN program pin (night-spark-2, schema v25 — the sock_ops
+/// lane, the quota saver's Layer 1): the receive-window program
+/// that rides the limiter object beside the two enforcement hooks.
+/// Same pin discipline, one lane over.
+pub const PIN_PROG_RECWN: &str = "/sys/fs/bpf/zelynic/zelynic_recwn";
+
 /// Link pins (bpf_links stay attached after process exit).
 pub const PIN_LINK_DL: &str = "/sys/fs/bpf/zelynic/enforce_dl_link";
 pub const PIN_LINK_UL: &str = "/sys/fs/bpf/zelynic/enforce_ul_link";
+
+/// The RECWN link pin (night-spark-2): the BPF_CGROUP_SOCK_OPS
+/// attachment at the cgroup root — the loader's third pair.
+pub const PIN_LINK_RECWN: &str = "/sys/fs/bpf/zelynic/zelynic_recwn_link";
+
+/// The RECWN socket-hint map pin (night-spark-2): the cookie-keyed
+/// LRU the ingress hook primes and the sock_ops program reads.
+/// Userspace never reads a row — it only sweeps the whole map on
+/// policy removals (limiter/recwn.rs), the MMSPA flush posture.
+pub const PIN_MAP_RECWN_HINT: &str = "/sys/fs/bpf/zelynic/recwn_socket_hint";
 
 /// Map pins opened directly by userspace (policy + stats + watchdog +
 /// schema version) and the individual bucket maps the unstrict/recover

@@ -76,3 +76,13 @@ mod quic_tests;
 #[cfg(test)]
 #[path = "during_tests.rs"]
 mod during_tests;
+
+// night-spark-2 (RECWN, schema v25 — Receive Window Control, the
+// quota saver's Layer 1): the pure window core compiles from
+// ebpf/src/recwn.rs the same way, pinned rootlessly by
+// recwn_tests.rs — the owner's rate matrix, the clamp band's edges,
+// the saturating posture, and the twin-parity contract that holds
+// the userspace status derivation to the kernel core's law.
+#[cfg(test)]
+#[path = "recwn_tests.rs"]
+mod recwn_tests;

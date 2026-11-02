@@ -73,6 +73,59 @@ v80.0.0
 
 ### Added
 
+- **feat(ebpf): RECWN — Receive Window Control, the quota saver's
+  Layer 1 (night-spark-2, schema v25).** The owner's coined name
+  for the receive-window lane: a policed cgroup's own sockets
+  advertise a window shaped like the policy's bandwidth-delay
+  product (rate x 50 ms assumed RTT, clamped to [2 x MSS,
+  1 MiB]), so remote TCP senders hold their in-flight bytes down
+  BEFORE the ingress link bills the bytes — the one knob that
+  answers README limitation #15's physics. The limiter object
+  grows its first sock_ops program (zelynic_recwn, attached at the
+  cgroup root beside the two enforcement hooks through the same
+  create-and-pin link lane, BPF_CGROUP_SOCK_OPS) and one pinned
+  cookie-keyed LRU hint map (recwn_socket_hint): the INGRESS
+  enforcement hook — which resolves every packet's socket cgroup
+  exactly — primes the hint on the policed path (one LRU lookup,
+  steady state no write), and the program reads it back at the
+  connection callbacks (the kernel's RWND_INIT dispatch and both
+  ESTABLISHED dispatches) and clamps SO_RCVBUF through
+  bpf_setsockopt. Two kernel truths shaped the build, both
+  verified against v5.15 source and recorded in
+  ebpf/src/recwn.rs: the RWND_INIT return value is an MSS
+  multiplier where 0 is the OS default (returning the sketched
+  "1 for default" would have clamped every unpoliced socket on
+  the machine to one segment — the program answers 0 and the
+  buffer option carries the clamp), and sock_ops on the 5.15
+  floor has no cgroup-id helper (bpf_get_current_cgroup_id is
+  absent from sock_ops_func_proto — the attribution rides the
+  ingress prime's cookie). A third find, caught by the
+  prebuilt-parity gate before it could ship: a saturating u64
+  multiply lowers to the __multi3 runtime call the BPF kernel
+  cannot relocate — the law now clamps each factor before a plain
+  64-bit multiply, overflow-impossible by construction. Active
+  connecters — the download-quota case — clamp at establishment
+  (the SYN-ACK primes the socket's own cookie before the callback
+  fires); rate changes re-apply within one RTT on sockets whose
+  establishment armed the RTT_CB flag; the unpoliced majority
+  pays nothing; every policy REMOVAL sweeps the hint map (the
+  MMSPA flush posture). The status surfaces carry the owner-
+  defined schema: `status --print-json` gains the additive
+  top-level recwn_limits object (enabled / window_bytes — the
+  binding window across active download policies / rtt_estimate_us,
+  pinned byte-exact), and the human table prints the lane's
+  subordinate RECWN line. The kernel-side schema history also
+  regains the v16/v20 notes its userspace twin always carried
+  (the 2026-11-03 audit's flagged drift, closed here). Verified:
+  958 unit + 70 integration tests green (recwn_tests.rs pins the
+  law's clamp table across the owner's rate matrix and the
+  userspace-twin parity; display_json_tests pin the schema), the
+  wholesale gate-keepers run green, and the live proof rides
+  scripts/bench/recwn-probe.sh (the owner's verification recipe:
+  100 kb/s apply, a curl child moved into the cgroup, ss -ti
+  clamp evidence, the throughput band, retransmits near zero —
+  self-test lane 11/11).
+
 - **docs(arc): the cosmic dragon arc — the official umbrella name
   for zelynic's entire architectural stack (the arc consolidation,
   the depth audit before the quota-saver build).** The thirteen

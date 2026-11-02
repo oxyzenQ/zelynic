@@ -1,0 +1,127 @@
+// Copyright (C) 2026 rezky_nightky
+// SPDX-License-Identifier: AGPL-3.0-only
+//
+// night-spark-2 (RECWN, Receive Window Control — Layer 1 of the
+// quota saver): the pure window law. Same discipline as math.rs /
+// mmspa.rs / drr.rs / ecn.rs / quic.rs / during.rs: pure `core`,
+// zero aya dependencies, wired into the limiter object with #[path]
+// (ebpf/src/bin/limiter.rs) AND into the userspace test tree the
+// same way, pinned rootlessly by test/ebpf/limiter/recwn_tests.rs.
+//
+// THE LAW (the owner's task brief, verbatim arithmetic):
+//   target_window = (rate_bytes_per_sec * rtt_us) / 1_000_000
+// clamped to [2 x MSS, 1 MiB]. An unknown RTT assumes the safe
+// 50 ms default — bufferbloat prevention, never amplification.
+//
+// Two kernel truths this layer carries that the original sketch
+// did not (both verified against torvalds/linux v5.15 source, the
+// hunt the owner's rules owe the tree):
+//
+// 1. The RWND_INIT callback's return value is a MULTIPLIER OF MSS,
+//    not bytes, and 0 is the "default OS behavior" answer
+//    (tcp_rwnd_init_bpf in include/net/tcp.h: rwnd < 0 -> 0;
+//    tcp_select_initial_window then applies min(*rcv_wnd,
+//    init_rcv_wnd * mss)). Returning 1 — the sketched "allow
+//    default" — would clamp EVERY unpoliced socket on the machine
+//    to a one-MSS initial window. The program therefore returns 0
+//    on every path and lets bpf_setsockopt(SO_RCVBUF) carry the
+//    clamp: the buffer is the spine (it bounds both the initial
+//    window through tcp_full_space and every later window update
+//    through tcp_select_window), it is byte-exact, and it needs no
+//    MSS guess.
+//
+// 2. A sock_ops program on the 5.15 floor cannot resolve its own
+//    cgroup: bpf_get_current_cgroup_id is absent from
+//    sock_ops_func_proto (verified in net/core/filter.c) — the
+//    helper belongs to the cgroup_skb and sk_msg families. The
+//    attribution therefore rides the lane the house already trusts:
+//    the INGRESS enforcement hook resolves every packet's socket
+//    cgroup (bpf_skb_cgroup_id) and primes a cookie-keyed hint
+//    (recwn_flow.rs), which the sock_ops program reads back at the
+//    connection callbacks. The sender-side clamp lands at
+//    establishment for active connecters — the download-quota
+//    case, the whole point of Layer 1.
+
+/// The Layer 1 RTT assumption, microseconds: 50 ms. The window law
+/// wants the sender's in-flight bytes capped at rate x RTT; no
+/// per-socket RTT is available at the callback sites the program
+/// acts on (tcp_call_bpf zeroes the srtt field family for the
+/// RWND_INIT dispatch), so the lane carries one honest constant.
+/// Fifty milliseconds is the safe default the owner's brief named:
+/// long enough to keep a fast link's window above the floor, short
+/// enough that a slow one cannot buffer a second of budget.
+pub const RECWN_DEFAULT_RTT_US: u32 = 50_000;
+
+/// The canonical MSS the clamps are phrased against: 1460 bytes
+/// (IPv4 over Ethernet, no options). The floor keeps a policed
+/// flow's window from stalling the handshake itself; the exact MSS
+/// per route is the kernel's own business (the buffer clamp never
+/// consults this beyond the floor).
+pub const RECWN_MSS_ASSUME_BYTES: u64 = 1460;
+
+/// The window floor: 2 x MSS, the owner's "~3 KB" — a window below
+/// two segments invites delayed-ACK stall pathologies on the very
+/// connections the lane is trying to help. Clamping UP to this
+/// floor is the documented compromise: a 1 kb/s policy computes
+/// 50 bytes of window and still advertises two segments' worth.
+pub const RECWN_WINDOW_MIN_BYTES: u64 = 2 * RECWN_MSS_ASSUME_BYTES;
+
+/// The window ceiling: 1 MiB, the over-buffering guard. Above this
+/// the advertised window stops being a rate-shaped pipe and starts
+/// being a queue the sender fills before the policer ever speaks —
+/// the bufferbloat the 50 ms default exists to prevent.
+pub const RECWN_WINDOW_MAX_BYTES: u64 = 1_048_576;
+
+/// The sanitize guard on the rate input: 4 GiB/s. The product
+/// (rate x rtt) rides a PLAIN 64-bit multiply — the BPF ISA has no
+/// widening multiply, so a checked/saturating u64 multiply would
+/// lower to the `__multi3` runtime call the kernel cannot relocate
+/// (the prebuilt-parity gate's own find, the first time an undefined
+/// GLOBAL symbol ever reached the lane). Clamping each factor to
+/// 2^32 bounds the product at 2^64 - 2^32 — overflow-impossible by
+/// construction — and the clamp is invisible for every real input:
+/// a rate above 4 GiB/s or an RTT above 71 minutes is far past the
+/// band the ceiling collapses to anyway. The userspace twin
+/// (src/ebpf/display.rs recwn_window_bytes) carries the SAME shape
+/// so the pair cannot drift at any input.
+pub const RECWN_RATE_SANITIZE_CAP: u64 = 4_294_967_296;
+
+/// The RECWN target window for one policy rate and one RTT
+/// estimate, in bytes: the bandwidth-delay product, clamped to the
+/// [2 x MSS, 1 MiB] band. Const so the pins can hold exact values
+/// and the datapath pays nothing for the arithmetic. A rate of zero
+/// (the block verdict) reads as the floor — though the prime lane
+/// never carries it there (the block verdict returns before the
+/// priming site, and no window shape can help a lane that delivers
+/// nothing).
+#[inline(always)]
+pub const fn target_window_bytes(rate_bps: u64, rtt_us: u32) -> u64 {
+    // Sanitize-then-decide, the burst clamp's own posture: each
+    // factor bounded before the plain multiply (the 2^32 caps make
+    // the product overflow-impossible — see RECWN_RATE_SANITIZE_CAP),
+    // then the band clamp brings any sanitized extreme back down.
+    let rate = if rate_bps > RECWN_RATE_SANITIZE_CAP {
+        RECWN_RATE_SANITIZE_CAP
+    } else {
+        rate_bps
+    };
+    let raw = rate * (rtt_us as u64) / 1_000_000;
+    if raw < RECWN_WINDOW_MIN_BYTES {
+        RECWN_WINDOW_MIN_BYTES
+    } else if raw > RECWN_WINDOW_MAX_BYTES {
+        RECWN_WINDOW_MAX_BYTES
+    } else {
+        raw
+    }
+}
+
+/// The Layer 1 shorthand: the window the lane derives from a policy
+/// rate under the 50 ms assumption. The status twin
+/// (src/ebpf/display.rs recwn_lane) reimplements this law in the
+/// userspace tree — the twin discipline default_burst carries — and
+/// test/ebpf/limiter/recwn_tests.rs pins the two against each other
+/// so they can never drift.
+#[inline(always)]
+pub const fn layer1_window(rate_bps: u64) -> u64 {
+    target_window_bytes(rate_bps, RECWN_DEFAULT_RTT_US)
+}
