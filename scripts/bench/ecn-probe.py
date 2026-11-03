@@ -306,10 +306,10 @@ def _recv_ce_stats(rsock, expect_bytes):
         ready, _, _ = select.select([rsock], [], [], min(DRAIN_QUIET_S, remaining))
         if not ready:
             break  # quiet — the lane drained
-        data, anc, _, _ = rsock.recvmsg(PKT_BYTES * 2, socket.CMSG_SPACE(1))
+        data, cmsgs, _, _ = rsock.recvmsg(PKT_BYTES * 2, socket.CMSG_SPACE(1))
         delivered += len(data)
         tos = 0
-        for lvl, typ, val in anc:
+        for lvl, typ, val in cmsgs:
             if lvl == socket.SOL_IP and typ == socket.IP_TOS:
                 tos = val[0]
         if ecn_codepoint(tos) == 3:
