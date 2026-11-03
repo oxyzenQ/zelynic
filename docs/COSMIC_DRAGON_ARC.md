@@ -283,16 +283,27 @@ Removing those snapshots would not remove a legacy dep; it would
 remove the evidence the purity claim stands on.
 
 The realnet lane itself moved to the owner's side of the planet the
-same night (night-spark-3): the retired tele2 rung sat an ocean away
-from the owner's lane and blackholed from Indonesia (the 2026-11-03
-run's rc 28), and the first replacement candidate — Clouvider's
-`sgp-sin` host — is NXDOMAIN on every naming variant, with the
-family's download path 404ing besides. The ladder now reads
-linode-singapore, linode-jakarta, linode-osaka, then the cloudflare
-__down mirror as the global anycast last resort; a dead rung falls
-through to the next one, and `recwn-probe.sh --ladder-check` walks
-the whole ladder rootless from any box, so rung liveness is verified
-on the owner's own network, not on an agent's.
+same night (night-spark-3), and finished the job the next night
+(night-spark-3b): the ocean-away rungs are gone outright, and the
+night-spark-3 replacements did not survive contact with the lane —
+the 2026-11-04 owner run walked the whole Linode speedtest trio into
+three rc 28 connection timeouts (30 s of silence before the
+cloudflare fallback caught the lane), the agent's sandbox blackholed
+the same three, and Clouvider's `sgp-sin` host is NXDOMAIN on every
+naming variant — the family is unreachable, not geo-fussy. The
+ladder now rides five geolocated Asian rungs in the owner's own
+order — Vultr's Singapore ping file, NAIST's Debian listing (Nara,
+the living Kansai rung; no public dumb file answers from Osaka city
+itself), the ubuntu-taipei listing (Taiwan Digital Streaming), KKU's
+Ubuntu listing (the UniNet edu backbone, Bangkok), and Biznet Gio's
+Ubuntu listing (Jakarta metro) — each verified alive by a ranged
+3 MiB GET and pinned to a city by IP geolocation before landing,
+with the cloudflare __down mirror as the global anycast last resort;
+the supermassive realnet chain carries the same roster behind its
+cloudflare anchor. A dead rung falls through to the next one, and
+`recwn-probe.sh --ladder-check` walks the whole ladder rootless from
+any box, so rung liveness is verified on the owner's own network,
+not on an agent's.
 
 <!-- ZELYNIC-DISCLAIMER -->
 <!--

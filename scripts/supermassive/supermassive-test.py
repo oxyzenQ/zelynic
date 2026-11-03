@@ -53,7 +53,7 @@ Design:
     class of proof as the owner's manual browser tests.
   * The real-internet lane (NIGHT-refactor-2, moved from v2): a
     reachability probe walks a fallback chain of long-lived public
-    endpoints (Cloudflare speed first, then OVH, then Tele2) and the
+    endpoints (Cloudflare speed first, then the Asian rungs) and the
     FIRST reachable one feeds every internet stage — cross-distro and
     cross-year robustness by construction, with honest SKIP verdicts
     (never silent, never false FAILs) when the machine has no egress or
@@ -5764,10 +5764,16 @@ RESTORE_FLOOR_RATIO = 0.3
 # The fallback chain, ordered by programmatic stability. Cloudflare's
 # speed endpoints are the backing store of speed.cloudflare.com itself
 # (the bytes= form caps the transfer by construction — the probe asks
-# for 1 KiB, the stage asks for 50 MB); OVH's proof files and Tele2's
-# zip have served ranged requests for over a decade. The FIRST endpoint
-# whose probe completes feeds every download stage — one endpoint per
-# run keeps every realnet row attributable to a name in the report.
+# for 1 KiB, the stage asks for 50 MB); the Asian rungs behind it sit
+# on the owner's side of the planet (night-spark-3b: Vultr Singapore,
+# NAIST's Debian listing in Nara, the ubuntu-taipei listing, KKU's
+# Bangkok listing, Biznet Gio's Jakarta listing — each verified alive
+# by a ranged GET and pinned to a city by IP geolocation before
+# landing; the retired European rungs sat an ocean away from the
+# owner's lane and the dead one blackholed from Indonesia outright).
+# The FIRST endpoint whose probe completes feeds every download
+# stage — one endpoint per run keeps every realnet row attributable
+# to a name in the report.
 REALNET_DL_ENDPOINTS = [
     (
         "cloudflare",
@@ -5775,14 +5781,29 @@ REALNET_DL_ENDPOINTS = [
         "https://speed.cloudflare.com/__down?bytes=50000000",
     ),
     (
-        "ovh",
-        "https://proof.ovh.net/files/10Mb.dat",
-        "https://proof.ovh.net/files/10Mb.dat",
+        "vultr-singapore",
+        "http://sgp-ping.vultr.com/vultr.com.1000MB.bin",
+        "http://sgp-ping.vultr.com/vultr.com.1000MB.bin",
     ),
     (
-        "tele2",
-        "http://speedtest.tele2.net/10MB.zip",
-        "http://speedtest.tele2.net/10MB.zip",
+        "naist-nara",
+        "http://ftp.naist.jp/debian/ls-lR.gz",
+        "http://ftp.naist.jp/debian/ls-lR.gz",
+    ),
+    (
+        "ubuntu-taipei",
+        "https://tw.archive.ubuntu.com/ubuntu/ls-lR.gz",
+        "https://tw.archive.ubuntu.com/ubuntu/ls-lR.gz",
+    ),
+    (
+        "kku-bangkok",
+        "https://mirror.kku.ac.th/ubuntu/ls-lR.gz",
+        "https://mirror.kku.ac.th/ubuntu/ls-lR.gz",
+    ),
+    (
+        "biznet-jakarta",
+        "https://mirror.biznetgio.com/ubuntu/ls-lR.gz",
+        "https://mirror.biznetgio.com/ubuntu/ls-lR.gz",
     ),
 ]
 # The upload discard endpoint: Cloudflare's __up accepts streamed POST

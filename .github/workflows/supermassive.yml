@@ -175,7 +175,7 @@
 # construction), while the modern heads build the driver in
 # (=y, verified against the archive's current latest — nothing
 # to stage). v1's realnet lane then runs instead of skipping:
-# its own reachability probe (the Cloudflare/OVH/Tele2 chain)
+# its own reachability probe (the Cloudflare/Asian-rungs chain)
 # and its honest SKIPs own the endpoint-down days, exactly the
 # lane design that waited for this day — the harness itself
 # changes not at all.
