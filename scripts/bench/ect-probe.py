@@ -403,7 +403,24 @@ def main():
     ap = argparse.ArgumentParser(description="zelynic ECT live probe (per-socket lane)")
     ap.add_argument("--self-test", action="store_true", help="instrument lane only, no root")
     ap.add_argument("--json", action="store_true", help="machine-readable output")
+    ap.add_argument("--binary", default=None, help="zelynic binary to drive")
     args = ap.parse_args()
+
+    # Binary resolution, the shared engine's ladder (NIGHT-improve-11
+    # / -16): repo-local builds outrank the system PATH and the pick is
+    # version-gated against this checkout's Cargo.toml. The live lane
+    # shipped without this call — lib.BINARY stayed "" and run_zel
+    # exec'd an empty program, so every live run died at the strict
+    # step as `exited 127: [Errno 13] Permission denied: ''` (the same
+    # hole the recwn probe's owner-run triage caught, night-spark-2
+    # follow-up). Resolved on the root path only, so the rootless
+    # invocation keeps run_live's own needs-root error.
+    if (
+        not args.self_test
+        and os.geteuid() == 0
+        and not lib.resolve_binary(args.binary, "sudo ./scripts/bench/ect-probe.sh")
+    ):
+        return 2
 
     start = time.perf_counter()
     ok = self_test() if args.self_test else run_live()
