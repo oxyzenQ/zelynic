@@ -38,7 +38,7 @@ use aya::maps::HashMap as BpfHashMap;
 use aya::programs::{CgroupAttachMode, SockOps};
 use aya::Ebpf;
 use std::fs::File;
-use std::os::fd::AsRawFd;
+use std::os::fd::{AsFd, AsRawFd};
 
 use super::lanes::map_error_means_absent;
 use crate::ebpf::bpf_syscall::{
@@ -74,48 +74,54 @@ pub(super) fn pace_hint_failed_line(cause: &str) -> String {
     )
 }
 
-impl super::Limiter {
-    /// Load, pin, and attach the pacing sock_ops program (the
-    /// loader's fourth lane — the recwn twin's own shape, one call
-    /// site in mod.rs either way the kernel answers). The cgroup
-    /// root file opens here so the call site stays one line; both
-    /// attach strategies ride: bpf_link's create-and-pin on 5.7+
-    /// (the link pin's removal detaches in-kernel — the unstrict
-    /// contract), the legacy ProgAttach + take_link + forget below
-    /// it (the pinned program holds the attachment).
-    pub(super) fn attach_pace_lane(bpf: &mut Ebpf, supports_link: bool) -> Result<()> {
-        let prog: &mut SockOps = bpf
-            .program_mut("zelynic_pace")
-            .context("BPF program 'zelynic_pace' not found")?
-            .try_into()?;
-        load_with_verifier_verdict(|| prog.load(), "zelynic_pace")?;
-        prog.pin(PIN_PROG_PACE)
-            .context("Failed to pin zelynic_pace")?;
-        let cgroup_file =
-            File::open("/sys/fs/cgroup").context("Failed to open cgroup root directory")?;
-        if supports_link {
-            let prog_raw = prog
-                .fd()
-                .context("Failed to get zelynic_pace fd")?
-                .as_fd()
-                .as_raw_fd();
-            create_and_pin_link(
-                prog_raw,
-                cgroup_file.as_raw_fd(),
-                BPF_CGROUP_SOCK_OPS,
-                PIN_LINK_PACE,
-            )
-            .context("Failed to create + pin zelynic_pace link")?;
-        } else {
-            let link = prog
-                .attach(cgroup_file, CgroupAttachMode::default())
-                .context("Failed to attach zelynic_pace (legacy)")?;
-            let link = prog.take_link(link)?;
-            std::mem::forget(link);
-        }
-        Ok(())
+/// Load, pin, and attach the pacing sock_ops program (the loader's
+/// fourth lane — the recwn twin's own shape, one call site in mod.rs
+/// either way the kernel answers). The cgroup root file opens here so
+/// the call site stays one line; both attach strategies ride:
+/// bpf_link's create-and-pin on 5.7+ (the link pin's removal detaches
+/// in-kernel — the unstrict contract), the legacy ProgAttach +
+/// take_link + forget below it (the pinned program holds the
+/// attachment). A FREE function, not a Limiter method: the attach
+/// lane runs before any Limiter instance exists (the fire-and-forget
+/// architecture — attach() drops the object before any write lane
+/// runs), exactly the shape the recwn twin's inline lane rode inside
+/// mod.rs.
+pub(super) fn attach_pace_lane(bpf: &mut Ebpf, supports_link: bool) -> Result<()> {
+    let prog: &mut SockOps = bpf
+        .program_mut("zelynic_pace")
+        .context(
+            "BPF program 'zelynic_pace' not found — the embedded object \n             predates the pacing lane (schema v27); run \n             ./scripts/release/refresh-prebuilt.sh and rebuild",
+        )?
+        .try_into()?;
+    load_with_verifier_verdict(|| prog.load(), "zelynic_pace")?;
+    prog.pin(PIN_PROG_PACE)
+        .context("Failed to pin zelynic_pace")?;
+    let cgroup_file =
+        File::open("/sys/fs/cgroup").context("Failed to open cgroup root directory")?;
+    if supports_link {
+        let prog_raw = prog
+            .fd()
+            .context("Failed to get zelynic_pace fd")?
+            .as_fd()
+            .as_raw_fd();
+        create_and_pin_link(
+            prog_raw,
+            cgroup_file.as_raw_fd(),
+            BPF_CGROUP_SOCK_OPS,
+            PIN_LINK_PACE,
+        )
+        .context("Failed to create + pin zelynic_pace link")?;
+    } else {
+        let link = prog
+            .attach(cgroup_file, CgroupAttachMode::default())
+            .context("Failed to attach zelynic_pace (legacy)")?;
+        let link = prog.take_link(link)?;
+        std::mem::forget(link);
     }
+    Ok(())
+}
 
+impl super::Limiter {
     /// Sweep every cookie row out of the pinned pacing hint map.
     ///
     /// Key snapshot first, then delete — an iterator over a map the
