@@ -31,10 +31,10 @@ cgroup, a real curl child, and the real internet:
   row 3 — the advertised window is clamped to the RECWN scale
     (live): a curl child moved INTO the policed cgroup (its sockets
     created after the move — the attribution contract) downloading
-    through the real internet while the parent samples `ss -ti` on
-    the connection: rcv_space / rcv_ssthresh bounded at the
-    clamped buffer's own scale, decisively below the ~128 KiB the
-    unpoliced default auto-tunes to.
+    through the real internet while the parent samples `ss -tip`
+    scoped to the curl child's own pid: rcv_space / rcv_ssthresh
+    bounded at the clamped buffer's own scale, decisively below the
+    ~128 KiB the unpoliced default auto-tunes to.
 
   row 4 — the throughput rides the policy band (live): curl's own
     measured average download speed inside the realnet band around
@@ -42,9 +42,12 @@ cgroup, a real curl child, and the real internet:
     sender slowed itself.
 
   row 5 — retransmits are near zero (live): the connection's
-    retransmit count against its segment count — the whole point of
-    shaping the window instead of letting the drops teach the
-    sender.
+    retransmit count against its segment count, read from ss's
+    `retrans:A/B` cumulative second member on the curl child's own
+    sockets (the pair's first member is the instantaneous in-flight
+    count; ss omits the pair entirely on clean connections, and
+    absence there means zero) — the whole point of shaping the
+    window instead of letting the drops teach the sender.
 
 Honesty contracts: the child is forked BEFORE any socket exists and
 writes its own pid into the target's cgroup.procs only AFTER the
@@ -68,6 +71,16 @@ curl child rides its own process group, the first
 SIGINT/SIGTERM/SIGHUP kills that group, runs the scoped teardown,
 and exits 128+signum (a second signal hard-exits), so the probe never
 depends on terminal signal delivery surviving sudo's relay.
+
+Instrument contract (the 2026-11-03 18:23 run's lesson: the band
+held at 98.7 KB/s while BOTH evidence rows read FAIL): the ss sweep
+kept every socket on the desktop that carried a tcp_info line —
+~175 bystanders a snapshot — so a browser's auto-tuned 131072-byte
+rcv_space answered for the lane's advertised window (row 3) and the
+last bystander's retrans-less 18-segment history answered for the
+lane's own retransmits (row 5, the -1/18 read). The sampler now
+carries the curl child's own pid, and every verdict rides the
+child's sockets alone.
 
 Root required for the live run; --self-test is the CI lane.
 """
@@ -179,44 +192,104 @@ def _install_abort_handlers():
 
 
 def parse_ss_tcp_info(text):
-    """Parse `ss -ti` output into per-connection tcp_info fields.
+    """Parse `ss -tip` output into per-connection dicts, each carrying
+    BOTH the header row's identity and the tcp_info line's counters.
 
-    Returns a list of dicts keyed by the fields this harness reads:
-    rcv_space, rcv_ssthresh, retrans (the first of ss's
-    `retrans:a/b` pair — the total retransmissions), retrans_total
-    (the pair's second member as ss prints it), segs_out. Only
-    connections carrying a detailed info line yield entries.
+    Identity fields: pid (int or None — ss shows no owner for a
+    socket the uid cannot attribute), local / peer (the header's
+    address columns, verbatim — the grouping key when a leg samples
+    more than one socket). Counter fields: rcv_space, rcv_ssthresh,
+    segs_out, retrans_out, retrans_total. The retrans pair's two
+    members are NOT interchangeable: ss feeds them tcp_info's
+    tcpi_retrans (the INSTANTANEOUS in-flight retransmit count — it
+    goes down as well as up) and tcpi_total_retrans (the
+    connection's CUMULATIVE total — the only member a verdict may
+    divide), and iproute2 prints the pair ONLY when at least one
+    member is nonzero (ss.c v6.15: `if (s->retrans ||
+    s->retrans_total)`), so a clean connection carries no pair at
+    all — absence reads as 0/0, never as a missing measurement.
+    Only connections carrying a detailed info line yield entries,
+    and every entry is the socket that OWNS the header above it —
+    the 18:23 owner run's live FAIL read the whole desktop's
+    sockets as the lane's own.
     """
     conns = []
+
+    def _close(header, fields):
+        if header is None or not fields:
+            return
+        pid = None
+        proc = None
+        m = re.search(r'users:\(\("([^"]*)",pid=(\d+)', header)
+        if m:
+            proc = m.group(1)
+            pid = int(m.group(2))
+        # The address columns: the header before `users:` splits into
+        # [Netid] State Recv-Q Send-Q local peer — a space-named
+        # process (users:(("Web Content",...)) never leaks tokens
+        # into the address side because the users: tail is
+        # partitioned off before the split.
+        addr_side = header.split("users:")[0].split()
+        entry = dict(fields)
+        entry["pid"] = pid
+        entry["proc"] = proc
+        entry["local"] = addr_side[-2] if len(addr_side) >= 2 else ""
+        entry["peer"] = addr_side[-1] if addr_side else ""
+        conns.append(entry)
+
+    header = None
     fields = {}
     for line in text.splitlines():
         if not line.startswith(("\t", " ")):
-            if fields:
-                conns.append(fields)
-            fields = {}
+            _close(header, fields)
+            header, fields = line, {}
             continue
         for name, pattern in [
             ("rcv_space", r"rcv_space:(\d+)"),
             ("rcv_ssthresh", r"rcv_ssthresh:(\d+)"),
             ("segs_out", r"segs_out:(\d+)"),
-            ("retrans", r"retrans:(\d+)/(\d+)"),
+            ("retrans_out", r"retrans:(\d+)/(\d+)"),
         ]:
             m = re.search(pattern, line)
             if m:
-                if name == "retrans":
-                    fields["retrans"] = int(m.group(1))
-                    fields["retrans_pair_second"] = int(m.group(2))
+                if name == "retrans_out":
+                    fields["retrans_out"] = int(m.group(1))
+                    fields["retrans_total"] = int(m.group(2))
                 else:
                     fields[name] = int(m.group(1))
-    if fields:
-        conns.append(fields)
+    _close(header, fields)
     return conns
 
 
-SS_FIXTURE = """ESTAB 0 0 192.0.2.10:443 203.0.113.7:52988 users:(("curl",pid=4242,fd=3))
-\t cubic wscale:8,7 rto:364 rtt:12.5/24 ato:40 mss:1448 rcv_space:131072 rcv_ssthresh:131072 segs_out:812 retrans:0/812
+def retrans_wholelife(samples):
+    """The sampled sockets' whole-life retransmit counts: the summed
+    retrans_total and segs_out over the LAST sample of each socket.
+
+    Both counters are cumulative from each socket's own
+    establishment, so the last sample of a socket carries that
+    connection's entire history — no first-sample subtraction, no
+    sampling-window arithmetic: the verdict reads the connection's
+    own totals exactly the way the row's brief words it. A leg that
+    opened more than one socket (a redirect, an address-family
+    retry) sums each socket's own whole-life counters; a reused
+    4-tuple answers with its newest life, the only one the counters
+    ever held.
+    """
+    last = {}
+    for s in samples:
+        last[(s.get("local", ""), s.get("peer", ""))] = s
+    retrans = sum(s.get("retrans_total", 0) for s in last.values())
+    segs = sum(s.get("segs_out", 0) for s in last.values())
+    return retrans, segs
+
+
+SS_FIXTURE = """State Recv-Q Send-Q Local Address:Port Peer Address:Port Process
+ESTAB 0 0 192.0.2.10:443 203.0.113.7:52988 users:(("curl",pid=4242,fd=3))
+\t cubic wscale:8,7 rto:364 rtt:12.5/24 ato:40 mss:1448 rcv_space:131072 rcv_ssthresh:131072 segs_out:812 retrans:0/3
 ESTAB 0 0 192.0.2.10:52304 198.51.100.9:80 users:(("curl",pid=4243,fd=3))
-\t cubic wscale:7,7 rto:364 rtt:8.75/17.5 ato:40 mss:1448 rcv_space:6144 rcv_ssthresh:6144 segs_out:204 retrans:2/204
+\t cubic wscale:7,7 rto:364 rtt:8.75/17.5 ato:40 mss:1448 rcv_space:6144 rcv_ssthresh:6144 segs_out:204 retrans:2/7
+ESTAB 0 0 192.0.2.10:52310 198.51.100.9:80 users:(("Web Content",pid=5599,fd=67))
+\t cubic wscale:7,7 rto:364 rtt:9.5/19 ato:40 mss:1448 rcv_space:131072 rcv_ssthresh:131072 segs_out:18
 """
 
 
@@ -262,34 +335,91 @@ def self_test():
             )
         )
 
-    # The ss parser round-trip on the fixture: the default-scale
-    # connection (131072) and the clamped-scale one (6144, the RECWN
-    # regime) both parse, with their retrans pairs.
+    # The ss parser round-trip on the fixture: the column header, an
+    # UNPOLICED-scale curl (another curl on the box must never ride
+    # the evidence), the clamped-scale curl (the RECWN regime), and a
+    # space-named bystander whose omitted retrans pair is the exact
+    # shape that answered row 5 with -1/18 on the owner's box.
     conns = parse_ss_tcp_info(SS_FIXTURE)
     rows.append(
         (
-            "ss parser: two connections parsed",
-            len(conns) == 2,
+            "ss parser: three connections parsed with owner identity",
+            len(conns) == 3,
             f"parsed {len(conns)} connections with tcp_info lines",
         )
     )
-    if len(conns) == 2:
+    if len(conns) == 3:
         rows.append(
             (
-                "ss parser: default-scale rcv_space reads 131072",
-                conns[0].get("rcv_space") == 131072,
-                f"rcv_space={conns[0].get('rcv_space')}",
+                "ss parser: each entry owns its header's identity",
+                conns[0].get("pid") == 4242
+                and conns[0].get("local") == "192.0.2.10:443"
+                and conns[1].get("pid") == 4243
+                and conns[2].get("pid") == 5599
+                and conns[2].get("peer") == "198.51.100.9:80",
+                f"pids={[c.get('pid') for c in conns]} "
+                f"locals={[c.get('local') for c in conns]}",
+            )
+        )
+        mine = [c for c in conns if c.get("pid") == 4243]
+        rows.append(
+            (
+                "ss parser: the pid filter keeps the policed curl alone",
+                len(mine) == 1 and mine[0].get("rcv_space") == 6144,
+                f"pid 4243 -> {[c.get('rcv_space') for c in mine]} "
+                f"(the 131072-scale curl 4242 and the bystander stay out)",
             )
         )
         rows.append(
             (
-                "ss parser: clamped-scale rcv_space reads 6144 with retrans 2/204",
-                conns[1].get("rcv_space") == 6144
-                and conns[1].get("retrans") == 2
-                and conns[1].get("segs_out") == 204,
-                f"fields={conns[1]}",
+                "ss parser: retrans reads out=2 total=7, an absent pair reads 0",
+                conns[1].get("retrans_out") == 2
+                and conns[1].get("retrans_total") == 7
+                and conns[2].get("retrans_total", 0) == 0,
+                f"pair out={conns[1].get('retrans_out')}/total={conns[1].get('retrans_total')}; "
+                f"bystander total={conns[2].get('retrans_total', 0)} (ss omits the pair when "
+                f"both members are zero)",
             )
         )
+
+    # The retrans verdict's own law: whole-life cumulative counters,
+    # summed across the sockets the leg actually sampled.
+    clean = [
+        {"local": "10.0.0.1:40000", "peer": "198.51.100.9:443", "segs_out": 5317},
+        {"local": "10.0.0.1:40000", "peer": "198.51.100.9:443", "segs_out": 8123},
+    ]
+    r, s = retrans_wholelife(clean)
+    rows.append(
+        (
+            "law: a clean sampled socket reads 0 retranss over its segments",
+            (r, s) == (0, 8123),
+            f"retrans_wholelife -> {r}/{s} (the omitted pair is zero, never a sentinel)",
+        )
+    )
+    lossy = [
+        {
+            "local": "10.0.0.1:40001",
+            "peer": "198.51.100.9:443",
+            "segs_out": 300,
+            "retrans_out": 0,
+            "retrans_total": 9,
+        },
+        {
+            "local": "10.0.0.1:40002",
+            "peer": "198.51.100.9:443",
+            "segs_out": 100,
+            "retrans_out": 0,
+            "retrans_total": 0,
+        },
+    ]
+    r, s = retrans_wholelife(lossy)
+    rows.append(
+        (
+            "law: whole-life retrans sums each socket's own counters",
+            (r, s) == (9, 400) and r / s > RETRANS_FRACTION_MAX,
+            f"retrans_wholelife -> {r}/{s} = {r / s * 100:.2f}% (two sockets, last sample each)",
+        )
+    )
 
     # The owner-defined recwn_limits schema on a fixture document:
     # the exact three-field object, the enabled:false absent-window
@@ -430,20 +560,35 @@ def curl_child(cgroup_procs, url, byte_cap, report_fd, max_time_s):
     os._exit(0)
 
 
-def _ss_snapshot_curl():
-    """One `ss -tip` sweep, keeping only curl-owned connections."""
+def _ss_snapshot_curl(child_pid):
+    """One `ss -tip` sweep, keeping ONLY the curl child's own sockets.
+
+    The 18:23 owner run's lesson: this sweep used to keep EVERY
+    connection on the box that carried a tcp_info line — on the
+    owner's daily-driver desktop that was ~175 sockets a snapshot,
+    so a bystander's auto-tuned 131072-byte rcv_space answered for
+    the lane's advertised window (row 3 FAIL) and the last
+    bystander's retrans-less 18-segment history answered for the
+    lane's own retransmits (row 5 FAIL) while the lane itself held
+    the band at 98.7 KB/s. The scope is the child's own pid — not a
+    name match, so another curl on the box can never ride the
+    evidence.
+    """
     try:
         text = subprocess.run(["ss", "-tip"], capture_output=True, text=True, timeout=5).stdout
     except (subprocess.TimeoutExpired, OSError):
         return []
-    if "curl" not in text:
-        return []
-    return [f for f in parse_ss_tcp_info(text) if f.get("rcv_space") is not None]
+    return [
+        c
+        for c in parse_ss_tcp_info(text)
+        if c.get("pid") == child_pid and c.get("rcv_space") is not None
+    ]
 
 
 def _run_leg(name, url, byte_cap, cg_dir, sample_s):
-    """Drive one download leg: fork the moved child, sample `ss -ti`
-    beside the transfer, heartbeat while it runs, collect its report.
+    """Drive one download leg: fork the moved child, sample `ss -tip`
+    beside the transfer (scoped to the child's own pid — the
+    instrument contract), heartbeat while it runs, collect its report.
 
     The wait is a WNOHANG poll, not a blocking waitpid: the leg stays
     readable for its whole life (a heartbeat every 15 s — the owner's
@@ -480,9 +625,9 @@ def _run_leg(name, url, byte_cap, cg_dir, sample_s):
             break
         now = time.monotonic()
         if now < sample_deadline:
-            samples.extend(_ss_snapshot_curl())
+            samples.extend(_ss_snapshot_curl(pid))
         if now - last_beat >= 15:
-            lib.out(f"  ... {name} leg {now - leg_start:.0f}s in, {len(samples)} ss samples")
+            lib.out(f"  ... {name} leg {now - leg_start:.0f}s in, {len(samples)} curl-socket samples")
             last_beat = now
         time.sleep(0.5)
     _CHILD_PG[0] = 0
@@ -569,19 +714,43 @@ def live_run(byte_cap):
                     f"retrying the lane on the {DL_CANDIDATES[idx + 1][0]} mirror"
                 )
 
-        # Row 3 — the clamp evidence: every sampled rcv_space /
-        # rcv_ssthresh at the clamped scale.
-        clamp_ok = bool(samples) and all(
-            s.get("rcv_space", 1 << 62) <= CLAMP_BOUND_BYTES
-            and s.get("rcv_ssthresh", 1 << 62) <= CLAMP_BOUND_BYTES
+        # Row 3 — the clamp evidence: every curl-owned sample's
+        # rcv_space / rcv_ssthresh at the clamped scale. The sampler
+        # is pid-scoped, so the verdict rides the child's own socket
+        # — the 18:23 run judged the whole desktop instead (~175
+        # bystander sockets a snapshot) and a browser's auto-tuned
+        # 131072-byte window answered for the lane.
+        max_space = max((s.get("rcv_space", 0) for s in samples), default=0)
+        max_ssthresh = max((s.get("rcv_ssthresh", 0) for s in samples), default=0)
+        offenders = [
+            s
             for s in samples
-        )
+            if s.get("rcv_space", 1 << 62) > CLAMP_BOUND_BYTES
+            or s.get("rcv_ssthresh", 1 << 62) > CLAMP_BOUND_BYTES
+        ]
+        clamp_ok = bool(samples) and not offenders
         seen_space = [s.get("rcv_space") for s in samples[:4]]
+        if not samples:
+            clamp_detail = (
+                "no curl-owned ss samples — the sampler never saw the child's socket "
+                "(another probe run mid-flight?)"
+            )
+        else:
+            clamp_detail = (
+                f"max rcv_space {max_space:,} B / max rcv_ssthresh {max_ssthresh:,} B over "
+                f"{len(samples)} curl-owned samples (bound {CLAMP_BOUND_BYTES:,} B; "
+                f"first: {seen_space}; the unpoliced default auto-tunes to 131072+)"
+            )
+            if offenders:
+                o = offenders[0]
+                clamp_detail = (
+                    f"first offender rcv_space={o.get('rcv_space')} "
+                    f"rcv_ssthresh={o.get('rcv_ssthresh')} — {clamp_detail}"
+                )
         lib.record(
             "recwn: the advertised window is clamped to the RECWN scale",
             "PASS" if clamp_ok else "FAIL",
-            f"{len(samples)} ss samples, rcv_space/rcv_ssthresh <= {CLAMP_BOUND_BYTES} B "
-            f"(first: {seen_space}; the unpoliced default auto-tunes to 131072+)",
+            clamp_detail,
         )
 
         # Row 4 — the throughput band (the realnet band's own floor).
@@ -593,17 +762,23 @@ def live_run(byte_cap):
             f"vs the {RATE_STR} policy via {endpoint[0]}",
         )
 
-        # Row 5 — retransmits near zero: the LAST sample's retransmit
-        # pair against its segment count.
-        last = samples[-1] if samples else {}
-        segs = max(last.get("segs_out", 0), 1)
-        retrans = last.get("retrans", -1)
-        retrans_ok = retrans >= 0 and retrans <= RETRANS_FRACTION_MAX * segs
+        # Row 5 — retransmits near zero: the connection's own
+        # CUMULATIVE counters — ss's `retrans:A/B` second member
+        # (tcp_info's tcpi_total_retrans), whole-life per socket. The
+        # 18:23 run read the pair's FIRST member (the instantaneous
+        # in-flight count) off an arbitrary bystander socket whose
+        # clean history prints no pair at all, and answered -1/18
+        # segments; the verdict now reads the curl child's own
+        # sockets, where a missing pair means zero retransmits.
+        retrans, segs = retrans_wholelife(samples)
+        sockets = len({(s.get("local", ""), s.get("peer", "")) for s in samples})
+        retrans_ok = bool(samples) and retrans <= RETRANS_FRACTION_MAX * max(segs, 1)
         lib.record(
             "recwn: retransmits are near zero",
             "PASS" if retrans_ok else "FAIL",
-            f"retrans {retrans}/{segs} segments ({(retrans / segs * 100):.2f}% — bound "
-            f"{RETRANS_FRACTION_MAX * 100:.0f}%) on the connection's own counters",
+            f"retrans {retrans}/{segs} segments ({retrans / max(segs, 1) * 100:.2f}% — bound "
+            f"{RETRANS_FRACTION_MAX * 100:.0f}%) on the connection's own whole-life counters "
+            f"({sockets} socket{'s' if sockets != 1 else ''}, last sample each)",
         )
         ok = schema_ok and clamp_ok and band_ok and retrans_ok
     finally:
