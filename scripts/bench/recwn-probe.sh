@@ -7,8 +7,9 @@
 # Control, the quota saver's Layer 1) — the receive-window lane's
 # live proof, the owner's own verification script: a 100 kb/s
 # download limit applied to a real cgroup, a curl child moved INTO
-# the cgroup downloading through the real internet, `ss -ti`
-# sampling the connection while it runs, and the three verdicts the
+# the cgroup downloading through the real internet, `ss -tip`
+# sampling scoped to the curl child's own pid while it runs, and the
+# three verdicts the
 # task brief named — the advertised receive window clamped to the
 # RECWN scale, the throughput riding the policy band, retransmits
 # near zero. Python is the engine (forked curl child, the cgroup
