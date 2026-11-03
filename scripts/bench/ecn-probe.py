@@ -26,10 +26,13 @@ now names) and the QUIC/UDP story the Layer 2 scale exists for:
   row 1 — the instrument (rootless, --self-test): the ECN codepoint
     decode table (Not-ECT / ECT(1) / ECT(0) / CE), the tcpdump
     witness filter the owner's recipe names, the status-JSON CE
-    ledger field contract, and the cap bound's live form. Without
-    this row a live FAIL could always be blamed on the measurement,
-    never the kernel — the instrument is pinned FIRST, the
-    discipline every claims harness here carries.
+    ledger field contract, the empty-ledger pre-flight verdict (a
+    clean host carries no limit rows, so the probe plants its own
+    and re-reads — an empty limits[] never reads as pre-v26), and
+    the cap bound's live form. Without this row a live FAIL could
+    always be blamed on the measurement, never the kernel — the
+    instrument is pinned FIRST, the discipline every claims harness
+    here carries.
 
   row 2 — the cgroup ingress lane marks (live): the worker rides in
     the policed cgroup with ONLY a download policy standing; its
@@ -97,8 +100,12 @@ ALONE, so a CE at the receiver can only come from the ingress hook
 the cmsg witness would not attribute); the tcpdump phase adds the
 upload policy AFTER the ingress rows are banked; the sysctl flip is
 saved-and-restored around its leg only; teardown is best-effort and
-never fails a verdict; a pre-v26 binary (no CE columns) fails the
-schema row with the reason spelled out — never a silent pass.
+never fails a verdict; a pre-v26 binary (no CE columns on a limit
+row that IS active) fails the schema row with the reason spelled out
+— never a silent pass; an EMPTY limits[] is a clean host, not a
+pre-v26 object — the schema row plants the probe's own download
+policy first and reads the columns off the fresh row it booked
+itself (night-spark-4 hot-fix 3).
 
 Root required for the live run; --self-test is the CI lane.
 """
@@ -196,6 +203,25 @@ def parse_ce_ledger(doc):
     return present, marked_p, marked_b
 
 
+def schema_check(doc):
+    """The pre-flight verdict the schema row rides: classify a
+    `status --print-json` document BEFORE judging the pinned object.
+    'empty' — limits[] carries no rows (a clean host: the v26 columns
+    have nothing to ride, absence proves nothing, the caller plants
+    its own row and re-reads); 'stale' — a limit row IS active but
+    the CE columns are gone (a pre-v26 pinned object); 'present' —
+    the columns ride, with the ledger sums. The distinction the
+    clean-host false FAIL taught: absence on an empty ledger is not
+    evidence."""
+    limits = (doc or {}).get("limits") or []
+    if not limits:
+        return "empty", 0, 0
+    present, marked_p, marked_b = parse_ce_ledger(doc)
+    if not present:
+        return "stale", 0, 0
+    return "present", marked_p, marked_b
+
+
 def self_test():
     """The rootless instrument lane: the law, the decoder, the filter,
     the JSON contract."""
@@ -250,6 +276,33 @@ def self_test():
             present and marked_p == 15 and marked_b == 21032 and not absent_present,
             "fixture sums 12+3 packets / 17432+3600 bytes; a pre-v26 "
             "document reads present=False (absence never fakes zero)",
+        )
+    )
+
+    # The pre-flight verdict table: the schema row's three states,
+    # classified before any verdict is spoken. An empty limits[] is a
+    # clean host ('empty': plant a fresh row, re-read, proceed — the
+    # shape that once false-FAILed a perfect v26 binary), a row with
+    # the columns gone is the stale-pinned-object verdict ('stale'),
+    # the columns riding is 'present' with the ledger sums. The row
+    # also proves no document shape panics the classifier: None, a
+    # missing limits key, and an empty list all ride.
+    empty_verdicts = (
+        schema_check({"limits": []}),
+        schema_check({}),
+        schema_check(None),
+    )
+    rows.append(
+        (
+            "instrument: the empty-ledger pre-flight verdict",
+            all(v == ("empty", 0, 0) for v in empty_verdicts)
+            and schema_check(fixture_absent) == ("stale", 0, 0)
+            and schema_check(fixture) == ("present", 15, 21032),
+            "limits[] empty/absent/None -> 'empty' (the clean-host "
+            "proceed: the probe plants its own row and re-reads, never "
+            "a panic, never a pre-v26 verdict); a row with the columns "
+            "gone -> 'stale'; the columns present -> 'present' "
+            "(15 pkts / 21032 B)",
         )
     )
 
@@ -517,16 +570,50 @@ def live_run():
         os.close(ready_r)
 
         # The schema row first: a pre-v26 binary cannot ride this lane.
-        doc = lib.status_json()
-        present, pre_p, pre_b = parse_ce_ledger(doc)
+        # But an EMPTY limits[] is a clean host, not a pre-v26 object —
+        # the v26 columns live ON a limit row, so with zero rows there
+        # is nothing to read and absence proves nothing. The probe then
+        # plants its own download policy NOW (the phase-1 plant pulled
+        # ahead of the schema read), re-reads the ledger off the fresh
+        # row it booked itself, and only a row that IS active with the
+        # columns still gone earns the stale-pinned-object verdict.
+        planted_for_schema = False
+        verdict, pre_p, pre_b = schema_check(lib.status_json())
+        if verdict == "empty":
+            rc, out, err = _plant("d", cg_id)
+            if rc != 0:
+                lib.out(f"FAIL: strict -d {RATE_STR} exited {rc}: {(err or out)[:200]}")
+                return 1
+            planted_for_schema = True
+            lib.out(
+                "  schema: limits[] is empty (clean host) — planted the probe's "
+                "own download policy, re-reading the v26 columns off the fresh row"
+            )
+            verdict, pre_p, pre_b = schema_check(lib.status_json())
+        if verdict == "empty":
+            lib.record(
+                "recwn/ecn: the ledger carries the v26 CE columns",
+                "FAIL",
+                "limits[] still carries no row after the probe planted its own "
+                "policy — the fresh row did not book, so the v26 columns cannot "
+                "be verified (rebuild and re-apply)",
+            )
+            return 1
         lib.record(
             "recwn/ecn: the ledger carries the v26 CE columns",
-            "PASS" if present else "FAIL",
-            f"status --print-json limits[] .ce_marked_packets/.ce_marked_bytes "
-            f"{'present' if present else 'ABSENT'} (pre-baseline: {pre_p} pkts / {pre_b} B) "
-            "— absent means a pre-v26 object is pinned; rebuild and re-apply",
+            "PASS" if verdict == "present" else "FAIL",
+            (
+                "status --print-json limits[] .ce_marked_packets/.ce_marked_bytes "
+                f"present (pre-baseline: {pre_p} pkts / {pre_b} B)"
+            )
+            if verdict == "present"
+            else (
+                "status --print-json limits[] .ce_marked_packets/.ce_marked_bytes "
+                "ABSENT with a limit row active — a pre-v26 (stale pinned) object "
+                "is loaded; rebuild and re-apply"
+            ),
         )
-        if not present:
+        if verdict != "present":
             return 1
 
         # The sysctl flip (saved, restored in the finally below): the
@@ -546,11 +633,15 @@ def live_run():
                 f"  note: the tcp_ecn flip failed ({e}) — the internet TCP leg will read honestly"
             )
 
-        # Phase 1 — the ingress cmsg legs, download policy ALONE.
-        rc, out, err = _plant("d", cg_id)
-        if rc != 0:
-            lib.out(f"FAIL: strict -d {RATE_STR} exited {rc}: {(err or out)[:200]}")
-            return 1
+        # Phase 1 — the ingress cmsg legs, download policy ALONE (the
+        # policy already stands when the empty-ledger pre-flight planted
+        # it: that plant is the same download-only shape, reused — never
+        # a second plant racing the first).
+        if not planted_for_schema:
+            rc, out, err = _plant("d", cg_id)
+            if rc != 0:
+                lib.out(f"FAIL: strict -d {RATE_STR} exited {rc}: {(err or out)[:200]}")
+                return 1
         os.write(go_w, b"1")
         lib.out(
             f"  driving the cgroup ingress lane: {BLAST_BYTES // 1024} KiB of {PKT_BYTES} B "
