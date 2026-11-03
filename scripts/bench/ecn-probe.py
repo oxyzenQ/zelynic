@@ -105,7 +105,11 @@ row that IS active) fails the schema row with the reason spelled out
 — never a silent pass; an EMPTY limits[] is a clean host, not a
 pre-v26 object — the schema row plants the probe's own download
 policy first and reads the columns off the fresh row it booked
-itself (night-spark-4 hot-fix 3).
+itself (night-spark-4 hot-fix 3); the worker flushes ONE REPORT PER
+PHASE and the parent's every wait on it is deadline-bounded — the
+pair can never park face-to-face on each other's pipes, and a lost
+worker is an honest FAIL row plus the teardown's SIGKILL
+(night-spark-4 hot-fix 3 follow-up).
 
 Root required for the live run; --self-test is the CI lane.
 """
@@ -145,6 +149,16 @@ BLAST_BYTES = 512 * 1024
 # window is the kernel's own clock, measured, never guessed.
 DRAIN_QUIET_S = 1.0
 DRAIN_MAX_S = 30.0
+# The parent's wait deadlines (night-spark-4 hot-fix 3 follow-up):
+# every read the parent does on the worker's pipes is select-bounded —
+# the ready handshake, the ingress report, the internet report. A
+# worker that dies or stalls ends as an honest FAIL row plus the
+# teardown's SIGKILL, never a parked probe. The ingress bound covers
+# two drain-capped blast legs; the internet bound covers the ladder's
+# own curl max-times (three rungs plus the QUIC leg at their worst).
+READY_TIMEOUT_S = 15.0
+INGRESS_REPORT_TIMEOUT_S = 90.0
+INTERNET_REPORT_TIMEOUT_S = 480.0
 CG_ROOT = "/sys/fs/cgroup"
 CG_NAME = "zelynic-ecn-probe"
 TCP_ECN_SYSCTL = "/proc/sys/net/ipv4/tcp_ecn"
@@ -438,22 +452,28 @@ def _curl_http3_supported():
 def worker_main(go_r, report_w):
     """The cgroup member's legs. The parent has already moved THIS pid
     into the policed cgroup (the join happened before any socket
-    exists — the pin-at-creation contract). One go byte per phase:
-    1 = the ingress cmsg legs, 2 = the internet legs (the sysctl and
-    the upload policy are the parent's side of the wall)."""
-    report = {}
+    exists — the pin-at-creation contract). One go byte per phase,
+    ONE REPORT PER PHASE: the parent reads the ingress report before
+    it rides on (the witness and the internet legs are the parent's
+    side of the wall), so the worker flushes each report the moment
+    its phase's legs are done and parks on the next go byte. The
+    single end-of-run report this loop once wrote deadlocked the pair
+    — the parent parked on the report pipe, the worker on the go
+    pipe, and the probe hung past the ingress lane message forever
+    (night-spark-4 hot-fix 3 follow-up)."""
     while True:
         phase = os.read(go_r, 1)
-        if phase not in (b"1", b"2"):
-            break
         if phase == b"1":
             # The ingress cmsg legs — download policy ONLY stands, so
-            # a CE at the receiver names the ingress hook.
-            report["ect"] = _blast_leg(0x02)
-            report["notect"] = _blast_leg(0x00)
-        else:
+            # a CE at the receiver names the ingress hook. The report
+            # flushes NOW: the parent's cmsg and ledger rows read it
+            # before the witness and the internet legs open.
+            report = {"ect": _blast_leg(0x02), "notect": _blast_leg(0x00)}
+            os.write(report_w, json.dumps(report).encode())
+        elif phase == b"2":
             # The internet legs: TCP through the ladder (the children
             # of a cgroup member are born policed), then QUIC.
+            report = {}
             tcp_leg = {"endpoint": None, "rc": -1, "size": 0, "speed": 0.0}
             for name, tpl in INTERNET_LADDER:
                 res = _curl_range(tpl.format(bytes=INTERNET_BYTES))
@@ -503,8 +523,10 @@ def worker_main(go_r, report_w):
                     }
             else:
                 report["quic_leg"] = {"supported": False}
+            os.write(report_w, json.dumps(report).encode())
             break
-    os.write(report_w, json.dumps(report).encode())
+        else:
+            break
     os.close(report_w)
 
 
@@ -513,6 +535,36 @@ def worker_main(go_r, report_w):
 
 def _plant(direction, cg_id):
     return lib.run_zel(["strict", f"cg:{cg_id}", f"-{direction}", RATE_STR, "--no-test"])
+
+
+def _send_phase(fd, phase):
+    """One go byte to the worker: True delivered, False when the read
+    end is gone (the worker died mid-lane) — the caller fails the lane
+    honestly instead of letting BrokenPipeError crash the verdicts."""
+    try:
+        os.write(fd, phase)
+        return True
+    except BrokenPipeError:
+        return False
+
+
+def _read_report(fd, timeout_s):
+    """One deadline-bounded read of a worker report. Returns (report,
+    None) on a clean parse, (None, reason) on a missed deadline, a
+    closed pipe (the worker died mid-lane), or an unparsable body —
+    the caller records the honest FAIL and the teardown kills the
+    child; the parent never parks forever on a worker that can no
+    longer answer (night-spark-4 hot-fix 3 follow-up)."""
+    ready, _, _ = select.select([fd], [], [], timeout_s)
+    if not ready:
+        return None, f"no report within the {timeout_s:.0f}s deadline"
+    raw = os.read(fd, 65536)
+    if not raw:
+        return None, "the worker closed the report pipe (died mid-lane)"
+    try:
+        return json.loads(raw.decode()), None
+    except (UnicodeDecodeError, json.JSONDecodeError) as e:
+        return None, f"unparsable worker report: {e}"
 
 
 def live_run():
@@ -566,7 +618,19 @@ def live_run():
         os.close(go_r)
         os.close(ready_w)
         os.close(report_w)
-        os.read(ready_r, 1)
+        # The ready handshake, deadline-bounded: a worker that cannot
+        # join (or died trying) fails the lane honestly — the parent
+        # never parks on a pipe that will never answer.
+        ready, _, _ = select.select([ready_r], [], [], READY_TIMEOUT_S)
+        if not ready:
+            lib.out(
+                f"FAIL: the worker never confirmed the cgroup join within "
+                f"{READY_TIMEOUT_S:.0f}s — teardown kills the child"
+            )
+            return 1
+        if os.read(ready_r, 1) != b"1":
+            lib.out("FAIL: the worker died before the cgroup join (no ready byte)")
+            return 1
         os.close(ready_r)
 
         # The schema row first: a pre-v26 binary cannot ride this lane.
@@ -642,12 +706,22 @@ def live_run():
             if rc != 0:
                 lib.out(f"FAIL: strict -d {RATE_STR} exited {rc}: {(err or out)[:200]}")
                 return 1
-        os.write(go_w, b"1")
+        if not _send_phase(go_w, b"1"):
+            lib.out("FAIL: the worker is gone before the phase-1 go byte")
+            return 1
         lib.out(
             f"  driving the cgroup ingress lane: {BLAST_BYTES // 1024} KiB of {PKT_BYTES} B "
             f"datagrams at {RATE_STR} (loopback, ECT(0) then Not-ECT)"
         )
-        report = json.loads(os.read(report_r, 65536).decode())
+        report, why = _read_report(report_r, INGRESS_REPORT_TIMEOUT_S)
+        if report is None:
+            lib.record(
+                "ecn: the worker reported the ingress legs",
+                "FAIL",
+                f"{why} — the ingress lane is lost (the deadline bounds two "
+                "drain-capped blast legs); teardown kills the child",
+            )
+            return 1
         ect = report.get("ect", {})
         notect = report.get("notect", {})
         lib.record(
@@ -681,11 +755,24 @@ def live_run():
         )
 
         # Phase 2 — the tap-visible witness: the upload policy joins,
-        # a short ECT re-blast, tcpdump counts the egress marks.
+        # a short ECT re-blast, tcpdump counts the egress marks. The
+        # phase-2 go byte is sent HERE, once, when the witness rides:
+        # the worker's internet legs ARE the witness window, so phase
+        # 3 must not send the byte again — a second byte is garbage in
+        # the pipe at best, a spurious lost-worker verdict at worst.
+        phase2_sent = False
         if tcpdump is not None:
             rc, out, err = _plant("u", cg_id)
             if rc == 0:
-                os.write(go_w, b"2")
+                if not _send_phase(go_w, b"2"):
+                    lib.record(
+                        "ecn: the tcpdump witness counts CE-marked packets",
+                        "FAIL",
+                        "the worker is gone before the phase-2 go byte — the "
+                        "lane is lost; teardown kills the child",
+                    )
+                    return 1
+                phase2_sent = True
                 tcpdump_run = subprocess.Popen(
                     [tcpdump, "-i", "lo", "-n", "--immediate-mode", "-c", "5", TCPDUMP_FILTER],
                     stdout=subprocess.DEVNULL,
@@ -710,9 +797,26 @@ def live_run():
         # witness window is already banked; the ledger rows read the
         # DELTA the internet traffic itself books).
         pre_led_p, pre_led_b = led_p, led_b
-        os.write(go_w, b"2")
-        # Wait for the worker's second report (the internet legs).
-        report2 = json.loads(os.read(report_r, 65536).decode())
+        if not phase2_sent and not _send_phase(go_w, b"2"):
+            lib.record(
+                "ecn: the worker reported the internet legs",
+                "FAIL",
+                "the worker is gone before the phase-2 go byte — the lane is "
+                "lost; teardown kills the child",
+            )
+            return 1
+        # Wait for the worker's second report (the internet legs),
+        # deadline-bounded: the ladder's own curl max-times bound the
+        # worker's phase, so a report that misses the deadline names a
+        # lost worker, not a patient hang.
+        report2, why = _read_report(report_r, INTERNET_REPORT_TIMEOUT_S)
+        if report2 is None:
+            lib.record(
+                "ecn: the worker reported the internet legs",
+                "FAIL",
+                f"{why} — the internet lane is lost; teardown kills the child",
+            )
+            return 1
         if tcpdump_run is not None:
             try:
                 tcpdump_run.terminate()
