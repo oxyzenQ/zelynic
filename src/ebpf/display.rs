@@ -59,8 +59,9 @@ pub(crate) struct DisplayData {
 // (use super::*) and the list-apps surface see the same paths as
 // before the split.
 pub(crate) use super::display_lines::{
-    active_limits_line, ce_marked_line, guarantee_line, list_apps_header_line, recwn_line,
-    status_cells, status_header_line, status_row_line, watchdog_line, window_lifetime_line,
+    active_limits_line, ce_marked_line, guarantee_line, list_apps_header_line, pacing_line,
+    recwn_line, status_cells, status_header_line, status_row_line, watchdog_line,
+    window_lifetime_line,
 };
 
 /// Collect display data from policies + stats (+ the window join).
@@ -383,6 +384,14 @@ pub fn print_status(
         // actually marked traffic render one (absence stays
         // silence, never a zero).
         if let Some(line) = ce_marked_line(d) {
+            println_safe!("{line}");
+        }
+        // night-spark-5 (schema v27): the egress pacing lane's
+        // subordinate line — the rate the sock_ops program pins onto
+        // the row's upload sockets, the window family's grey; only
+        // rows carrying a live upload policy render one (absence
+        // stays silence, never a zero).
+        if let Some(line) = pacing_line(d) {
             println_safe!("{line}");
         }
     }

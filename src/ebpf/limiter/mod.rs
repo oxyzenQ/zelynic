@@ -15,6 +15,9 @@
 //! - `reclaim.rs` — the remove path (unstrict) + state reclamation
 //! - `recwn.rs`   — the RECWN userspace half: the hint-map sweep
 //!   every policy removal runs (night-spark-2, schema v25)
+//! - `pace.rs`    — the pacing userspace half: the hint-map sweep
+//!   every policy removal runs + the loader's fourth attach lane
+//!   (night-spark-5, schema v27)
 //! - `stats.rs`   — status printing + map readers + identity
 //! - `mmspa.rs`   — the MMSPA userspace half: the leaf-cache flush
 //!   every policy mutation runs (private-research-2)
@@ -28,6 +31,7 @@ mod during_parse;
 mod format;
 mod lanes;
 mod mmspa;
+mod pace;
 mod parse;
 mod policy;
 mod policy_lines;
@@ -91,48 +95,11 @@ use crate::ebpf::bpf_syscall::{
     kernel_release, kernel_supports_bpf_link, load_with_verifier_verdict,
 };
 use crate::ebpf::identity::IdentityMap;
-use crate::ebpf::pin::{PIN_LINK_RECWN, PIN_PROG_RECWN};
+use crate::ebpf::pin::{
+    link_mode_line, pins_operational, PIN_LINK_PACE, PIN_LINK_RECWN, PIN_PROG_PACE, PIN_PROG_RECWN,
+};
 use crate::ebpf::trace;
 use types::SCHEMA_VERSION_EXPECTED;
-
-/// NIGHT-hunt-19 (error-path audit): the operational-pin predicate,
-/// pure so the partial-failure regression is unit-pinned.
-///
-/// Program pins alone are NOT operational on kernels with bpf_link
-/// (5.7+ — the supported floor is 5.13): the attach sequence pins the
-/// two programs first and creates the cgroup links second, so a
-/// failure in between (bpffs full, memlimit hit, SIGKILL mid-attach)
-/// leaves programs pinned with nothing attached to the cgroup — every
-/// policy would be written to maps no hook ever executes. On pre-5.7
-/// kernels the legacy attach path never pins links, so program pins
-/// alone are the operational contract there by design.
-fn pins_operational(
-    supports_link: bool,
-    prog_dl: bool,
-    prog_ul: bool,
-    prog_recwn: bool,
-    link_dl: bool,
-    link_ul: bool,
-    link_recwn: bool,
-) -> bool {
-    if !(prog_dl && prog_ul && prog_recwn) {
-        return false;
-    }
-    if supports_link {
-        return link_dl && link_ul && link_recwn;
-    }
-    true
-}
-
-/// Verbose trace line for the attach strategy (NIGHT-hunt-9): pure
-/// so the wording is unit-pinned below.
-fn link_mode_line(supports_link: bool) -> String {
-    if supports_link {
-        "[limiter] bpf_link supported — programs + links pinned (survive exit)".to_string()
-    } else {
-        "[limiter] bpf_link unsupported (pre-5.7) — legacy attach, links leak by design".to_string()
-    }
-}
 
 // ━━ Limiter struct ━━
 
@@ -452,9 +419,23 @@ impl Limiter {
             std::mem::forget(recwn_link);
         }
 
+        // night-spark-5 (Layer 3, egress pacing — schema v27): the
+        // fourth program, the sock_ops pacing lane — loaded, pinned,
+        // and attached at the same cgroup root through the same lane
+        // the RECWN twin rides, both attach strategies covered
+        // (pace.rs owns the shape; this call site stays one line
+        // either way the kernel answers). The program plants with
+        // the object on every strict-family attach, exactly when a
+        // rate limit is applied; its cookie-keyed hint map is pinned
+        // by name with every other map, and the unstrict teardown
+        // unlinks the whole pin directory as ever (unpin_all sweeps
+        // the fourth pair with the rest — the link pin's removal
+        // detaches it in-kernel, the bpf_syscall contract).
+        pace::attach_pace_lane(&mut bpf, supports_link)?;
+
         crate::output::verbose::vlog!(
             "limiter",
-            "Attached + pinned to {cgroup_path} (ingress + egress) in {}ms",
+            "Attached + pinned to {cgroup_path} (ingress + egress + sock_ops) in {}ms",
             trace::ms(started.elapsed())
         );
 
@@ -480,9 +461,11 @@ impl Limiter {
             PathBuf::from(PIN_PROG_DL).exists(),
             PathBuf::from(PIN_PROG_UL).exists(),
             PathBuf::from(PIN_PROG_RECWN).exists(),
+            PathBuf::from(PIN_PROG_PACE).exists(),
             PathBuf::from(PIN_LINK_DL).exists(),
             PathBuf::from(PIN_LINK_UL).exists(),
             PathBuf::from(PIN_LINK_RECWN).exists(),
+            PathBuf::from(PIN_LINK_PACE).exists(),
         )
     }
 
@@ -511,56 +494,5 @@ impl Drop for Limiter {
         if self.bpf.is_some() {
             self.bpf = None;
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// NIGHT-hunt-19 drift pins: the operational predicate must not
-    /// trust program pins alone on bpf_link kernels — that is the exact
-    /// partial-failure state (link create/pin failed after both programs
-    /// were pinned) that the old check "reused" while nothing enforced.
-    #[test]
-    fn pins_operational_requires_link_pins_on_bpf_link_kernels() {
-        // Fully operational.
-        assert!(pins_operational(true, true, true, true, true, true, true));
-        // Partial failure: programs pinned, a link missing — NOT
-        // operational, must reload instead of reuse.
-        assert!(!pins_operational(
-            true, true, true, true, false, false, false
-        ));
-        assert!(!pins_operational(true, true, true, true, true, false, true));
-        assert!(!pins_operational(true, true, true, true, false, true, true));
-        // night-spark-2: the RECWN pair is load-bearing the same
-        // way — a v24-era pin set (no third pair) must reload into
-        // the RECWN object, never reuse as-is.
-        assert!(!pins_operational(true, true, true, false, true, true, true));
-        assert!(!pins_operational(true, true, true, true, true, true, false));
-        // Missing program pins: never operational (any one, or all).
-        assert!(!pins_operational(true, false, true, true, true, true, true));
-        assert!(!pins_operational(true, true, false, true, true, true, true));
-        assert!(!pins_operational(
-            false, false, false, false, false, false, false
-        ));
-        // Pre-5.7: legacy attach never pins links (program pins suffice).
-        assert!(pins_operational(
-            false, true, true, true, false, false, false
-        ));
-    }
-
-    /// NIGHT-hunt-9 drift pin: the attach-strategy trace wording is part
-    /// of the verbose diagnostic contract — exact strings, pinned.
-    #[test]
-    fn link_mode_line_pins_both_strategies() {
-        assert_eq!(
-            link_mode_line(true),
-            "[limiter] bpf_link supported — programs + links pinned (survive exit)"
-        );
-        assert_eq!(
-            link_mode_line(false),
-            "[limiter] bpf_link unsupported (pre-5.7) — legacy attach, links leak by design"
-        );
     }
 }

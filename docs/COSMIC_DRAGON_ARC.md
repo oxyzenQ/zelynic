@@ -275,16 +275,40 @@ the owner's build order says so.
   legs witnessed by the receiver's IP_RECVTOS cmsg, the non-ECT
   control leg, the ledger cross-check, the tcpdump egress
   witness, the internet TCP leg, the QUIC leg).
-- **Layer 3 — EDT pacing (earliest departure time) for egress.**
-  Shape egress by departure time instead of drop: stamp packets
-  with their earliest departure and let the kernel's pacing path
-  smooth them. Egress already saves quota when dropped; paced it
-  saves without the loss event at all.
+- **Layer 3 — egress socket pacing (SHIPPED, schema v27, night-spark-5).**
+  Shape egress by departure time instead of drop: the cgroup's
+  UPLOAD policy is pinned onto its TCP sockets as
+  `SO_MAX_PACING_RATE` by the object's second sock_ops program
+  (`zelynic_pace`, the loader's fourth lane) — the kernel's own
+  TCP pacer spaces the outgoing stream at the policy's byte rate
+  BEFORE the link bills the bytes, no tc qdisc anywhere (the
+  stack's internal pacer owns the clock while no pacing qdisc
+  claims the socket). Egress already saved quota when dropped;
+  paced it saves without the loss event at all: no over-budget
+  burst, no drop, no CE mark. The attribution rides the lane the
+  house already trusts — the egress hook primes a cookie-keyed
+  hint (`pace_socket_hint`, the `recwn_socket_hint` posture, one
+  layer up; sock_ops still cannot resolve its own cgroup on the
+  5.15 floor), active connecters pace from establishment, rate
+  changes re-apply within one RTT, and every policy removal
+  sweeps the hint (the recwn sweep posture). The pure law
+  (`ebpf/src/pace.rs pacing_decision`) is pinned rootlessly by
+  `pace_tests.rs` (the simulated sock_ops call shapes and the
+  exact rate the wiring hands `bpf_setsockopt`); the status
+  surfaces carry `limits[].pacing_rate_bytes` and the human
+  table's Upload Pacing subordinate line; the live proof is
+  `scripts/bench/edt-probe.sh` (100 kb/s apply, the uploader
+  joined the recwn way, `ss -ti` pacing evidence at the policy's
+  own rate, the throttle band, the ledger's dropped counters
+  moving zero). The documented residue: the dispatch is TCP-only
+  by construction (every `tcp_call_bpf` call site lives in TCP
+  code) — QUIC paces itself (RFC 9000) and the policer remains
+  UDP's lane.
 
 The sequence is the owner's: RWND first (the quota saver's spine),
 ECN-for-QUIC second (the lossless signal), EDT third (the egress
-finish). Two of the three have landed (v25, v26); EDT is the
-road's remaining layer. The arc's existing scales are the
+finish). All three have landed (v25, v26, v27) — the quota
+saver's three layers are whole. The arc's existing scales are the
 foundation all three stand on — the hint maps already name QUIC
 connections, the debt word already charges per budget, the verdict
 path already runs on both directions.

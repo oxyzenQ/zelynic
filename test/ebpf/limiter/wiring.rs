@@ -86,3 +86,11 @@ mod during_tests;
 #[cfg(test)]
 #[path = "recwn_tests.rs"]
 mod recwn_tests;
+
+// night-spark-5 (Egress Socket Pacing — schema v27, Layer 3): the
+// pure pacing core compiles from ebpf/src/pace.rs the same way,
+// pinned rootlessly by pace_tests.rs — the simulated sock_ops call
+// shapes and the exact rate the wiring would hand bpf_setsockopt.
+#[cfg(test)]
+#[path = "pace_tests.rs"]
+mod pace_tests;

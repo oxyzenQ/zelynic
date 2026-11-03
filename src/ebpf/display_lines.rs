@@ -110,6 +110,28 @@ pub(crate) fn ce_marked_line(d: &DisplayData) -> Option<String> {
     })
 }
 
+/// The Layer 3 pacing subordinate line (night-spark-5, schema
+/// v27): the egress pacing lane's commanded rate under the row
+/// that carries it — "Upload Pacing: 100 KB/s (kernel-native)",
+/// the rate the sock_ops program pins onto the row's upload
+/// sockets via SO_MAX_PACING_RATE (the stack's own pacer, no tc
+/// qdisc anywhere). Rendered ONLY when a live upload policy
+/// stands (the dormant-watchdog precedent: an unenforcing lane
+/// printing state noise is absence pretending to be information),
+/// the window family's grey indent; a per-socket upload policy
+/// keeps the rate cell's own "/socket" honesty marker (the number
+/// IS per socket).
+pub(crate) fn pacing_line(d: &DisplayData) -> Option<String> {
+    d.ul_bps.filter(|rate| *rate > 0).map(|rate| {
+        let shaped = if d.ul_per_socket {
+            format!("{} /socket", format_rate_exact(rate))
+        } else {
+            format_rate_exact(rate)
+        };
+        grey(&format!("    Upload Pacing: {shaped} (kernel-native)"))
+    })
+}
+
 /// One status data row (pure, NIGHT-engrave-5): the whole row in
 /// status green — the eagle table's calm tier (rank 3 and below
 /// render the same way). Every row here IS a live, enforced limit —

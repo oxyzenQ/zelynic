@@ -34,6 +34,7 @@ use crate::enforce_helpers::{
 };
 use crate::math::{Bucket, MAX_ENFORCABLE_BURST, POLICY_FLAG_PER_SOCKET, Policy, book, enforce};
 use crate::mmspa_resolve::mmspa_resolve_root;
+use crate::pace_flow;
 use crate::quic_flow;
 use crate::rate_ring::RateRing;
 use crate::recwn_flow;
@@ -199,8 +200,10 @@ pub(crate) fn try_enforce(
     // connection callbacks and clamps SO_RCVBUF — the sender-side
     // slowdown that makes the remote TCP hold its in-flight bytes
     // down BEFORE the ingress link bills them, the one knob the
-    // README's limitation #15 physics named. Egress never primes:
-    // RECWN is the download spine. Steady state is one LRU lookup
+    // README's limitation #15 physics named. Egress never primes the
+    // RECWN hint:
+    // RECWN is the download spine (the pacing hint the egress twin
+    // primes is night-spark-5's, the block below). Steady state is one LRU lookup
     // with no write (recwn_flow::recwn_prime's own contract); the
     // per-socket lane below re-fetches the cookie it needs for
     // its own keying, so the policed path pays one helper call
@@ -214,6 +217,31 @@ pub(crate) fn try_enforce(
         let recwn_cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
         if recwn_cookie != 0 {
             recwn_flow::recwn_prime(recwn_cookie, pol.rate_bps);
+        }
+    }
+
+    // night-spark-5 (Egress Socket Pacing, schema v27 — the quota
+    // saver's Layer 3): on the EGRESS policed path only, stamp the
+    // socket's cookie with the upload rate the resolved policy
+    // carries (the rate is this row's own; the burst never enters
+    // the law). The sock_ops program reads the hint back at the
+    // connection callbacks and pins SO_MAX_PACING_RATE — the
+    // kernel's own TCP pacer spaces the outgoing stream at the
+    // policy rate BEFORE the egress link bills the bytes: no
+    // over-budget burst, no drop, no CE mark, no loss event, and no
+    // tc qdisc anywhere (the pure-ebpf claim). The ingress twin
+    // never primes this hint: pacing is the upload spine. Steady
+    // state is one LRU lookup with no write (pace_flow::pace_prime's
+    // own contract) — the same cost class the RECWN prime above
+    // rode. The rate-0 block verdict returned above: a blocked lane
+    // delivers nothing, so no pacing rate can help it.
+    if !is_ingress {
+        // SAFETY: helper call with the program's own skb context
+        // (the same cast the RECWN prime above rides); the return
+        // is a plain u64 cookie, no pointer crosses back.
+        let pace_cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
+        if pace_cookie != 0 {
+            pace_flow::pace_prime(pace_cookie, pol.rate_bps);
         }
     }
 

@@ -476,7 +476,32 @@
 ///     CE-ledger object — active limits are dropped once, re-apply
 ///     after upgrade, the same one-time contract as every bump
 ///     before it.
-pub const SCHEMA_VERSION_EXPECTED: u32 = 26;
+/// v27 (night-spark-5, egress socket pacing — Layer 3 of the quota
+///     saver): the object grows its second sock_ops program,
+///     zelynic_pace (attached at the cgroup root beside the two
+///     cgroup_skb hooks and the RECWN twin — the loader's FOURTH
+///     program/link pin pair,
+///     /sys/fs/bpf/zelynic/zelynic_pace[+_link]), plus ONE new
+///     pinned LRU map, pace_socket_hint (socket cookie -> the
+///     upload rate in bytes per second). The lane: the egress hook
+///     primes the hint on the policed path, and the sock_ops
+///     program pins SO_MAX_PACING_RATE to the hinted rate at the
+///     connection callbacks — the kernel's own TCP pacer spaces
+///     the outgoing stream at the policy rate, so upload quota is
+///     saved BEFORE the link bills the bytes: no over-budget
+///     burst, no drop, no CE mark, no loss event, and no tc qdisc
+///     anywhere. Userspace mirrors: every policy REMOVAL sweeps
+///     the hint map whole (limiter/pace.rs, the recwn sweep
+///     posture, best-effort), and `status --print-json` gains the
+///     additive limits[].pacing_rate_bytes (the upload policy's
+///     rate — the lane's commanded value; absent on upload-less
+///     and blocked rows) with the human table's Upload Pacing
+///     subordinate line. No existing struct layout changes; the
+///     bump forces pinned v26 programs to reload into the pacing
+///     object — active limits are dropped once, re-apply after
+///     upgrade, the same one-time contract as every bump before
+///     it.
+pub const SCHEMA_VERSION_EXPECTED: u32 = 27;
 
 #[cfg(test)]
 mod sync_pin {
