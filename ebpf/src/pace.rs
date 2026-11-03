@@ -67,7 +67,12 @@ pub const PACING_RATE_MAX_BPS: u64 = u32::MAX as u64;
 /// bpf_setsockopt(SOL_SOCKET, SO_MAX_PACING_RATE); None means no
 /// opinion — the socket rides untouched.
 #[allow(clippy::fn_params_excessive_bools)]
-pub fn pacing_decision(owned_op: bool, fullsock: bool, tcp: bool, hint_bps: Option<u64>) -> Option<u32> {
+pub fn pacing_decision(
+    owned_op: bool,
+    fullsock: bool,
+    tcp: bool,
+    hint_bps: Option<u64>,
+) -> Option<u32> {
     if !owned_op || !fullsock || !tcp {
         return None;
     }

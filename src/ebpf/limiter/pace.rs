@@ -34,9 +34,9 @@
 //! shape, one call site in mod.rs either way.
 
 use anyhow::{Context, Result};
+use aya::Ebpf;
 use aya::maps::HashMap as BpfHashMap;
 use aya::programs::{CgroupAttachMode, SockOps};
-use aya::Ebpf;
 use std::fs::File;
 use std::os::fd::{AsFd, AsRawFd};
 
@@ -147,8 +147,8 @@ impl super::Limiter {
         }
         let mut map_obj = pin::open_pinned_lru_hash_map(PIN_MAP_PACE_HINT)?;
         let keys: Vec<u64> = {
-            let map: BpfHashMap<_, u64, u64> = BpfHashMap::try_from(&map_obj)
-                .context("Failed to open pinned pace_socket_hint")?;
+            let map: BpfHashMap<_, u64, u64> =
+                BpfHashMap::try_from(&map_obj).context("Failed to open pinned pace_socket_hint")?;
             map.keys().flatten().collect()
         };
         let mut swept = 0u32;

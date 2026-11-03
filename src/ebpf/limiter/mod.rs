@@ -96,7 +96,7 @@ use crate::ebpf::bpf_syscall::{
 };
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::pin::{
-    link_mode_line, pins_operational, PIN_LINK_PACE, PIN_LINK_RECWN, PIN_PROG_PACE, PIN_PROG_RECWN,
+    PIN_LINK_PACE, PIN_LINK_RECWN, PIN_PROG_PACE, PIN_PROG_RECWN, link_mode_line, pins_operational,
 };
 use crate::ebpf::trace;
 use types::SCHEMA_VERSION_EXPECTED;

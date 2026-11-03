@@ -236,7 +236,11 @@ fn test_schema_version_constant() {
     // book_rescue's correction books the delivered CE-marked volume,
     // the quota saver's Layer 2 made readable on every status
     // surface. Layout pin: limiter_stats_raw_layout_is_pinned.
-    assert_eq!(SCHEMA_VERSION_EXPECTED, 26);
+    // v27 (night-spark-5, egress socket pacing — the quota saver's
+    // Layer 3): the pinned cookie-keyed pace_socket_hint LRU beside
+    // the RECWN twin (the loader's fourth lane); no existing struct
+    // layout changes.
+    assert_eq!(SCHEMA_VERSION_EXPECTED, 27);
 }
 
 // ── night-spark-4, schema v26: the CE ledger's layout pins ─────────
