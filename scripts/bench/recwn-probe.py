@@ -61,20 +61,19 @@ Honesty contracts: the child is forked BEFORE any socket exists and
 writes its own pid into the target's cgroup.procs only AFTER the
 policy stands (the curl sockets are born policed — the same
 attribution contract every leaf battery here carries); the download
-is the real internet (the Asia-Pacific mirror ladder, night-spark-3 —
-the retired tele2 rung sat an ocean away from the owner's lane —
-with the cloudflare __down mirror as the global anycast last
-resort); the ss samples
+is the real internet (the all-Asian mirror ladder, night-spark-3b —
+every rung rides on the owner's side of the planet, and the
+cloudflare __down mirror is the global anycast last resort); the
+ss samples
 read the kernel's own tcp_info fields while the transfer runs, and
 every raw number the verdicts rode prints in the row detail;
 teardown is best-effort and never fails a verdict. The transfer is
 capped at 3 MiB by default (~30 s at 100 kb/s — the owner's full
 10MB run rides --bytes 10485760).
 
-Runtime contract (the 2026-11-03 owner run's lesson: the retired
-tele2 rung sat through the flat 240 s max-time with zero output, and
-^C never reached the parent — the retry note printed after the first
-one):
+Runtime contract (the 2026-11-03 owner run's lesson: a dead rung sat
+through the flat 240 s max-time with zero output, and ^C never
+reached the parent — the retry note printed after the first one):
 every leg is self-bounded (curl --connect-timeout 10, --max-time
 scaled to the byte cap), progress prints every 15 s so a dead mirror
 can never read as a hang, and the abort path is owned outright — the
@@ -156,33 +155,41 @@ CLAMP_BOUND_BYTES = 65_536
 # the connection moved (the drop-policer's own retransmit cadence is
 # the baseline this lane exists to beat).
 RETRANS_FRACTION_MAX = 0.01
-# The realnet download ladder (night-spark-3): Asia-Pacific mirrors
-# first, ordered by the owner's preference — Singapore, Jakarta, then
-# the Japan rung — with the cloudflare __down mirror as the global
-# anycast last resort. The retired tele2 rung sat an ocean away from
-# the owner's lane and blackholed from Indonesia (the 2026-11-03
-# run's rc 28); the owner's first candidate itself, Clouvider's
-# sgp-sin host, is NXDOMAIN on every naming variant and the family's
-# download path 404s, so the ladder rides the Linode speedtest files
-# (the convention their docs and community threads name:
-# speedtest.<city>.linode.com/100MB-<city>.bin — http, the files'
-# own documented scheme; the lane measures the transport, not the
-# payload). Every static rung carries the SAME byte cap through a
-# range request; the __down side sizes itself through the {bytes}
-# template (the first cut hardcoded 10 MiB there, silently tripling
-# the fallback leg's policy-time). A dead rung falls through to the
-# next — walk_ladder owns that contract, the self-test pins it
-# offline, and --ladder-check walks it rootless against the live net.
+# The realnet download ladder (night-spark-3b): five Asian rungs in
+# the owner's own order — Singapore, Osaka, Taiwan, Bangkok, Jakarta
+# — with the cloudflare __down mirror as the global anycast last
+# resort. The night-spark-3 roster did not survive contact with the
+# lane: the 2026-11-04 owner run walked the whole Linode speedtest
+# trio into three rc 28 connection timeouts (30 s of silence before
+# cloudflare caught the lane) and the agent's sandbox blackholed the
+# same three — the family is unreachable, not geo-fussy (Clouvider's
+# sgp-sin host was already NXDOMAIN on every naming variant). The
+# rungs below were each verified alive by a ranged 3 MiB GET (206,
+# the lane's own byte cap) and pinned to a city by IP geolocation
+# before landing: Vultr's Singapore ping file, NAIST's Debian
+# listing (Nara, Ikoma — the living Kansai rung; no public dumb file
+# answers from Osaka city itself, every osaka-u/idcf name is
+# NXDOMAIN), the ubuntu-taipei listing (Taiwan Digital Streaming,
+# Taipei), KKU's Ubuntu listing (the UniNet edu backbone, Bangkok),
+# and Biznet Gio's Ubuntu listing (Jakarta metro). Every static rung
+# carries the SAME byte cap through a range request; the __down side
+# sizes itself through the {bytes} template (the first cut
+# hardcoded 10 MiB there, silently tripling the fallback leg's
+# policy-time). A dead rung falls through to the next — walk_ladder
+# owns that contract, the self-test pins it offline, and
+# --ladder-check walks it rootless against the live net.
 DL_CANDIDATES = [
-    ("linode-singapore", "http://speedtest.singapore.linode.com/100MB-singapore.bin"),
-    ("linode-jakarta", "http://speedtest.jakarta.linode.com/100MB-jakarta.bin"),
-    ("linode-osaka", "http://speedtest.osaka.linode.com/100MB-osaka.bin"),
+    ("vultr-singapore", "http://sgp-ping.vultr.com/vultr.com.1000MB.bin"),
+    ("naist-nara", "http://ftp.naist.jp/debian/ls-lR.gz"),
+    ("ubuntu-taipei", "https://tw.archive.ubuntu.com/ubuntu/ls-lR.gz"),
+    ("kku-bangkok", "https://mirror.kku.ac.th/ubuntu/ls-lR.gz"),
+    ("biznet-jakarta", "https://mirror.biznetgio.com/ubuntu/ls-lR.gz"),
     ("cloudflare", "https://speed.cloudflare.com/__down?bytes={bytes}"),
 ]
 DEFAULT_BYTES = 3 * 1024 * 1024
-# The runtime bounds (the 2026-11-03 owner run: the retired tele2
-# rung sat through the flat 240 s max-time with zero output and a
-# Ctrl-C that never landed, so a dead mirror read as a hang). --connect-timeout kills an
+# The runtime bounds (the 2026-11-03 owner run: a dead rung sat
+# through the flat 240 s max-time with zero output and a Ctrl-C that
+# never landed, so a dead mirror read as a hang). --connect-timeout kills an
 # unreachable mirror in seconds; --max-time scales with the byte cap —
 # twice the policy-time transfer plus handshake/slow-start slack — so
 # every leg self-terminates and a below-band leg fails fast onto the
@@ -748,9 +755,9 @@ def curl_child(cgroup_procs, url, byte_cap, report_fd, max_time_s, range_cap):
     with open(cgroup_procs, "w") as f:
         f.write(str(os.getpid()))
     # Range-cap the transfer when the rung is a static file (the
-    # Linode speedtest files honor ranges; the cloudflare __down
-    # mirror sizes itself to the cap — walk_ladder decides off the
-    # candidate template and passes the flag down).
+    # mirror listings and ping files honor ranges; the cloudflare
+    # __down mirror sizes itself to the cap — walk_ladder decides
+    # off the candidate template and passes the flag down).
     if range_cap:
         curl_args = ["curl", "-fsSL", "-r", f"0-{byte_cap - 1}"]
     else:
