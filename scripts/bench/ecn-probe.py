@@ -604,9 +604,7 @@ def _curl_range(url):
     size_download is the metric, the exit code is informational.
     The leg execs curl INSIDE the policed cgroup (the recwn-probe
     join) and rides a hard wall."""
-    return _run_curl_child(
-        CG_PROCS, _curl_leg_args(url), CURL_MAX_TIME_S + LEG_WALL_SLACK_S
-    )
+    return _run_curl_child(CG_PROCS, _curl_leg_args(url), CURL_MAX_TIME_S + LEG_WALL_SLACK_S)
 
 
 def _curl_http3_supported():

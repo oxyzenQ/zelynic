@@ -36,6 +36,22 @@ pub const PIN_LINK_RECWN: &str = "/sys/fs/bpf/zelynic/zelynic_recwn_link";
 /// policy removals (limiter/recwn.rs), the MMSPA flush posture.
 pub const PIN_MAP_RECWN_HINT: &str = "/sys/fs/bpf/zelynic/recwn_socket_hint";
 
+/// The pacing program pin (night-spark-5, schema v27 — the sock_ops
+/// lane, the quota saver's Layer 3): the egress-pacing program that
+/// rides the limiter object beside the two enforcement hooks and
+/// the RECWN twin. Same pin discipline, one lane over.
+pub const PIN_PROG_PACE: &str = "/sys/fs/bpf/zelynic/zelynic_pace";
+
+/// The pacing link pin (night-spark-5): the BPF_CGROUP_SOCK_OPS
+/// attachment at the cgroup root — the loader's fourth pair.
+pub const PIN_LINK_PACE: &str = "/sys/fs/bpf/zelynic/zelynic_pace_link";
+
+/// The pacing socket-hint map pin (night-spark-5): the cookie-keyed
+/// LRU the egress hook primes and the sock_ops program reads.
+/// Userspace never reads a row — it only sweeps the whole map on
+/// policy removals (limiter/pace.rs), the recwn sweep posture.
+pub const PIN_MAP_PACE_HINT: &str = "/sys/fs/bpf/zelynic/pace_socket_hint";
+
 /// Map pins opened directly by userspace (policy + stats + watchdog +
 /// schema version) and the individual bucket maps the unstrict/recover
 /// reclaim path deletes from (NIGHT-improve-10: bucket slots are the
@@ -102,6 +118,53 @@ pub const PIN_MAP_MMSPA_CACHE_UL: &str = "/sys/fs/bpf/zelynic/mmspa_leaf_cache_u
 /// name in ebpf/src/bin/limiter.rs and this pin path are the same
 /// contract every other map here follows.
 pub const PIN_MAP_MMSPA_GEN: &str = "/sys/fs/bpf/zelynic/mmspa_generation";
+
+/// NIGHT-hunt-19 (error-path audit): the operational-pin predicate,
+/// pure so the partial-failure regression is unit-pinned. Lives in
+/// the pin module (the NIGHT-improve-44 LOC-cap split — the limiter
+/// mod rode past 600 when the pacing lane's fourth pair joined it):
+/// the pin state's own predicate belongs beside the pin paths it
+/// judges.
+///
+/// Program pins alone are NOT operational on kernels with bpf_link
+/// (5.7+ — the supported floor is 5.13): the attach sequence pins the
+/// programs first and creates the cgroup links second, so a
+/// failure in between (bpffs full, memlimit hit, SIGKILL mid-attach)
+/// leaves programs pinned with nothing attached to the cgroup — every
+/// policy would be written to maps no hook ever executes. On pre-5.7
+/// kernels the legacy attach path never pins links, so program pins
+/// alone are the operational contract there by design.
+pub(crate) fn pins_operational(
+    supports_link: bool,
+    prog_dl: bool,
+    prog_ul: bool,
+    prog_recwn: bool,
+    prog_pace: bool,
+    link_dl: bool,
+    link_ul: bool,
+    link_recwn: bool,
+    link_pace: bool,
+) -> bool {
+    if !(prog_dl && prog_ul && prog_recwn && prog_pace) {
+        return false;
+    }
+    if supports_link {
+        return link_dl && link_ul && link_recwn && link_pace;
+    }
+    true
+}
+
+/// Verbose trace line for the attach strategy (NIGHT-hunt-9): pure
+/// so the wording is unit-pinned (the drift pins live in the pin
+/// test family beside the predicate they judge).
+pub(crate) fn link_mode_line(supports_link: bool) -> String {
+    if supports_link {
+        "[limiter] bpf_link supported — programs + links pinned (survive exit)".to_string()
+    } else {
+        "[limiter] bpf_link unsupported (pre-5.7) — legacy attach, links leak by design"
+            .to_string()
+    }
+}
 
 /// Open a pinned hash map in read mode (NIGHT-optimized-2).
 /// Single source of the pin-open + error-mapping dance the status

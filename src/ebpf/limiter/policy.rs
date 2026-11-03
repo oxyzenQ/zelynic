@@ -112,6 +112,12 @@ impl super::Limiter {
                     // the ingress path no longer overwrites (additions and
                     // rate changes self-heal through the upsert).
                     self.recwn_hint_invalidate_best_effort();
+                    // The pacing hint's twin sweep (night-spark-5, schema v27): a
+                    // removed upload policy's stale pacing rate is the same
+                    // removal-blind-spot shape the recwn hint rides — the egress
+                    // path stops re-priming, so the row would linger until the LRU
+                    // ages it out.
+                    self.pace_hint_invalidate_best_effort();
                     return Err(rolled_back);
                 }
             }
@@ -152,6 +158,12 @@ impl super::Limiter {
         // the ingress path no longer overwrites (additions and
         // rate changes self-heal through the upsert).
         self.recwn_hint_invalidate_best_effort();
+        // The pacing hint's twin sweep (night-spark-5, schema v27): a
+        // removed upload policy's stale pacing rate is the same
+        // removal-blind-spot shape the recwn hint rides — the egress
+        // path stops re-priming, so the row would linger until the LRU
+        // ages it out.
+        self.pace_hint_invalidate_best_effort();
 
         Ok(applied)
     }
@@ -344,6 +356,12 @@ impl super::Limiter {
                     // the ingress path no longer overwrites (additions and
                     // rate changes self-heal through the upsert).
                     self.recwn_hint_invalidate_best_effort();
+                    // The pacing hint's twin sweep (night-spark-5, schema v27): a
+                    // removed upload policy's stale pacing rate is the same
+                    // removal-blind-spot shape the recwn hint rides — the egress
+                    // path stops re-priming, so the row would linger until the LRU
+                    // ages it out.
+                    self.pace_hint_invalidate_best_effort();
                     return Err(rolled_back);
                 }
             }
@@ -373,6 +391,12 @@ impl super::Limiter {
         // the ingress path no longer overwrites (additions and
         // rate changes self-heal through the upsert).
         self.recwn_hint_invalidate_best_effort();
+        // The pacing hint's twin sweep (night-spark-5, schema v27): a
+        // removed upload policy's stale pacing rate is the same
+        // removal-blind-spot shape the recwn hint rides — the egress
+        // path stops re-priming, so the row would linger until the LRU
+        // ages it out.
+        self.pace_hint_invalidate_best_effort();
 
         if crate::output::verbose::enabled() {
             for line in group_apply_lines(group_id, rates, all_cgroup_ids.len()) {

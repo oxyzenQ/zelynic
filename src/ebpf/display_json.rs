@@ -160,6 +160,12 @@ fn status_json(
                 bytes_dropped: d.bytes_dropped,
                 ce_marked_packets: d.ce_marked_packets,
                 ce_marked_bytes: d.ce_marked_bytes,
+                // night-spark-5 (schema v27): the egress pacing
+                // lane's commanded rate — the upload policy's own
+                // rate, absent on upload-less and blocked rows (a
+                // blocked lane delivers nothing, so no pacing rate
+                // can help it — the zero sentinel is absence).
+                pacing_rate_bytes: d.ul_bps.filter(|v| *v != 0),
                 rate_ring,
                 window,
             }
@@ -316,6 +322,14 @@ impl LimitEntry {
         write_number(out, self.ce_marked_packets);
         out.push_str(",\"ce_marked_bytes\":");
         write_number(out, self.ce_marked_bytes);
+        // night-spark-5 (schema v27): the egress pacing lane's
+        // commanded rate — present only when a live upload policy
+        // stands (the additive-field rule the floors ride; a
+        // blocked row paces nothing).
+        if let Some(pacing) = self.pacing_rate_bytes {
+            out.push_str(",\"pacing_rate_bytes\":");
+            write_number(out, pacing);
+        }
         if let Some(ring) = &self.rate_ring {
             out.push_str(",\"rate_ring\":");
             ring.write_json(out);
@@ -428,6 +442,15 @@ struct LimitEntry {
     /// ride).
     ce_marked_packets: u64,
     ce_marked_bytes: u64,
+    /// The egress pacing lane's commanded rate (night-spark-5,
+    /// schema v27), in BYTES per second — the upload policy's own
+    /// rate, which the sock_ops program pins onto the row's upload
+    /// sockets via SO_MAX_PACING_RATE (the kernel-native pacer, no
+    /// tc qdisc). Absent when the row carries no live upload policy
+    /// or the row is BLOCKED (rate 0 — a blocked lane delivers
+    /// nothing, so no pacing rate can help it): the additive-field
+    /// rule the floor/ceil family set, never a fabricated zero.
+    pacing_rate_bytes: Option<u64>,
     /// The in-kernel time-series ring's derived window series
     /// (charger-core-3a, EAGLE EYES V1): the last eight one-second
     /// byte totals oldest-first, per direction. Absent when the
@@ -504,6 +527,13 @@ mod display_json_window_tests;
 #[cfg(test)]
 #[path = "../../test/ebpf/display_json_recwn_tests.rs"]
 mod display_json_recwn_tests;
+
+// night-spark-5 (schema v27): the egress pacing field's pins, one
+// family over the recwn family (the same LOC-cap split discipline —
+// display_json_tests rode past 600 when this lane's pins joined it).
+#[cfg(test)]
+#[path = "../../test/ebpf/display_json_pacing_tests.rs"]
+mod display_json_pacing_tests;
 
 // night-spark-2 (RECWN, schema v25): the inert lane every legacy
 // status_json pin passes — planted false, window None — so the

@@ -229,6 +229,46 @@ verification recipe — 100 kb/s apply, a curl child in the cgroup,
 `ss -ti` clamp evidence, the throughput band, retransmits near
 zero).
 
+**15. Egress socket pacing** (schema v27, night-spark-5 — the
+quota saver's Layer 3). The egress twin of the receive-window
+lane: a policed cgroup's UPLOAD policy is pinned onto its TCP
+sockets as `SO_MAX_PACING_RATE` (SOL_SOCKET option 47, the rate
+in bytes per second) by the object's second sock_ops program
+(`zelynic_pace`, the loader's fourth program/link pair beside the
+two enforcement hooks and the RECWN twin) plus one pinned
+cookie-keyed LRU hint map (`pace_socket_hint`, the
+`recwn_socket_hint` posture). The kernel's own TCP pacer then
+spaces the outgoing stream at the policy's byte rate BEFORE the
+link bills the bytes — no tc, no fq, no nftables anywhere: the
+stack's internal pacer (net/ipv4/tcp_output.c's
+tcp_internal_pacing on the 5.15 floor) hrtimer-limits the write
+path while no pacing qdisc claims the socket, so upload quota is
+saved without a loss event (no over-budget burst, no drop, no CE
+mark). The attribution rides the same architecture Layer 1
+proved: the egress hook primes the cookie hint on the policed
+path (sock_ops still cannot resolve its own cgroup on the 5.15
+floor), active connecters pace from establishment (the SYN's
+egress primes the cookie before ACTIVE_ESTABLISHED_CB dispatches
+— the un-paced exposure is the handshake itself), rate changes
+re-apply within one RTT on sockets whose establishment armed the
+RTT_CB flag, and every policy removal sweeps the hint map whole
+(limiter/pace.rs, the recwn sweep posture, best-effort). The
+pure law (`ebpf/src/pace.rs pacing_decision`) is pinned
+rootlessly by `pace_tests.rs` — the simulated sock_ops call
+shapes and the exact rate the wiring hands `bpf_setsockopt`.
+`status --print-json` names `limits[].pacing_rate_bytes` (the
+lane's commanded value — absent on upload-less and blocked rows,
+never a fabricated zero) and the human table prints the Upload
+Pacing subordinate line; live proof:
+`scripts/bench/edt-probe.sh` (100 kb/s apply, the uploader joined
+the recwn way — fork, join cgroup.procs, execv, `ss -tip` scoped
+to its own pid reading the pacer at the policy's own rate, the
+throttle band, the ledger's dropped counters moving zero). The
+documented residue: the sock_ops dispatch is TCP-only by
+construction (every `tcp_call_bpf` call site lives in TCP code)
+— QUIC paces itself (RFC 9000) and the policer remains UDP's
+enforcement lane.
+
 ## Retired by verdict
 
 Honest research includes what was tried and rejected. Both
