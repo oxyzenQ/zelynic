@@ -58,6 +58,17 @@ teardown is best-effort and never fails a verdict. The transfer is
 capped at 3 MiB by default (~30 s at 100 kb/s — the owner's full
 10MB run rides --bytes 10485760).
 
+Runtime contract (the 2026-11-03 owner run's lesson: tele2 sat
+through the flat 240 s max-time with zero output, and ^C never
+reached the parent — the retry note printed after the first one):
+every leg is self-bounded (curl --connect-timeout 10, --max-time
+scaled to the byte cap), progress prints every 15 s so a dead mirror
+can never read as a hang, and the abort path is owned outright — the
+curl child rides its own process group, the first
+SIGINT/SIGTERM/SIGHUP kills that group, runs the scoped teardown,
+and exits 128+signum (a second signal hard-exits), so the probe never
+depends on terminal signal delivery surviving sudo's relay.
+
 Root required for the live run; --self-test is the CI lane.
 """
 
@@ -66,6 +77,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -101,19 +113,66 @@ CLAMP_BOUND_BYTES = 65_536
 RETRANS_FRACTION_MAX = 0.01
 # The realnet download candidates — the owner's own command first
 # (tele2 10MB.zip, range-capped), the cloudflare __down mirror
-# second (the supermassive realnet registry's own family).
+# second (the supermassive realnet registry's own family). Both legs
+# carry the SAME byte cap: the .zip side rides a range request, the
+# __down side sizes itself through the {bytes} template (the first
+# cut hardcoded 10 MiB there, silently tripling the fallback leg's
+# policy-time).
 DL_CANDIDATES = [
-    ("tele2", "http://speedtest.tele2.net/10MB.zip", True),
-    (
-        "cloudflare",
-        "https://speed.cloudflare.com/__down?bytes=10485760",
-        False,
-    ),
+    ("tele2", "http://speedtest.tele2.net/10MB.zip"),
+    ("cloudflare", "https://speed.cloudflare.com/__down?bytes={bytes}"),
 ]
 DEFAULT_BYTES = 3 * 1024 * 1024
+# The runtime bounds (the 2026-11-03 owner run: tele2 sat through the
+# flat 240 s max-time with zero output and a Ctrl-C that never landed,
+# so a dead mirror read as a hang). --connect-timeout kills an
+# unreachable mirror in seconds; --max-time scales with the byte cap —
+# twice the policy-time transfer plus handshake/slow-start slack — so
+# every leg self-terminates and a below-band leg fails fast onto the
+# next mirror instead of stalling the whole probe.
+CONNECT_TIMEOUT_S = 10
+MAX_TIME_SLACK_S = 45
+
+
+def curl_max_time_s(byte_cap):
+    """curl's --max-time for one leg: 2x the capped transfer + slack."""
+    return max(60, 2 * byte_cap // RATE_BPS + MAX_TIME_SLACK_S)
+
 
 CG_ROOT = "/sys/fs/cgroup"
 CG_NAME = "zelynic-recwn-probe"
+
+
+# ── The abort contract (the 2026-11-03 owner run's lesson) ───────
+# The live lane sat through a dead mirror for minutes with no output,
+# and Ctrl-C could not break it — the retry note still printed after
+# the first ^C, so the parent never saw the signal at all. The
+# contract now stops depending on terminal signal delivery surviving
+# sudo's relay: the curl child rides its OWN process group, the first
+# SIGINT/SIGTERM/SIGHUP kills that group outright, the scoped
+# teardown runs, and the exit code is 128+signum; a second signal
+# hard-exits immediately. Combined with the per-leg bounds above, the
+# probe terminates on its own even when no signal ever arrives.
+_CHILD_PG = [0]
+_ABORT_SIGNUM = [0]
+
+
+def _abort(signum, _frame):
+    if _CHILD_PG[0]:
+        try:
+            os.killpg(_CHILD_PG[0], signal.SIGKILL)
+        except OSError:
+            pass
+    if _ABORT_SIGNUM[0]:
+        lib.out(f"  abort: second signal {signum} — hard exit, teardown abandoned")
+        os._exit(128 + signum)
+    _ABORT_SIGNUM[0] = signum
+    raise KeyboardInterrupt
+
+
+def _install_abort_handlers():
+    for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, _abort)
 
 
 # ── The instrument (rootless) ─────────────────────────────────────
@@ -182,6 +241,24 @@ def self_test():
                 f"law: {rate} B/s -> {expected} B",
                 got == expected,
                 f"window law computed {got} B",
+            )
+        )
+
+    # The runtime bounds: --connect-timeout is a flat constant and
+    # --max-time scales with the byte cap — the pair that keeps a dead
+    # mirror from ever reading as a hang (pinned here so a live stall
+    # can never be blamed on the bound math).
+    for cap, expected in [
+        (DEFAULT_BYTES, 107),
+        (10_485_760, 254),
+        (0, 60),
+    ]:
+        got = curl_max_time_s(cap)
+        rows.append(
+            (
+                f"law: curl --max-time for {cap:,} B -> {expected}s",
+                got == expected,
+                f"computed {got}s (2x transfer + {MAX_TIME_SLACK_S}s slack, floor 60)",
             )
         )
 
@@ -255,6 +332,36 @@ def self_test():
         )
     )
 
+    # The abort contract: SIGINT must land as KeyboardInterrupt with
+    # the child-group kill armed — pinned by signaling a forked twin
+    # that carries this module's own handler setup (a live hang can
+    # then be the kernel or the network, never a broken abort path).
+    ar, aw = os.pipe()
+    apid = os.fork()
+    if apid == 0:
+        os.close(ar)
+        _install_abort_handlers()
+        try:
+            os.kill(os.getpid(), signal.SIGINT)
+            time.sleep(5)  # a lost signal shows up as the 5 s silence
+        except KeyboardInterrupt:
+            try:
+                os.write(aw, b"ok")
+            except OSError:
+                pass
+        os._exit(0)
+    os.close(aw)
+    with os.fdopen(ar) as f:
+        abort_got = f.read()
+    os.waitpid(apid, 0)
+    rows.append(
+        (
+            "abort: SIGINT raises KeyboardInterrupt (the handler contract)",
+            abort_got == "ok",
+            f"the forked twin reported {abort_got!r}",
+        )
+    )
+
     for name, verdict, detail in rows:
         # lib.record feeds lib.RESULTS so --json carries the instrument
         # rows exactly as it carries the live ones (the ect-probe shape).
@@ -282,19 +389,26 @@ def ensure_root():
     return True
 
 
-def curl_child(cgroup_procs, url, byte_cap, go_fd, report_fd):
+def curl_child(cgroup_procs, url, byte_cap, report_fd, max_time_s):
     """The moved child: join the cgroup, then exec curl.
 
-    Runs AFTER the parent wrote the go byte and the policy stands;
-    the sockets curl creates are born inside the policed cgroup (the
-    attribution contract). Writes curl's own measurement line
-    (speed_download size_download) to report_fd.
+    Its OWN process group first (set on both sides of the fork,
+    race-safe): the parent's abort kills this whole subtree with one
+    killpg without ever signaling itself, and the parent's terminal
+    signals stay the parent's alone — the parent owns this subtree's
+    fate, whatever the sudo/tty relay does with ^C. The policy stood
+    before the fork (row 2), so the sockets curl creates are born
+    inside the policed cgroup (the attribution contract). Writes
+    curl's own measurement line (speed_download size_download) to
+    report_fd.
     """
-    os.close(go_fd)
+    os.setpgid(0, 0)
+    for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, signal.SIG_DFL)
     with open(cgroup_procs, "w") as f:
         f.write(str(os.getpid()))
     # Range-cap the transfer when the endpoint honors ranges (tele2
-    # does; the cloudflare __down mirror sizes itself).
+    # does; the cloudflare __down mirror sizes itself to the cap).
     if byte_cap and url.endswith(".zip"):
         curl_args = ["curl", "-fsSL", "-r", f"0-{byte_cap - 1}"]
     else:
@@ -304,31 +418,85 @@ def curl_child(cgroup_procs, url, byte_cap, go_fd, report_fd):
         "/dev/null",
         "-w",
         "%{speed_download} %{size_download}\\n",
+        "--connect-timeout",
+        str(CONNECT_TIMEOUT_S),
         "--max-time",
-        "240",
+        str(max_time_s),
         url,
     ]
-    out = subprocess.run(curl_args, capture_output=True, text=True, timeout=300)
+    out = subprocess.run(curl_args, capture_output=True, text=True, timeout=max_time_s + 15)
     with os.fdopen(report_fd, "w") as f:
         f.write(f"{out.returncode} {out.stdout.strip()}\n")
     os._exit(0)
 
 
-def sample_ss_during(duration_s):
-    """Sample `ss -ti` while the child downloads: the evidence rows."""
+def _ss_snapshot_curl():
+    """One `ss -tip` sweep, keeping only curl-owned connections."""
+    try:
+        text = subprocess.run(["ss", "-tip"], capture_output=True, text=True, timeout=5).stdout
+    except (subprocess.TimeoutExpired, OSError):
+        return []
+    if "curl" not in text:
+        return []
+    return [f for f in parse_ss_tcp_info(text) if f.get("rcv_space") is not None]
+
+
+def _run_leg(name, url, byte_cap, cg_dir, sample_s):
+    """Drive one download leg: fork the moved child, sample `ss -ti`
+    beside the transfer, heartbeat while it runs, collect its report.
+
+    The wait is a WNOHANG poll, not a blocking waitpid: the leg stays
+    readable for its whole life (a heartbeat every 15 s — the owner's
+    2026-11-03 run sat silent through a dead mirror and read as a
+    hang), and the abort handler's KeyboardInterrupt lands inside the
+    poll loop instead of parking inside the kernel.
+    """
+    max_time_s = curl_max_time_s(byte_cap)
+    lib.out(
+        f"  driving the {name} lane: {byte_cap:,} B at {RATE_STR} "
+        f"(connect {CONNECT_TIMEOUT_S}s, max {max_time_s}s)"
+    )
+    rep_r, rep_w = os.pipe()
+    pid = os.fork()
+    if pid == 0:
+        curl_child(os.path.join(cg_dir, "cgroup.procs"), url, byte_cap, rep_w, max_time_s)
+    os.close(rep_w)
+    try:
+        os.setpgid(pid, pid)
+    except OSError:
+        pass  # the child's own setpgid already won the race
+    _CHILD_PG[0] = pid
+
     samples = []
-    deadline = time.monotonic() + duration_s
-    while time.monotonic() < deadline:
+    leg_start = time.monotonic()
+    sample_deadline = leg_start + sample_s
+    last_beat = leg_start
+    while True:
         try:
-            text = subprocess.run(["ss", "-tip"], capture_output=True, text=True, timeout=5).stdout
-        except (subprocess.TimeoutExpired, OSError):
-            text = ""
-        for fields in parse_ss_tcp_info(text):
-            # Only the curl-owned connections (the -p process lens).
-            if "curl" in text and fields.get("rcv_space") is not None:
-                samples.append(fields)
+            wpid, _ = os.waitpid(pid, os.WNOHANG)
+        except ChildProcessError:
+            wpid = pid
+        if wpid == pid:
+            break
+        now = time.monotonic()
+        if now < sample_deadline:
+            samples.extend(_ss_snapshot_curl())
+        if now - last_beat >= 15:
+            lib.out(f"  ... {name} leg {now - leg_start:.0f}s in, {len(samples)} ss samples")
+            last_beat = now
         time.sleep(0.5)
-    return samples
+    _CHILD_PG[0] = 0
+
+    # The child's own measurement. A report that never arrived (the
+    # child died before its write) reads as a failed leg, not an
+    # unhandled IndexError.
+    with os.fdopen(rep_r) as f:
+        report = f.read().strip().split(" ", 1)
+    curl_rc = int(report[0]) if report and report[0].isdigit() else 1
+    speed_bps = float(report[1].split()[0]) if len(report) > 1 and report[1] else 0.0
+    size_bytes = int(report[1].split()[1]) if len(report) > 1 and len(report[1].split()) > 1 else 0
+    lib.out(f"  ... {name} leg done: curl rc {curl_rc}, {size_bytes:,} B, {lib.fmt_bps(speed_bps)}")
+    return curl_rc, speed_bps, size_bytes, samples
 
 
 def live_run(byte_cap):
@@ -340,8 +508,18 @@ def live_run(byte_cap):
         return 1
 
     cg_dir = os.path.join(CG_ROOT, CG_NAME)
-    # Best-effort pre-clean (a crashed predecessor).
-    shutil.rmtree(cg_dir, ignore_errors=True)
+    # Pre-clean (a crashed predecessor's leftover): a cgroup v2 dir
+    # comes out with rmdir — the control files are kernfs and refuse
+    # unlink, so rmtree can never remove one. An EMPTY leftover
+    # removes cleanly; a BUSY one means a member process is alive —
+    # another probe run is mid-flight and this one must not stomp it.
+    if os.path.isdir(cg_dir):
+        try:
+            os.rmdir(cg_dir)
+        except OSError as e:
+            lib.out(f"FAIL: {cg_dir} exists and is busy ({e}) — a member process is alive")
+            lib.out("      another probe run mid-flight? sudo pkill -9 -f recwn-probe.py")
+            return 1
     try:
         os.mkdir(cg_dir)
     except OSError as e:
@@ -373,36 +551,15 @@ def live_run(byte_cap):
 
         # Rows 3-5 — the download under the policy, ss sampling beside.
         # The endpoint ladder: the owner's own command first, the
-        # cloudflare __down mirror second — a dead mirror retries the
-        # lane instead of failing it (the header's fallback contract,
-        # which the first cut declared but never actually wired).
+        # cloudflare __down mirror second — every leg self-bounded and
+        # heartbeaten, and a dead mirror retries the lane instead of
+        # failing it.
         curl_rc, speed_bps, size_bytes, samples, endpoint = 1, 0.0, 0, [], None
-        for idx, (name, url, _) in enumerate(DL_CANDIDATES):
-            endpoint = (name, url)
-            go_r, go_w = os.pipe()
-            rep_r, rep_w = os.pipe()
-            pid = os.fork()
-            if pid == 0:
-                curl_child(os.path.join(cg_dir, "cgroup.procs"), url, byte_cap, go_r, rep_w)
-            os.close(go_r)
-            os.close(rep_w)
-
-            # The go byte (the policy stands); then sample ss while the
-            # transfer runs. ~30 s at the default cap.
-            os.write(go_w, b"go")
-            os.close(go_w)
-            samples = sample_ss_during(25 if byte_cap == DEFAULT_BYTES else 90)
-
-            # Collect the child's own measurement. A report that never
-            # arrived (the child died before its write) reads as a
-            # failed candidate, not an unhandled IndexError.
-            os.waitpid(pid, 0)
-            with os.fdopen(rep_r) as f:
-                report = f.read().strip().split(" ", 1)
-            curl_rc = int(report[0]) if report and report[0].isdigit() else 1
-            speed_bps = float(report[1].split()[0]) if len(report) > 1 and report[1] else 0.0
-            size_bytes = (
-                int(report[1].split()[1]) if len(report) > 1 and len(report[1].split()) > 1 else 0
+        for idx, (name, template) in enumerate(DL_CANDIDATES):
+            endpoint = (name, template)
+            url = template.format(bytes=byte_cap)
+            curl_rc, speed_bps, size_bytes, samples = _run_leg(
+                name, url, byte_cap, cg_dir, 25 if byte_cap == DEFAULT_BYTES else 90
             )
             if curl_rc == 0 and size_bytes > 0:
                 break
@@ -457,7 +614,36 @@ def live_run(byte_cap):
         # standing enforcement must survive the verification. The
         # scoped shape is ect-probe's teardown precedent.
         lib.run_zel(["unstrict", f"cg:{cg_id}"])
-        shutil.rmtree(cg_dir, ignore_errors=True)
+        # An aborted leg leaves its child alive in the group: kill the
+        # subtree, reap the zombie (it holds the cgroup open until
+        # reaped), then rmdir — kernfs files refuse unlink, so rmdir on
+        # the emptied dir is the only removal path (ect-probe's
+        # precedent; rmtree never removes a cgroup).
+        if _CHILD_PG[0]:
+            try:
+                os.killpg(_CHILD_PG[0], signal.SIGKILL)
+            except OSError:
+                pass
+            for _ in range(6):  # ~3 s reap window
+                try:
+                    done, _ = os.waitpid(_CHILD_PG[0], os.WNOHANG)
+                except OSError:
+                    break
+                if done:
+                    break
+                time.sleep(0.5)
+        _CHILD_PG[0] = 0
+        removed = False
+        for _ in range(4):  # a just-reaped member takes a moment to leave
+            try:
+                os.rmdir(cg_dir)
+                removed = True
+                break
+            except OSError:
+                time.sleep(0.5)
+        if not removed and os.path.isdir(cg_dir):
+            lib.out(f"  note: {cg_dir} did not come out (a member lingered); once quiet:")
+            lib.out(f"        sudo rmdir {cg_dir}")
 
     lib.out()
     lib.out(f"  RECWN live probe — {'PASS' if ok else 'FAIL'} in {time.monotonic() - started:.0f}s")
@@ -492,7 +678,16 @@ def main():
             args.binary, "sudo ./scripts/bench/recwn-probe.sh"
         ):
             return 2
-        rc = live_run(args.bytes)
+        # The abort contract rides the live lane only.
+        _install_abort_handlers()
+        try:
+            rc = live_run(args.bytes)
+        except KeyboardInterrupt:
+            # The handler already killed the child group and
+            # live_run's finally ran the scoped teardown; 130 is the
+            # conventional 128+SIGINT.
+            lib.out(f"  abort: signal {_ABORT_SIGNUM[0]} — scoped teardown ran, exiting")
+            rc = 128 + (_ABORT_SIGNUM[0] or signal.SIGINT)
     if args.json:
         lib.out(json.dumps(lib.RESULTS, indent=2))
     return rc
