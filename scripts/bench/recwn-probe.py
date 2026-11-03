@@ -75,6 +75,7 @@ import time
 _LIB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "lib")
 sys.path.insert(0, _LIB_DIR)
 
+sys.dont_write_bytecode = True  # root-owned pycache guard, docs/MAINTENANCE.md 7
 import zelynic_harness_lib as lib  # noqa: E402
 
 # The task brief's own geometry, carried through the estimate the
@@ -254,10 +255,11 @@ def self_test():
         )
     )
 
-    ok = True
     for name, verdict, detail in rows:
-        lib.out(f"  {'OK' if verdict else 'FAIL'} {name} — {detail}")
-        ok = ok and verdict
+        # lib.record feeds lib.RESULTS so --json carries the instrument
+        # rows exactly as it carries the live ones (the ect-probe shape).
+        lib.record(name, "PASS" if verdict else "FAIL", detail)
+    ok = all(v for _, v, _ in rows)
     lib.out()
     lib.out(
         f"  {sum(1 for _, v, _ in rows if v)} passed, "
@@ -370,33 +372,45 @@ def live_run(byte_cap):
             return 1
 
         # Rows 3-5 — the download under the policy, ss sampling beside.
-        go_r, go_w = os.pipe()
-        rep_r, rep_w = os.pipe()
-        endpoint = None
-        for name, url, _ in DL_CANDIDATES:
+        # The endpoint ladder: the owner's own command first, the
+        # cloudflare __down mirror second — a dead mirror retries the
+        # lane instead of failing it (the header's fallback contract,
+        # which the first cut declared but never actually wired).
+        curl_rc, speed_bps, size_bytes, samples, endpoint = 1, 0.0, 0, [], None
+        for idx, (name, url, _) in enumerate(DL_CANDIDATES):
             endpoint = (name, url)
-            break
-        pid = os.fork()
-        if pid == 0:
-            curl_child(os.path.join(cg_dir, "cgroup.procs"), endpoint[1], byte_cap, go_r, rep_w)
-        os.close(go_r)
-        os.close(rep_w)
+            go_r, go_w = os.pipe()
+            rep_r, rep_w = os.pipe()
+            pid = os.fork()
+            if pid == 0:
+                curl_child(os.path.join(cg_dir, "cgroup.procs"), url, byte_cap, go_r, rep_w)
+            os.close(go_r)
+            os.close(rep_w)
 
-        # The go byte (the policy stands); then sample ss while the
-        # transfer runs. ~30 s at the default cap.
-        os.write(go_w, b"go")
-        os.close(go_w)
-        samples = sample_ss_during(25 if byte_cap == DEFAULT_BYTES else 90)
+            # The go byte (the policy stands); then sample ss while the
+            # transfer runs. ~30 s at the default cap.
+            os.write(go_w, b"go")
+            os.close(go_w)
+            samples = sample_ss_during(25 if byte_cap == DEFAULT_BYTES else 90)
 
-        # Collect the child's own measurement.
-        os.waitpid(pid, 0)
-        with os.fdopen(rep_r) as f:
-            report = f.read().strip().split(" ", 1)
-        curl_rc = int(report[0])
-        speed_bps = float(report[1].split()[0]) if len(report) > 1 and report[1] else 0.0
-        size_bytes = (
-            int(report[1].split()[1]) if len(report) > 1 and len(report[1].split()) > 1 else 0
-        )
+            # Collect the child's own measurement. A report that never
+            # arrived (the child died before its write) reads as a
+            # failed candidate, not an unhandled IndexError.
+            os.waitpid(pid, 0)
+            with os.fdopen(rep_r) as f:
+                report = f.read().strip().split(" ", 1)
+            curl_rc = int(report[0]) if report and report[0].isdigit() else 1
+            speed_bps = float(report[1].split()[0]) if len(report) > 1 and report[1] else 0.0
+            size_bytes = (
+                int(report[1].split()[1]) if len(report) > 1 and len(report[1].split()) > 1 else 0
+            )
+            if curl_rc == 0 and size_bytes > 0:
+                break
+            if idx + 1 < len(DL_CANDIDATES):
+                lib.out(
+                    f"  note: the {name} endpoint failed (curl rc {curl_rc}) — "
+                    f"retrying the lane on the {DL_CANDIDATES[idx + 1][0]} mirror"
+                )
 
         # Row 3 — the clamp evidence: every sampled rcv_space /
         # rcv_ssthresh at the clamped scale.
@@ -436,9 +450,13 @@ def live_run(byte_cap):
         )
         ok = schema_ok and clamp_ok and band_ok and retrans_ok
     finally:
-        # Teardown (best-effort, never fails a verdict).
+        # Teardown (best-effort, never fails a verdict) — scoped to the
+        # probe's own cgroup ONLY: `unstrict --all` is the emergency
+        # reset (every limit on the machine, src/cli/surface.rs), and
+        # this probe runs on the owner's daily-driver box, where the
+        # standing enforcement must survive the verification. The
+        # scoped shape is ect-probe's teardown precedent.
         lib.run_zel(["unstrict", f"cg:{cg_id}"])
-        lib.run_zel(["unstrict", "--all"])
         shutil.rmtree(cg_dir, ignore_errors=True)
 
     lib.out()
@@ -450,6 +468,7 @@ def main():
     ap = argparse.ArgumentParser(description="zelynic RECWN live probe (the quota saver's Layer 1)")
     ap.add_argument("--self-test", action="store_true", help="instrument lane only, no root")
     ap.add_argument("--json", action="store_true", help="machine-readable output")
+    ap.add_argument("--binary", default=None, help="zelynic binary to drive")
     ap.add_argument(
         "--bytes",
         type=int,
@@ -458,8 +477,25 @@ def main():
     )
     args = ap.parse_args()
     if args.self_test:
-        return self_test()
-    return live_run(args.bytes)
+        rc = self_test()
+    else:
+        # Binary resolution, the shared engine's ladder (NIGHT-improve-11
+        # / -16): repo-local builds outrank the system PATH and the pick
+        # is version-gated against this checkout's Cargo.toml. The live
+        # lane shipped without this call — lib.BINARY stayed "" and
+        # run_zel exec'd an empty program, so every live run died at
+        # row 2 as `exited 127: [Errno 13] Permission denied: ''` while
+        # the instrument lane stayed green. Resolved on the root path
+        # only, so the rootless invocation keeps live_run's own
+        # needs-root error.
+        if os.geteuid() == 0 and not lib.resolve_binary(
+            args.binary, "sudo ./scripts/bench/recwn-probe.sh"
+        ):
+            return 2
+        rc = live_run(args.bytes)
+    if args.json:
+        lib.out(json.dumps(lib.RESULTS, indent=2))
+    return rc
 
 
 if __name__ == "__main__":
