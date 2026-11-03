@@ -33,18 +33,9 @@ fn the_100kb_policy_paces_at_its_own_rate() {
 /// note). Each shape rides untouched.
 #[test]
 fn every_unowned_shape_answers_no_opinion() {
-    assert_eq!(
-        pacing_decision(false, true, true, Some(100_000)),
-        None
-    );
-    assert_eq!(
-        pacing_decision(true, false, true, Some(100_000)),
-        None
-    );
-    assert_eq!(
-        pacing_decision(true, true, false, Some(100_000)),
-        None
-    );
+    assert_eq!(pacing_decision(false, true, true, Some(100_000)), None);
+    assert_eq!(pacing_decision(true, false, true, Some(100_000)), None);
+    assert_eq!(pacing_decision(true, true, false, Some(100_000)), None);
 }
 
 /// A missing or zero hint never paces: no primed row is the

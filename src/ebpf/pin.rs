@@ -134,6 +134,7 @@ pub const PIN_MAP_MMSPA_GEN: &str = "/sys/fs/bpf/zelynic/mmspa_generation";
 /// policy would be written to maps no hook ever executes. On pre-5.7
 /// kernels the legacy attach path never pins links, so program pins
 /// alone are the operational contract there by design.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn pins_operational(
     supports_link: bool,
     prog_dl: bool,
@@ -161,8 +162,7 @@ pub(crate) fn link_mode_line(supports_link: bool) -> String {
     if supports_link {
         "[limiter] bpf_link supported — programs + links pinned (survive exit)".to_string()
     } else {
-        "[limiter] bpf_link unsupported (pre-5.7) — legacy attach, links leak by design"
-            .to_string()
+        "[limiter] bpf_link unsupported (pre-5.7) — legacy attach, links leak by design".to_string()
     }
 }
 
