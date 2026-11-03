@@ -61,16 +61,19 @@ now names) and the QUIC/UDP story the Layer 2 scale exists for:
     owns it.
 
   row 6 — the internet TCP leg: `net.ipv4.tcp_ecn=1` (saved and
-    restored), a curl child INSIDE the cgroup (children of a cgroup
-    member are born policed — no exec dance needed here, the
-    attribution is the cgroup, not a pid) drives the asia ladder
-    under the standing policies. The verdict is three-way: the
-    ladder answering and the ledger's CE columns moved is the full
-    PASS; a clean transfer over a silent ledger is the honest SKIP
-    — CE marks exist only where an AQM under load (or the policed
-    lane itself) puts them, so an uncongested path books nothing
-    and a healthy host never reads red (night-spark-4 hot-fix 4);
-    a failed transfer is the leg's own FAIL.
+    restored), a curl child joined INTO the policed cgroup the
+    recwn-probe way (fork, join cgroup.procs, execv — curl IS the
+    cgroup member, every socket it makes is born policed; the
+    21:53 recwn run's lesson, restated for the NIC path) drives
+    the asia ladder under the standing policies. The verdict is
+    four-branch: the ladder answering and the ledger's CE columns
+    moved is the full PASS; a transfer throttled to the lane over
+    a silent ledger is the honest SKIP (a non-ECN hop rode the
+    drop lane); a transfer that ran PAST the lane's rate with a
+    silent ledger is the bypass FAIL — with the join in place,
+    speed far above the policy names non-engagement, not a path
+    property (night-spark-4 part 2); a failed transfer is the
+    leg's own FAIL.
 
   row 7 — the QUIC leg: `curl --http3-only https://cloudflare-quic.com/`
     — QUIC endpoints send ECT(0) by default (RFC 9000), so the
@@ -115,12 +118,16 @@ itself (night-spark-4 hot-fix 3); the worker flushes ONE REPORT PER
 PHASE and the parent's every wait on it is deadline-bounded — the
 pair can never park face-to-face on each other's pipes, and a lost
 worker is an honest FAIL row plus the teardown's SIGKILL
-(night-spark-4 hot-fix 3 follow-up); the internet TCP row's verdict
-is three-way — FAIL only when the transfer itself fails, PASS when
-the ledger books the marks, SKIP when a clean transfer books nothing
-(an uncongested path is the path's verdict, not the policer's — the
-row's own detail always said so; the verdict now agrees)
-(night-spark-4 hot-fix 4).
+(night-spark-4 hot-fix 3 follow-up); the internet legs join the
+policed cgroup the recwn way — fork, join cgroup.procs, execv, so
+curl itself is the member and its sockets are born policed, each
+leg behind a hard wall that kills and names — and the internet
+TCP row's verdict is four-branch: FAIL when the transfer fails,
+PASS when the ledger books the marks, SKIP when a throttled
+transfer books nothing (a non-ECN hop rode the drop lane), FAIL
+again when the transfer ran past the lane's rate (the bypass —
+non-engagement is a defect, not a path property)
+(night-spark-4 part 2).
 
 Root required for the live run; --self-test is the CI lane.
 """
@@ -191,6 +198,17 @@ INTERNET_LADDER = [
 QUIC_URL = "https://cloudflare-quic.com/"
 CONNECT_TIMEOUT_S = 10
 CURL_MAX_TIME_S = 90
+# The cgroup membership file the internet legs join through (the
+# recwn-probe join: fork, join, execv — curl is the cgroup member,
+# every socket it creates is born policed; a child of a joined
+# parent inherits the membership, but the join on the exec'd pid
+# itself is the contract the attribution stands on — the recwn
+# probe's 21:53 run lesson, restated for the NIC path).
+CG_PROCS = os.path.join(CG_ROOT, CG_NAME, "cgroup.procs")
+# The internet leg's hard wall: curl's own max-time plus the slack
+# the parent's wait adds before it kills the child — a stalled
+# mirror dies named, never a parked leg.
+LEG_WALL_SLACK_S = 15
 CODEPOINT_NAMES = {0: "Not-ECT", 1: "ECT(1)", 2: "ECT(0)", 3: "CE"}
 
 
@@ -247,19 +265,23 @@ def schema_check(doc):
     return "present", marked_p, marked_b
 
 
-def internet_tcp_verdict(size_b, delta_p):
-    """The internet TCP row's three-way verdict (night-spark-4 hot-fix
-    4): a transfer that failed is the leg's own FAIL; marks booked on
-    the ledger is the full PASS; a clean transfer over a silent ledger
-    is the honest SKIP — CE marks exist only where an AQM under load
-    (or the policed lane itself) puts them, so a healthy host on an
-    uncongested path has nothing to book and must not read red. The
-    same witness shape the tcpdump row already rides: the skip names
-    the reason, never a silent pass."""
+def internet_tcp_verdict(size_b, delta_p, speed_bps):
+    """The internet TCP row's verdict (night-spark-4 part 2): a
+    transfer that failed is the leg's own FAIL; marks booked on the
+    ledger is the full PASS; a transfer that ran PAST the lane's rate
+    with a silent ledger is the bypass — with the legs joined into
+    the policed cgroup, speed far above the policy names
+    non-engagement, not a path property; a transfer throttled to the
+    lane with a silent ledger is the honest SKIP (a non-ECN hop rode
+    the drop lane, the marking lane never saw it). The same witness
+    discipline the tcpdump row rides: the skip names the reason,
+    never a silent pass."""
     if size_b <= 0:
         return "FAIL"
     if delta_p > 0:
         return "PASS"
+    if speed_bps > RATE_BPS * 3:
+        return "FAIL"
     return "SKIP"
 
 
@@ -347,23 +369,27 @@ def self_test():
         )
     )
 
-    # The internet TCP row's three-way verdict: the verdict the live
-    # row rides, pinned before the path can argue. A transfer that
-    # fails is the leg's FAIL; marks booked is the full PASS; a clean
-    # transfer over a silent ledger is the SKIP (the uncongested-path
-    # shape the first full nightpc run rode — hot-fix 4).
+    # The internet TCP row's verdict: the verdict the live row rides,
+    # pinned before the path can argue. A transfer that fails is the
+    # leg's FAIL; marks booked is the full PASS; a throttle-rate
+    # transfer over a silent ledger is the SKIP (the non-ECN-hop
+    # shape the first full nightpc run rode); a transfer far PAST the
+    # lane's rate with a silent ledger is the bypass FAIL the
+    # in-cgroup join exists to kill (night-spark-4 part 2).
     rows.append(
         (
             "instrument: the internet TCP witness verdict",
-            internet_tcp_verdict(0, 0) == "FAIL"
-            and internet_tcp_verdict(-1, 5) == "FAIL"
-            and internet_tcp_verdict(INTERNET_BYTES, 5) == "PASS"
-            and internet_tcp_verdict(INTERNET_BYTES, 0) == "SKIP",
+            internet_tcp_verdict(0, 0, RATE_BPS) == "FAIL"
+            and internet_tcp_verdict(-1, 5, RATE_BPS) == "FAIL"
+            and internet_tcp_verdict(INTERNET_BYTES, 5, RATE_BPS) == "PASS"
+            and internet_tcp_verdict(INTERNET_BYTES, 0, RATE_BPS * 10) == "FAIL"
+            and internet_tcp_verdict(INTERNET_BYTES, 0, RATE_BPS) == "SKIP",
             "no bytes -> FAIL (the leg broke, no rung answered); bytes "
             "with marks booked -> PASS (the policed lane's own columns "
-            "moved); bytes with a silent ledger -> SKIP (an uncongested "
-            "path books nothing — the reason is the path, never a "
-            "false FAIL on a healthy host)",
+            "moved); bytes at the lane's rate with a silent ledger -> "
+            "SKIP (a non-ECN hop rode the drop lane); bytes far past "
+            "the lane's rate with a silent ledger -> FAIL (the lane "
+            "never engaged — the bypass the in-cgroup join kills)",
         )
     )
 
@@ -458,34 +484,129 @@ def _blast_leg(tos_byte):
     return {"delivered": delivered, "ce_packets": ce_p, "ce_bytes": ce_b, "drain_s": drain}
 
 
-def _curl_range(url):
-    """One capped download through curl (the ladder's leg driver):
-    size_download is the metric, the exit code is informational."""
-    cmd = [
+def _curl_leg_args(url, quic=False):
+    """One capped transfer's curl argument list — the TCP ladder leg
+    (a range request) or the QUIC leg (--http3-only). The -w line is
+    the whole report: size first, speed second, one line."""
+    args = [
         "curl",
         "-sS",
         "-o",
         "/dev/null",
         "-w",
         "%{size_download} %{speed_download}",
+    ]
+    if quic:
+        args.append("--http3-only")
+    else:
+        args += ["-r", f"0-{INTERNET_BYTES - 1}"]
+    args += [
         "--connect-timeout",
         str(CONNECT_TIMEOUT_S),
         "--max-time",
         str(CURL_MAX_TIME_S),
-        "-r",
-        f"0-{INTERNET_BYTES - 1}",
         url,
     ]
+    return args
+
+
+def _curl_child(cgroup_procs, args):
+    """The moved child (the recwn-probe join): join the cgroup, then
+    EXEC curl on its own pid — fork-before-socket, join-before-exec,
+    so every socket curl creates is born inside the policed cgroup.
+    Own process group first, set on both sides of the fork race-safe
+    (the parent's wall kills this subtree without ever signaling
+    itself); the -w measurement line rides the report pipe on stdout
+    (dup2 before exec — the line IS the report), stderr rides the
+    error pipe, and every other fd this fork carried is
+    non-inheritable and dies at the exec — only fd 1 and fd 2
+    cross."""
+    os.setpgid(0, 0)
+    for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, signal.SIG_DFL)
     try:
-        p = subprocess.run(cmd, capture_output=True, text=True, timeout=CURL_MAX_TIME_S + 10)
-    except (OSError, subprocess.TimeoutExpired) as e:
-        return {"rc": -1, "size": 0, "speed": 0.0, "err": str(e)[:120]}
-    out = (p.stdout or "").split()
+        with open(cgroup_procs, "w") as f:
+            f.write(str(os.getpid()))
+    except OSError:
+        os._exit(126)  # the join failed — the parent's wait answers 126
+    try:
+        os.execvp(args[0], args)
+    except OSError:
+        os._exit(127)  # exec failed — the parent's wait answers 127
+
+
+def _run_curl_child(cgroup_procs, args, wall_s):
+    """One curl leg exec'd INSIDE the policed cgroup (the recwn-probe
+    join): the -w line rides the report pipe, stderr the error pipe,
+    the exit code comes out of waitpid, and the whole leg rides a
+    hard wall — the wall expires, the child dies by SIGKILL and the
+    leg names its reason. The worker stays alive either way, so the
+    phase report still flushes and the parent's own deadline never
+    has to fire. Returns the leg dict {rc, size, speed, err}."""
+    rep_r, rep_w = os.pipe()
+    err_r, err_w = os.pipe()
+    pid = os.fork()
+    if pid == 0:
+        os.close(rep_r)
+        os.close(err_r)
+        os.dup2(rep_w, 1)
+        os.dup2(err_w, 2)
+        os.close(rep_w)
+        os.close(err_w)
+        _curl_child(cgroup_procs, args)
+    os.close(rep_w)
+    os.close(err_w)
+    deadline = time.monotonic() + wall_s
+    out_chunks, err_chunks = [], []
+    open_fds = {rep_r, err_r}
+    while open_fds:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError:
+                pass
+            try:
+                os.waitpid(pid, 0)
+            except OSError:
+                pass
+            os.close(rep_r)
+            os.close(err_r)
+            return {
+                "rc": -1,
+                "size": 0,
+                "speed": 0.0,
+                "err": f"the leg exceeded its {wall_s:.0f}s wall — killed",
+            }
+        ready, _, _ = select.select(list(open_fds), [], [], remaining)
+        if not ready:
+            continue
+        for fd in ready:
+            chunk = os.read(fd, 65536)
+            if chunk:
+                (out_chunks if fd == rep_r else err_chunks).append(chunk)
+            else:
+                open_fds.discard(fd)  # EOF — the child closed this side
+    _, status = os.waitpid(pid, 0)
+    rc = os.WEXITSTATUS(status) if os.WIFEXITED(status) else -1
+    raw = b"".join(out_chunks).decode(errors="replace")
+    err = b"".join(err_chunks).decode(errors="replace")[-200:]
+    out = raw.split()
     try:
         size, speed = int(out[0]), float(out[1])
     except (ValueError, IndexError):
         size, speed = 0, 0.0
-    return {"rc": p.returncode, "size": size, "speed": speed, "err": (p.stderr or "")[:160]}
+    return {"rc": rc, "size": size, "speed": speed, "err": err}
+
+
+def _curl_range(url):
+    """One capped download through curl (the ladder's leg driver):
+    size_download is the metric, the exit code is informational.
+    The leg execs curl INSIDE the policed cgroup (the recwn-probe
+    join) and rides a hard wall."""
+    return _run_curl_child(
+        CG_PROCS, _curl_leg_args(url), CURL_MAX_TIME_S + LEG_WALL_SLACK_S
+    )
 
 
 def _curl_http3_supported():
@@ -518,8 +639,11 @@ def worker_main(go_r, report_w):
             report = {"ect": _blast_leg(0x02), "notect": _blast_leg(0x00)}
             os.write(report_w, json.dumps(report).encode())
         elif phase == b"2":
-            # The internet legs: TCP through the ladder (the children
-            # of a cgroup member are born policed), then QUIC.
+            # The internet legs: TCP through the ladder, then QUIC.
+            # Each leg is the recwn-probe join (fork, join, execv):
+            # curl IS the cgroup member and every socket it makes is
+            # born policed — the NIC-path engagement the loopback
+            # blast legs alone could never prove.
             report = {}
             tcp_leg = {"endpoint": None, "rc": -1, "size": 0, "speed": 0.0}
             for name, tpl in INTERNET_LADDER:
@@ -530,44 +654,14 @@ def worker_main(go_r, report_w):
                 lib.out(f"  ... {name} leg failed (rc {res['rc']}): {res['err']}")
             report["tcp_leg"] = tcp_leg
             if _curl_http3_supported():
-                cmd = [
-                    "curl",
-                    "-sS",
-                    "--http3-only",
-                    "-o",
-                    "/dev/null",
-                    "-w",
-                    "%{size_download} %{speed_download}",
-                    "--connect-timeout",
-                    str(CONNECT_TIMEOUT_S),
-                    "--max-time",
-                    str(CURL_MAX_TIME_S),
-                    QUIC_URL,
-                ]
-                try:
-                    p = subprocess.run(
-                        cmd, capture_output=True, text=True, timeout=CURL_MAX_TIME_S + 10
-                    )
-                    out = (p.stdout or "").split()
-                    try:
-                        size, speed = int(out[0]), float(out[1])
-                    except (ValueError, IndexError):
-                        size, speed = 0, 0.0
-                    report["quic_leg"] = {
-                        "supported": True,
-                        "rc": p.returncode,
-                        "size": size,
-                        "speed": speed,
-                        "err": (p.stderr or "")[:160],
-                    }
-                except (OSError, subprocess.TimeoutExpired) as e:
-                    report["quic_leg"] = {
-                        "supported": True,
-                        "rc": -1,
-                        "size": 0,
-                        "speed": 0.0,
-                        "err": str(e)[:120],
-                    }
+                report["quic_leg"] = {
+                    "supported": True,
+                    **_run_curl_child(
+                        CG_PROCS,
+                        _curl_leg_args(QUIC_URL, quic=True),
+                        CURL_MAX_TIME_S + LEG_WALL_SLACK_S,
+                    ),
+                }
             else:
                 report["quic_leg"] = {"supported": False}
             os.write(report_w, json.dumps(report).encode())
@@ -890,23 +984,33 @@ def live_run():
         doc = lib.status_json()
         _, post_p, post_b = parse_ce_ledger(doc)
         delta_p, delta_b = post_p - pre_led_p, post_b - pre_led_b
-        tcp_verdict = internet_tcp_verdict(tcp_leg.get("size", 0), delta_p)
+        tcp_verdict = internet_tcp_verdict(
+            tcp_leg.get("size", 0), delta_p, tcp_leg.get("speed", 0.0)
+        )
         if tcp_verdict == "FAIL":
-            tcp_detail = (
-                f"curl {tcp_leg.get('endpoint') or 'no ladder rung answered'} "
-                f"(rc {tcp_leg.get('rc', -1)}): {tcp_leg.get('size', 0)} B — "
-                f"{(tcp_leg.get('err') or 'no rung delivered bytes')[:140]}; "
-                "the internet TCP leg itself failed"
-            )
+            if tcp_leg.get("size", 0) <= 0:
+                tcp_detail = (
+                    f"curl {tcp_leg.get('endpoint') or 'no ladder rung answered'} "
+                    f"(rc {tcp_leg.get('rc', -1)}): {tcp_leg.get('size', 0)} B — "
+                    f"{(tcp_leg.get('err') or 'no rung delivered bytes')[:140]}; "
+                    "the internet TCP leg itself failed"
+                )
+            else:
+                tcp_detail = (
+                    f"curl {tcp_leg.get('endpoint')}: {tcp_leg.get('size', 0)} B at "
+                    f"{tcp_leg.get('speed', 0.0):.0f} B/s with the ledger silent — "
+                    f"the transfer ran past the {RATE_STR} lane's rate, the lane "
+                    "never engaged the leg: the in-cgroup join did not reach "
+                    "the socket (the bypass the recwn join exists to kill)"
+                )
         elif tcp_verdict == "SKIP":
             tcp_detail = (
                 f"curl {tcp_leg.get('endpoint')}: {tcp_leg.get('size', 0)} B at "
-                f"{tcp_leg.get('speed', 0.0):.0f} B/s; the ledger moved {delta_p} pkts / "
-                f"{delta_b} B during the internet legs — nothing to book: CE "
-                "marks exist only where an AQM under load (or the policed "
-                "lane itself) puts them, so an uncongested path or a non-ECN "
-                "hop books zero; the reason is the path, not the policer, "
-                "and the cgroup rows above already prove the marking live"
+                f"{tcp_leg.get('speed', 0.0):.0f} B/s — throttled to the lane and "
+                f"delivered, the ledger moved {delta_p} pkts / {delta_b} B during "
+                "the internet legs: a non-ECN hop rode the drop lane (the "
+                "policer's engagement is proven by the rate, the marks are the "
+                "cmsg rows' to prove on ECT traffic)"
             )
         else:
             tcp_detail = (
