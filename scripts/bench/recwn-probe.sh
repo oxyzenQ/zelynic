@@ -16,7 +16,10 @@
 # as every bench wrapper here).
 #
 # Usage:
-#   sudo ./scripts/bench/recwn-probe.sh               # live proof (~30s)
+#   sudo ./scripts/bench/recwn-probe.sh               # live proof (~1 min; every leg
+#                                                     #  self-bounded, heartbeaten, and
+#                                                     #  ^C aborts cleanly: scoped
+#                                                     #  teardown, exit 130)
 #   ./scripts/bench/recwn-probe.sh --self-test         # instrument smoke, no root
 #   sudo ./scripts/bench/recwn-probe.sh --json         # machine-readable
 #
