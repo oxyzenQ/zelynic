@@ -12,9 +12,10 @@
 # three verdicts the
 # task brief named — the advertised receive window clamped to the
 # RECWN scale, the throughput riding the policy band, retransmits
-# near zero. Python is the engine (forked curl child, the cgroup
-# move, concurrent ss sampling, precise timing — the same rationale
-# as every bench wrapper here).
+# near zero. Python is the engine (a forked child that execs curl —
+# the scoped pid IS the socket owner, the cgroup move, concurrent ss
+# sampling, precise timing — the same rationale as every bench
+# wrapper here).
 #
 # Usage:
 #   sudo ./scripts/bench/recwn-probe.sh               # live proof (~1 min; every leg
