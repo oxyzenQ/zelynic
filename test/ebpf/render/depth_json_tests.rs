@@ -415,6 +415,8 @@ fn json_carries_the_ledger_and_controller_resources() {
         packets_dropped: 42,
         bytes_allowed: 1_400_000_000,
         bytes_dropped: 6_200_000,
+        ce_marked_packets: 7,
+        ce_marked_bytes: 10_500,
     });
     report.depth.resources = CgroupResources {
         memory_current_bytes: Some(2_500_000),
@@ -427,6 +429,8 @@ fn json_carries_the_ledger_and_controller_resources() {
         "\"packets_dropped\":42",
         "\"bytes_allowed\":1400000000",
         "\"bytes_dropped\":6200000",
+        "\"ce_marked_packets\":7",
+        "\"ce_marked_bytes\":10500",
         "\"cgroup_memory_bytes\":2500000",
         "\"cgroup_cpu_usage_usec\":62000000",
     ] {

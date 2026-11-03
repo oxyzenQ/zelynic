@@ -10,6 +10,10 @@
 //! the extracted pure `status_json` builder.
 
 use super::*;
+// The ring fixture's own import (the parent's rate-ring family
+// moved to display_json_ring at night-spark-4, so the glob no
+// longer carries the parent's RateRingRaw use).
+use crate::ebpf::limiter::rate_ring::RateRingRaw;
 
 fn policy(rate_bps: u64) -> PolicyRaw {
     PolicyRaw {
@@ -28,6 +32,22 @@ fn stats(allowed: u64, dropped: u64) -> LimiterStatsRaw {
         packets_dropped: dropped,
         bytes_allowed: allowed * 100,
         bytes_dropped: dropped * 100,
+        ce_marked_packets: 0,
+        ce_marked_bytes: 0,
+    }
+}
+
+/// night-spark-4 (schema v26): the CE-ledger variant — the legacy
+/// helper keeps its shape; the marking pins below need nonzero tail
+/// words.
+fn stats_ce(allowed: u64, dropped: u64, ce_packets: u64, ce_bytes: u64) -> LimiterStatsRaw {
+    LimiterStatsRaw {
+        packets_allowed: allowed,
+        packets_dropped: dropped,
+        bytes_allowed: allowed * 100,
+        bytes_dropped: dropped * 100,
+        ce_marked_packets: ce_packets,
+        ce_marked_bytes: ce_bytes,
     }
 }
 
@@ -291,9 +311,38 @@ fn status_json_field_names_are_pinned() {
         "\"packets_dropped\"",
         "\"bytes_allowed\"",
         "\"bytes_dropped\"",
+        "\"ce_marked_packets\"",
+        "\"ce_marked_bytes\"",
     ] {
         assert!(text.contains(field), "field {field} missing from: {text}");
     }
+}
+
+/// night-spark-4 (schema v26): the CE ledger rides every limit row —
+/// the pair is ALWAYS present (the additive contract the four legacy
+/// counters ride), and a marked row carries its real numbers, not a
+/// fabricated zero.
+#[test]
+fn status_json_carries_the_ce_ledger() {
+    let dl = vec![(73386, policy(100_000))];
+    let json = status_json(
+        &dl,
+        &[],
+        &[(73386, stats_ce(50, 3, 12, 17_432))],
+        &IdentityMap::new(),
+        Some(0),
+        &RingReads::absent(),
+        &[],
+        &inert_recwn(),
+        0,
+        0,
+    );
+    let row = &json.limits[0];
+    assert_eq!(row.ce_marked_packets, 12);
+    assert_eq!(row.ce_marked_bytes, 17_432);
+    let text = json.to_json();
+    assert!(text.contains("\"ce_marked_packets\":12"), "{text}");
+    assert!(text.contains("\"ce_marked_bytes\":17432"), "{text}");
 }
 
 /// night-spark-2 (RECWN, schema v25): the owner-defined top-level

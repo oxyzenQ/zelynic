@@ -465,7 +465,18 @@
 ///     reload into the RECWN object — active limits are dropped
 ///     once, re-apply after upgrade, the same one-time contract as
 ///     every bump before it.
-pub const SCHEMA_VERSION_EXPECTED: u32 = 25;
+/// v26 (night-spark-4, the CE ledger): LimiterStats grows
+///     ce_marked_packets and ce_marked_bytes (32 -> 48 bytes) —
+///     book_rescue's correction books the delivered CE-marked volume
+///     into the two tail words, and the status surfaces carry the
+///     pair (`limits[].ce_marked_packets` / `.ce_marked_bytes` in
+///     --print-json, the table's CE Marked line, the depth view's
+///     enforcement object). Verdicts and the budget law untouched;
+///     the bump forces pinned v25 programs to reload into the
+///     CE-ledger object — active limits are dropped once, re-apply
+///     after upgrade, the same one-time contract as every bump
+///     before it.
+pub const SCHEMA_VERSION_EXPECTED: u32 = 26;
 
 #[cfg(test)]
 mod sync_pin {

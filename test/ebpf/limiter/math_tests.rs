@@ -55,6 +55,8 @@ fn fresh_stats() -> LimiterStats {
         packets_dropped: 0,
         bytes_allowed: 0,
         bytes_dropped: 0,
+        ce_marked_packets: 0,
+        ce_marked_bytes: 0,
     }
 }
 

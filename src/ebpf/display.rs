@@ -33,6 +33,13 @@ pub(crate) struct DisplayData {
     pub(crate) packets_dropped: u64,
     pub(crate) bytes_allowed: u64,
     pub(crate) bytes_dropped: u64,
+    /// night-spark-4, schema v26 (the CE ledger): the ECN-first
+    /// lane's own truth, read off the same stats row — the volume
+    /// book_rescue delivered CE-marked. The subordinate CE Marked
+    /// line renders it; zeros stay silent (the dormant-watchdog
+    /// precedent).
+    pub(crate) ce_marked_packets: u64,
+    pub(crate) ce_marked_bytes: u64,
     /// The row's --during window, when it carries one (night-during,
     /// schema v23) — the lifetime line under the row renders it.
     pub(crate) window: Option<PolicyWindowRaw>,
@@ -52,8 +59,8 @@ pub(crate) struct DisplayData {
 // (use super::*) and the list-apps surface see the same paths as
 // before the split.
 pub(crate) use super::display_lines::{
-    active_limits_line, guarantee_line, list_apps_header_line, recwn_line, status_cells,
-    status_header_line, status_row_line, watchdog_line, window_lifetime_line,
+    active_limits_line, ce_marked_line, guarantee_line, list_apps_header_line, recwn_line,
+    status_cells, status_header_line, status_row_line, watchdog_line, window_lifetime_line,
 };
 
 /// Collect display data from policies + stats (+ the window join).
@@ -112,6 +119,8 @@ pub(super) fn collect_display_data(
                 packets_dropped: s.map(|(_, s)| s.packets_dropped).unwrap_or(0),
                 bytes_allowed: s.map(|(_, s)| s.bytes_allowed).unwrap_or(0),
                 bytes_dropped: s.map(|(_, s)| s.bytes_dropped).unwrap_or(0),
+                ce_marked_packets: s.map(|(_, s)| s.ce_marked_packets).unwrap_or(0),
+                ce_marked_bytes: s.map(|(_, s)| s.ce_marked_bytes).unwrap_or(0),
                 window: windows
                     .iter()
                     .find(|(id, _)| id == cgroup_id)
@@ -366,6 +375,14 @@ pub fn print_status(
         // line, the window family's indent and grey — only the rows
         // that carry a side render one.
         if let Some(line) = guarantee_line(d.download, d.upload) {
+            println_safe!("{line}");
+        }
+        // night-spark-4 (schema v26): the CE ledger's subordinate
+        // line — the marking lane's own volume under the row that
+        // carries it, the window family's grey; only rows that
+        // actually marked traffic render one (absence stays
+        // silence, never a zero).
+        if let Some(line) = ce_marked_line(d) {
             println_safe!("{line}");
         }
     }

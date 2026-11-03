@@ -818,16 +818,27 @@ audit showed the pair can read as a mystery):
   `allowed` later — which is why a healthy limit shows `dropped`
   as a tiny fraction of `allowed` (a 6h50m unattended rc.2 run
   measured 4.4 MB dropped on 3.4 GB allowed, 0.13%).
+- **CE Marked** (the grey line under a row that has one) — the
+  ECN-first lane's own exception to the drop branch (night-spark-4,
+  schema v26): an over-budget packet whose sender speaks ECN is
+  DELIVERED CE-marked instead of dropped — the packet still crossed
+  (it is booked into `allowed`), and the `ce_marked_packets` /
+  `ce_marked_bytes` pair counts exactly that delivered volume. A
+  row without the line has not marked anything yet; a QUIC or
+  ECN-capable TCP sender reads the mark and backs off without
+  paying a retransmit.
 
 Both counters live for the lifetime of the limit: re-applying
 `strict` with a different rate keeps the accounting continuous
 (the long run re-tightened its target mid-run and the totals
 carried), and `unstrict` reclaims the stats row once both
 directions are gone, so the next `strict` starts from zero. The
-table shows the byte pair; `--print-json` carries all four
+table shows the byte pair; `--print-json` carries all six
 counters (packets_allowed, packets_dropped, bytes_allowed,
-bytes_dropped) where automation reads them — one metric per
-cell, evidence of enforcement rather than a live rate meter.
+bytes_dropped, and the schema-v26 CE-ledger pair
+ce_marked_packets, ce_marked_bytes) where automation reads them —
+one metric per cell, evidence of enforcement rather than a live
+rate meter.
 
 The output IS the eagle-eyes style (NIGHT-engrave-5, the owner's
 audit — the surface was the last uppercase holdout): the purple
@@ -2158,7 +2169,7 @@ Field shapes:
 `status --print-json`:
 
 ```json
-{"watchdog":"enforcing","active_limits":2,"limits":[{"cgroup_id":18571,"label":"brave","download_bytes_per_sec":100000,"upload_bytes_per_sec":100000,"packets_allowed":232,"packets_dropped":4718,"bytes_allowed":29520,"bytes_dropped":8031234}]}
+{"watchdog":"enforcing","active_limits":2,"limits":[{"cgroup_id":18571,"label":"brave","download_bytes_per_sec":100000,"upload_bytes_per_sec":100000,"packets_allowed":232,"packets_dropped":4718,"bytes_allowed":29520,"bytes_dropped":8031234,"ce_marked_packets":12,"ce_marked_bytes":17432}]}
 ```
 
 The complete field reference (night-improve-60 — the owner read
@@ -2178,6 +2189,7 @@ one table, script-facing):
 | `limits[].download_floor_bytes_per_sec` / `download_ceil_bytes_per_sec` / `upload_floor_bytes_per_sec` / `upload_ceil_bytes_per_sec` | number | the per-subprocess pair when the directions DIFFER (the split shape; the merged pair above is then absent) |
 | `limits[].packets_allowed` / `packets_dropped` | number | cumulative packet counts under the limit (both directions booked into one row) |
 | `limits[].bytes_allowed` / `bytes_dropped` | number | cumulative BYTES: what passed enforcement, what the token bucket discarded. Lifetime counters — re-applying `strict` keeps them continuous; `unstrict` reclaims the row |
+| `limits[].ce_marked_packets` / `ce_marked_bytes` | number | the ECN-first lane's delivered CE-marked volume (night-spark-4, schema v26 — always present): packets the policer DELIVERED with the CE codepoint set instead of dropping, and their bytes. A refused mark never reaches the pair |
 | `limits[].rate_ring` | object | the last eight seconds' per-second delivered bytes, per direction — a traffic MONITOR, not the policy window (see the callout below) |
 | `limits[].window` | object | the row's `--during` policy window — the thing that expires (see the callout below) |
 

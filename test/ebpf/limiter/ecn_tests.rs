@@ -172,12 +172,42 @@ fn book_rescue_moves_the_booking_exactly() {
         packets_dropped: 7,
         bytes_allowed: 41_000,
         bytes_dropped: 7_000,
+        ce_marked_packets: 0,
+        ce_marked_bytes: 0,
     };
     book(&mut stats, false, 1500);
     assert_eq!((stats.packets_dropped, stats.bytes_dropped), (8, 8_500));
     book_rescue(&mut stats, 1500);
     assert_eq!((stats.packets_allowed, stats.bytes_allowed), (42, 42_500));
     assert_eq!((stats.packets_dropped, stats.bytes_dropped), (7, 7_000));
+}
+
+#[test]
+fn book_rescue_books_the_ce_ledger_exactly() {
+    // v26 (night-spark-4, the CE ledger): every rescue delivery is a
+    // CONFIRMED mark — the correction books the marking lane's own
+    // truth (+1 packet, +pkt_len bytes) alongside the allowed-column
+    // move, so the status surfaces can name Layer 2's volume exactly.
+    let mut stats = LimiterStats {
+        packets_allowed: 0,
+        packets_dropped: 0,
+        bytes_allowed: 0,
+        bytes_dropped: 0,
+        ce_marked_packets: 9,
+        ce_marked_bytes: 9_000,
+    };
+    book(&mut stats, false, 1500);
+    // A plain drop (a refused mark, a debt at its cap) touches NO ce
+    // word — the ledger counts delivered marks, never refused intent.
+    assert_eq!((stats.ce_marked_packets, stats.ce_marked_bytes), (9, 9_000));
+    book_rescue(&mut stats, 1500);
+    assert_eq!(
+        (stats.ce_marked_packets, stats.ce_marked_bytes),
+        (10, 10_500)
+    );
+    // The legacy quartet's shape is unchanged by the tail's growth.
+    assert_eq!((stats.packets_allowed, stats.bytes_allowed), (1, 1_500));
+    assert_eq!((stats.packets_dropped, stats.bytes_dropped), (0, 0));
 }
 
 #[test]

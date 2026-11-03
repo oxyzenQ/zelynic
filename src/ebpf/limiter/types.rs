@@ -238,9 +238,15 @@ pub struct LimiterStatsRaw {
     pub packets_dropped: u64,
     pub bytes_allowed: u64,
     pub bytes_dropped: u64,
+    /// night-spark-4, schema v26 (the CE ledger): the ECN-first
+    /// lane's own truth — packets DELIVERED CE-marked, booked by
+    /// book_rescue's correction. Layout twin of math.rs's LimiterStats
+    /// tail; the map read copies the pair whole.
+    pub ce_marked_packets: u64,
+    pub ce_marked_bytes: u64,
 }
 
-/// SAFETY: LimiterStatsRaw is a plain four-u64 `repr(align(8))`
+/// SAFETY: LimiterStatsRaw is a plain six-u64 `repr(align(8))`
 /// aggregate (Copy, no references) — the same aya::Pod value
 /// contract; the BPF twin is math.rs's LimiterStats (the layout
 /// contract, size-pinned both sides).

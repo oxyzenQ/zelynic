@@ -231,7 +231,48 @@ fn test_schema_version_constant() {
     // (zelynic_recwn, the cgroup-root receive-window lane) plus the
     // pinned cookie-keyed recwn_socket_hint LRU; no existing struct
     // layout changes.
-    assert_eq!(SCHEMA_VERSION_EXPECTED, 25);
+    // v26 (night-spark-4, the CE ledger): LimiterStats grows the
+    // ce_marked_packets/ce_marked_bytes tail (32 -> 48 bytes) —
+    // book_rescue's correction books the delivered CE-marked volume,
+    // the quota saver's Layer 2 made readable on every status
+    // surface. Layout pin: limiter_stats_raw_layout_is_pinned.
+    assert_eq!(SCHEMA_VERSION_EXPECTED, 26);
+}
+
+// ── night-spark-4, schema v26: the CE ledger's layout pins ─────────
+
+/// The LimiterStatsRaw layout contract: 48 bytes — the legacy quartet
+/// at its pre-v26 offsets (a pre-v26 reader of the head reads
+/// unchanged), the ce_marked tail at 32/40, and the row
+/// round-tripping through its bytes identical (the map value IS the
+/// byte row; a partial write would be a corrupted ledger).
+#[test]
+fn limiter_stats_raw_layout_is_pinned() {
+    let row = LimiterStatsRaw {
+        packets_allowed: 0x0102030405060708,
+        packets_dropped: 0x1112131415161718,
+        bytes_allowed: 0x2122232425262728,
+        bytes_dropped: 0x3132333435363738,
+        ce_marked_packets: 0x4142434445464748,
+        ce_marked_bytes: 0x5152535455565758,
+    };
+    assert_eq!(core::mem::size_of::<LimiterStatsRaw>(), 48);
+    assert_eq!(
+        core::mem::offset_of!(LimiterStatsRaw, ce_marked_packets),
+        32
+    );
+    assert_eq!(core::mem::offset_of!(LimiterStatsRaw, ce_marked_bytes), 40);
+    // SAFETY: LimiterStatsRaw is a plain six-u64 Copy aggregate with
+    // no padding (repr(align(8)), 8 x u64 = 48 bytes, the size pin
+    // above) — transmuting to and from its 48-byte array is the
+    // layout round-trip the test asserts, no reference crosses.
+    let bytes: [u8; 48] = unsafe { core::mem::transmute(row) };
+    // SAFETY: same plain-Copy aggregate, same no-padding pin — the
+    // array back into the struct is the round-trip's second half.
+    let back: LimiterStatsRaw = unsafe { core::mem::transmute(bytes) };
+    assert_eq!(back.packets_allowed, row.packets_allowed);
+    assert_eq!(back.ce_marked_packets, row.ce_marked_packets);
+    assert_eq!(back.ce_marked_bytes, row.ce_marked_bytes);
 }
 
 // ── night-during, schema v23: the window row's layout pins ────────

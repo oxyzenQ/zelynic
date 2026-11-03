@@ -306,6 +306,8 @@ fn window_dropped_bytes_is_the_bracket_delta() {
         packets_dropped: 100,
         bytes_allowed: 900_000,
         bytes_dropped: 100_000,
+        ce_marked_packets: 0,
+        ce_marked_bytes: 0,
     };
     let mut closing = baseline;
     closing.bytes_dropped = 171_000;
@@ -371,6 +373,8 @@ fn accounting_sentence_carries_the_ledger_math() {
         packets_dropped: 100,
         bytes_allowed: 900_000,
         bytes_dropped: 100_000,
+        ce_marked_packets: 0,
+        ce_marked_bytes: 0,
     };
     let sentence = accounting_sentence(&heavy);
     assert!(
@@ -387,6 +391,8 @@ fn accounting_sentence_carries_the_ledger_math() {
         packets_dropped: 0,
         bytes_allowed: 0,
         bytes_dropped: 0,
+        ce_marked_packets: 0,
+        ce_marked_bytes: 0,
     };
     assert_eq!(
         accounting_sentence(&quiet),
@@ -419,6 +425,8 @@ fn ledger_and_resource_rows_render_only_when_present() {
         packets_dropped: 100,
         bytes_allowed: 900_000,
         bytes_dropped: 100_000,
+        ce_marked_packets: 0,
+        ce_marked_bytes: 0,
     });
     report.depth.resources = CgroupResources {
         memory_current_bytes: Some(2_500_000),

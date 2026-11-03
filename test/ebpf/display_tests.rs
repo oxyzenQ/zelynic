@@ -32,6 +32,8 @@ fn status_cells_one_metric_per_cell() {
         packets_dropped: 3,
         bytes_allowed: 1_400_000,
         bytes_dropped: 5_200,
+        ce_marked_packets: 0,
+        ce_marked_bytes: 0,
     };
     let (label, dl, ul, allowed, dropped) = status_cells(&d, &IdentityMap::new());
     assert_eq!(label, "cg:73386");
@@ -60,6 +62,8 @@ fn status_cells_one_metric_per_cell() {
         packets_dropped: 2,
         bytes_allowed: 5_000,
         bytes_dropped: 1_000,
+        ce_marked_packets: 0,
+        ce_marked_bytes: 0,
     };
     let (_, dl, ul, allowed, dropped) = status_cells(&per_socket_row, &IdentityMap::new());
     assert_eq!(dl, "500.0 KB/s /socket");
@@ -81,6 +85,8 @@ fn status_cells_one_metric_per_cell() {
         packets_dropped: 0,
         bytes_allowed: 0,
         bytes_dropped: 0,
+        ce_marked_packets: 0,
+        ce_marked_bytes: 0,
     };
     let (_, dl, ul, allowed, dropped) = status_cells(&one_sided, &IdentityMap::new());
     assert_eq!(dl, "—");
@@ -111,6 +117,8 @@ fn status_rate_cells_render_configured_rates_exactly() {
         packets_dropped: 0,
         bytes_allowed: 0,
         bytes_dropped: 0,
+        ce_marked_packets: 0,
+        ce_marked_bytes: 0,
     };
     let (_, dl, ul, allowed, dropped) = status_cells(&d, &IdentityMap::new());
     assert_eq!(dl, "100.51 KB/s", "the typed rate survives the table");
@@ -119,8 +127,44 @@ fn status_rate_cells_render_configured_rates_exactly() {
     assert_eq!(dropped, "0 B");
 }
 
+// ── night-spark-4 (schema v26): the CE ledger's subordinate line ──────
+
+/// The CE Marked line renders the marking lane's own volume, the
+/// window family's indent — and stays SILENT on a row that never
+/// marked (absence is silence, never a zero: the dormant-watchdog
+/// precedent).
+#[test]
+fn ce_marked_line_renders_only_when_traffic_was_marked() {
+    let marked = DisplayData {
+        window: None,
+        download: BracketPair::UNSET,
+        upload: BracketPair::UNSET,
+        cgroup_id: 73386,
+        dl_bps: Some(100_000),
+        ul_bps: None,
+        dl_per_socket: false,
+        ul_per_socket: false,
+        packets_allowed: 50,
+        packets_dropped: 3,
+        bytes_allowed: 50_000,
+        bytes_dropped: 3_000,
+        ce_marked_packets: 12,
+        ce_marked_bytes: 17_432,
+    };
+    assert_eq!(
+        ce_marked_line(&marked).unwrap(),
+        "    CE Marked: 12 packets (17432 bytes)"
+    );
+
+    let quiet = DisplayData {
+        ce_marked_packets: 0,
+        ce_marked_bytes: 0,
+        ..marked
+    };
+    assert!(ce_marked_line(&quiet).is_none());
+}
+
 // ── NIGHT-engrave-5: the eagle-eyes style match pins ──────────────────
-//
 // The owner's audit: `sudo zelynic status` did not match the
 // eagle-eyes style — uppercase headers, a plain separator, bare
 // prose lines. These pins hold the corrected contract through the

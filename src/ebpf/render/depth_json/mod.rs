@@ -128,6 +128,11 @@ pub struct EnforcementStatsJson {
     pub packets_dropped: u64,
     pub bytes_allowed: u64,
     pub bytes_dropped: u64,
+    /// The ECN-first lane's own truth (night-spark-4, schema v26):
+    /// packets DELIVERED CE-marked and their byte volume — the
+    /// quota saver's Layer 2 made readable on the depth document.
+    pub ce_marked_packets: u64,
+    pub ce_marked_bytes: u64,
 }
 
 /// One resolved target's JSON object.
@@ -272,6 +277,8 @@ fn stats_json(stats: &Option<LimiterStatsRaw>) -> Option<EnforcementStatsJson> {
         packets_dropped: s.packets_dropped,
         bytes_allowed: s.bytes_allowed,
         bytes_dropped: s.bytes_dropped,
+        ce_marked_packets: s.ce_marked_packets,
+        ce_marked_bytes: s.ce_marked_bytes,
     })
 }
 
