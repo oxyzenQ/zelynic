@@ -61,17 +61,20 @@ Honesty contracts: the child is forked BEFORE any socket exists and
 writes its own pid into the target's cgroup.procs only AFTER the
 policy stands (the curl sockets are born policed — the same
 attribution contract every leaf battery here carries); the download
-is the real internet (the tele2 endpoint the owner's own command
-names, the cloudflare __down mirror as the fallback); the ss samples
+is the real internet (the Asia-Pacific mirror ladder, night-spark-3 —
+the retired tele2 rung sat an ocean away from the owner's lane —
+with the cloudflare __down mirror as the global anycast last
+resort); the ss samples
 read the kernel's own tcp_info fields while the transfer runs, and
 every raw number the verdicts rode prints in the row detail;
 teardown is best-effort and never fails a verdict. The transfer is
 capped at 3 MiB by default (~30 s at 100 kb/s — the owner's full
 10MB run rides --bytes 10485760).
 
-Runtime contract (the 2026-11-03 owner run's lesson: tele2 sat
-through the flat 240 s max-time with zero output, and ^C never
-reached the parent — the retry note printed after the first one):
+Runtime contract (the 2026-11-03 owner run's lesson: the retired
+tele2 rung sat through the flat 240 s max-time with zero output, and
+^C never reached the parent — the retry note printed after the first
+one):
 every leg is self-bounded (curl --connect-timeout 10, --max-time
 scaled to the byte cap), progress prints every 15 s so a dead mirror
 can never read as a hang, and the abort path is owned outright — the
@@ -108,7 +111,9 @@ verdict and would have cut the tail off a leg's cumulative
 counters — and it counts itself (runs, errors, connections
 parsed), so a zero-sample leg says why instead of hinting.
 
-Root required for the live run; --self-test is the CI lane.
+Root required for the live run; --self-test is the CI lane;
+--ladder-check walks the mirror ladder rootless (reachability only,
+no policy).
 """
 
 import argparse
@@ -151,21 +156,33 @@ CLAMP_BOUND_BYTES = 65_536
 # the connection moved (the drop-policer's own retransmit cadence is
 # the baseline this lane exists to beat).
 RETRANS_FRACTION_MAX = 0.01
-# The realnet download candidates — the owner's own command first
-# (tele2 10MB.zip, range-capped), the cloudflare __down mirror
-# second (the supermassive realnet registry's own family). Both legs
-# carry the SAME byte cap: the .zip side rides a range request, the
-# __down side sizes itself through the {bytes} template (the first
-# cut hardcoded 10 MiB there, silently tripling the fallback leg's
-# policy-time).
+# The realnet download ladder (night-spark-3): Asia-Pacific mirrors
+# first, ordered by the owner's preference — Singapore, Jakarta, then
+# the Japan rung — with the cloudflare __down mirror as the global
+# anycast last resort. The retired tele2 rung sat an ocean away from
+# the owner's lane and blackholed from Indonesia (the 2026-11-03
+# run's rc 28); the owner's first candidate itself, Clouvider's
+# sgp-sin host, is NXDOMAIN on every naming variant and the family's
+# download path 404s, so the ladder rides the Linode speedtest files
+# (the convention their docs and community threads name:
+# speedtest.<city>.linode.com/100MB-<city>.bin — http, the files'
+# own documented scheme; the lane measures the transport, not the
+# payload). Every static rung carries the SAME byte cap through a
+# range request; the __down side sizes itself through the {bytes}
+# template (the first cut hardcoded 10 MiB there, silently tripling
+# the fallback leg's policy-time). A dead rung falls through to the
+# next — walk_ladder owns that contract, the self-test pins it
+# offline, and --ladder-check walks it rootless against the live net.
 DL_CANDIDATES = [
-    ("tele2", "http://speedtest.tele2.net/10MB.zip"),
+    ("linode-singapore", "http://speedtest.singapore.linode.com/100MB-singapore.bin"),
+    ("linode-jakarta", "http://speedtest.jakarta.linode.com/100MB-jakarta.bin"),
+    ("linode-osaka", "http://speedtest.osaka.linode.com/100MB-osaka.bin"),
     ("cloudflare", "https://speed.cloudflare.com/__down?bytes={bytes}"),
 ]
 DEFAULT_BYTES = 3 * 1024 * 1024
-# The runtime bounds (the 2026-11-03 owner run: tele2 sat through the
-# flat 240 s max-time with zero output and a Ctrl-C that never landed,
-# so a dead mirror read as a hang). --connect-timeout kills an
+# The runtime bounds (the 2026-11-03 owner run: the retired tele2
+# rung sat through the flat 240 s max-time with zero output and a
+# Ctrl-C that never landed, so a dead mirror read as a hang). --connect-timeout kills an
 # unreachable mirror in seconds; --max-time scales with the byte cap —
 # twice the policy-time transfer plus handshake/slow-start slack — so
 # every leg self-terminates and a below-band leg fails fast onto the
@@ -384,8 +401,7 @@ def self_test():
                 and conns[1].get("pid") == 4243
                 and conns[2].get("pid") == 5599
                 and conns[2].get("peer") == "198.51.100.9:80",
-                f"pids={[c.get('pid') for c in conns]} "
-                f"locals={[c.get('local') for c in conns]}",
+                f"pids={[c.get('pid') for c in conns]} locals={[c.get('local') for c in conns]}",
             )
         )
         mine = [c for c in conns if c.get("pid") == 4243]
@@ -630,6 +646,57 @@ def self_test():
         os.waitpid(wpid, 0)
         lst2.close()
 
+    # The ladder walk (night-spark-3): the fallback contract the live
+    # lane rides, pinned OFFLINE with a simulated runner — a dead
+    # first rung must name the next mirror and land the lane on it,
+    # an all-dead ladder must walk every rung in order and come back
+    # failed, and the range-cap flag must track the template shape
+    # (static rungs cap, the {bytes} rung sizes itself). The note
+    # lines print exactly as the live lane prints them.
+    _dead = (28, 0.0, 0, [], (1, 0, 0, None))
+    _live = (0, float(RATE_BPS), DEFAULT_BYTES, [], (1, 0, 0, None))
+    first, second = DL_CANDIDATES[0][0], DL_CANDIDATES[1][0]
+
+    def dead_first_leg(name, url, cap, rcap):
+        return _dead if name == first else _live
+
+    d_endpoint, d_rc, _d_speed, d_size, _d_s, _d_sw, d_trace = walk_ladder(
+        DEFAULT_BYTES, dead_first_leg
+    )
+    rows.append(
+        (
+            "ladder: a dead first rung falls through to the next mirror",
+            d_trace == [(first, 28, 0), (second, 0, DEFAULT_BYTES)]
+            and d_endpoint[0] == second
+            and d_rc == 0
+            and d_size == DEFAULT_BYTES,
+            f"simulated {first} rc 28 -> walked onto {d_endpoint[0]} "
+            f"(rc 0, {d_size:,} B); ladder order: " + " -> ".join(n for n, _ in DL_CANDIDATES),
+        )
+    )
+
+    caps_seen = []
+
+    def all_dead_leg(name, url, cap, rcap):
+        caps_seen.append((name, rcap))
+        return _dead
+
+    _a_endpoint, a_rc, _a_speed, _a_size, _a_s, _a_sw, a_trace = walk_ladder(
+        DEFAULT_BYTES, all_dead_leg
+    )
+    caps = dict(caps_seen)
+    want_caps = {n: "{bytes}" not in t for n, t in DL_CANDIDATES}
+    rows.append(
+        (
+            "ladder: an all-dead ladder walks every rung, caps track the template shape",
+            a_trace == [(n, 28, 0) for n, _ in DL_CANDIDATES] and a_rc != 0 and caps == want_caps,
+            f"walked {[n for n, _, _ in a_trace]} in order, final rc {a_rc}; "
+            f"range-cap flags {caps} (static rungs cap, the "
+            f"{', '.join(n for n, t in DL_CANDIDATES if not want_caps[n])} "
+            "rung sizes itself)",
+        )
+    )
+
     for name, verdict, detail in rows:
         # lib.record feeds lib.RESULTS so --json carries the instrument
         # rows exactly as it carries the live ones (the ect-probe shape).
@@ -657,7 +724,7 @@ def ensure_root():
     return True
 
 
-def curl_child(cgroup_procs, url, byte_cap, report_fd, max_time_s):
+def curl_child(cgroup_procs, url, byte_cap, report_fd, max_time_s, range_cap):
     """The moved child: join the cgroup, then EXEC curl on its own pid.
 
     Its OWN process group first (set on both sides of the fork,
@@ -680,9 +747,11 @@ def curl_child(cgroup_procs, url, byte_cap, report_fd, max_time_s):
         signal.signal(sig, signal.SIG_DFL)
     with open(cgroup_procs, "w") as f:
         f.write(str(os.getpid()))
-    # Range-cap the transfer when the endpoint honors ranges (tele2
-    # does; the cloudflare __down mirror sizes itself to the cap).
-    if byte_cap and url.endswith(".zip"):
+    # Range-cap the transfer when the rung is a static file (the
+    # Linode speedtest files honor ranges; the cloudflare __down
+    # mirror sizes itself to the cap — walk_ladder decides off the
+    # candidate template and passes the flag down).
+    if range_cap:
         curl_args = ["curl", "-fsSL", "-r", f"0-{byte_cap - 1}"]
     else:
         curl_args = ["curl", "-fsSL"]
@@ -741,15 +810,11 @@ def _ss_snapshot_curl(child_pid):
     except OSError as e:
         return [], 0, f"ss could not run: {e}"
     conns = parse_ss_tcp_info(text)
-    kept = [
-        c
-        for c in conns
-        if c.get("pid") == child_pid and c.get("rcv_space") is not None
-    ]
+    kept = [c for c in conns if c.get("pid") == child_pid and c.get("rcv_space") is not None]
     return kept, len(conns), None
 
 
-def _run_leg(name, url, byte_cap, cg_dir):
+def _run_leg(name, url, byte_cap, cg_dir, range_cap):
     """Drive one download leg: fork the child that execs curl, sample
     `ss -tip` beside the transfer for the WHOLE leg (scoped to the
     child's own pid — the instrument contract; the 21:53 run's 25 s
@@ -778,7 +843,9 @@ def _run_leg(name, url, byte_cap, cg_dir):
     rep_r, rep_w = os.pipe()
     pid = os.fork()
     if pid == 0:
-        curl_child(os.path.join(cg_dir, "cgroup.procs"), url, byte_cap, rep_w, max_time_s)
+        curl_child(
+            os.path.join(cg_dir, "cgroup.procs"), url, byte_cap, rep_w, max_time_s, range_cap
+        )
     os.close(rep_w)
     try:
         os.setpgid(pid, pid)
@@ -849,6 +916,38 @@ def _run_leg(name, url, byte_cap, cg_dir):
     return curl_rc, speed_bps, size_bytes, samples, sweep_stats
 
 
+def walk_ladder(byte_cap, run_leg, verbose=True):
+    """The ladder walk every download rides: DL_CANDIDATES in order,
+    a dead rung falls through to the next mirror, the winner's
+    numbers come back with the fall-through trace. run_leg(name, url,
+    byte_cap, range_cap) is the leg driver — the live lane binds
+    _run_leg to the cgroup dir, --ladder-check binds the rootless
+    curl probe, and the self-test binds a simulated runner so the CI
+    lane pins the fallback mechanism itself (night-spark-3: a dead
+    Singapore must name Jakarta on its way down, offline). The
+    range-cap flag decides off the TEMPLATE, not the rendered URL —
+    a static file rides the byte cap, a {bytes} rung sizes itself."""
+    trace = []
+    curl_rc, speed_bps, size_bytes = 1, 0.0, 0
+    samples, endpoint, sweep_stats = [], None, (0, 0, 0, None)
+    for idx, (name, template) in enumerate(DL_CANDIDATES):
+        endpoint = (name, template)
+        url = template.format(bytes=byte_cap)
+        range_cap = bool(byte_cap) and "{bytes}" not in template
+        curl_rc, speed_bps, size_bytes, samples, sweep_stats = run_leg(
+            name, url, byte_cap, range_cap
+        )
+        trace.append((name, curl_rc, size_bytes))
+        if curl_rc == 0 and size_bytes > 0:
+            break
+        if verbose and idx + 1 < len(DL_CANDIDATES):
+            lib.out(
+                f"  note: the {name} endpoint failed (curl rc {curl_rc}) — "
+                f"retrying the lane on the {DL_CANDIDATES[idx + 1][0]} mirror"
+            )
+    return endpoint, curl_rc, speed_bps, size_bytes, samples, sweep_stats, trace
+
+
 def live_run(byte_cap):
     if not ensure_root():
         return 1
@@ -900,26 +999,14 @@ def live_run(byte_cap):
             return 1
 
         # Rows 3-5 — the download under the policy, ss sampling beside.
-        # The endpoint ladder: the owner's own command first, the
-        # cloudflare __down mirror second — every leg self-bounded and
-        # heartbeaten, and a dead mirror retries the lane instead of
-        # failing it.
-        curl_rc, speed_bps, size_bytes = 1, 0.0, 0
-        samples, endpoint = [], None
-        sweep_stats = (0, 0, 0, None)
-        for idx, (name, template) in enumerate(DL_CANDIDATES):
-            endpoint = (name, template)
-            url = template.format(bytes=byte_cap)
-            curl_rc, speed_bps, size_bytes, samples, sweep_stats = _run_leg(
-                name, url, byte_cap, cg_dir
-            )
-            if curl_rc == 0 and size_bytes > 0:
-                break
-            if idx + 1 < len(DL_CANDIDATES):
-                lib.out(
-                    f"  note: the {name} endpoint failed (curl rc {curl_rc}) — "
-                    f"retrying the lane on the {DL_CANDIDATES[idx + 1][0]} mirror"
-                )
+        # The endpoint ladder: the Asia-Pacific mirrors first, the
+        # cloudflare __down mirror the global last resort — every leg
+        # self-bounded and heartbeaten, and a dead rung falls through
+        # to the next mirror instead of failing the lane.
+        endpoint, curl_rc, speed_bps, size_bytes, samples, sweep_stats, _trace = walk_ladder(
+            byte_cap,
+            lambda name, url, cap, rcap: _run_leg(name, url, cap, cg_dir, rcap),
+        )
 
         # The sweep's own ledger: a zero-sample leg explains itself
         # instead of hinting (the 21:53 run's empty sweeps read as a
@@ -1048,9 +1135,96 @@ def live_run(byte_cap):
     return 0 if ok else 1
 
 
+# The rootless ladder probe's own byte cap: 1 MiB is plenty to prove
+# reachability and read a speed number, and it keeps a full walk
+# (every rung dead at the connect timeout) inside a minute.
+LADDER_CHECK_BYTES = 1024 * 1024
+
+
+def _ladder_leg(name, url, byte_cap, range_cap):
+    """The rootless rung probe: the live lane's own curl contract
+    (connect-timeout, max-time, the range cap) with no cgroup and no
+    sweep — reachability only, so a bare box can watch a dead rung
+    name the next mirror without root."""
+    max_time_s = curl_max_time_s(byte_cap)
+    lib.out(
+        f"  driving the {name} lane: {byte_cap:,} B at {RATE_STR} "
+        f"(connect {CONNECT_TIMEOUT_S}s, max {max_time_s}s)"
+    )
+    curl_args = ["curl", "-fsSL"]
+    if range_cap:
+        curl_args += ["-r", f"0-{byte_cap - 1}"]
+    curl_args += [
+        "-o",
+        "/dev/null",
+        "-w",
+        "%{speed_download} %{size_download}\\n",
+        "--connect-timeout",
+        str(CONNECT_TIMEOUT_S),
+        "--max-time",
+        str(max_time_s),
+        url,
+    ]
+    started = time.monotonic()
+    rc, report = 127, []
+    try:
+        proc = subprocess.run(curl_args, capture_output=True, text=True)
+        rc, report = proc.returncode, proc.stdout.strip().split()
+    except OSError as e:
+        lib.out(f"  ... curl could not run: {e}")
+    try:
+        speed_bps = float(report[0]) if report else 0.0
+    except ValueError:
+        speed_bps = 0.0
+    try:
+        size_bytes = int(report[1]) if len(report) > 1 else 0
+    except (ValueError, IndexError):
+        size_bytes = 0
+    lib.out(
+        f"  ... {name} leg done in {time.monotonic() - started:.0f}s: "
+        f"curl rc {rc}, {size_bytes:,} B, {lib.fmt_bps(speed_bps)}"
+    )
+    return rc, speed_bps, size_bytes, [], (0, 0, 0, None)
+
+
+def ladder_check():
+    """The rootless reachability lane (night-spark-3): walk the mirror
+    ladder with the live lane's own curl bounds and show the
+    fall-through — no root, no cgroup, no policy, just the contract a
+    dead rung must ride on its way down the ladder. Rung liveness is
+    geography-dependent, so the verdict that matters prints from the
+    owner's own network, not from a CI cage."""
+    if shutil.which("curl") is None:
+        lib.out("FAIL: curl is not on PATH — the probe's own engine")
+        return 1
+    started = time.monotonic()
+    lib.out(f"  RECWN mirror ladder — rootless reachability walk, {LADDER_CHECK_BYTES:,} B a rung")
+    endpoint, curl_rc, _speed, size_bytes, _s, _sw, trace = walk_ladder(
+        LADDER_CHECK_BYTES, _ladder_leg
+    )
+    ok = curl_rc == 0 and size_bytes > 0
+    lib.out()
+    if ok:
+        lib.out(
+            f"  ladder walk — landed on {endpoint[0]} in "
+            f"{time.monotonic() - started:.0f}s ({len(trace)} rung(s) walked)"
+        )
+    else:
+        lib.out(
+            f"  ladder walk — EVERY rung failed ({len(trace)} walked) in "
+            f"{time.monotonic() - started:.0f}s — the lane has no live mirror"
+        )
+    return 0 if ok else 1
+
+
 def main():
     ap = argparse.ArgumentParser(description="zelynic RECWN live probe (the quota saver's Layer 1)")
     ap.add_argument("--self-test", action="store_true", help="instrument lane only, no root")
+    ap.add_argument(
+        "--ladder-check",
+        action="store_true",
+        help="rootless: walk the mirror ladder with bounded curl legs (reachability only)",
+    )
     ap.add_argument("--json", action="store_true", help="machine-readable output")
     ap.add_argument("--binary", default=None, help="zelynic binary to drive")
     ap.add_argument(
@@ -1062,6 +1236,8 @@ def main():
     args = ap.parse_args()
     if args.self_test:
         rc = self_test()
+    elif args.ladder_check:
+        rc = ladder_check()
     else:
         # Binary resolution, the shared engine's ladder (NIGHT-improve-11
         # / -16): repo-local builds outrank the system PATH and the pick

@@ -262,6 +262,38 @@ stand on — the hint maps already name QUIC connections, the debt
 word already charges per budget, the verdict path already runs on
 both directions.
 
+## The testing lane is pure eBPF (night-spark-3)
+
+The bench lane's shaping is 100% pure eBPF, end to end. Every probe
+here applies policy through the owner's own tool — `zelynic strict
+cg:<id> ...` — and the tool plants its limits with eBPF cgroup hooks
+alone: no `tc` qdisc is created, no `nft` or `iptables` rule is
+written, no qdisc of any kind is touched. The lane's traffic
+policing, its receive-window clamp, its verdicts — all of it rides
+the same eBPF programs the product ships.
+
+One distinction the grep-for-legacy pass must never blur: the `tc`
+and `nft` invocations inside `scripts/bench/proof-claims.py` are the
+AUDIT, not a dependency. Claim 2 ("pure eBPF") is verified by
+snapshotting `tc qdisc show` and `nft list ruleset` before and during
+a run and certifying both UNCHANGED — the harness watches the legacy
+shapers to prove the tool never uses them (and notes, when they are
+not even installed, that a missing tool cannot shape anything).
+Removing those snapshots would not remove a legacy dep; it would
+remove the evidence the purity claim stands on.
+
+The realnet lane itself moved to the owner's side of the planet the
+same night (night-spark-3): the retired tele2 rung sat an ocean away
+from the owner's lane and blackholed from Indonesia (the 2026-11-03
+run's rc 28), and the first replacement candidate — Clouvider's
+`sgp-sin` host — is NXDOMAIN on every naming variant, with the
+family's download path 404ing besides. The ladder now reads
+linode-singapore, linode-jakarta, linode-osaka, then the cloudflare
+__down mirror as the global anycast last resort; a dead rung falls
+through to the next one, and `recwn-probe.sh --ladder-check` walks
+the whole ladder rootless from any box, so rung liveness is verified
+on the owner's own network, not on an agent's.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

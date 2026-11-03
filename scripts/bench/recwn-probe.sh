@@ -23,6 +23,8 @@
 #                                                     #  ^C aborts cleanly: scoped
 #                                                     #  teardown, exit 130)
 #   ./scripts/bench/recwn-probe.sh --self-test         # instrument smoke, no root
+#   ./scripts/bench/recwn-probe.sh --ladder-check      # rootless walk of the mirror
+#                                                       #  ladder (reachability only)
 #   sudo ./scripts/bench/recwn-probe.sh --json         # machine-readable
 #
 # Full design notes live in the .py header.
