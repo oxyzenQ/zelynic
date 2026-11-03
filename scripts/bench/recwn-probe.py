@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: AGPL-3.0-only
+# LOC_EXEMPT: one self-contained verification harness by design — the
+# exec leg, the pid-scoped sweep, the verdicts and the rootless
+# instrument share one docstring contract, and the owner-run lessons
+# live in the header the .sh wrapper points at; splitting the probe
+# across modules would scatter the told-once recipe (the
+# proof-claims.py precedent).
 """zelynic RECWN live probe (night-spark-2 — Receive Window Control,
 the quota saver's Layer 1), measured on the running kernel with the
 owner's own verification recipe.
