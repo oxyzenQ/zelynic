@@ -29,12 +29,14 @@ cgroup, a real curl child, and the real internet:
     "rtt_estimate_us":50000} — the task brief's own numbers.
 
   row 3 — the advertised window is clamped to the RECWN scale
-    (live): a curl child moved INTO the policed cgroup (its sockets
-    created after the move — the attribution contract) downloading
-    through the real internet while the parent samples `ss -tip`
-    scoped to the curl child's own pid: rcv_space / rcv_ssthresh
-    bounded at the clamped buffer's own scale, decisively below the
-    ~128 KiB the unpoliced default auto-tunes to.
+    (live): a forked child joined the policed cgroup and then exec'd
+    curl (its sockets created after the move — the attribution
+    contract, and the exec makes the scoped pid the socket's own
+    owner) downloading through the real internet while the parent
+    samples `ss -tip` scoped to the curl child's own pid:
+    rcv_space / rcv_ssthresh bounded at the clamped buffer's own
+    scale, decisively below the ~128 KiB the unpoliced default
+    auto-tunes to.
 
   row 4 — the throughput rides the policy band (live): curl's own
     measured average download speed inside the realnet band around
@@ -82,6 +84,24 @@ lane's own retransmits (row 5, the -1/18 read). The sampler now
 carries the curl child's own pid, and every verdict rides the
 child's sockets alone.
 
+Attribution contract (the 2026-11-03 21:53 owner run's lesson: the
+child hosted curl under subprocess.run, so the pid-scoped sweep
+filtered on a python wrapper while the socket lived in curl's
+grandchild — 36 s of transfer holding the band at 86.8 KB/s with
+every sweep empty, and row 4's own -w numbers the only green): the
+forked child joins the cgroup and then EXECS curl on its own pid —
+fork-before-socket, cgroup-join-before-exec, and the scoped pid IS
+the socket owner. curl's -w measurement line rides the report pipe
+on its stdout (dup2 before exec), its exit code comes out of the
+parent's waitpid, its stderr reaches the terminal (a dead mirror
+names itself), and the parent owns the hard wall: max_time + 15 s
+into the leg the child's group is SIGKILLed (the wrapper's
+subprocess timeout used to hold this line). The sweep rides the
+whole leg — the old 25 s window predated the whole-life retrans
+verdict and would have cut the tail off a leg's cumulative
+counters — and it counts itself (runs, errors, connections
+parsed), so a zero-sample leg says why instead of hinting.
+
 Root required for the live run; --self-test is the CI lane.
 """
 
@@ -91,6 +111,7 @@ import os
 import re
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -492,6 +513,117 @@ def self_test():
         )
     )
 
+    # The attribution lesson (the 2026-11-03 21:53 owner run: the
+    # child hosted curl under subprocess.run, so the pid-scoped sweep
+    # filtered on a python wrapper while the socket lived in curl's
+    # grandchild — 36 s of transfer at 86.8 KB/s, every sweep empty).
+    # Two rootless pins: an exec'd twin's socket IS found under its
+    # own pid, and a wrapper's subprocess grandchild stays OUT of
+    # scope while the socket stands visible — the exact failure
+    # shape, kept as a regression row.
+    if shutil.which("ss") is None or shutil.which("sleep") is None:
+        rows.append(
+            (
+                "attribution: SKIP — ss or sleep is not on PATH here",
+                True,
+                "the exec/wrapper pins need `ss -tip` and a hold-still binary; "
+                "privdrop precedent — an absent instrument skips its row instead "
+                "of faking a verdict",
+            )
+        )
+    else:
+        lst = socket.socket()
+        lst.bind(("127.0.0.1", 0))
+        lst.listen(1)
+        port = lst.getsockname()[1]
+        tpid = os.fork()
+        if tpid == 0:
+            try:
+                c = socket.socket()
+                c.set_inheritable(True)
+                c.connect(("127.0.0.1", port))
+                os.execvp("sleep", ["sleep", "2"])
+            except BaseException:
+                os._exit(1)
+        twin_kept, twin_parsed, twin_err = [], 0, None
+        twin_deadline = time.monotonic() + 1.5
+        while time.monotonic() < twin_deadline:
+            twin_kept, twin_parsed, twin_err = _ss_snapshot_curl(tpid)
+            if twin_kept:
+                break
+            time.sleep(0.25)
+        rows.append(
+            (
+                "attribution: an exec'd twin's socket IS found under its pid",
+                bool(twin_kept),
+                f"pid {tpid} exec'd sleep holding a loopback connection — "
+                f"{len(twin_kept)} sample(s) under that exact pid "
+                f"({twin_parsed} connections parsed, err={twin_err})",
+            )
+        )
+        try:
+            os.kill(tpid, signal.SIGKILL)
+        except OSError:
+            pass
+        os.waitpid(tpid, 0)
+        lst.close()
+
+        lst2 = socket.socket()
+        lst2.bind(("127.0.0.1", 0))
+        lst2.listen(1)
+        port2 = lst2.getsockname()[1]
+        wpid = os.fork()
+        if wpid == 0:
+            try:
+                g = subprocess.Popen(
+                    [
+                        sys.executable,
+                        "-c",
+                        f"import socket,time;s=socket.socket();"
+                        f"s.connect(('127.0.0.1',{port2}));time.sleep(2)",
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                g.wait()
+            except BaseException:
+                pass
+            os._exit(0)
+        grand_pid = None
+        wrap_kept, wrap_parsed = [], 0
+        wrap_deadline = time.monotonic() + 1.5
+        while time.monotonic() < wrap_deadline:
+            wrap_kept, wrap_parsed, _ = _ss_snapshot_curl(wpid)
+            try:
+                text = subprocess.run(
+                    ["ss", "-tip"], capture_output=True, text=True, timeout=5
+                ).stdout
+            except (subprocess.TimeoutExpired, OSError):
+                text = ""
+            for c in parse_ss_tcp_info(text):
+                if c.get("peer") == f"127.0.0.1:{port2}" and c.get("pid") != wpid:
+                    grand_pid = c.get("pid")
+                    break
+            if grand_pid and not wrap_kept:
+                break
+            time.sleep(0.25)
+        rows.append(
+            (
+                "attribution: a wrapper's subprocess grandchild stays OUT of scope",
+                bool(grand_pid) and not wrap_kept,
+                f"the wrapper pid {wpid} hosted the connection under grandchild pid "
+                f"{grand_pid} — {len(wrap_kept)} sample(s) under the wrapper "
+                f"({wrap_parsed} connections parsed): the 21:53 failure shape as a "
+                "regression row",
+            )
+        )
+        try:
+            os.kill(wpid, signal.SIGKILL)
+        except OSError:
+            pass
+        os.waitpid(wpid, 0)
+        lst2.close()
+
     for name, verdict, detail in rows:
         # lib.record feeds lib.RESULTS so --json carries the instrument
         # rows exactly as it carries the live ones (the ect-probe shape).
@@ -520,17 +652,22 @@ def ensure_root():
 
 
 def curl_child(cgroup_procs, url, byte_cap, report_fd, max_time_s):
-    """The moved child: join the cgroup, then exec curl.
+    """The moved child: join the cgroup, then EXEC curl on its own pid.
 
     Its OWN process group first (set on both sides of the fork,
-    race-safe): the parent's abort kills this whole subtree with one
-    killpg without ever signaling itself, and the parent's terminal
-    signals stay the parent's alone — the parent owns this subtree's
-    fate, whatever the sudo/tty relay does with ^C. The policy stood
-    before the fork (row 2), so the sockets curl creates are born
-    inside the policed cgroup (the attribution contract). Writes
-    curl's own measurement line (speed_download size_download) to
-    report_fd.
+    race-safe): the parent's abort and the hard wall kill this whole
+    subtree with one killpg without ever signaling itself, and the
+    parent's terminal signals stay the parent's alone — the parent
+    owns this subtree's fate, whatever the sudo/tty relay does with
+    ^C. The policy stood before the fork (row 2), so the sockets curl
+    creates are born inside the policed cgroup (the attribution
+    contract) — and the 21:53 owner run's lesson: this child then
+    EXECS curl instead of hosting it under subprocess, because the
+    sweep scopes on THIS pid and a wrapper pid owns no socket. curl's
+    own -w measurement line (speed_download size_download) rides the
+    report pipe on stdout (dup2 before exec — the line IS the
+    report), its stderr stays the probe's stderr (a dead mirror names
+    itself), and its exit code comes out of the parent's waitpid.
     """
     os.setpgid(0, 0)
     for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
@@ -554,49 +691,80 @@ def curl_child(cgroup_procs, url, byte_cap, report_fd, max_time_s):
         str(max_time_s),
         url,
     ]
-    out = subprocess.run(curl_args, capture_output=True, text=True, timeout=max_time_s + 15)
-    with os.fdopen(report_fd, "w") as f:
-        f.write(f"{out.returncode} {out.stdout.strip()}\n")
-    os._exit(0)
+    # The report pipe becomes curl's own stdout; every other fd this
+    # fork carried (including both pipe ends) is non-inheritable and
+    # dies at the exec — only fd 1 crosses, holding the pipe's write
+    # end. The parent reads the -w line to EOF and takes the exit
+    # code from waitpid.
+    os.dup2(report_fd, 1)
+    os.close(report_fd)
+    try:
+        os.execvp("curl", curl_args)
+    except OSError:
+        os._exit(127)  # exec failed — the parent's waitpid answers 127
 
 
 def _ss_snapshot_curl(child_pid):
-    """One `ss -tip` sweep, keeping ONLY the curl child's own sockets.
+    """One `ss -tip` sweep, keeping ONLY the curl child's own sockets
+    and counting itself: returns (kept, parsed, error).
 
-    The 18:23 owner run's lesson: this sweep used to keep EVERY
-    connection on the box that carried a tcp_info line — on the
-    owner's daily-driver desktop that was ~175 sockets a snapshot,
-    so a bystander's auto-tuned 131072-byte rcv_space answered for
-    the lane's advertised window (row 3 FAIL) and the last
-    bystander's retrans-less 18-segment history answered for the
+    kept — the pid-scoped samples (the evidence); parsed — every
+    connection whose tcp_info line the sweep read (the scope's
+    denominator); error — the sweep's own failure, verbatim, or None.
+    A zero-sample leg can now say WHY: zero sweeps (the leg never
+    ran), sweep errors (the instrument), or N connections parsed with
+    none owned by the scoped pid (an attribution break).
+
+    Two lessons pinned here. The 18:23 owner run's: this sweep used
+    to keep EVERY connection on the box that carried a tcp_info line
+    — on the owner's daily-driver desktop that was ~175 sockets a
+    snapshot, so a bystander's auto-tuned 131072-byte rcv_space
+    answered for the lane's advertised window (row 3 FAIL) and the
+    last bystander's retrans-less 18-segment history answered for the
     lane's own retransmits (row 5 FAIL) while the lane itself held
-    the band at 98.7 KB/s. The scope is the child's own pid — not a
-    name match, so another curl on the box can never ride the
-    evidence.
+    the band at 98.7 KB/s. The 21:53 owner run's: the scope is the
+    child's own pid and the child EXECS curl — the wrapper design
+    scoped the sweep to a python pid that owned no socket, so 36 s of
+    transfer at 86.8 KB/s produced empty sweeps. Not a name match:
+    another curl on the box can never ride the evidence.
     """
     try:
         text = subprocess.run(["ss", "-tip"], capture_output=True, text=True, timeout=5).stdout
-    except (subprocess.TimeoutExpired, OSError):
-        return []
-    return [
+    except subprocess.TimeoutExpired:
+        return [], 0, "ss timed out after 5s"
+    except OSError as e:
+        return [], 0, f"ss could not run: {e}"
+    conns = parse_ss_tcp_info(text)
+    kept = [
         c
-        for c in parse_ss_tcp_info(text)
+        for c in conns
         if c.get("pid") == child_pid and c.get("rcv_space") is not None
     ]
+    return kept, len(conns), None
 
 
-def _run_leg(name, url, byte_cap, cg_dir, sample_s):
-    """Drive one download leg: fork the moved child, sample `ss -tip`
-    beside the transfer (scoped to the child's own pid — the
-    instrument contract), heartbeat while it runs, collect its report.
+def _run_leg(name, url, byte_cap, cg_dir):
+    """Drive one download leg: fork the child that execs curl, sample
+    `ss -tip` beside the transfer for the WHOLE leg (scoped to the
+    child's own pid — the instrument contract; the 21:53 run's 25 s
+    window predated the whole-life retrans verdict and would have cut
+    the tail off a leg's cumulative counters), heartbeat every 15 s,
+    enforce the hard wall, collect the report.
 
     The wait is a WNOHANG poll, not a blocking waitpid: the leg stays
     readable for its whole life (a heartbeat every 15 s — the owner's
     2026-11-03 run sat silent through a dead mirror and read as a
     hang), and the abort handler's KeyboardInterrupt lands inside the
-    poll loop instead of parking inside the kernel.
+    poll loop instead of parking inside the kernel. The sweep counts
+    itself (runs, errors, connections parsed) so a zero-sample leg
+    says why instead of hinting. The hard wall is the parent's own:
+    curl carries --max-time, and max_time_s + 15 s into the leg the
+    child's group is SIGKILLed — the wrapper's subprocess timeout
+    used to hold this line, and the exec'd child has no babysitter
+    left to do it.
     """
     max_time_s = curl_max_time_s(byte_cap)
+    hard_wall_s = max_time_s + 15
     lib.out(
         f"  driving the {name} lane: {byte_cap:,} B at {RATE_STR} "
         f"(connect {CONNECT_TIMEOUT_S}s, max {max_time_s}s)"
@@ -613,35 +781,66 @@ def _run_leg(name, url, byte_cap, cg_dir, sample_s):
     _CHILD_PG[0] = pid
 
     samples = []
+    sweep_runs = sweep_errors = sweep_parsed = 0
+    last_error = None
     leg_start = time.monotonic()
-    sample_deadline = leg_start + sample_s
+    wall = leg_start + hard_wall_s
     last_beat = leg_start
+    status = None
     while True:
         try:
-            wpid, _ = os.waitpid(pid, os.WNOHANG)
+            wpid, status = os.waitpid(pid, os.WNOHANG)
         except ChildProcessError:
-            wpid = pid
+            wpid = pid  # reaped elsewhere — the report still answers
         if wpid == pid:
             break
         now = time.monotonic()
-        if now < sample_deadline:
-            samples.extend(_ss_snapshot_curl(pid))
+        kept, parsed, error = _ss_snapshot_curl(pid)
+        sweep_runs += 1
+        sweep_parsed += parsed
+        if error:
+            sweep_errors += 1
+            last_error = error
+        samples.extend(kept)
+        if now >= wall:
+            lib.out(f"  ... {name} leg hit the {hard_wall_s}s hard wall — SIGKILL on the group")
+            try:
+                os.killpg(pid, signal.SIGKILL)
+            except OSError:
+                pass
+        if now >= wall + 5:
+            status = None  # an unkillable D-state child — the leg answers failed
+            break
         if now - last_beat >= 15:
-            lib.out(f"  ... {name} leg {now - leg_start:.0f}s in, {len(samples)} curl-socket samples")
+            beat = f"  ... {name} leg {now - leg_start:.0f}s in, {len(samples)} curl-socket samples"
+            if sweep_errors:
+                beat += f" ({sweep_errors}/{sweep_runs} sweeps errored)"
+            lib.out(beat)
             last_beat = now
         time.sleep(0.5)
     _CHILD_PG[0] = 0
 
-    # The child's own measurement. A report that never arrived (the
-    # child died before its write) reads as a failed leg, not an
-    # unhandled IndexError.
+    # The child's own measurement: the exit code rides waitpid (the
+    # exec'd curl IS the child), the -w line rides the report pipe. A
+    # report that never arrived (a killed or exec-failed child) reads
+    # as a failed leg, not an unhandled IndexError.
     with os.fdopen(rep_r) as f:
-        report = f.read().strip().split(" ", 1)
-    curl_rc = int(report[0]) if report and report[0].isdigit() else 1
-    speed_bps = float(report[1].split()[0]) if len(report) > 1 and report[1] else 0.0
-    size_bytes = int(report[1].split()[1]) if len(report) > 1 and len(report[1].split()) > 1 else 0
+        report = f.read().strip().split()
+    try:
+        curl_rc = os.waitstatus_to_exitcode(status) if status is not None else 1
+    except ValueError:
+        curl_rc = 1
+    try:
+        speed_bps = float(report[0]) if report else 0.0
+    except ValueError:
+        speed_bps = 0.0
+    try:
+        size_bytes = int(report[1]) if len(report) > 1 else 0
+    except (ValueError, IndexError):
+        size_bytes = 0
     lib.out(f"  ... {name} leg done: curl rc {curl_rc}, {size_bytes:,} B, {lib.fmt_bps(speed_bps)}")
-    return curl_rc, speed_bps, size_bytes, samples
+    sweep_stats = (sweep_runs, sweep_errors, sweep_parsed, last_error)
+    return curl_rc, speed_bps, size_bytes, samples, sweep_stats
 
 
 def live_run(byte_cap):
@@ -699,12 +898,14 @@ def live_run(byte_cap):
         # cloudflare __down mirror second — every leg self-bounded and
         # heartbeaten, and a dead mirror retries the lane instead of
         # failing it.
-        curl_rc, speed_bps, size_bytes, samples, endpoint = 1, 0.0, 0, [], None
+        curl_rc, speed_bps, size_bytes = 1, 0.0, 0
+        samples, endpoint = [], None
+        sweep_stats = (0, 0, 0, None)
         for idx, (name, template) in enumerate(DL_CANDIDATES):
             endpoint = (name, template)
             url = template.format(bytes=byte_cap)
-            curl_rc, speed_bps, size_bytes, samples = _run_leg(
-                name, url, byte_cap, cg_dir, 25 if byte_cap == DEFAULT_BYTES else 90
+            curl_rc, speed_bps, size_bytes, samples, sweep_stats = _run_leg(
+                name, url, byte_cap, cg_dir
             )
             if curl_rc == 0 and size_bytes > 0:
                 break
@@ -713,6 +914,17 @@ def live_run(byte_cap):
                     f"  note: the {name} endpoint failed (curl rc {curl_rc}) — "
                     f"retrying the lane on the {DL_CANDIDATES[idx + 1][0]} mirror"
                 )
+
+        # The sweep's own ledger: a zero-sample leg explains itself
+        # instead of hinting (the 21:53 run's empty sweeps read as a
+        # mystery — the counter trio makes the cause name itself).
+        sweep_runs, sweep_errors, sweep_parsed, last_error = sweep_stats
+        sweep_why = None
+        if not samples:
+            sweep_why = f"{sweep_runs} sweeps, {sweep_errors} errors"
+            if last_error:
+                sweep_why += f" (last: {last_error})"
+            sweep_why += f", {sweep_parsed} connections parsed"
 
         # Row 3 — the clamp evidence: every curl-owned sample's
         # rcv_space / rcv_ssthresh at the clamped scale. The sampler
@@ -732,8 +944,8 @@ def live_run(byte_cap):
         seen_space = [s.get("rcv_space") for s in samples[:4]]
         if not samples:
             clamp_detail = (
-                "no curl-owned ss samples — the sampler never saw the child's socket "
-                "(another probe run mid-flight?)"
+                "no curl-owned ss samples — the child execs curl so the scoped pid IS "
+                f"the socket owner; the sweep counted itself: {sweep_why}"
             )
         else:
             clamp_detail = (
@@ -773,12 +985,17 @@ def live_run(byte_cap):
         retrans, segs = retrans_wholelife(samples)
         sockets = len({(s.get("local", ""), s.get("peer", "")) for s in samples})
         retrans_ok = bool(samples) and retrans <= RETRANS_FRACTION_MAX * max(segs, 1)
+        retrans_detail = (
+            f"retrans {retrans}/{segs} segments ({retrans / max(segs, 1) * 100:.2f}% — bound "
+            f"{RETRANS_FRACTION_MAX * 100:.0f}%) on the connection's own whole-life counters "
+            f"({sockets} socket{'s' if sockets != 1 else ''}, last sample each)"
+        )
+        if sweep_why:
+            retrans_detail += f" — no samples: the sweep counted itself: {sweep_why}"
         lib.record(
             "recwn: retransmits are near zero",
             "PASS" if retrans_ok else "FAIL",
-            f"retrans {retrans}/{segs} segments ({retrans / max(segs, 1) * 100:.2f}% — bound "
-            f"{RETRANS_FRACTION_MAX * 100:.0f}%) on the connection's own whole-life counters "
-            f"({sockets} socket{'s' if sockets != 1 else ''}, last sample each)",
+            retrans_detail,
         )
         ok = schema_ok and clamp_ok and band_ok and retrans_ok
     finally:
