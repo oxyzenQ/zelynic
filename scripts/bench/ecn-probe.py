@@ -64,7 +64,13 @@ now names) and the QUIC/UDP story the Layer 2 scale exists for:
     restored), a curl child INSIDE the cgroup (children of a cgroup
     member are born policed — no exec dance needed here, the
     attribution is the cgroup, not a pid) drives the asia ladder
-    under the 100kb download policy; the ledger's CE columns move.
+    under the standing policies. The verdict is three-way: the
+    ladder answering and the ledger's CE columns moved is the full
+    PASS; a clean transfer over a silent ledger is the honest SKIP
+    — CE marks exist only where an AQM under load (or the policed
+    lane itself) puts them, so an uncongested path books nothing
+    and a healthy host never reads red (night-spark-4 hot-fix 4);
+    a failed transfer is the leg's own FAIL.
 
   row 7 — the QUIC leg: `curl --http3-only https://cloudflare-quic.com/`
     — QUIC endpoints send ECT(0) by default (RFC 9000), so the
@@ -109,7 +115,12 @@ itself (night-spark-4 hot-fix 3); the worker flushes ONE REPORT PER
 PHASE and the parent's every wait on it is deadline-bounded — the
 pair can never park face-to-face on each other's pipes, and a lost
 worker is an honest FAIL row plus the teardown's SIGKILL
-(night-spark-4 hot-fix 3 follow-up).
+(night-spark-4 hot-fix 3 follow-up); the internet TCP row's verdict
+is three-way — FAIL only when the transfer itself fails, PASS when
+the ledger books the marks, SKIP when a clean transfer books nothing
+(an uncongested path is the path's verdict, not the policer's — the
+row's own detail always said so; the verdict now agrees)
+(night-spark-4 hot-fix 4).
 
 Root required for the live run; --self-test is the CI lane.
 """
@@ -236,6 +247,22 @@ def schema_check(doc):
     return "present", marked_p, marked_b
 
 
+def internet_tcp_verdict(size_b, delta_p):
+    """The internet TCP row's three-way verdict (night-spark-4 hot-fix
+    4): a transfer that failed is the leg's own FAIL; marks booked on
+    the ledger is the full PASS; a clean transfer over a silent ledger
+    is the honest SKIP — CE marks exist only where an AQM under load
+    (or the policed lane itself) puts them, so a healthy host on an
+    uncongested path has nothing to book and must not read red. The
+    same witness shape the tcpdump row already rides: the skip names
+    the reason, never a silent pass."""
+    if size_b <= 0:
+        return "FAIL"
+    if delta_p > 0:
+        return "PASS"
+    return "SKIP"
+
+
 def self_test():
     """The rootless instrument lane: the law, the decoder, the filter,
     the JSON contract."""
@@ -317,6 +344,26 @@ def self_test():
             "a panic, never a pre-v26 verdict); a row with the columns "
             "gone -> 'stale'; the columns present -> 'present' "
             "(15 pkts / 21032 B)",
+        )
+    )
+
+    # The internet TCP row's three-way verdict: the verdict the live
+    # row rides, pinned before the path can argue. A transfer that
+    # fails is the leg's FAIL; marks booked is the full PASS; a clean
+    # transfer over a silent ledger is the SKIP (the uncongested-path
+    # shape the first full nightpc run rode — hot-fix 4).
+    rows.append(
+        (
+            "instrument: the internet TCP witness verdict",
+            internet_tcp_verdict(0, 0) == "FAIL"
+            and internet_tcp_verdict(-1, 5) == "FAIL"
+            and internet_tcp_verdict(INTERNET_BYTES, 5) == "PASS"
+            and internet_tcp_verdict(INTERNET_BYTES, 0) == "SKIP",
+            "no bytes -> FAIL (the leg broke, no rung answered); bytes "
+            "with marks booked -> PASS (the policed lane's own columns "
+            "moved); bytes with a silent ledger -> SKIP (an uncongested "
+            "path books nothing — the reason is the path, never a "
+            "false FAIL on a healthy host)",
         )
     )
 
@@ -843,15 +890,32 @@ def live_run():
         doc = lib.status_json()
         _, post_p, post_b = parse_ce_ledger(doc)
         delta_p, delta_b = post_p - pre_led_p, post_b - pre_led_b
-        lib.record(
-            "ecn: the internet TCP leg books CE marks",
-            "PASS" if tcp_leg.get("size", 0) > 0 and delta_p > 0 else "FAIL",
-            f"curl {tcp_leg.get('endpoint') or 'no ladder rung answered'}: "
-            f"{tcp_leg.get('size', 0)} B at {tcp_leg.get('speed', 0.0):.0f} B/s; the "
-            f"ledger moved {delta_p} pkts / {delta_b} B during the internet legs "
-            "(tcp_ecn=1 requested the negotiation; a server that refuses ECN "
-            "would read FAIL here — the reason is the path, not the policer)",
-        )
+        tcp_verdict = internet_tcp_verdict(tcp_leg.get("size", 0), delta_p)
+        if tcp_verdict == "FAIL":
+            tcp_detail = (
+                f"curl {tcp_leg.get('endpoint') or 'no ladder rung answered'} "
+                f"(rc {tcp_leg.get('rc', -1)}): {tcp_leg.get('size', 0)} B — "
+                f"{(tcp_leg.get('err') or 'no rung delivered bytes')[:140]}; "
+                "the internet TCP leg itself failed"
+            )
+        elif tcp_verdict == "SKIP":
+            tcp_detail = (
+                f"curl {tcp_leg.get('endpoint')}: {tcp_leg.get('size', 0)} B at "
+                f"{tcp_leg.get('speed', 0.0):.0f} B/s; the ledger moved {delta_p} pkts / "
+                f"{delta_b} B during the internet legs — nothing to book: CE "
+                "marks exist only where an AQM under load (or the policed "
+                "lane itself) puts them, so an uncongested path or a non-ECN "
+                "hop books zero; the reason is the path, not the policer, "
+                "and the cgroup rows above already prove the marking live"
+            )
+        else:
+            tcp_detail = (
+                f"curl {tcp_leg.get('endpoint')}: {tcp_leg.get('size', 0)} B at "
+                f"{tcp_leg.get('speed', 0.0):.0f} B/s; the ledger moved {delta_p} pkts / "
+                f"{delta_b} B during the internet legs — the policed lane's own "
+                "marks, the schema-v26 columns on live internet TCP"
+            )
+        lib.record("ecn: the internet TCP leg books CE marks", tcp_verdict, tcp_detail)
         if not quic_leg.get("supported", False):
             lib.record(
                 "ecn: the QUIC leg (http3) rides the marking lane",
