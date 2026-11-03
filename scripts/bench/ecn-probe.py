@@ -52,10 +52,16 @@ now names) and the QUIC/UDP story the Layer 2 scale exists for:
     window measured drain-until-quiet, not a guess.
 
   row 5 — the tcpdump witness: the task's own recipe, run where the
-    kernel serves it. An UPLOAD policy joins for a short ECT re-blast
-    and tcpdump counts `ip[1] & 0x3 == 0x3` packets on loopback —
-    the egress hook marks BEFORE the dev-layer tap (verified against
-    v5.15 source: net/ipv4/ip_output.c:306,325), so the witness is
+    kernel serves it. The witness window RE-PLANTS the download
+    policy BESIDE the upload one — one invocation carrying BOTH legs
+    (the CLI's unset-leg law removes a direction the apply spec
+    leaves unset, so a `-u`-alone plant strips the standing download
+    row and the internet legs ride an unpoliced lane — the nightpc
+    live find: 793 kB/s past the 100kb lane with a silent ledger,
+    the row blaming a join that was never broken) — and tcpdump
+    counts `ip[1] & 0x3 == 0x3` packets on loopback — the egress
+    hook marks BEFORE the dev-layer tap (verified against v5.15
+    source: net/ipv4/ip_output.c:306,325), so the witness is
     tap-visible on every kernel this floor supports. The INGRESS
     marks of rows 2-4 are a different story and the header below
     owns it.
@@ -106,8 +112,15 @@ which the parent writes AFTER the policy stands (the blast never
 races the attach); the ingress phase plants the DOWNLOAD policy
 ALONE, so a CE at the receiver can only come from the ingress hook
 (an upload policy standing would let the egress hook mark first and
-the cmsg witness would not attribute); the tcpdump phase adds the
-upload policy AFTER the ingress rows are banked; the sysctl flip is
+the cmsg witness would not attribute); the tcpdump phase RE-PLANTS
+the download policy beside the upload one in ONE invocation — the
+CLI's unset-leg law (a direction the spec leaves unset is REMOVED,
+not left stale) makes a single-direction plant strip the other leg,
+so the both-legs spelling is the only shape that keeps the internet
+legs policed (night-spark-5's live find on nightpc); the internet
+boundary reads the download leg back off the status document and a
+bypass FAIL with the policy gone names the POLICY as the bypass,
+never the join; the sysctl flip is
 saved-and-restored around its leg only; teardown is best-effort and
 never fails a verdict; a pre-v26 binary (no CE columns on a limit
 row that IS active) fails the schema row with the reason spelled out
@@ -244,6 +257,18 @@ def parse_ce_ledger(doc):
             marked_p += row["ce_marked_packets"]
             marked_b += row["ce_marked_bytes"]
     return present, marked_p, marked_b
+
+
+def download_leg_standing(doc, cg_id, rate_bps):
+    """True when the status document's limits[] carries THIS cgroup's
+    download leg at the policy rate — the internet boundary's own
+    witness, so a bypass FAIL never blames the join while the POLICY
+    is the missing leg. A None document (status unreachable) reads
+    not-standing, the safe direction for a detail string."""
+    for row in (doc or {}).get("limits") or []:
+        if row.get("cgroup_id") == cg_id:
+            return row.get("download_bytes_per_sec") == rate_bps
+    return False
 
 
 def schema_check(doc):
@@ -390,6 +415,50 @@ def self_test():
             "SKIP (a non-ECN hop rode the drop lane); bytes far past "
             "the lane's rate with a silent ledger -> FAIL (the lane "
             "never engaged — the bypass the in-cgroup join kills)",
+        )
+    )
+
+    # The plant's one-invocation both-legs form: the CLI's unset-leg
+    # removal law makes a single-direction re-plant strip the other
+    # leg — the exact shape that sent the nightpc internet legs past
+    # an unpoliced lane (793 kB/s, silent ledger). The witness plant
+    # carries BOTH legs in ONE invocation; the single-leg form stays
+    # the phase-1 attribution shape.
+    rows.append(
+        (
+            "instrument: the plant's one-invocation both-legs form",
+            _plant_args(7, "d") == ["strict", "cg:7", "-d", "100kb", "--no-test"]
+            and _plant_args(7, "du")
+            == ["strict", "cg:7", "-d", "100kb", "-u", "100kb", "--no-test"],
+            "the witness phase re-plants -d BESIDE -u in one strict "
+            "invocation — both legs are SET, so the unset-leg removal "
+            "law has nothing to remove; the download-alone form stays "
+            "the phase-1 attribution shape",
+        )
+    )
+
+    # The download-leg standing witness: the internet boundary reads
+    # the download leg back off the status document, so a bypass FAIL
+    # names a vanished policy as the policy's bypass (a concurrent
+    # unstrict, a failed plant) and never blames the join while the
+    # POLICY is the missing leg.
+    standing = {"limits": [{"cgroup_id": 7, "download_bytes_per_sec": RATE_BPS}]}
+    rows.append(
+        (
+            "instrument: the download-leg standing witness",
+            download_leg_standing(standing, 7, RATE_BPS)
+            and not download_leg_standing(
+                {"limits": [{"cgroup_id": 7, "download_bytes_per_sec": 200_000}]},
+                7,
+                RATE_BPS,
+            )
+            and not download_leg_standing({"limits": [{"cgroup_id": 9}]}, 7, RATE_BPS)
+            and not download_leg_standing({"limits": []}, 7, RATE_BPS)
+            and not download_leg_standing(None, 7, RATE_BPS),
+            "the probe cgroup's row at the policy rate reads standing; a "
+            "different rate, a foreign row, an empty limits[], and a None "
+            "document all read not-standing (the safe direction for a "
+            "detail string)",
         )
     )
 
@@ -672,8 +741,27 @@ def worker_main(go_r, report_w):
 # ── the live lane ─────────────────────────────────────────────────────
 
 
-def _plant(direction, cg_id):
-    return lib.run_zel(["strict", f"cg:{cg_id}", f"-{direction}", RATE_STR, "--no-test"])
+def _plant_args(cg_id, *directions):
+    """One strict invocation carrying EVERY standing direction. The
+    CLI's unset-leg law (a direction the apply spec leaves unset is
+    REMOVED, not left stale — policy_write.rs's improve-29) makes a
+    single-direction re-plant strip the other leg: `-u 100kb` alone
+    DELETES the standing download row, and the internet legs would
+    ride an unpoliced lane (the nightpc live find: 793 kB/s past the
+    100kb lane with a silent ledger, the row blaming a join that was
+    never broken). Both legs in ONE invocation are both SET — the
+    law has nothing to remove."""
+    args = ["strict", f"cg:{cg_id}"]
+    # The spelling expands per character ("du" -> -d AND -u): the
+    # tuple carries the WHOLE word, and a word is not a flag.
+    for d in "".join(directions):
+        args += [f"-{d}", RATE_STR]
+    args.append("--no-test")
+    return args
+
+
+def _plant(directions, cg_id):
+    return lib.run_zel(_plant_args(cg_id, *directions))
 
 
 def _send_phase(fd, phase):
@@ -901,7 +989,14 @@ def live_run():
         # the pipe at best, a spurious lost-worker verdict at worst.
         phase2_sent = False
         if tcpdump is not None:
-            rc, out, err = _plant("u", cg_id)
+            # The witness window RE-PLANTS the download policy beside
+            # the upload one, ONE invocation (the _plant_args law): a
+            # `-u`-alone plant trips the unset-leg removal and strips
+            # the standing download row — the exact shape that sent
+            # the nightpc internet legs past an unpoliced lane. If
+            # this plant fails, the phase-1 download policy still
+            # stands and the internet legs stay policed either way.
+            rc, out, err = _plant("du", cg_id)
             if rc == 0:
                 if not _send_phase(go_w, b"2"):
                     lib.record(
@@ -926,7 +1021,9 @@ def live_run():
                 # upload-policed traffic only).
             else:
                 lib.out(
-                    f"  note: the upload policy failed ({(err or out)[:120]}) — the witness row SKIPs"
+                    f"  note: the both-legs plant failed ({(err or out)[:120]}) — the "
+                    "witness row SKIPs; the standing download policy still polices "
+                    "the internet legs"
                 )
                 tcpdump_run = None
         else:
@@ -982,6 +1079,7 @@ def live_run():
         doc = lib.status_json()
         _, post_p, post_b = parse_ce_ledger(doc)
         delta_p, delta_b = post_p - pre_led_p, post_b - pre_led_b
+        dl_standing = download_leg_standing(doc, cg_id, RATE_BPS)
         tcp_verdict = internet_tcp_verdict(
             tcp_leg.get("size", 0), delta_p, tcp_leg.get("speed", 0.0)
         )
@@ -992,6 +1090,15 @@ def live_run():
                     f"(rc {tcp_leg.get('rc', -1)}): {tcp_leg.get('size', 0)} B — "
                     f"{(tcp_leg.get('err') or 'no rung delivered bytes')[:140]}; "
                     "the internet TCP leg itself failed"
+                )
+            elif not dl_standing:
+                tcp_detail = (
+                    f"curl {tcp_leg.get('endpoint')}: {tcp_leg.get('size', 0)} B at "
+                    f"{tcp_leg.get('speed', 0.0):.0f} B/s with the ledger silent — "
+                    f"the {RATE_STR} download policy is GONE from cg:{cg_id} at the "
+                    "internet boundary (status limits[] reads no download leg): the "
+                    "lane had nothing to enforce, the bypass is the policy's, not "
+                    "the join's — a concurrent unstrict or a failed plant lands here"
                 )
             else:
                 tcp_detail = (
