@@ -33,6 +33,8 @@ pub(crate) fn get_stats_ptr(cgroup_id: &u32) -> Option<*mut LimiterStats> {
                 packets_dropped: 0,
                 bytes_allowed: 0,
                 bytes_dropped: 0,
+                ce_marked_packets: 0,
+                ce_marked_bytes: 0,
             };
             let _ = cgroup_limiter_stats.insert(cgroup_id, init, BPF_NOEXIST);
             cgroup_limiter_stats.get_ptr_mut(cgroup_id)

@@ -440,8 +440,29 @@
 ///     forces pinned v24 programs to reload into the RECWN object —
 ///     active limits are dropped once, re-apply after upgrade, the
 ///     same one-time contract as every bump before it.
+/// v26 (night-spark-4, the CE ledger): the ECN-first lane's own
+///     truth gets its own columns. LimiterStats grows
+///     ce_marked_packets and ce_marked_bytes (32 -> 48 bytes): the
+///     rescue correction (math_atomics.rs book_rescue — the single
+///     choke point every mark delivery returns through, the group
+///     and DRR lanes' ecn_rescue and the per-socket lane's own mark
+///     tail alike) now books the delivered CE-marked packet into the
+///     allowed column (the v19 move, unchanged) AND into the two new
+///     words, so the quota saver's Layer 2 is READABLE, not just
+///     load-bearing: `status --print-json` names limits[]
+///     .ce_marked_packets / .ce_marked_bytes, the human table grows
+///     the subordinate CE Marked line, and the depth view's
+///     enforcement object carries the same pair. A mark refused
+///     (non-ECT) or a debt at its cap never reaches the correction —
+///     the words count exactly the delivered CE-marked volume, never
+///     a refused intent. Verdicts, budget law, debt arithmetic:
+///     untouched. Map-value layout change (cgroup_limiter_stats);
+///     the bump forces pinned v25 programs to reload into the
+///     CE-ledger object — active limits are dropped once, re-apply
+///     after upgrade, the same one-time contract as every bump
+///     before it.
 #[allow(dead_code)]
-pub(crate) const SCHEMA_VERSION: u32 = 25;
+pub(crate) const SCHEMA_VERSION: u32 = 26;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs

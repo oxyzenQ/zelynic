@@ -214,6 +214,11 @@ impl EnforcementStatsJson {
         write_number(out, self.bytes_allowed);
         out.push_str(",\"bytes_dropped\":");
         write_number(out, self.bytes_dropped);
+        // night-spark-4 (schema v26): the CE ledger, always present.
+        out.push_str(",\"ce_marked_packets\":");
+        write_number(out, self.ce_marked_packets);
+        out.push_str(",\"ce_marked_bytes\":");
+        write_number(out, self.ce_marked_bytes);
         out.push('}');
     }
 }

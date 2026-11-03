@@ -94,6 +94,22 @@ pub(crate) fn status_header_line(col_widths: &[usize; 5]) -> String {
     ))
 }
 
+/// The v26 CE ledger's subordinate line (night-spark-4, schema
+/// v26): the ECN-first lane's own truth under the row that carries
+/// it — "CE Marked: N packets (M bytes)", the volume book_rescue's
+/// correction delivered CE-marked. Rendered ONLY when the row has
+/// actually marked something (the dormant-watchdog precedent: zeros
+/// are noise pretending to be information), the window family's
+/// grey indent.
+pub(crate) fn ce_marked_line(d: &DisplayData) -> Option<String> {
+    (d.ce_marked_packets > 0).then(|| {
+        grey(&format!(
+            "    CE Marked: {} packets ({} bytes)",
+            d.ce_marked_packets, d.ce_marked_bytes
+        ))
+    })
+}
+
 /// One status data row (pure, NIGHT-engrave-5): the whole row in
 /// status green — the eagle table's calm tier (rank 3 and below
 /// render the same way). Every row here IS a live, enforced limit —

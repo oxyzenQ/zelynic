@@ -112,14 +112,26 @@ bucket. When the QUIC header carries a finer truth (the connection
 id), the lanes key by CID instead; short-header CID length is
 learned, never guessed. The refusal is documented, never silent.
 
-**6. ECN-first policing** (`ebpf/src/ecn.rs`, schema v19). A policer
-that can mark instead of drop should: an ECT-capable packet over
-budget is delivered CE-marked and its bytes charge a debt word the
-budget's own refills pay back — the sender backs off at the
-transport layer instead of paying retransmits. Non-ECT traffic
-refuses the helper and drops exactly as before. Debt is keyed by
-generation-prefixed budget, so no fresh budget inherits a
-predecessor's debt.
+**6. ECN-first policing** (`ebpf/src/ecn.rs`, schema v19; the CE
+ledger, schema v26). A policer that can mark instead of drop
+should: an ECT-capable packet over budget is delivered CE-marked
+and its bytes charge a debt word the budget's own refills pay
+back — the sender backs off at the transport layer instead of
+paying retransmits. Non-ECT traffic refuses the helper and drops
+exactly as before. Debt is keyed by generation-prefixed budget,
+so no fresh budget inherits a predecessor's debt. The v26 ledger
+(night-spark-4, the quota saver's Layer 2) makes the lane's own
+truth readable: `book_rescue` books every delivered CE-marked
+packet into `ce_marked_packets` / `ce_marked_bytes` at the exact
+spot the drop booking moves to the allowed column — a refused mark
+(non-ECT, a debt at its cap) never reaches the words — and `status
+--print-json` names the pair on every limit row, so convergence is
+measurable. Rootless pins: `ecn_tests.rs`, `ecn_socket_tests.rs`,
+the v26 layout/JSON pins in the display and types suites; live
+proof: `scripts/bench/ecn-probe.sh` (the cgroup UDP legs witnessed
+by the receiver's IP_RECVTOS cmsg, the non-ECT control leg, the
+ledger cross-check, the tcpdump egress witness, the internet TCP
+leg, the QUIC leg).
 
 **7. Guaranteed minimum** (`src/commands/guarantee.rs`,
 `ebpf/src/drr_guarantee.rs`, schema v24). A rate cap with no floor

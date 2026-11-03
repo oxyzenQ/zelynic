@@ -12,8 +12,9 @@
 use anyhow::Result;
 
 use super::display::{RECWN_RTT_ESTIMATE_US, RecwnLane, collect_display_data};
+use super::display_json_ring::{RateRingJson, ring_dir_json};
 use crate::ebpf::identity::IdentityMap;
-use crate::ebpf::limiter::rate_ring::{RATE_RING_SLOTS, RateRingRaw, RingReads, ring_series};
+use crate::ebpf::limiter::rate_ring::{RATE_RING_SLOTS, RingReads};
 use crate::ebpf::limiter::types::PolicyWindowRaw;
 use crate::ebpf::limiter::{LimiterStatsRaw, PolicyRaw, monotonic_ns, wall_now_ns};
 // wall_minus_mono/window_state: the window join's own vocabulary.
@@ -157,6 +158,8 @@ fn status_json(
                 packets_dropped: d.packets_dropped,
                 bytes_allowed: d.bytes_allowed,
                 bytes_dropped: d.bytes_dropped,
+                ce_marked_packets: d.ce_marked_packets,
+                ce_marked_bytes: d.ce_marked_bytes,
                 rate_ring,
                 window,
             }
@@ -214,26 +217,6 @@ fn window_json(win: &PolicyWindowRaw, wall_now: u64, mono_now: u64) -> WindowJso
             end_s: None,
         },
     }
-}
-
-/// One direction's derived series for one cgroup, or None when the
-/// direction's ring census is absent or holds no entry for the
-/// cgroup (a fresh policy with no traffic yet books nothing — the
-/// sockets-that-moved-nothing rule, a lean row over a fabricated
-/// zero).
-fn ring_dir_json(
-    dir_rings: Option<&[(u32, RateRingRaw)]>,
-    cgroup_id: u32,
-    now: u64,
-) -> Option<RateRingDirectionJson> {
-    let rings = dir_rings?;
-    let ring = rings.iter().find(|(id, _)| *id == cgroup_id)?;
-    let series = ring_series(&ring.1, now);
-    Some(RateRingDirectionJson {
-        bytes: series.bytes,
-        live_samples: series.live_samples,
-        peak_bytes: series.peak_bytes,
-    })
 }
 
 /// The status document's writer law (S1, the hand-written lane): the
@@ -325,6 +308,14 @@ impl LimitEntry {
         write_number(out, self.bytes_allowed);
         out.push_str(",\"bytes_dropped\":");
         write_number(out, self.bytes_dropped);
+        // night-spark-4 (schema v26): the CE ledger — always present,
+        // the additive contract the four counters above ride (scripts
+        // parse the pair or ignore it; absence would read as a
+        // pre-v26 object, which it can no longer be).
+        out.push_str(",\"ce_marked_packets\":");
+        write_number(out, self.ce_marked_packets);
+        out.push_str(",\"ce_marked_bytes\":");
+        write_number(out, self.ce_marked_bytes);
         if let Some(ring) = &self.rate_ring {
             out.push_str(",\"rate_ring\":");
             ring.write_json(out);
@@ -363,42 +354,6 @@ impl WindowJson {
         if let Some(end) = self.end_s {
             out.push_str(",\"end_s\":");
             write_number(out, end);
-        }
-        out.push('}');
-    }
-}
-
-impl RateRingDirectionJson {
-    fn write_json(&self, out: &mut String) {
-        use crate::json::write::{write_array, write_number};
-
-        out.push_str("{\"bytes\":");
-        write_array(out, self.bytes.len(), |out, i| {
-            write_number(out, self.bytes[i]);
-        });
-        out.push_str(",\"live_samples\":");
-        write_number(out, self.live_samples);
-        out.push_str(",\"peak_bytes\":");
-        write_number(out, self.peak_bytes);
-        out.push('}');
-    }
-}
-
-impl RateRingJson {
-    fn write_json(&self, out: &mut String) {
-        use crate::json::write::write_number;
-
-        out.push_str("{\"window_secs\":");
-        write_number(out, self.window_secs);
-        out.push_str(",\"download\":");
-        match &self.download {
-            Some(dir) => dir.write_json(out),
-            None => out.push_str("null"),
-        }
-        out.push_str(",\"upload\":");
-        match &self.upload {
-            Some(dir) => dir.write_json(out),
-            None => out.push_str("null"),
         }
         out.push('}');
     }
@@ -466,6 +421,13 @@ struct LimitEntry {
     packets_dropped: u64,
     bytes_allowed: u64,
     bytes_dropped: u64,
+    /// The ECN-first lane's own truth (night-spark-4, schema v26):
+    /// packets DELIVERED CE-marked under the policy and their byte
+    /// volume — the quota saver's Layer 2 made readable. Always
+    /// present (the additive contract the four counters above
+    /// ride).
+    ce_marked_packets: u64,
+    ce_marked_bytes: u64,
     /// The in-kernel time-series ring's derived window series
     /// (charger-core-3a, EAGLE EYES V1): the last eight one-second
     /// byte totals oldest-first, per direction. Absent when the
@@ -494,37 +456,6 @@ struct WindowJson {
     start_s: Option<u32>,
     /// DAILY: window end, seconds-of-day UTC. SPAN: absent.
     end_s: Option<u32>,
-}
-
-/// One direction's window series (see [`LimitEntry::rate_ring`]).
-#[derive(Debug, Clone)]
-struct RateRingDirectionJson {
-    /// The last eight one-second byte totals, OLDEST first; the last
-    /// entry is the current (still-filling) window.
-    bytes: [u64; RATE_RING_SLOTS],
-    /// How many of the eight slots carry a stamp matching the
-    /// window they represent (night-verdict-closure-T7 (H4), the
-    /// wire name was `live` — renamed because a bare `live` reads
-    /// as a rate): a stamped ZERO-byte window counts, so the figure
-    /// is the honest horizon, neither a rate nor the count of
-    /// non-zero slots (3 means only the last three seconds had
-    /// stamped windows).
-    live_samples: u32,
-    /// The largest COMPLETED window (the current window never
-    /// qualifies — it can only grow).
-    peak_bytes: u64,
-}
-
-#[derive(Debug, Clone)]
-struct RateRingJson {
-    /// The number of seconds the series spans: RATE_RING_SLOTS
-    /// one-second windows (NIGHT-hunt-30 — was the per-slot width,
-    /// which read as the whole window). `sum(bytes) / window_secs`
-    /// is the row's average rate over the horizon; the per-slot
-    /// granularity is `bytes.len()`, one sample per second.
-    window_secs: u64,
-    download: Option<RateRingDirectionJson>,
-    upload: Option<RateRingDirectionJson>,
 }
 
 #[derive(Debug, Clone)]

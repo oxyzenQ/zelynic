@@ -46,7 +46,8 @@ describe how each part earns its name inside the whole.
 The fourteen research wins, in dependency order, each pinned by
 rootless tests (the ledger with the full story per scale is
 [INNOVATIONS.md](INNOVATIONS.md)). Scale 14 is the quota saver's
-Layer 1, landed by night-spark-2 (schema v25):
+Layer 1, landed by night-spark-2 (schema v25); scale 6's v26 CE
+ledger is the quota saver's Layer 2, landed by night-spark-4:
 
 | # | Scale | Schema | Code anchor | Rootless pin |
 |---|-------|--------|-------------|--------------|
@@ -55,7 +56,7 @@ Layer 1, landed by night-spark-2 (schema v25):
 | 3 | CAKE-style flow isolation | v20 | `ebpf/src/cake_flow.rs:203` | `cake_tests.rs`, `cake_battery_tests.rs` |
 | 4 | Per-socket limiting | v15 | `ebpf/src/socket_flow.rs:174` | `policy_tests.rs` |
 | 5 | QUIC-aware attribution | v22 | `ebpf/src/quic.rs:458` | `quic_tests.rs` |
-| 6 | ECN-first policing | v19/v21 | `ebpf/src/ecn.rs:146` | `ecn_tests.rs`, `ecn_socket_tests.rs` |
+| 6 | ECN-first policing | v19/v21/v26 | `ebpf/src/ecn.rs:146`, `enforce_helpers.rs:240` | `ecn_tests.rs`, `ecn_socket_tests.rs`, `ecn-probe.sh` |
 | 7 | Guaranteed minimum (floor/ceil) | v24 | `ebpf/src/drr_guarantee.rs` | `drr_guarantee_tests.rs` |
 | 8 | In-kernel time-series ring | v14 | `ebpf/src/rate_ring.rs:142` | `rate_ring_tests.rs` |
 | 9 | Self-proving enforcement | — | `src/commands/probe.rs` | integration `smoke.rs`, `proof-claims.sh` |
@@ -186,13 +187,16 @@ that goal, the arc holds four gaps:
    200 ms), not the link RTT, so a rate x 50 ms window delivered
    a third of budget — recwn.rs's doc owns the full record); a
    measured-RTT re-tune is a stated residue, not a gap.
-3. **ECN is enforcement-driven, not quota-driven — and invisible.**
-   CE marking exists (v19 budget lanes, v21 per-socket lane,
-   `ecn.rs`), and QUIC stacks that implement RFC 9002 ECN react to
-   CE — the marking machinery is reusable. But marks fire only on
-   budget overrun, and the four-counter ledger books a CE-marked
-   packet as plain allowed: the saver's convergence could not be
-   measured today.
+3. **ECN is enforcement-driven, not quota-driven — no longer
+   invisible.** CE marking exists (v19 budget lanes, v21 per-socket
+   lane, `ecn.rs`), and QUIC stacks that implement RFC 9002 ECN
+   react to CE — the marking machinery is reusable. Marks fire on
+   budget overrun — the enforcement verdict — and that half stands.
+   The invisibility half is closed (night-spark-4, schema v26): the
+   ledger grew `ce_marked_packets` / `ce_marked_bytes`, booked by
+   the rescue correction at the exact spot a drop becomes a
+   delivered mark, and `status --print-json` names the pair — the
+   saver's convergence is measurable today.
 4. **No EDT pacing.** Zero `skb->tstamp` / earliest-departure-time
    code exists (verified). The architectural tension to settle
    before building: EDT expects an `fq` qdisc to honor the
@@ -206,9 +210,11 @@ The three layers below are the owner's stated vision, recorded
 verbatim in substance so a future agent neither invents a fourth
 layer nor reorders these. Docs and organization landed this
 roadmap first; Layer 1 (RECWN) has since landed as schema v25
-(night-spark-2) — Layer 1 below reads as the implemented record.
-No ECN-for-QUIC or EDT code exists yet, and none should until the
-owner's build order says so.
+(night-spark-2) — Layer 1 below reads as the implemented record —
+and Layer 2 (ECN CE-marking, the CE ledger) has since landed as
+schema v26 (night-spark-4) — Layer 2 below reads as the
+implemented record. No EDT code exists yet, and none should until
+the owner's build order says so.
 
 - **Layer 1 — RECWN (Receive Window Control) — IMPLEMENTED**
   (schema v25, night-spark-2). The owner's coined name for the
@@ -243,12 +249,32 @@ owner's build order says so.
   and `scripts/bench/recwn-probe.sh` (the live proof — 100 kb/s
   apply, a curl child in the cgroup, `ss -ti` clamp evidence,
   the throughput band, retransmits near zero).
-- **Layer 2 — ECN CE-marking for QUIC backoff.** Reuse the
-  ECN-first machinery (scale 6) as a quota signal: mark QUIC
-  traffic toward the threshold so RFC 9002-ECN-capable QUIC
-  senders back off on CE, per connection where the v22 hint maps
-  can name one. Needs the ledger to count marks (the quota gap,
-  item 3) so convergence is measurable.
+- **Layer 2 — ECN CE-marking for QUIC backoff — IMPLEMENTED**
+  (schema v26, night-spark-4). The ECN-first machinery (scale 6)
+  IS the quota signal: a budgeted lane's over-budget packet is
+  DELIVERED CE-marked instead of dropped whenever the kernel
+  helper `bpf_skb_ecn_set_ce` (ID 97) can set the codepoint on an
+  ECT-capable packet — the cgroup lanes rescue at the drop verdict
+  (`enforce.rs:375`, `enforce.rs:458`), the per-socket lane
+  carries the same mark tail (`socket_flow.rs:286`) — and QUIC
+  endpoints send ECT(0) by default (RFC 9000), so an RFC 9002
+  stack reads the CE and backs off without a single lost
+  datagram: the retransmit storm the drop lane teaches is
+  prevented, not healed. Marks fire on the enforcement verdict —
+  the threshold the drop lane already fired at — which for a
+  policed cgroup is the roadmap's "toward the threshold" shape.
+  The ledger this bullet demanded landed with it: `book_rescue`
+  books the delivered CE-marked volume into `ce_marked_packets` /
+  `ce_marked_bytes` (the stats row's 48-byte v26 tail, the legacy
+  quartet's offsets untouched), every status surface carries the
+  pair, and the debt law keeps the bound (delivered <= burst +
+  rate*t + 64 KiB + one packet). The verification ladder:
+  `ecn_tests.rs` / `ecn_socket_tests.rs` (the law, rootless), the
+  v26 CE-ledger pins in the status/depth JSON suites, and
+  `scripts/bench/ecn-probe.sh` (the live proof — the cgroup UDP
+  legs witnessed by the receiver's IP_RECVTOS cmsg, the non-ECT
+  control leg, the ledger cross-check, the tcpdump egress
+  witness, the internet TCP leg, the QUIC leg).
 - **Layer 3 — EDT pacing (earliest departure time) for egress.**
   Shape egress by departure time instead of drop: stamp packets
   with their earliest departure and let the kernel's pacing path
@@ -257,10 +283,11 @@ owner's build order says so.
 
 The sequence is the owner's: RWND first (the quota saver's spine),
 ECN-for-QUIC second (the lossless signal), EDT third (the egress
-finish). The arc's existing scales are the foundation all three
-stand on — the hint maps already name QUIC connections, the debt
-word already charges per budget, the verdict path already runs on
-both directions.
+finish). Two of the three have landed (v25, v26); EDT is the
+road's remaining layer. The arc's existing scales are the
+foundation all three stand on — the hint maps already name QUIC
+connections, the debt word already charges per budget, the verdict
+path already runs on both directions.
 
 ## The testing lane is pure eBPF (night-spark-3)
 

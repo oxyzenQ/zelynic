@@ -215,6 +215,13 @@ pub struct Bucket {
 /// The BPF-side stats layout (userspace mirror: `LimiterStatsRaw`
 /// in src/ebpf/limiter/types.rs — the layout contract). Combined
 /// download + upload enforcement stats per cgroup.
+///
+/// v26 (night-spark-4, the CE ledger): the two tail words book the
+/// ECN-first lane's own truth — packets DELIVERED CE-marked, written
+/// by book_rescue's correction (math_atomics.rs) at the exact spot
+/// the drop booking moves to the allowed column. Pure append: the
+/// four legacy counters keep their offsets, every pre-v26 reader of
+/// the head reads unchanged.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct LimiterStats {
@@ -222,11 +229,13 @@ pub struct LimiterStats {
     pub packets_dropped: u64,
     pub bytes_allowed: u64,
     pub bytes_dropped: u64,
+    pub ce_marked_packets: u64,
+    pub ce_marked_bytes: u64,
 }
 
 const _: () = assert!(core::mem::size_of::<Policy>() == 40);
 const _: () = assert!(core::mem::size_of::<Bucket>() == 24);
-const _: () = assert!(core::mem::size_of::<LimiterStats>() == 32);
+const _: () = assert!(core::mem::size_of::<LimiterStats>() == 48);
 
 /// Refill rate math: nanoseconds per second.
 pub const NS_PER_SEC: u64 = 1_000_000_000;

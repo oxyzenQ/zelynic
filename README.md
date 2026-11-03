@@ -789,10 +789,16 @@ receive-window lane that clamps a policed cgroup's advertised
 window to the policy's bandwidth-delay product — landed as schema
 v25, so the sender throttles itself before the link bills the
 bytes (the recwn_limits object in `status --print-json` and the
-live proof in `scripts/bench/recwn-probe.sh`). ECN CE-marking for
-QUIC backoff and EDT pacing for egress remain the roadmap's next
-layers, recorded verbatim in the arc doc, so the owner's vision
-survives every maintainer.
+live proof in `scripts/bench/recwn-probe.sh`). Its Layer 2 —
+ECN CE-marking for QUIC backoff — landed as schema v26: an
+over-budget packet that an ECT-capable sender can read is
+delivered CE-marked instead of dropped, so RFC 9002 QUIC stacks
+back off without a single lost datagram, and the
+`ce_marked_packets` / `ce_marked_bytes` pair in `status
+--print-json` makes the lane measurable (the live proof in
+`scripts/bench/ecn-probe.sh`). EDT pacing for egress remains the
+roadmap's next layer, recorded verbatim in the arc doc, so the
+owner's vision survives every maintainer.
 
 ## Support
 

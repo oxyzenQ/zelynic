@@ -125,24 +125,36 @@ pub fn book(stats: &mut LimiterStats, allowed: bool, pkt_len: u32) {
 /// packet in both columns — the same relaxed-counter class the
 /// boost-38 docs own for the window fractions, eventually exact.
 ///
-/// The subtraction rides `fetch_add` of the two's complement, NOT a
-/// native fetch_sub: the BPF backend's selection guarantees are
-/// proven for the fetch_add/CAS shapes this file already compiles
-/// (the AtomicLoad lesson at the top of the file), and a sub node
-/// adds an unproven selection for zero benefit — the wrapping add is
-/// bit-identical arithmetic on the same counter word.
+/// v26 (night-spark-4, the CE ledger): the correction ALSO books the
+/// marking lane's own truth into the two tail words —
+/// ce_marked_packets (+1) and ce_marked_bytes (+pkt_len) — the
+/// columns the status surfaces name. Every caller of this fn sits on
+/// a confirmed helper success (the mark landed), so the words count
+/// exactly the delivered CE-marked volume; a mark refused or a debt
+/// at its cap never reaches here (the safe-verdict path books plain
+/// drops through `book`). The subtraction rides `fetch_add` of the
+/// two's complement, NOT a native fetch_sub: the BPF backend's
+/// selection guarantees are proven for the fetch_add/CAS shapes this
+/// file already compiles (the AtomicLoad lesson at the top of the
+/// file), and a sub node adds an unproven selection for zero
+/// benefit — the wrapping add is bit-identical arithmetic on the
+/// same counter word.
 #[inline(always)]
 pub fn book_rescue(stats: &mut LimiterStats, pkt_len: u32) {
-    // Field pointers (8-aligned repr(C) offsets: 0, 8, 16, 24 — the
-    // size pin above).
+    // Field pointers (8-aligned repr(C) offsets: 0, 8, 16, 24 for the
+    // legacy quartet, 32, 40 for the v26 tail — the size pin above).
     let packets_allowed_ptr = core::ptr::addr_of_mut!(stats.packets_allowed);
     let packets_dropped_ptr = core::ptr::addr_of_mut!(stats.packets_dropped);
     let bytes_allowed_ptr = core::ptr::addr_of_mut!(stats.bytes_allowed);
     let bytes_dropped_ptr = core::ptr::addr_of_mut!(stats.bytes_dropped);
+    let ce_packets_ptr = core::ptr::addr_of_mut!(stats.ce_marked_packets);
+    let ce_bytes_ptr = core::ptr::addr_of_mut!(stats.ce_marked_bytes);
     rmw_view(packets_dropped_ptr).fetch_add(u64::MAX, Ordering::Relaxed);
     rmw_view(bytes_dropped_ptr).fetch_add(u64::from(pkt_len).wrapping_neg(), Ordering::Relaxed);
     rmw_view(packets_allowed_ptr).fetch_add(1, Ordering::Relaxed);
     rmw_view(bytes_allowed_ptr).fetch_add(u64::from(pkt_len), Ordering::Relaxed);
+    rmw_view(ce_packets_ptr).fetch_add(1, Ordering::Relaxed);
+    rmw_view(ce_bytes_ptr).fetch_add(u64::from(pkt_len), Ordering::Relaxed);
 }
 
 /// Pure refill arithmetic for one owned window (NIGHT-boost-38
