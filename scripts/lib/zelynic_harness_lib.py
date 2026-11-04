@@ -105,16 +105,25 @@ BAND_HI = 1.30
 #   0.63) and every OTHER row of those same depth suites passed
 #   (the single-shot rate rows, the accounting cross-checks, the
 #   policy rows - the binary honest, the deficit the paced-VM
-#   physics). Both anchors follow the same principle with the same
-#   two-point margin: the median floor drops 0.45 -> 0.38 under the
-#   40% observed worst, the drift floor 0.40 -> 0.33 under the
-#   0.352 observed worst. The collapse classes stay red on both
-#   guards: run 40480466520's sweep still files a 0.217 drift, and
-#   a pair-collapse (two dead windows of four) still files a
-#   single-trim drift near the dead pair's own ratio - the trim
-#   stays at ONE minimum by design, the guard that catches a second
-#   slow window.
-SUSTAIN_BAND_LO = 0.38
+#   physics). The 5.13 floor leg joined the class one push later
+#   with the byte-IDENTICAL eBPF object (runs 41828755273 and
+#   41833266160 differ only in harness floors): 70/70/28/27
+#   percent (median 49%, drift 0.40) green, then 36/37/27/58
+#   (median 37%, the re-attempt 33%) red - the sustained medians
+#   swing 33-49 percent on the same binary, pure runner steal, the
+#   single-shot rows healthy on both legs. Both anchors follow the
+#   same principle with the same two-point margin: the median floor
+#   drops 0.45 -> 0.31 under the 33% observed worst, the drift
+#   floor 0.40 -> 0.33 under the 0.352 observed worst. The collapse
+#   classes stay red on both guards: run 40480466520's sweep still
+#   files a 0.217 drift, and a pair-collapse (two dead windows of
+#   four) still files a single-trim drift near the dead pair's own
+#   ratio - the trim stays at ONE minimum by design, the guard that
+#   catches a second slow window. The single-shot rate rows at the
+#   full BAND_LO carry the flat-regression hunt (a binary delivering
+#   a flat 35 percent fails them on the same leg - the sustain row's
+#   own calibration history says so three recalibrations deep).
+SUSTAIN_BAND_LO = 0.31
 SUSTAIN_DRIFT_FLOOR = 0.33
 
 # night-spark-5 (the pacing era): the upload rows' paced floor. The
