@@ -153,6 +153,35 @@ v80.0.0
 
 ### Fixed
 
+- **fix(harness): the overhead row's drop conjunct rides the bounded
+  tail (night-netrunner-1 CI follow-up, part 2).** The interleaved law's
+  first live filing caught its own second lesson: the a3a24fb jammy
+  floor lane (job 126705737692) read "fresh best 12.9 GB/s vs policy
+  best 12.8 GB/s (39 GB/s policy) — +1.2%" — the steal straddle dead,
+  the throughput half honest — and still filed "2 packets dropped at
+  the bucket" red under the ported strict-zero conjunct. Those 2
+  drops are the bucket design's own documented residual, not
+  enforcement: try_consume's four-attempt CAS retry deliberately errs
+  to the safe verdict under many-CPU bursts on one bucket ("a fully
+  lost consume drops (the safe verdict) instead of allowing"), the
+  engine's probe measuring 0.975 false drops per 2048 one-byte
+  packets at 8 threads (zero at 2-4) — the KVM floor leg measured
+  the tail live where the battery's container legs never showed it.
+  The conjunct now discriminates on VOLUME (night-blade-1's
+  bounded-tail pin, the same precedent, at the row's own scale):
+  bytes_dropped over bytes_allowed under OVERHEAD_DROP_TAIL = 0.1% —
+  two-plus orders above the residual's observed 1e-5..1e-4 and
+  two-plus orders below any binding signature (a real policer
+  arithmetic bug under a 3x policy drops tens of percent; the
+  binding rate rows file 38-183 drops on far less traffic). Strict
+  zero stands when nothing dropped; an all-drop window (zero bytes
+  allowed) stays red as the binding extreme. The offline simulation
+  grew to seven scenarios: the straddle, a real 31% hook cost, a
+  binding-volume drop signature, scattered steal, a rising fresh
+  baseline, the a3a24fb residual verbatim (+1.2% with the 2-packet
+  tail), and the all-drop extreme — each filing the verdict its
+  physics demands.
+
 - **fix(readme): the quota saver's two formulas ride the fenced law
   (night-netrunner-1 phase 2 follow-up).** The phase-2 section's two
   formula blocks landed indented in a README whose eighteen other
