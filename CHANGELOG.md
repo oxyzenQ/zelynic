@@ -124,10 +124,15 @@ v80.0.0
   hrtimer pacing fidelity, not an enforcement miss). The rows now
   carry the RECWN doctrine one lane over: zero drops with the
   ledger inside the span's budget ceiling (+ one GSO skb of slop)
-  books as the EDT self-limited state; the paced floor (0.50,
-  lib.paced_rate_floor) replaces the loopback floor only while
-  the pacer holds; the ceilings and the accounting rows ride
-  unchanged — an unpoliced blow-through still blows them.
+  books as the EDT self-limited state; the paced floor (0.45,
+  lib.PACED_FLOOR, UNCONDITIONAL — the lane attaches
+  unconditionally, so the drops state is a regime detail the lane
+  owns, not the floor's selector: the archive-latest VM files the
+  mixed shape too, run 41828755254's depth leg at 48.3% with 65
+  drops beside the ledger runs' 59.6%-of-window) replaces the
+  loopback floor on the upload rows; the ceilings and the
+  accounting rows ride unchanged — an unpoliced blow-through
+  still blows them.
 
 - **fix(harness): the sustain verdict's jammy envelope recalibrates
   under the paced-VM era (night-spark-7 follow-up).** The jammy

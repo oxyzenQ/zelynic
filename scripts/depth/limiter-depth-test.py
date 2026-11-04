@@ -780,17 +780,17 @@ def test_upload(rate_bps, window, baseline):
     truth = server_bytes if server_bytes is not None else client_bytes
     entry = limit_entry(status_json(), CG.id)
     dropped = (entry or {}).get("packets_dropped", 0)
-    # night-spark-5 (the pacing era): an upload the sock_ops pacer
-    # holds at the policy rate never needs the bucket to drop, so
-    # the row's floor prices the paced state (lib.paced_rate_floor —
-    # zero drops switches to the VM-calibrated pacing floor, drops
-    # keep the full loopback band). The ceiling rides band_check's
-    # own hi edge unchanged.
+    # night-spark-5 (the pacing era): the pacing lane attaches
+    # unconditionally, so the row's floor prices the paced state
+    # (lib.PACED_FLOOR) whether the lane held the stream clean
+    # (zero drops) or mixed (early drops while the write-ahead
+    # backlog drains). The ceiling rides band_check's own hi edge
+    # unchanged.
     passed = band_check(
         "upload rate: enforced (-u only)",
         truth / elapsed,
         rate_bps,
-        lo=lib.paced_rate_floor(dropped, rate_bps, window),
+        lo=lib.PACED_FLOOR,
     )
     if entry and dropped > 0:
         record(

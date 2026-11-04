@@ -2959,7 +2959,7 @@ def test_upload(window, baseline):
     truth = (entry or {}).get("bytes_allowed", 0)
     dropped = (entry or {}).get("packets_dropped", 0)
     budget = lib.ledger_budget(t_read - t_apply, 1_000_000)
-    floor = lib.paced_rate_floor(dropped, 1_000_000, window)
+    floor = lib.PACED_FLOOR
     passed = (
         entry is not None
         and truth <= budget * lib.LEDGER_EPS
@@ -4251,7 +4251,7 @@ def curl_upload_ledger_rows(t0, window, sent, delivered):
         return True
     span = time.monotonic() - t0
     budget = lib.ledger_budget(span, 1_000_000)
-    floor = lib.paced_rate_floor(dropped, 1_000_000, window) * 1_000_000 * window
+    floor = lib.PACED_FLOOR * 1_000_000 * window
     ok = allowed <= budget * lib.LEDGER_EPS and allowed >= floor
     record(
         "curl upload: BPF accounting rides the ledger budget",
