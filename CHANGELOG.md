@@ -153,6 +153,40 @@ v80.0.0
 
 ### Fixed
 
+- **fix(tui): the eagle-eyes depthbore audit -- one ghost cell and
+  one plain add close (night-netrunner-1 phase 3).** The deep audit
+  of the live monitor (the five-rubric table with file:line proofs
+  lives in docs/audits/
+  NIGHT_NETRUNNER_1_EAGLE_EYES_DEPTHBORE_AUDIT_2026-11-04.md)
+  surfaced two real bugs and fixed both; every other rubric row
+  verified clean at its own contract.
+  1. THE GHOST CELL (diff engine, endurance): the idle fast path
+     held the frame for free without noticing the terminal had
+     resized between identical-content frames -- a shrink (28 -> 25
+     rows) left `painted = 28` over a 25-row viewport, and the next
+     grow trusted the stale bound and skipped a row the shadow
+     called clean while the physical screen held older content. The
+     fix is the one clamp the struct's own invariant demands
+     (`self.painted = self.painted.min(height)` in the idle path,
+     src/terminal/diff.rs), and the evidence is NEW: a mini terminal
+     model replays every emitted stream across 20,000 seeded frames
+     of churn, idle, grow, shrink, and violent 5 <-> 200-row flips,
+     plus 4,000 frames with interleaved selection-guard beats,
+     asserting screen == frame after EVERY emit
+     (test/terminal/diff_soak_tests.rs -- the soak found the bug on
+     its first run and pins the fix on every run after).
+  2. THE PLAIN ADD (loader, safety): the boost-16 saturating
+     discipline hardened the session path but missed the loader's
+     four machine-wide per-frame totals (`total_packets`,
+     `total_bytes`, and the ingress twins) -- two half-space-
+     coherent deltas (each < 2^63 by the discriminator's own bound)
+     add past u64::MAX arithmetically: a debug build panics, a
+     release build wraps the machine-wide total to a small number.
+     All four now saturate (src/ebpf/loader.rs), the same law one
+     module over.
+
+### Fixed
+
 - **fix(harness): the pin family grows with the pacing lane — the
   rig's 41-object pin set rides the v28 loader (night-spark-7
   follow-up).** The endurance rig's PIN_FAMILY last grew with

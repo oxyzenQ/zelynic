@@ -321,8 +321,19 @@ impl Observer {
             let delta_bytes = wrap_coherent_delta(stats.bytes, prev.bytes);
 
             if delta_packets > 0 {
-                summary.total_packets += delta_packets;
-                summary.total_bytes += delta_bytes;
+                // Saturating, not `+=`: the boost-16 discipline the
+                // session path already rides. Each delta is bounded
+                // below the coherence half-space (delta.rs), but two
+                // half-space deltas ADD past u64::MAX arithmetically —
+                // a debug build would panic on the plain add, a
+                // release build would wrap the machine-wide total to
+                // a small number. Saturated at the ceiling, the total
+                // reads as the honest maximum the display ladder
+                // renders ("18.4 EB"); unreachable without nine
+                // orders of magnitude past any deployed link, pinned
+                // so it can never regress to the plain add.
+                summary.total_packets = summary.total_packets.saturating_add(delta_packets);
+                summary.total_bytes = summary.total_bytes.saturating_add(delta_bytes);
                 summary.cgroups.push(CgroupDelta {
                     cgroup_id: *cgroup_id,
                     packets: delta_packets,
@@ -362,8 +373,12 @@ impl Observer {
             let delta_bytes = wrap_coherent_delta(stats.bytes, prev.bytes);
 
             if delta_packets > 0 {
-                summary.total_ingress_packets += delta_packets;
-                summary.total_ingress_bytes += delta_bytes;
+                // The ingress twin of the saturating discipline above
+                // (the egress totals' own comment names the law).
+                summary.total_ingress_packets =
+                    summary.total_ingress_packets.saturating_add(delta_packets);
+                summary.total_ingress_bytes =
+                    summary.total_ingress_bytes.saturating_add(delta_bytes);
 
                 if let Some(&i) = position.get(cgroup_id) {
                     let entry = &mut summary.cgroups[i];

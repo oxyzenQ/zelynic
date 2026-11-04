@@ -302,6 +302,23 @@ impl DiffScreen {
         // full frame on every refresh there).
         if dirty_count == 0 && !reset && !repaint && !shrunk {
             mem::swap(&mut self.prev, lines);
+            // night-netrunner-1 (the depthbore audit's ghost-cell
+            // find): the terminal may have RESIZED since the last
+            // paint even when the frame content is identical — the
+            // idle compare judges content against the shadow, never
+            // geometry. A shrink hid rows this struct still counts
+            // as painted (painted 28 over a 25-row viewport), and on
+            // the next grow those rows are revealed with content no
+            // terminal contract guarantees — trusting the stale
+            // painted bound skipped exactly such a row in the audit
+            // soak, a ghost cell beside live traffic. Clamp the
+            // bound to the geometry that actually exists now: every
+            // row the resize re-reveals rides the `i >= self.painted`
+            // dirty term on the next real frame. A grow never idles
+            // into this trap (the revealed rows are already dirty
+            // via the same term); the clamp is for the shrink that
+            // idled first.
+            self.painted = self.painted.min(height);
             return 0;
         }
 
@@ -496,3 +513,12 @@ mod diff_tests;
 // (one file per contract, the same #[path] discipline as identity/).
 #[path = "../../test/terminal/guard_tests.rs"]
 mod guard_tests;
+
+#[cfg(test)]
+// night-netrunner-1: the wild-resize + churn ghost-cell soak — the
+// depthbore audit's endurance evidence (a mini terminal model
+// replays every emitted stream across 20k churned frames and 4k
+// guard-beat interleavings, asserting the screen equals the frame
+// after every single emit).
+#[path = "../../test/terminal/diff_soak_tests.rs"]
+mod diff_soak_tests;
