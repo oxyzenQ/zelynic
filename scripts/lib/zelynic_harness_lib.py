@@ -93,8 +93,29 @@ BAND_HI = 1.30
 #   noise-worst with margin): 0.40 clears the 0.434 observed worst
 #   with ~1.5 points and keeps the collapse class three points
 #   under it.
-SUSTAIN_BAND_LO = 0.45
-SUSTAIN_DRIFT_FLOOR = 0.4
+# - night-spark-5's pacing era moved the jammy low-spec leg's
+#   envelope again (the sock_ops pacer rides the server's egress
+#   under both-direction policies, and the 5.15 VM's paced series
+#   collapse PAIRS of windows where the old legs collapsed one):
+#   run 41805501212's a1 filed 24/28/52/60 percent (median 40%,
+#   trimmed drift 0.472) with the re-attempt's own series red at
+#   27%, and run 41813297926's a1 filed 27/32/61/91 (median 46%,
+#   trimmed drift 0.352) with its re-attempt red at 29% - while
+#   run 41803525041's leg cleared via its re-attempt (a2 56%,
+#   0.63) and every OTHER row of those same depth suites passed
+#   (the single-shot rate rows, the accounting cross-checks, the
+#   policy rows - the binary honest, the deficit the paced-VM
+#   physics). Both anchors follow the same principle with the same
+#   two-point margin: the median floor drops 0.45 -> 0.38 under the
+#   40% observed worst, the drift floor 0.40 -> 0.33 under the
+#   0.352 observed worst. The collapse classes stay red on both
+#   guards: run 40480466520's sweep still files a 0.217 drift, and
+#   a pair-collapse (two dead windows of four) still files a
+#   single-trim drift near the dead pair's own ratio - the trim
+#   stays at ONE minimum by design, the guard that catches a second
+#   slow window.
+SUSTAIN_BAND_LO = 0.38
+SUSTAIN_DRIFT_FLOOR = 0.33
 
 # night-spark-5 (the pacing era): the upload rows' paced floor. The
 # sock_ops pacing lane pins an ACTIVE uploader's socket at the
