@@ -250,8 +250,7 @@ def pacing_verdict(samples, expect_bps=PACING_BITS):
             f"{expect_bps:.0f}) — the rate did not land",
         )
     pinned_tail = (
-        f"; the pinned max reads {maxes[0]:.0f} b/s — the policy's own "
-        "bits, exactly"
+        f"; the pinned max reads {maxes[0]:.0f} b/s — the policy's own bits, exactly"
         if maxes
         else ""
     )
