@@ -153,6 +153,18 @@ v80.0.0
 
 ### Fixed
 
+- **fix(ci): the two guest inits ride shfmt's tab law (night-netrunner-1
+  phase 1 follow-up).** The phase-1 rewrite of the two KVM guest init
+  scripts (the 5.13-lane retirement touched 159 and 222 lines of them)
+  shipped its rewritten blocks space-indented: the seat's own
+  gate-keepers.sh run skipped the shfmt lane honestly (the tool was not
+  installed there) while CI's wholesale run pins v3.10.0 and failed the
+  format gate (run 41857231737, "shfmt: .sh files not formatted"). The
+  fix is shfmt -w's canonicalization -- tab indent, the same law every
+  other script in the tree already rides -- with zero content change:
+  git diff --ignore-all-space is empty against the phase-1 commit, and
+  the full-repo shfmt -d sweep reads clean on the pinned version.
+
 - **fix(tui): the eagle-eyes depthbore audit -- one ghost cell and
   one plain add close (night-netrunner-1 phase 3).** The deep audit
   of the live monitor (the five-rubric table with file:line proofs
