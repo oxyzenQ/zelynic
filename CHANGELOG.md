@@ -143,13 +143,20 @@ v80.0.0
   row passed (run 41805501212: 60/52/28/24 percent, median 40%,
   trimmed drift 0.472, the re-attempt red at 27%; run 41813297926:
   91/61/32/27, median 46%, drift 0.352, the re-attempt red at 29%;
-  run 41803525041 cleared only via its re-attempt). The median
-  floor drops 0.45 -> 0.38 and the drift floor 0.40 -> 0.33 — the
+  run 41803525041 cleared only via its re-attempt), and the 5.13
+  floor leg joined the class one push later with the byte-identical
+  eBPF object (runs 41828755273/41833266160: median 49% green,
+  then 37% with the re-attempt at 33% red — the sustained medians
+  swing 33-49% on the same binary, pure runner steal). The median
+  floor drops 0.45 -> 0.31 and the drift floor 0.40 -> 0.33 — the
   house's own two-points-under-the-observed-worst principle against
   the new envelope, with the collapse classes still red on both
   guards (the 40480466520 sweep's 0.217 drift, the pair-collapse's
   own ratio) and the trim staying at ONE minimum by design: the
-  guard that catches a second slow window.
+  guard that catches a second slow window; the flat-regression hunt
+  rides the single-shot rate rows at the full band, the sustain
+  row's own calibration history saying so three recalibrations
+  deep.
 
 - **fix(ebpf): the layer 4 booking rides the raw lookup pointer —
   the 5.13 floor's verifier refusal closes (night-spark-7
