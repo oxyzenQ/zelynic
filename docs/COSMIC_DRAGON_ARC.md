@@ -341,7 +341,7 @@ directions.
   The three derivation laws (the estimate's law is the arc's own;
   each names its model, never a fabricated precision):
 
-  * **EDT — `bytes_saved_by_edt` (kernel-booked, egress path).**
+  - **EDT — `bytes_saved_by_edt` (kernel-booked, egress path).**
     The task's own formula, per-packet form: over the gap since the
     lane's last policed egress packet, the budget the rate accrued
     minus the volume actually delivered —
@@ -362,7 +362,7 @@ directions.
     per-socket, group, DRR — books through it and the ingress
     never pays for it.
 
-  * **ECN — `bytes_saved_by_ecn` (kernel-booked, book_rescue's
+  - **ECN — `bytes_saved_by_ecn` (kernel-booked, book_rescue's
     correction).** One-for-one with `ce_marked_bytes`: every
     delivered CE-marked byte is a byte that never becomes a
     loss-and-retransmission pair — and a dropped byte costs the
@@ -374,7 +374,7 @@ directions.
     point every mark delivery already returns through, through the
     same relaxed fetch_add — SMP-exact by construction.
 
-  * **RECWN — `bytes_saved_by_recwn` (userspace estimate,
+  - **RECWN — `bytes_saved_by_recwn` (userspace estimate,
     display.rs `recwn_saved_bytes`).** The window-law
     counterfactual: the clamp holds a sender to `clamped` bytes per
     delivery cadence, so every `clamped` bytes the lane DELIVERED
