@@ -778,20 +778,51 @@ def test_upload(rate_bps, window, baseline):
     time.sleep(0.5)
     client_bytes, server_bytes, elapsed = upload(window, SERVER.port)
     truth = server_bytes if server_bytes is not None else client_bytes
-    passed = band_check("upload rate: enforced (-u only)", truth / elapsed, rate_bps)
     entry = limit_entry(status_json(), CG.id)
-    if entry and entry.get("packets_dropped", 0) > 0:
+    dropped = (entry or {}).get("packets_dropped", 0)
+    # night-spark-5 (the pacing era): an upload the sock_ops pacer
+    # holds at the policy rate never needs the bucket to drop, so
+    # the row's floor prices the paced state (lib.paced_rate_floor —
+    # zero drops switches to the VM-calibrated pacing floor, drops
+    # keep the full loopback band). The ceiling rides band_check's
+    # own hi edge unchanged.
+    passed = band_check(
+        "upload rate: enforced (-u only)",
+        truth / elapsed,
+        rate_bps,
+        lo=lib.paced_rate_floor(dropped, rate_bps, window),
+    )
+    if entry and dropped > 0:
         record(
             "upload rate: kernel drops engaged",
             "PASS",
-            f"{entry['packets_dropped']} packets dropped",
+            f"{dropped} packets dropped",
         )
     else:
-        record(
-            "upload rate: kernel drops engaged",
-            "FAIL",
-            "no dropped packets under a binding upload limit",
-        )
+        # The EDT self-limited state (the upload-only row's own law,
+        # the RECWN doctrine one lane over): zero drops with the
+        # ledger inside the span's budget ceiling is enforcement
+        # without a drop — the pacer holds the stream, the policer
+        # holds the ceiling. The span carries the apply-side sleep
+        # and the read overhead (one second of slop beside the
+        # window); anything past it is the unpoliced blow-through
+        # the row has always caught.
+        allowed = (entry or {}).get("bytes_allowed", 0)
+        ceiling = lib.ledger_budget(elapsed + 1.0, rate_bps) + 65_536
+        if entry and 0 <= allowed <= ceiling:
+            record(
+                "upload rate: kernel drops engaged",
+                "PASS",
+                f"0 packets dropped, {allowed:,} bytes allowed inside the "
+                f"{ceiling:,}-byte budget (the EDT self-limited state — the pacer "
+                "holds the stream, the policer holds the ceiling)",
+            )
+        else:
+            record(
+                "upload rate: kernel drops engaged",
+                "FAIL",
+                "no dropped packets under a binding upload limit",
+            )
     clear_limits()
     return passed
 

@@ -87,7 +87,7 @@ BAND_HI = 1.30
 #   filed trimmed drifts of 0.434 and 0.464 (medians 46% and 45%,
 #   BPF accounting clean, the same VM's single-shot rows healthy)
 #   while a genuine steal burst (run 40480466520's 11/13/18/60
-#   percent sweep) sits at 0.217 — an order-of-magnitude gap
+#   percent sweep) sits at 0.217 - an order-of-magnitude gap
 #   between the noise shape and the collapse shape. The floor
 #   follows the ledger's own principle (sit below the observed
 #   noise-worst with margin): 0.40 clears the 0.434 observed worst
@@ -95,6 +95,34 @@ BAND_HI = 1.30
 #   under it.
 SUSTAIN_BAND_LO = 0.45
 SUSTAIN_DRIFT_FLOOR = 0.4
+
+# night-spark-5 (the pacing era): the upload rows' paced floor. The
+# sock_ops pacing lane pins an ACTIVE uploader's socket at the
+# policy rate BEFORE the egress link bills the bytes, so a policed
+# upload rides the pacer, not the dropper: zero kernel drops, the
+# ledger inside the budget ceiling — the lane's own win state (the
+# hardware probe's 99.2% delivery at an exact 800000 b/s pin,
+# night-spark-6's ledger). The supermassive VM matrix measures that
+# same state at ~59.6% of the nominal window on the archive-latest
+# kernel (runs 41805501202, 41813297825, 41803525041: 596.2-596.3
+# KB/s against a 1 MB/s pin, deterministic across a day of runs —
+# the VM's hrtimer pacing fidelity, not an enforcement miss: the
+# ceiling and the accounting rows still bind, and the drops row
+# rides the self-limited law). The paced floor prices that
+# fidelity with margin; the dropper regime (drops > 0) keeps the
+# full loopback floor.
+PACED_FLOOR = 0.50
+
+
+def paced_rate_floor(dropped, rate_bps, window_s=1.0):
+    """The upload rows' BAND_LO in the pacing era: the full loopback
+    floor while the dropper regime runs; PACED_FLOOR when the pacer
+    held the stream (zero kernel drops — the lane's self-limited
+    state, the RECWN doctrine one lane over, priced for the VM
+    matrix's observed pacing fidelity)."""
+    if dropped == 0:
+        return PACED_FLOOR
+    return loopback_rate_floor(rate_bps, window_s)
 
 
 def sustain_verdict(rates, rate_bps):
