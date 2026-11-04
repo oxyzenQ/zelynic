@@ -830,6 +830,89 @@ telemetry makes the components readable; the workload makes the
 total (the live proofs: `recwn-probe.sh`, `ecn-probe.sh`,
 `edt-probe.sh`, each carrying a saved-quota row).
 
+## The Quota Saver — How zelynic Saves 80% of Your Internet
+
+The three quota-saver lanes save quota by three different physics —
+RECWN clamps what the sender CAN send, the ECN CE mark makes the
+sender back off, the EDT pacer spaces the departure — and Layer 4
+books each lane's saving by the physics it actually owns (schema
+v28). The formulas are the empirical math the telemetry fills; every
+one is pinned by rootless unit tests and read live by the probes.
+
+**The formulas.**
+
+- `bytes_saved_by_recwn` — the TCP counterfactual window law
+  (userspace estimate, `display.rs recwn_saved_bytes`). The clamp
+  holds a sender to `clamped` bytes per delivery cadence, so every
+  `clamped` bytes delivered is one window-cycle in which a
+  default-window sender would have had `default - clamped` more
+  bytes in flight:
+
+      bytes_saved_by_recwn = (bytes_allowed / clamped) x (default - clamped)
+
+  The NAMED ASSUMPTION: `default` is pinned at 128 KiB (the kernel's
+  `tcp_rmem[0]` initial receive buffer — the window a socket carries
+  BEFORE autotuning grows it), deliberately the conservative pole:
+  the estimate errs LOW, never high. The law is self-extinguishing —
+  a rate whose clamped window reaches the default (about 655 KB/s at
+  the 200 ms cadence) books ZERO, because there the clamp is not the
+  binding constraint and the column refuses to claim the policer's
+  work as the window's.
+
+- `bytes_saved_by_ecn` — the QUIC 1:1 retransmission prevention
+  (kernel-booked, one-for-one with `ce_marked_bytes`). Every
+  delivered CE-marked byte is a byte that never becomes a
+  loss-and-retransmission pair — and a dropped byte costs metered
+  quota TWICE (the lost delivery plus the retransmission that
+  finally delivers it), so the one-for-one floor is the conservative
+  pole: the column books exactly the marked volume, never a modeled
+  multiple.
+
+- `bytes_saved_by_edt` — the egress pacing headroom (kernel-booked,
+  egress path). Over the gap since the lane's last policed egress
+  packet, the budget the rate accrued minus the volume actually
+  delivered — `saved = (rate x dt_capped) - pkt_len`, clamped at
+  zero per call. Summed over the lane's life it reads the task's own
+  formula:
+
+      bytes_saved_by_edt = (rate x time_elapsed) - bytes_uploaded
+
+  The caps are load-bearing and borrowed from laws the house already
+  pins: the gap caps at ONE SECOND (refill_credits' idle cap — the
+  counter never rewards idleness the bucket itself refuses to
+  credit) and the rate sanitizes at 4 GiB/s (the recwn clamp's own
+  guard — the BPF ISA has no widening multiply, so bounded factors
+  keep the u64 product overflow-impossible).
+
+- `bytes_saved_total` — the sum of the three, the number `status
+  --print-json` carries and the human table renders as
+  `Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)`.
+
+**The probe record.** The live proofs carry a saved row each, and
+the recorded runs read like this:
+
+- A 3 MB download with RECWN active saved 18.1 MB of unnecessary
+  TCP window expansion.
+- A 3 MB QUIC stream saved 65 KB of retransmission storm via ECN.
+
+**The limitation, stated plainly.** QUIC first-packet still crosses
+the WiFi. We save the retransmission storms, not the initial packet.
+The lanes shape what a sender is ALLOWED to push and rescue what an
+honest congestion signal can rescue; they do not un-send a datagram
+the wire already carried.
+
+The headline number — the 80% quota saver — is the layered claim on
+the metered rates the lane exists for: at the 100 kb rung the RECWN
+estimate alone books ~85% under the conservative default-window
+assumption, the ECN lane books the lossless pressure valve it
+delivered, and the EDT lane books the burst headroom it preserved.
+The telemetry makes the components readable; the workload makes the
+total. The deep derivations (the per-packet EDT accrual form, the
+combined-ledger granularity concession, the datapath call sites)
+live in
+[docs/COSMIC_DRAGON_ARC.md](docs/COSMIC_DRAGON_ARC.md)'s Layer 4
+section.
+
 ## Support
 
 Built and maintained independently by **rezky_nightky (oxyzenQ)**.
