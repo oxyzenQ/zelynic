@@ -174,12 +174,18 @@ fn book_rescue_moves_the_booking_exactly() {
         bytes_dropped: 7_000,
         ce_marked_packets: 0,
         ce_marked_bytes: 0,
+        bytes_saved_by_edt: 0,
+        bytes_saved_by_ecn: 0,
     };
     book(&mut stats, false, 1500);
     assert_eq!((stats.packets_dropped, stats.bytes_dropped), (8, 8_500));
     book_rescue(&mut stats, 1500);
     assert_eq!((stats.packets_allowed, stats.bytes_allowed), (42, 42_500));
     assert_eq!((stats.packets_dropped, stats.bytes_dropped), (7, 7_000));
+    // v28 (night-spark-7, Layer 4): the correction books the ECN
+    // lane's saved volume too — one-for-one with the delivered
+    // mark's bytes, never a modeled multiple.
+    assert_eq!(stats.bytes_saved_by_ecn, 1500);
 }
 
 #[test]
@@ -195,6 +201,8 @@ fn book_rescue_books_the_ce_ledger_exactly() {
         bytes_dropped: 0,
         ce_marked_packets: 9,
         ce_marked_bytes: 9_000,
+        bytes_saved_by_edt: 0,
+        bytes_saved_by_ecn: 0,
     };
     book(&mut stats, false, 1500);
     // A plain drop (a refused mark, a debt at its cap) touches NO ce
@@ -205,6 +213,11 @@ fn book_rescue_books_the_ce_ledger_exactly() {
         (stats.ce_marked_packets, stats.ce_marked_bytes),
         (10, 10_500)
     );
+    // v28 (night-spark-7, Layer 4): the saved twin rides the same
+    // correction — one-for-one with the marked bytes, and a plain
+    // drop never touches it (the ledger counts delivered marks, and
+    // only a delivered mark saves a retransmission).
+    assert_eq!(stats.bytes_saved_by_ecn, 1_500);
     // The legacy quartet's shape is unchanged by the tail's growth.
     assert_eq!((stats.packets_allowed, stats.bytes_allowed), (1, 1_500));
     assert_eq!((stats.packets_dropped, stats.bytes_dropped), (0, 0));

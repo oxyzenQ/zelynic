@@ -139,22 +139,60 @@ pub fn book(stats: &mut LimiterStats, allowed: bool, pkt_len: u32) {
 /// file), and a sub node adds an unproven selection for zero
 /// benefit — the wrapping add is bit-identical arithmetic on the
 /// same counter word.
+///
+/// v28 (night-spark-7, the quota telemetry's math): the correction
+/// books the ECN lane's SAVED volume too — bytes_saved_by_ecn
+/// (+pkt_len) — one-for-one with ce_marked_bytes, at the same spot,
+/// through the same relaxed fetch_add. The one-for-one law is the
+/// estimate's conservative floor: every delivered CE-marked byte is
+/// a byte that never becomes a loss-and-retransmission pair (a
+/// dropped byte costs the quota TWICE — once for the lost delivery,
+/// once for the retransmission that finally delivers it — so the
+/// true saving is at least the marked volume; the floor books
+/// exactly the marked volume, never a modeled multiple). The two
+/// columns stay separate words on purpose: ce_marked_bytes is the
+/// RAW ledger input, bytes_saved_by_ecn is the Layer 4 estimate —
+/// a future multiplier re-tunes the estimate word without touching
+/// the raw column.
 #[inline(always)]
 pub fn book_rescue(stats: &mut LimiterStats, pkt_len: u32) {
     // Field pointers (8-aligned repr(C) offsets: 0, 8, 16, 24 for the
-    // legacy quartet, 32, 40 for the v26 tail — the size pin above).
+    // legacy quartet, 32, 40 for the v26 tail, 56 for the v28 ECN
+    // saved word — the size pin above).
     let packets_allowed_ptr = core::ptr::addr_of_mut!(stats.packets_allowed);
     let packets_dropped_ptr = core::ptr::addr_of_mut!(stats.packets_dropped);
     let bytes_allowed_ptr = core::ptr::addr_of_mut!(stats.bytes_allowed);
     let bytes_dropped_ptr = core::ptr::addr_of_mut!(stats.bytes_dropped);
     let ce_packets_ptr = core::ptr::addr_of_mut!(stats.ce_marked_packets);
     let ce_bytes_ptr = core::ptr::addr_of_mut!(stats.ce_marked_bytes);
+    let ecn_saved_ptr = core::ptr::addr_of_mut!(stats.bytes_saved_by_ecn);
     rmw_view(packets_dropped_ptr).fetch_add(u64::MAX, Ordering::Relaxed);
     rmw_view(bytes_dropped_ptr).fetch_add(u64::from(pkt_len).wrapping_neg(), Ordering::Relaxed);
     rmw_view(packets_allowed_ptr).fetch_add(1, Ordering::Relaxed);
     rmw_view(bytes_allowed_ptr).fetch_add(u64::from(pkt_len), Ordering::Relaxed);
     rmw_view(ce_packets_ptr).fetch_add(1, Ordering::Relaxed);
     rmw_view(ce_bytes_ptr).fetch_add(u64::from(pkt_len), Ordering::Relaxed);
+    rmw_view(ecn_saved_ptr).fetch_add(u64::from(pkt_len), Ordering::Relaxed);
+}
+
+/// Book the egress pacing lane's preserved headroom into the v28
+/// stats tail (night-spark-7, Layer 4 of the quota saver): one
+/// relaxed fetch_add on bytes_saved_by_edt (offset 48). The single-writer-per-call shape
+/// is book's own — the SMP guarantee the boost-38 rewrite owns
+/// (lost increments are impossible when every add rides the RMW
+/// view). The caller (pace_flow.rs pace_saved_book) computes the
+/// saved volume through the pure law (pace.rs
+/// pacing_saved_bytes) and only calls this with saved > 0, so a
+/// saturated paced lane — the common steady state, where the
+/// per-packet budget lands within the packet's own length — pays
+/// no RMW at all: zero saved books nothing, exactly the
+/// dormant-watchdog economy the house keeps.
+#[inline(always)]
+pub fn book_edt_saved(stats: &mut LimiterStats, saved: u64) {
+    // Field pointer (8-aligned repr(C) offset 48 — the size pin in
+    // math.rs).
+    let edt_saved_ptr = core::ptr::addr_of_mut!(stats.bytes_saved_by_edt);
+    rmw_view(edt_saved_ptr).fetch_add(saved, Ordering::Relaxed);
 }
 
 /// Pure refill arithmetic for one owned window (NIGHT-boost-38

@@ -222,6 +222,26 @@ pub struct Bucket {
 /// the drop booking moves to the allowed column. Pure append: the
 /// four legacy counters keep their offsets, every pre-v26 reader of
 /// the head reads unchanged.
+///
+/// v28 (night-spark-7, the quota telemetry's math — Layer 4 of the
+/// quota saver): the tail grows again, 48 -> 64 bytes, the same
+/// pure-append law. `bytes_saved_by_edt` (offset 48) is booked on
+/// the egress policed path (pace_flow.rs pace_saved_book ->
+/// book_edt_saved) as the lane's theoretical budget minus the volume
+/// actually delivered — rate x elapsed minus uploaded, the task's
+/// own formula, accrued per packet against a per-cgroup stamp with
+/// the refill_credits one-second idle cap — so the column reads the
+/// quota headroom the pacer preserved while the lane was active.
+/// `bytes_saved_by_ecn` (offset 56) is booked by book_rescue's
+/// correction beside the ce_marked pair it already writes: every
+/// delivered CE-marked byte is a byte that never becomes a
+/// loss-and-retransmission pair, booked one-for-one (the estimate's
+/// conservative floor). The RECWN lane's saving stays a USERSPACE
+/// estimate (display.rs recwn_saved_bytes — the window-law
+/// counterfactual) because the sock_ops clamp carries no observable
+/// default-window column to book against; the derivation law and
+/// its named assumption live in docs/COSMIC_DRAGON_ARC.md. Every
+/// pre-v28 reader of the head and the v26 tail reads unchanged.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct LimiterStats {
@@ -231,11 +251,19 @@ pub struct LimiterStats {
     pub bytes_dropped: u64,
     pub ce_marked_packets: u64,
     pub ce_marked_bytes: u64,
+    /// The egress pacing lane's preserved headroom, bytes (v28):
+    /// the running (rate x elapsed) - uploaded, booked per allowed
+    /// egress packet on a paced lane.
+    pub bytes_saved_by_edt: u64,
+    /// The ECN lane's saved volume, bytes (v28): one-for-one with
+    /// ce_marked_bytes — every delivered mark is a byte that never
+    /// becomes a retransmission.
+    pub bytes_saved_by_ecn: u64,
 }
 
 const _: () = assert!(core::mem::size_of::<Policy>() == 40);
 const _: () = assert!(core::mem::size_of::<Bucket>() == 24);
-const _: () = assert!(core::mem::size_of::<LimiterStats>() == 48);
+const _: () = assert!(core::mem::size_of::<LimiterStats>() == 64);
 
 /// Refill rate math: nanoseconds per second.
 pub const NS_PER_SEC: u64 = 1_000_000_000;

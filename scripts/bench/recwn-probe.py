@@ -57,6 +57,15 @@ cgroup, a real curl child, and the real internet:
     absence there means zero) — the whole point of shaping the
     window instead of letting the drops teach the sender.
 
+  row 6 — the saved quota books (live, night-spark-7 Layer 4): the
+    row's bytes_saved_by_recwn grows during the clamped download —
+    the window-law counterfactual (delivered x (default window -
+    clamped window) / clamped window, the 128 KiB assumption the
+    arc doc names), computed userspace-side because the sock_ops
+    clamp carries no observable default-window column to book
+    against. A pre-v28 binary carries no field and fails this row
+    with the rebuild reason spelled out.
+
 Honesty contracts: the child is forked BEFORE any socket exists and
 writes its own pid into the target's cgroup.procs only AFTER the
 policy stands (the curl sockets are born policed — the same
@@ -1005,6 +1014,17 @@ def live_run(byte_cap):
         if not schema_ok:
             return 1
 
+        # The Layer 4 baseline (night-spark-7): the probe's own row's
+        # saved columns, read off the same doc the schema row rode —
+        # the RECWN estimate's growth over the download is the
+        # quota-saved row's own evidence.
+        base_row = next(
+            (r for r in (doc or {}).get("limits", []) if r.get("cgroup_id") == cg_id),
+            None,
+        )
+        pre_saved_r = (base_row or {}).get("bytes_saved_by_recwn")
+        pre_saved_t = (base_row or {}).get("bytes_saved_total")
+
         # Rows 3-5 — the download under the policy, ss sampling beside.
         # The endpoint ladder: the Asia-Pacific mirrors first, the
         # cloudflare __down mirror the global last resort — every leg
@@ -1097,7 +1117,43 @@ def live_run(byte_cap):
             "PASS" if retrans_ok else "FAIL",
             retrans_detail,
         )
-        ok = schema_ok and clamp_ok and band_ok and retrans_ok
+
+        # Row 6 — the saved quota (night-spark-7, Layer 4 live): the
+        # RECWN estimate's own growth — the window-law counterfactual
+        # (the delivered volume x the held-back-per-cycle, against the
+        # documented 128 KiB default-window assumption) moving as the
+        # download delivered. A pre-v28 binary carries no fields and
+        # the row names the rebuild itself.
+        post_doc = lib.status_json()
+        post_row = next(
+            (r for r in (post_doc or {}).get("limits", []) if r.get("cgroup_id") == cg_id),
+            None,
+        )
+        post_saved_r = (post_row or {}).get("bytes_saved_by_recwn")
+        post_saved_t = (post_row or {}).get("bytes_saved_total")
+        if post_saved_r is None or post_saved_t is None:
+            lib.record(
+                "recwn: the download books its saved quota",
+                "FAIL",
+                "status --print-json limits[] carries no bytes_saved_by_recwn / "
+                "bytes_saved_total — a pre-v28 (stale pinned) object is "
+                "loaded; rebuild and re-apply",
+            )
+            saved_ok = False
+        else:
+            delta_r = int(post_saved_r) - int(pre_saved_r or 0)
+            delta_t = int(post_saved_t) - int(pre_saved_t or 0)
+            saved_ok = delta_r > 0 and delta_t >= delta_r
+            lib.record(
+                "recwn: the download books its saved quota",
+                "PASS" if saved_ok else "FAIL",
+                f"the ledger moved {delta_r} B saved-by-recwn / {delta_t} B "
+                "total during the clamped download — the window-law "
+                "counterfactual (delivered x (default - clamped) / clamped, "
+                "the 128 KiB assumption named), the quota saver's Layer 4, "
+                "live",
+            )
+        ok = schema_ok and clamp_ok and band_ok and retrans_ok and saved_ok
     finally:
         # Teardown (best-effort, never fails a verdict) — scoped to the
         # probe's own cgroup ONLY: `unstrict --all` is the emergency

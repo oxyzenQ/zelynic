@@ -278,7 +278,27 @@ pub(crate) fn try_enforce(
     // SAFETY: same stats-map contract as the rate-0 lane above —
     // stable kernel memory, one invocation lifetime; the Option's
     // borrow is moved into exactly one budgeted lane, never two.
-    let stats = stats_ptr.map(|ptr| unsafe { &mut *ptr });
+    // `mut` for the Layer 4 reborrow below (as_deref_mut takes the
+    // Option by exclusive reference); the lanes still move it by
+    // value afterward, exactly as before.
+    let mut stats = stats_ptr.map(|ptr| unsafe { &mut *ptr });
+
+    // night-spark-7 (the quota telemetry's math — Layer 4 of the
+    // quota saver): on the EGRESS policed path only, accrue the
+    // pacing lane's saved headroom into the entry the verdict is
+    // about to book through — the kernel half of (rate x elapsed) -
+    // uploaded, run BEFORE any budgeted lane consumes the borrow (a
+    // reborrow through as_deref_mut, ended before the lanes move the
+    // Option — the borrow stays exactly as moveable as it was). The
+    // rate-0 block verdict returned above: a blocked lane delivers
+    // nothing, so no headroom can be preserved on it. UDP/QUIC
+    // egress rides the same accrual by design: the formula names
+    // the LANE's budget-vs-delivered gap, and the policer — not the
+    // TCP pacer — is the lane UDP actually answers to; the column's
+    // subject is the lane, never the protocol.
+    if !is_ingress && let Some(s) = stats.as_deref_mut() {
+        pace_flow::pace_saved_book(&cgroup_id, pol_sane.rate_bps, now, pkt_len, s);
+    }
 
     // The per-socket lane (NIGHT-upgrade-charger-core-3b, Tier B
     // #7): POLICY_FLAG_PER_SOCKET spends through a bucket keyed by

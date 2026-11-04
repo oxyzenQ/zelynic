@@ -309,52 +309,117 @@ The sequence is the owner's: RWND first (the quota saver's spine),
 ECN-for-QUIC second (the lossless signal), EDT third (the egress
 finish). All three have landed (v25, v26, v27) — and the fourth,
 the telemetry that turns the three lanes' work into a number the
-owner can read, is outlined and surfaced (night-spark-6, below).
+owner can read, landed with the math itself (night-spark-7, schema
+v28, below).
 The arc's existing scales are the foundation all three stand on —
 the hint maps already name QUIC connections, the debt word already
 charges per budget, the verdict path already runs on both
 directions.
 
-- **Layer 4 — quota telemetry (OUTLINED, night-spark-6; the status
-  surfaces landed as placeholders, the booking is the next arc
-  move).** The three lanes save quota by three different physics —
+- **Layer 4 — quota telemetry (LANDED, night-spark-7; the math
+  that turns the three lanes' work into a number the owner can
+  read).** The three lanes save quota by three different physics —
   RECWN clamps what the sender CAN send, the CE mark makes the
-  sender back off, pacing spaces the departure — but none of them
-  books the saving. Layer 4 closes that with two per-cgroup saved
-  columns and the surfaces that read them. The map structure (the
-  v28 plan, the v26 CE-ledger precedent verbatim — pure append, the
-  six legacy words keep their offsets, the pinned stats maps wipe
-  once at the bump): `LimiterStats` grows its tail from 48 to 64
-  bytes with `bytes_saved_by_recwn` and `bytes_saved_by_ecn`, the
-  userspace mirror `LimiterStatsRaw` growing with it and the size
-  pins moving in the same commit — a change that must ride the
-  eBPF toolchain (the prebuilt parity gate fails until
-  `refresh-prebuilt.sh` rebuilds the objects), which is exactly why
-  night-spark-6 landed the SURFACES first and left the words
-  outlined here. The two candidate derivation laws, the owner's own
-  pair: (a) the ECN estimate — `(marked_packets x average QUIC
-  packet size) x backoff_multiplier`, booked at `book_rescue`'s
-  correction spot beside the `ce_marked` pair it already writes;
-  (b) the delta law — the running difference between
-  `bytes_allowed` and the theoretical `rate x time-since-apply`,
-  which needs a per-row apply timestamp the v27 row does not carry
-  (a real schema decision, not a constant to guess). The honest
-  caveat both share: the number is an ESTIMATE — a sender can lie
-  about its packet size, an average drifts, a backoff multiplier is
-  a model — so the words book the model's output and the docs name
-  the model, never a fabricated precision. What landed NOW
-  (night-spark-6): `status --print-json` carries
-  `limits[].bytes_saved_by_recwn` / `limits[].bytes_saved_by_ecn`
-  on every row — always present, the additive contract the CE-ledger
-  pair set, reading 0 until the v28 booking exists (never a
-  fabricated estimate) — and the human table gains the
-  `Quota Saved: X` subordinate line (the RECWN + ECN sum,
-  format_bytes' own shape, silent while both book nothing, the
-  dormant-watchdog precedent). The verification ladder when the
-  booking lands: the pure-law pins (the estimate math, rootless),
-  the v28 JSON pins in the display suites, and the live cross-check
-  — the ecn-probe's ledger against the saved estimate on a run that
-  marked real volume.
+  sender back off, pacing spaces the departure — and Layer 4 books
+  each lane's saving by the physics it actually owns. The map
+  structure (schema v28, the v26 CE-ledger precedent verbatim —
+  pure append, the six legacy words keep their offsets, the pinned
+  stats maps wipe once at the bump): `LimiterStats` grows its tail
+  from 48 to 64 bytes with `bytes_saved_by_edt` and
+  `bytes_saved_by_ecn` — the two lanes the KERNEL can book — plus
+  ONE new pinned LRU map, `pace_saved_stamp` (policy root ->
+  last-seen egress stamp, the ecn_debt family's datapath-internal
+  posture), the time base the EDT accrual reads. The night-spark-6
+  outline planned a recwn word in the tail; the landing moved the
+  RECWN saving to the USERSPACE side on purpose (the find that
+  shaped it): the sock_ops clamp carries no observable
+  default-window column to book against, so a kernel word would
+  have to fabricate the counterfactual at the hottest call site in
+  the object — the estimate runs instead where the census already
+  lives, against an assumption the docs NAME.
+
+  The three derivation laws (the estimate's law is the arc's own;
+  each names its model, never a fabricated precision):
+
+  * **EDT — `bytes_saved_by_edt` (kernel-booked, egress path).**
+    The task's own formula, per-packet form: over the gap since the
+    lane's last policed egress packet, the budget the rate accrued
+    minus the volume actually delivered —
+    `saved = (rate x dt_capped) - pkt_len`, clamped at zero per
+    call. Summed over the lane's life it reads
+    `(rate x active-time) - uploaded`, the preserved headroom. The
+    caps are load-bearing and both borrowed from laws the house
+    already pins: the gap caps at ONE SECOND (refill_credits' own
+    idle cap — the counter must never reward idleness the bucket
+    itself refuses to credit) and the rate sanitizes at 4 GiB/s
+    (the recwn clamp's own guard — the BPF ISA has no widening
+    multiply, so bounded factors keep the product
+    overflow-impossible on a plain u64 multiply). The pure law
+    lives in pace.rs (`pacing_saved_bytes`), rootless-pinned by
+    pace_tests.rs; the accrual rides ONE insertion point in
+    try_enforce (after the stats entry materializes, before any
+    budgeted lane consumes the borrow), so every egress lane —
+    per-socket, group, DRR — books through it and the ingress
+    never pays for it.
+
+  * **ECN — `bytes_saved_by_ecn` (kernel-booked, book_rescue's
+    correction).** One-for-one with `ce_marked_bytes`: every
+    delivered CE-marked byte is a byte that never becomes a
+    loss-and-retransmission pair — and a dropped byte costs the
+    quota TWICE (once for the lost delivery, once for the
+    retransmission that finally delivers it), so the one-for-one
+    floor is the CONSERVATIVE pole: the true saving is at least the
+    marked volume, and the column books exactly the marked volume,
+    never a modeled multiple. The word writes at the same choke
+    point every mark delivery already returns through, through the
+    same relaxed fetch_add — SMP-exact by construction.
+
+  * **RECWN — `bytes_saved_by_recwn` (userspace estimate,
+    display.rs `recwn_saved_bytes`).** The window-law
+    counterfactual: the clamp holds a sender to `clamped` bytes per
+    delivery cadence, so every `clamped` bytes the lane DELIVERED
+    is one full window-cycle — and in that same cycle a sender with
+    the DEFAULT window would have had `default - clamped` more
+    bytes in flight. Scaled over the delivered volume:
+    `saved = (bytes_allowed / clamped) x (default - clamped)`.
+    The NAMED ASSUMPTION: `default` is pinned at 128 KiB — the
+    kernel's tcp_rmem[0] initial receive buffer, the window a
+    socket carries BEFORE autotuning grows it — deliberately the
+    conservative pole of the assumption band (autotuning grows
+    real defaults toward the MiB scale, so the estimate errs LOW,
+    never high). The self-extinguishing edge is the law's own
+    honesty: a rate whose clamped window reaches the default
+    (about 655 KB/s at the 200 ms cadence estimate) books ZERO —
+    the clamp is not the binding constraint there, the policer is,
+    and the column refuses to claim the policer's work as the
+    window's. The one granularity concession, stated:
+    `bytes_allowed` is the combined dl+ul ledger (the stats map's
+    own shape), so a row policing BOTH directions scales its upload
+    volume into the estimate too — the single-direction row, the
+    RECWN lane's own common shape, is exact.
+
+  The owner's headline number — the **80% quota saver** — is the
+  layered lane's claim on the metered rates it exists for: at the
+  100 kb rung the RECWN estimate alone books ~85% (the window
+  counterfactual), the ECN lane books the lossless pressure valve
+  it delivered, and the EDT lane books the burst headroom it
+  preserved — with the live proofs (recwn-probe, ecn-probe,
+  edt-probe) each carrying a row that reads the columns the
+  math fills. The telemetry makes the components readable; the
+  workload makes the total.
+
+  What landed: `status --print-json` carries
+  `limits[].bytes_saved_by_edt` and `limits[].bytes_saved_total`
+  beside the night-spark-6 pair (all four always present, the
+  additive contract the CE-ledger pair set), the human table's
+  `Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)` subordinate line
+  renders the total with the layer split, and the verification
+  ladder closed: the pure-law pins (pacing_saved_bytes across the
+  cap/sanitize/monotonic matrix), the v28 JSON pins in the display
+  suites (the live mapping, the window-law estimate, the
+  self-extinguishing edge), the layout pins (64 bytes, offsets
+  48/56, the round-trip), and the live cross-check — each probe's
+  saved row against the driven traffic.
 
 ## The testing lane is pure eBPF (night-spark-3)
 

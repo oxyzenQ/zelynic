@@ -489,8 +489,36 @@
 ///     reload into the pacing object — active limits are dropped
 ///     once, re-apply after upgrade, the same one-time contract as
 ///     every bump before it.
+/// v28 (night-spark-7, the quota telemetry's math — Layer 4 of the
+///     quota saver): the stats tail grows again, the v26
+///     pure-append law verbatim. LimiterStats grows
+///     bytes_saved_by_edt and bytes_saved_by_ecn (48 -> 64 bytes):
+///     the EDT word is booked on the EGRESS policed path (enforce.rs
+///     -> pace_flow.rs pace_saved_book -> math_atomics.rs
+///     book_edt_saved) as the lane's theoretical budget minus the
+///     volume actually delivered — rate x elapsed minus uploaded,
+///     the pure law pace.rs pacing_saved_bytes pins (the caps: the
+///     recwn-style rate sanitize, the refill_credits one-second
+///     idle cap) — accrued against ONE new pinned LRU map,
+///     pace_saved_stamp (policy root -> last-seen stamp, the
+///     ecn_debt family's datapath-internal posture: userspace never
+///     opens it). The ECN word is booked by book_rescue's correction
+///     beside the ce_marked pair it already writes, one-for-one
+///     with ce_marked_bytes — every delivered CE-marked byte is a
+///     byte that never becomes a loss-and-retransmission pair, the
+///     estimate's conservative floor. The RECWN lane's saving stays
+///     a USERSPACE estimate (display.rs recwn_saved_bytes, the
+///     window-law counterfactual against the documented 128 KiB
+///     default-window assumption — the arc doc's math section owns
+///     the law and its named assumption); the JSON row carries all
+///     three plus bytes_saved_total, and the human table's Quota
+///     Saved line renders the total with the layer split. Map-value
+///     layout change (cgroup_limiter_stats); the bump forces pinned
+///     v27 programs to reload into the v28 object — active limits
+///     are dropped once, re-apply after upgrade, the same one-time
+///     contract as every bump before it.
 #[allow(dead_code)]
-pub(crate) const SCHEMA_VERSION: u32 = 27;
+pub(crate) const SCHEMA_VERSION: u32 = 28;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs

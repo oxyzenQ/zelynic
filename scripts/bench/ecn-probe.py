@@ -49,7 +49,11 @@ now names) and the QUIC/UDP story the Layer 2 scale exists for:
     names limits[].ce_marked_packets / .ce_marked_bytes > 0 (the
     schema-v26 columns) and the CE byte volume stays inside the
     budget law's bound: cap + rate x window + one packet, the
-    window measured drain-until-quiet, not a guess.
+    window measured drain-until-quiet, not a guess. The v28 twin
+    rides the same row: bytes_saved_by_ecn books one-for-one with
+    the marked volume (every delivered mark is a byte that never
+    becomes a retransmission), so the saved column grows exactly
+    as the ledger does — the quota saver's Layer 4, live.
 
   row 5 — the tcpdump witness: the task's own recipe, run where the
     kernel serves it. The witness window RE-PLANTS the download
@@ -980,6 +984,29 @@ def live_run():
             f"+ rate*t {int(RATE_BPS * drain)} + one packet) — the schema-v26 "
             "columns, live",
         )
+
+        # night-spark-7 (Layer 4, the quota telemetry's math): the
+        # saved twin — one-for-one with the marked volume, the same
+        # sum-across-rows discipline parse_ce_ledger carries. A
+        # pre-v28 binary carries no field and the row names the
+        # rebuild itself.
+        saved_rows = [r for r in (doc or {}).get("limits", []) if "bytes_saved_by_ecn" in r]
+        saved_b = sum(int(r.get("bytes_saved_by_ecn", 0)) for r in saved_rows)
+        if not saved_rows:
+            lib.record(
+                "ecn: the marked volume books its saved twin one-for-one",
+                "FAIL",
+                "status --print-json limits[] carries no bytes_saved_by_ecn — "
+                "a pre-v28 (stale pinned) object is loaded; rebuild and re-apply",
+            )
+        else:
+            lib.record(
+                "ecn: the marked volume books its saved twin one-for-one",
+                "PASS" if saved_b == led_b and saved_b > 0 else "FAIL",
+                f"bytes_saved_by_ecn {saved_b} B == ce_marked {led_b} B (summed "
+                "across rows) — every delivered mark is a byte that never "
+                "becomes a retransmission, the v28 tail live",
+            )
 
         # Phase 2 — the tap-visible witness: the upload policy joins,
         # a short ECT re-blast, tcpdump counts the egress marks. The

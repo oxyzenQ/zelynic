@@ -837,25 +837,27 @@ audit showed the pair can read as a mystery):
   prints nothing (an unenforcing lane printing state noise is
   absence pretending to be information).
 - **Quota Saved** (the grey line under a row that has one) — the
-  quota telemetry's total (night-spark-6, the quota saver's Layer 4
-  PREP): `bytes_saved_by_recwn + bytes_saved_by_ecn`, the volume
-  the RECWN window clamp and the ECN mark's backoff kept the sender
-  from sending. The columns are PLACEHOLDERS — both read 0 until
-  the Layer 4 booking lands (the v28 stats tail the arc's outline
-  specs), and the line stays silent on a zero (the
-  dormant-watchdog precedent), so a row without the line has booked
-  no savings yet, never "no lane".
+  quota telemetry's total with its layer split (night-spark-7,
+  the quota saver's Layer 4 math, schema v28):
+  `Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)` — the three lanes'
+  saved-byte sum with the physics that produced it named in the
+  parentheses (EDT: the preserved egress headroom, ECN: the
+  delivered marks, RECWN: the window-clamp counterfactual, the
+  documented userspace estimate). The line stays silent on a zero
+  total (the dormant-watchdog precedent), so a row without the
+  line has booked no savings yet, never "no lane".
 
 Both counters live for the lifetime of the limit: re-applying
 `strict` with a different rate keeps the accounting continuous
 (the long run re-tightened its target mid-run and the totals
 carried), and `unstrict` reclaims the stats row once both
 directions are gone, so the next `strict` starts from zero. The
-table shows the byte pair; `--print-json` carries all eight
+table shows the byte pair; `--print-json` carries all ten
 per-row counters (packets_allowed, packets_dropped, bytes_allowed,
 bytes_dropped, the schema-v26 CE-ledger pair
-ce_marked_packets, ce_marked_bytes, and the night-spark-6 quota
-telemetry placeholders bytes_saved_by_recwn, bytes_saved_by_ecn)
+ce_marked_packets, ce_marked_bytes, and the schema-v28 quota
+telemetry quartet bytes_saved_by_edt, bytes_saved_by_ecn,
+bytes_saved_by_recwn, bytes_saved_total)
 where automation reads them — one metric per cell, evidence of
 enforcement rather than a live rate meter.
 
@@ -2188,7 +2190,7 @@ Field shapes:
 `status --print-json`:
 
 ```json
-{"watchdog":"enforcing","active_limits":2,"limits":[{"cgroup_id":18571,"label":"brave","download_bytes_per_sec":100000,"upload_bytes_per_sec":100000,"packets_allowed":232,"packets_dropped":4718,"bytes_allowed":29520,"bytes_dropped":8031234,"ce_marked_packets":12,"ce_marked_bytes":17432,"bytes_saved_by_recwn":0,"bytes_saved_by_ecn":0}]}
+{"watchdog":"enforcing","active_limits":2,"limits":[{"cgroup_id":18571,"label":"brave","download_bytes_per_sec":100000,"upload_bytes_per_sec":100000,"packets_allowed":232,"packets_dropped":4718,"bytes_allowed":29520,"bytes_dropped":8031234,"ce_marked_packets":12,"ce_marked_bytes":17432,"bytes_saved_by_edt":61000,"bytes_saved_by_ecn":17432,"bytes_saved_by_recwn":16438312,"bytes_saved_total":16516744}]}
 ```
 
 The complete field reference (night-improve-60 — the owner read
@@ -2209,7 +2211,10 @@ one table, script-facing):
 | `limits[].packets_allowed` / `packets_dropped` | number | cumulative packet counts under the limit (both directions booked into one row) |
 | `limits[].bytes_allowed` / `bytes_dropped` | number | cumulative BYTES: what passed enforcement, what the token bucket discarded. Lifetime counters — re-applying `strict` keeps them continuous; `unstrict` reclaims the row |
 | `limits[].ce_marked_packets` / `ce_marked_bytes` | number | the ECN-first lane's delivered CE-marked volume (night-spark-4, schema v26 — always present): packets the policer DELIVERED with the CE codepoint set instead of dropping, and their bytes. A refused mark never reaches the pair |
-| `limits[].bytes_saved_by_recwn` / `bytes_saved_by_ecn` | number | the quota telemetry's saved-volume placeholders (night-spark-6, the quota saver's Layer 4 PREP — always present): the bytes the RECWN window clamp and the ECN mark's backoff kept the sender from sending. Both read `0` until the Layer 4 booking lands (the v28 stats tail); the human table's `Quota Saved` line renders their sum |
+| `limits[].bytes_saved_by_edt` | number | the egress pacing lane's preserved headroom (night-spark-7, schema v28 — always present): the running `(rate x elapsed) - uploaded` the kernel books on the egress policed path, capped per gap at one second (the refill discipline). Zero while a saturated paced lane delivers at its own rate — headroom exists only when the pacer held something back |
+| `limits[].bytes_saved_by_ecn` | number | the ECN lane's saved volume (night-spark-7, schema v28 — always present): one-for-one with `ce_marked_bytes` — every delivered CE-marked byte is a byte that never becomes a loss-and-retransmission pair, the estimate's conservative floor |
+| `limits[].bytes_saved_by_recwn` | number | the RECWN lane's saved volume (night-spark-7 — always present): the userspace window-law estimate `(bytes_allowed / clamped_window) x (default_window - clamped_window)` against the documented 128 KiB default-window assumption (tcp_rmem[0], the conservative pole); zero when the lane is unplanted or the row's clamped window reaches the default (~655 KB/s — the clamp is not the binding constraint there, the policer is) |
+| `limits[].bytes_saved_total` | number | the row's three-lane sum, saturating (night-spark-7 — always present): the one field a scripted `Quota Saved: X` reads; the human table's Quota Saved line renders this total with the layer split |
 | `limits[].pacing_rate_bytes` | number | the egress pacing lane's commanded rate (night-spark-5, schema v27), in BYTES per second — the upload policy's own rate pinned onto the row's TCP sockets via `SO_MAX_PACING_RATE`. Present only when a live upload policy stands; absent on upload-less and blocked rows (never a fabricated zero) |
 | `limits[].rate_ring` | object | the last eight seconds' per-second delivered bytes, per direction — a traffic MONITOR, not the policy window (see the callout below) |
 | `limits[].window` | object | the row's `--during` policy window — the thing that expires (see the callout below) |

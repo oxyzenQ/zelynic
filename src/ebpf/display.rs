@@ -40,21 +40,25 @@ pub(crate) struct DisplayData {
     /// precedent).
     pub(crate) ce_marked_packets: u64,
     pub(crate) ce_marked_bytes: u64,
-    /// night-spark-6 (the quota saver's Layer 4 PREP, quota
-    /// telemetry): the RECWN lane's saved-volume placeholder — the
-    /// bytes the receive-window lane kept a sender from sending.
-    /// Reads 0 until the Layer 4 booking lands (the v28 stats tail
-    /// the arc's outline specs); the subordinate Quota Saved line
-    /// renders the pair's sum, silent while both book nothing (the
-    /// dormant-watchdog precedent).
+    /// night-spark-7, schema v28 (the quota telemetry's math — Layer
+    /// 4 of the quota saver): the egress pacing lane's preserved
+    /// headroom, read off the stats row's v28 tail — the running
+    /// (rate x elapsed) - uploaded the kernel books on the egress
+    /// policed path. The Quota Saved line's EDT half.
+    pub(crate) bytes_saved_by_edt: u64,
+    /// night-spark-7, Layer 4: the RECWN lane's saved volume — the
+    /// window-law counterfactual (recwn_saved_bytes below): the
+    /// bytes the receive-window clamp kept a sender from sending,
+    /// estimated userspace-side against the documented default-window
+    /// assumption because the sock_ops clamp carries no observable
+    /// default-window column to book against. Zero when the lane is
+    /// not planted or the row carries no live download rate.
     pub(crate) bytes_saved_by_recwn: u64,
-    /// night-spark-6 (Layer 4 PREP): the ECN lane's saved-volume
-    /// placeholder — the bytes the CE mark's backoff kept the sender
-    /// from re-sending. Reads 0 until the Layer 4 math lands (the
-    /// estimate law — marked volume x backoff, or the
-    /// allowed-vs-theoretical delta — is the arc outline's own open
-    /// decision); ce_marked_bytes is the RAW ledger input, never the
-    /// saved estimate itself.
+    /// night-spark-7, Layer 4: the ECN lane's saved volume, read off
+    /// the stats row's v28 tail — one-for-one with ce_marked_bytes,
+    /// booked by book_rescue beside the raw pair: every delivered
+    /// CE-marked byte is a byte that never becomes a
+    /// loss-and-retransmission pair.
     pub(crate) bytes_saved_by_ecn: u64,
     /// The row's --during window, when it carries one (night-during,
     /// schema v23) — the lifetime line under the row renders it.
@@ -76,16 +80,20 @@ pub(crate) struct DisplayData {
 // before the split.
 pub(crate) use super::display_lines::{
     active_limits_line, ce_marked_line, guarantee_line, list_apps_header_line, pacing_line,
-    quota_saved_line, recwn_line, status_cells, status_header_line, status_row_line,
-    watchdog_line, window_lifetime_line,
+    quota_saved_line, recwn_line, status_cells, status_header_line, status_row_line, watchdog_line,
+    window_lifetime_line,
 };
 
-/// Collect display data from policies + stats (+ the window join).
+/// Collect display data from policies + stats (the window join, and
+/// the RECWN lane join — night-spark-7: the Layer 4 estimate needs
+/// the lane's planted verdict, the same belt the bottom RECWN
+/// line's own derivation rides).
 pub(super) fn collect_display_data(
     dl_policies: &[(u32, PolicyRaw)],
     ul_policies: &[(u32, PolicyRaw)],
     stats: &[(u32, LimiterStatsRaw)],
     windows: &[(u32, PolicyWindowRaw)],
+    recwn: &RecwnLane,
 ) -> Vec<DisplayData> {
     // The census row: (dl, ul, dl per-socket, ul per-socket, the
     // per-direction guarantee pairs — improve-40-b: each leg's pair
@@ -138,15 +146,21 @@ pub(super) fn collect_display_data(
                 bytes_dropped: s.map(|(_, s)| s.bytes_dropped).unwrap_or(0),
                 ce_marked_packets: s.map(|(_, s)| s.ce_marked_packets).unwrap_or(0),
                 ce_marked_bytes: s.map(|(_, s)| s.ce_marked_bytes).unwrap_or(0),
-                // night-spark-6 (Layer 4 PREP): the quota telemetry
-                // placeholders — the stats row carries no saved-volume
-                // columns until the v28 tail lands, so both read 0 by
-                // construction (never a fabricated estimate: the
-                // derivation law is the arc outline's open decision,
-                // and a zero the display honestly carries until the
-                // booking exists).
-                bytes_saved_by_recwn: 0,
-                bytes_saved_by_ecn: 0,
+                // night-spark-7 (the quota telemetry's math — Layer
+                // 4): the two kernel-booked columns copy straight off
+                // the v28 stats tail, and the RECWN estimate runs the
+                // window-law counterfactual below — planted lane,
+                // live download rate, the row's delivered volume. A
+                // row with no stats entry books nothing (the
+                // unwrap_or(0) family's own honesty).
+                bytes_saved_by_edt: s.map(|(_, s)| s.bytes_saved_by_edt).unwrap_or(0),
+                bytes_saved_by_recwn: match (recwn.planted, dl) {
+                    (true, Some(rate)) if *rate > 0 => {
+                        recwn_saved_bytes(*rate, s.map(|(_, s)| s.bytes_allowed).unwrap_or(0))
+                    }
+                    _ => 0,
+                },
+                bytes_saved_by_ecn: s.map(|(_, s)| s.bytes_saved_by_ecn).unwrap_or(0),
                 window: windows
                     .iter()
                     .find(|(id, _)| id == cgroup_id)
@@ -234,6 +248,60 @@ pub(crate) fn recwn_lane(dl_policies: &[(u32, PolicyRaw)], planted: bool) -> Rec
     }
 }
 
+/// night-spark-7 (the quota telemetry's math — Layer 4 of the quota
+/// saver): the RECWN lane's saved-volume estimate — the window-law
+/// counterfactual, userspace-side by design (the sock_ops clamp
+/// carries no observable default-window column to book against, so
+/// the kernel cannot book this lane's saving; the estimate runs
+/// where the census already lives). THE LAW, in words: the clamp
+/// holds a sender to `clamped` bytes per delivery cadence, so every
+/// `clamped` bytes the lane DELIVERED is one full window-cycle —
+/// and in that same cycle a sender with the DEFAULT window would
+/// have had `default - clamped` more bytes in flight. Scaled over
+/// the delivered volume:
+///
+///     bytes_saved_by_recwn = (bytes_allowed / clamped) x (default - clamped)
+///
+/// The NAMED ASSUMPTION (the arc doc's math section owns it): the
+/// default window is pinned at 128 KiB — the kernel's tcp_rmem[0]
+/// initial receive buffer, the window a socket carries BEFORE
+/// autotuning grows it. That is deliberately the CONSERVATIVE pole
+/// of the assumption band: autotuning grows real defaults toward
+/// the MiB scale, so the true saving sits between this bound and
+/// the link's own ceiling — the estimate errs LOW, never high, the
+/// same direction every honest counter in this house leans. The
+/// self-extinguishing edge is the law's own honesty: a rate whose
+/// clamped window reaches the default (about 655 KB/s at the 200 ms
+/// cadence estimate) books ZERO — the clamp is not the binding
+/// constraint there, the policer is, and this column refuses to
+/// claim the policer's work as the window's. The one granularity
+/// concession, stated: bytes_allowed is the combined dl+ul ledger
+/// (the stats map's own shape), so a row policing BOTH directions
+/// scales its upload volume into the estimate too — the
+/// single-direction row, the RECWN lane's own common shape (a
+/// download policy, an unlimited upload), is exact.
+pub(crate) const RECWN_SAVED_DEFAULT_WINDOW_BYTES: u64 = 131_072;
+
+/// The Layer 4 RECWN estimate (see
+/// [`RECWN_SAVED_DEFAULT_WINDOW_BYTES`]'s law): the bytes a
+/// default-window sender would have put in flight beyond the
+/// clamp's own volume, over the lane's delivered volume. Integer
+/// division floors the cycle count (conservative) and the
+/// saturating multiply bounds the extreme tail (a u64-extreme
+/// delivered volume cannot panic the estimate in debug builds).
+#[must_use]
+pub(crate) fn recwn_saved_bytes(rate_bps: u64, bytes_allowed: u64) -> u64 {
+    let clamped = recwn_window_bytes(rate_bps);
+    if clamped >= RECWN_SAVED_DEFAULT_WINDOW_BYTES {
+        // The clamp is not the binding constraint at this rate —
+        // the estimate self-extinguishes rather than claim the
+        // policer's work as the window's.
+        return 0;
+    }
+    let cycles = bytes_allowed / clamped;
+    cycles.saturating_mul(RECWN_SAVED_DEFAULT_WINDOW_BYTES - clamped)
+}
+
 /// The clean-state frame (no pins, NIGHT-engrave-5; compacted in
 /// NIGHT-private-research-3): the flagship chrome and one grey line
 /// — "no active limits" is a verdict, not an absence of output.
@@ -305,7 +373,7 @@ pub fn print_status(
     windows: &[(u32, PolicyWindowRaw)],
     recwn: &RecwnLane,
 ) {
-    let data = collect_display_data(dl_policies, ul_policies, stats, windows);
+    let data = collect_display_data(dl_policies, ul_policies, stats, windows, recwn);
     let rows: Vec<(String, String, String, String, String)> =
         data.iter().map(|d| status_cells(d, identity)).collect();
     // night-during (schema v23): one clock pair for every lifetime

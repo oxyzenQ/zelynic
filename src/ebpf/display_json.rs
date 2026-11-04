@@ -100,7 +100,7 @@ fn status_json(
     };
 
     let now = mono_now_ns;
-    let data = collect_display_data(dl_policies, ul_policies, stats, windows);
+    let data = collect_display_data(dl_policies, ul_policies, stats, windows, recwn);
 
     let limits: Vec<LimitEntry> = data
         .iter()
@@ -160,15 +160,21 @@ fn status_json(
                 bytes_dropped: d.bytes_dropped,
                 ce_marked_packets: d.ce_marked_packets,
                 ce_marked_bytes: d.ce_marked_bytes,
-                // night-spark-6 (Layer 4 PREP): the quota telemetry
-                // placeholders ride the additive always-present
-                // contract the CE-ledger pair set — zero until the
-                // v28 tail books, honest by construction (the
-                // derivation law is the arc outline's open decision,
-                // and a fabricated estimate would be the dishonest
-                // opposite).
+                // night-spark-7 (the quota telemetry's math — Layer
+                // 4): the live mapping — the two kernel-booked
+                // columns copy off the v28 stats tail, the RECWN
+                // estimate rides collect_display_data's own window
+                // law, and the row's total sums the three lanes
+                // (always present, the additive contract the
+                // CE-ledger pair set — a scripted `Quota Saved: X`
+                // reads one field, never a three-way sum).
                 bytes_saved_by_recwn: d.bytes_saved_by_recwn,
                 bytes_saved_by_ecn: d.bytes_saved_by_ecn,
+                bytes_saved_by_edt: d.bytes_saved_by_edt,
+                bytes_saved_total: d
+                    .bytes_saved_by_edt
+                    .saturating_add(d.bytes_saved_by_ecn)
+                    .saturating_add(d.bytes_saved_by_recwn),
                 // night-spark-5 (schema v27): the egress pacing
                 // lane's commanded rate — the upload policy's own
                 // rate, absent on upload-less and blocked rows (a
@@ -331,15 +337,19 @@ impl LimitEntry {
         write_number(out, self.ce_marked_packets);
         out.push_str(",\"ce_marked_bytes\":");
         write_number(out, self.ce_marked_bytes);
-        // night-spark-6 (the quota saver's Layer 4 PREP): the quota
-        // telemetry placeholders — always present, the additive
-        // contract the CE pair rides (zero books nothing yet; absence
-        // would read as a pre-Layer-4 object, which every row after
-        // this change no longer is).
+        // night-spark-7 (the Layer 4 math): the saved family's live
+        // columns — always present, the additive contract the CE pair
+        // rides (the pair above, the EDT headroom, and the row's
+        // three-lane total; absence would read as a pre-v28 object,
+        // which every row after this change no longer is).
         out.push_str(",\"bytes_saved_by_recwn\":");
         write_number(out, self.bytes_saved_by_recwn);
         out.push_str(",\"bytes_saved_by_ecn\":");
         write_number(out, self.bytes_saved_by_ecn);
+        out.push_str(",\"bytes_saved_by_edt\":");
+        write_number(out, self.bytes_saved_by_edt);
+        out.push_str(",\"bytes_saved_total\":");
+        write_number(out, self.bytes_saved_total);
         // night-spark-5 (schema v27): the egress pacing lane's
         // commanded rate — present only when a live upload policy
         // stands (the additive-field rule the floors ride; a
@@ -460,16 +470,18 @@ struct LimitEntry {
     /// ride).
     ce_marked_packets: u64,
     ce_marked_bytes: u64,
-    /// The quota telemetry's saved-volume placeholders (night-spark-6,
-    /// the quota saver's Layer 4 PREP), in BYTES: what the RECWN
-    /// window clamp and the ECN mark's backoff kept the sender from
-    /// sending. Always present — the additive contract the CE-ledger
-    /// pair set — and reading 0 until the Layer 4 booking lands (the
-    /// v28 stats tail the arc's outline specs; ce_marked_bytes is the
-    /// RAW ledger input, never the estimate). A scripted `Quota
-    /// Saved: X` reads `bytes_saved_by_recwn + bytes_saved_by_ecn`.
+    /// The quota telemetry's saved-volume columns (night-spark-6
+    /// landed the pair as placeholders; night-spark-7 books them
+    /// live), in BYTES: what the three lanes kept the sender from
+    /// sending — RECWN (the userspace estimate), ECN (one-for-one
+    /// with the delivered marks), EDT (the egress headroom). Always
+    /// present, the additive contract the CE-ledger pair set; a
+    /// scripted `Quota Saved: X` reads `bytes_saved_total` (the
+    /// three-lane sum, saturating), the split names the physics.
     bytes_saved_by_recwn: u64,
     bytes_saved_by_ecn: u64,
+    bytes_saved_by_edt: u64,
+    bytes_saved_total: u64,
     /// The egress pacing lane's commanded rate (night-spark-5,
     /// schema v27), in BYTES per second — the upload policy's own
     /// rate, which the sock_ops program pins onto the row's upload
@@ -566,7 +578,10 @@ mod display_json_pacing_tests;
 // night-spark-6 (the quota saver's Layer 4 PREP): the placeholder
 // pair's additive-contract pins, split from display_json_tests.rs at
 // the 600-line owner cap (the pacing sibling's own lineage, one
-// family over).
+// family over). night-spark-7 kept the family and rewrote the pins
+// for the live mapping (the v28 tail books, the estimate runs, the
+// total sums) — the sibling-split lineage the file's own header
+// records.
 #[cfg(test)]
 #[path = "../../test/ebpf/display_json_quota_tests.rs"]
 mod display_json_quota_tests;
