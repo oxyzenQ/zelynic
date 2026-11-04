@@ -122,6 +122,11 @@ SUSTAIN_WINDOWS = 4
 SUSTAIN_WINDOW = 5.0
 BASELINE_WINDOW = 3.0
 OVERHEAD_WINDOW = 4.0
+# The overhead row's drop-conjunct tail bound (see test_overhead): the
+# try_consume CAS residual rides at 1e-5..1e-4 of the policed volume,
+# a binding bug at tens of percent — 0.1% sits two-plus orders from
+# each (night-blade-1's bounded-tail law at the row's own scale).
+OVERHEAD_DROP_TAIL = 0.001
 RELOAD_CYCLES = 25
 MULTI_CLIENTS = 5
 # Verdict band: measured/configured must land in [lo, hi]. The floor
@@ -950,10 +955,33 @@ def test_overhead(window):
     together, take each class's max (contention only lowers a
     reading), and prove non-binding with the drop counter — zero
     packets dropped is a count, not a throughput inference.
+
+    The drop conjunct rides the BOUNDED TAIL the bucket design
+    documents (night-blade-1's pin, the same precedent this row
+    follows): try_consume's four-attempt CAS retry deliberately
+    errs to the safe verdict under many-CPU bursts on one bucket —
+    "a fully lost consume drops (the safe verdict) instead of
+    allowing" — with the engine's own probe measuring 0.975 false
+    drops per 2048 one-byte packets at 8 threads (zero at 2-4). The
+    KVM floor leg measured the tail live where the battery's
+    container legs never showed it: run 126705737692 (the a3a24fb
+    jammy lane) filed 2 packets dropped across three windows at
+    12.8 GB/s with the throughput half reading +1.2 percent — a
+    non-binding bucket, the drops being the CAS residual, not
+    enforcement. The conjunct therefore discriminates on VOLUME:
+    a real policer arithmetic bug under a 3x policy drops at the
+    rate-bound ratio (tens of percent of the policed volume; the
+    binding rate rows file 38-183 drops on far less traffic),
+    while the residual rides at 1e-5..1e-4 of the volume — the
+    0.1 percent bound sits two-plus orders above the observed
+    residual and two-plus orders below the mildest binding
+    signature, the blade-1 bounded-tail law at the row's own scale.
     """
     fresh_rates = []
     policy_rates = []
     drops_total = 0
+    dropped_bytes_total = 0
+    allowed_bytes_total = 0
     final_gb = None
     for _ in range(3):
         fresh = download(window, SERVER.port)
@@ -989,14 +1017,17 @@ def test_overhead(window):
         got = download(window, SERVER.port)
         policy_rates.append(got / window)
         # The kernel's own ledger, read while the policy is still
-        # live: the drop counter is the non-binding proof. A real
+        # live: the drop counters are the non-binding proof. A real
         # policer arithmetic bug (drops under a 3x policy) still
-        # fails the row deterministically; a real hook cost still
-        # lowers every policy window, maxes included, and blows the
-        # ratio — the tripwire meaning survives.
+        # fails the row deterministically on the volume fraction;
+        # a real hook cost still lowers every policy window, maxes
+        # included, and blows the ratio — the tripwire meaning
+        # survives.
         entry = limit_entry(status_json(), CG.id)
         if entry:
             drops_total += entry.get("packets_dropped", 0)
+            dropped_bytes_total += entry.get("bytes_dropped", 0)
+            allowed_bytes_total += entry.get("bytes_allowed", 0)
         clear_limits()
         time.sleep(0.2)
     fresh_best = max(fresh_rates)
@@ -1008,17 +1039,46 @@ def test_overhead(window):
         )
     policy_best = max(policy_rates) if policy_rates else 0.0
     drop_pct = (fresh_best - policy_best) / fresh_best * 100
-    verdict = "PASS" if drop_pct <= 30.0 and drops_total == 0 else "FAIL"
+    # The bounded-tail conjunct: strict zero when nothing dropped,
+    # else the volume fraction under OVERHEAD_DROP_TAIL. An
+    # all-drop window (allowed == 0 with any drop) is the binding
+    # signature at its extreme and stays red.
+    if drops_total == 0:
+        drop_conjunct = True
+    elif allowed_bytes_total <= 0:
+        drop_conjunct = False
+    else:
+        drop_fraction = dropped_bytes_total / allowed_bytes_total
+        drop_conjunct = drop_fraction <= OVERHEAD_DROP_TAIL
+    verdict = "PASS" if drop_pct <= 30.0 and drop_conjunct else "FAIL"
+    if drops_total == 0:
+        drop_detail = (
+            f"{drops_total} packets dropped at the bucket — the kernel's own non-binding count"
+        )
+    elif allowed_bytes_total <= 0:
+        drop_detail = (
+            f"{drops_total} packets / {dropped_bytes_total} bytes dropped at the bucket with "
+            f"ZERO bytes allowed — the binding extreme, no volume to ratio against"
+        )
+    else:
+        drop_fraction = dropped_bytes_total / allowed_bytes_total
+        drop_detail = (
+            f"{drops_total} packets / {dropped_bytes_total} bytes dropped at the bucket vs "
+            f"{allowed_bytes_total} bytes allowed — the CAS-contention tail, "
+            f"{drop_fraction * 100:.4f}% of the policed volume (bound {OVERHEAD_DROP_TAIL * 100:.1f}%)"
+        )
     record(
         "overhead: non-binding policy cost",
         verdict,
         f"fresh best {fmt_bps(fresh_best)} vs policy best {fmt_bps(policy_best)} "
-        f"({final_gb} GB/s policy) — {drop_pct:+.1f}% (best-of-3 interleaved windows; "
-        f"{drops_total} packets dropped at the bucket — the kernel's own non-binding count)",
+        f"({final_gb} GB/s policy) — {drop_pct:+.1f}% (best-of-3 interleaved windows; {drop_detail})",
         {
             "fresh_bps": round(fresh_best),
             "limited_bps": round(policy_best),
             "drop_pct": round(drop_pct, 2),
+            "packets_dropped": drops_total,
+            "bytes_dropped": dropped_bytes_total,
+            "bytes_allowed": allowed_bytes_total,
         },
     )
     return verdict == "PASS"
