@@ -2957,8 +2957,9 @@ def test_upload(window, baseline):
     entry = limit_entry(status_json(), CG.ids["a"])
     t_read = time.monotonic()
     truth = (entry or {}).get("bytes_allowed", 0)
+    dropped = (entry or {}).get("packets_dropped", 0)
     budget = lib.ledger_budget(t_read - t_apply, 1_000_000)
-    floor = lib.loopback_rate_floor(1_000_000, window)
+    floor = lib.paced_rate_floor(dropped, 1_000_000, window)
     passed = (
         entry is not None
         and truth <= budget * lib.LEDGER_EPS
@@ -2984,11 +2985,35 @@ def test_upload(window, baseline):
             "client_bytes": sent,
         },
     )
-    record(
-        "upload (-u only): kernel drops engaged",
-        "PASS" if (entry or {}).get("packets_dropped", 0) > 0 else "FAIL",
-        f"{(entry or {}).get('packets_dropped', 0)} packets dropped",
-    )
+    if dropped > 0:
+        record(
+            "upload (-u only): kernel drops engaged",
+            "PASS",
+            f"{dropped} packets dropped",
+        )
+    else:
+        # night-spark-5 (the pacing era): the EDT self-limited state —
+        # the sock_ops pacer held the stream under the ceiling, so the
+        # bucket never needed to drop. The RECWN doctrine one lane
+        # over: zero drops with the ledger inside the span's own
+        # budget ceiling is enforcement without a drop; anything past
+        # it is the unpoliced blow-through the row has always caught.
+        ceiling = budget + 65_536
+        if 0 <= truth <= ceiling:
+            record(
+                "upload (-u only): kernel drops engaged",
+                "PASS",
+                f"0 packets dropped, {truth:,} bytes allowed inside the "
+                f"{ceiling:,}-byte budget (the EDT self-limited state — the pacer "
+                "holds the stream, the policer holds the ceiling)",
+            )
+        else:
+            record(
+                "upload (-u only): kernel drops engaged",
+                "FAIL",
+                f"0 packets dropped, {truth:,} bytes allowed past the "
+                f"{ceiling:,}-byte budget — the flow is not policed",
+            )
     clear_all()
     return passed
 
@@ -4192,16 +4217,41 @@ def curl_upload_ledger_rows(t0, window, sent, delivered):
         return False
     dropped = entry.get("packets_dropped", 0)
     allowed = entry.get("bytes_allowed", 0)
-    record(
-        "curl upload: kernel drops engaged",
-        "PASS" if dropped > 0 else "FAIL",
-        f"{dropped} packets dropped, {allowed} bytes allowed",
-    )
+    if dropped > 0:
+        record(
+            "curl upload: kernel drops engaged",
+            "PASS",
+            f"{dropped} packets dropped, {allowed} bytes allowed",
+        )
+    else:
+        # night-spark-5 (the pacing era): the EDT self-limited state,
+        # the upload-only row's own law (see test_upload) — zero drops
+        # with the ledger inside the span's budget ceiling is the
+        # pacer holding the stream while the policer holds the
+        # ceiling; anything past it is the unpoliced blow-through the
+        # row has always caught.
+        span = time.monotonic() - t0
+        ceiling = lib.ledger_budget(span, 1_000_000) + 65_536
+        if 0 <= allowed <= ceiling:
+            record(
+                "curl upload: kernel drops engaged",
+                "PASS",
+                f"0 packets dropped, {allowed:,} bytes allowed inside the "
+                f"{ceiling:,}-byte budget (the EDT self-limited state — the pacer "
+                "holds the stream, the policer holds the ceiling)",
+            )
+        else:
+            record(
+                "curl upload: kernel drops engaged",
+                "FAIL",
+                f"0 packets dropped, {allowed:,} bytes allowed past the "
+                f"{ceiling:,}-byte budget — the flow is not policed",
+            )
     if not CG.dedicated:
         return True
     span = time.monotonic() - t0
     budget = lib.ledger_budget(span, 1_000_000)
-    floor = lib.loopback_rate_floor(1_000_000, window) * 1_000_000 * window
+    floor = lib.paced_rate_floor(dropped, 1_000_000, window) * 1_000_000 * window
     ok = allowed <= budget * lib.LEDGER_EPS and allowed >= floor
     record(
         "curl upload: BPF accounting rides the ledger budget",

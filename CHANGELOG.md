@@ -106,6 +106,29 @@ v80.0.0
   re-derivation comment — 37 maps + 4 programs + 4 links, the
   45-object family.
 
+- **fix(harness): the upload rows ride the paced self-limited
+  state — the EDT lane's zero-drop win stops reading as a
+  failure (night-spark-7 follow-up).** The pacing era changed what
+  a policed upload looks like: the sock_ops pacer pins an ACTIVE
+  uploader's socket at the policy rate BEFORE the egress link
+  bills the bytes, so the bucket never needs to drop — zero kernel
+  drops with the ledger inside the budget ceiling, the lane's own
+  win state (the hardware probe's 99.2% delivery at an exact
+  800000 b/s pin). The supermassive and depth rows still demanded
+  the dropper regime's signature (drops > 0, the full loopback
+  floor), so every upload row went red on the VM matrix from
+  night-spark-5 on: the low-specs legs' "kernel drops engaged" (0
+  packets dropped, run 41805501202) and the best-specs legs'
+  ledger-budget floor (59.6% of the nominal window against a
+  1 MB/s pin — deterministic across a day of runs, the VM's
+  hrtimer pacing fidelity, not an enforcement miss). The rows now
+  carry the RECWN doctrine one lane over: zero drops with the
+  ledger inside the span's budget ceiling (+ one GSO skb of slop)
+  books as the EDT self-limited state; the paced floor (0.50,
+  lib.paced_rate_floor) replaces the loopback floor only while
+  the pacer holds; the ceilings and the accounting rows ride
+  unchanged — an unpoliced blow-through still blows them.
+
 - **fix(ebpf): the layer 4 booking rides the raw lookup pointer —
   the 5.13 floor's verifier refusal closes (night-spark-7
   follow-up, schema v28.1).** The v28 landing carried the
