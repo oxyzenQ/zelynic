@@ -40,6 +40,22 @@ pub(crate) struct DisplayData {
     /// precedent).
     pub(crate) ce_marked_packets: u64,
     pub(crate) ce_marked_bytes: u64,
+    /// night-spark-6 (the quota saver's Layer 4 PREP, quota
+    /// telemetry): the RECWN lane's saved-volume placeholder — the
+    /// bytes the receive-window lane kept a sender from sending.
+    /// Reads 0 until the Layer 4 booking lands (the v28 stats tail
+    /// the arc's outline specs); the subordinate Quota Saved line
+    /// renders the pair's sum, silent while both book nothing (the
+    /// dormant-watchdog precedent).
+    pub(crate) bytes_saved_by_recwn: u64,
+    /// night-spark-6 (Layer 4 PREP): the ECN lane's saved-volume
+    /// placeholder — the bytes the CE mark's backoff kept the sender
+    /// from re-sending. Reads 0 until the Layer 4 math lands (the
+    /// estimate law — marked volume x backoff, or the
+    /// allowed-vs-theoretical delta — is the arc outline's own open
+    /// decision); ce_marked_bytes is the RAW ledger input, never the
+    /// saved estimate itself.
+    pub(crate) bytes_saved_by_ecn: u64,
     /// The row's --during window, when it carries one (night-during,
     /// schema v23) — the lifetime line under the row renders it.
     pub(crate) window: Option<PolicyWindowRaw>,
@@ -60,8 +76,8 @@ pub(crate) struct DisplayData {
 // before the split.
 pub(crate) use super::display_lines::{
     active_limits_line, ce_marked_line, guarantee_line, list_apps_header_line, pacing_line,
-    recwn_line, status_cells, status_header_line, status_row_line, watchdog_line,
-    window_lifetime_line,
+    quota_saved_line, recwn_line, status_cells, status_header_line, status_row_line,
+    watchdog_line, window_lifetime_line,
 };
 
 /// Collect display data from policies + stats (+ the window join).
@@ -122,6 +138,15 @@ pub(super) fn collect_display_data(
                 bytes_dropped: s.map(|(_, s)| s.bytes_dropped).unwrap_or(0),
                 ce_marked_packets: s.map(|(_, s)| s.ce_marked_packets).unwrap_or(0),
                 ce_marked_bytes: s.map(|(_, s)| s.ce_marked_bytes).unwrap_or(0),
+                // night-spark-6 (Layer 4 PREP): the quota telemetry
+                // placeholders — the stats row carries no saved-volume
+                // columns until the v28 tail lands, so both read 0 by
+                // construction (never a fabricated estimate: the
+                // derivation law is the arc outline's open decision,
+                // and a zero the display honestly carries until the
+                // booking exists).
+                bytes_saved_by_recwn: 0,
+                bytes_saved_by_ecn: 0,
                 window: windows
                     .iter()
                     .find(|(id, _)| id == cgroup_id)
@@ -394,6 +419,16 @@ pub fn print_status(
         if let Some(line) = pacing_line(d) {
             println_safe!("{line}");
         }
+        // night-spark-6 (the quota saver's Layer 4 PREP): the quota
+        // telemetry's subordinate line — the saved volume the Layer 4
+        // columns will book (RECWN + ECN), the window family's grey;
+        // the placeholders book nothing yet, so the line stays silent
+        // until the v28 tail lands and the math fills it (the
+        // dormant-watchdog precedent: a zero is absence, never
+        // information).
+        if let Some(line) = quota_saved_line(d) {
+            println_safe!("{line}");
+        }
     }
 
     // night-spark-2 (RECWN, schema v25): the receive-window lane's
@@ -425,3 +460,10 @@ mod display_tests;
 #[cfg(test)]
 #[path = "../../test/ebpf/display_bracket_tests.rs"]
 mod display_bracket_tests;
+
+// night-spark-6 (the quota saver's Layer 4 PREP): the Quota Saved
+// subordinate line's family, split from display_tests.rs at the
+// 600-line owner cap (the sibling-split lineage, one family over).
+#[cfg(test)]
+#[path = "../../test/ebpf/display_quota_tests.rs"]
+mod display_quota_tests;

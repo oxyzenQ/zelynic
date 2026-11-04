@@ -34,6 +34,8 @@ fn status_cells_one_metric_per_cell() {
         bytes_dropped: 5_200,
         ce_marked_packets: 0,
         ce_marked_bytes: 0,
+        bytes_saved_by_recwn: 0,
+        bytes_saved_by_ecn: 0,
     };
     let (label, dl, ul, allowed, dropped) = status_cells(&d, &IdentityMap::new());
     assert_eq!(label, "cg:73386");
@@ -64,6 +66,8 @@ fn status_cells_one_metric_per_cell() {
         bytes_dropped: 1_000,
         ce_marked_packets: 0,
         ce_marked_bytes: 0,
+        bytes_saved_by_recwn: 0,
+        bytes_saved_by_ecn: 0,
     };
     let (_, dl, ul, allowed, dropped) = status_cells(&per_socket_row, &IdentityMap::new());
     assert_eq!(dl, "500.0 KB/s /socket");
@@ -87,6 +91,8 @@ fn status_cells_one_metric_per_cell() {
         bytes_dropped: 0,
         ce_marked_packets: 0,
         ce_marked_bytes: 0,
+        bytes_saved_by_recwn: 0,
+        bytes_saved_by_ecn: 0,
     };
     let (_, dl, ul, allowed, dropped) = status_cells(&one_sided, &IdentityMap::new());
     assert_eq!(dl, "—");
@@ -119,6 +125,8 @@ fn status_rate_cells_render_configured_rates_exactly() {
         bytes_dropped: 0,
         ce_marked_packets: 0,
         ce_marked_bytes: 0,
+        bytes_saved_by_recwn: 0,
+        bytes_saved_by_ecn: 0,
     };
     let (_, dl, ul, allowed, dropped) = status_cells(&d, &IdentityMap::new());
     assert_eq!(dl, "100.51 KB/s", "the typed rate survives the table");
@@ -150,6 +158,8 @@ fn ce_marked_line_renders_only_when_traffic_was_marked() {
         bytes_dropped: 3_000,
         ce_marked_packets: 12,
         ce_marked_bytes: 17_432,
+        bytes_saved_by_recwn: 0,
+        bytes_saved_by_ecn: 0,
     };
     assert_eq!(
         ce_marked_line(&marked).unwrap(),
@@ -159,6 +169,8 @@ fn ce_marked_line_renders_only_when_traffic_was_marked() {
     let quiet = DisplayData {
         ce_marked_packets: 0,
         ce_marked_bytes: 0,
+        bytes_saved_by_recwn: 0,
+        bytes_saved_by_ecn: 0,
         ..marked
     };
     assert!(ce_marked_line(&quiet).is_none());

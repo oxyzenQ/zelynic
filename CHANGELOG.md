@@ -35,6 +35,30 @@ v80.0.0
 
 ### Fixed
 
+- **fix(harness): the edt probe reads both ss pacing dialects and
+  the pinned max as the exactness witness (night-spark-6 part 1).**
+  The Layer 3 probe's pacing parser accepted only the `b/s` token
+  family (`pacing_rate 800.0Kb/s`); iproute2 6.x prints the `bps`
+  family — measured live on iproute2 6.15.0 / kernel 5.10.134, a
+  socket pinned at SO_MAX_PACING_RATE=100000 reads `pacing_rate
+  800kbps/800kbps` (lowercase k, no slash-s, and a current/max
+  pair that prints only for a pinned socket). On such a host the
+  sweep parsed ZERO paced tokens and the pacing row failed as
+  "the lane did not engage" — a spurious verdict blaming the lane
+  for the instrument's deafness. PACING_TOKEN now accepts both
+  dialects and both unit-letter cases and captures the pair when
+  it prints; pacing_verdict gates on the pinned max — it must read
+  exactly the policy's bits (800000), the owner's own success
+  criterion, and a max pinned off-policy fails even while the
+  current rate rides the band; the ladder's curl rides `--noproxy
+  "*"` so a proxy env var cannot bend the leg through a fast local
+  hop whose unpaced Gbps-scale bystander would swamp the
+  pid-scoped sweep. Self-test 6/6 (both dialects, the pinned-max
+  law, the fast-local bystander); the live instrument check — the
+  probe's own parser and verdict against a real socket pinned at
+  100000 B/s — read top pacing_rate 800000 b/s and pinned max
+  800000 across 11/11 samples, verdict PASS.
+
 - **fix(harness): the unlock row rides one-sided post-unlock
   patience (the low-specs musl boundary straddle, night-spark-1).**
   The 5825ee1 push's only red lane was the supermassive low-specs
@@ -72,6 +96,31 @@ v80.0.0
   MD004's consistency anchor).
 
 ### Added
+
+- **feat(status): the quota telemetry's surfaces — the quota saver's
+  Layer 4 PREP (night-spark-6 part 2).** The telemetry that will
+  turn the three lanes' savings into a number the owner can read:
+  `status --print-json` now carries
+  `limits[].bytes_saved_by_recwn` / `limits[].bytes_saved_by_ecn`
+  on every row — always present, the additive contract the
+  CE-ledger pair set — reading 0 until the Layer 4 booking lands
+  (never a fabricated estimate: the derivation law is the arc
+  outline's open decision); the human table gains the `Quota
+  Saved: X` subordinate line (the RECWN + ECN sum, format_bytes'
+  own shape, silent while both book nothing — the dormant-watchdog
+  precedent). The map structure is OUTLINED, not landed: the v28
+  plan (LimiterStats' tail growing 48 -> 64 bytes with the two
+  saved words, the v26 CE-ledger append precedent, the wipe-once
+  re-apply) lives in docs/COSMIC_DRAGON_ARC.md's Layer 4 bullet —
+  landing it requires the eBPF toolchain (the prebuilt parity
+  gate fails until refresh-prebuilt.sh rebuilds), so the surfaces
+  landed first and the words ride the next arc move. USAGE.md's
+  JSON reference also gained the v27 `pacing_rate_bytes` row and
+  the human table's Upload Pacing line — night-spark-5's doc gap,
+  hunted and closed. Pins: display_tests' quota-line family
+  (renders the lane sum, one-lane sum, silent on zero) and
+  display_json_tests' placeholder pins (always present, both
+  zero).
 
 - **feat(ebpf): RECWN — Receive Window Control, the quota saver's
   Layer 1 (night-spark-2, schema v25).** The owner's coined name
