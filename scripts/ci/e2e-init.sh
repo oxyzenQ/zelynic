@@ -10,14 +10,15 @@
 # The contract: every surface, every guard, every error path,
 # exercised against the REAL alias-built release binary, on two
 # KVM micro-VM legs (the workflow owns them): the low-spec leg
-# boots the TRUE documented floor kernel (impish 5.13, the oldest
-# kernel in the verified matrix) and the best-spec leg boots the
+# boots the documented floor kernel (jammy 5.15.0, the oldest
+# kernel zelynic supports since night-netrunner-1 raised the floor
+# off the retired impish 5.13 lane) and the best-spec leg boots the
 # archive's dynamically resolved latest. Both legs run the
 # IDENTICAL suite and the IDENTICAL check depth here — the budget
 # buys headroom, never depth — and both run it in the modes the
 # owner named: the unprivileged USER leg first (the honest refusal
 # contract), then the ROOT legs (zelynic is a root tool —
-# README's "Linux kernel 5.13+, cgroup v2, root"; the enforcement
+# README's "Linux kernel 5.15.0+, cgroup v2, root"; the enforcement
 # depth belongs to root by design, never to sudo-of-convenience).
 #
 # The suite is canonical invocations only (the e2e house rule, the
@@ -51,46 +52,46 @@ set -u
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 FAILURES=0
 note() {
-	echo "E2E-RESULT: $1 — $2"
-	if [ "$2" != "PASS" ]; then
-		FAILURES=$((FAILURES + 1))
-	fi
+        echo "E2E-RESULT: $1 — $2"
+        if [ "$2" != "PASS" ]; then
+                FAILURES=$((FAILURES + 1))
+        fi
 }
 guest_exit() {
-	# The serial drain (the 2026-10-28 best-specs seat lesson):
-	# the verdict line's only drain window is the gap between its
-	# echo and this exit — isa-debug-exit ends the VM the instant
-	# the port write lands, and the emulated 16550's TX shift is
-	# not guaranteed done by then. The c012c19 seat lost the race
-	# with EVERY leg green: vm.log carried "E2E-VERDICT: PA", the
-	# "SS" died in the UART, and the workflow's exact-match grep
-	# read a red suite. Two seconds of quiet before the port
-	# write — every row ahead of the verdict drained inside the
-	# next test's runtime; the verdict is the one line whose drain
-	# had to be bought.
-	sleep 2
-	# The deterministic VM exit (the kernel-floor run-4 lesson):
-	# qemu's isa-debug-exit device ends the VM the moment one
-	# byte lands on port 0xf4; /dev/port is the root-writable
-	# port-I/O window (seek = the port number), and the written
-	# value 0 makes qemu exit with status 1 — the rc the
-	# workflow's boot step accepts as the guest's deliberate
-	# exit, the E2E-* sentinel lines being the verdict.
-	printf '\x00' | dd of=/dev/port bs=1 seek=244 count=1 2>/dev/null || true
-	# Belts, in order: the raw poweroff syscall (if this guest
-	# ever grows an ACPI S5 path), then the sleep loop (never
-	# spin the runner's budget — the outer timeout owns the
-	# last resort).
-	python3 -c 'import os; os.sync(); os.reboot(os.LINUX_REBOOT_CMD_POWER_OFF)' 2>/dev/null || true
-	while true; do sleep 60; done
+        # The serial drain (the 2026-10-28 best-specs seat lesson):
+        # the verdict line's only drain window is the gap between its
+        # echo and this exit — isa-debug-exit ends the VM the instant
+        # the port write lands, and the emulated 16550's TX shift is
+        # not guaranteed done by then. The c012c19 seat lost the race
+        # with EVERY leg green: vm.log carried "E2E-VERDICT: PA", the
+        # "SS" died in the UART, and the workflow's exact-match grep
+        # read a red suite. Two seconds of quiet before the port
+        # write — every row ahead of the verdict drained inside the
+        # next test's runtime; the verdict is the one line whose drain
+        # had to be bought.
+        sleep 2
+        # The deterministic VM exit (the kernel-floor run-4 lesson):
+        # qemu's isa-debug-exit device ends the VM the moment one
+        # byte lands on port 0xf4; /dev/port is the root-writable
+        # port-I/O window (seek = the port number), and the written
+        # value 0 makes qemu exit with status 1 — the rc the
+        # workflow's boot step accepts as the guest's deliberate
+        # exit, the E2E-* sentinel lines being the verdict.
+        printf '\x00' | dd of=/dev/port bs=1 seek=244 count=1 2>/dev/null || true
+        # Belts, in order: the raw poweroff syscall (if this guest
+        # ever grows an ACPI S5 path), then the sleep loop (never
+        # spin the runner's budget — the outer timeout owns the
+        # last resort).
+        python3 -c 'import os; os.sync(); os.reboot(os.LINUX_REBOOT_CMD_POWER_OFF)' 2>/dev/null || true
+        while true; do sleep 60; done
 }
 Z=/opt/zelynic
 if ! cd "$Z"; then
-	# A PID 1 must never plain-exit (the guest would panic-wedge):
-	# exit through the port device with the verdict already naming
-	# the failure.
-	echo "E2E-VERDICT: FAIL (cannot cd $Z — rootfs assembly bug)"
-	guest_exit
+        # A PID 1 must never plain-exit (the guest would panic-wedge):
+        # exit through the port device with the verdict already naming
+        # the failure.
+        echo "E2E-VERDICT: FAIL (cannot cd $Z — rootfs assembly bug)"
+        guest_exit
 fi
 # ── the kernel surfaces, before anything that needs them ──────────────
 mount -t proc proc /proc
@@ -99,39 +100,39 @@ mount -t devtmpfs dev /dev
 exec >/dev/console 2>&1
 echo "E2E: init on $(uname -r)"
 # The floor itself — the whole reason these legs exist. Numeric
-# (supermassive-init's shape): the low leg boots the TRUE documented
-# floor (impish 5.13) and the best leg boots the archive's latest,
+# (supermassive-init's shape): the low leg boots the documented
+# floor (jammy 5.15.0) and the best leg boots the archive's latest,
 # so one check serves both ends of the span: uname -r's major.minor
-# must sit at or above 5.13, the verified matrix's floor
-# (docs/KERNEL_COMPATIBILITY.md).
+# must sit at or above 5.15, the verified matrix's floor since
+# night-netrunner-1 (docs/KERNEL_COMPATIBILITY.md).
 kver=$(uname -r)
 major=${kver%%.*}
 minor=$(echo "$kver" | cut -d. -f2 | grep -oE '^[0-9]+' || echo 0)
-if [ "${major:-0}" -gt 5 ] || { [ "${major:-0}" -eq 5 ] && [ "${minor:-0}" -ge 13 ]; }; then
-	note "kernel $kver (the 5.13+ verified floor)" PASS
+if [ "${major:-0}" -gt 5 ] || { [ "${major:-0}" -eq 5 ] && [ "${minor:-0}" -ge 15 ]; }; then
+        note "kernel $kver (the 5.15+ verified floor)" PASS
 else
-	note "kernel (uname -r = $kver, wanted >= 5.13)" FAIL
+        note "kernel (uname -r = $kver, wanted >= 5.15)" FAIL
 fi
 # Everything the five suites need (PID 1 owns them all): tmpfs
 # scratch, /run state, cgroup v2 (the rigs' own cgroup mkdirs),
 # bpffs (the pin surface), devpts (the monitor pty soak), loopback
 # (the traffic lanes).
 if mount -t tmpfs tmp /tmp &&
-	mount -t tmpfs run /run &&
-	mkdir -p /sys/fs/cgroup /sys/fs/bpf /dev/pts &&
-	mount -t cgroup2 none /sys/fs/cgroup &&
-	mount -t bpf bpf /sys/fs/bpf &&
-	mount -t devpts devpts /dev/pts &&
-	ip link set lo up; then
-	note "kernel surfaces (proc, sysfs, devtmpfs, cgroup2, bpffs, devpts, loopback)" PASS
+        mount -t tmpfs run /run &&
+        mkdir -p /sys/fs/cgroup /sys/fs/bpf /dev/pts &&
+        mount -t cgroup2 none /sys/fs/cgroup &&
+        mount -t bpf bpf /sys/fs/bpf &&
+        mount -t devpts devpts /dev/pts &&
+        ip link set lo up; then
+        note "kernel surfaces (proc, sysfs, devtmpfs, cgroup2, bpffs, devpts, loopback)" PASS
 else
-	note "kernel surfaces" FAIL
+        note "kernel surfaces" FAIL
 fi
 # ── the egress (NIGHT-approved-1's contract, the same shape the ───────
 # supermassive battery carries): qemu's user-mode networking
 # attaches a virtio-net NIC with a deterministic static shape —
 # guest 10.0.2.15/24, gateway 10.0.2.2, DNS 10.0.2.3. The bus layer
-# is built into every kernel this guest boots; the 5.13 floor's
+# is built into every kernel this guest boots; the 5.15.0 floor's
 # virtio_net is a MODULE staged by the rootfs assembly (the
 # three-module insmod chain: failover, net_failover, virtio_net —
 # run 37520041688's lesson). The depth suites themselves run on
@@ -140,22 +141,22 @@ fi
 KVER=$(uname -r)
 KMOD="/lib/modules/$KVER/kernel"
 if [ -f "$KMOD/net/core/failover.ko" ]; then
-	insmod "$KMOD/net/core/failover.ko" 2>/dev/null || true
+        insmod "$KMOD/net/core/failover.ko" 2>/dev/null || true
 fi
 if [ -f "$KMOD/drivers/net/net_failover.ko" ]; then
-	insmod "$KMOD/drivers/net/net_failover.ko" 2>/dev/null || true
+        insmod "$KMOD/drivers/net/net_failover.ko" 2>/dev/null || true
 fi
 if [ -f "$KMOD/drivers/net/virtio_net.ko" ]; then
-	insmod "$KMOD/drivers/net/virtio_net.ko" 2>/dev/null || true
+        insmod "$KMOD/drivers/net/virtio_net.ko" 2>/dev/null || true
 fi
 if [ -e /sys/class/net/eth0 ] &&
-	ip link set eth0 up &&
-	ip addr add 10.0.2.15/24 dev eth0 &&
-	ip route add default via 10.0.2.2 &&
-	printf 'nameserver 10.0.2.3\n' >/etc/resolv.conf; then
-	note "egress (SLIRP user-net, virtio-net 10.0.2.15 via 10.0.2.2)" PASS
+        ip link set eth0 up &&
+        ip addr add 10.0.2.15/24 dev eth0 &&
+        ip route add default via 10.0.2.2 &&
+        printf 'nameserver 10.0.2.3\n' >/etc/resolv.conf; then
+        note "egress (SLIRP user-net, virtio-net 10.0.2.15 via 10.0.2.2)" PASS
 else
-	note "egress (virtio-net eth0 bring-up)" FAIL
+        note "egress (virtio-net eth0 bring-up)" FAIL
 fi
 # ── the lean prelude: the binary is the one the workflow built ────────
 # The payload shape names itself (the rootfs assembly wrote
@@ -165,7 +166,7 @@ fi
 # assembly bug, visible in the log, never silent.
 SHAPE="unknown"
 if [ -r "$Z/PAYLOAD-SHAPE" ]; then
-	SHAPE=$(tr -d '[:space:]' <"$Z/PAYLOAD-SHAPE")
+        SHAPE=$(tr -d '[:space:]' <"$Z/PAYLOAD-SHAPE")
 fi
 echo "E2E: payload shape: $SHAPE"
 # The BINARY GATE (the harness law, USAGE's stale-binary incident):
@@ -174,14 +175,14 @@ echo "E2E: payload shape: $SHAPE"
 WANT=$(sed -n 's/^version = "\(.*\)"$/\1/p' "$Z/Cargo.toml" | head -1)
 GOT=$(./zelynic -V 2>/dev/null | head -1 || true)
 if [ -n "$WANT" ] && printf '%s' "$GOT" | grep -qF "$WANT"; then
-	note "binary gate (-V carries the checkout's $WANT)" PASS
+        note "binary gate (-V carries the checkout's $WANT)" PASS
 else
-	note "binary gate (-V '$GOT' vs checkout $WANT)" FAIL
+        note "binary gate (-V '$GOT' vs checkout $WANT)" FAIL
 fi
 if ./zelynic doctor >/dev/null 2>&1; then
-	note "doctor (bpf syscall answers on this kernel)" PASS
+        note "doctor (bpf syscall answers on this kernel)" PASS
 else
-	note "doctor (bpf syscall answers on this kernel)" FAIL
+        note "doctor (bpf syscall answers on this kernel)" FAIL
 fi
 # ── the suite: four canonical invocations, USER leg first ─────────────
 # 1. The USER-mode leg (night-dragon-maintenance-2's "real user"):
@@ -190,40 +191,40 @@ fi
 #    design (it pins what an unprivileged user sees), so the setpriv
 #    drop is the contract, not a workaround.
 if (cd /tmp && setpriv --reuid=65534 --regid=65534 --clear-groups \
-	"$Z/scripts/depth/nonroot-depth-test.sh" --binary "$Z/zelynic"); then
-	note "USER leg - nonroot depth suite (the unprivileged contract)" PASS
+        "$Z/scripts/depth/nonroot-depth-test.sh" --binary "$Z/zelynic"); then
+        note "USER leg - nonroot depth suite (the unprivileged contract)" PASS
 else
-	note "USER leg - nonroot depth suite (the unprivileged contract)" FAIL
+        note "USER leg - nonroot depth suite (the unprivileged contract)" FAIL
 fi
 # 2. The realtime depth stresstest (the owner's words), FULL depth on
 #    both legs — the budget buys headroom, never depth.
 if ./scripts/depth/limiter-depth-test.sh --binary "$Z/zelynic"; then
-	note "ROOT leg - limiter depth stresstest (full, measured + cross-checked)" PASS
+        note "ROOT leg - limiter depth stresstest (full, measured + cross-checked)" PASS
 else
-	note "ROOT leg - limiter depth stresstest (full, measured + cross-checked)" FAIL
+        note "ROOT leg - limiter depth stresstest (full, measured + cross-checked)" FAIL
 fi
 # 3. The LTS clocks, FULL depth on both legs: the map-slot churn
 #    amplification (any group-slot leak exhausts the 256 cap and
 #    fails loudly) plus the monitor's pty soak (no unbounded
 #    collection, no fd leak).
 if ./scripts/depth/endurance-test.sh --binary "$Z/zelynic"; then
-	note "ROOT leg - endurance clocks (full churn + monitor soak)" PASS
+        note "ROOT leg - endurance clocks (full churn + monitor soak)" PASS
 else
-	note "ROOT leg - endurance clocks (full churn + monitor soak)" FAIL
+        note "ROOT leg - endurance clocks (full churn + monitor soak)" FAIL
 fi
 # 4. The whole CLI surface as root: every verb, every guard, real
 #    policing against the unlimited baseline, leak postconditions,
 #    the unprivileged refusal row — the smoke battery the sandbox
 #    lane runs, on both kernel ends of the span.
 if ./scripts/sandbox/smoke-cli.sh --binary "$Z/zelynic"; then
-	note "ROOT leg - CLI surface smoke (every verb, every guard)" PASS
+        note "ROOT leg - CLI surface smoke (every verb, every guard)" PASS
 else
-	note "ROOT leg - CLI surface smoke (every verb, every guard)" FAIL
+        note "ROOT leg - CLI surface smoke (every verb, every guard)" FAIL
 fi
 # ── the verdict relay ──────────────────────────────────────────────────
 if [ "$FAILURES" -eq 0 ]; then
-	echo "E2E-VERDICT: PASS"
+        echo "E2E-VERDICT: PASS"
 else
-	echo "E2E-VERDICT: FAIL ($FAILURES row(s) red)"
+        echo "E2E-VERDICT: FAIL ($FAILURES row(s) red)"
 fi
 guest_exit

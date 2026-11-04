@@ -8,13 +8,24 @@
 
 use anyhow::Result;
 
+pub mod bpffs;
 pub mod pins;
+// The limiter's preflight rides this short path (ebpf-gated callers
+// only — the doctor uses the bpffs:: path directly, so a half-life
+// build keeps no unused re-export).
+#[cfg(feature = "ebpf")]
+pub use bpffs::bpffs_mounted_at;
 pub use pins::PinState;
 
 /// System information relevant to eBPF support.
 #[derive(Debug, Clone)]
 pub struct SystemInfo {
     pub kernel: String,
+    /// night-netrunner-1: does the running kernel meet the 5.15.0
+    /// floor? False below the floor or when the release cannot be
+    /// parsed — the honest "cannot verify the floor" answer, never a
+    /// guess. The same pure law the attach paths refuse on.
+    pub kernel_floor_met: bool,
     pub cgroup_v2: bool,
     pub cgroup2_mount_path: Option<String>,
     pub bpf_fs_mounted: bool,
@@ -100,7 +111,7 @@ fn build_flavor() -> &'static str {
 /// Detect system capabilities for eBPF.
 pub fn detect() -> CapabilityReport {
     let system = detect_system();
-    let ebpf_supported = system.cgroup_v2 && system.bpf_fs_mounted;
+    let ebpf_supported = system.cgroup_v2 && system.bpf_fs_mounted && system.kernel_floor_met;
     let build_flavor = build_flavor();
     let ebpf_lane = crate::info::ebpf_lane().to_string();
 
@@ -116,6 +127,13 @@ pub fn detect() -> CapabilityReport {
     }
     if !system.cgroup_v2 {
         warnings.push("cgroup v2 not detected. eBPF observer requires cgroup v2.".to_string());
+    }
+    if !system.kernel_floor_met {
+        // night-netrunner-1: the floor refusal is actionable, the same
+        // message the attach paths bail with (one law, one wording).
+        if let Err(floor_msg) = crate::ebpf::kernel_floor::kernel_floor_error(&system.kernel) {
+            warnings.push(floor_msg);
+        }
     }
     if !system.bpf_fs_mounted {
         warnings.push(
@@ -158,99 +176,26 @@ fn detect_system() -> SystemInfo {
         .map(|s| s.trim().to_string())
         .unwrap_or_else(|_| "unknown".to_string());
 
-    let cgroup2_mount_path = find_cgroup2_mount();
+    // night-netrunner-1: the 5.15.0 floor rides the same pure law the
+    // attach paths refuse on (ebpf/kernel_floor.rs's law) — the
+    // doctor cannot disagree with the enforcement gate.
+    let kernel_floor_met = crate::ebpf::kernel_floor::kernel_floor_error(&kernel).is_ok();
+
+    let cgroup2_mount_path = bpffs::find_cgroup2_mount();
     let cgroup_v2 = cgroup2_mount_path.is_some();
 
-    let bpf_fs_mounted = bpffs_mounted_at("/sys/fs/bpf");
+    let bpf_fs_mounted = bpffs::bpffs_mounted_at("/sys/fs/bpf");
 
     let is_root = nix::unistd::geteuid().is_root();
 
     SystemInfo {
         kernel,
+        kernel_floor_met,
         cgroup_v2,
         cgroup2_mount_path,
         bpf_fs_mounted,
         is_root,
     }
-}
-
-/// `linux/magic.h` `BPF_FS_MAGIC` — the statfs type of a mounted bpf
-/// filesystem. Stored as i64, the common denominator of the two libc
-/// `f_type` flavors: glibc types the field `__fsword_t` (signed long)
-/// while musl types it `unsigned long` — [`statfs_type`] bridges the
-/// divergence (NIGHT-hunt-33), so every comparison site stays cast-free
-/// against this signed constant.
-const BPF_FS_MAGIC: i64 = 0xcafe4a11;
-
-/// NIGHT-hunt-28: is `path` on an actually-mounted bpf filesystem?
-///
-/// The old check was bare path existence — but the kernel creates the
-/// `/sys/fs/bpf` mountpoint directory on every Linux, so on hosts
-/// where nothing is mounted there the doctor still reported
-/// `bpf_fs_mounted: true` (an empty sysfs or tmpfs-backed directory
-/// looks identical to `Path::exists`). The failure then surfaced far
-/// from the cause: the limiter's map pinning gets EINVAL from
-/// `BPF_OBJ_PIN` deep inside the object load, which the error chain of
-/// the time rendered as a bare "Failed to load BPF object". statfs()
-/// reports the real filesystem type; only `BPF_FS_MAGIC` counts.
-pub fn bpffs_mounted_at(path: &str) -> bool {
-    fs_type_is_bpf(statfs_type(path))
-}
-
-/// statfs(2) filesystem type of `path`, or None when the call fails
-/// (no such path, permission, ...). A local helper over `libc::statfs`
-/// so the crate keeps its zero-new-dependency posture — `libc` is
-/// already a direct dependency.
-///
-/// NIGHT-hunt-33: `statfs.f_type` is NOT one type across libcs — glibc
-/// declares it `__fsword_t` (i64 on LP64) but musl declares it
-/// `unsigned long` (u64), so the v11.0.0-alpha.1 release musl build
-/// died with E0308 (expected i64, found u64) while the gnu build was
-/// green: the two libcs disagree on the Rust-side type of the same
-/// kernel field. The kernel ABI is identical either way — a full
-/// 64-bit magic on the wire — and every filesystem magic in
-/// linux/magic.h (BPF 0xcafe4a11 included) sits far below 2^63, so
-/// widening the musl u64 into this i64 contract is lossless for every
-/// real-world filesystem; a value with bit 63 set would not be a known
-/// magic anyway. The `as i64` is therefore a no-op on gnu and a
-/// lossless widening on musl.
-fn statfs_type(path: &str) -> Option<i64> {
-    use std::ffi::CString;
-
-    let c_path = CString::new(path).ok()?;
-    // SAFETY: zeroed() is valid for libc::statfs — an all-zero byte
-    // pattern is a sound initial value for the POD struct (no
-    // references, no niches the kernel reads before statfs writes).
-    let mut buf: libc::statfs = unsafe { std::mem::zeroed() };
-    // SAFETY: c_path is a valid NUL-terminated string and buf is a
-    // valid, properly-aligned statfs buffer of the expected size.
-    let rc = unsafe { libc::statfs(c_path.as_ptr(), &mut buf) };
-    if rc == 0 {
-        // glibc: f_type is already i64 (no-op cast); musl: u64 -> i64
-        // lossless widening for every real filesystem magic (see the
-        // doc comment on this function).
-        Some(buf.f_type as i64)
-    } else {
-        None
-    }
-}
-
-/// The testable core of [`bpffs_mounted_at`]: does a statfs-reported
-/// type identify a bpf filesystem? None (statfs failed) is a firm no.
-fn fs_type_is_bpf(f_type: Option<i64>) -> bool {
-    f_type == Some(BPF_FS_MAGIC)
-}
-
-/// Find cgroup v2 mount point by parsing /proc/mounts.
-fn find_cgroup2_mount() -> Option<String> {
-    let mounts = std::fs::read_to_string("/proc/mounts").ok()?;
-    for line in mounts.lines() {
-        let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.len() >= 3 && parts[2] == "cgroup2" {
-            return Some(parts[1].to_string());
-        }
-    }
-    None
 }
 
 /// Serialize the capability report (S1, the hand-written lane): the
@@ -269,6 +214,8 @@ fn report_json(report: &CapabilityReport) -> String {
     let mut out = String::with_capacity(256);
     out.push_str("{\"system\":{\"kernel\":");
     write_string(&mut out, &report.system.kernel);
+    out.push_str(",\"kernel_floor_met\":");
+    write_bool(&mut out, report.system.kernel_floor_met);
     out.push_str(",\"cgroup_v2\":");
     write_bool(&mut out, report.system.cgroup_v2);
     out.push_str(",\"cgroup2_mount_path\":");
@@ -359,7 +306,18 @@ fn print_report(report: &CapabilityReport) {
         println_safe!("{}", field("Profile:", &build.profile));
     }
     println_safe!();
-    println_safe!("{}", field("Kernel:", &report.system.kernel));
+    // night-netrunner-1: the kernel line carries the floor verdict —
+    // at or above 5.15.0 reads OK, below reads the refusal the attach
+    // paths carry, so the doctor answers the floor question in place.
+    let kernel_line = if report.system.kernel_floor_met {
+        report.system.kernel.clone()
+    } else {
+        format!(
+            "{} (below the 5.15.0 minimum — attach is refused)",
+            report.system.kernel
+        )
+    };
+    println_safe!("{}", field("Kernel:", &kernel_line));
     println_safe!(
         "{}",
         field(
@@ -455,6 +413,17 @@ mod tests {
         // We can't assert specific values (depends on environment), but
         // the report should be well-formed.
         assert!(!report.system.kernel.is_empty());
+        // night-netrunner-1: the floor verdict is always populated —
+        // and it must always AGREE with the pure law on the actual
+        // release string (a 5.10 sandbox host and a 6.18 dev rig both
+        // detect honestly; the assertion is the law's consistency,
+        // never a host assumption).
+        assert_eq!(
+            report.system.kernel_floor_met,
+            crate::ebpf::kernel_floor::kernel_floor_error(&report.system.kernel).is_ok(),
+            "floor verdict disagrees with the law on kernel {}",
+            report.system.kernel
+        );
         // NIGHT-dinner-3: the flavor and lane verdicts are always
         // populated — no environment can produce an empty answer.
         assert!(!report.build_flavor.is_empty());
@@ -494,40 +463,12 @@ mod tests {
         );
     }
 
-    /// NIGHT-hunt-28: the magic-number discrimination is the heart of
-    /// the fixed doctor — a directory existing at /sys/fs/bpf must not
-    /// count as mounted, only the real BPF filesystem magic does.
-    /// Constants cross-checked against linux/magic.h.
-    #[test]
-    fn fs_type_discriminates_bpf_from_sysfs_tmpfs_and_failure() {
-        assert!(fs_type_is_bpf(Some(BPF_FS_MAGIC)));
-        // SYSFS_MAGIC 0x62656572 — the fs type /sys/fs/bpf shows when
-        // the kernel mountpoint exists but nothing is mounted on it.
-        assert!(!fs_type_is_bpf(Some(0x6265_6572)));
-        // TMPFS_MAGIC 0x01021994 — a tmpfs backed /sys/fs/bpf passes
-        // the old existence check too, and fails pins just the same.
-        assert!(!fs_type_is_bpf(Some(0x0102_1994)));
-        // statfs failure is a firm no, never a maybe.
-        assert!(!fs_type_is_bpf(None));
-    }
-
-    /// statfs on a always-mounted live path must report a type (never
-    /// panic, never None) — and the root filesystem of any normal
-    /// machine is not a bpf filesystem, so the composed helper says
-    /// no where the old existence check said yes for anything.
-    #[test]
-    fn statfs_reports_a_real_type_for_the_root_mount() {
-        let t = statfs_type("/");
-        assert!(t.is_some(), "statfs on / cannot fail on a live system");
-        assert_ne!(t, Some(BPF_FS_MAGIC));
-        assert!(!bpffs_mounted_at("/"));
-    }
-
     #[test]
     fn test_capability_report_serializes() {
         let report = CapabilityReport {
             system: SystemInfo {
                 kernel: "6.18.0".to_string(),
+                kernel_floor_met: true,
                 cgroup_v2: true,
                 cgroup2_mount_path: Some("/sys/fs/cgroup".to_string()),
                 bpf_fs_mounted: true,
@@ -543,6 +484,10 @@ mod tests {
         let json = report_json(&report);
         assert!(json.contains("cgroup_v2"));
         assert!(json.contains("ebpf_supported"));
+        // night-netrunner-1: the floor verdict is first-class JSON —
+        // machine consumers get the same 5.15.0 law the human report
+        // renders, without re-deriving it from the release string.
+        assert!(json.contains("kernel_floor_met"));
         // NIGHT-dinner-3: the flavor verdict is first-class JSON —
         // machine consumers get the full-life/half-life answer and
         // the lane detail without re-encoding feature semantics.
@@ -577,6 +522,7 @@ mod tests {
         let report = CapabilityReport {
             system: SystemInfo {
                 kernel: "6.18.0".to_string(),
+                kernel_floor_met: true,
                 cgroup_v2: true,
                 cgroup2_mount_path: Some("/sys/fs/cgroup".to_string()),
                 bpf_fs_mounted: true,

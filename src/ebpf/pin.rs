@@ -126,17 +126,16 @@ pub const PIN_MAP_MMSPA_GEN: &str = "/sys/fs/bpf/zelynic/mmspa_generation";
 /// the pin state's own predicate belongs beside the pin paths it
 /// judges.
 ///
-/// Program pins alone are NOT operational on kernels with bpf_link
-/// (5.7+ — the supported floor is 5.13): the attach sequence pins the
-/// programs first and creates the cgroup links second, so a
+/// Program pins alone are NOT operational: the attach sequence pins
+/// the programs first and creates the cgroup links second, so a
 /// failure in between (bpffs full, memlimit hit, SIGKILL mid-attach)
 /// leaves programs pinned with nothing attached to the cgroup — every
-/// policy would be written to maps no hook ever executes. On pre-5.7
-/// kernels the legacy attach path never pins links, so program pins
-/// alone are the operational contract there by design.
+/// policy would be written to maps no hook ever executes. One truth
+/// table since night-netrunner-1: the 5.15.0 floor makes bpf_link
+/// unconditional (the pre-5.7 legacy attach — programs hooked without
+/// link pins — is gone), so the predicate is one conjunctive law.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn pins_operational(
-    supports_link: bool,
     prog_dl: bool,
     prog_ul: bool,
     prog_recwn: bool,
@@ -146,24 +145,15 @@ pub(crate) fn pins_operational(
     link_recwn: bool,
     link_pace: bool,
 ) -> bool {
-    if !(prog_dl && prog_ul && prog_recwn && prog_pace) {
-        return false;
-    }
-    if supports_link {
-        return link_dl && link_ul && link_recwn && link_pace;
-    }
-    true
+    prog_dl && prog_ul && prog_recwn && prog_pace && link_dl && link_ul && link_recwn && link_pace
 }
 
 /// Verbose trace line for the attach strategy (NIGHT-hunt-9): pure
 /// so the wording is unit-pinned (the drift pins live in the pin
-/// test family beside the predicate they judge).
-pub(crate) fn link_mode_line(supports_link: bool) -> String {
-    if supports_link {
-        "[limiter] bpf_link supported — programs + links pinned (survive exit)".to_string()
-    } else {
-        "[limiter] bpf_link unsupported (pre-5.7) — legacy attach, links leak by design".to_string()
-    }
+/// test family beside the predicate they judge). One strategy since
+/// night-netrunner-1 — the 5.15.0 floor makes bpf_link unconditional.
+pub(crate) fn link_mode_line() -> String {
+    "[limiter] bpf_link supported — programs + links pinned (survive exit)".to_string()
 }
 
 /// Open a pinned hash map in read mode (NIGHT-optimized-2).

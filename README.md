@@ -130,8 +130,11 @@ before relying on a limit.
 
 ### Requirements
 
-- Linux kernel 5.13+, cgroup v2, root — the full matrix and why each
-  piece is needed: [docs/KERNEL_COMPATIBILITY.md](docs/KERNEL_COMPATIBILITY.md)
+- Linux kernel 5.15.0+ (the documented floor — BTF, ringbuf, and the
+  modern eBPF helper set are fully mature there; below it `zelynic
+  attach` refuses with the upgrade hint), cgroup v2, root — the full
+  matrix and why each piece is needed:
+  [docs/KERNEL_COMPATIBILITY.md](docs/KERNEL_COMPATIBILITY.md)
 - Python 3 for the test/benchmark scripts (stdlib only)
 
 Unsure about your kernel? `zelynic doctor` says yes or no with the exact
@@ -258,10 +261,10 @@ time from whatever runner the job lands on (the owner's "don't set
 fixed, let dynamic"; the small envelope is renamed low —
 NIGHT-blade-3): "supermassive test - low specs" (a quarter of the
 cores floored at 1 + an eighth of the RAM floored at 1024 MB, the
-dense-little-host slice, booting the TRUE documented floor kernel —
-impish indri 5.13, the oldest kernel in the verified matrix, from
-the frozen old-releases archive) and "supermassive test - best
-specs" (every core + three quarters of the RAM, the big-host width,
+dense-little-host slice, booting the documented floor kernel —
+jammy's 5.15.0 LTS line, the floor since night-netrunner-1 raised
+it off the retired impish 5.13 lane, resolved dynamically from the
+live archive) and "supermassive test - best specs" (every core + three quarters of the RAM, the big-host width,
 booting the Ubuntu archive's LATEST kernel, resolved dynamically at
 run time — nothing pinned, the resolver walks onto each new release
 by itself). The payload is the static musl flagship on the frozen
@@ -696,7 +699,8 @@ retired, the recorded results stand as history):
 | CachyOS VM | 7.1 | MUSL | chromium 360kb → 3.0 Mbps |
 | Ubuntu 26.04 | 7.0 | GNU | firefox 100kb → 650 Kbps |
 | Fedora 44 | 6.19 | GNU | firefox 100kb → 690 Kbps |
-| Ubuntu 21.10 | 5.13 | MUSL | GeckoMain 100kb → 770 Kbps |
+| Ubuntu 22.04 | 5.15 | MUSL | the floor kernel — the CI low-specs lane proves it per push |
+| Ubuntu 21.10 | 5.13 | MUSL | GeckoMain 100kb → 770 Kbps (RETIRED floor — recorded before night-netrunner-1 raised it) |
 | Debian 13 | 6.12 | MUSL | firefox-esr 900kb → 7.0 Mbps |
 
 Every harness below is one command — stdlib-only Python, loopback
@@ -729,14 +733,15 @@ as the build under test.
 
 No machine handy at all? The whole qualification — bring-up, v1, v2,
 v3, v4, in that order — runs on CI on every push (real root, real BPF,
-real KVM micro-VMs), and the 5.13 floor lane is proven on the TRUE
-documented floor kernel (impish indri 5.13, the oldest kernel in the
-verified matrix) inside its own KVM micro-VM workflow. The E2E depth
+real KVM micro-VMs), and the 5.15.0 floor lane is proven on the TRUE
+documented floor kernel (jammy's 5.15.0 LTS line — the floor since
+night-netrunner-1 raised it off the retired impish 5.13 lane) inside
+its own KVM micro-VM workflow. The E2E depth
 lane runs the four depth suites no other lane carries — the full
 command surface as an unprivileged user (the honest refusal contract)
 plus the limiter depth stresstest, the endurance clocks, and the
 whole-CLI smoke battery as root — on both ends of the kernel span:
-the 5.13 floor and the archive's dynamically resolved latest kernel,
+the 5.15.0 floor and the archive's dynamically resolved latest kernel,
 each leg against the release-tier alias build. The v3 container E2E
 lanes (docker + k8s via kind) run on their own CI workflow against
 real runtimes — the micro-VM pair ships no docker daemon and no

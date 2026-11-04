@@ -88,6 +88,44 @@ v80.0.0
   lane refresh lands with the owner's refresh-prebuilt.sh pass, the
   documented one-command flow.
 
+### Changed
+
+- **feat(kernel): the floor is 5.15.0 — the supported kernel span
+  hardens (night-netrunner-1 phase 1).** Kernels below 5.15.0 are
+  dropped: BTF, ringbuf, and the modern eBPF helper set are fully
+  mature at 5.15 LTS, so the conditional-degradation era ends. The
+  attach paths (`Observer::attach`, `Limiter::attach` — every
+  strict/block/eagle-eyes surface) refuse BEFORE any BPF syscall
+  with one actionable message (the pure law lives in
+  `bpf_syscall::kernel_floor_error`, `KERNEL_FLOOR = (5, 15)`,
+  unit-pinned across the distro release shapes), and `zelynic
+  doctor` rides the same law: the kernel line names the floor
+  verdict, `ebpf_supported` reads false below it, and the report
+  gains the `kernel_floor_met` field on both surfaces (additive —
+  the JSON scripting contract grows one key). The legacy fallback
+  code is GONE: the pre-5.7 `bpf_prog_attach` shape (the
+  leaked-links twin in limiter/mod.rs, the pace lane's twin, the
+  `supports_link` conditional across pins_operational and
+  link_mode_line) collapses to ONE attach strategy — create-and-pin
+  bpf_links — and one truth table (a program-pins-without-link-pins
+  state now reads NOT operational, a stale half-attach by
+  definition). CI retires the impish 5.13 KVM lane: supermassive.yml's
+  low-specs leg boots jammy's 5.15.0-ABI line (resolved dynamically
+  from the live archive — no frozen-mirror availability risk),
+  supermassive-e2e.yml drops its 5.13 leg (jammy 5.15.0 is the
+  floor lane), and both guest inits' floor gates move to 5.15. The
+  depth harness's kernel-span family (KERNEL_FLOOR (5, 15), the
+  5.13 rung replaced by the 5.15 floor rung), the sandbox
+  provisioner's floor suite (jammy 5.15.0 from the live archive
+  pool, with a numeric ABI sort key so the newest point release
+  wins), and every documented floor claim (KERNEL_COMPATIBILITY
+  matrix, README requirements + CI story, QA, STABILITY, FAQ,
+  USAGE, LONGEVITY, CLAIMS_VERIFICATION, COSMIC_DRAGON_ARCHITECTURE)
+  ride the new floor; rust-toolchain.toml and build.rs carried no
+  target features gated below 5.15 (the v3/atomic-cas gates target
+  5.1/5.12 — comments updated). Recorded history stands: the 5.13
+  rows in the distro tables and audits keep their dates.
+
 ### Fixed
 
 - **fix(harness): the pin family grows with the pacing lane — the

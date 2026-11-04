@@ -88,6 +88,9 @@ impl Observer {
     /// TUI. Silent by default; stdout JSON stays clean.
     pub fn attach() -> Result<Self> {
         let started = std::time::Instant::now();
+        // night-netrunner-1: the 5.15.0 kernel floor — refused BEFORE
+        // any BPF syscall, with the actionable fix in the message.
+        crate::ebpf::kernel_floor::ensure_kernel_floor()?;
         let cgroup_path = "/sys/fs/cgroup";
         if !PathBuf::from(cgroup_path).exists() {
             bail!("cgroup v2 not found at {cgroup_path}");

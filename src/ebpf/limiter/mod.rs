@@ -84,7 +84,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use aya::{
     Ebpf, EbpfLoader,
     maps::Array as BpfArray,
-    programs::{CgroupAttachMode, CgroupSkb, CgroupSkbAttachType, SockOps},
+    programs::{CgroupSkb, SockOps},
 };
 use std::fs::File;
 use std::os::fd::{AsFd, AsRawFd};
@@ -92,9 +92,10 @@ use std::path::PathBuf;
 
 use crate::ebpf::bpf_syscall::{
     BPF_CGROUP_INET_EGRESS, BPF_CGROUP_INET_INGRESS, BPF_CGROUP_SOCK_OPS, create_and_pin_link,
-    kernel_release, kernel_supports_bpf_link, load_with_verifier_verdict,
+    kernel_release, load_with_verifier_verdict,
 };
 use crate::ebpf::identity::IdentityMap;
+use crate::ebpf::kernel_floor::ensure_kernel_floor;
 use crate::ebpf::pin::{
     PIN_LINK_PACE, PIN_LINK_RECWN, PIN_PROG_PACE, PIN_PROG_RECWN, link_mode_line, pins_operational,
 };
@@ -122,6 +123,10 @@ impl Limiter {
     /// and the total attach cost.
     pub fn attach() -> Result<()> {
         let started = std::time::Instant::now();
+        // night-netrunner-1: the 5.15.0 kernel floor — refused BEFORE
+        // any BPF syscall or pin reuse, with the actionable fix in the
+        // message (the observer's attach rides the same gate).
+        ensure_kernel_floor()?;
         let cgroup_path = "/sys/fs/cgroup";
         if !PathBuf::from(cgroup_path).exists() {
             bail!("cgroup v2 not found at {cgroup_path}");
@@ -287,12 +292,16 @@ impl Limiter {
             .pin(PIN_PROG_DL)
             .context("Failed to pin enforce_dl")?;
 
-        // Check kernel version for bpf_link support BEFORE borrowing ul_prog.
-        let supports_link = kernel_supports_bpf_link();
-        crate::output::verbose::vlog_line!(link_mode_line(supports_link));
-
-        if supports_link {
-            // Kernel 5.7+: extract fd, then borrow ul_prog separately.
+        // night-netrunner-1: ONE attach strategy — create-and-pin
+        // bpf_links, the fire-and-forget contract. The 5.15.0 kernel
+        // floor makes bpf_link (5.7+) unconditional, so the legacy
+        // bpf_prog_attach path (pre-5.7, the leaked-links shape) is
+        // GONE: no conditional attach, no second code path to verify.
+        // The block scope ends the program-fd borrows before the pace
+        // lane below takes the object.
+        crate::output::verbose::vlog_line!(link_mode_line());
+        {
+            // Extract fd, then borrow ul_prog separately.
             let dl_prog_raw = dl_prog
                 .fd()
                 .context("Failed to get enforce_dl fd")?
@@ -362,76 +371,22 @@ impl Limiter {
                 PIN_LINK_RECWN,
             )
             .context("Failed to create + pin zelynic_recwn link")?;
-        } else {
-            // Kernel < 5.7: use legacy bpf_prog_attach via Aya.
-            // Attach + take ownership of link + forget (leak) so it doesn't
-            // detach on drop. Programs are pinned, so they stay loaded.
-            let cgroup_file =
-                File::open(cgroup_path).context("Failed to open cgroup root directory")?;
-            let dl_link = dl_prog
-                .attach(
-                    cgroup_file.try_clone()?,
-                    CgroupSkbAttachType::Ingress,
-                    CgroupAttachMode::default(),
-                )
-                .context("Failed to attach enforce_dl (legacy)")?;
-            let dl_link = dl_prog.take_link(dl_link)?;
-            std::mem::forget(dl_link);
-
-            // Now borrow ul_prog (dl_prog no longer needed).
-            let ul_prog: &mut CgroupSkb = bpf
-                .program_mut("enforce_ul")
-                .context("BPF program 'enforce_ul' not found")?
-                .try_into()?;
-            load_with_verifier_verdict(|| ul_prog.load(), "enforce_ul")?;
-            ul_prog
-                .pin(PIN_PROG_UL)
-                .context("Failed to pin enforce_ul")?;
-            let ul_link = ul_prog
-                .attach(
-                    cgroup_file,
-                    CgroupSkbAttachType::Egress,
-                    CgroupAttachMode::default(),
-                )
-                .context("Failed to attach enforce_ul (legacy)")?;
-            let ul_link = ul_prog.take_link(ul_link)?;
-            std::mem::forget(ul_link);
-
-            // night-spark-2 (RECWN): the legacy-lane twin of the
-            // sock_ops plant above — aya's SockOps::attach carries
-            // the pre-5.7 ProgAttach shape the CgroupSkb pair rides
-            // here; take_link + forget keeps the attachment alive
-            // past the Ebpf drop, the pinned program holding it.
-            let recwn_prog: &mut SockOps = bpf
-                .program_mut("zelynic_recwn")
-                .context("BPF program 'zelynic_recwn' not found")?
-                .try_into()?;
-            load_with_verifier_verdict(|| recwn_prog.load(), "zelynic_recwn")?;
-            recwn_prog
-                .pin(PIN_PROG_RECWN)
-                .context("Failed to pin zelynic_recwn")?;
-            let cgroup_file_recwn =
-                File::open(cgroup_path).context("Failed to open cgroup root directory")?;
-            let recwn_link = recwn_prog
-                .attach(cgroup_file_recwn, CgroupAttachMode::default())
-                .context("Failed to attach zelynic_recwn (legacy)")?;
-            let recwn_link = recwn_prog.take_link(recwn_link)?;
-            std::mem::forget(recwn_link);
         }
 
         // night-spark-5 (Layer 3, egress pacing — schema v27): the
         // fourth program, the sock_ops pacing lane — loaded, pinned,
         // and attached at the same cgroup root through the same lane
-        // the RECWN twin rides, both attach strategies covered
-        // (pace.rs owns the shape; this call site stays one line
-        // either way the kernel answers). The program plants with
-        // the object on every strict-family attach, exactly when a
-        // rate limit is applied; its cookie-keyed hint map is pinned
-        // by name with every other map, and the unstrict teardown
-        // unlinks the whole pin directory as ever (unpin_all sweeps
-        // the fourth pair with the rest — the link pin's removal
-        // detaches it in-kernel, the bpf_syscall contract).
-        pace::attach_pace_lane(&mut bpf, supports_link)?;
+        // the RECWN twin rides (pace.rs owns the shape; this call
+        // site stays one line — one attach strategy since the
+        // night-netrunner-1 floor, the legacy twin is gone). The
+        // program plants with the object on every strict-family
+        // attach, exactly when a rate limit is applied; its
+        // cookie-keyed hint map is pinned by name with every other
+        // map, and the unstrict teardown unlinks the whole pin
+        // directory as ever (unpin_all sweeps the fourth pair with
+        // the rest — the link pin's removal detaches it in-kernel,
+        // the bpf_syscall contract).
+        pace::attach_pace_lane(&mut bpf)?;
 
         crate::output::verbose::vlog!(
             "limiter",
@@ -448,16 +403,16 @@ impl Limiter {
 
     /// Check whether the limiter's pinned state is fully operational.
     ///
-    /// On bpf_link kernels (5.7+; the supported floor is 5.13): both
-    /// program pins AND both link pins — the links are what attach the
-    /// programs to the cgroup, so a state without them enforces nothing.
-    /// NIGHT-hunt-19 closed the silent-no-enforcement trap where the old
-    /// program-pins-only check "reused" exactly that half-attached
-    /// state. On pre-5.7 kernels the legacy attach keeps programs hooked
-    /// without link pins, so program pins alone are operational there.
+    /// On the bpf_link estate (the 5.15.0 floor is 5.7+ by eight
+    /// minors): both program pins AND both link pins — the links are
+    /// what attach the programs to the cgroup, so a state without them
+    /// enforces nothing. NIGHT-hunt-19 closed the silent-no-enforcement
+    /// trap where the old program-pins-only check "reused" exactly that
+    /// half-attached state. (The pre-5.7 legacy attach — programs
+    /// hooked without link pins — is gone with the night-netrunner-1
+    /// floor: one attach strategy, one operational shape.)
     pub fn is_pinned() -> bool {
         pins_operational(
-            kernel_supports_bpf_link(),
             PathBuf::from(PIN_PROG_DL).exists(),
             PathBuf::from(PIN_PROG_UL).exists(),
             PathBuf::from(PIN_PROG_RECWN).exists(),

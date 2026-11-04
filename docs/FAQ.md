@@ -36,7 +36,9 @@ without touching a real host, use the sandbox
 
 ### Q: Which kernels and distros work?
 
-A: Kernel 5.13+ is the floor of the verified matrix, 6.6 LTS+ is
+A: Kernel 5.15.0+ is the floor of the verified matrix (raised off
+   the retired 5.13 lane at night-netrunner-1 — the attach paths
+   refuse below it with the upgrade hint), 6.6 LTS+ is
 recommended; cgroup v2 is required (the hooks are `cgroup_skb/egress`
 
 - `ingress`) and BPF fs must be mounted at `/sys/fs/bpf` for pinning

@@ -205,7 +205,7 @@ jobs:
   # matrix once pinned the hosted kernel span (5.15 through 6.8+);
   # NIGHT-blade-3 retires the old-OS leg — the runner rides the
   # latest LTS only (ubuntu-24.04), because the REAL kernel span
-  # (the 5.13 floor through the archive's latest head) is proven
+  # (the 5.15.0 floor through the archive's latest head) is proven
   # per push inside the supermassive VM pair, a stronger contract
   # than a hosted 22.04 image ever was. clippy runs with
   # --target x86_64-unknown-linux-musl because lints are
@@ -232,7 +232,7 @@ jobs:
       matrix:
         # NIGHT-blade-3: the old-OS leg is retired — every base
         # runner uses the latest LTS (ubuntu-24.04). The kernel-span
-        # role moved to the supermassive VM pair (the 5.13 floor
+        # role moved to the supermassive VM pair (the 5.15.0 floor
         # through the latest head, per push); the matrix shape stays
         # so a future span leg is one line away.
         os: [ubuntu-24.04]

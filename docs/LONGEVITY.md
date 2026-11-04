@@ -39,7 +39,7 @@ maintained in-tree by the kernel community, not an out-of-tree
 patch that rots the day its author walks away. Second, cgroup v2 —
 the accounting unit the whole tool is keyed on — is the kernel's
 own process-container model, not a userspace convention any vendor
-can deprecate. The kernel floor is 5.13+ and the verified matrix
+can deprecate. The kernel floor is 5.15.0+ (night-netrunner-1) and the verified matrix
 climbs from there ([KERNEL_COMPATIBILITY.md](KERNEL_COMPATIBILITY.md));
 the kernel version is the contract, and the distro is noise.
 

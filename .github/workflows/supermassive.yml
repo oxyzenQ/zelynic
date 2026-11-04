@@ -59,12 +59,14 @@
 # floating label, the estate's anti-lottery contract), and ci.yml's
 # ubuntu-22.04 matrix entries are gone (the hosted kernel-span
 # role moved here long ago: the VM pair proves the REAL floor,
-# impish 5.13, and the latest head, per push). The deliberate
+# jammy 5.15.0, and the latest head, per push). The deliberate
 # old-OS surfaces INSIDE this workflow are the point of the test
-# and stay: the low-specs leg's impish 5.13 floor kernel and the
-# ubuntu:22.04 rootfs container are testing internals, not runner
-# choices. Historical quotes that name the old "minimum" title are
-# the owner's own words from their era and read as history.
+# and stay: the low-specs leg's jammy 5.15.0 floor kernel (the
+# documented minimum since night-netrunner-1 raised it off impish
+# 5.13) and the ubuntu:22.04 rootfs container are testing
+# internals, not runner choices. Historical quotes that name the
+# old "minimum" title are the owner's own words from their era and
+# read as history.
 #
 # =============================================================================
 #
@@ -91,19 +93,19 @@
 # jammy jellyfish 22.04; cpu core, ram, etc don't set fixed let
 # dynamic; and for best specs using latest kernel") — three moves:
 #
-# 1. THE KERNEL SPAN, not a single floor. The low leg now boots
-#    the TRUE documented floor: impish indri (21.10) 5.13.0-52
-#    (docs/KERNEL_COMPATIBILITY.md — "5.13 is the oldest kernel in
-#    the verified matrix"; the owner's first choice, ahead of "keep
-#    jammy"). The impish archive lives frozen on
-#    old-releases.ubuntu.com — EOL since July 2022, so it can NEVER
-#    drift (a stronger floor contract than jammy-updates, whose
-#    weekly ABI bumps were the old kernel-floor clock's whole
-#    reason), at the trade of a frozen mirror's availability being
-#    the one thing the weekly clock now watches. Jammy 5.15 needed
-#    no dedicated leg anymore: it sits INSIDE the proven span
-#    (5.13 floor -> archive-latest head) and remains in the hosted
-#    build matrix (ci.yml builds on 22.04). The best leg boots the
+# 1. THE KERNEL SPAN, not a single floor. The low leg boots
+#    the documented floor: jammy's 5.15.0-ABI LTS line — the
+#    floor since night-netrunner-1 raised it off the retired
+#    impish 5.13 lane (docs/KERNEL_COMPATIBILITY.md — "5.15.0 is
+#    the oldest kernel zelynic supports"; 5.15 is the oldest
+#    line the verified matrix still covers, and the impish
+#    5.13 lane is gone with it). Jammy is a LIVE LTS: the
+#    kernels come from the main archive (not the frozen
+#    old-releases mirror the impish floor needed), dynamically
+#    resolved to the newest 5.15.0-ABI jammy-updates point
+#    release — no URL rot, no pinned ABI; the 5\.15\.0- anchor
+#    deliberately excludes jammy's HWE 6.x images (those are
+#    the best leg's jurisdiction). The best leg boots the
 #    archive's LATEST kernel, resolved dynamically at run time: the
 #    dists index names every live suite, each Release's Date+Codename
 #    picks the two newest distinct codenames (the devel series and
@@ -137,7 +139,7 @@
 #    1800 s; the best envelope runs it wide at 1200 s).
 # 3. THE USERLAND held constant on purpose: both legs assemble the
 #    rootfs from the SAME ubuntu:22.04 container (glibc 2.35 runs
-#    on any kernel >= 3.2, so the 5.13 floor is safe), so the
+#    on any kernel >= 3.2, so the 5.15.0 floor is safe), so the
 #    pair's only variables are the kernel and the envelope — a
 #    kernel-span proof, not a distro matrix.
 #
@@ -169,10 +171,10 @@
 # 10.0.2.2, DNS 10.0.2.3, static, no bridge, the runner's own
 # egress NAT'd behind it) and a virtio-net device. The bus layer
 # (virtio, virtio_pci) is built into every kernel this VM boots;
-# the 5.13 floor's virtio_net is a MODULE (=m), staged by each
-# kernel resolver step from the kernel's OWN linux-modules deb
-# (the vermagic matches the vmlinuz the same step extracted, by
-# construction), while the modern heads build the driver in
+# the floor kernels whose virtio_net is a MODULE (=m) stage it
+# from the kernel's OWN linux-modules deb (the vermagic matches
+# the vmlinuz the same step extracted, by construction), while
+# the modern heads build the driver in
 # (=y, verified against the archive's current latest — nothing
 # to stage). v1's realnet lane then runs instead of skipping:
 # its own reachability probe (the Cloudflare/Asian-rungs chain)
@@ -203,9 +205,10 @@ on:
   # NIGHT-reject-1: the weekly clock is retired — the owner's call,
   # the schedule is not needed. The Monday 03:00 UTC slot
   # NIGHT-approved-1 landed (its runs watched the resolver lanes'
-  # mirrors — the frozen impish pocket, the live archive's
-  # structure — and the busy-hour residual, the round-1 audit's
-  # documented shared-runner limit) comes off the trigger surface.
+  # mirrors — the frozen pocket the retired impish floor used, the
+  # live archive's structure — and the busy-hour residual, the
+  # round-1 audit's documented shared-runner limit) comes off the
+  # trigger surface.
   # The watch-summary step stays on every push and dispatch run,
   # so the FAIL/SKIP rows keep landing in the step summary without
   # the weekly cadence.
@@ -257,7 +260,7 @@ jobs:
           # budget rides at 2100 s, NIGHT-hunt-35's +300 for the
           # rig battery; the best envelope's wide slice rides at
           # 1500 s).
-          - title: supermassive test - low specs (musl)
+          - title: supermassive test - low specs (the jammy 5.15.0 floor kernel, musl)
             profile: low
             version: musl
             vm_timeout: "2100"
@@ -322,45 +325,44 @@ jobs:
           rustup target add x86_64-unknown-linux-musl
           ./scripts/setup.sh --skip-heavy
 
-      # The floor kernel (NIGHT-improve-33): impish indri (21.10)
-      # 5.13.0-52, the TRUE documented floor, fetched from the frozen
-      # old-releases archive (EOL July 2022 — it can never drift; the
-      # trade, a frozen mirror's availability, now surfaces at the
-      # next qualifying push — NIGHT-reject-1 retired the weekly
-      # clock that used to sample it between pushes). The resolver
-      # shape is the jammy
-      # floor's, retargeted: isolated sources, names-only search,
-      # highest ABI, apt resolves the last impish-updates kernel so
-      # no URL rot.
-      - name: Fetch the impish 5.13 floor kernel (low specs)
+      # The floor kernel (night-netrunner-1: the documented floor is
+      # 5.15.0 — the impish 5.13 lane is retired with it): jammy's
+      # 5.15.0-ABI LTS line, fetched from the LIVE main archive (no
+      # frozen mirror). The resolver shape is the e2e workflow's jammy
+      # leg, retargeted: isolated sources, names-only search, highest
+      # ABI, apt resolves the newest 5.15.0-ABI jammy-updates point
+      # release so no URL rot and no pinned ABI. The 5\.15\.0- anchor
+      # deliberately excludes jammy's HWE 6.x images — those are the
+      # best leg's jurisdiction.
+      - name: Fetch the jammy 5.15.0 floor kernel (low specs)
         if: matrix.profile == 'low'
         run: |
           set -euo pipefail
           mkdir -p /tmp/kfloor && cd /tmp/kfloor
           {
-            echo "deb http://old-releases.ubuntu.com/ubuntu/ impish main"
-            echo "deb http://old-releases.ubuntu.com/ubuntu/ impish-updates main"
-          } | sudo tee /etc/apt/sources.list.d/impish-floor.list >/dev/null
+            echo "deb http://archive.ubuntu.com/ubuntu/ jammy main"
+            echo "deb http://archive.ubuntu.com/ubuntu/ jammy-updates main"
+          } | sudo tee /etc/apt/sources.list.d/jammy-floor.list >/dev/null
           sudo apt-get -o Acquire::Retries=5 update \
-            -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/impish-floor.list \
+            -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/jammy-floor.list \
             -o Dir::Etc::sourceparts=/dev/null \
             -o APT::Get::List-Cleanup=0
           IMG=$(apt-cache search --names-only \
-            'linux-image-unsigned-5\.13\.0-.*-generic' 2>/dev/null \
-            | grep -oE 'linux-image-unsigned-5\.13\.0-[0-9]+-generic' \
+            'linux-image-unsigned-5\.15\.0-.*-generic' 2>/dev/null \
+            | grep -oE 'linux-image-unsigned-5\.15\.0-[0-9]+-generic' \
             | sort -V | tail -1 || true)
           if test -z "$IMG"; then
-            echo "FAIL: no linux-image-unsigned-5.13.0-*-generic in the impish pockets — resolver evidence:"
-            apt-cache search --names-only 'linux-image-unsigned-5\.13' || true
+            echo "FAIL: no linux-image-unsigned-5.15.0-*-generic in the jammy pockets — resolver evidence:"
+            apt-cache search --names-only 'linux-image-unsigned-5\.15' || true
             exit 1
           fi
           echo "resolved: $IMG"
-          # NIGHT-dinner-12: the frozen-mirror download retry (apt's
-          # own knob; old-releases flakiness is the floor lane's known
-          # weak spot).
+          # NIGHT-dinner-12: the archive download retry (apt's own
+          # knob; the floor lane is the one lane a mirror hiccup
+          # would redden, so it retries on its own first).
           apt-get -o Acquire::Retries=5 download "$IMG"
           dpkg -x "${IMG}"*_amd64.deb pkg
-          VMLINUZ=$(find pkg/boot -name 'vmlinuz-5.13.*' | head -1)
+          VMLINUZ=$(find pkg/boot -name 'vmlinuz-5.15.*' | head -1)
           if test -z "$VMLINUZ"; then
             echo "FAIL: no vmlinuz inside the deb — pkg/boot contents:"
             ls -la pkg/boot || true
@@ -370,16 +372,13 @@ jobs:
           echo "kernel: $(du -h /tmp/kfloor/vmlinuz-floor | cut -f1) at /tmp/kfloor/vmlinuz-floor"
           # NIGHT-approved-1 (the egress half): stage the kernel's
           # OWN virtio_net module pair when the driver is a module —
-          # the floor kernel ships CONFIG_VIRTIO_NET=m (verified
-          # against the deb's own config file), so the realnet lane's
-          # NIC needs the .ko staged from the kernel's modules deb
-          # (same suite, same version: the vermagic matches the
-          # vmlinuz this step just extracted, by construction — the
-          # bpftool lane's per-kernel-ABI discipline, applied to
-          # modules). The bus layer (virtio, virtio_pci) is =y on
-          # every kernel this VM boots, so the pair is the whole
-          # dependency set (virtio_net's modinfo depends names only
-          # net_failover). A resolve or extract failure FAILS the
+          # the same config-driven staging walk the e2e jammy leg
+          # runs (the walk stages whatever the deb's own config
+          # names, =y or =m: the vermagic matches the vmlinuz this
+          # step just extracted, by construction — the bpftool
+          # lane's per-kernel-ABI discipline, applied to modules).
+          # The bus layer (virtio, virtio_pci) is =y on every kernel
+          # this VM boots. A resolve or extract failure FAILS the
           # leg here on the runner, the legacy-fetch doctrine the
           # bpftool lane set — the owner-approved egress contract is
           # not soft.
@@ -552,7 +551,7 @@ jobs:
       # frozen ubuntu:22.04 CONTAINER, unchanged since NIGHT-improve-31
       # (a static binary owes no userland anything; the gnu legs' old
       # same-distro 24.04 rootfs retired with the gnu packaging).
-      # 2.35's kernel floor is 3.2, so the 5.13 kernel is safe.
+      # 2.35's kernel floor is 3.2, so the 5.15.0 kernel is safe.
       # python3 +
       # iproute2 + kmod ride along (the engine + `ip link set lo up`
       # + the egress block's insmod pair), and
@@ -603,12 +602,12 @@ jobs:
           docker exec floor-rootfs apt-get install -y --no-install-recommends python3 iproute2 kmod curl nftables
           # bpftool (NIGHT-improve-48): Ubuntu ships no standalone
           # package — the binary lives inside the per-ABI linux-tools
-          # debs, and the VM's kernel (the 5.13 floor or the
+          # debs, and the VM's kernel (the 5.15.0 floor or the
           # dynamically resolved latest) never matches the rootfs's
           # tools ABI, so the dispatcher cannot resolve it inside the
           # guest. The binary itself talks to the kernel through the
           # stable bpf(2) ABI — prog/link/cgroup show predate the
-          # 5.13 floor — so one flavor's binary is staged at
+          # 5.15.0 floor — so one flavor's binary is staged at
           # /usr/bin/bpftool, the same PATH-probe shape the claims
           # battery uses and the same standalone-package shape a
           # Debian user gets. The suite shapes differ (run 231's
@@ -684,7 +683,7 @@ jobs:
           cp "$GITHUB_WORKSPACE/scripts/ci/supermassive-init.sh" rootfs/init
           chmod +x rootfs/init
           # NIGHT-approved-1: the virtio module pair a resolver step
-          # staged (the 5.13 floor's =m legs — 160 KB) rides the cpio
+          # staged (the floor leg whose driver is =m — 160 KB) rides the cpio
           # under the kernel's own module path; the =y heads staged
           # nothing and the init's insmod pair simply finds no files
           # (the built-in driver needs none). kmod in the apt line

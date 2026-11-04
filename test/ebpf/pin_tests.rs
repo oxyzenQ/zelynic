@@ -146,71 +146,72 @@ fn unpin_all_targets_the_pinned_bpffs_directory() {
 // the wording and the truth table ride verbatim, judged where the
 // predicate now lives.
 
-/// The operational predicate must not trust program pins alone on
-/// bpf_link kernels — that is the exact partial-failure state (link
-/// create/pin failed after the programs were pinned) that the old
-/// check "reused" while nothing enforced.
+/// The operational predicate must not trust program pins alone —
+/// that is the exact partial-failure state (link create/pin failed
+/// after the programs were pinned) that the old check "reused" while
+/// nothing enforced. One truth table since night-netrunner-1: the
+/// 5.15.0 floor makes bpf_link unconditional, so every row demands
+/// the full program + link set.
 #[test]
 fn pins_operational_requires_link_pins_on_bpf_link_kernels() {
     // Fully operational.
     assert!(pins_operational(
-        true, true, true, true, true, true, true, true, true
+        true, true, true, true, true, true, true, true
     ));
     // Partial failure: programs pinned, a link missing — NOT
     // operational, must reload instead of reuse.
     assert!(!pins_operational(
-        true, true, true, true, true, false, false, false, false
+        true, true, true, true, false, false, false, false
     ));
     assert!(!pins_operational(
-        true, true, true, true, true, true, false, true, true
+        true, true, true, true, true, false, true, true
     ));
     assert!(!pins_operational(
-        true, true, true, true, true, false, true, true, true
+        true, true, true, true, false, true, true, true
     ));
     // night-spark-2: the RECWN pair is load-bearing the same
     // way — a v24-era pin set (no third pair) must reload into
     // the RECWN object, never reuse as-is.
     assert!(!pins_operational(
-        true, true, true, false, true, true, true, true, true
+        true, true, true, false, true, true, true, true
     ));
     assert!(!pins_operational(
-        true, true, true, true, true, true, true, false, true
+        true, true, true, true, true, true, false, true
     ));
     // night-spark-5: the pacing pair is load-bearing the same
     // way — a v26-era pin set (no fourth pair) must reload into
     // the pacing object, never reuse as-is.
     assert!(!pins_operational(
-        true, true, true, true, false, true, true, true, true
+        true, true, false, true, true, true, true, true
     ));
     assert!(!pins_operational(
-        true, true, true, true, true, true, true, true, false
+        true, true, true, true, true, true, true, false
     ));
     // Missing program pins: never operational (any one, or all).
     assert!(!pins_operational(
-        true, false, true, true, true, true, true, true, true
+        true, false, true, true, true, true, true, true
     ));
     assert!(!pins_operational(
-        true, true, false, true, true, true, true, true, true
+        true, true, false, true, true, true, true, true
     ));
     assert!(!pins_operational(
-        false, false, false, false, false, false, false, false, false
+        false, false, false, false, false, false, false, false
     ));
-    // Pre-5.7: legacy attach never pins links (program pins suffice).
-    assert!(pins_operational(
-        false, true, true, true, true, false, false, false, false
+    // The retired pre-5.7 legacy shape (program pins without link
+    // pins) reads NOT operational now: the 5.15.0 floor has no
+    // legacy attach, so that set can only be a stale half-attach.
+    assert!(!pins_operational(
+        true, true, true, true, false, false, false, false
     ));
 }
 
 /// NIGHT-hunt-9 drift pin: the attach-strategy trace wording is part
-/// of the verbose diagnostic contract — exact strings, pinned.
+/// of the verbose diagnostic contract — exact string, pinned (one
+/// strategy since night-netrunner-1: the legacy pre-5.7 line is gone).
 #[test]
-fn link_mode_line_pins_both_strategies() {
+fn link_mode_line_pins_the_single_strategy() {
     assert_eq!(
-        link_mode_line(true),
+        link_mode_line(),
         "[limiter] bpf_link supported — programs + links pinned (survive exit)"
-    );
-    assert_eq!(
-        link_mode_line(false),
-        "[limiter] bpf_link unsupported (pre-5.7) — legacy attach, links leak by design"
     );
 }

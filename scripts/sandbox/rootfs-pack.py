@@ -10,8 +10,8 @@ SAME shape on a developer box or agent sandbox with NOTHING but
 curl, python3, and git — no docker, no host root:
 
   * kernel: resolved dynamically from the archives (floor = the
-    impish 5.13.0-* kernel on the frozen old-releases mirror, the
-    documented minimum; lts = the newest Ubuntu LTS suite's kernel
+    jammy 5.15.0-* kernel on the live main archive, the documented
+    minimum since night-netrunner-1; lts = the newest Ubuntu LTS suite's kernel
     across its main/updates/security pockets; latest = the archive's
     newest generic kernel across the two newest suites), extracted
     from the .deb with a pure-python ar reader — no binutils needed.
@@ -56,9 +56,23 @@ UBUNTU_BASE_URL = "http://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/
 UBUNTU_BASE_PINNED = "ubuntu-base-22.04.5-base-amd64.tar.gz"
 JAMMY_PACKAGES = "http://archive.ubuntu.com/ubuntu/dists/jammy/main/binary-amd64/Packages.gz"
 ARCHIVE_POOL = "http://archive.ubuntu.com/ubuntu/"
-OLD_RELEASES_LINUX_POOL = "http://old-releases.ubuntu.com/ubuntu/pool/main/l/linux/"
+ARCHIVE_LINUX_POOL = "http://archive.ubuntu.com/ubuntu/pool/main/l/linux/"
 ARCHIVE_DIST = "http://archive.ubuntu.com/ubuntu/dists/"
-FLOOR_KERNEL_RE = re.compile(r"linux-image-unsigned-5\.13\.0-[0-9]+-generic_[^\"']*?_amd64\.deb")
+# The documented floor kernel (night-netrunner-1): jammy's 5.15.0-ABI
+# LTS line, from the LIVE main archive pool (no frozen mirror).
+FLOOR_KERNEL_RE = re.compile(r"linux-image-unsigned-5\.15\.0-[0-9]+-generic_[^\"']*?_amd64\.deb")
+
+
+def floor_sort_key(deb_name):
+    """Version sort key for the floor pool's candidates: the ABI number
+    decides, numeric — the plain lexicographic max would pick
+    5.15.0-52 over 5.15.0-131 ("1" < "5" as a character), the exact
+    wrong kernel. A non-matching name sorts before everything (and
+    keeps its name for the stable tiebreak), so the newest ABI wins."""
+    m = re.search(r"5\.15\.0-([0-9]+)-generic", deb_name)
+    return (int(m.group(1)) if m else -1, deb_name)
+
+
 LATEST_KERNEL_PKG_RE = re.compile(
     r"^linux-image-unsigned-([0-9]+)\.([0-9]+)\.([0-9]+)-([0-9]+)-generic$"
 )
@@ -239,8 +253,9 @@ def _newc_entry(out, ino, name, mode, data, rdevmajor=0, rdevminor=0):
     110 % 4 == 2, so the name padding must absorb the header's own
     2-byte remainder. The former `(-len(raw)) % 4` pad aligned the
     name alone; every entry whose name length left the true offset
-    misaligned shipped broken padding. Old kernels (the 5.13 floor
-    lane) tolerated it — the initramfs scanner just skips bad bytes
+    misaligned shipped broken padding. Old kernels (the retired 5.13
+    floor lane among them) tolerated it — the initramfs scanner just
+    skips bad bytes
     — but modern kernels (6.12+ strictness, the 7.0 LTS lane
     included) FAIL the unpack: "Initramfs unpacking failed: broken
     padding", PID 1 never runs, VFS panics on the missing root.
@@ -489,21 +504,22 @@ def resolve_kernel(suite_dir):
 
 def fetch_kernel(suite, cache):
     """Resolve + download + extract the vmlinuz for the suite; returns
-    the cached path. floor = impish 5.13.0-* (the documented minimum,
-    a frozen archive); lts = the newest Ubuntu LTS suite's kernel
+    the cached path. floor = jammy 5.15.0-* (the documented minimum
+    since night-netrunner-1, the live archive pool); lts = the newest
+    Ubuntu LTS suite's kernel
     across its main/updates/security pockets; latest = the archive's
     newest generic kernel across the two newest suites."""
     out = os.path.join(cache, f"vmlinuz-{suite}")
     if os.path.exists(out):
         return out
     if suite == "floor":
-        say("resolving the impish 5.13 floor kernel (old-releases pool)...")
-        hrefs = http_get_text(OLD_RELEASES_LINUX_POOL, timeout=300)
-        cands = sorted(set(FLOOR_KERNEL_RE.findall(hrefs)))
+        say("resolving the jammy 5.15.0 floor kernel (archive pool)...")
+        hrefs = http_get_text(ARCHIVE_LINUX_POOL, timeout=300)
+        cands = sorted(set(FLOOR_KERNEL_RE.findall(hrefs)), key=floor_sort_key)
         if not cands:
-            raise SystemExit("no linux-image-unsigned-5.13.0-*-generic amd64 deb in the pool")
+            raise SystemExit("no linux-image-unsigned-5.15.0-*-generic amd64 deb in the pool")
         deb_name = cands[-1]
-        deb_url = OLD_RELEASES_LINUX_POOL + deb_name
+        deb_url = ARCHIVE_LINUX_POOL + deb_name
     elif suite in ("lts", "latest"):
         dirs = dists_suite_dirs()
         if suite == "lts":

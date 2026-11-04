@@ -280,7 +280,7 @@ fn run_nested_ebpf_build(ebpf_dir: &std::path::Path) {
             // ebpf/src/math.rs compiles. The builtin spec still
             // carries the pre-5.12 `atomic-cas: false` even though
             // the ISA (BPF_ATOMIC, Linux 5.12+) and the verified
-            // floor (5.13) both support it. The file stem keeps the
+            // floor (5.15.0 since night-netrunner-1) both support it. The file stem keeps the
             // artifact directory at target/bpfel-unknown-none/, so
             // every consumer of that path (this file, ci.yml
             // artifact checks, cache keys) is untouched.

@@ -9,7 +9,7 @@
 
 | Component | Minimum | Recommended | Why |
 |-----------|---------|-------------|-----|
-| **Kernel** | 5.13+ | 6.6 LTS+ | `bpf_skb_cgroup_id()` (4.18+), `bpf_skb_ancestor_cgroup_id()` (present in the 5.13 floor, exposed to cgroup_skb via `cg_skb_func_proto` — the MMSPA walk's helper, verified against v5.13 and master source, NIGHT-private-research-2), `bpf_get_socket_cookie()` (cgroup_skb-legal across the whole verified matrix — the observer's per-endpoint join since NIGHT-boost-26; the LIMITER joined it at charger-core-3b for the `--per-socket` lane and again at schema v20 for the CAKE-shaped flow-isolation lane inside the DRR leaf, so both objects ride the same proven helper), `bpf_link` (5.7+), and the sock_ops family the RECWN lane rides (night-spark-2, schema v25 — all far under the floor: `BPF_PROG_TYPE_SOCK_OPS` + the `BPF_SOCK_OPS_RWND_INIT` callback and `bpf_setsockopt()` itself are 4.16-era uapi, `bpf_get_socket_cookie()`'s sock_ops variant and `bpf_sock_ops_cb_flags_set()` are 4.19-era, every one verified present in v5.15's `sock_ops_func_proto`) — 5.13 is the oldest kernel in the verified matrix. The observer's events ringbuf (previously the 5.8+ floor item) is gone since NIGHT-boost-34 — see the 6.8 helper wall below |
+| **Kernel** | **5.15.0** | 6.6 LTS+ | The floor since night-netrunner-1 (the impish 5.13 lane retired): `bpf_skb_cgroup_id()` (4.18+), `bpf_skb_ancestor_cgroup_id()` (present since 5.13, exposed to cgroup_skb via `cg_skb_func_proto` — the MMSPA walk's helper, verified against v5.13 and master source, NIGHT-private-research-2), `bpf_get_socket_cookie()` (cgroup_skb-legal across the whole verified matrix — the observer's per-endpoint join since NIGHT-boost-26; the LIMITER joined it at charger-core-3b for the `--per-socket` lane and again at schema v20 for the CAKE-shaped flow-isolation lane inside the DRR leaf, so both objects ride the same proven helper), `bpf_link` (5.7+), `BPF_ATOMIC` RMW (5.12+), and the sock_ops family the RECWN lane rides (night-spark-2, schema v25 — all far under the floor: `BPF_PROG_TYPE_SOCK_OPS` + the `BPF_SOCK_OPS_RWND_INIT` callback and `bpf_setsockopt()` itself are 4.16-era uapi, `bpf_get_socket_cookie()`'s sock_ops variant and `bpf_sock_ops_cb_flags_set()` are 4.19-era, every one verified present in v5.15's `sock_ops_func_proto`) — 5.15 LTS is the oldest line the verified matrix still covers, and BTF, ringbuf, and the modern eBPF helper set are fully mature there. The observer's events ringbuf (previously the 5.8+ floor item) is gone since NIGHT-boost-34 — see the 6.8 helper wall below |
 | **cgroup** | v2 only | v2 only | zelynic uses `cgroup_skb/egress` + `ingress` hooks, plus the `sock_ops` attach the RECWN receive-window lane rides (schema v25) |
 | **BPF fs** | Mounted at `/sys/fs/bpf` | Mounted | Required for map + link pinning (fire-and-forget mode) |
 | **Root** | Required | Required | BPF program load + attach requires `CAP_BPF` or root |
@@ -57,10 +57,9 @@ the eagle-eyes rates read LOW under exactly the concurrent traffic
 the monitor exists to measure — every observer update is now a
 fetch_add, and first-packet inserts are `BPF_NOEXIST` so a
 concurrent initializer is never clobbered (ebpf/src/stats.rs, pinned
-by test/ebpf/stats_smp_tests.rs under real thread contention). The
-instructions are 64-bit `BPF_ATOMIC`
+by test/ebpf/stats_smp_tests.rs under real thread contention). The instructions are 64-bit `BPF_ATOMIC`
 fetch-add and compare-exchange — kernel 5.12+; the verified floor
-(5.13) sits above it, so the minimum moves nothing. The BPF build
+(5.15.0 since night-netrunner-1) sits above it, so the minimum moves nothing. The BPF build
 itself rides a repo-local clone of the `bpfel-unknown-none` target
 spec (`ebpf/bpfel-unknown-none.json`) with `atomic-cas` enabled —
 the rustc builtin still carries the pre-5.12 `atomic-cas: false`
@@ -87,7 +86,7 @@ kernel in v5.1 (verified against v5.1's net/core/filter.c —
 and the call rides the helper-ID call-immediate convention the
 aya-ebpf-bindings crates generate (ID 97, pinned against
 include/uapi/linux/bpf.h's `FN(skb_ecn_set_ce, 97)` and aya-obj
-0.3's parser table). The verified floor (5.13) sits two minors
+0.3's parser table). The verified floor (5.15.0) sits far
 above the helper's introduction, so the minimum moves nothing. A
 non-ECT packet (the RFC 3168 majority) is refused by the helper and
 drops exactly as the legacy policer dropped it — hosts without
@@ -106,15 +105,18 @@ compile-time-constant stack offset). The pure core
 (ebpf/src/quic.rs) parses both windows. aya-ebpf 0.2.1 wraps the
 helper as `SkBuffContext::load_bytes` (helper 26, the
 bpf_skb_load_bytes proto every skb program family has carried
-since v4.1 — long before the 5.13 verified floor). Both reads are
+since v4.1 — long before the verified floor). Both reads are
 data-relative (skb->data = the network header at both cgroup_skb
 hooks); a helper refusal (truncated head, non-linear skb) hands
 the packet back the raw socket key, exactly the pre-v22 verdict —
 the parse is self-protecting by shape, never load-bearing for
 enforcement.
 
-THE 5.13 VERIFIER LAW this lane now documents (night-audit-1, the
-load failure the supermassive 5.13 floor caught at runs 187+): a
+THE 5.13 VERIFIER LAW this lane documents (night-audit-1, the
+load failure the then-5.13 floor caught at CI runs 187+; the
+floor itself has since moved to 5.15.0 — night-netrunner-1 —
+but the law stands for every kernel under the 5.14 precision
+rework): a
 variable-offset STACK read — a load whose address carries a
 runtime term, which re-sliced subslices and loop indices produce —
 is bounded by the verifier's scalar range tracking, and kernels
@@ -123,7 +125,7 @@ and compound offsets, refusing the whole program with EACCES. The
 two-read split plus the unrolled byte collectors keep the object
 at ZERO variable-offset stack reads, so the oldest verifier in
 the matrix proves every load on sight — the property the
-supermassive 5.13 micro-VM keeps pinned on every push.
+supermassive 5.15 floor micro-VM keeps pinned on every push.
 
 ### `BPF_MAP_TYPE_ARRAY` + `BPF_MAP_TYPE_HASH` — kernel 4.18+
 
@@ -148,20 +150,21 @@ Check: `stat -fc %T /sys/fs/cgroup` should return `cgroup2fs`.
 |--------|--------|--------|-------|
 | **Arch Linux** | 6.18+ | Verified | Dev machine (CachyOS 6.18) — all tests pass |
 | **Ubuntu 24.04 LTS** | 6.8 | Build-verified | CI build matrix — compiles + unit tests pass (no runtime record) |
-| **Ubuntu 22.04 LTS** | 5.15 | Build-verified | CI build matrix — compiles + unit tests pass (no runtime record) |
+| **Ubuntu 22.04 LTS** | 5.15 | Verified | THE FLOOR — the CI low-specs lane boots the newest 5.15.0-ABI jammy kernel in a KVM micro-VM on every qualifying push (plus the hosted build matrix) |
 | **Fedora 44** | 6.19 | Verified | Real enforcement tested (firefox 100kb → 690 Kbps) |
 | **Debian 13** | 6.12 | Verified | Real enforcement tested (firefox-esr 900kb → 7.0 Mbps) |
-| **Ubuntu 21.10** | 5.13 | Verified | Minimum kernel — MUSL binary, all tests pass |
+| **Ubuntu 21.10** | 5.13 | Verified | RETIRED floor — the historical minimum (MUSL binary, all tests pass); the floor moved to 5.15.0 at night-netrunner-1 |
 | **CachyOS VM** | 7.1 | Verified | MUSL binary, chromium 360kb → 3.0 Mbps (98%) |
 | **openSUSE Tumbleweed** | 6.x | Should work | Not yet tested |
-| **CentOS Stream 9** | 5.14 | Should work | Edge case (5.14 > 5.13 minimum) |
+| **CentOS Stream 9** | 5.14 | Should work | Edge case — BELOW the 5.15.0 floor since night-netrunner-1; upgrade to an EL 9 kernel 5.15+ erratum stream |
 | **Alpine** | 6.x | Should work | musl libc — may need testing |
 
 ## Testing Matrix
 
 ### Kernels — verified PASS where recorded
 
-- [x] 5.13 (minimum — Ubuntu 21.10, MUSL binary)
+- [x] 5.13 (RETIRED floor — Ubuntu 21.10, MUSL binary; the floor moved to 5.15.0 at night-netrunner-1)
+- [x] 5.15 (the floor — Ubuntu 22.04 jammy LTS; the CI low-specs lane's kernel)
 - [x] 6.12 (Debian 13)
 - [x] 6.18 (Arch Linux — dev machine)
 - [x] 6.19 (Fedora 44)
@@ -201,16 +204,19 @@ commands to reproduce them are in the README's Test Results section.
 ## Known Limitations
 
 1. **cgroup v1 systems**: Not supported. zelynic will error on attach.
-2. **Kernel < 5.7**: no `bpf_link` (5.7+), so neither object can
-   attach. Kernels below 5.13 are outside the verified matrix (5.13
-   is the oldest kernel tested). The depth harness reports the span
-   for you (NIGHT-boost-27): `limiter-depth-test.sh` emits a
-   kernel-span verdict family — the 5.13+ floor gate (FAIL below
-   it), the capability rung the running kernel rides at (5.7 links,
-   the 5.13 verified floor, the 6.x LTS lines), and the LTS
-   placement — so a verdict from any machine, 5.13 hardware to the
-   latest release, names the kernel generation it rode on. (The
-   observer's events ringbuf — the old 5.8 rung — was dropped at
+2. **Kernel < 5.15.0**: refused (night-netrunner-1). `zelynic attach`
+   (every strict/block/eagle-eyes surface) and the doctor flag the
+   floor: BTF, ringbuf, and the modern eBPF helper set are fully
+   mature at 5.15, so nothing below it is supported — no fallback
+   code path exists, and the legacy pre-5.7 `bpf_prog_attach` shape
+   is gone with it. The depth harness reports the span for you
+   (NIGHT-boost-27): `limiter-depth-test.sh` emits a kernel-span
+   verdict family — the 5.15+ floor gate (FAIL below it), the
+   capability rung the running kernel rides at (5.7 links, the
+   5.15 verified floor, the 6.x LTS lines), and the LTS placement —
+   so a verdict from any machine, 5.15 hardware to the latest
+   release, names the kernel generation it rode on. (The observer's
+   events ringbuf — the old 5.8 rung — was dropped at
    NIGHT-boost-34; the 6.8 note below is the reason.)
 3. **No BPF fs mounted**: Fire-and-forget mode (pin maps) will fail.
    Fix: `sudo mount -t bpf bpf /sys/fs/bpf`
@@ -265,8 +271,10 @@ sudo mount -t bpf bpf /sys/fs/bpf
 
 ### BPF verifier rejects program
 
-Check kernel version — `bpf_skb_cgroup_id()` requires 4.18+.
-Some older kernels have stricter verifier. Check dmesg for verifier log.
+Check kernel version first — zelynic requires 5.15.0+ (the doctor
+refuses below the floor, and `uname -r` answers in one line).
+Some older kernels have stricter verifiers. Check dmesg for the
+verifier log.
 
 ### eagle-eyes load fails with EINVAL on kernel 6.8 (NIGHT-boost-34, closed)
 
@@ -283,7 +291,7 @@ event branch and the ringbuf entirely (the phase-2 hunt decision,
 forced by the kernel): the observer's helper set is now
 `bpf_map_lookup_elem`, `bpf_map_update_elem`,
 `bpf_skb_cgroup_id`, `bpf_get_socket_cookie` — each allowed for
-cgroup_skb on every kernel from 5.13 through 6.17+.
+cgroup_skb on every kernel from the 5.15.0 floor through 6.17+.
 
 <!-- ZELYNIC-DISCLAIMER -->
 <!--

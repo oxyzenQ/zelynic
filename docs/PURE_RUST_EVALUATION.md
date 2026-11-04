@@ -232,8 +232,8 @@ NIGHT-improve-8, all documented for the decision section:
    trio from `bpf_base_func_proto` and cgroup_skb never reaches
    the new `cgroup_current_func_proto`, so the old shape failed
    program load with EINVAL on every 6.8 host (an LTS inside the
-   promised 5.13+ span; 6.17 restored the helpers, but the span
-   must hold). The event payload fed a ringbuf no zelynic code
+   promised span, then 5.13+; 6.17 restored the helpers, but the
+   span must hold). The event payload fed a ringbuf no zelynic code
    ever read — the hunt finding directly below — so the kernel
    forced the phase-2 decision this doc left open. The egress
    program is now the ingress shape: cgroup counters + per-socket
