@@ -207,19 +207,32 @@ pub(crate) fn try_enforce(
     // RECWN is the download spine (the pacing hint the egress twin
     // primes is night-spark-5's, the block below). Steady state is one LRU lookup
     // with no write (recwn_flow::recwn_prime's own contract); the
-    // per-socket lane below re-fetches the cookie it needs for
-    // its own keying, so the policed path pays one helper call
-    // more than before — the cost class the overhead row owns.
+    // cookie it keys by is the ONE fetch below, shared with every
+    // later lane — night-netrunner-2's smoothbore close (the
+    // per-packet friction law: a second call whose answer cannot
+    // differ within one invocation is pure overhead, the same
+    // posture NIGHT-lts-2 gave the unlimited fast path).
     // The rate-0 block verdict returned above: a blocked lane
     // delivers nothing, so no window shape can help it.
-    if is_ingress {
-        // SAFETY: helper call with the program's own skb context
-        // (the same cast the per-socket lane below rides); the
-        // return is a plain u64 cookie, no pointer crosses back.
-        let recwn_cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
-        if recwn_cookie != 0 {
-            recwn_flow::recwn_prime(recwn_cookie, pol.rate_bps);
-        }
+    //
+    // The socket's cookie, fetched ONCE per policed packet
+    // (night-netrunner-2): the prime sites below, the per-socket
+    // lane, and the DRR flow lane all key by the SAME cookie this
+    // hook's skb names, and the helper's answer cannot differ
+    // within one invocation (the same skb, the same owning socket,
+    // both times). The two-fetch shape the lanes used to describe
+    // paid a second helper call per policed packet for a value
+    // already in hand — the group lane, which keys no flow state,
+    // simply lets the value go unused below. The unlimited fast
+    // path above still pays nothing: the fetch sits after the
+    // rate-0 block verdict, exactly where the prime sites rode
+    // before.
+    // SAFETY: helper call with the program's own skb context (the
+    // same cast the prime sites and the lanes rode); the return is
+    // a plain u64 cookie, no pointer crosses back.
+    let sock_cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
+    if is_ingress && sock_cookie != 0 {
+        recwn_flow::recwn_prime(sock_cookie, pol.rate_bps);
     }
 
     // night-spark-5 (Egress Socket Pacing, schema v27 — the quota
@@ -237,14 +250,8 @@ pub(crate) fn try_enforce(
     // own contract) — the same cost class the RECWN prime above
     // rode. The rate-0 block verdict returned above: a blocked lane
     // delivers nothing, so no pacing rate can help it.
-    if !is_ingress {
-        // SAFETY: helper call with the program's own skb context
-        // (the same cast the RECWN prime above rides); the return
-        // is a plain u64 cookie, no pointer crosses back.
-        let pace_cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
-        if pace_cookie != 0 {
-            pace_flow::pace_prime(pace_cookie, pol.rate_bps);
-        }
+    if !is_ingress && sock_cookie != 0 {
+        pace_flow::pace_prime(sock_cookie, pol.rate_bps);
     }
 
     // security-3 trust boundary: clamp the stored burst before ANY
@@ -339,11 +346,10 @@ pub(crate) fn try_enforce(
     // at the RESOLVED POLICY ROOT — the roll-up the MMSPA contract
     // already owns.
     if pol_sane.flags & POLICY_FLAG_PER_SOCKET != 0 {
-        // SAFETY: helper call with the program's own skb context
-        // (cast to the helper's void-pointer signature); the return
-        // is a plain u64 cookie, no pointer crosses back.
-        let cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
-        if cookie != 0 {
+        // The cookie is the one fetch the policed path made above
+        // (night-netrunner-2) — the lane keys by the same value the
+        // prime site stamped, no second helper call.
+        if sock_cookie != 0 {
             // The skb pointer rides in for the lane's own ECN-first
             // rescue (schema v21, the per-socket convergence closure):
             // the debt lives inside the socket's bucket — the lane
@@ -364,7 +370,7 @@ pub(crate) fn try_enforce(
             // restored for the protocol that multiplexes. A refusal
             // (non-QUIC, unconfirmed) hands back the raw cookie: the
             // pre-v22 verdict, untouched.
-            let key = quic_flow::quic_flow_key(&ctx, cookie, is_ingress);
+            let key = quic_flow::quic_flow_key(&ctx, sock_cookie, is_ingress);
             let verdict = socket_flow(
                 &pol_sane,
                 key,
@@ -473,13 +479,12 @@ pub(crate) fn try_enforce(
     // (one socket, N HTTP/3 connections the cookie collapses into
     // one flow bucket). The bucket/share/ledger maps key by the
     // value handed to drr_flow unchanged; every QUIC refusal rides
-    // the raw cookie, exactly the v20 verdict.
-    // SAFETY: helper call with the program's own skb context (the
-    // same helper contract the per-socket lane rides); the return
-    // is a plain u64 cookie, no pointer crosses back.
-    let cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
-    let flow_key = if cookie != 0 {
-        quic_flow::quic_flow_key(&ctx, cookie, is_ingress)
+    // the raw cookie, exactly the v20 verdict. The cookie is the
+    // one fetch the policed path made above (night-netrunner-2) —
+    // the flow lane keys by the same value the prime site stamped,
+    // no second helper call.
+    let flow_key = if sock_cookie != 0 {
+        quic_flow::quic_flow_key(&ctx, sock_cookie, is_ingress)
     } else {
         0
     };
