@@ -4,7 +4,10 @@
 # OS: Linux only — zelynic is a Linux eBPF tool; no other OS is supported.
 #
 # Wrapper for edt-probe.py (night-spark-5 — the quota saver's Layer 3,
-# egress socket pacing, schema v27) — the EGRESS lane's live proof: a
+# egress socket pacing, schema v27; hardened by night-spark-6 — the
+# ss pacing token's two iproute2 dialects, the bps family's
+# current/max pair read as the pinned-max exactness witness, and
+# the fast-local proxy guard) — the EGRESS lane's live proof: a
 # 100 kb/s upload policy on a real cgroup, the uploader joined into the
 # policed cgroup the recwn way (fork, join cgroup.procs, execv — curl
 # IS the cgroup member), `ss -tip` reading the kernel's own pacer on

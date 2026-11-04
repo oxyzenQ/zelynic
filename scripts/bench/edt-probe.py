@@ -119,10 +119,34 @@ THROTTLE_FLOOR = 0.75
 THROTTLE_CEIL = 1.25
 
 # The ss pacing_rate token: a decimal bit rate with an SI unit
-# suffix — `pacing_rate 800.0Kb/s` — the b/s, Kb/s, Mb/s, Gb/s
-# family (decimal thousands, BITS, the iproute2 shape).
-PACING_TOKEN = re.compile(r"pacing_rate\s+([0-9.]+)([KMGT]?)b/s")
-UNIT_MULT = {"": 1, "K": 1_000, "M": 1_000_000, "G": 1_000_000_000, "T": 1e12}
+# suffix in ONE of the two dialects iproute2 has shipped — the
+# `b/s` family (`pacing_rate 800.0Kb/s`) and the `bps` family
+# (iproute2 6.x: `pacing_rate 800kbps/800kbps`, the CURRENT rate,
+# a slash, then the MAX pacing rate when the socket carries one —
+# the pair prints ONLY for a pinned socket). Decimal thousands,
+# BITS, both cases attested live (lowercase k on 6.15.0's `800kbps`,
+# capital M/G on its bystanders; the pinned-max pair was measured
+# on kernel 5.10.134 against a socket the harness itself pinned
+# with SO_MAX_PACING_RATE — the exact kernel state the lane
+# creates, the same 800000 b/s witness). The pattern captures the
+# current rate in groups 1-2 and, when the pair prints, the
+# pinned max in groups 3-4 — the option's own value, the
+# exactness witness the verdict gate below reads.
+PACING_TOKEN = re.compile(
+    r"pacing_rate\s+([0-9.]+)([kKmMgGtT]?)(?:b/s|bps)"
+    r"(?:\s*/\s*([0-9.]+)([kKmMgGtT]?)(?:b/s|bps))?"
+)
+UNIT_MULT = {
+    "": 1,
+    "k": 1_000,
+    "K": 1_000,
+    "m": 1_000_000,
+    "M": 1_000_000,
+    "g": 1_000_000_000,
+    "G": 1_000_000_000,
+    "t": 1e12,
+    "T": 1e12,
+}
 
 
 # ── the pure instrument ───────────────────────────────────────────────
@@ -130,7 +154,8 @@ UNIT_MULT = {"": 1, "K": 1_000, "M": 1_000_000, "G": 1_000_000_000, "T": 1e12}
 
 def pacing_rate_bps(token_value, token_unit):
     """One pacing token's rate in BITS per second — the decimal SI
-    units ss prints (the iproute2 shape), pinned by --self-test."""
+    units ss prints in either dialect (the b/s and bps families,
+    both cases of the unit letter), pinned by --self-test."""
     return float(token_value) * UNIT_MULT[token_unit]
 
 
@@ -138,10 +163,14 @@ def parse_ss_pacing(text):
     """Parse `ss -tip` output into per-connection dicts carrying the
     fields this harness judges: pid (None when ss cannot attribute),
     pacing_rate_bps (None when the token is absent — an unpaced
-    socket), retrans_total (absence reads 0 — ss prints the pair
-    only when a member is nonzero, the recwn-probe parser's own
-    note). Only connections carrying a detailed info line yield
-    entries."""
+    socket), pacing_max_bps (None when the socket carries no pinned
+    max — the bps dialect's `current/max` pair prints only for a
+    socket SOMETHING pinned; an unpaced local bystander rides a
+    single Gbps-scale token and no pair, so it never contaminates
+    the exactness witness), retrans_total (absence reads 0 — ss
+    prints the pair only when a member is nonzero, the recwn-probe
+    parser's own note). Only connections carrying a detailed info
+    line yield entries."""
     conns = []
 
     def _close(header, fields):
@@ -165,6 +194,8 @@ def parse_ss_pacing(text):
         m = PACING_TOKEN.search(line)
         if m:
             fields["pacing_rate_bps"] = pacing_rate_bps(m.group(1), m.group(2))
+            if m.group(3) is not None:
+                fields["pacing_max_bps"] = pacing_rate_bps(m.group(3), m.group(4))
         rm = re.search(r"retrans:(\d+)/(\d+)", line)
         if rm:
             fields["retrans_total"] = int(rm.group(2))
@@ -177,13 +208,31 @@ def pacing_verdict(samples, expect_bps=PACING_BITS):
     pacing_rate rides the band [FLOOR, CEIL] x the policy's rate —
     the kernel caps the socket's pacer at the option's own value, so
     a bound sender reads AT the cap; no paced sample at all is the
-    non-engagement FAIL. Returns (verdict, top_bps, detail_tail)."""
+    non-engagement FAIL. The pinned-max gate (night-spark-6): any
+    sample carrying the `current/max` pair names the option's OWN
+    value in the max — exactly expect_bps (the live attestation:
+    a socket pinned at 100000 B/s reads `800kbps/800kbps`), and a
+    pinned max off the policy's bits is the option-did-not-bind
+    FAIL even when the current rate rides the band. Returns
+    (verdict, top_bps, detail_tail)."""
     paced = [s["pacing_rate_bps"] for s in samples if s.get("pacing_rate_bps")]
     if not paced:
         return (
             "FAIL",
             0.0,
             "no paced socket sampled — the pacing lane did not engage the uploader's sockets",
+        )
+    maxes = [s["pacing_max_bps"] for s in samples if s.get("pacing_max_bps")]
+    # One bit per second of float dust (an `0.8Mb/s` dialect print
+    # carries binary-float residue); anything past it is a real
+    # off-policy pin, never rounding.
+    if any(abs(m - expect_bps) > 1.0 for m in maxes):
+        return (
+            "FAIL",
+            max(paced),
+            f"the pinned max rode off the policy's own value (max "
+            f"{max(maxes):.0f} b/s vs {expect_bps:.0f}) — the option did "
+            "not bind at the policy's rate",
         )
     top = max(paced)
     if top > expect_bps * PACING_CEIL:
@@ -200,11 +249,17 @@ def pacing_verdict(samples, expect_bps=PACING_BITS):
             f"the pacer never reached the policy's own band ({top:.0f} b/s vs "
             f"{expect_bps:.0f}) — the rate did not land",
         )
+    pinned_tail = (
+        f"; the pinned max reads {maxes[0]:.0f} b/s — the policy's own "
+        "bits, exactly"
+        if maxes
+        else ""
+    )
     return (
         "PASS",
         top,
         f"top pacing_rate {top:.0f} b/s across {len(paced)} paced samples "
-        "of the uploader's own sockets",
+        "of the uploader's own sockets" + pinned_tail,
     )
 
 
@@ -435,6 +490,15 @@ def live_run():
             args = [
                 "curl",
                 "-sS",
+                # The ladder's endpoint is the DIRECT peer (the fast-local
+                # guard, night-spark-6): a proxy env var would bend the
+                # leg through a fast local hop, and that bystander — an
+                # unpaced socket riding a Gbps-scale pacing_rate under
+                # the uploader's OWN pid — swamps the pid-scoped sweep
+                # with evidence the lane never shaped. --noproxy keeps
+                # the leg's own socket the lane's witness.
+                "--noproxy",
+                "*",
                 "-o",
                 "/dev/null",
                 "-w",
@@ -527,6 +591,13 @@ def live_run():
 # ── the rootless instrument lane ──────────────────────────────────────
 
 
+# The owner-shaped fixture carries BOTH ss dialects (night-spark-6):
+# fd=3 rides the b/s family, fd=5 rides the bps family with the
+# pinned-max pair iproute2 6.x prints (`800kbps/800kbps`, the live
+# attestation on iproute2 6.15.0 / kernel 5.10.134), and fd=6 is
+# the FAST-LOCAL bystander under the uploader's OWN pid — a
+# loopback-shaped hop at Gbps scale whose single unpinned token is
+# the exact hazard the pid scope and the --noproxy guard hold off.
 SS_FIXTURE = """State Recv-Q Send-Q Local Address:Port Peer Address:Port Process
 ESTAB 0 1234 192.0.2.10:52304 198.51.100.9:443 users:(("curl",pid=4242,fd=3))
 \t cubic wscale:7,7 rto:364 rtt:12.5/24 ato:40 mss:1448 pacing_rate 800.0Kb/s delivery_rate 796.2Kb/s segs_out:812 retrans:0/0
@@ -534,6 +605,10 @@ ESTAB 0 0 192.0.2.10:52310 198.51.100.9:443 users:(("Web Content",pid=5599,fd=67
 \t cubic wscale:7,7 rto:364 rtt:9.5/19 ato:40 mss:1448 pacing_rate 12.4Mb/s segs_out:18
 ESTAB 0 0 192.0.2.10:52311 198.51.100.9:443 users:(("curl",pid=4242,fd=4))
 \t cubic wscale:7,7 rto:364 rtt:8.75/17.5 ato:40 mss:1448 segs_out:204 retrans:2/7
+ESTAB 0 0 192.0.2.10:52312 198.51.100.9:443 users:(("curl",pid=4242,fd=5))
+\t cubic wscale:7,7 rto:364 rtt:10.2/20.4 ato:40 mss:1448 pacing_rate 800kbps/800kbps delivery_rate 790.4Kbps segs_out:99 retrans:1/3
+ESTAB 0 0 192.0.2.10:52313 127.0.0.1:8080 users:(("curl",pid=4242,fd=6))
+\t cubic wscale:7,7 rto:364 rtt:0.008/0.016 ato:40 mss:65483 pacing_rate 710Gbps delivery_rate 655.3Gbps segs_out:31
 """
 
 
@@ -543,11 +618,15 @@ def self_test():
     lib.out("  EDT instrument — the rootless pins (night-spark-5)")
     rows = []
 
-    # The pacing token's decimal bit units (the iproute2 shape), the
-    # full suffix family the sweep can meet.
+    # The pacing token's decimal bit units (both dialects, both
+    # unit-letter cases), the full suffix family the sweep can meet —
+    # including the lowercase k iproute2 6.15.0 prints and the
+    # capital K/M/G the b/s family carries.
     unit_ok = (
         pacing_rate_bps("800.0", "K") == 800_000.0
+        and pacing_rate_bps("800", "k") == 800_000.0
         and pacing_rate_bps("12.4", "M") == 12_400_000.0
+        and pacing_rate_bps("12.4", "m") == 12_400_000.0
         and pacing_rate_bps("640", "") == 640.0
         and pacing_rate_bps("1.2", "G") == 1_200_000_000.0
     )
@@ -555,24 +634,38 @@ def self_test():
         (
             "instrument: the pacing token's decimal bit units",
             unit_ok,
-            "b/s, Kb/s, Mb/s, Gb/s — decimal thousands, BITS (ss prints "
-            "the pacer's rate in bits; the policy's 100000 B/s reads "
-            "800.0Kb/s)",
+            "b/s and bps dialects, both unit-letter cases — decimal "
+            "thousands, BITS (ss prints the pacer's rate in bits; the "
+            "policy's 100000 B/s reads 800.0Kb/s or 800kbps, the two "
+            "iproute2 shapes)",
         )
     )
 
-    # The parser on the owner-shaped fixture: the scoped pid keeps
-    # its paced sockets, a bystander never rides the evidence, an
-    # unpaced socket reads honestly absent, and retrans absence
-    # reads 0 (ss prints the pair only when a member is nonzero).
+    # The parser on the owner-shaped fixture (both ss dialects, the
+    # pinned-max pair, the fast-local bystander): the scoped pid keeps
+    # its paced sockets in BOTH dialects, the bps family's
+    # current/max pair yields the pinned max, an unpaced LOCAL
+    # bystander under the SAME pid reads its Gbps-scale single token
+    # with NO pair (it can never contaminate the exactness witness
+    # — only the band's top sample, which the throttle row's own
+    # verdict disambiguates), another pid never rides the evidence
+    # at all, an unpaced socket reads honestly absent, and retrans
+    # absence reads 0 (ss prints the pair only when a member is
+    # nonzero).
     conns = parse_ss_pacing(SS_FIXTURE)
     mine = [c for c in conns if c.get("pid") == 4242]
     parser_ok = (
-        len(mine) == 2
+        len(mine) == 4
         and mine[0].get("pacing_rate_bps") == 800_000.0
+        and "pacing_max_bps" not in mine[0]
         and mine[0].get("retrans_total", 0) == 0
         and "pacing_rate_bps" not in mine[1]
         and mine[1].get("retrans_total") == 7
+        and mine[2].get("pacing_rate_bps") == 800_000.0
+        and mine[2].get("pacing_max_bps") == 800_000.0
+        and mine[2].get("retrans_total") == 3
+        and mine[3].get("pacing_rate_bps") == 710_000_000_000.0
+        and "pacing_max_bps" not in mine[3]
         and any(c.get("pid") == 5599 for c in conns)
         and conns[1].get("pacing_rate_bps") == 12_400_000.0
     )
@@ -580,10 +673,44 @@ def self_test():
         (
             "instrument: the ss pacing parser",
             parser_ok,
-            "pid-scoped: 2 of 3 connections carry the uploader's pid; the "
-            "paced socket reads 800.0Kb/s = 800000 b/s, the bystander's "
-            "12.4Mb/s never rides the evidence, the unpaced socket reads "
-            "absent, retrans absence reads 0",
+            "pid-scoped: 4 of 5 connections carry the uploader's pid; "
+            "the b/s dialect socket reads 800.0Kb/s = 800000 b/s, the "
+            "bps dialect socket reads 800kbps/800kbps — current 800000 "
+            "AND the pinned max 800000 (the exactness witness), the "
+            "fast-local bystander's 710Gbps rides a single token with "
+            "no pair, the other-pid bystander's 12.4Mb/s never rides "
+            "the evidence, the unpaced socket reads absent, retrans "
+            "absence reads 0",
+        )
+    )
+
+    # The pinned-max exactness gate (night-spark-6, the owner's own
+    # success criterion): a max pinned AT the policy's bits passes
+    # with the witness named in the tail, and a max pinned off the
+    # policy (the option did not bind at the lane's rate) FAILs even
+    # while the current rate rides the band — the honest opposite of
+    # a band-only verdict.
+    v_pin, _, pin_tail = pacing_verdict(
+        [{"pacing_rate_bps": PACING_BITS, "pacing_max_bps": PACING_BITS}]
+    )
+    v_off, _, off_tail = pacing_verdict(
+        [{"pacing_rate_bps": PACING_BITS, "pacing_max_bps": PACING_BITS * 2}]
+    )
+    pin_ok = (
+        v_pin == "PASS"
+        and "the policy's own bits, exactly" in pin_tail
+        and v_off == "FAIL"
+        and "did not bind at the policy's rate" in off_tail
+    )
+    rows.append(
+        (
+            "law: the pinned max reads the policy's own bits",
+            pin_ok,
+            "the bps dialect's current/max pair names the option's own "
+            "value in the max: 800000 b/s exactly -> PASS (the live "
+            "attestation — a socket pinned at 100000 B/s reads "
+            "800kbps/800kbps); a max at twice the policy -> FAIL even "
+            "with the current rate inside the band",
         )
     )
 
