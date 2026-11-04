@@ -25,6 +25,7 @@ mod display_lines;
 pub mod embedded;
 #[cfg(feature = "ebpf")]
 pub mod identity;
+pub mod kernel_floor;
 #[cfg(feature = "ebpf")]
 pub mod limiter;
 #[cfg(feature = "ebpf")]

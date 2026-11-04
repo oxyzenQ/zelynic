@@ -105,7 +105,7 @@ Contract:
   (docs/PURE_RUST_EVALUATION.md delta 5, the resolved hunt finding).
   The observer's helper set is now map ops + `bpf_skb_cgroup_id` +
   `bpf_get_socket_cookie`, all cgroup_skb-legal across the whole
-  5.13+ span.
+  verified span (the 5.15.0+ floor since night-netrunner-1).
 
 ### Layer 1 — Map Interface
 

@@ -33,7 +33,7 @@
 #                                main/updates/security pockets —
 #                                the default (NIGHT-blade-10: the
 #                                lane LTS users actually run);
-#                                floor = impish 5.13 (the documented
+#                                floor = jammy 5.15.0 (the documented
 #                                minimum, the CI low-specs lane);
 #                                latest = the archive's newest
 #                                kernel; PATH = a local vmlinuz

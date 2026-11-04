@@ -16,7 +16,7 @@ row ships without one. The mechanisms come in three strengths:
   `sudo ./scripts/bench/proof-claims.sh` (the five headline claims,
   ~1 min; `--quick` for 30 s windows). Since NIGHT-lts-6 this
   harness also runs LIVE inside both supermassive CI legs on every
-  push (the impish 5.13 floor kernel and the dynamically resolved
+  push (the jammy 5.15.0 floor kernel and the dynamically resolved
   latest kernel). Since NIGHT-improve-48 the VM rootfs ships the
   battery's own diagnostic tools (nftables plus a staged
   /usr/bin/bpftool — the real-user shape, both one apt away on any
@@ -62,7 +62,7 @@ cannot be measured at a boundary is not claimed at that boundary.
 | `--interval 1s..60s`, session totals, footer speed pair | README sharp table | interval bounds pins (`monitor.rs` tests); footer/session render pins | verified |
 | Eagle-eyes detail rows (pid → endpoint) | README sharp table | detail render pins (`test/ebpf/render/detail_tests.rs`) | verified |
 | Strict dependency diet: 7 direct deps, 54 lockfile crates | README + DEPENDENCY_AUDIT | counted live at audit time: `anyhow aya clap libc nix serde serde_json` = 7; Cargo.lock = 54 packages; `cargo deny check all` on every push | verified (re-count on demand: see below) |
-| Kernel 5.13+ floor, cgroup v2, root | README requirements | `doctor`; KERNEL_COMPATIBILITY matrix; supermassive boots the true 5.13 floor kernel, the jammy 5.15.0 LTS line, and the archive's latest on every push (three KVM micro-VM legs, night-dragon-maintenance-4) | verified |
+| Kernel 5.15.0+ floor, cgroup v2, root | README requirements | `doctor`; KERNEL_COMPATIBILITY matrix; the attach paths refuse below the floor (night-netrunner-1); supermassive boots the jammy 5.15.0 floor kernel and the archive's latest on every push (two KVM micro-VM legs) | verified |
 | Release tarballs: 3 checksums + GPG, four arch baselines | README release section | release.yml verifies checksums and signatures before upload; lts-9's version/parity/passphrase invariants; VERIFY_RELEASE.md's user flow | verified (CI-enforced) |
 | Local alias builds reproduce the release tier | README arch-baseline section | gate 17 `check-release-parity.sh` on every push | verified (lts-9) |
 | Scale contract: wrap-coherent counters, u128 ledger, ZB/QB ladder | USAGE (lts-5) | wrap-coherence + wide-ladder pins (`loader_wrap_tests.rs`, `format_wide_tests.rs`, footer census pin) | verified |

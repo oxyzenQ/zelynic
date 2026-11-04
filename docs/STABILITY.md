@@ -21,7 +21,7 @@
 
 | Layer | What it needs | Stability source |
 |---|---|---|
-| **Runtime (every install)** | kernel 5.13+, cgroup v2 unified hierarchy, BPF filesystem, root. One self-contained binary. | The kernel's eBPF UAPI — stable ABI, verified matrix in [KERNEL_COMPATIBILITY.md](KERNEL_COMPATIBILITY.md) |
+| **Runtime (every install)** | kernel 5.15.0+, cgroup v2 unified hierarchy, BPF filesystem, root. One self-contained binary. | The kernel's eBPF UAPI — stable ABI, verified matrix in [KERNEL_COMPATIBILITY.md](KERNEL_COMPATIBILITY.md) |
 | **Release artifacts** | Nothing else. Each tarball is `zelynic` + `LICENSE` + `README.md`; the eBPF objects ride inside the binary (`include_bytes!`, aligned + structurally validated at build time). | Built by CI on ephemeral runners; consumer machines never see any toolchain |
 | **Build from source** | rustup with the stable `1.98.1` pin (userspace), the dated `nightly-2026-09-18` pin (eBPF objects only, nested build in `build.rs`), bpf-linker `0.11.1` prebuilt. | All three installed by one command: `scripts/dev/bootstrap-ebpf.sh` |
 

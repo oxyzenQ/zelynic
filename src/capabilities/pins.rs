@@ -171,6 +171,7 @@ mod tests {
             CapabilityReport {
                 system: SystemInfo {
                     kernel: "6.18.0".to_string(),
+                    kernel_floor_met: true,
                     cgroup_v2: true,
                     cgroup2_mount_path: Some("/sys/fs/cgroup".to_string()),
                     bpf_fs_mounted: true,

@@ -44,34 +44,9 @@ pub const BPF_CGROUP_INET_EGRESS: u32 = 1;
 /// include/uapi/linux/bpf.h enum bpf_attach_type: 3.
 pub const BPF_CGROUP_SOCK_OPS: u32 = 3;
 
-/// Kernel release string ("6.8.0-45-generic") for the verbose trace
-/// surface (NIGHT-boost-6): the release decides bpf_link support,
-/// verifier features, and the cgroup v2 shape — a bug report that
-/// opens with it needs no follow-up uname.
-pub fn kernel_release() -> String {
-    nix::sys::utsname::uname()
-        .map(|u| u.release().to_string_lossy().into_owned())
-        .unwrap_or_else(|_| "unknown".to_string())
-}
-
-/// Check if the running kernel supports bpf_link (kernel >= 5.7).
-/// bpf_link_create was added in kernel 5.7 (2020). Virtually all modern
-/// systems have it, but we check for graceful degradation on older kernels.
-pub fn kernel_supports_bpf_link() -> bool {
-    let kv = nix::sys::utsname::uname().ok();
-    if let Some(uname) = kv {
-        let release = uname.release().to_string_lossy();
-        // Parse "5.7.0-arch1" or "5.15.0-generic" etc.
-        let parts: Vec<&str> = release.split('.').collect();
-        if parts.len() >= 2 {
-            let major: u32 = parts[0].parse().unwrap_or(0);
-            let minor: u32 = parts[1].parse().unwrap_or(0);
-            return major > 5 || (major == 5 && minor >= 7);
-        }
-    }
-    // If we can't detect, assume yes (most systems are 5.7+)
-    true
-}
+/// Re-export of the ungated release read (kernel_floor owns it): the
+/// syscall lanes and their callers keep the bpf_syscall path stable.
+pub use crate::ebpf::kernel_floor::kernel_release;
 
 // ━━ Attribute structs (must match kernel union bpf_attr layout) ━━
 

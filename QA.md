@@ -272,7 +272,7 @@ limits stated after.**
   other claim in this record): zelynic cannot create bandwidth,
   compress what the user lets through, or fix an ISP's metering — it
   polices what the local machine sends and receives, per cgroup. It
-  needs root and cgroup v2 (kernel 5.13+, the documented floor —
+  needs root and cgroup v2 (kernel 5.15.0+, the documented floor —
   `docs/KERNEL_COMPATIBILITY.md`). The unit of control is the local
   cgroup (per app on this machine), not the remote host — the right
   tool for "process A on my laptop is eating my hotspot", the wrong
@@ -530,7 +530,7 @@ against the two alternatives deliberately:
   where EVERY packet, from EVERY app, is already attributed to its
   owner — `bpf_skb_cgroup_id` gives per-app classification as a
   kernel fact, not a heuristic.
-- **The trade-offs accepted, documented not hidden**: the 5.13+
+- **The trade-offs accepted, documented not hidden**: the 5.15.0+
   kernel floor with cgroup v2 (docs/KERNEL_COMPATIBILITY.md), the
   CAP_BPF/root requirement (with the fail-safe direction: on any
   internal failure the programs ALLOW — availability trumps

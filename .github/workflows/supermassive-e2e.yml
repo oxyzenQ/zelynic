@@ -11,26 +11,25 @@
 # zelynic's own physics).
 #
 # The contract: every surface, every guard, every error path,
-# exercised against the REAL compiled binary, on three KVM micro-VM
-# legs - the low-spec leg boots the TRUE documented floor kernel
-# (impish 5.13, the oldest kernel in the verified matrix, from the
-# frozen old-releases archive), the jammy leg boots the 5.15.0 LTS
-# line (night-dragon-maintenance-4, the owner's reinstatement of the
-# NIGHT-improve-31 floor: a kernel "inside the proven span" never
-# actually BOOTS in the low-specs envelope, so a 5.15-ABI regression
-# was invisible until this leg existed; jammy is a live LTS, its
-# 5.15.0-ABI point releases resolve dynamically from the main
-# archive), and the best-spec leg boots the archive's dynamically
-# resolved LATEST kernel (nothing pinned, the resolver walks onto
-# each new release by itself). All legs run the IDENTICAL suite and
-# the IDENTICAL check depth: the budget buys headroom, never depth.
+# exercised against the REAL compiled binary, on two KVM micro-VM
+# legs - the low-spec leg boots the documented floor kernel (jammy's
+# 5.15.0 LTS line — the floor since night-netrunner-1 raised it off
+# the retired impish 5.13 lane; night-dragon-maintenance-4 first
+# reinstated the 5.15 leg on the principle that a kernel "inside the
+# proven span" never actually BOOTS in the low-specs envelope, and
+# jammy is a live LTS whose 5.15.0-ABI point releases resolve
+# dynamically from the main archive), and the best-spec leg boots
+# the archive's dynamically resolved LATEST kernel (nothing pinned,
+# the resolver walks onto each new release by itself). All legs run
+# the IDENTICAL suite and the IDENTICAL check depth: the budget buys
+# headroom, never depth.
 #
 # The suite lives in scripts/ci/e2e-init.sh (its header is the
 # contract's home); this file only makes the legs run. Five
 # canonical invocations per leg, the modes the owner named:
 # the unprivileged USER leg first (nonroot-depth-test.sh - the
 # honest refusal contract), then the ROOT legs (zelynic is a root
-# tool - README's "Linux kernel 5.13+, cgroup v2, root" - so the
+# tool - README's "Linux kernel 5.15.0+, cgroup v2, root" - so the
 # enforcement depth is root by design): the limiter depth
 # stresstest (measured rates + BPF-counter cross-checks, full
 # depth), the endurance clocks (full churn + monitor soak), the
@@ -95,18 +94,15 @@ jobs:
       fail-fast: false
       matrix:
         # The estate's envelope vocabulary (supermassive.yml's pair):
-        # low = the TRUE documented floor kernel, jammy = the 5.15.0
-        # LTS line (night-dragon-maintenance-4's reinstated leg), best
-        # = the archive's dynamic latest. The vm_timeout is the
-        # wedge-guard outer bound (a wedged guest can never burn the
-        # job budget); every leg runs the identical suite at identical
-        # depth, so the low legs' larger bound is headroom for their
-        # quarter-core serialization, never less depth.
+        # low = the documented floor kernel — jammy's 5.15.0 LTS line,
+        # the floor since night-netrunner-1 retired the impish 5.13
+        # lane, best = the archive's dynamic latest. The vm_timeout is
+        # the wedge-guard outer bound (a wedged guest can never burn
+        # the job budget); every leg runs the identical suite at
+        # identical depth, so the low leg's larger bound is headroom
+        # for its quarter-core serialization, never less depth.
         include:
-          - title: supermassive e2e - low specs (the 5.13 floor kernel)
-            profile: low
-            vm_timeout: 2400
-          - title: supermassive e2e - low specs (the jammy 5.15.0 LTS kernel)
+          - title: supermassive e2e - low specs (the jammy 5.15.0 LTS floor kernel)
             profile: jammy
             vm_timeout: 2400
           - title: supermassive e2e - best specs (the archive's latest kernel)
@@ -195,101 +191,18 @@ jobs:
             cargo pro-linux-amd64-v3-musl --locked
           ./target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic -V | grep -F "Build: local-pro-linux-amd64-v3-musl"
 
-      # The floor kernel (NIGHT-improve-33's resolver, ported from
-      # supermassive.yml's floor lane): impish indri (21.10) 5.13, the
-      # TRUE documented floor, fetched from the frozen old-releases
-      # archive (EOL July 2022 - it can never drift; the trade, a
-      # frozen mirror's availability, surfaces at the next push).
-      # Names-only search, highest ABI, apt resolves the last
-      # impish-updates kernel so no URL rot. NIGHT-dinner-12's retry
-      # contract rides every frozen-mirror probe.
-      - name: Fetch the impish 5.13 floor kernel (low specs)
-        if: matrix.profile == 'low'
-        run: |
-          set -euo pipefail
-          mkdir -p /tmp/kfloor && cd /tmp/kfloor
-          {
-            echo "deb http://old-releases.ubuntu.com/ubuntu/ impish main"
-            echo "deb http://old-releases.ubuntu.com/ubuntu/ impish-updates main"
-          } | sudo tee /etc/apt/sources.list.d/impish-floor.list >/dev/null
-          sudo apt-get -o Acquire::Retries=5 update \
-            -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/impish-floor.list \
-            -o Dir::Etc::sourceparts=/dev/null \
-            -o APT::Get::List-Cleanup=0
-          IMG=$(apt-cache search --names-only \
-            'linux-image-unsigned-5\.13\.0-.*-generic' 2>/dev/null \
-            | grep -oE 'linux-image-unsigned-5\.13\.0-[0-9]+-generic' \
-            | sort -V | tail -1 || true)
-          if test -z "$IMG"; then
-            echo "FAIL: no linux-image-unsigned-5.13.0-*-generic in the impish pockets - resolver evidence:"
-            apt-cache search --names-only 'linux-image-unsigned-5\.13' || true
-            exit 1
-          fi
-          echo "resolved: $IMG"
-          apt-get -o Acquire::Retries=5 download "$IMG"
-          dpkg -x "${IMG}"*_amd64.deb pkg
-          VMLINUZ=$(find pkg/boot -name 'vmlinuz-5.13.*' | head -1)
-          if test -z "$VMLINUZ"; then
-            echo "FAIL: no vmlinuz inside the deb - pkg/boot contents:"
-            ls -la pkg/boot || true
-            exit 1
-          fi
-          cp "$VMLINUZ" /tmp/kfloor/vmlinuz-floor
-          echo "kernel: $(du -h /tmp/kfloor/vmlinuz-floor | cut -f1) at /tmp/kfloor/vmlinuz-floor"
-          # The egress half: stage the kernel's OWN virtio_net module
-          # pair when the driver is a module (the 5.13 floor ships
-          # CONFIG_VIRTIO_NET=m, verified against the deb's own
-          # config). The bus layer is =y on every kernel this VM
-          # boots. The chain walk is run 37520041688's lesson:
-          # failover.ko under net/core owns the symbols
-          # net_failover.ko imports, so the pair alone fails every
-          # insmod with Unknown symbol - three modules, bottom-up.
-          KVER="${IMG#linux-image-unsigned-}"
-          MODPKG="linux-modules-$KVER"
-          apt-get -o Acquire::Retries=5 download "$MODPKG"
-          rm -rf mods /tmp/kfloor/virtio-mods
-          dpkg-deb -x "${MODPKG}"*_amd64.deb mods
-          CFG="mods/boot/config-$KVER"
-          test -f "$CFG" || {
-            echo "FAIL: no config-$KVER inside $MODPKG - deb contents:"
-            ls mods/boot || true
-            exit 1
-          }
-          VNET=$(sed -n 's/^CONFIG_VIRTIO_NET=\(.*\)$/\1/p' "$CFG")
-          case "$VNET" in
-            y)  echo "virtio_net built-in (=y) - no modules to stage" ;;
-            m)  STG="/tmp/kfloor/virtio-mods/lib/modules/$KVER/kernel"
-                mkdir -p "$STG/net/core" "$STG/drivers/net"
-                stage_mod() {
-                  mod=$1; dir=$2; flag=$3
-                  WANT=$(sed -n "s/^CONFIG_$flag=\(.*\)$/\1/p" "$CFG")
-                  if [ "$WANT" = "m" ]; then
-                    SRC="mods/lib/modules/$KVER/kernel/$dir/$mod.ko"
-                    test -f "$SRC" || { echo "FAIL: $mod.ko absent from $MODPKG (config says =m)"; exit 1; }
-                    cp "$SRC" "$STG/$dir/"
-                  fi
-                }
-                stage_mod failover net/core FAILOVER
-                stage_mod net_failover drivers/net NET_FAILOVER
-                stage_mod virtio_net drivers/net VIRTIO_NET
-                echo "staged virtio modules: $(du -sh /tmp/kfloor/virtio-mods | cut -f1) at /tmp/kfloor/virtio-mods" ;;
-            *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET - no usable virtio-net driver on this kernel"; exit 1 ;;
-          esac
-
-      # The jammy 5.15.0 leg (night-dragon-maintenance-4, the owner's
-      # reinstatement of the NIGHT-improve-31 floor: improve-33 had
-      # dropped a dedicated jammy leg because 5.15 "sits inside the
-      # proven span" - but a kernel inside the span never BOOTS in
-      # the low-specs envelope, so a 5.15-ABI regression (a verifier
-      # change, a map-layout shift) was invisible until this leg
-      # existed. Jammy is a LIVE LTS: the kernels come from the main
-      # archive (not the frozen old-releases mirror the impish floor
-      # needs), dynamically resolved to the newest 5.15.0-ABI
+      # The jammy 5.15.0 floor leg (night-dragon-maintenance-4 kept
+      # the leg's own principle alive; night-netrunner-1 made it THE
+      # floor lane: a kernel "inside the proven span" never BOOTS in
+      # the low-specs envelope, so a floor-ABI regression (a verifier
+      # change, a map-layout shift) is invisible until this leg
+      # exists. Jammy is a LIVE LTS: the kernels come from the main
+      # archive, dynamically resolved to the newest 5.15.0-ABI
       # jammy-updates point release - no URL rot, no pinned ABI. The
       # 5\.15\.0- anchor deliberately excludes jammy's HWE 6.x
-      # images - those are the best leg's jurisdiction. The same
-      # config-driven virtio staging walk as the impish leg (the
-      # walk stages whatever the deb's own config names, =y or =m).
+      # images - those are the best leg's jurisdiction. The
+      # config-driven virtio staging walk stages whatever the deb's
+      # own config names, =y or =m.
       - name: Fetch the jammy 5.15.0 LTS kernel (low specs)
         if: matrix.profile == 'jammy'
         run: |
@@ -323,9 +236,10 @@ jobs:
           fi
           cp "$VMLINUZ" /tmp/kfloor/vmlinuz-floor
           echo "kernel: $(du -h /tmp/kfloor/vmlinuz-floor | cut -f1) at /tmp/kfloor/vmlinuz-floor"
-          # The egress half: the SAME config-driven staging walk the
-          # impish leg runs (failover.ko under net/core owns the
-          # symbols net_failover.ko imports - three modules,
+          # The egress half: the config-driven staging walk (the
+          # same walk supermassive.yml's floor lane runs -
+          # failover.ko under net/core owns the symbols
+          # net_failover.ko imports - three modules,
           # bottom-up, when the driver is a module).
           KVER="${IMG#linux-image-unsigned-}"
           MODPKG="linux-modules-$KVER"
@@ -474,7 +388,7 @@ jobs:
       # rootfs draws from the ubuntu:24.04 CONTAINER — the guest
       # tooling's ABI (python3, nft, bpftool), nothing the static
       # musl payload depends on; 2.39's kernel floor is 3.2, so the
-      # 5.13 guest kernel is safe. python3 + iproute2 + kmod
+      # 5.15.0 guest kernel is safe. python3 + iproute2 + kmod
       # + curl + nftables ride the plain apt line (the suites' own
       # needs: the engines' python, `ip link set lo up`, the insmod
       # pair, the loopback transfers, the nft snapshot rows).
@@ -535,8 +449,8 @@ jobs:
           printf '%s\n' 'pro-linux-amd64-v3-musl' > rootfs/opt/zelynic/PAYLOAD-SHAPE
           cp "$GITHUB_WORKSPACE/scripts/ci/e2e-init.sh" rootfs/init
           chmod +x rootfs/init
-          # The virtio module pair a resolver step staged (the 5.13
-          # floor's =m legs) rides the cpio under the kernel's own
+          # The virtio module pair a resolver step staged (the floor
+          # legs whose driver is =m) rides the cpio under the kernel's own
           # module path; the =y heads staged nothing and the init's
           # insmod chain simply finds no files. The copy respects the
           # usr-merge (run 37518266382's lesson: the ubuntu containers

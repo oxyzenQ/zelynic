@@ -29,14 +29,16 @@
 //! The attach half (attach_pace_lane) is the loader's FOURTH
 //! program/link pair: the sock_ops pacing program loads, pins, and
 //! attaches at the cgroup root beside the two enforcement hooks and
-//! the RECWN twin, both attach strategies covered (bpf_link on
-//! 5.7+, the legacy ProgAttach below it) — the recwn twin's own
-//! shape, one call site in mod.rs either way.
+//! the RECWN twin — the recwn twin's own shape, one call site in
+//! mod.rs. One attach strategy since the night-netrunner-1 floor
+//! (5.15.0): bpf_link's create-and-pin, the link pin's removal
+//! detaching in-kernel — the legacy ProgAttach shape is gone with
+//! the pre-5.7 kernels it served.
 
 use anyhow::{Context, Result};
 use aya::Ebpf;
 use aya::maps::HashMap as BpfHashMap;
-use aya::programs::{CgroupAttachMode, SockOps};
+use aya::programs::SockOps;
 use std::fs::File;
 use std::os::fd::{AsFd, AsRawFd};
 
@@ -75,18 +77,18 @@ pub(super) fn pace_hint_failed_line(cause: &str) -> String {
 }
 
 /// Load, pin, and attach the pacing sock_ops program (the loader's
-/// fourth lane — the recwn twin's own shape, one call site in mod.rs
-/// either way the kernel answers). The cgroup root file opens here so
-/// the call site stays one line; both attach strategies ride:
-/// bpf_link's create-and-pin on 5.7+ (the link pin's removal detaches
-/// in-kernel — the unstrict contract), the legacy ProgAttach +
-/// take_link + forget below it (the pinned program holds the
-/// attachment). A FREE function, not a Limiter method: the attach
+/// fourth lane — the recwn twin's own shape, one call site in mod.rs).
+/// The cgroup root file opens here so the call site stays one line.
+/// The attach strategy is bpf_link's create-and-pin (the link pin's
+/// removal detaches in-kernel — the unstrict contract); the legacy
+/// ProgAttach + take_link + forget shape is gone with the pre-5.7
+/// kernels it served (night-netrunner-1's 5.15.0 floor). A FREE
+/// function, not a Limiter method: the attach
 /// lane runs before any Limiter instance exists (the fire-and-forget
 /// architecture — attach() drops the object before any write lane
 /// runs), exactly the shape the recwn twin's inline lane rode inside
 /// mod.rs.
-pub(super) fn attach_pace_lane(bpf: &mut Ebpf, supports_link: bool) -> Result<()> {
+pub(super) fn attach_pace_lane(bpf: &mut Ebpf) -> Result<()> {
     let prog: &mut SockOps = bpf
         .program_mut("zelynic_pace")
         .context(
@@ -98,26 +100,18 @@ pub(super) fn attach_pace_lane(bpf: &mut Ebpf, supports_link: bool) -> Result<()
         .context("Failed to pin zelynic_pace")?;
     let cgroup_file =
         File::open("/sys/fs/cgroup").context("Failed to open cgroup root directory")?;
-    if supports_link {
-        let prog_raw = prog
-            .fd()
-            .context("Failed to get zelynic_pace fd")?
-            .as_fd()
-            .as_raw_fd();
-        create_and_pin_link(
-            prog_raw,
-            cgroup_file.as_raw_fd(),
-            BPF_CGROUP_SOCK_OPS,
-            PIN_LINK_PACE,
-        )
-        .context("Failed to create + pin zelynic_pace link")?;
-    } else {
-        let link = prog
-            .attach(cgroup_file, CgroupAttachMode::default())
-            .context("Failed to attach zelynic_pace (legacy)")?;
-        let link = prog.take_link(link)?;
-        std::mem::forget(link);
-    }
+    let prog_raw = prog
+        .fd()
+        .context("Failed to get zelynic_pace fd")?
+        .as_fd()
+        .as_raw_fd();
+    create_and_pin_link(
+        prog_raw,
+        cgroup_file.as_raw_fd(),
+        BPF_CGROUP_SOCK_OPS,
+        PIN_LINK_PACE,
+    )
+    .context("Failed to create + pin zelynic_pace link")?;
     Ok(())
 }
 

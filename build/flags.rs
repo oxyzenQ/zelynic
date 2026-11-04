@@ -57,7 +57,7 @@ pub(crate) fn strip_host_poison_rustflags(cmd: &mut std::process::Command) {
 /// command carries neither variable and the config file supplies the
 /// same flag — one value, two delivery routes, both documented.
 ///
-/// v3 bytecode is alu32 (kernel 5.1+), far inside the 5.13 verified
+/// v3 bytecode is alu32 (kernel 5.1+), far inside the 5.15.0 verified
 /// floor; the flag changes nothing for code that uses no atomics
 /// (the observer object is byte-identical either way).
 pub(crate) fn force_bpf_v3_rustflags(cmd: &mut std::process::Command) {

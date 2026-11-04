@@ -1966,7 +1966,7 @@ asks you to own).
 `--help`, `-V` are unprivileged. This is kernel map access, not a
 policy choice.
 
-**7. Kernel 5.13+ with cgroup v2.**
+**7. Kernel 5.15.0+ with cgroup v2.**
 Old distributions booting cgroup v1 cannot host zelynic. Run `zelynic
 doctor` on a new machine; the full feature-dependency and distro
 matrix lives once in
