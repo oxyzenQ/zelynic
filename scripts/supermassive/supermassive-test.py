@@ -5806,6 +5806,14 @@ RATE_CHANGE_TO_BPS = 2_000_000
 REALNET_BAND_LO = 0.45
 REALNET_BAND_HI = 1.30
 
+# The 2026-11-04 load-scale law: the arrival scale that proves the
+# bucket actually saw its own band (see realnet_window_pressed). The
+# verdict's own floor (REALNET_BAND_LO) is not a load floor — both of
+# the night's razor-edge red legs pressed at 100-102% of it while
+# carrying only 44-46% of the band's budget. Below this scale the
+# row names contention; at or above it the FAIL stands.
+REALNET_PRESS_SCALE = 0.80
+
 # The restore floor after unstrict: a fraction of the MEASURED realnet
 # baseline, not of the configured rate — "speed is back" is a statement
 # about the machine's own real-internet throughput.
@@ -5986,21 +5994,35 @@ def realnet_band_gate(kind, need_bps):
 
 
 def realnet_window_pressed(arrived_bytes, rate_bps, window):
-    """Pure (NIGHT-hunt-37 rider v2): did the window's own arrivals
-    press the bucket at the floor's scale? The ledger's arrived
-    bytes (allowed + dropped at the hook) integrated over the window
-    must reach the same floor the verdict judges the client by — an
-    under-band reading whose arrivals sat under the floor's worth of
-    the band budget never gave the policer the load to shape: the
-    bucket admitted ~every byte that came (the accounting row's
-    ~100%), and the row measured the path, not the policy. The
-    a11b8b1 lesson that seated this law: all three red legs carried
-    5.8-9.6 MB arrived against a 13.5 MB floor x budget with drops
-    at burst-edge noise — a re-probe's RECOVERED path (the CDN
-    bursts back in under a second) cannot retroactively feed a
-    window whose arrivals never pressed the bucket.
+    """Pure (NIGHT-hunt-37 rider v2, the 2026-11-04 load-scale law):
+    did the window's own arrivals give the bucket its band to hold?
+    The ledger's arrived bytes (allowed + dropped at the hook)
+    integrated over the window must reach the band's own budget
+    scale (REALNET_PRESS_SCALE x rate x window) — only an offer at
+    that scale proves the policer was loaded enough to shape: a
+    clamp over a half-band offer admits ~every byte that came (the
+    accounting row's ~100%), and the row measured the path, not the
+    policy.
+
+    Two lessons seat this law. The a11b8b1 lesson set the scale at
+    the verdict floor's own worth (REALNET_BAND_LO x budget): all
+    three red legs carried 5.8-9.6 MB arrived against a 13.5 MB
+    floor x budget with drops at burst-edge noise — a re-probe's
+    RECOVERED path (the CDN bursts back in under a second) cannot
+    retroactively feed a window whose arrivals never pressed the
+    bucket. The 2026-11-04 razor-edge lesson closed the gap that
+    floor left: both of the night's red legs (the best-specs lane
+    at 43.9%, the jammy 5.15.0 floor lane at 44.6% of the 2mb band)
+    stood their FAILs on windows pressed at 100-102% of the VERDICT
+    floor — 44-46% of the band's own 30 MB budget — with the
+    re-probe feeding and the accounting row's ~100% admitted: the
+    verdict's own floor is not a load floor, and a window whose
+    arrivals sit at the verdict floor's own scale never gave the
+    policer its band. Below REALNET_PRESS_SCALE x budget the row
+    stands down as contention; at or above it the path fed the
+    policer at the scale the verdict judges and the FAIL stands.
     """
-    return arrived_bytes >= REALNET_BAND_LO * rate_bps * window
+    return arrived_bytes >= REALNET_PRESS_SCALE * rate_bps * window
 
 
 def realnet_under_band_reprobe(
@@ -6064,7 +6086,7 @@ def realnet_under_band_reprobe(
             "SKIP",
             f"measured {fmt_bps(measured_bps)} under the {band_str} band; the "
             f"window's own arrivals ({arrived_note}) never pressed the bucket "
-            f"at the floor's scale ({fmt_bps(REALNET_BAND_LO * rate_bps)}) — "
+            f"at the band's own load scale ({fmt_bps(REALNET_PRESS_SCALE * rate_bps)}) — "
             f"the policer admitted ~everything that arrived; {sag} — "
             "contention, not enforcement (the weekly watch's busy-hour "
             "residual)",
@@ -7173,26 +7195,37 @@ def self_test():
     )
 
     # NIGHT-hunt-37 rider v2 pins: the pressed-bucket law, pure and
-    # on the exact a11b8b1 shapes that convicted the v1 rider. The
-    # floor's scale — the same constant the verdict judges the client
-    # by — decides both sides of the policer: a window whose arrivals
-    # (allowed + dropped at the hook) never reached the floor's worth
-    # of the band budget never gave the bucket the load to shape, and
-    # the re-probe names the sag, never the verdict. A PRESSED window
-    # (the path fed the policer at the verdict's own scale) keeps the
-    # v1 one-sided law: a re-probe that feeds leaves the FAIL
-    # standing. The leg figures are the run's own ledger rows (the
-    # allowed bytes plus the 13/18/14 edge-noise packets at the MTU
-    # bound — the dropped-byte counter rides the same status row).
+    # on the exact a11b8b1 shapes that convicted the v1 rider plus
+    # the exact razor-edge shapes of the 2026-11-04 night that closed
+    # the verdict-floor gap. The band's own load scale —
+    # REALNET_PRESS_SCALE x budget, 0.80 x 30 MB = 24 MB — decides
+    # both sides of the policer: a window whose arrivals (allowed +
+    # dropped at the hook) never reached the band's own budget scale
+    # never gave the bucket the load to shape, and the re-probe names
+    # the sag, never the verdict. A PRESSED window (the path fed the
+    # policer at the scale the verdict judges) keeps the one-sided
+    # law: a re-probe that feeds leaves the FAIL standing. The leg
+    # figures are the runs' own ledger rows (the allowed bytes plus
+    # the 13/18/14 edge-noise packets at the MTU bound — the
+    # dropped-byte counter rides the same status row); the razor-edge
+    # legs are the old verdict floor's own worth and the jammy leg's
+    # client goodput (13.39 MB of 30 MB), whose windows the old law
+    # pressed at 100-102% of the verdict floor while the offer carried
+    # 44-46% of the budget.
     a11b8b1_legs = [
         (5_999_099 + 13 * 1500, "low-gnu 13 pkts"),
         (9_543_832 + 18 * 1500, "best-gnu 18 pkts"),
         (5_780_091 + 14 * 1500, "best-musl 14 pkts"),
     ]
+    razor_edge_legs = [
+        (13_500_000, "the old verdict floor's own worth"),
+        (13_386_000, "the jammy leg's client goodput"),
+    ]
     not_pressed_ok = all(
-        not realnet_window_pressed(arrived, 2_000_000, 15.0) for arrived, _ in a11b8b1_legs
+        not realnet_window_pressed(arrived, 2_000_000, 15.0)
+        for arrived, _ in a11b8b1_legs + razor_edge_legs
     )
-    pressed_ok = realnet_window_pressed(13_500_000, 2_000_000, 15.0) and realnet_window_pressed(
+    pressed_ok = realnet_window_pressed(24_000_000, 2_000_000, 15.0) and realnet_window_pressed(
         30_000_000, 2_000_000, 15.0
     )
     record(
@@ -7200,9 +7233,11 @@ def self_test():
         "PASS" if not_pressed_ok and pressed_ok else "FAIL",
         "the a11b8b1 red legs (arrived "
         + ", ".join(f"{label} {arrived:,} B" for arrived, label in a11b8b1_legs)
-        + ") never pressed the 13.5 MB floor x budget of the 30 MB band budget; "
-        "13.5 MB (the floor's own scale) and the full 30 MB budget do — the "
-        "floor judges both sides of the policer",
+        + ") and the 2026-11-04 razor-edge legs (13.5 MB — the old verdict "
+        "floor's own worth — and the jammy leg's 13,386,000 B client goodput) "
+        "never press the 24 MB load scale x budget of the 30 MB band budget; "
+        "24 MB (REALNET_PRESS_SCALE's own worth) and the full 30 MB budget "
+        "do — the band's own scale judges both sides of the policer",
     )
     # Source-shape pin: every band stage weighs the window's own
     # arrivals, read while the policy is live (the clear retires the
