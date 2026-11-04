@@ -180,9 +180,10 @@ pub fn book_rescue(stats: &mut LimiterStats, pkt_len: u32) {
 /// relaxed fetch_add on bytes_saved_by_edt (offset 48). The single-writer-per-call shape
 /// is book's own — the SMP guarantee the boost-38 rewrite owns
 /// (lost increments are impossible when every add rides the RMW
-/// view). The caller (pace_flow.rs pace_saved_book) computes the
-/// saved volume through the pure law (pace.rs
-/// pacing_saved_bytes) and only calls this with saved > 0, so a
+/// view). The caller (enforce.rs's Layer 4 block, through the raw
+/// lookup pointer) computes the saved volume through the pure law
+/// (pace.rs pacing_saved_bytes) and only calls this with saved > 0,
+/// so a
 /// saturated paced lane — the common steady state, where the
 /// per-packet budget lands within the packet's own length — pays
 /// no RMW at all: zero saved books nothing, exactly the

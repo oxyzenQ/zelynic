@@ -59,8 +59,6 @@ use aya_ebpf::{
     programs::SockOpsContext,
 };
 
-use crate::math::LimiterStats;
-use crate::math::book_edt_saved;
 use crate::pace::pacing_decision;
 use crate::pace::pacing_saved_bytes;
 
@@ -270,15 +268,21 @@ pub(crate) fn pace_prime(cookie: u64, rate_bps: u64) {
 }
 
 /// night-spark-7 (Layer 4, the quota telemetry's math): accrue the
-/// egress pacing lane's SAVED headroom into the stats entry — the
-/// kernel half of the (rate x elapsed) - uploaded formula. Called
-/// from enforce.rs on the EGRESS policed path only, after the stats
-/// entry materializes and before any budgeted lane consumes the
-/// borrow (a reborrow through as_deref_mut, ended at this call):
-/// one stamp read, the pure law (../pace.rs pacing_saved_bytes —
-/// rootless-pinned by pace_tests.rs), one stamp store, and one
-/// atomic fetch_add (math_atomics.rs book_edt_saved) ONLY when the
-/// law books something — a saturated paced lane pays no RMW at all.
+/// egress pacing lane's SAVED headroom — the kernel half of the
+/// (rate x elapsed) - uploaded formula, POINTER-FREE by design.
+/// Called from enforce.rs on the EGRESS policed path only, after
+/// the stats entry materializes as the RAW lookup pointer and
+/// BEFORE the Option<&mut> the lanes match on materializes (the
+/// v28.1 5.13 verifier lesson — see enforce.rs's Layer 4 block for
+/// the full record): one stamp read, the pure law (../pace.rs
+/// pacing_saved_bytes — rootless-pinned by pace_tests.rs), one
+/// stamp store, and the SAVED VOLUME as the return — the atomic
+/// fetch_add (math_atomics.rs book_edt_saved) is the CALLER's,
+/// booked through the raw pointer only when the law books
+/// something, so a saturated paced lane — the common steady state,
+/// where the per-packet budget lands within the packet's own
+/// length — pays no RMW at all: zero saved books nothing, exactly
+/// the dormant-watchdog economy the house keeps.
 ///
 /// The stamp discipline, stated honestly: the read-store pair is
 /// racy under SMP (two CPUs enforcing one cgroup can interleave),
@@ -291,18 +295,11 @@ pub(crate) fn pace_prime(cookie: u64, rate_bps: u64) {
 /// saturates to a zero gap — the budget degenerates to zero and the
 /// packet's own length saturates the law to nothing, the fail-safe
 /// direction for a counter whose only mandate is monotonic growth.
-pub(crate) fn pace_saved_book(
-    cgroup_id: &u32,
-    rate_bps: u64,
-    now: u64,
-    pkt_len: u32,
-    stats: &mut LimiterStats,
-) {
+pub(crate) fn pace_saved_accrue(cgroup_id: &u32, rate_bps: u64, now: u64, pkt_len: u32) -> u64 {
     // The saved volume this packet accrues: zero until a stamp
     // exists, the capped-budget-minus-length law after (the pure
     // core owns the caps — the rate sanitize and the one-second
     // idle cap are load-bearing there, documented at the source).
-    let mut saved: u64 = 0;
     match pace_saved_stamp.get_ptr_mut(cgroup_id) {
         Some(ptr) => {
             // SAFETY: the stamp map's value pointer lives in stable
@@ -310,19 +307,18 @@ pub(crate) fn pace_saved_book(
             // the hint prime above rides; the read is a plain u64.
             let last = unsafe { *ptr };
             let dt = now.saturating_sub(last);
-            saved = pacing_saved_bytes(rate_bps, dt, pkt_len);
+            let saved = pacing_saved_bytes(rate_bps, dt, pkt_len);
             // SAFETY: the same stable-memory value pointer the read
             // above took — the plain u64 store the verifier proves,
             // this invocation's only writer of the stamp.
             unsafe { *ptr = now };
+            saved
         }
         None => {
             // The conservative miss: no history, no saving — the
             // stamp plants itself so the NEXT packet accrues.
             let _ = pace_saved_stamp.insert(cgroup_id, now, 0);
+            0
         }
-    }
-    if saved > 0 {
-        book_edt_saved(stats, saved);
     }
 }
