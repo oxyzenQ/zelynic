@@ -153,6 +153,21 @@ v80.0.0
 
 ### Fixed
 
+- **fix(readme): the quota saver's two formulas ride the fenced law
+  (night-netrunner-1 phase 2 follow-up).** The phase-2 section's two
+  formula blocks landed indented in a README whose eighteen other
+  code blocks are fenced -- markdownlint's MD046 consistency rule
+  expected fenced and the wholesale seat failed the row (run
+  41864882622, README.md:851/:878), the second gate this seat's
+  missing-tool skips let through (the shfmt lesson one commit
+  earlier). The two blocks are fenced now; the sibling sections in
+  docs/INNOVATIONS.md and docs/COSMIC_DRAGON_ARC.md keep their
+  indented shape (each file's only blocks, consistent by
+  construction, zero errors there). The seat now runs the full
+  wholesale toolset locally -- markdownlint-cli2 v0.18.1 and
+  actionlint v1.7.7 joined the pinned bin on PATH -- so the local
+  gate is the CI gate, skip-free.
+
 - **fix(harness): the depth row's overhead law goes interleaved
   (night-netrunner-1 CI follow-up).** The jammy 5.15.0 floor leg
   filed the straddle the supermassive battery's own overhead row

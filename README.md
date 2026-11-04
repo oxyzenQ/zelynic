@@ -848,7 +848,9 @@ one is pinned by rootless unit tests and read live by the probes.
   default-window sender would have had `default - clamped` more
   bytes in flight:
 
-      bytes_saved_by_recwn = (bytes_allowed / clamped) x (default - clamped)
+  ```
+  bytes_saved_by_recwn = (bytes_allowed / clamped) x (default - clamped)
+  ```
 
   The NAMED ASSUMPTION: `default` is pinned at 128 KiB (the kernel's
   `tcp_rmem[0]` initial receive buffer — the window a socket carries
@@ -875,7 +877,9 @@ one is pinned by rootless unit tests and read live by the probes.
   zero per call. Summed over the lane's life it reads the task's own
   formula:
 
-      bytes_saved_by_edt = (rate x time_elapsed) - bytes_uploaded
+  ```
+  bytes_saved_by_edt = (rate x time_elapsed) - bytes_uploaded
+  ```
 
   The caps are load-bearing and borrowed from laws the house already
   pins: the gap caps at ONE SECOND (refill_credits' idle cap — the
