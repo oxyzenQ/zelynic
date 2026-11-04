@@ -60,7 +60,7 @@ What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
   cross    BPF bytes_allowed vs client-measured bytes agreement
   multi    5 parallel connections aggregate under one shared limit
   sustain  20s steady-state: per-window rate + drift guard
-  overhead non-binding-policy throughput vs baseline (BPF cost)
+  overhead non-binding policy cost vs interleaved fresh windows (BPF cost)
   reload   25 rate-change cycles verified through the status JSON
   cleanup  u --all leaves zero pins, no pid file, no test cgroup
   dmesg    kernel log stayed clean of BPF errors during the run
@@ -926,62 +926,100 @@ def test_sustain(rate_bps, windows, window, baseline):
     return verdict == "PASS"
 
 
-def test_overhead(baseline, window):
-    if baseline and baseline >= 300e9:
-        # NIGHT-hunt-32: the honest reason — the harness's own margin
-        # arithmetic (3x baseline must stay under the 900gb non-binding
-        # clamp), not the 1 TB/s parser ceiling a 300-999gb baseline is
-        # nowhere near.
+def test_overhead(window):
+    """A non-binding policy (3x what this machine can do) must not cost
+    real throughput. The comparison is INTERLEAVED inside the stage,
+    best-of-three per class, and the verdict rides the kernel's own
+    drop count — the supermassive battery's overhead law (the
+    2026-09-22 pairing, NIGHT-dinner-13's interleave), ported to this
+    harness by night-netrunner-1's CI follow-up.
+
+    The 2026-11-04 jammy floor leg (run 41857231271, commit fecf48c)
+    filed the straddle this law kills: the harness-start baseline read
+    5.4 GB/s in a quiet window, and both limited windows ~90 seconds
+    later read 2.9 GB/s — +46.1 percent filed as policy cost twice,
+    the under-side re-attempt included, because steal spanned BOTH
+    limited windows while the re-attempt law only models a BURST
+    between windows. The same leg measured +5.0/+6.2/+6.8 percent on
+    runs 41837277250/41833266160/41828755273 against the byte-identical
+    enforcement object (night-netrunner-1 touched the attach strategy
+    and the observer's summary adds — not one per-packet instruction),
+    so the +46.1 was machine-load drift between the baseline and the
+    row, the exact class the supermassive row retired on 2026-09-28:
+    interleave the windows so contiguous steal covers both classes
+    together, take each class's max (contention only lowers a
+    reading), and prove non-binding with the drop counter — zero
+    packets dropped is a count, not a throughput inference.
+    """
+    fresh_rates = []
+    policy_rates = []
+    drops_total = 0
+    final_gb = None
+    for _ in range(3):
+        fresh = download(window, SERVER.port)
+        fresh_rates.append(fresh / window)
+        fresh_best = max(fresh_rates)
+        if fresh_best <= 0:
+            continue
+        if fresh_best >= 300e9:
+            # NIGHT-hunt-32's honest reason, per-window now: the
+            # harness's own margin arithmetic (3x fresh must stay
+            # under the 900gb non-binding clamp), not the 1 TB/s
+            # parser ceiling a 300-999gb fresh window is nowhere
+            # near.
+            return record(
+                "overhead: non-binding policy cost",
+                "SKIP",
+                f"fresh baseline {fresh_best / 1e9:.0f}gb — 3x it would exceed the 900gb non-binding clamp (the harness's margin arithmetic)",
+            )
+        # Whole-GB multiples only: the generated rate string and the
+        # expected bps stay in exact agreement (10gb -> 10_000_000_000).
+        # The policy re-scales to 3x the best fresh window observed so
+        # far before every policy window: by construction above
+        # anything the machine has shown, so the bucket cannot bind
+        # while the arithmetic holds.
+        non_binding_gb = min(900, max(10, round(3 * fresh_best / 1e9)))
+        final_gb = non_binding_gb
+        non_binding = non_binding_gb * 1e9
+        rate_str = bps_to_rate_str(non_binding)
+        ok, payload = apply_and_verify(rate_str, int(non_binding), int(non_binding))
+        if not ok:
+            return record("overhead: non-binding policy cost", "FAIL", payload)
+        time.sleep(0.3)
+        got = download(window, SERVER.port)
+        policy_rates.append(got / window)
+        # The kernel's own ledger, read while the policy is still
+        # live: the drop counter is the non-binding proof. A real
+        # policer arithmetic bug (drops under a 3x policy) still
+        # fails the row deterministically; a real hook cost still
+        # lowers every policy window, maxes included, and blows the
+        # ratio — the tripwire meaning survives.
+        entry = limit_entry(status_json(), CG.id)
+        if entry:
+            drops_total += entry.get("packets_dropped", 0)
+        clear_limits()
+        time.sleep(0.2)
+    fresh_best = max(fresh_rates)
+    if fresh_best <= 0:
         return record(
             "overhead: non-binding policy cost",
-            "SKIP",
-            f"baseline {baseline / 1e9:.0f}gb — 3x it would exceed the 900gb non-binding clamp (the harness's margin arithmetic)",
+            "FAIL",
+            "fresh baseline measured 0 B/s with no policy live",
         )
-    # Whole-GB multiples only: the generated rate string and the
-    # expected bps stay in exact agreement (10gb -> 10_000_000_000).
-    non_binding_gb = min(900, max(10, round((3 * baseline if baseline else 10e9) / 1e9)))
-    non_binding = non_binding_gb * 1e9
-    rate_str = bps_to_rate_str(non_binding)
-    ok, payload = apply_and_verify(rate_str, int(non_binding), int(non_binding))
-    if not ok:
-        return record("overhead: non-binding policy cost", "FAIL", payload)
-    time.sleep(0.3)
-    got = download(window, SERVER.port)
-    limited = got / window
-    drop_pct = (baseline - limited) / baseline * 100 if baseline else 0.0
-    # One bounded re-attempt of the limited window on a red verdict,
-    # the same one-sided noise law the sustain and multi-connection
-    # rows hold: steal can only DEPRESS a window, so the maximum
-    # limited window is the honest estimator of the policy's true
-    # cost. The percentage bound is exposed on both ends to a loopback
-    # baseline that swings run-to-run on shared runners (the jammy E2E
-    # leg measured 4.0 and 11.8 GB/s baselines on consecutive runs)
-    # and to where a steal burst lands: a depressed limited window
-    # reads as policy cost that was actually steal (run 40480466520's
-    # +42.9 percent against the same leg's +17.6 percent the run
-    # before). A second window under the already-applied policy
-    # re-measures the cost; if it still exceeds the bound the row
-    # stays red. Both attempts are named in the detail.
-    drop_detail = ""
-    if baseline and drop_pct > 30.0:
-        got2 = download(window, SERVER.port)
-        limited2 = got2 / window
-        drop2_pct = (baseline - limited2) / baseline * 100
-        drop_detail = (
-            f"; attempt 2 {fmt_bps(limited2)} ({drop2_pct:+.1f}%) (the under-side re-attempt)"
-        )
-        if drop2_pct < drop_pct:
-            limited, drop_pct = limited2, drop2_pct
-    clear_limits()
-    if not baseline:
-        return record("overhead: non-binding policy cost", "SKIP", "no baseline")
-    verdict = "PASS" if drop_pct <= 30.0 else "FAIL"
+    policy_best = max(policy_rates) if policy_rates else 0.0
+    drop_pct = (fresh_best - policy_best) / fresh_best * 100
+    verdict = "PASS" if drop_pct <= 30.0 and drops_total == 0 else "FAIL"
     record(
         "overhead: non-binding policy cost",
         verdict,
-        f"baseline {fmt_bps(baseline)} vs {fmt_bps(limited)} "
-        f"({non_binding / 1e9:.0f} GB/s policy) — {drop_pct:+.1f}%{drop_detail}",
-        {"limited_bps": round(limited), "drop_pct": round(drop_pct, 2)},
+        f"fresh best {fmt_bps(fresh_best)} vs policy best {fmt_bps(policy_best)} "
+        f"({final_gb} GB/s policy) — {drop_pct:+.1f}% (best-of-3 interleaved windows; "
+        f"{drops_total} packets dropped at the bucket — the kernel's own non-binding count)",
+        {
+            "fresh_bps": round(fresh_best),
+            "limited_bps": round(policy_best),
+            "drop_pct": round(drop_pct, 2),
+        },
     )
     return verdict == "PASS"
 
@@ -1125,7 +1163,7 @@ def main():
             test_upload(1_000_000, UPLOAD_WINDOW, baseline)
             test_multi(2_000_000, MULTI_WINDOW, baseline)
             test_sustain(1_000_000, SUSTAIN_WINDOWS, SUSTAIN_WINDOW, baseline)
-            test_overhead(baseline, OVERHEAD_WINDOW)
+            test_overhead(OVERHEAD_WINDOW)
             test_reload(RELOAD_CYCLES)
             test_cleanup()
             test_dmesg()
