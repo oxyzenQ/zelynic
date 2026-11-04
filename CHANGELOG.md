@@ -90,6 +90,22 @@ v80.0.0
 
 ### Fixed
 
+- **fix(harness): the pin family grows with the pacing lane — the
+  rig's 41-object pin set rides the v28 loader (night-spark-7
+  follow-up).** The endurance rig's PIN_FAMILY last grew with
+  schema v25 (the RECWN lane's 41-object family) and the set's own
+  comment carries the law — "a future family growth must grow this
+  set with it" — but night-spark-5's landing forgot: the pacing
+  lane added pace_socket_hint, the zelynic_pace sock_ops program,
+  and its link (44 pins live), and night-spark-7 added the
+  pace_saved_stamp map (45). The E2E floor, best-specs, and jammy
+  endurance legs each failed the pin-family row on the diff ("44
+  pins after first apply, expected 41, extra: pace_socket_hint,
+  zelynic_pace, zelynic_pace_link", runs 41803525041 and
+  41813297926). The set now carries all four members with the
+  re-derivation comment — 37 maps + 4 programs + 4 links, the
+  45-object family.
+
 - **fix(ebpf): the layer 4 booking rides the raw lookup pointer —
   the 5.13 floor's verifier refusal closes (night-spark-7
   follow-up, schema v28.1).** The v28 landing carried the
