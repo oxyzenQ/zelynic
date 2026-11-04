@@ -153,6 +153,31 @@ v80.0.0
 
 ### Fixed
 
+- **fix(harness): the depth row's overhead law goes interleaved
+  (night-netrunner-1 CI follow-up).** The jammy 5.15.0 floor leg
+  filed the straddle the supermassive battery's own overhead row
+  retired five weeks earlier: run 41857231271 (commit fecf48c)
+  measured a 5.4 GB/s harness-start baseline in a quiet window and
+  2.9 GB/s for BOTH limited windows ~90 seconds later -- +46.1%
+  filed as policy cost twice, the under-side re-attempt included,
+  because steal spanned both limited windows while the re-attempt
+  law only models a burst between windows. The same leg measured
+  +5.0/+6.2/+6.8% on runs 41837277250/41833266160/41828755273
+  against the byte-identical enforcement object (the netrunner
+  phases touched the attach strategy and the observer's summary
+  adds -- not one per-packet instruction). The fix ports the
+  battery's own law (the 2026-09-22 pairing, NIGHT-dinner-13's
+  interleave) into limiter-depth-test.py: F P F P F P best-of-three
+  per class (contention only lowers a reading, so each class's max
+  is its cleanest window), the policy re-scaled to 3x the best
+  fresh window before every policy window, and the verdict riding
+  the kernel's own drop count -- zero packets dropped across the
+  policy windows is a count, not a throughput inference, so a real
+  policer arithmetic bug still fails the row deterministically. One
+  measurement discipline across both harnesses, hunt-33's contract;
+  the offline simulation of the ported law (five scenarios, the
+  straddle included) files +0.0% where the old law filed +46.1%.
+
 - **fix(ci): the two guest inits ride shfmt's tab law (night-netrunner-1
   phase 1 follow-up).** The phase-1 rewrite of the two KVM guest init
   scripts (the 5.13-lane retirement touched 159 and 222 lines of them)
