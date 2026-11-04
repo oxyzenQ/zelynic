@@ -132,6 +132,19 @@ pub(crate) fn pacing_line(d: &DisplayData) -> Option<String> {
     })
 }
 
+/// The quota telemetry's subordinate line (night-spark-6, the quota
+/// saver's Layer 4 PREP): the saved volume the Layer 4 columns will
+/// book — "Quota Saved: X", the RECWN and ECN lanes' saved-byte sum,
+/// format_bytes' own human shape. Rendered ONLY when the pair books
+/// something (the dormant-watchdog precedent: the placeholders read
+/// zero until the v28 tail lands, and a zero is absence pretending
+/// to be information); the window family's grey indent, one rung
+/// under the Upload Pacing line it completes.
+pub(crate) fn quota_saved_line(d: &DisplayData) -> Option<String> {
+    let saved = d.bytes_saved_by_recwn.saturating_add(d.bytes_saved_by_ecn);
+    (saved > 0).then(|| grey(&format!("    Quota Saved: {}", format_bytes(saved))))
+}
+
 /// One status data row (pure, NIGHT-engrave-5): the whole row in
 /// status green — the eagle table's calm tier (rank 3 and below
 /// render the same way). Every row here IS a live, enforced limit —

@@ -160,6 +160,15 @@ fn status_json(
                 bytes_dropped: d.bytes_dropped,
                 ce_marked_packets: d.ce_marked_packets,
                 ce_marked_bytes: d.ce_marked_bytes,
+                // night-spark-6 (Layer 4 PREP): the quota telemetry
+                // placeholders ride the additive always-present
+                // contract the CE-ledger pair set — zero until the
+                // v28 tail books, honest by construction (the
+                // derivation law is the arc outline's open decision,
+                // and a fabricated estimate would be the dishonest
+                // opposite).
+                bytes_saved_by_recwn: d.bytes_saved_by_recwn,
+                bytes_saved_by_ecn: d.bytes_saved_by_ecn,
                 // night-spark-5 (schema v27): the egress pacing
                 // lane's commanded rate — the upload policy's own
                 // rate, absent on upload-less and blocked rows (a
@@ -322,6 +331,15 @@ impl LimitEntry {
         write_number(out, self.ce_marked_packets);
         out.push_str(",\"ce_marked_bytes\":");
         write_number(out, self.ce_marked_bytes);
+        // night-spark-6 (the quota saver's Layer 4 PREP): the quota
+        // telemetry placeholders — always present, the additive
+        // contract the CE pair rides (zero books nothing yet; absence
+        // would read as a pre-Layer-4 object, which every row after
+        // this change no longer is).
+        out.push_str(",\"bytes_saved_by_recwn\":");
+        write_number(out, self.bytes_saved_by_recwn);
+        out.push_str(",\"bytes_saved_by_ecn\":");
+        write_number(out, self.bytes_saved_by_ecn);
         // night-spark-5 (schema v27): the egress pacing lane's
         // commanded rate — present only when a live upload policy
         // stands (the additive-field rule the floors ride; a
@@ -442,6 +460,16 @@ struct LimitEntry {
     /// ride).
     ce_marked_packets: u64,
     ce_marked_bytes: u64,
+    /// The quota telemetry's saved-volume placeholders (night-spark-6,
+    /// the quota saver's Layer 4 PREP), in BYTES: what the RECWN
+    /// window clamp and the ECN mark's backoff kept the sender from
+    /// sending. Always present — the additive contract the CE-ledger
+    /// pair set — and reading 0 until the Layer 4 booking lands (the
+    /// v28 stats tail the arc's outline specs; ce_marked_bytes is the
+    /// RAW ledger input, never the estimate). A scripted `Quota
+    /// Saved: X` reads `bytes_saved_by_recwn + bytes_saved_by_ecn`.
+    bytes_saved_by_recwn: u64,
+    bytes_saved_by_ecn: u64,
     /// The egress pacing lane's commanded rate (night-spark-5,
     /// schema v27), in BYTES per second — the upload policy's own
     /// rate, which the sock_ops program pins onto the row's upload
@@ -534,6 +562,14 @@ mod display_json_recwn_tests;
 #[cfg(test)]
 #[path = "../../test/ebpf/display_json_pacing_tests.rs"]
 mod display_json_pacing_tests;
+
+// night-spark-6 (the quota saver's Layer 4 PREP): the placeholder
+// pair's additive-contract pins, split from display_json_tests.rs at
+// the 600-line owner cap (the pacing sibling's own lineage, one
+// family over).
+#[cfg(test)]
+#[path = "../../test/ebpf/display_json_quota_tests.rs"]
+mod display_json_quota_tests;
 
 // night-spark-2 (RECWN, schema v25): the inert lane every legacy
 // status_json pin passes — planted false, window None — so the

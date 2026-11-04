@@ -307,11 +307,54 @@ the owner's build order says so.
 
 The sequence is the owner's: RWND first (the quota saver's spine),
 ECN-for-QUIC second (the lossless signal), EDT third (the egress
-finish). All three have landed (v25, v26, v27) — the quota
-saver's three layers are whole. The arc's existing scales are the
-foundation all three stand on — the hint maps already name QUIC
-connections, the debt word already charges per budget, the verdict
-path already runs on both directions.
+finish). All three have landed (v25, v26, v27) — and the fourth,
+the telemetry that turns the three lanes' work into a number the
+owner can read, is outlined and surfaced (night-spark-6, below).
+The arc's existing scales are the foundation all three stand on —
+the hint maps already name QUIC connections, the debt word already
+charges per budget, the verdict path already runs on both
+directions.
+
+- **Layer 4 — quota telemetry (OUTLINED, night-spark-6; the status
+  surfaces landed as placeholders, the booking is the next arc
+  move).** The three lanes save quota by three different physics —
+  RECWN clamps what the sender CAN send, the CE mark makes the
+  sender back off, pacing spaces the departure — but none of them
+  books the saving. Layer 4 closes that with two per-cgroup saved
+  columns and the surfaces that read them. The map structure (the
+  v28 plan, the v26 CE-ledger precedent verbatim — pure append, the
+  six legacy words keep their offsets, the pinned stats maps wipe
+  once at the bump): `LimiterStats` grows its tail from 48 to 64
+  bytes with `bytes_saved_by_recwn` and `bytes_saved_by_ecn`, the
+  userspace mirror `LimiterStatsRaw` growing with it and the size
+  pins moving in the same commit — a change that must ride the
+  eBPF toolchain (the prebuilt parity gate fails until
+  `refresh-prebuilt.sh` rebuilds the objects), which is exactly why
+  night-spark-6 landed the SURFACES first and left the words
+  outlined here. The two candidate derivation laws, the owner's own
+  pair: (a) the ECN estimate — `(marked_packets x average QUIC
+  packet size) x backoff_multiplier`, booked at `book_rescue`'s
+  correction spot beside the `ce_marked` pair it already writes;
+  (b) the delta law — the running difference between
+  `bytes_allowed` and the theoretical `rate x time-since-apply`,
+  which needs a per-row apply timestamp the v27 row does not carry
+  (a real schema decision, not a constant to guess). The honest
+  caveat both share: the number is an ESTIMATE — a sender can lie
+  about its packet size, an average drifts, a backoff multiplier is
+  a model — so the words book the model's output and the docs name
+  the model, never a fabricated precision. What landed NOW
+  (night-spark-6): `status --print-json` carries
+  `limits[].bytes_saved_by_recwn` / `limits[].bytes_saved_by_ecn`
+  on every row — always present, the additive contract the CE-ledger
+  pair set, reading 0 until the v28 booking exists (never a
+  fabricated estimate) — and the human table gains the
+  `Quota Saved: X` subordinate line (the RECWN + ECN sum,
+  format_bytes' own shape, silent while both book nothing, the
+  dormant-watchdog precedent). The verification ladder when the
+  booking lands: the pure-law pins (the estimate math, rootless),
+  the v28 JSON pins in the display suites, and the live cross-check
+  — the ecn-probe's ledger against the saved estimate on a run that
+  marked real volume.
 
 ## The testing lane is pure eBPF (night-spark-3)
 

@@ -827,18 +827,37 @@ audit showed the pair can read as a mystery):
   row without the line has not marked anything yet; a QUIC or
   ECN-capable TCP sender reads the mark and backs off without
   paying a retransmit.
+- **Upload Pacing** (the grey line under a row that has one) — the
+  egress pacing lane's commanded rate (night-spark-5, schema v27):
+  the upload policy's own rate, pinned onto the row's TCP sockets
+  as `SO_MAX_PACING_RATE` — the kernel's own TCP pacer spaces the
+  outgoing stream at the policy's byte rate BEFORE the link bills
+  the bytes, no tc qdisc anywhere. A `--per-socket` upload policy
+  keeps its `/socket` marker; a row with no live upload policy
+  prints nothing (an unenforcing lane printing state noise is
+  absence pretending to be information).
+- **Quota Saved** (the grey line under a row that has one) — the
+  quota telemetry's total (night-spark-6, the quota saver's Layer 4
+  PREP): `bytes_saved_by_recwn + bytes_saved_by_ecn`, the volume
+  the RECWN window clamp and the ECN mark's backoff kept the sender
+  from sending. The columns are PLACEHOLDERS — both read 0 until
+  the Layer 4 booking lands (the v28 stats tail the arc's outline
+  specs), and the line stays silent on a zero (the
+  dormant-watchdog precedent), so a row without the line has booked
+  no savings yet, never "no lane".
 
 Both counters live for the lifetime of the limit: re-applying
 `strict` with a different rate keeps the accounting continuous
 (the long run re-tightened its target mid-run and the totals
 carried), and `unstrict` reclaims the stats row once both
 directions are gone, so the next `strict` starts from zero. The
-table shows the byte pair; `--print-json` carries all six
-counters (packets_allowed, packets_dropped, bytes_allowed,
-bytes_dropped, and the schema-v26 CE-ledger pair
-ce_marked_packets, ce_marked_bytes) where automation reads them —
-one metric per cell, evidence of enforcement rather than a live
-rate meter.
+table shows the byte pair; `--print-json` carries all eight
+per-row counters (packets_allowed, packets_dropped, bytes_allowed,
+bytes_dropped, the schema-v26 CE-ledger pair
+ce_marked_packets, ce_marked_bytes, and the night-spark-6 quota
+telemetry placeholders bytes_saved_by_recwn, bytes_saved_by_ecn)
+where automation reads them — one metric per cell, evidence of
+enforcement rather than a live rate meter.
 
 The output IS the eagle-eyes style (NIGHT-engrave-5, the owner's
 audit — the surface was the last uppercase holdout): the purple
@@ -2169,7 +2188,7 @@ Field shapes:
 `status --print-json`:
 
 ```json
-{"watchdog":"enforcing","active_limits":2,"limits":[{"cgroup_id":18571,"label":"brave","download_bytes_per_sec":100000,"upload_bytes_per_sec":100000,"packets_allowed":232,"packets_dropped":4718,"bytes_allowed":29520,"bytes_dropped":8031234,"ce_marked_packets":12,"ce_marked_bytes":17432}]}
+{"watchdog":"enforcing","active_limits":2,"limits":[{"cgroup_id":18571,"label":"brave","download_bytes_per_sec":100000,"upload_bytes_per_sec":100000,"packets_allowed":232,"packets_dropped":4718,"bytes_allowed":29520,"bytes_dropped":8031234,"ce_marked_packets":12,"ce_marked_bytes":17432,"bytes_saved_by_recwn":0,"bytes_saved_by_ecn":0}]}
 ```
 
 The complete field reference (night-improve-60 — the owner read
@@ -2190,6 +2209,8 @@ one table, script-facing):
 | `limits[].packets_allowed` / `packets_dropped` | number | cumulative packet counts under the limit (both directions booked into one row) |
 | `limits[].bytes_allowed` / `bytes_dropped` | number | cumulative BYTES: what passed enforcement, what the token bucket discarded. Lifetime counters — re-applying `strict` keeps them continuous; `unstrict` reclaims the row |
 | `limits[].ce_marked_packets` / `ce_marked_bytes` | number | the ECN-first lane's delivered CE-marked volume (night-spark-4, schema v26 — always present): packets the policer DELIVERED with the CE codepoint set instead of dropping, and their bytes. A refused mark never reaches the pair |
+| `limits[].bytes_saved_by_recwn` / `bytes_saved_by_ecn` | number | the quota telemetry's saved-volume placeholders (night-spark-6, the quota saver's Layer 4 PREP — always present): the bytes the RECWN window clamp and the ECN mark's backoff kept the sender from sending. Both read `0` until the Layer 4 booking lands (the v28 stats tail); the human table's `Quota Saved` line renders their sum |
+| `limits[].pacing_rate_bytes` | number | the egress pacing lane's commanded rate (night-spark-5, schema v27), in BYTES per second — the upload policy's own rate pinned onto the row's TCP sockets via `SO_MAX_PACING_RATE`. Present only when a live upload policy stands; absent on upload-less and blocked rows (never a fabricated zero) |
 | `limits[].rate_ring` | object | the last eight seconds' per-second delivered bytes, per direction — a traffic MONITOR, not the policy window (see the callout below) |
 | `limits[].window` | object | the row's `--during` policy window — the thing that expires (see the callout below) |
 
