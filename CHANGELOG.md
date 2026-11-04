@@ -35,6 +35,31 @@ v80.0.0
 
 ### Added
 
+- **docs(readme): the quota saver's empirical math, on the front
+  page (night-netrunner-1 phase 2).** README.md,
+  docs/INNOVATIONS.md, and docs/COSMIC_DRAGON_ARC.md each carry a
+  new section titled "The Quota Saver — How zelynic Saves 80% of
+  Your Internet": the three derivation laws as the Layer 4
+  telemetry fills them — `bytes_saved_by_recwn` (the TCP
+  counterfactual window law `(bytes_allowed / clamped) x (default -
+  clamped)`, the named 128 KiB `tcp_rmem[0]` conservative pole, the
+  self-extinguishing edge), `bytes_saved_by_ecn` (the QUIC 1:1
+  retransmission prevention, one-for-one with `ce_marked_bytes` —
+  the conservative floor, since a dropped byte costs metered quota
+  twice), and `bytes_saved_by_edt` (the egress pacing headroom,
+  `(rate x time_elapsed) - bytes_uploaded` over the lane's life,
+  the one-second gap cap and the 4 GiB/s rate sanitize named) —
+  plus the probe record verbatim ("A 3 MB download with RECWN
+  active saved 18.1 MB of unnecessary TCP window expansion", "A
+  3 MB QUIC stream saved 65 KB of retransmission storm via ECN")
+  and the limitation stated plainly ("QUIC first-packet still
+  crosses the WiFi. We save the retransmission storms, not the
+  initial packet"). The README section fronts the Support block
+  with the pointers into the arc doc's deep Layer 4 derivations;
+  the arc's own deep section (night-spark-7) stays the derivation
+  home — the new section consolidates what a reader needs to
+  JUDGE the claim, not re-derives it.
+
 - **feat(ebpf): the quota telemetry's math — the quota saver's
   Layer 4 books its saving (night-spark-7, schema v28).** The three
   quota-saver lanes now BOOK the quota they save, each by the
