@@ -494,7 +494,7 @@
 ///     pure-append law verbatim. LimiterStats grows
 ///     bytes_saved_by_edt and bytes_saved_by_ecn (48 -> 64 bytes):
 ///     the EDT word is booked on the EGRESS policed path (enforce.rs
-///     -> pace_flow.rs pace_saved_book -> math_atomics.rs
+///     -> pace_flow.rs pace_saved_accrue -> math_atomics.rs
 ///     book_edt_saved) as the lane's theoretical budget minus the
 ///     volume actually delivered — rate x elapsed minus uploaded,
 ///     the pure law pace.rs pacing_saved_bytes pins (the caps: the

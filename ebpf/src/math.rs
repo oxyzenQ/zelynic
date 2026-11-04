@@ -226,7 +226,7 @@ pub struct Bucket {
 /// v28 (night-spark-7, the quota telemetry's math — Layer 4 of the
 /// quota saver): the tail grows again, 48 -> 64 bytes, the same
 /// pure-append law. `bytes_saved_by_edt` (offset 48) is booked on
-/// the egress policed path (pace_flow.rs pace_saved_book ->
+/// the egress policed path (pace_flow.rs pace_saved_accrue ->
 /// book_edt_saved) as the lane's theoretical budget minus the volume
 /// actually delivered — rate x elapsed minus uploaded, the task's
 /// own formula, accrued per packet against a per-cgroup stamp with

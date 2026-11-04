@@ -32,7 +32,9 @@ use crate::enforce_helpers::{
     debt_key_for, ecn_rescue, get_bucket_ptr, get_debt_ptr, get_stats_ptr, ring_verdict,
     window_gate,
 };
-use crate::math::{Bucket, MAX_ENFORCABLE_BURST, POLICY_FLAG_PER_SOCKET, Policy, book, enforce};
+use crate::math::{
+    Bucket, MAX_ENFORCABLE_BURST, POLICY_FLAG_PER_SOCKET, Policy, book, book_edt_saved, enforce,
+};
 use crate::mmspa_resolve::mmspa_resolve_root;
 use crate::pace_flow;
 use crate::quic_flow;
@@ -275,30 +277,53 @@ pub(crate) fn try_enforce(
     // the same entry the lane booked the drop into, one lookup,
     // no second map read.
     let stats_ptr = get_stats_ptr(&cgroup_id);
-    // SAFETY: same stats-map contract as the rate-0 lane above —
-    // stable kernel memory, one invocation lifetime; the Option's
-    // borrow is moved into exactly one budgeted lane, never two.
-    // `mut` for the Layer 4 reborrow below (as_deref_mut takes the
-    // Option by exclusive reference); the lanes still move it by
-    // value afterward, exactly as before.
-    let mut stats = stats_ptr.map(|ptr| unsafe { &mut *ptr });
 
     // night-spark-7 (the quota telemetry's math — Layer 4 of the
     // quota saver): on the EGRESS policed path only, accrue the
     // pacing lane's saved headroom into the entry the verdict is
     // about to book through — the kernel half of (rate x elapsed) -
-    // uploaded, run BEFORE any budgeted lane consumes the borrow (a
-    // reborrow through as_deref_mut, ended before the lanes move the
-    // Option — the borrow stays exactly as moveable as it was). The
-    // rate-0 block verdict returned above: a blocked lane delivers
-    // nothing, so no headroom can be preserved on it. UDP/QUIC
-    // egress rides the same accrual by design: the formula names
-    // the LANE's budget-vs-delivered gap, and the policer — not the
-    // TCP pacer — is the lane UDP actually answers to; the column's
-    // subject is the lane, never the protocol.
-    if !is_ingress && let Some(s) = stats.as_deref_mut() {
-        pace_flow::pace_saved_book(&cgroup_id, pol_sane.rate_bps, now, pkt_len, s);
+    // uploaded. The accrual (pace_flow.rs pace_saved_accrue) is
+    // POINTER-FREE by design and the booking rides the RAW lookup
+    // pointer BEFORE the Option<&mut> materializes (v28.1, the
+    // 5.13 verifier lesson): an as_deref_mut reborrow that carried
+    // the Option through the stamp-map operations forced the
+    // compiler to materialize it as a (discriminant, payload)
+    // stack pair, and the verifier's walk lost the payload's
+    // pointer-or-null correlation at the merge points — the lanes'
+    // dereferences then ran on walks where the payload slot held
+    // the None arm's scalar zero, and the 5.13 floor refused the
+    // whole program ("R2 invalid mem access 'inv'" at the booking
+    // atomics; 5.15+ walked it clean by pruning, so only the floor
+    // went red). Booking through the raw pointer ahead of the
+    // materialization keeps every later deref behind the niche
+    // null-check the 5.13 floor already accepted (the v27 shape),
+    // and no &mut is live across the write — the Option below is
+    // created after this block ends, the rate-0 lane's own
+    // sequential-borrow class. The rate-0 block verdict returned
+    // above: a blocked lane delivers nothing, so no headroom can
+    // be preserved on it. UDP/QUIC egress rides the same accrual
+    // by design: the formula names the LANE's budget-vs-delivered
+    // gap, and the policer — not the TCP pacer — is the lane UDP
+    // actually answers to; the column's subject is the lane, never
+    // the protocol.
+    if !is_ingress {
+        let saved = pace_flow::pace_saved_accrue(&cgroup_id, pol_sane.rate_bps, now, pkt_len);
+        if saved > 0
+            && let Some(sp) = stats_ptr
+        {
+            // SAFETY: the stats map's value pointer, stable kernel
+            // memory for this invocation — the same contract the
+            // rescue tail's raw place rides; this exclusive borrow
+            // ends at book_edt_saved's return, BEFORE the Option's
+            // own borrow below begins, so the two never alias.
+            book_edt_saved(unsafe { &mut *sp }, saved);
+        }
     }
+
+    // SAFETY: same stats-map contract as the rate-0 lane above —
+    // stable kernel memory, one invocation lifetime; the Option's
+    // borrow is moved into exactly one budgeted lane, never two.
+    let stats = stats_ptr.map(|ptr| unsafe { &mut *ptr });
 
     // The per-socket lane (NIGHT-upgrade-charger-core-3b, Tier B
     // #7): POLICY_FLAG_PER_SOCKET spends through a bucket keyed by

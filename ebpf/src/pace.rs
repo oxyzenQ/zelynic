@@ -100,7 +100,7 @@ pub fn pacing_decision(
 // (rate x active-time) - uploaded: the quota headroom the pacer
 // PRESERVED while the lane was delivering. The kernel-side accrual
 // runs on the egress policed path only (pace_flow.rs
-// pace_saved_book, called from enforce.rs after the stats entry
+// pace_saved_accrue, called from enforce.rs after the stats entry
 // materializes), against a per-cgroup stamp, so the column is
 // direction-clean: the combined dl+ul ledger never dilutes it.
 

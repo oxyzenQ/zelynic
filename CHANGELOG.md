@@ -90,6 +90,33 @@ v80.0.0
 
 ### Fixed
 
+- **fix(ebpf): the layer 4 booking rides the raw lookup pointer —
+  the 5.13 floor's verifier refusal closes (night-spark-7
+  follow-up, schema v28.1).** The v28 landing carried the
+  Option<&mut LimiterStats> through the pacing lane's stamp-map
+  operations via an `as_deref_mut` reborrow, and the register
+  pressure of that path forced the compiler to materialize the
+  Option as a (discriminant, payload) stack pair — the payload
+  holding the map pointer on the Some arm and a scalar zero on
+  the None arm. The lanes' later bookings dereferenced the
+  payload behind guards the verifier could no longer correlate
+  with the slot after the merge points, so the 5.13 floor's
+  verifier walked an arm where the payload held the None-side
+  scalar and refused the whole egress program ("R2 invalid mem
+  access 'inv'" at the booking atomics, run 41813297825's server
+  phase — 11 stages red); 5.15+ pruned those walks clean, so only
+  the floor and its twins went red while the archive-latest
+  kernel loaded the same object. The fix restores the v27
+  materialization shape: the accrual is POINTER-FREE
+  (pace_flow.rs `pace_saved_accrue` returns the saved volume,
+  no stats reference), and enforce.rs books through the RAW
+  lookup pointer BEFORE the Option<&mut> the lanes match on
+  materializes — the ECN rescue tail's own discipline, no &mut
+  live across the write. The rebuilt object pins the niche shape
+  back (one payload slot, ptr-or-0, every deref behind its own
+  null-check); Layers 1/2/3 are untouched by construction — the
+  ingress program never carried the block.
+
 - **fix(harness): the edt probe reads both ss pacing dialects and
   the pinned max as the exactness witness (night-spark-6 part 1).**
   The Layer 3 probe's pacing parser accepted only the `b/s` token
