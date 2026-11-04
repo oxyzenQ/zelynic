@@ -244,9 +244,20 @@ pub struct LimiterStatsRaw {
     /// tail; the map read copies the pair whole.
     pub ce_marked_packets: u64,
     pub ce_marked_bytes: u64,
+    /// night-spark-7, schema v28 (the quota telemetry's math —
+    /// Layer 4 of the quota saver): the egress pacing lane's
+    /// preserved headroom, booked by the kernel's egress policed
+    /// path — the running (rate x elapsed) - uploaded. Layout twin
+    /// of the v28 LimiterStats tail; the map read copies it whole.
+    pub bytes_saved_by_edt: u64,
+    /// night-spark-7, schema v28: the ECN lane's saved volume, one
+    /// for one with ce_marked_bytes — every delivered CE-marked byte
+    /// is a byte that never becomes a retransmission. Layout twin of
+    /// the v28 LimiterStats tail.
+    pub bytes_saved_by_ecn: u64,
 }
 
-/// SAFETY: LimiterStatsRaw is a plain six-u64 `repr(align(8))`
+/// SAFETY: LimiterStatsRaw is a plain eight-u64 `repr(align(8))`
 /// aggregate (Copy, no references) — the same aya::Pod value
 /// contract; the BPF twin is math.rs's LimiterStats (the layout
 /// contract, size-pinned both sides).

@@ -17,6 +17,25 @@ cannot honestly cover: keeping your modifications proprietary,
 embedding zelynic in a closed product, or redistributing it under
 different terms.
 
+## The capability a license buys
+
+zelynic's headline capability is the **80% quota saver**: on metered
+links, its three kernel layers make senders slow down before the
+bytes cross — the RECWN receive-window clamp holds remote senders to
+the policy's bandwidth-delay product, ECN CE-marking converts
+would-be losses into lossless backoffs, and egress socket pacing
+spaces uploads at the policy rate with no drops — so the quota a
+workload would have burned on retransmissions and over-bursts stays
+unbilled. The quota telemetry (schema v28) makes the saving
+measurable: `zelynic status --print-json` names
+`bytes_saved_total` with the per-layer split, live-verified by the
+probe suite (`scripts/bench/recwn-probe.sh`, `ecn-probe.sh`,
+`edt-probe.sh`). The number is the layered lane's claim on the
+metered rates it exists for; the derivation law and its named
+assumption are documented in
+[docs/COSMIC_DRAGON_ARC.md](docs/COSMIC_DRAGON_ARC.md), never a
+fabricated precision.
+
 ---
 
 ## 1. Who Needs a Commercial License

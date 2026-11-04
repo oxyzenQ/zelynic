@@ -34,6 +34,7 @@ fn status_cells_one_metric_per_cell() {
         bytes_dropped: 5_200,
         ce_marked_packets: 0,
         ce_marked_bytes: 0,
+        bytes_saved_by_edt: 0,
         bytes_saved_by_recwn: 0,
         bytes_saved_by_ecn: 0,
     };
@@ -66,6 +67,7 @@ fn status_cells_one_metric_per_cell() {
         bytes_dropped: 1_000,
         ce_marked_packets: 0,
         ce_marked_bytes: 0,
+        bytes_saved_by_edt: 0,
         bytes_saved_by_recwn: 0,
         bytes_saved_by_ecn: 0,
     };
@@ -91,6 +93,7 @@ fn status_cells_one_metric_per_cell() {
         bytes_dropped: 0,
         ce_marked_packets: 0,
         ce_marked_bytes: 0,
+        bytes_saved_by_edt: 0,
         bytes_saved_by_recwn: 0,
         bytes_saved_by_ecn: 0,
     };
@@ -125,6 +128,7 @@ fn status_rate_cells_render_configured_rates_exactly() {
         bytes_dropped: 0,
         ce_marked_packets: 0,
         ce_marked_bytes: 0,
+        bytes_saved_by_edt: 0,
         bytes_saved_by_recwn: 0,
         bytes_saved_by_ecn: 0,
     };
@@ -158,6 +162,7 @@ fn ce_marked_line_renders_only_when_traffic_was_marked() {
         bytes_dropped: 3_000,
         ce_marked_packets: 12,
         ce_marked_bytes: 17_432,
+        bytes_saved_by_edt: 0,
         bytes_saved_by_recwn: 0,
         bytes_saved_by_ecn: 0,
     };
@@ -494,9 +499,15 @@ fn collect_display_data_joins_windows_by_cgroup() {
             end_s: 0,
         },
     )];
-    let data = collect_display_data(&dl, &[], &[], &windows);
+    // night-spark-7: the RECWN lane join rides every census call —
+    // the inert lane here (the pre-v25 shape these pins own).
+    let inert = RecwnLane {
+        planted: false,
+        window_bytes: None,
+    };
+    let data = collect_display_data(&dl, &[], &[], &windows, &inert);
     assert!(data[0].window.is_some(), "the window joins its row");
-    let data = collect_display_data(&dl, &[], &[], &[]);
+    let data = collect_display_data(&dl, &[], &[], &[], &inert);
     assert!(data[0].window.is_none(), "absent window = no lifetime line");
 }
 

@@ -29,6 +29,8 @@ fn stats_ce(allowed: u64, dropped: u64, ce_packets: u64, ce_bytes: u64) -> Limit
         bytes_dropped: dropped * 100,
         ce_marked_packets: ce_packets,
         ce_marked_bytes: ce_bytes,
+        bytes_saved_by_edt: 0,
+        bytes_saved_by_ecn: 0,
     }
 }
 

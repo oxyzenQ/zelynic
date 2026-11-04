@@ -59,7 +59,10 @@ use aya_ebpf::{
     programs::SockOpsContext,
 };
 
+use crate::math::LimiterStats;
+use crate::math::book_edt_saved;
 use crate::pace::pacing_decision;
+use crate::pace::pacing_saved_bytes;
 
 /// The socket cookie -> upload pacing rate hint, primed by the
 /// egress enforcement hook on the policed path (enforce.rs's pace
@@ -74,6 +77,21 @@ use crate::pace::pacing_decision;
 #[allow(non_upper_case_globals)]
 #[map]
 pub(crate) static pace_socket_hint: LruHashMap<u64, u64> = LruHashMap::pinned(4096, 0);
+
+/// night-spark-7 (Layer 4, the quota telemetry's math): the egress
+/// lane's last-seen stamp — cgroup id -> the bpf_ktime_get_ns of the
+/// last policed egress packet — the time base bytes_saved_by_edt
+/// accrues against. Pinned LRU 1024 (the ecn_debt family's own
+/// posture: datapath-internal, userspace never opens it — a pin
+/// survives process exit so a restart reads a bounded gap, never a
+/// fabricated zero), keyed at the RESOLVED POLICY ROOT exactly like
+/// the stats ledger, so the saved column and its stamp describe one
+/// lane. Occupancy is bounded by the policy census (the stats map's
+/// own posture) and a stale row (a removed policy's root) ages out
+/// through the LRU like every hint in this family.
+#[allow(non_upper_case_globals)]
+#[map]
+pub(crate) static pace_saved_stamp: LruHashMap<u32, u64> = LruHashMap::pinned(1024, 0);
 
 // The kernel uapi constants this file rides (include/uapi/linux/bpf.h
 // and include/uapi/asm-generic/socket.h — aya-ebpf 0.2.1 does not
@@ -248,5 +266,63 @@ pub(crate) fn pace_prime(cookie: u64, rate_bps: u64) {
         None => {
             let _ = pace_socket_hint.insert(cookie, rate_bps, 0);
         }
+    }
+}
+
+/// night-spark-7 (Layer 4, the quota telemetry's math): accrue the
+/// egress pacing lane's SAVED headroom into the stats entry — the
+/// kernel half of the (rate x elapsed) - uploaded formula. Called
+/// from enforce.rs on the EGRESS policed path only, after the stats
+/// entry materializes and before any budgeted lane consumes the
+/// borrow (a reborrow through as_deref_mut, ended at this call):
+/// one stamp read, the pure law (../pace.rs pacing_saved_bytes —
+/// rootless-pinned by pace_tests.rs), one stamp store, and one
+/// atomic fetch_add (math_atomics.rs book_edt_saved) ONLY when the
+/// law books something — a saturated paced lane pays no RMW at all.
+///
+/// The stamp discipline, stated honestly: the read-store pair is
+/// racy under SMP (two CPUs enforcing one cgroup can interleave),
+/// so a gap can be over- or under-attributed to one packet — the
+/// same relaxed class the house books for the window fractions
+/// (eventually exact, never a verdict input). A stamp MISS is the
+/// conservative zero: the first packet on a lane (or one aged out
+/// of the LRU) books nothing and plants the stamp its successors
+/// accrue against. A clock regression (now before the stored stamp)
+/// saturates to a zero gap — the budget degenerates to zero and the
+/// packet's own length saturates the law to nothing, the fail-safe
+/// direction for a counter whose only mandate is monotonic growth.
+pub(crate) fn pace_saved_book(
+    cgroup_id: &u32,
+    rate_bps: u64,
+    now: u64,
+    pkt_len: u32,
+    stats: &mut LimiterStats,
+) {
+    // The saved volume this packet accrues: zero until a stamp
+    // exists, the capped-budget-minus-length law after (the pure
+    // core owns the caps — the rate sanitize and the one-second
+    // idle cap are load-bearing there, documented at the source).
+    let mut saved: u64 = 0;
+    match pace_saved_stamp.get_ptr_mut(cgroup_id) {
+        Some(ptr) => {
+            // SAFETY: the stamp map's value pointer lives in stable
+            // kernel memory for this invocation — the same contract
+            // the hint prime above rides; the read is a plain u64.
+            let last = unsafe { *ptr };
+            let dt = now.saturating_sub(last);
+            saved = pacing_saved_bytes(rate_bps, dt, pkt_len);
+            // SAFETY: the same stable-memory value pointer the read
+            // above took — the plain u64 store the verifier proves,
+            // this invocation's only writer of the stamp.
+            unsafe { *ptr = now };
+        }
+        None => {
+            // The conservative miss: no history, no saving — the
+            // stamp plants itself so the NEXT packet accrues.
+            let _ = pace_saved_stamp.insert(cgroup_id, now, 0);
+        }
+    }
+    if saved > 0 {
+        book_edt_saved(stats, saved);
     }
 }

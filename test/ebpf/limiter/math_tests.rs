@@ -28,7 +28,9 @@
 #[path = "../../../ebpf/src/math.rs"]
 pub(super) mod ebpf_math;
 
-use self::ebpf_math::{Bucket, LimiterStats, MAX_ENFORCABLE_BURST, NS_PER_SEC, Policy, enforce};
+use self::ebpf_math::{
+    Bucket, LimiterStats, MAX_ENFORCABLE_BURST, NS_PER_SEC, Policy, book_edt_saved, enforce,
+};
 
 pub(super) fn pol(rate: u64, burst: u64) -> Policy {
     Policy {
@@ -57,7 +59,30 @@ fn fresh_stats() -> LimiterStats {
         bytes_dropped: 0,
         ce_marked_packets: 0,
         ce_marked_bytes: 0,
+        bytes_saved_by_edt: 0,
+        bytes_saved_by_ecn: 0,
     }
+}
+
+/// night-spark-7 (the quota telemetry's math — Layer 4): the EDT
+/// saved word's booking pin — book_edt_saved adds exactly the
+/// volume the pure law computed, moves no other word (the v28
+/// tail's words are strangers to the legacy quartet and the CE
+/// pair), and a zero booking is the no-op the hot path relies on
+/// (a saturated paced lane pays no RMW at all).
+#[test]
+fn book_edt_saved_moves_only_its_own_word() {
+    let mut stats = fresh_stats();
+    book_edt_saved(&mut stats, 25_000);
+    book_edt_saved(&mut stats, 17_432);
+    assert_eq!(stats.bytes_saved_by_edt, 42_432);
+    assert_eq!(stats.bytes_saved_by_ecn, 0);
+    assert_eq!(stats.packets_allowed, 0);
+    assert_eq!(stats.bytes_allowed, 0);
+    assert_eq!(stats.ce_marked_bytes, 0);
+    // The no-op shape: zero books nothing, the counter never moves.
+    book_edt_saved(&mut stats, 0);
+    assert_eq!(stats.bytes_saved_by_edt, 42_432);
 }
 
 // ── fill-detect: the overflow guard, behaviorally invisible ─────────────

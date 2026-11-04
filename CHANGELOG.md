@@ -33,6 +33,61 @@ v80.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **feat(ebpf): the quota telemetry's math — the quota saver's
+  Layer 4 books its saving (night-spark-7, schema v28).** The three
+  quota-saver lanes now BOOK the quota they save, each by the
+  physics it owns. LimiterStats grows 48 -> 64 bytes (pure append,
+  the v26 CE-ledger law): `bytes_saved_by_edt` is booked on the
+  EGRESS policed path (enforce.rs -> pace_flow.rs pace_saved_book
+  -> math_atomics.rs book_edt_saved) as the lane's theoretical
+  budget minus the volume actually delivered — rate x elapsed minus
+  uploaded, the task's own formula, per-packet against ONE new
+  pinned LRU map (pace_saved_stamp, policy root -> last-seen egress
+  stamp, the ecn_debt family's datapath-internal posture) with the
+  refill_credits one-second idle cap and the recwn-style 4 GiB/s
+  rate sanitize (the BPF ISA has no widening multiply — bounded
+  factors keep the plain u64 product overflow-impossible); the pure
+  law (pace.rs pacing_saved_bytes) is rootless-pinned by
+  pace_tests.rs across the cap/sanitize/monotonic matrix.
+  `bytes_saved_by_ecn` rides book_rescue's correction one-for-one
+  with ce_marked_bytes: every delivered CE-marked byte is a byte
+  that never becomes a loss-and-retransmission pair (a dropped byte
+  costs the quota twice), so the one-for-one floor is the
+  conservative pole — never a modeled multiple. The RECWN saving
+  stays userspace-side by design (the night-spark-6 outline planned
+  a recwn word; the landing moved it — the sock_ops clamp carries
+  no observable default-window column to book against):
+  display.rs recwn_saved_bytes runs the window-law counterfactual
+  `(bytes_allowed / clamped) x (default - clamped)` against the
+  documented 128 KiB default-window assumption (tcp_rmem[0], the
+  conservative pole — the estimate errs low), self-extinguishing
+  where the clamp stops binding (~655 KB/s: the column refuses to
+  claim the policer's work as the window's). Surfaces:
+  `status --print-json` limits[] gains the additive
+  bytes_saved_by_edt and bytes_saved_total beside the landed pair
+  (all four always present), and the human table's Quota Saved line
+  renders the total with the layer split — `Quota Saved: X (EDT:
+  Y, ECN: Z, RECWN: W)`. The probes each grew a saved row
+  (edt-probe row 6, ecn-probe's saved twin one-for-one against the
+  marked volume, recwn-probe row 6 — the estimate's growth), each
+  naming the pre-v28 rebuild reason when the fields are absent.
+  The docs carry the 80% quota saver claim (README, the commercial
+  license) with the derivation law and its named assumption in
+  docs/COSMIC_DRAGON_ARC.md's Layer 4 section — the telemetry makes
+  the components readable, the workload makes the total. Also
+  repaired en route: display_json_quota_tests.rs referenced the
+  sibling module's private helpers (policy/stats_ce) its `use
+  super::*` could never resolve — the split family now carries its
+  own fixtures (the pacing sibling's discipline), and the
+  types_tests layout pin's pre-existing "8 x u64 = 48" arithmetic
+  reads true at the v28 shape. The map-value layout change rides
+  the schema-bump one-time contract (pinned v27 programs reload;
+  active limits drop once, re-apply after upgrade) and the prebuilt
+  lane refresh lands with the owner's refresh-prebuilt.sh pass, the
+  documented one-command flow.
+
 ### Fixed
 
 - **fix(harness): the edt probe reads both ss pacing dialects and

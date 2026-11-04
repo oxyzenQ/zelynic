@@ -132,17 +132,33 @@ pub(crate) fn pacing_line(d: &DisplayData) -> Option<String> {
     })
 }
 
-/// The quota telemetry's subordinate line (night-spark-6, the quota
-/// saver's Layer 4 PREP): the saved volume the Layer 4 columns will
-/// book — "Quota Saved: X", the RECWN and ECN lanes' saved-byte sum,
-/// format_bytes' own human shape. Rendered ONLY when the pair books
-/// something (the dormant-watchdog precedent: the placeholders read
-/// zero until the v28 tail lands, and a zero is absence pretending
+/// The quota telemetry's subordinate line (night-spark-7, the quota
+/// saver's Layer 4 math — the line night-spark-6's PREP reserved):
+/// the three lanes' saved-byte total with its layer split —
+/// "Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)", format_bytes' own
+/// human shape on every number. The total leads (the one number an
+/// owner reads at a glance); the split rides in the parentheses so
+/// the row can never disagree with itself — the layers name the
+/// physics that produced the saving (EDT: the preserved headroom,
+/// ECN: the delivered marks, RECWN: the window counterfactual, the
+/// userspace estimate). Rendered ONLY when the total books something
+/// (the dormant-watchdog precedent: a zero is absence pretending
 /// to be information); the window family's grey indent, one rung
 /// under the Upload Pacing line it completes.
 pub(crate) fn quota_saved_line(d: &DisplayData) -> Option<String> {
-    let saved = d.bytes_saved_by_recwn.saturating_add(d.bytes_saved_by_ecn);
-    (saved > 0).then(|| grey(&format!("    Quota Saved: {}", format_bytes(saved))))
+    let saved = d
+        .bytes_saved_by_edt
+        .saturating_add(d.bytes_saved_by_ecn)
+        .saturating_add(d.bytes_saved_by_recwn);
+    (saved > 0).then(|| {
+        grey(&format!(
+            "    Quota Saved: {} (EDT: {}, ECN: {}, RECWN: {})",
+            format_bytes(saved),
+            format_bytes(d.bytes_saved_by_edt),
+            format_bytes(d.bytes_saved_by_ecn),
+            format_bytes(d.bytes_saved_by_recwn)
+        ))
+    })
 }
 
 /// One status data row (pure, NIGHT-engrave-5): the whole row in

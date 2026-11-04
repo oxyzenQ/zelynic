@@ -240,16 +240,22 @@ fn test_schema_version_constant() {
     // Layer 3): the pinned cookie-keyed pace_socket_hint LRU beside
     // the RECWN twin (the loader's fourth lane); no existing struct
     // layout changes.
-    assert_eq!(SCHEMA_VERSION_EXPECTED, 27);
+    // v28 (night-spark-7, the quota telemetry's math — the quota
+    // saver's Layer 4): the stats tail grows bytes_saved_by_edt and
+    // bytes_saved_by_ecn (48 -> 64 bytes, pure append) plus ONE new
+    // pinned LRU map, pace_saved_stamp (the egress lane's saved
+    // accrual time base, datapath-internal).
+    assert_eq!(SCHEMA_VERSION_EXPECTED, 28);
 }
 
 // ── night-spark-4, schema v26: the CE ledger's layout pins ─────────
 
-/// The LimiterStatsRaw layout contract: 48 bytes — the legacy quartet
+/// The LimiterStatsRaw layout contract: 64 bytes — the legacy quartet
 /// at its pre-v26 offsets (a pre-v26 reader of the head reads
-/// unchanged), the ce_marked tail at 32/40, and the row
-/// round-tripping through its bytes identical (the map value IS the
-/// byte row; a partial write would be a corrupted ledger).
+/// unchanged), the ce_marked tail at 32/40, the v28 saved tail at
+/// 48/56, and the row round-tripping through its bytes identical
+/// (the map value IS the byte row; a partial write would be a
+/// corrupted ledger).
 #[test]
 fn limiter_stats_raw_layout_is_pinned() {
     let row = LimiterStatsRaw {
@@ -259,24 +265,36 @@ fn limiter_stats_raw_layout_is_pinned() {
         bytes_dropped: 0x3132333435363738,
         ce_marked_packets: 0x4142434445464748,
         ce_marked_bytes: 0x5152535455565758,
+        bytes_saved_by_edt: 0x6162636465666768,
+        bytes_saved_by_ecn: 0x7172737475767778,
     };
-    assert_eq!(core::mem::size_of::<LimiterStatsRaw>(), 48);
+    assert_eq!(core::mem::size_of::<LimiterStatsRaw>(), 64);
     assert_eq!(
         core::mem::offset_of!(LimiterStatsRaw, ce_marked_packets),
         32
     );
     assert_eq!(core::mem::offset_of!(LimiterStatsRaw, ce_marked_bytes), 40);
-    // SAFETY: LimiterStatsRaw is a plain six-u64 Copy aggregate with
-    // no padding (repr(align(8)), 8 x u64 = 48 bytes, the size pin
-    // above) — transmuting to and from its 48-byte array is the
+    assert_eq!(
+        core::mem::offset_of!(LimiterStatsRaw, bytes_saved_by_edt),
+        48
+    );
+    assert_eq!(
+        core::mem::offset_of!(LimiterStatsRaw, bytes_saved_by_ecn),
+        56
+    );
+    // SAFETY: LimiterStatsRaw is a plain eight-u64 Copy aggregate with
+    // no padding (repr(align(8)), 8 x u64 = 64 bytes, the size pin
+    // above) — transmuting to and from its 64-byte array is the
     // layout round-trip the test asserts, no reference crosses.
-    let bytes: [u8; 48] = unsafe { core::mem::transmute(row) };
+    let bytes: [u8; 64] = unsafe { core::mem::transmute(row) };
     // SAFETY: same plain-Copy aggregate, same no-padding pin — the
     // array back into the struct is the round-trip's second half.
     let back: LimiterStatsRaw = unsafe { core::mem::transmute(bytes) };
     assert_eq!(back.packets_allowed, row.packets_allowed);
     assert_eq!(back.ce_marked_packets, row.ce_marked_packets);
     assert_eq!(back.ce_marked_bytes, row.ce_marked_bytes);
+    assert_eq!(back.bytes_saved_by_edt, row.bytes_saved_by_edt);
+    assert_eq!(back.bytes_saved_by_ecn, row.bytes_saved_by_ecn);
 }
 
 // ── night-during, schema v23: the window row's layout pins ────────

@@ -83,6 +83,7 @@ name for zelynic's entire architectural stack, indexed in
 | **Guaranteed fair share** | `--floor 100kb` / `--ceil 300kb`: every subprocess under the target is guaranteed a minimum and capped at a maximum — the floor a PRIORITY (an idle subprocess lends its share back; the pool itself is the lender), the ceiling binding even a lone subprocess. HTB's rate/ceil idiom in a pure eBPF policer (improve-40, schema v24). Per-direction spellings for the asymmetric link: `--floor-download` / `--ceil-upload` bracket one direction's rows only, one spelling per side (improve-40-b). |
 | **Self-expiring limits** | `--during 20d` — a duration from the apply instant (units s, m, h, d, mn, y; bounds 1s..5y): the KERNEL expires the row, no daemon, no cron, drift-free monotonic spans (NIGHT-during, schema v23; the window and date forms are gone — the owner's duration-only revision, rows written by older builds keep their promises). |
 | **RECWN receive-window control** | A policed cgroup's own sockets advertise a rate-shaped receive window (rate x 200 ms delivery-cadence estimate, clamped [2 x MSS, 1 MiB]) — remote TCP senders hold their in-flight bytes down BEFORE the link bills them, the quota saver's Layer 1 (night-spark-2, schema v25; the owner's coined name, deliberately not "RWND"). |
+| **Quota Saved telemetry — the 80% quota saver** | The three quota-saver lanes' work is BOOKED, not just enforced: `status --print-json` names `bytes_saved_total` with the `bytes_saved_by_edt` / `bytes_saved_by_ecn` / `bytes_saved_by_recwn` split (schema v28, night-spark-7), and the human table's `Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)` line renders it — the preserved egress headroom, the delivered CE marks, and the window-clamp counterfactual, each by its own physics (the math: docs/COSMIC_DRAGON_ARC.md's Layer 4 section). |
 | **Pinned bpf_links** | Enforcement survives process exit — no daemon, no battery drain (RAM/CPU/IO measured live, not asserted: the proof harness's footprint claim). |
 | **Fractional precision** | 0.00% measured rate error, sub-byte token accumulation (reproduce: `sudo ./scripts/bench/proof-claims.sh`; math pins: test/ebpf/limiter/math_tests.rs). |
 | **Schema migration** | BPF struct changes auto-detected + auto-cleaned on upgrade. |
@@ -783,8 +784,8 @@ cross, and the arc already holds the kernel machinery that makes
 that possible: the ECN-first mark-instead-of-drop law, the
 QUIC-aware attribution that names individual HTTP/3 connections,
 the per-connection buckets that can carry per-connection signals.
-The next evolution (v81) stands on those scales: its Layer 1 —
-RECWN (Receive Window Control), the owner's coined name for the
+The evolution stands on those scales, all four layers landed: its
+Layer 1 — RECWN (Receive Window Control), the owner's coined name for the
 receive-window lane that clamps a policed cgroup's advertised
 window to the policy's bandwidth-delay product — landed as schema
 v25, so the sender throttles itself before the link bills the
@@ -796,9 +797,33 @@ delivered CE-marked instead of dropped, so RFC 9002 QUIC stacks
 back off without a single lost datagram, and the
 `ce_marked_packets` / `ce_marked_bytes` pair in `status
 --print-json` makes the lane measurable (the live proof in
-`scripts/bench/ecn-probe.sh`). EDT pacing for egress remains the
-roadmap's next layer, recorded verbatim in the arc doc, so the
-owner's vision survives every maintainer.
+`scripts/bench/ecn-probe.sh`). Its Layer 3 — egress socket pacing
+(EDT) — landed as schema v27: the egress hook primes a cookie-keyed
+hint and the sock_ops program pins `SO_MAX_PACING_RATE` onto the
+row's upload sockets, so the kernel's own TCP pacer spaces the
+outgoing stream at the policy rate with no tc qdisc anywhere (the
+live proof in `scripts/bench/edt-probe.sh`: 800000 b/s bit-exact,
+zero drops). And its Layer 4 — the quota telemetry — landed as
+schema v28: the three lanes' savings are BOOKED
+(`bytes_saved_by_edt`, `bytes_saved_by_ecn` in the kernel ledger;
+`bytes_saved_by_recwn` as the documented userspace estimate) and
+`status --print-json` names all three plus `bytes_saved_total`,
+with the human table's `Quota Saved` line rendering the total and
+the layer split.
+
+**The 80% quota saver**: on the metered rates the lane exists for,
+the three physics stack — the receive-window clamp holds a sender
+to the policy's bandwidth-delay product (the window counterfactual
+books ~85% at the 100 kb rung on the conservative 128 KiB
+default-window assumption, named in
+[docs/COSMIC_DRAGON_ARC.md](docs/COSMIC_DRAGON_ARC.md)'s math
+section), the CE mark converts would-be losses into backoffs
+without a lost datagram, and the pacer spaces the egress so the
+drop verdict never speaks — so the quota a workload would have
+burned on retransmissions and over-bursts stays unbilled. The
+telemetry makes the components readable; the workload makes the
+total (the live proofs: `recwn-probe.sh`, `ecn-probe.sh`,
+`edt-probe.sh`, each carrying a saved-quota row).
 
 ## Support
 

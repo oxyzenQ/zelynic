@@ -97,14 +97,32 @@ fn collect_display_data_joins_the_bracket_per_direction() {
         ceil_bps: 200_000,
         ..PolicyRaw::default()
     };
-    let data = collect_display_data(&[(101u32, dl_row)], &[(101u32, ul_row)], &[], &[]);
+    let data = collect_display_data(
+        &[(101u32, dl_row)],
+        &[(101u32, ul_row)],
+        &[],
+        &[],
+        &RecwnLane {
+            planted: false,
+            window_bytes: None,
+        },
+    );
     assert_eq!(data[0].download.floor_bps, 100_000);
     assert_eq!(data[0].download.ceil_bps, 300_000);
     assert_eq!(data[0].upload.floor_bps, 50_000);
     assert_eq!(data[0].upload.ceil_bps, 200_000);
 
     // A one-legged row: the absent direction's pair stays unset.
-    let data = collect_display_data(&[(102u32, dl_row)], &[], &[], &[]);
+    let data = collect_display_data(
+        &[(102u32, dl_row)],
+        &[],
+        &[],
+        &[],
+        &RecwnLane {
+            planted: false,
+            window_bytes: None,
+        },
+    );
     assert_eq!(data[0].download.floor_bps, 100_000);
     assert_eq!(
         data[0].upload,

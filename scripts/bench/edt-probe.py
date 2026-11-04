@@ -54,6 +54,13 @@ one layer up. This harness pins the lane LIVE:
     quota is saved without a loss event (the brief's own success
     criterion).
 
+  row 6 — the saved quota books (live, night-spark-7 Layer 4): the
+    same ledger's v28 tail moves — limits[].bytes_saved_by_edt
+    grows by the preserved headroom ((rate x elapsed) - uploaded,
+    the formula the pure law pins) and bytes_saved_total carries
+    the row's three-lane sum. A pre-v28 object carries no fields
+    and fails this row with the rebuild reason spelled out.
+
 Honesty contracts: the upload policy is planted BEFORE the
 uploader fork (the sockets curl creates are born policed — the
 pin-at-creation contract, the recwn join); the ss sweep scopes on
@@ -469,6 +476,11 @@ def live_run():
         # own cgroup row's dropped counters, read off the same doc.
         pre_dropped = int((row or {}).get("packets_dropped", 0))
         pre_dropped_b = int((row or {}).get("bytes_dropped", 0))
+        # The Layer 4 baseline (the saved row's own snapshot, the
+        # same doc, the same row): the v28 tail's growth over the
+        # upload is the quota-saved row's own evidence.
+        pre_saved_e = (row or {}).get("bytes_saved_by_edt")
+        pre_saved_t = (row or {}).get("bytes_saved_total")
 
         # The payload: the upload leg's own 3 MiB, discarded by the
         # endpoint, dead in the teardown.
@@ -561,6 +573,31 @@ def live_run():
             "drop verdict never speaks, the quota is saved without a loss "
             "event",
         )
+
+        # Row 6 — the saved quota (the Layer 4 telemetry, live): the
+        # v28 tail's growth over the paced upload — the preserved
+        # headroom the pacer held back while the lane delivered.
+        post_e = (row or {}).get("bytes_saved_by_edt")
+        post_t = (row or {}).get("bytes_saved_total")
+        if post_e is None or post_t is None:
+            lib.record(
+                "edt: the paced lane books its saved quota",
+                "FAIL",
+                "status --print-json limits[] carries no bytes_saved_by_edt / "
+                "bytes_saved_total — a pre-v28 (stale pinned) object is "
+                "loaded; rebuild and re-apply",
+            )
+        else:
+            delta_e = int(post_e) - int(pre_saved_e or 0)
+            delta_t = int(post_t) - int(pre_saved_t or 0)
+            lib.record(
+                "edt: the paced lane books its saved quota",
+                "PASS" if delta_e > 0 and delta_t >= delta_e else "FAIL",
+                f"the ledger moved {delta_e} B saved-by-edt / {delta_t} B "
+                "total during the paced upload — the v28 tail books the "
+                "preserved headroom ((rate x elapsed) - uploaded), the "
+                "quota saver's Layer 4, live",
+            )
 
         lib.out(f"  EDT live probe — the egress pacing lane, {time.monotonic() - started:.0f}s")
         rows_ok = all(r["verdict"] != "FAIL" for r in lib.RESULTS)
