@@ -112,7 +112,7 @@ impl PidFd {
             // SAFETY: getsockopt with a writable tcp_info slot and
             // its exact socklen; local is the duplicate fd owned by
             // this method, TCP_INFO writes at most that size (the
-            // kernel trims to its own struct length on older
+            // kernel clamps to its own struct length on older
             // kernels — the zeroed tail stays zero).
             let drc = unsafe {
                 libc::getsockopt(
