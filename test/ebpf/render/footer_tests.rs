@@ -399,6 +399,7 @@ fn footer_discovery_pair_renders_with_the_autodetect_name() {
                     state: "ESTABLISHED",
                     queued: false,
                     cookie: None,
+                    deep: None,
                 }],
             }],
         },

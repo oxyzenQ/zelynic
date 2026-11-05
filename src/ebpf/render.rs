@@ -149,7 +149,9 @@ pub(crate) use depth_traffic::traffic_focus;
 
 pub(crate) use session::{SessionAcc, SessionState};
 
-pub(crate) use detail::{comm_from_label, detail_lines, full_detail_lines, label_with_count};
+pub(crate) use detail::{
+    comm_from_label, detail_lines, full_detail_lines, label_with_count, retrans_row_figure,
+};
 
 // NIGHT-engrave-5: the grid line is every zelynic table's border
 // family — the status and list-apps report tables borrow the monitor's
@@ -235,6 +237,11 @@ pub(crate) struct EagleColumns {
     pub(crate) label_w: usize,
     pub(crate) dl_w: usize,
     pub(crate) ul_w: usize,
+    /// The retrans column's width (night-netrunner-4): 0 = the rung
+    /// is hidden (the 54..=61 band and every narrower rung keep the
+    /// pre-netrunner-4 shapes entirely). 7 = the full rung, the
+    /// header spelled in full.
+    pub(crate) retrans_w: usize,
     pub(crate) show_total: bool,
 }
 
@@ -245,21 +252,43 @@ pub(crate) fn plan_eagle_columns(width: usize) -> EagleColumns {
     const NUM_W: usize = 10;
     const NUM_W_TIGHT: usize = 9;
     const LABEL_MIN: usize = 12;
+    // The retrans column (night-netrunner-4): width 7 — the header
+    // spells `retrans` in full (the surface vocabulary never
+    // abbreviates), the figure fits (a window's retransmit count is
+    // small; saturation is the ladder's ceiling, not a real shape).
+    const RETRANS_W: usize = 7;
     // The symmetric right gutter (NIGHT-engrave-4): the two columns
     // of air after the TOTAL column (the left lane is the `=> `
     // marker's estate since night-improve-61). Narrow-floor frames
     // drop it first — survival outranks harmony below the ladder.
     const RIGHT_GUTTER: usize = 2;
 
-    // Full layout: rank + label + 3 numeric columns (dl, ul, total).
-    // Reserve = rank cell + 3 x (gap + numeric) + the right gutter:
-    // the label absorbs the rest, so a full row ends exactly at the
-    // right gutter's edge — never flush against the rail.
+    // Full layout with the retrans rung (night-netrunner-4): rank +
+    // label + dl + ul + retrans + total. The audit's reservation:
+    // RANK_W + LABEL_MIN + 3 x (1 + NUM_W) for the three wide
+    // numerics, + (1 + RETRANS_W) for the new rung, + the gutter =
+    // 62 — the netrunner-3 ladder's exact math, one rung added
+    // instead of the existing ones shifting.
+    if width >= RANK_W + LABEL_MIN + 3 * (1 + NUM_W) + (1 + RETRANS_W) + RIGHT_GUTTER {
+        return EagleColumns {
+            label_w: width - RANK_W - 3 * (1 + NUM_W) - (1 + RETRANS_W) - RIGHT_GUTTER,
+            dl_w: NUM_W,
+            ul_w: NUM_W,
+            retrans_w: RETRANS_W,
+            show_total: true,
+        };
+    }
+
+    // The pre-netrunner-4 full rung (54..=61): the retrans column
+    // folds back into the detail family — a narrow frame never loses
+    // a column it had, and the default table keeps the shape the
+    // right-gutter contract gave it.
     if width >= RANK_W + LABEL_MIN + 3 * (1 + NUM_W) + RIGHT_GUTTER {
         return EagleColumns {
             label_w: width - RANK_W - 3 * (1 + NUM_W) - RIGHT_GUTTER,
             dl_w: NUM_W,
             ul_w: NUM_W,
+            retrans_w: 0,
             show_total: true,
         };
     }
@@ -273,6 +302,7 @@ pub(crate) fn plan_eagle_columns(width: usize) -> EagleColumns {
             label_w: width - RANK_W - 2 * (1 + NUM_W) - RIGHT_GUTTER,
             dl_w: NUM_W,
             ul_w: NUM_W,
+            retrans_w: 0,
             show_total: false,
         };
     }
@@ -282,6 +312,7 @@ pub(crate) fn plan_eagle_columns(width: usize) -> EagleColumns {
         label_w: LABEL_MIN,
         dl_w: NUM_W_TIGHT,
         ul_w: NUM_W_TIGHT,
+        retrans_w: 0,
         show_total: false,
     }
 }

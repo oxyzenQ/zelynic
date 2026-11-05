@@ -34,6 +34,7 @@ fn displayable_connected_udp_is_traffic() {
         state,
         queued: false,
         cookie: None,
+        deep: None,
     };
 
     // Connected UDP (state 01, real remote): the QUIC-client shape.
@@ -51,6 +52,7 @@ fn displayable_connected_udp_is_traffic() {
         state: "ESTABLISHED",
         queued: false,
         cookie: None,
+        deep: None,
     }));
     assert!(!is_displayable(&SocketInfo {
         inode: 42,
@@ -59,6 +61,7 @@ fn displayable_connected_udp_is_traffic() {
         state: "LISTEN",
         queued: false,
         cookie: None,
+        deep: None,
     }));
 }
 
@@ -86,6 +89,7 @@ fn displayable_raw_sockets_show_unconditionally() {
         state,
         queued: false,
         cookie: None,
+        deep: None,
     };
 
     // Connect()ed raw socket (state 01, real remote): the ping shape.
@@ -117,6 +121,7 @@ fn displayable_v6_arms_ride_the_same_gates() {
         state,
         queued: false,
         cookie: None,
+        deep: None,
     };
     // tcp6: ESTABLISHED shows, LISTEN stays noise (the Tcp law).
     assert!(is_displayable(&mk(

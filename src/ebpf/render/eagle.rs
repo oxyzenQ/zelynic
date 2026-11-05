@@ -351,7 +351,24 @@ pub(super) fn render_eagle_eyes_at(
         };
         // The identity span the header's title cell covers.
         let title_w = cols.label_w + RANK_SPAN;
-        if cols.show_total {
+        if cols.show_total && cols.retrans_w > 0 {
+            // The full rung (night-netrunner-4): retrans sits right
+            // of upload, left of total — the session figure keeps
+            // the rightmost anchor the right-gutter contract gave it.
+            lines.push(brand(&format!(
+                "{gutter}{:<w0$} {:>w1$} {:>w2$} {:>wr$} {:>w3$}",
+                truncate_label("top process", title_w),
+                "download",
+                "upload",
+                "retrans",
+                "total",
+                w0 = title_w,
+                w1 = cols.dl_w,
+                w2 = cols.ul_w,
+                wr = cols.retrans_w,
+                w3 = cols.dl_w
+            )));
+        } else if cols.show_total {
             lines.push(brand(&format!(
                 "{gutter}{:<w0$} {:>w1$} {:>w2$} {:>w3$}",
                 truncate_label("top process", title_w),
@@ -426,12 +443,17 @@ pub(super) fn render_eagle_eyes_at(
             let ul_rate = delta.map(|c| rate_bps(c.bytes, span)).unwrap_or(0);
 
             let shown_details = details.len();
+            // The row's retrans window (night-netrunner-4): the
+            // walk-to-walk TCP truth, or absence (the em dash) when
+            // the row holds no measured window.
+            let retrans = super::retrans_row_figure(conns, *cgroup_id);
             render_eagle_row(
                 lines,
                 *cgroup_id,
                 *acc,
                 dl_rate,
                 ul_rate,
+                retrans,
                 identity,
                 conns,
                 &cols,

@@ -45,8 +45,10 @@ pub(crate) fn parse_proc_net_line(line: &str, proto: Proto) -> Option<(u64, Sock
             queued: tx_q > 0 || rx_q > 0,
             // The cookie is fd-side knowledge (pidfd_getfd + SO_COOKIE
             // during the fd walk, NIGHT-boost-26) — the socket TABLE
-            // row cannot know it.
+            // row cannot know it. The deep sample (night-netrunner-4)
+            // rides the same dup — also fd-side knowledge, None here.
             cookie: None,
+            deep: None,
         },
     ))
 }

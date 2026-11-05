@@ -24,6 +24,7 @@ fn sock(cookie: Option<u64>) -> SocketInfo {
         state: "ESTABLISHED",
         queued: false,
         cookie,
+        deep: None,
     }
 }
 

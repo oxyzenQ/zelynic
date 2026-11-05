@@ -13,13 +13,18 @@
 use super::{EagleColumns, SessionAcc, format_rate_or_dash, label_with_count};
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
-use crate::ebpf::limiter::format_bytes_wide;
+use crate::ebpf::limiter::{format_bytes_wide, format_count};
 use crate::output::{hot, ok, pad_to_width, warn};
 
 /// One ranked data row. The static traffic-light tiers
 /// (NIGHT-boost-14): rank 1 champion red, rank 2 warning yellow,
 /// rank 3 and below status green — the owner's exact color contract,
 /// calmer than the white it replaced and with no blink anywhere.
+///
+/// night-netrunner-4: the retrans cell (when the rung is shown) —
+/// the walk-to-walk retransmit count, `—` when the row holds no
+/// measured window (the absence law: a QUIC-only row and a
+/// first-walk row both render the dash, never a fabricated zero).
 #[allow(clippy::too_many_arguments)]
 pub(super) fn render_eagle_row(
     lines: &mut Vec<String>,
@@ -27,6 +32,7 @@ pub(super) fn render_eagle_row(
     acc: SessionAcc,
     dl_rate: u64,
     ul_rate: u64,
+    retrans: Option<u64>,
     identity: &IdentityMap,
     conns: Option<&ConnectionMap>,
     cols: &EagleColumns,
@@ -39,7 +45,31 @@ pub(super) fn render_eagle_row(
     // the row's numeric cells; one call spares the double
     // measurement a separate truncate step would pay).
     let label = pad_to_width(&label_with_count(identity, conns, cgroup_id), cols.label_w);
-    let body = if cols.show_total {
+    // The retrans cell (night-netrunner-4): the count at its own
+    // width — right-aligned like every numeric cell — or the em
+    // dash when the row holds no measured window. The dash rides
+    // the same cell the figure does (the em dash is one column
+    // wide in every monospace font the surface targets; the row's
+    // alignment is the columns', not the glyphs').
+    let retrans_cell = |w: usize| match retrans {
+        Some(n) => pad_to_width(&format_count(n), w),
+        None => "—".to_string(),
+    };
+    let body = if cols.show_total && cols.retrans_w > 0 {
+        format!(
+            "   {:>2}  {} {:>w1$} {:>w2$} {:>wr$} {:>w3$}",
+            rank,
+            label,
+            format_rate_or_dash(dl_rate),
+            format_rate_or_dash(ul_rate),
+            retrans_cell(cols.retrans_w),
+            format_bytes_wide(session_total),
+            w1 = cols.dl_w,
+            w2 = cols.ul_w,
+            wr = cols.retrans_w,
+            w3 = cols.dl_w
+        )
+    } else if cols.show_total {
         format!(
             "   {:>2}  {} {:>w1$} {:>w2$} {:>w3$}",
             rank,

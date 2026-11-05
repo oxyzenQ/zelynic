@@ -75,7 +75,31 @@ fn eagle_columns_full_width() {
     let cols = plan_eagle_columns(100);
     assert!(cols.show_total);
     assert_eq!(cols.dl_w, 10);
-    assert_eq!(cols.label_w, 100 - 7 - 3 * 11 - 2);
+    // night-netrunner-4: the full rung carries the retrans column —
+    // the label absorbs dl + ul + retrans(1+7) + total + gutter.
+    assert_eq!(cols.retrans_w, 7);
+    assert_eq!(cols.label_w, 100 - 7 - 3 * 11 - 8 - 2);
+}
+
+/// The retrans rung's boundary (night-netrunner-4, the audit's
+/// ladder): 62 = RANK_W(7) + LABEL_MIN(12) + 3 x (1 + NUM_W(10))
+/// for dl/ul/total + (1 + 7) for the new rung + 2 gutter. One column
+/// short folds retrans back into the detail family — the 54..=61
+/// band keeps the pre-netrunner-4 shape entirely (a narrow frame
+/// never loses a column it had).
+#[test]
+fn eagle_columns_retrans_rung_lands_at_62() {
+    // At the boundary: retrans shows, label re-absorbs the rung.
+    let cols = plan_eagle_columns(62);
+    assert!(cols.show_total);
+    assert_eq!(cols.retrans_w, 7);
+    assert_eq!(cols.label_w, 62 - 7 - 3 * 11 - 8 - 2);
+    // One column short: the retrans rung hides, everything else
+    // stays exactly as the 54-era full layout had it.
+    let cols = plan_eagle_columns(61);
+    assert!(cols.show_total);
+    assert_eq!(cols.retrans_w, 0);
+    assert_eq!(cols.label_w, 61 - 7 - 3 * 11 - 2);
 }
 
 /// TOTAL is the first column to go on narrow frames (full layout

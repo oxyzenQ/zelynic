@@ -167,6 +167,7 @@ fn frame_bench_eagle() {
                     3 => cookie_base + 1,
                     _ => cookie_base + 1 + idx as u64,
                 }),
+                deep: None,
             };
             conns.insert(
                 cg,
