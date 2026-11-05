@@ -71,6 +71,7 @@ fn report_fixture(enforcement: Enforcement) -> DepthReport {
         window_dropped: 0,
         traffic: None,
         traffic_note: None,
+        lanes: None,
     }
 }
 

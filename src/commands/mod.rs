@@ -12,6 +12,7 @@ pub(crate) mod block;
 pub(crate) mod cleanup;
 #[cfg(feature = "ebpf")]
 pub(crate) mod eagle;
+pub(crate) mod eagle_focus;
 pub(crate) mod guarantee;
 pub(crate) mod help;
 // NIGHT-hunt-39: the flag estate (Global flags, Rate formats, Pro

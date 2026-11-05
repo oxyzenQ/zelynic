@@ -30,14 +30,12 @@
 
 use anyhow::Result;
 
-use crate::ebpf::bypass::{self, ShadowAudit};
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::{
     Direction, Limiter, LimiterStatsRaw, PolicyRaw, Target, parse_focus_window, pin_dir_has_files,
     terminal_width,
 };
-use crate::ebpf::loader::{CgroupDelta, Observer, SocketBytes};
 use crate::ebpf::render::{
     DepthReport, Enforcement, bypass_section, depth_doc_json, depth_report_lines, package_name,
     traffic_focus, window_dropped_bytes,
@@ -45,7 +43,6 @@ use crate::ebpf::render::{
 use crate::output::{grey, print_json};
 
 use std::collections::HashMap;
-use std::time::Duration;
 
 /// Parse the '/'-separated TARGETS spec (the grammar both eagle-eyes
 /// modes share, NIGHT-boost-1): each token autodetects per
@@ -224,100 +221,6 @@ fn enforcement_join(policies: Option<(&PolicyMaps, &PolicyMaps)>, cgroup_id: u32
 /// owned).
 type PolicyMaps = HashMap<u32, PolicyRaw>;
 
-/// The focus window's measured result (NIGHT-private-research-3):
-/// the closing poll's per-cgroup deltas (the kernel's window totals)
-/// plus the per-socket cookie join keyed by the closing census's
-/// cookies — the two inputs [`traffic_focus`] composes per target.
-/// The bypass audit (charger-core-1-a) rides along unconditionally:
-/// the window's interface-vs-hooks shadow verdict.
-struct FocusMeasure {
-    deltas: Vec<CgroupDelta>,
-    socket_bytes: HashMap<u64, SocketBytes>,
-    shadow: ShadowAudit,
-}
-
-/// Run the network-traffic focus window (NIGHT-private-research-3,
-/// the think-like-light-years-3 ability): attach an observer, seed
-/// the delta baseline, let `focus_secs` pass, close the window with
-/// a second poll, and join the BPF per-socket cookie maps onto the
-/// post-window census — the exact machinery the live monitor runs
-/// per frame (NIGHT-boost-26), composed once for the one-shot
-/// report instead.
-///
-/// The `conns` census is refreshed at window END (the sockets alive
-/// NOW are the rows the report lists and the join keys on); a failed
-/// window leaves the caller's baseline census untouched.
-///
-/// Best-effort by contract, honest about every failure: the return
-/// carries the measurement OR the one-line reason it could not run
-/// (observer attach refused, a map read failed) — the report renders
-/// the basic socket census plus the reason, never a fabricated
-/// zero-traffic window (the hunt-22 honest-read discipline). A quiet
-/// window (zero deltas) is a MEASUREMENT, not a failure — it
-/// composes a zero-total focus that renders the no-traffic verdict.
-fn run_focus_window(
-    conns: &mut ConnectionMap,
-    focus_secs: u64,
-) -> (Option<FocusMeasure>, Option<String>) {
-    // The loading indicator (night-dragon-maintenance-4): one announce
-    // line used to be all the window said before going silent for the
-    // whole capture; the spinner ticks live elapsed/total on stderr
-    // (inert when piped) and Drop erases its line on every exit path.
-    let _window_spinner =
-        crate::output::Spinner::start("capturing traffic window".to_string(), focus_secs);
-    crate::output::verbose::vlog!(
-        "eagle-eyes",
-        "traffic focus: attaching observer for a {focus_secs}s window"
-    );
-    let mut observer = match Observer::attach() {
-        Ok(o) => o,
-        Err(e) => return (None, Some(format!("observer attach failed: {e}"))),
-    };
-    // The baseline poll seeds the per-cgroup delta baseline; its own
-    // summary is discarded on purpose (bytes between attach and the
-    // window start stay out of the ledger — the same horizon
-    // contract the live monitor's opening poll owns).
-    if let Err(e) = observer.poll_and_summarize() {
-        return (None, Some(format!("baseline poll failed: {e}")));
-    }
-    // Bypass audit baseline (charger-core-1-a): the interface snapshot
-    // brackets the window the BPF polls measure — like spans compare.
-    let nic_start = bypass::nic_totals();
-    std::thread::sleep(Duration::from_secs(focus_secs));
-    let summary = match observer.poll_and_summarize() {
-        Ok(s) => s,
-        Err(e) => return (None, Some(format!("focus poll failed: {e}"))),
-    };
-    let nic_end = bypass::nic_totals();
-    // Fresh census at window end: the closing join keys on exactly
-    // the sockets alive NOW (a socket that died mid-window keeps its
-    // bytes in the kernel totals but leaves the attribution — both
-    // numbers stay true, they answer different questions).
-    conns.refresh();
-    let cookies = conns.socket_cookies();
-    let mut socket_bytes = HashMap::new();
-    if !cookies.is_empty() {
-        // An Err folds an empty join: the window totals stay (kernel
-        // truth), the endpoint figures degrade to honest absence —
-        // the one-frame-tolerance contract the live join carries.
-        if let Ok(bytes) = observer.socket_bytes(&cookies) {
-            socket_bytes = bytes;
-        }
-    }
-    observer.detach();
-    let bpf_tx = summary.total_bytes;
-    let bpf_rx = summary.total_ingress_bytes;
-    let shadow = bypass::shadow_audit(nic_start, nic_end, bpf_tx, bpf_rx, focus_secs);
-    (
-        Some(FocusMeasure {
-            shadow,
-            deltas: summary.cgroups,
-            socket_bytes,
-        }),
-        None,
-    )
-}
-
 /// Handle `zelynic eagle-eyes <targets> --depth` — print the deep
 /// report and exit. `--print-json` emits the typed document; the
 /// interval flag never reaches here (the dispatcher notes and drops
@@ -357,7 +260,10 @@ pub(crate) fn handle_eagle_eyes_depth(
     // pinned, the per-cgroup LEDGER rides along — the kernel's own
     // allowed/dropped accounting — so a limited target's report
     // carries what enforcement actually did, not just what it was
-    // configured to do.
+    // configured to do. night-netrunner-4: the Orchestra's probe
+    // feeds the lanes verdict (the ECN row is the host's helper
+    // fact; one probe, every consumer).
+    let caps = crate::ebpf::host_caps::HostCaps::probe();
     let mut identity = IdentityMap::new();
     identity.refresh();
     let mut conns = ConnectionMap::new();
@@ -388,7 +294,8 @@ pub(crate) fn handle_eagle_eyes_depth(
             "[eagle-eyes] traffic focus: measuring a {focus_secs}s window"
         ))
     );
-    let (focus_measure, traffic_note) = run_focus_window(&mut conns, focus_secs);
+    let (focus_measure, traffic_note) =
+        super::eagle_focus::run_focus_window(&mut conns, focus_secs);
     // The ledger's CLOSING read (night-private-research-7): the
     // accounting line renders the ledger AS OF PRINT — including the
     // window the report just measured (the pre-window read the line
@@ -516,13 +423,29 @@ pub(crate) fn handle_eagle_eyes_depth(
                 baseline_by_id.as_ref().and_then(|m| m.get(&id)),
             );
             let conns_view = conns.get(id).cloned();
+            // The enforcement LANES verdict (night-netrunner-4): the
+            // quota saver's three lanes as THIS cgroup's policy arms
+            // them — one probe (HostCaps), the pure composer, the CE
+            // ledger's own proof when it marked.
+            let lanes = crate::ebpf::render::lanes_sentence(
+                &enforcement,
+                caps.ecn_set_ce,
+                enforcement_stats.map_or(0, |s| s.ce_marked_bytes),
+            );
             // The focus window's per-cgroup composition (pure): the
             // kernel's window totals joined onto this report's census
             // — traffic: None (with the shared note) only when the
             // window could not run at all.
-            let traffic = focus_measure
-                .as_ref()
-                .map(|m| traffic_focus(id, focus_secs, &m.deltas, Some(&conns), &m.socket_bytes));
+            let traffic = focus_measure.as_ref().map(|m| {
+                traffic_focus(
+                    id,
+                    focus_secs,
+                    &m.deltas,
+                    Some(&conns),
+                    &m.socket_bytes,
+                    &m.deep_windows,
+                )
+            });
             reports.push(DepthReport {
                 target,
                 cgroup_id: id,
@@ -534,6 +457,7 @@ pub(crate) fn handle_eagle_eyes_depth(
                 window_dropped,
                 traffic,
                 traffic_note: traffic_note.clone(),
+                lanes,
             });
         }
     }

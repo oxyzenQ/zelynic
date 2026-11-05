@@ -124,6 +124,7 @@ fn traffic_focus_composes_totals_attribution_and_ranking() {
         &[delta(1234, 300_000, 10_020_000)],
         Some(&conns),
         &join(),
+        &HashMap::new(),
     );
 
     assert_eq!(focus.window_secs, 3, "the window is the honest denominator");
@@ -174,6 +175,7 @@ fn quiet_window_is_a_verdict_not_a_failure() {
         &[],
         Some(&conns),
         &std::collections::HashMap::new(),
+        &std::collections::HashMap::new(),
     );
     assert!(!focus.moved(), "nothing booked in the window");
     let lines = traffic_section_lines(&focus);
@@ -197,6 +199,7 @@ fn traffic_section_renders_the_window_and_ranked_rows() {
         &[delta(1234, 300_000, 10_020_000)],
         Some(&conns),
         &join(),
+        &HashMap::new(),
     );
     let lines = traffic_section_lines(&focus);
     let text = lines.join("\n");
@@ -215,9 +218,17 @@ fn traffic_section_renders_the_window_and_ranked_rows() {
         text.contains("cat-test (1234) → 10.0.0.9:22 tcp ESTABLISHED"),
         "the byteless row renders, got: {text}"
     );
+    // The byteless row stays lean of BYTE figures (the movers-only
+    // law) — but the deep family rides every TCP row of the one-shot
+    // report (the depth surface IS deep): the honest dash pair when
+    // the window carried no readable TCP sample for the cookie.
     assert!(
-        !text.contains("10.0.0.9:22 tcp ESTABLISHED ["),
-        "the byteless row stays lean (no figures suffix), got: {text}"
+        !text.contains("10.0.0.9:22 tcp ESTABLISHED [dl"),
+        "the byteless row stays lean (no byte figures suffix), got: {text}"
+    );
+    assert!(
+        text.contains("10.0.0.9:22 tcp ESTABLISHED [rtt — | retrans —]"),
+        "the deep family renders the honest dashes on a windowless TCP row, got: {text}"
     );
     assert!(
         !text.contains("0.0.0.0:8080"),
@@ -270,6 +281,7 @@ fn traffic_section_caps_overflow_honestly() {
         &[delta(1234, 1, 1)],
         Some(&conns),
         &std::collections::HashMap::new(),
+        &std::collections::HashMap::new(),
     );
     let lines = traffic_section_lines(&focus);
     let text = lines.join("\n");
@@ -285,7 +297,14 @@ fn traffic_section_caps_overflow_honestly() {
 #[test]
 fn missing_delta_row_composes_zero_totals() {
     let conns = census();
-    let focus = traffic_focus(999, 3, &[delta(1234, 1, 1)], Some(&conns), &join());
+    let focus = traffic_focus(
+        999,
+        3,
+        &[delta(1234, 1, 1)],
+        Some(&conns),
+        &join(),
+        &HashMap::new(),
+    );
     assert_eq!(focus.dl_bytes, 0);
     assert_eq!(focus.ul_bytes, 0);
     assert!(!focus.moved());
@@ -326,7 +345,14 @@ fn connected_udp_reaches_the_traffic_rows() {
     bytes.insert(1001, SocketBytes { dl: 300, ul: 100 });
     bytes.insert(2001, SocketBytes { dl: 5000, ul: 700 });
 
-    let focus = traffic_focus(1234, 3, &[delta(1234, 100, 5000)], Some(&conns), &bytes);
+    let focus = traffic_focus(
+        1234,
+        3,
+        &[delta(1234, 100, 5000)],
+        Some(&conns),
+        &bytes,
+        &HashMap::new(),
+    );
     let text = traffic_section_lines(&focus).join("\n");
     assert!(
         text.contains("142.250.191.78:443 udp ESTABLISHED [dl 1.7 KB/s | ul 233 B/s]"),
@@ -382,7 +408,14 @@ fn raw_socket_reaches_the_traffic_rows() {
     bytes.insert(1001, SocketBytes { dl: 300, ul: 100 });
     bytes.insert(3001, SocketBytes { dl: 8000, ul: 200 });
 
-    let focus = traffic_focus(1234, 3, &[delta(1234, 100, 8000)], Some(&conns), &bytes);
+    let focus = traffic_focus(
+        1234,
+        3,
+        &[delta(1234, 100, 8000)],
+        Some(&conns),
+        &bytes,
+        &HashMap::new(),
+    );
     let text = traffic_section_lines(&focus).join("\n");
     assert!(
         text.contains("1.2.3.4:0 raw ESTABLISHED [dl 2.7 KB/s | ul 67 B/s]"),
@@ -440,7 +473,14 @@ fn unbound_raw_socket_reaches_the_traffic_rows() {
     let mut bytes = join();
     bytes.insert(3001, SocketBytes { dl: 500, ul: 1500 });
 
-    let focus = traffic_focus(1234, 3, &[delta(1234, 1500, 500)], Some(&conns), &bytes);
+    let focus = traffic_focus(
+        1234,
+        3,
+        &[delta(1234, 1500, 500)],
+        Some(&conns),
+        &bytes,
+        &HashMap::new(),
+    );
     let text = traffic_section_lines(&focus).join("\n");
     assert!(
         text.contains("0.0.0.0:0 raw CLOSE [dl 167 B/s | ul 500 B/s]"),
@@ -477,6 +517,7 @@ fn window_figures_divide_by_the_windows_own_seconds() {
         &[delta(1234, 33_300, 1_200_000)],
         Some(&conns),
         &bytes,
+        &HashMap::new(),
     );
     let text = traffic_section_lines(&focus).join("\n");
     assert!(
@@ -523,7 +564,14 @@ fn v6_sockets_reach_the_traffic_rows_with_their_family_tag() {
     let mut bytes = join();
     bytes.insert(4001, SocketBytes { dl: 9000, ul: 300 });
 
-    let focus = traffic_focus(1234, 3, &[delta(1234, 300, 9000)], Some(&conns), &bytes);
+    let focus = traffic_focus(
+        1234,
+        3,
+        &[delta(1234, 300, 9000)],
+        Some(&conns),
+        &bytes,
+        &HashMap::new(),
+    );
     let text = traffic_section_lines(&focus).join("\n");
     assert!(
         text.contains("[2001:db8::1]:443 tcp6 ESTABLISHED [dl 3.0 KB/s | ul 100 B/s]"),
