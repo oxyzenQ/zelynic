@@ -6448,6 +6448,82 @@ def _remeasure_realnet_baseline():
     return got / REALNET_BASE_WINDOW if got else 0
 
 
+def stage_quota_saver_report():
+    """The quota saver's own measurement script (night-netrunner-4),
+    run end to end: a real download (3 MB, the ladder's first
+    reachable rung) and a real upload, each under a live limit, the
+    status JSON read before and after, the Layer 4 telemetry deltas
+    (bytes_saved_total vs bytes_allowed) resolved into the two exact
+    verdict lines the task pins. The script owns its cgroups and its
+    cleanup; the suite's job is to run it, print the two lines
+    verbatim in the suite output, and pin their presence as a row."""
+    name = "quota saver: real download + upload savings report"
+    script = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "bench", "quota-saver-report.sh"
+    )
+    if not os.path.isfile(script):
+        return record(name, "SKIP", f"script missing: {script}")
+    if not CURL:
+        return record(name, "SKIP", "curl not found — the legs are real transfers")
+    out()
+    out("━━━ quota saver: the real-transfer savings report (night-netrunner-4) ━━━")
+    try:
+        p = subprocess.run(
+            [script, "--binary", lib.BINARY],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+    except subprocess.TimeoutExpired:
+        return record(name, "FAIL", "the script exceeded its 300 s budget")
+    except OSError as e:
+        return record(name, "FAIL", f"script spawn failed: {e}")
+    # The exact wire contract, re-printed so the suite output carries
+    # the two lines verbatim (the task's own requirement).
+    dl_line = None
+    ul_line = None
+    for line in p.stdout.splitlines():
+        if line.startswith("test download results the internet kuota save total is ") and (
+            line.rstrip().endswith("%")
+        ):
+            dl_line = line.strip()
+        elif line.startswith("test upload results the internet kuota save total is ") and (
+            line.rstrip().endswith("%")
+        ):
+            ul_line = line.strip()
+    if dl_line:
+        out(dl_line)
+    if ul_line:
+        out(ul_line)
+    if p.stderr.strip():
+        for line in p.stderr.strip().splitlines()[-3:]:
+            out(f"  (script) {line}")
+    if p.returncode != 0:
+        reason = (p.stderr or p.stdout).strip().splitlines()
+        detail = reason[-1][:160] if reason else f"exit {p.returncode}"
+        return record(name, "SKIP" if "cannot run" in (p.stderr or "") else "FAIL", detail)
+    ok = True
+    ok = (
+        record(
+            "quota saver: download savings line printed (exact contract)",
+            "PASS" if dl_line else "FAIL",
+            dl_line or "the line never printed",
+        )
+        == "PASS"
+        and ok
+    )
+    ok = (
+        record(
+            "quota saver: upload savings line printed (exact contract)",
+            "PASS" if ul_line else "FAIL",
+            ul_line or "the line never printed",
+        )
+        == "PASS"
+        and ok
+    )
+    return ok
+
+
 def stage_realnet_restore():
     """After the whole internet lane, u --all must give the machine
     its real-internet speed back — measured against the machine's own
@@ -7433,6 +7509,10 @@ def run_heavy(baseline_window):
     stage_realnet_strict_upload()
     stage_realnet_strict_all()
     stage_realnet_block()
+    # night-netrunner-4: the quota saver's own measurement script —
+    # the real download + upload legs and the two exact savings
+    # lines, run automatically as part of the internet lane.
+    stage_quota_saver_report()
     test_reload(60)
     test_sustain(1_000_000, 6, 5.0, baseline)
     test_overhead(4.0, baseline)
