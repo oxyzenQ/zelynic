@@ -45,6 +45,7 @@ fn socket(remote: &str, cookie: Option<u64>) -> SocketInfo {
         state: "ESTABLISHED",
         queued: false,
         cookie,
+        deep: None,
     }
 }
 
@@ -78,6 +79,7 @@ fn census() -> ConnectionMap {
                             state: "LISTEN",
                             queued: false,
                             cookie: None,
+                            deep: None,
                         },
                     ],
                 },
@@ -306,6 +308,7 @@ fn connected_udp_reaches_the_traffic_rows() {
         state: "ESTABLISHED",
         queued: false,
         cookie: Some(2001),
+        deep: None,
     };
     let tcp_sock = socket("93.184.216.34:443", Some(1001));
     conns.insert(
@@ -361,6 +364,7 @@ fn raw_socket_reaches_the_traffic_rows() {
         state: "ESTABLISHED",
         queued: false,
         cookie: Some(3001),
+        deep: None,
     };
     let tcp_sock = socket("93.184.216.34:443", Some(1001));
     conns.insert(
@@ -420,6 +424,7 @@ fn unbound_raw_socket_reaches_the_traffic_rows() {
         state: "CLOSE",
         queued: false,
         cookie: Some(3001),
+        deep: None,
     };
     conns.insert(
         1234,
@@ -502,6 +507,7 @@ fn v6_sockets_reach_the_traffic_rows_with_their_family_tag() {
         state: "ESTABLISHED",
         queued: false,
         cookie: Some(4001),
+        deep: None,
     };
     conns.insert(
         1234,

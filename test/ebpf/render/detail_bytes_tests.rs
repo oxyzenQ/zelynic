@@ -44,6 +44,7 @@ fn endpoint_bytes_ride_the_tree_lines() {
         state: "ESTABLISHED",
         queued: false,
         cookie,
+        deep: None,
     };
     let mut conns = ConnectionMap::new();
     conns.insert(
@@ -131,6 +132,7 @@ fn focus_ranks_endpoints_by_bytes() {
         state: "ESTABLISHED",
         queued: false,
         cookie,
+        deep: None,
     };
     let mut conns = ConnectionMap::new();
     conns.insert(
@@ -202,6 +204,7 @@ fn the_ranked_tree_cap_shows_the_hungriest_endpoints() {
         state: "ESTABLISHED",
         queued: false,
         cookie,
+        deep: None,
     };
     let mut conns = ConnectionMap::new();
     conns.insert(
@@ -283,6 +286,7 @@ fn socket_cookies_are_the_deduped_join_keys() {
         state: "ESTABLISHED",
         queued: false,
         cookie,
+        deep: None,
     };
     let mut conns = ConnectionMap::new();
     conns.insert(
@@ -325,6 +329,7 @@ fn socket_cookies_preserve_first_seen_order() {
         state: "ESTABLISHED",
         queued: false,
         cookie,
+        deep: None,
     };
     let mut conns = ConnectionMap::new();
     conns.insert(
@@ -381,6 +386,7 @@ fn socket_cookies_dense_fixture_stays_exact() {
                 state: "ESTABLISHED",
                 queued: false,
                 cookie: Some(((cg as u64 * SOCKETS_PER_HOLDER as u64 + i as u64) % 1024) + 1),
+                deep: None,
             })
             .collect();
         conns.insert(
@@ -476,6 +482,7 @@ fn the_quiet_leg_renders_an_honest_zero_never_blocked() {
         state: "ESTABLISHED",
         queued: false,
         cookie,
+        deep: None,
     };
     let mut conns = ConnectionMap::new();
     conns.insert(

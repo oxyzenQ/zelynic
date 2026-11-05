@@ -304,6 +304,7 @@ fn json_carries_the_traffic_focus_window() {
                         state: "ESTABLISHED",
                         queued: false,
                         cookie: Some(1001),
+                        deep: None,
                     },
                     SocketInfo {
                         inode: 42,
@@ -312,6 +313,7 @@ fn json_carries_the_traffic_focus_window() {
                         state: "ESTABLISHED",
                         queued: false,
                         cookie: Some(1002),
+                        deep: None,
                     },
                     // night-improve-62: the v6 family reaches the JSON
                     // document — the endpoints array spells `tcp6`, the
@@ -324,6 +326,7 @@ fn json_carries_the_traffic_focus_window() {
                         state: "ESTABLISHED",
                         queued: false,
                         cookie: Some(4001),
+                        deep: None,
                     },
                 ],
             }],

@@ -268,6 +268,7 @@ fn socket_section_lists_endpoints_and_caps_overflow() {
             state: "ESTABLISHED",
             queued: false,
             cookie: None,
+            deep: None,
         })
         .collect();
     let mut report = report_fixture(Enforcement::Unlimited);

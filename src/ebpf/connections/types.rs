@@ -101,4 +101,57 @@ pub struct SocketInfo {
     /// (pidfd_getfd refused, kernel without the syscall, or the
     /// socket table row was matched without an fd-side lookup).
     pub cookie: Option<u64>,
+    /// The TCP deep sample (night-netrunner-4, the Netrunner-3
+    /// design): the kernel's own RFC 6298 pair and the monotone
+    /// retransmit counters, read via one `getsockopt(TCP_INFO)` on
+    /// the SAME duplicated fd the cookie read rides — measured live
+    /// at ~194 ns, 1.27x the SO_COOKIE read the walk already pays.
+    /// None for every non-TCP socket (the failing call is never
+    /// made — the walk knows the proto before it samples) and for
+    /// every TCP socket whose dup was refused (the walk's own
+    /// graceful degradation; absence renders an em dash, never a
+    /// fabricated zero).
+    pub deep: Option<TcpDeepSample>,
+}
+
+/// One TCP socket's kernel-measured deep sample (night-netrunner-4):
+/// the exact fields the Netrunner-3 audit's feasibility table cites
+/// from v5.15's `include/uapi/linux/tcp.h` — read through the same
+/// duplicated fd the cookie read rides, zero new plumbing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TcpDeepSample {
+    /// `tcpi_rtt` — the kernel's own smoothed RTT (SRTT),
+    /// microseconds (RFC 6298 smoothing across every segment, not a
+    /// noisy per-packet sample).
+    pub rtt_us: u32,
+    /// `tcpi_rttvar` — the kernel's RTT mean deviation, the RFC 6298
+    /// jitter figure in the kernel's own words, microseconds.
+    pub rttvar_us: u32,
+    /// `tcpi_total_retrans` — lifetime retransmitted-segment count,
+    /// monotone: the window figure is the walk-to-walk difference.
+    pub total_retrans: u32,
+    /// `tcpi_segs_out` — segments sent, the retransmit share's
+    /// denominator (the count AND the ratio, so no consumer has to
+    /// trust a bare percentage).
+    pub segs_out: u32,
+}
+
+/// One TCP socket's walk-to-walk deep window (night-netrunner-4):
+/// the RTT pair read THIS generation plus the retransmit/segs deltas
+/// across the two walks (saturating — the house discipline). A
+/// window entry exists only for cookies present in BOTH generations
+/// with a sample on each side; a fresh connection contributes
+/// NOTHING (no truth about the gap it was born in) — absence is the
+/// renderer's em dash, never a fabricated zero.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TcpDeepWindow {
+    /// This generation's smoothed RTT, microseconds.
+    pub rtt_us: u32,
+    /// This generation's RTT mean deviation (jitter), microseconds.
+    pub rttvar_us: u32,
+    /// Retransmitted segments across the window
+    /// (`saturating_sub(now, prev)`).
+    pub retrans_window: u32,
+    /// Segments sent across the window (the same differencing).
+    pub segs_out_window: u32,
 }

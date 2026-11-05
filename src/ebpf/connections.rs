@@ -42,9 +42,13 @@
 
 mod parse;
 
+mod pidfd;
+
+use pidfd::PidFd;
+
 mod types;
 
-pub use types::{Proto, SocketInfo};
+pub use types::{Proto, SocketInfo, TcpDeepSample, TcpDeepWindow};
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -57,6 +61,12 @@ use crate::ebpf::loader::SocketBytes;
 /// churn is slower than the 1s byte counters, and the /proc+fd walk
 /// is the expensive part.
 const DEFAULT_REFRESH_TTL_SECS: u64 = 3;
+
+/// The TCP_INFO sockopt number (net/tcp.h, `TCP_INFO = 11`): stable
+/// since the 2.4 series, far below the 5.15.0 product floor. libc
+/// carries the `tcp_info` struct but not the constant — the local
+/// definition is the uapi value, one comment away from its source.
+const TCP_INFO: i32 = 11;
 
 /// One process inside a cgroup that holds network sockets.
 #[derive(Debug, Clone)]
@@ -95,6 +105,20 @@ pub struct ConnectionMap {
     /// empty again on an all-quiet frame (movers only — a
     /// connected-but-quiet socket keeps its lean row).
     socket_bytes: HashMap<u64, SocketBytes>,
+    /// The TCP deep windows (night-netrunner-4): per-cookie
+    /// walk-to-walk RTT/jitter/retrans truth, differenced inside
+    /// [`ConnectionMap::refresh`] (the generation boundary — the
+    /// same swap the byte join's `join_prev` rides on the monitor
+    /// loop). Bounded by the walk's own TCP cookie set, one entry
+    /// per cookie present in BOTH generations with a sample on each
+    /// side; a fresh connection contributes nothing until its
+    /// second walk.
+    deep_window: HashMap<u64, TcpDeepWindow>,
+    /// The previous generation's absolute samples — the differencing
+    /// baseline the window fold subtracts (the byte join's
+    /// `join_prev` shape, owned here because the WALK is the
+    /// generation boundary, not the monitor loop's frame).
+    deep_prev: HashMap<u64, TcpDeepSample>,
 }
 
 impl Default for ConnectionMap {
@@ -112,6 +136,8 @@ impl ConnectionMap {
             last_refresh: None,
             refresh_ttl: Duration::from_secs(DEFAULT_REFRESH_TTL_SECS),
             socket_bytes: HashMap::new(),
+            deep_window: HashMap::new(),
+            deep_prev: HashMap::new(),
         }
     }
 
@@ -135,6 +161,19 @@ impl ConnectionMap {
     #[must_use]
     pub fn socket_bytes(&self) -> &HashMap<u64, SocketBytes> {
         &self.socket_bytes
+    }
+
+    /// The TCP deep windows (night-netrunner-4), keyed by socket
+    /// cookie — the renderers' lookup table for the retrans column
+    /// and the --deep RTT/jitter figures. A window entry exists
+    /// only for a TCP cookie present in BOTH walks with a readable
+    /// sample on each side; absent cookie = no figures, never a
+    /// fabricated zero (the join's own absence law). The figures
+    /// refresh on the walk (the 3s TTL) — snapshot truth at walk
+    /// instants, the cadence the data is honest at.
+    #[must_use]
+    pub fn deep_window(&self) -> &HashMap<u64, TcpDeepWindow> {
+        &self.deep_window
     }
 
     /// Force a full refresh: read the socket tables, walk /proc, and
@@ -192,7 +231,16 @@ impl ConnectionMap {
                     };
                     if let Some(mut info) = sockets.get(&inode).cloned() {
                         if let Some(fd_num) = parse::parse_fd_number(&fd.file_name()) {
-                            info.cookie = pidfd.cookie_for(pid, fd_num);
+                            // night-netrunner-4: ONE dup serves both
+                            // reads — the cookie (the byte maps' join
+                            // key) and, for TCP sockets, the TCP_INFO
+                            // deep sample (the failing call is never
+                            // made: the walk knows the proto before it
+                            // samples). ~194 ns on the same fd the
+                            // SO_COOKIE read already pays for.
+                            let (cookie, deep) = pidfd.sample_for(pid, fd_num, info.proto);
+                            info.cookie = cookie;
+                            info.deep = deep;
                         }
                         held.push(info);
                     }
@@ -232,6 +280,44 @@ impl ConnectionMap {
                 )
             });
         }
+
+        // The deep generation fold (night-netrunner-4): the window is
+        // the walk-to-walk difference over the walk's own TCP cookie
+        // set — the exact shape the byte join's `join_prev` rides on
+        // the monitor loop, owned here because refresh() IS the
+        // generation boundary. A cookie present in BOTH walks with a
+        // sample on each side grows a window entry (saturating diffs,
+        // the house discipline); a fresh connection (now without
+        // prev) contributes NOTHING — no truth about the gap it was
+        // born in — and a socket that died between walks simply
+        // leaves both maps (its lifetime count departs with it, the
+        // documented best-effort trade the LRU maps already carry).
+        let mut deep_window = HashMap::new();
+        let mut deep_now: HashMap<u64, TcpDeepSample> = HashMap::new();
+        for detail in self.cache.values() {
+            for holder in &detail.socket_holders {
+                for socket in &holder.sockets {
+                    if let (Some(cookie), Some(sample)) = (socket.cookie, socket.deep)
+                        && deep_now.insert(cookie, sample).is_none()
+                        && let Some(prev) = self.deep_prev.get(&cookie)
+                    {
+                        deep_window.insert(
+                            cookie,
+                            TcpDeepWindow {
+                                rtt_us: sample.rtt_us,
+                                rttvar_us: sample.rttvar_us,
+                                retrans_window: sample
+                                    .total_retrans
+                                    .saturating_sub(prev.total_retrans),
+                                segs_out_window: sample.segs_out.saturating_sub(prev.segs_out),
+                            },
+                        );
+                    }
+                }
+            }
+        }
+        self.deep_window = deep_window;
+        self.deep_prev = deep_now;
 
         self.last_refresh = Some(Instant::now());
         self.cache
@@ -279,7 +365,7 @@ impl ConnectionMap {
     /// byte point-lookups — one entry per socket the /proc side
     /// knows, deduped (a shared socket table row can match several
     /// fds). Empty when no cookie resolved (graceful degradation,
-    /// see [`PidFd`]).
+    /// see the pidfd sibling).
     #[must_use]
     pub fn socket_cookies(&self) -> Vec<u64> {
         // NIGHT-total-lts-6: the dedup rode a Vec::contains linear
@@ -321,6 +407,14 @@ impl ConnectionMap {
         self.last_refresh = Some(Instant::now());
     }
 
+    /// Test seam: install synthetic deep windows (night-netrunner-4)
+    /// — the render pins build the walk-to-walk figure fixtures
+    /// without walking /proc twice.
+    #[cfg(test)]
+    pub fn install_deep_windows(&mut self, windows: HashMap<u64, TcpDeepWindow>) {
+        self.deep_window = windows;
+    }
+
     /// Test seam: mutable access for per-frame fixture mutation (the
     /// frame benchmark toggles socket busy flags deterministically).
     #[cfg(test)]
@@ -335,98 +429,6 @@ impl ConnectionMap {
 // canonical /proc boundary (NIGHT-optimized-1): this walk, the
 // identity walk, and the resolve_target match walk all route
 // through them, so boundary fixes land once, not three times.
-
-/// Per-PID pidfd state for cookie discovery (NIGHT-boost-26): a
-/// tri-state so one failed `pidfd_open` (locked-down host, kernel
-/// without the syscall) never re-triggers per fd — the PID is
-/// cookie-less for the whole scan, the honest graceful degradation.
-///
-/// Deliberately `Copy` with NO Drop impl, the fd released by the
-/// explicit `close()` after each PID's fd scan. The first cut had a
-/// Drop impl calling a close() that ASSIGNED `*self = Untried` —
-/// the assignment dropped the still-Open old value, whose Drop
-/// called close() again: re-entrant drop recursion that overflowed
-/// a 2MB test stack in 22ms on the CI runners (invisible locally —
-/// no process in the dev container holds a matched socket, so the
-/// pidfd never left Untried; the regression pin
-/// `pidfd_close_on_open_fd_terminates` reproduces the overflow on
-/// the broken shape and holds the fixed contract). A Copy enum with
-/// no destructor makes every assignment in close() a plain store —
-/// recursion is structurally impossible; the one leaked-fd window
-/// (a panic mid-scan unwinding past the explicit close) is the
-/// walk's best-effort class, an fd reclaimed at process exit.
-#[derive(Clone, Copy)]
-enum PidFd {
-    Untried,
-    Open(i32),
-    Failed,
-}
-
-impl PidFd {
-    /// Resolve one fd's socket cookie, opening the pidfd on first
-    /// use. Returns None on any failure — cookie-less rows simply
-    /// render without byte figures.
-    fn cookie_for(&mut self, pid: u32, fd_num: i32) -> Option<u64> {
-        // Open (or remember the failure) exactly once per PID.
-        if matches!(self, PidFd::Untried) {
-            // SAFETY: SYS_pidfd_open takes the numeric pid and flags
-            // — no pointers; the returned fd is this process's own
-            // handle or the error the match below consumes.
-            *self = match unsafe { libc::syscall(libc::SYS_pidfd_open, pid as libc::pid_t, 0u32) } {
-                fd if fd >= 0 => PidFd::Open(fd as i32),
-                _ => PidFd::Failed,
-            };
-        }
-        let PidFd::Open(pidfd) = *self else {
-            return None;
-        };
-        // Duplicate the foreign fd into this process, read its
-        // cookie, close the local copy — three syscalls, the price of
-        // the join (there is no other userspace path from an inode or
-        // a /proc row to a socket cookie).
-        // SAFETY: pidfd is this process's own pidfd handle; the
-        // syscall duplicates the foreign descriptor (fd_num) into
-        // this process or fails — no pointer arguments, the result
-        // is a fresh fd this method owns and closes below.
-        let local = unsafe { libc::syscall(libc::SYS_pidfd_getfd, pidfd, fd_num, 0u32) };
-        if local < 0 {
-            return None;
-        }
-        let mut cookie: u64 = 0;
-        let mut len = std::mem::size_of::<u64>() as libc::socklen_t;
-        // SAFETY: getsockopt with a writable u64 slot and the exact
-        // socklen for it; local is the fresh duplicate fd owned by
-        // this method, SO_COOKIE writes at most that size.
-        let rc = unsafe {
-            libc::getsockopt(
-                local as i32,
-                libc::SOL_SOCKET,
-                libc::SO_COOKIE,
-                std::ptr::addr_of_mut!(cookie).cast(),
-                &mut len,
-            )
-        };
-        // SAFETY: local is the fd this method just duplicated and
-        // consumed via getsockopt; closing it releases exactly that
-        // handle.
-        unsafe { libc::close(local as i32) };
-        if rc == 0 && len as usize == std::mem::size_of::<u64>() {
-            Some(cookie)
-        } else {
-            None
-        }
-    }
-
-    /// Release the pidfd, if one was opened.
-    fn close(&mut self) {
-        if let PidFd::Open(fd) = *self {
-            // SAFETY: fd is the pidfd this struct opened and owns;
-            // the close runs exactly once (Untried resets after).
-            unsafe { libc::close(fd) };
-        }
-        *self = PidFd::Untried;
-    }
-}
 
 /// Read all six kernel socket tables into one inode-keyed map.
 ///
@@ -474,30 +476,6 @@ fn read_socket_tables() -> HashMap<u64, SocketInfo> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    /// Regression pin for the CI stack overflow (the 02284dd
-    /// incident): closing a pidfd that holds an OPEN fd must
-    /// terminate. The first cut's close() assigned `*self =
-    /// PidFd::Untried` while Drop called close() — the assignment
-    /// dropped the still-Open old value, whose Drop called close()
-    /// again: re-entrant drop recursion, a 2MB stack gone in 22ms on
-    /// the CI runners (locally invisible — no process here holds a
-    /// matched socket, so the pidfd never left Untried). The Copy
-    /// redesign makes the assignment drop nothing; this pin holds
-    /// that contract by EXERCISING the close path on an Open fd.
-    #[test]
-    fn pidfd_close_on_open_fd_terminates() {
-        // SAFETY: open(2) of a fixed /dev/null path, read-only — the
-        // returned descriptor is this test process's own handle, the
-        // exact shape the close path under test owns.
-        let devnull = unsafe { libc::open(c"/dev/null".as_ptr().cast(), libc::O_RDONLY) };
-        assert!(devnull >= 0, "the pin needs a real fd");
-        let mut pidfd = PidFd::Open(devnull);
-        pidfd.close();
-        assert!(matches!(pidfd, PidFd::Untried));
-        // Idempotent: a second close is a no-op.
-        pidfd.close();
-    }
-
     /// The map degrades gracefully when /proc is unreadable (returns
     /// empty, sets the refresh stamp — never panics).
     #[test]

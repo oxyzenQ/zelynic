@@ -152,6 +152,40 @@ fn endpoint_text(socket: &SocketInfo, conns: Option<&ConnectionMap>, window: Dur
     out
 }
 
+/// The cgroup row's retrans figure (night-netrunner-4, the default
+/// table's one new column): the walk-to-walk sum of the row's TCP
+/// windows — `SUM over the row's TCP cookies present in BOTH
+/// generations of saturating_sub(total_retrans_now, prev)`, the
+/// audit's exact formula. The Option IS the honesty contract:
+/// - None: the row holds no TCP window truth (no tracked TCP
+///   sockets, every dup refused, or the first generation has no
+///   predecessor) — the renderer shows the em dash, never a fake
+///   zero, because `0` would read as "no loss happening", a claim
+///   nobody made;
+/// - Some(n): at least one of the row's TCP cookies was measured in
+///   both walks — n renders, a measured zero included.
+#[must_use]
+pub(crate) fn retrans_row_figure(conns: Option<&ConnectionMap>, cgroup_id: u32) -> Option<u64> {
+    let conns = conns?;
+    let detail = conns.get(cgroup_id)?;
+    let mut any_window = false;
+    let mut sum: u64 = 0;
+    for holder in &detail.socket_holders {
+        for socket in &holder.sockets {
+            if !matches!(socket.proto, Proto::Tcp | Proto::Tcp6) {
+                continue;
+            }
+            if let Some(cookie) = socket.cookie
+                && let Some(win) = conns.deep_window().get(&cookie)
+            {
+                any_window = true;
+                sum += u64::from(win.retrans_window);
+            }
+        }
+    }
+    any_window.then_some(sum)
+}
+
 /// The steady rate field (night-improve-59's Bloomberg cut, re-cut
 /// by night-improve-61 at the owner's direction): the one canonical
 /// renderer for the `[dl X | ul Y]` suffix figures BOTH eagle-eyes
@@ -464,3 +498,11 @@ mod detail_bytes_tests;
 #[cfg(test)]
 #[path = "../../../test/ebpf/render/detail_census_tests.rs"]
 mod detail_census_tests;
+
+// night-netrunner-4: the deep-figure honesty pins — the row retrans
+// figure's Option law (measured or absent, never faked), the column
+// cell's figure-or-dash rendering, and the walk-to-walk differencing
+// arithmetic.
+#[cfg(test)]
+#[path = "../../../test/ebpf/render/detail_deep_tests.rs"]
+mod detail_deep_tests;
