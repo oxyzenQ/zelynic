@@ -80,6 +80,12 @@ pub struct TrafficEndpoint {
     pub dl: Option<u64>,
     /// Window upload bytes (None = the same honest absence).
     pub ul: Option<u64>,
+    /// The TCP deep family (night-netrunner-4): the window's rtt /
+    /// rttvar pair and the retransmit/segs deltas — Some only for a
+    /// TCP socket whose cookie carried a readable window on BOTH
+    /// walks; every UDP/raw row and every refused read rides None
+    /// and the row renders the tag or the dash instead.
+    pub deep: Option<crate::ebpf::connections::TcpDeepWindow>,
 }
 
 impl TrafficEndpoint {
@@ -117,15 +123,36 @@ impl TrafficEndpoint {
     }
 
     /// The endpoint row as the report prints it (pure).
+    /// night-netrunner-4: the deep family rides the row — TCP gains
+    /// the bracketed `[rtt X ±Y | retrans N/M (P%)]` suffix (or the
+    /// em-dash pair when the window was not readable), UDP the
+    /// `[encrypted/quic]` tag, raw the `[no l4 truth]` one. The
+    /// one-shot report IS the deep surface (the task's Ultimate
+    /// Weapon): RTT, jitter, loss share, and the protocol honesty on
+    /// every row, readable in one terminal view.
     fn row(&self, window_secs: u64) -> String {
+        let deep_suffix = match self.deep {
+            Some(win) => format!(
+                " [rtt {} {} | retrans {}]",
+                super::deep::format_rtt_us(win.rtt_us),
+                super::deep::format_jitter_us(win.rttvar_us),
+                super::deep::retrans_share(win.retrans_window, win.segs_out_window)
+            ),
+            None => match self.proto {
+                "tcp" | "tcp6" => " [rtt — | retrans —]".to_string(),
+                "udp" | "udp6" => " [encrypted/quic]".to_string(),
+                _ => " [no l4 truth]".to_string(),
+            },
+        };
         format!(
-            "   {} ({}) → {} {} {}{}",
+            "   {} ({}) → {} {} {}{}{}",
             self.comm,
             self.pid,
             self.remote,
             self.proto,
             self.state,
-            self.bytes_suffix(window_secs)
+            self.bytes_suffix(window_secs),
+            deep_suffix
         )
     }
 }
@@ -148,6 +175,11 @@ pub struct TrafficFocus {
     /// read — mirrors [`ConnectionMap::socket_bytes`]'s role on the
     /// live side: one join, every consumer.
     pub bytes: HashMap<u64, SocketBytes>,
+    /// The TCP deep windows across the measured span
+    /// (night-netrunner-4): the walk-to-walk fold, keyed by cookie —
+    /// the lookup table the endpoint rows' deep family and the JSON
+    /// document's four nullable fields read.
+    pub deep_windows: HashMap<u64, crate::ebpf::connections::TcpDeepWindow>,
     /// The window's endpoint rows: movers first (bytes descending,
     /// the focus view's own ranking contract), byteless endpoints
     /// behind them in the walk's established-first order.
@@ -201,6 +233,7 @@ pub fn traffic_focus(
     deltas: &[CgroupDelta],
     conns: Option<&ConnectionMap>,
     socket_bytes: &std::collections::HashMap<u64, SocketBytes>,
+    deep_windows: &std::collections::HashMap<u64, crate::ebpf::connections::TcpDeepWindow>,
 ) -> TrafficFocus {
     let delta = deltas.iter().find(|d| d.cgroup_id == cgroup_id);
     let (dl_bytes, ul_bytes) = match delta {
@@ -237,6 +270,9 @@ pub fn traffic_focus(
                     inode: socket.inode,
                     dl: joined.map(|b| b.dl),
                     ul: joined.map(|b| b.ul),
+                    deep: socket
+                        .cookie
+                        .and_then(|cookie| deep_windows.get(&cookie).copied()),
                 });
             }
         }
@@ -250,6 +286,7 @@ pub fn traffic_focus(
         dl_bytes,
         ul_bytes,
         bytes,
+        deep_windows: deep_windows.clone(),
         endpoints,
     }
 }

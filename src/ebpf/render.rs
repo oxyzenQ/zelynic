@@ -135,7 +135,8 @@ pub(crate) use baseline::BaselineLane;
 // the depth_json sibling and keeps its stable scripting shape.
 pub use depth_json::depth_doc_json;
 pub use report::{
-    DepthReport, Enforcement, depth_report_lines, package_name, window_dropped_bytes,
+    DepthReport, Enforcement, depth_report_lines, lanes_sentence, package_name,
+    window_dropped_bytes,
 };
 
 // NIGHT-upgrade-charger-core-1-a: the bypass audit's report section

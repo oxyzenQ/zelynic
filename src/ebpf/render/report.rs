@@ -96,6 +96,10 @@ pub struct DepthReport {
     /// the window was measured (and for the fixture-driven basic
     /// census — no measurement, no note).
     pub traffic_note: Option<String>,
+    /// The enforcement LANES verdict (night-netrunner-4): the
+    /// handler's composition of [`lanes_sentence`] — the quota
+    /// saver's active lanes for this cgroup, or None when unlimited.
+    pub lanes: Option<String>,
 }
 
 /// The package-name ladder (pure, NIGHT-master-1): a resolved comm
@@ -185,6 +189,42 @@ pub fn enforcement_sentence(enforcement: &Enforcement, shaping: bool) -> String 
             }
         }
     }
+}
+
+/// The enforcement LANES verdict (night-netrunner-4, the Ultimate
+/// Weapon's "RECWN/ECN/Pacing active?" row, pure): the quota saver's
+/// three lanes as this cgroup's policy arms them — RECWN shapes every
+/// download policy, the ECN-first lane marks the policed path when
+/// the host carries the helper (the CE ledger proves delivery), the
+/// pacing lane commands the upload policy's rate onto its sockets.
+/// None for an unlimited target (no lanes to name — absence, not an
+/// empty promise).
+#[must_use]
+pub fn lanes_sentence(
+    enforcement: &Enforcement,
+    ecn_set_ce: bool,
+    ce_marked_bytes: u64,
+) -> Option<String> {
+    let Enforcement::Limited { download, upload } = enforcement else {
+        return None;
+    };
+    let mut parts: Vec<String> = Vec::new();
+    if download.is_some() {
+        parts.push("recwn (dl)".to_string());
+    }
+    if ecn_set_ce {
+        if ce_marked_bytes > 0 {
+            parts.push(format!("ecn marked {}", format_bytes(ce_marked_bytes)));
+        } else {
+            parts.push("ecn ready".to_string());
+        }
+    }
+    if let Some(up) = upload
+        && up.rate_bps > 0
+    {
+        parts.push(format!("pacing {}", format_rate(up.rate_bps)));
+    }
+    (!parts.is_empty()).then(|| parts.join(" \u{b7} "))
 }
 
 /// The focus window's dropped-byte verdict (pure,
@@ -364,6 +404,12 @@ pub fn depth_report_lines(reports: &[DepthReport], width: usize) -> Vec<String> 
         if let Some(stats) = &report.enforcement_stats {
             lines.push(kv("accounting", &accounting_sentence(stats)));
         }
+        // night-netrunner-4: the LANES row — the quota saver's three
+        // lanes as this cgroup's policy arms them (the Ultimate
+        // Weapon's enforcement-status answer, one glance).
+        if let Some(lanes) = &report.lanes {
+            lines.push(kv("lanes", lanes));
+        }
         // NIGHT-blade-5 + private-research-3: the controller's own
         // resource view — the two counters no /proc walk can
         // reconstruct (memory.current includes page-cache and kernel
@@ -534,3 +580,10 @@ pub fn depth_report_lines(reports: &[DepthReport], width: usize) -> Vec<String> 
 #[cfg(test)]
 #[path = "../../../test/ebpf/render/report_tests.rs"]
 mod tests;
+
+// night-netrunner-4: the LANES verdict pins took their own file when
+// the report pins grew past the cap — the detail_tests split
+// lineage, one file per contract, a pure move.
+#[cfg(test)]
+#[path = "../../../test/ebpf/render/report_lanes_tests.rs"]
+mod lanes_tests;

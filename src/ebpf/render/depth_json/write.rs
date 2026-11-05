@@ -180,6 +180,18 @@ impl EndpointJson {
         // the (pid, proto, remote, state) tuple collides.
         out.push_str(",\"socket_inode\":");
         write_number(out, self.socket_inode);
+        // night-netrunner-4: the deep family rides TRAILING too (the
+        // same additive rule) — four nullable fields, every UDP/raw
+        // row and every refused read null (the absence law; the
+        // denominator rides so a frontend computes its own share).
+        out.push_str(",\"rtt_us\":");
+        write_opt_number(out, self.rtt_us);
+        out.push_str(",\"rttvar_us\":");
+        write_opt_number(out, self.rttvar_us);
+        out.push_str(",\"retrans_window\":");
+        write_opt_number(out, self.retrans_window);
+        out.push_str(",\"segs_out_window\":");
+        write_opt_number(out, self.segs_out_window);
         out.push('}');
     }
 }

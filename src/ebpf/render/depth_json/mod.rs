@@ -63,6 +63,14 @@ pub struct ProcJson {
 /// (NIGHT-private-research-3) carry the endpoint's focus-window
 /// bytes when a window ran and the cookie join resolved this
 /// socket; null otherwise — absence, never zero-as-fact.
+/// night-netrunner-4: the four trailing deep fields carry the
+/// window's TCP family under the same absence law — `rtt_us` /
+/// `rttvar_us` are the kernel's RFC 6298 pair read at the closing
+/// walk, `retrans_window` / `segs_out_window` the walk-to-walk
+/// deltas (the denominator rides so a frontend computes its own
+/// share; the text surfaces never show a percentage without it).
+/// Every UDP/raw row and every refused read renders all four as
+/// null — the document's own absence law.
 #[derive(Debug, Clone)]
 pub struct EndpointJson {
     pub pid: u32,
@@ -80,6 +88,18 @@ pub struct EndpointJson {
     /// (pid, proto, remote, state) rows — one inode = one socket
     /// held by several fds, distinct inodes = distinct sockets.
     pub socket_inode: u64,
+    /// The kernel's smoothed RTT (SRTT), microseconds
+    /// (night-netrunner-4; null = not a TCP socket, or no readable
+    /// window on both walks).
+    pub rtt_us: Option<u32>,
+    /// The kernel's RTT mean deviation — the RFC 6298 jitter figure
+    /// in the kernel's own words, microseconds (same null law).
+    pub rttvar_us: Option<u32>,
+    /// Retransmitted segments across the window (same null law).
+    pub retrans_window: Option<u32>,
+    /// Segments sent across the window — the share's denominator
+    /// (same null law; a frontend computes its own percentage).
+    pub segs_out_window: Option<u32>,
 }
 
 /// The focus-window measurement for one cgroup
@@ -304,6 +324,10 @@ fn traffic_json(focus: &Option<TrafficFocus>) -> Option<TrafficJson> {
                 download_bytes: e.dl,
                 upload_bytes: e.ul,
                 socket_inode: e.inode,
+                rtt_us: e.deep.map(|w| w.rtt_us),
+                rttvar_us: e.deep.map(|w| w.rttvar_us),
+                retrans_window: e.deep.map(|w| w.retrans_window),
+                segs_out_window: e.deep.map(|w| w.segs_out_window),
             })
             .collect(),
     })
@@ -396,6 +420,12 @@ pub fn depth_doc_json(
                             let joined = report.traffic.as_ref().and_then(|f| {
                                 s.cookie.and_then(|cookie| f.bytes.get(&cookie).copied())
                             });
+                            // The deep family's join (night-netrunner-4):
+                            // the same cookie, the window's TCP fold.
+                            let deep_join = report.traffic.as_ref().and_then(|f| {
+                                s.cookie
+                                    .and_then(|cookie| f.deep_windows.get(&cookie).copied())
+                            });
                             EndpointJson {
                                 pid: h.pid,
                                 comm: h.comm.clone(),
@@ -405,6 +435,15 @@ pub fn depth_doc_json(
                                 download_bytes: joined.map(|b| b.dl),
                                 upload_bytes: joined.map(|b| b.ul),
                                 socket_inode: s.inode,
+                                // The deep family (night-netrunner-4):
+                                // the same window join the focus rows
+                                // read, null when the window did not
+                                // run or the cookie has no readable
+                                // window (the absence law).
+                                rtt_us: deep_join.map(|w| w.rtt_us),
+                                rttvar_us: deep_join.map(|w| w.rttvar_us),
+                                retrans_window: deep_join.map(|w| w.retrans_window),
+                                segs_out_window: deep_join.map(|w| w.segs_out_window),
                             }
                         })
                     })

@@ -77,6 +77,7 @@ fn report_fixture(enforcement: Enforcement) -> DepthReport {
         window_dropped: 0,
         traffic: None,
         traffic_note: None,
+        lanes: None,
     }
 }
 
@@ -341,6 +342,21 @@ fn json_carries_the_traffic_focus_window() {
         },
     );
     // cookie 1002 stays unjoined: the honest-absence branch.
+    // night-netrunner-4: the deep window rides the SAME join — the
+    // mover's cookie carries the kernel's RFC 6298 pair plus the
+    // window's retransmit share, so the document's four trailing
+    // fields render measured figures for exactly the row the bytes
+    // joined (the nulls on the other rows stay honest).
+    let mut deep_windows = HashMap::new();
+    deep_windows.insert(
+        1001,
+        crate::ebpf::connections::TcpDeepWindow {
+            rtt_us: 19_000,
+            rttvar_us: 9_000,
+            retrans_window: 1,
+            segs_out_window: 712,
+        },
+    );
     let deltas = vec![CgroupDelta {
         cgroup_id: 1234,
         packets: 3,
@@ -350,7 +366,8 @@ fn json_carries_the_traffic_focus_window() {
         ingress_bytes: 10_000_000,
         ingress_total_bytes: 0,
     }];
-    let focus: TrafficFocus = traffic_focus(1234, 3, &deltas, Some(&conns), &socket_bytes);
+    let focus: TrafficFocus =
+        traffic_focus(1234, 3, &deltas, Some(&conns), &socket_bytes, &deep_windows);
 
     let mut report = report_fixture(Enforcement::Unlimited);
     report.conns = conns.get(1234).cloned();
@@ -363,7 +380,7 @@ fn json_carries_the_traffic_focus_window() {
         // join leads), the byteless rows behind it, nulls honest.
         // night-verdict-closure-T6 (H3): every row's dedupe key
         // (socket_inode) rides trailing — the fixtures' 42.
-        "\"traffic\":{\"window_secs\":3,\"download_bytes\":10000000,\"upload_bytes\":300000,\"endpoints\":[{\"pid\":4242,\"comm\":\"curl\",\"proto\":\"tcp\",\"remote\":\"142.250.191.78:443\",\"state\":\"ESTABLISHED\",\"download_bytes\":10000000,\"upload_bytes\":300000,\"socket_inode\":42},{\"pid\":4242,\"comm\":\"curl\",\"proto\":\"tcp\",\"remote\":\"93.184.216.34:443\",\"state\":\"ESTABLISHED\",\"download_bytes\":null,\"upload_bytes\":null,\"socket_inode\":42},{\"pid\":4242,\"comm\":\"curl\",\"proto\":\"tcp6\",\"remote\":\"[2001:db8::1]:443\",\"state\":\"ESTABLISHED\",\"download_bytes\":null,\"upload_bytes\":null,\"socket_inode\":42}]}",
+        "\"traffic\":{\"window_secs\":3,\"download_bytes\":10000000,\"upload_bytes\":300000,\"endpoints\":[{\"pid\":4242,\"comm\":\"curl\",\"proto\":\"tcp\",\"remote\":\"142.250.191.78:443\",\"state\":\"ESTABLISHED\",\"download_bytes\":10000000,\"upload_bytes\":300000,\"socket_inode\":42,\"rtt_us\":19000,\"rttvar_us\":9000,\"retrans_window\":1,\"segs_out_window\":712},{\"pid\":4242,\"comm\":\"curl\",\"proto\":\"tcp\",\"remote\":\"93.184.216.34:443\",\"state\":\"ESTABLISHED\",\"download_bytes\":null,\"upload_bytes\":null,\"socket_inode\":42,\"rtt_us\":null,\"rttvar_us\":null,\"retrans_window\":null,\"segs_out_window\":null},{\"pid\":4242,\"comm\":\"curl\",\"proto\":\"tcp6\",\"remote\":\"[2001:db8::1]:443\",\"state\":\"ESTABLISHED\",\"download_bytes\":null,\"upload_bytes\":null,\"socket_inode\":42,\"rtt_us\":null,\"rttvar_us\":null,\"retrans_window\":null,\"segs_out_window\":null}]}",
         "\"remote\":\"142.250.191.78:443\"",
         "\"download_bytes\":10000000",
         "\"upload_bytes\":300000",
@@ -376,6 +393,13 @@ fn json_carries_the_traffic_focus_window() {
         // The dedupe key's own pin: distinct rows are distinguishable
         // even when the (pid, proto, remote, state) tuple collides.
         "\"socket_inode\":42",
+        // night-netrunner-4: the mover's deep family rides MEASURED
+        // (the RFC 6298 pair plus the window's retrans share with its
+        // denominator); the byteless rows' four fields stay null.
+        "\"rtt_us\":19000",
+        "\"rttvar_us\":9000",
+        "\"retrans_window\":1",
+        "\"segs_out_window\":712",
     ] {
         assert!(
             text.contains(field),
