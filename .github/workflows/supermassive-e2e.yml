@@ -414,7 +414,8 @@ jobs:
           docker rm -f e2e-rootfs >/dev/null 2>&1 || true
           docker run --name e2e-rootfs -d "$SUITE" sleep infinity
           docker exec e2e-rootfs apt-get update -qq
-          docker exec e2e-rootfs apt-get install -y --no-install-recommends python3 iproute2 kmod curl nftables
+          docker exec e2e-rootfs apt-get install -y --no-install-recommends \
+            python3 iproute2 kmod curl nftables ca-certificates
           docker exec e2e-rootfs sh -ec '
             cd /tmp || exit 1
             resolve() {
