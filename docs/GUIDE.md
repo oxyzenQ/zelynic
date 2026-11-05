@@ -72,6 +72,7 @@ sudo zelynic list-apps      # 2. find the app and its cgroup id
 sudo zelynic s brave 100kb  # 3. apply the limit (verified with a ~3s probe)
 sudo zelynic status         # 4. read the pinned maps back: what is limited right now
 sudo zelynic ee brave       # watch it live (q quits)   — optional
+sudo zelynic ee brave --deep # + RTT/jitter/retrans figures on the board
 sudo zelynic u brave        # remove the limit          — when done
 ```
 

@@ -1020,7 +1020,17 @@ another app's accumulated total passes it. Rows persist across
 quiet frames (an app that goes idle stays on the board with em-dash
 rates and its accumulated TOTAL — no more collapsing to "waiting
 for traffic..." once traffic has been seen), with per-cgroup detail
-lines naming the processes and remote endpoints inside.
+lines naming the processes and remote endpoints inside. The full
+table (62 columns and up) carries one more numeric column since
+NIGHT-netrunner-4: `retrans` — the walk-to-walk retransmit count
+over the row's TCP sockets, the kernel's own counter differenced
+between the 3 s walks (absence renders `—`, never a fabricated
+zero). `--deep` adds the RTT family: one grey deep line per row
+(the hungriest endpoint's `rtt X ±Y · retrans N/M (P%)`, or the
+`[encrypted/quic]` / `[no l4 truth]` tag when the kernel cannot
+measure the protocol) and the inline suffixes on the focus view's
+endpoint lines — see the deep-family paragraph at
+`eagle-eyes --depth` below for the whole contract.
 
 **No BLOAT TUI — on purpose (NIGHT-dinner-29, re-cut by
 night-improve-58).** A bloat TUI is an interactive application:
@@ -1117,6 +1127,7 @@ question a bare `cg:1234` row leaves open — WHAT is this:
   cgroup:           /sys/fs/cgroup/cat-test
   enforcement:      limited (shaping) — dl 100.0 KB/s · ul 100.0 KB/s
   accounting:       1.4 GB let through, 6.2 MB dropped (0.44% of what arrived)
+  lanes:            recwn (dl) · ecn ready · pacing 100.0 KB/s
   resources:        12.5 MB memory · 1m:2s cpu
   started:          10m:20s ago
   command:          ./cat-test --serve
@@ -1125,8 +1136,8 @@ question a bare `cg:1234` row leaves open — WHAT is this:
   1234    cat-test             binary  755   S   4    1.3 MB   10m:20s  /home/cat/cat-test
   ────────────────────────────────────────────────────────────────
   network traffic (3s focus · arrival): dl 4.1 MB/s · ul 113.3 KB/s
-   curl (4242) → 142.250.185.78:443 tcp ESTABLISHED [dl 4.1 MB/s | ul 100.0 KB/s]
-   curl (4242) → [2607:f8b0:400a::]:443 tcp6 ESTABLISHED
+   curl (4242) → 142.250.185.78:443 tcp ESTABLISHED [dl 4.1 MB/s | ul 100.0 KB/s] [rtt 19ms ±9ms | retrans 1/712 segs (0.14%)]
+   curl (4242) → [2607:f8b0:400a::]:443 tcp6 ESTABLISHED [rtt 21ms ±4ms | retrans 0/88 segs (0.00%)]
   ────────────────────────────────────────────────────────────────
   act:  zelynic strict cg:1234 500kb
         zelynic block cg:1234
@@ -1245,6 +1256,50 @@ socket keeps its lean row: absence is the "quiet now" signal. The
 footer's session speed pair carries the arrival label too
 (`peak arrival dl | ul`, `avg arrival dl | ul`) — a peak above the
 policy is the demand the limit absorbed, not a bypass.
+
+NIGHT-netrunner-4 (the deep figure family — the netrunner-3
+design's display contract, landed): the kernel already measured
+every honest latency figure per socket, so the eagle renders it.
+The DEFAULT live table grows exactly one column — `retrans`, the
+walk-to-walk retransmit count summed over the row's TCP sockets
+(the connections walk reads `TCP_INFO` on the same duplicated fd
+the cookie read rides: one extra ~194 ns getsockopt per matched
+TCP socket per 3 s walk, zero datapath bytes moved). The honesty
+law is an Option pinned four ways: a QUIC-only row (no TCP truth),
+a first-generation row (no predecessor to difference against), and
+a dup-refused row all render `—` — never a fabricated zero, because
+`0` would read as "no loss happening", a claim nobody made; a
+measured zero renders `0`. The full rung lands at 62 columns (one
+rung added, the narrower shapes untouched — a narrow frame never
+loses a column it had).
+
+`--deep` (live monitor) widens the family with ZERO new columns:
+one grey secondary line under every ranked row — the hungriest
+endpoint's `rtt 19ms ±9ms · retrans 1/712 segs (0.14%) · 12 tcp
+eps` (the count AND the ratio, so no consumer trusts a bare
+percentage), or the protocol tag when the kernel cannot measure:
+`[encrypted/quic]` for sealed UDP (RFC 9001 header protection
+seals the packet numbers — no keys, no latency truth, the tag is
+the claim the kernel can back), `[no l4 truth]` for raw. The focus
+view (`ee <target>`) gains the same family inline: every TCP
+endpoint line `[rtt X ±Y | retrans N/M (P%)]`, every UDP line
+`[encrypted/quic]`, every raw line `[no l4 truth]`. The figures
+refresh on the walk (the 3s TTL) — snapshot truth at the cadence
+it is honest at, RFC 6298's own smoothing, no per-frame jitter
+theater; the Full-tier footer spells the laws once when --deep is
+live. A TCP row whose read was refused renders the em-dash pair —
+a different absence from the tag, never conflated.
+
+The `--depth` report IS the deep surface (no flag needed): every
+TCP endpoint row carries the bracketed
+`[rtt 19ms ±9ms | retrans 1/712 segs (0.14%)]` suffix, and a new
+`lanes:` row answers "RECWN/ECN/Pacing active?" in one glance —
+`recwn (dl)` when a download policy stands (the receive-window
+lane), `ecn ready` when the host carries the set-CE helper (the
+ECN-first lane armed; `ecn marked <bytes>` once the CE ledger has
+proof of delivery), `pacing <rate>` when an upload policy commands
+the kernel-native pacer. Unlimited targets render no lanes row
+(absence, not an empty promise).
 
 The same honesty contracts ride the focus window as every ledger
 in this document: the cgroup window totals are the KERNEL's own
@@ -2373,7 +2428,7 @@ are churn, not drift.
 (multi-target specs only; a full miss exits 1 with the text error):
 
 ```json
-{"targets":[{"target":"cg:1234","cgroup_id":1234,"name":"cat-test","cgroup_path":"/sys/fs/cgroup/cat-test","uid":1000,"user":"cat","enforcement":"limited","download_bytes_per_sec":100000,"upload_bytes_per_sec":100000,"group_id":0,"oldest_started_secs":620,"processes":1,"socket_holders":1,"sockets":2,"traffic":{"window_secs":3,"download_bytes":12400000,"upload_bytes":340000,"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000,"socket_inode":120888},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null,"socket_inode":120889}]},"procs":[{"pid":1234,"comm":"cat-test","uid":1000,"user":"cat","ppid":1,"state":"S (sleeping)","threads":4,"rss_kb":1234,"exe":"/home/cat/cat-test","exe_deleted":false,"kind":"binary","script":null,"permission":"755","cwd":"/home/cat","cmdline":"./cat-test --serve","started_ago_secs":620,"started_epoch":1758900000}],"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000,"socket_inode":120888},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null,"socket_inode":120889}]}],"bypass_audit":{"window_secs":3,"nic_tx_bytes":12900000,"nic_rx_bytes":13000000,"bpf_tx_bytes":340000,"bpf_rx_bytes":12450000,"shadow_tx_bytes":12560000,"shadow_rx_bytes":550000,"verdict":"bypassed_tx","shadow_tx_percent":97,"shadow_rx_percent":4}}
+{"targets":[{"target":"cg:1234","cgroup_id":1234,"name":"cat-test","cgroup_path":"/sys/fs/cgroup/cat-test","uid":1000,"user":"cat","enforcement":"limited","download_bytes_per_sec":100000,"upload_bytes_per_sec":100000,"group_id":0,"oldest_started_secs":620,"processes":1,"socket_holders":1,"sockets":2,"traffic":{"window_secs":3,"download_bytes":12400000,"upload_bytes":340000,"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000,"socket_inode":120888,"rtt_us":19000,"rttvar_us":9000,"retrans_window":1,"segs_out_window":712},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null,"socket_inode":120889,"rtt_us":null,"rttvar_us":null,"retrans_window":null,"segs_out_window":null}]},"procs":[{"pid":1234,"comm":"cat-test","uid":1000,"user":"cat","ppid":1,"state":"S (sleeping)","threads":4,"rss_kb":1234,"exe":"/home/cat/cat-test","exe_deleted":false,"kind":"binary","script":null,"permission":"755","cwd":"/home/cat","cmdline":"./cat-test --serve","started_ago_secs":620,"started_epoch":1758900000}],"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000,"socket_inode":120888,"rtt_us":19000,"rttvar_us":9000,"retrans_window":1,"segs_out_window":712},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null,"socket_inode":120889,"rtt_us":null,"rttvar_us":null,"retrans_window":null,"segs_out_window":null}]}],"bypass_audit":{"window_secs":3,"nic_tx_bytes":12900000,"nic_rx_bytes":13000000,"bpf_tx_bytes":340000,"bpf_rx_bytes":12450000,"shadow_tx_bytes":12560000,"shadow_rx_bytes":550000,"verdict":"bypassed_tx","shadow_tx_percent":97,"shadow_rx_percent":4}}
 ```
 
 `enforcement` is `"unlimited"` | `"blocked"` | `"limited"`; an
@@ -2423,6 +2478,20 @@ collides. "How many connections to 8.8.4.4:853?" is therefore
 `[.endpoints[] | select(.remote == "8.8.4.4:853") |
 .socket_inode] | unique | length`, and the same key collapses a
 per-fd census into a per-socket one with `unique by`.
+NIGHT-netrunner-4 adds four trailing nullable fields to every
+endpoint row (the stable-additive rule: existing consumers' prefix
+matching is untouched) — `rtt_us` and `rttvar_us` (the kernel's own
+RFC 6298 smoothed-RTT pair, microseconds), `retrans_window`
+(retransmitted segments across the focus window) and
+`segs_out_window` (segments sent — the denominator, so a frontend
+computes its own share; the wire never makes you trust a bare
+percentage). All four are `null` for every UDP/raw row and for any
+TCP row whose window was not readable on both walks — the same
+absence law the byte fields ride: null says the measurement did not
+happen, `0` would claim it did. `rtt_us` is the SRTT at the closing
+walk; jitter is the kernel's rttvar in its own words, not a
+per-frame re-derivation.
+
 `bypass_audit` (NIGHT-upgrade-charger-core-1-a) is the focus
 window's interface-vs-hooks shadow verdict, machine-scope:
 `{"window_secs":3,"nic_tx_bytes":...,"nic_rx_bytes":...,"bpf_tx_bytes":...,"bpf_rx_bytes":...,"shadow_tx_bytes":...,"shadow_rx_bytes":...,"verdict":"clean","shadow_tx_percent":2,"shadow_rx_percent":2}`
