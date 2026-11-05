@@ -271,20 +271,28 @@ install_bpf_linker() {
 	if [[ ! -t 2 ]]; then
 		progress_ok=false
 	fi
+	# Download contract (mirrored by scripts/dev/install-bpf-linker.sh):
+	# fail-closed (-f) so an error page can never become the archive,
+	# plus a widened retry window — 6 attempts spaced 5 s apart, capped
+	# at 120 s — because release-CDN 504 storms outlast curl's default
+	# exponential backoff (one killed the ebpf-host CI job on
+	# 2026-11-05). --retry re-walks only transient codes, so a stale
+	# release stays fail-fast on 404. The wget fallback gets the same
+	# treatment through --tries/--waitretry.
 	if command -v curl >/dev/null 2>&1; then
 		if [[ "${progress_ok}" == true ]]; then
-			curl -fSL --retry 3 --progress-bar -o "${archive}" "${url}" ||
+			curl -fSL --retry 5 --retry-delay 5 --retry-max-time 120 --progress-bar -o "${archive}" "${url}" ||
 				die "download failed — check network access, or fetch ${url} by hand and extract bpf-linker into ${LOCAL_BIN}"
 		else
-			curl -fsSL --retry 3 -o "${archive}" "${url}" ||
+			curl -fsSL --retry 5 --retry-delay 5 --retry-max-time 120 -o "${archive}" "${url}" ||
 				die "download failed — check network access, or fetch ${url} by hand and extract bpf-linker into ${LOCAL_BIN}"
 		fi
 	elif command -v wget >/dev/null 2>&1; then
 		if [[ "${progress_ok}" == true ]]; then
-			wget -nv --show-progress -O "${archive}" "${url}" ||
+			wget -nv --show-progress --tries 6 --waitretry=5 -O "${archive}" "${url}" ||
 				die "download failed — check network access, or fetch ${url} by hand and extract bpf-linker into ${LOCAL_BIN}"
 		else
-			wget -q -O "${archive}" "${url}" ||
+			wget -q --tries 6 --waitretry=5 -O "${archive}" "${url}" ||
 				die "download failed — check network access, or fetch ${url} by hand and extract bpf-linker into ${LOCAL_BIN}"
 		fi
 	else
