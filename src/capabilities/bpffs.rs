@@ -78,7 +78,7 @@ fn fs_type_is_bpf(f_type: Option<i64>) -> bool {
 }
 
 /// Find cgroup v2 mount point by parsing /proc/mounts.
-pub(super) fn find_cgroup2_mount() -> Option<String> {
+pub fn find_cgroup2_mount() -> Option<String> {
     let mounts = std::fs::read_to_string("/proc/mounts").ok()?;
     for line in mounts.lines() {
         let parts: Vec<&str> = line.split_whitespace().collect();

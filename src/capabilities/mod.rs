@@ -10,11 +10,10 @@ use anyhow::Result;
 
 pub mod bpffs;
 pub mod pins;
-// The limiter's preflight rides this short path (ebpf-gated callers
-// only — the doctor uses the bpffs:: path directly, so a half-life
-// build keeps no unused re-export).
-#[cfg(feature = "ebpf")]
-pub use bpffs::bpffs_mounted_at;
+// night-netrunner-2: the old ebpf-gated `bpffs_mounted_at` re-export
+// retired with the limiter's private preflight — the preflight rides
+// the HostCaps probe now (ebpf/host_caps.rs), which reads the
+// bpffs:: module path directly. The doctor keeps the same path.
 pub use pins::PinState;
 
 /// System information relevant to eBPF support.
@@ -170,31 +169,23 @@ pub fn detect() -> CapabilityReport {
     }
 }
 
-/// Detect basic system info.
+/// Detect basic system info — now the Orchestra's probe mapped onto
+/// the doctor's report shape (night-netrunner-2's adoption sketch):
+/// ONE probe builds [`crate::ebpf::host_caps::HostCaps`], the doctor
+/// renders the same facts under the JSON contract's own field names
+/// (the pinned scripting API is untouched — field order and names
+/// byte-identical). The attach paths consume the same struct, so the
+/// doctor cannot disagree with the attach gates: one probe, every
+/// consumer.
 fn detect_system() -> SystemInfo {
-    let kernel = std::fs::read_to_string("/proc/sys/kernel/osrelease")
-        .map(|s| s.trim().to_string())
-        .unwrap_or_else(|_| "unknown".to_string());
-
-    // night-netrunner-1: the 5.15.0 floor rides the same pure law the
-    // attach paths refuse on (ebpf/kernel_floor.rs's law) — the
-    // doctor cannot disagree with the enforcement gate.
-    let kernel_floor_met = crate::ebpf::kernel_floor::kernel_floor_error(&kernel).is_ok();
-
-    let cgroup2_mount_path = bpffs::find_cgroup2_mount();
-    let cgroup_v2 = cgroup2_mount_path.is_some();
-
-    let bpf_fs_mounted = bpffs::bpffs_mounted_at("/sys/fs/bpf");
-
-    let is_root = nix::unistd::geteuid().is_root();
-
+    let caps = crate::ebpf::host_caps::HostCaps::probe();
     SystemInfo {
-        kernel,
-        kernel_floor_met,
-        cgroup_v2,
-        cgroup2_mount_path,
-        bpf_fs_mounted,
-        is_root,
+        kernel: caps.kernel_release,
+        kernel_floor_met: caps.kernel_floor_met,
+        cgroup_v2: caps.cgroup_v2,
+        cgroup2_mount_path: caps.cgroup2_mount_path,
+        bpf_fs_mounted: caps.bpffs_mounted,
+        is_root: caps.is_root,
     }
 }
 
@@ -351,6 +342,15 @@ fn print_report(report: &CapabilityReport) {
             },
         )
     );
+    // night-netrunner-2: the Orchestra's Layer 1 shape facts join the
+    // human report — the recorded constants beside the gates, the
+    // same pair of lines the attach paths' verbose lane opens with.
+    // One probe, every consumer: the doctor's rows ARE the attach
+    // verdicts' source struct. The JSON contract is untouched (the
+    // pinned scripting API carries only the fields it always did);
+    // this line is the human surface's additive fact row.
+    let caps = crate::ebpf::host_caps::HostCaps::probe();
+    println_safe!("{}", field("Shape facts:", &caps.trace_lines()[1]));
     println_safe!(
         "{}",
         field(

@@ -50,7 +50,10 @@ pub fn parse_kernel_release(release: &str) -> Option<(u32, u32)> {
 
 /// The floor verdict for one release string: Ok(()) at or above the
 /// floor, Err(actionable message) below it or when the release cannot
-/// be judged. Pure — [`ensure_kernel_floor`] is its live caller.
+/// be judged. Pure — the Orchestra consumes it through
+/// [`crate::ebpf::host_caps::HostCaps::probe`] (the one probe, every
+/// attach decision; the pre-orchestra live gate fn retired with the
+/// re-derivations it served).
 pub fn kernel_floor_error(release: &str) -> Result<(), String> {
     match parse_kernel_release(release) {
         Some((major, minor)) if (major, minor) >= KERNEL_FLOOR => Ok(()),
@@ -68,19 +71,6 @@ pub fn kernel_floor_error(release: &str) -> Result<(), String> {
             KERNEL_FLOOR.0, KERNEL_FLOOR.1
         )),
     }
-}
-
-/// The live floor gate: refuse on a kernel below 5.15.0. Both attach
-/// paths (the observer's and the limiter's) call this before any BPF
-/// syscall, and the doctor's verdict rides the same pure law — one
-/// floor, one message, everywhere. ebpf-gated because its only
-/// callers are the full-life attach paths (the half-life doctor
-/// judges via the pure [`kernel_floor_error`] directly); ungated
-/// would be a dead-code warning on a half-life build.
-#[cfg(feature = "ebpf")]
-pub fn ensure_kernel_floor() -> anyhow::Result<()> {
-    let release = kernel_release();
-    kernel_floor_error(&release).map_err(anyhow::Error::msg)
 }
 
 #[cfg(test)]
