@@ -37,6 +37,11 @@
 #   4. scripts/sandbox/smoke-cli.sh          - the whole CLI surface
 #      battery as root (every verb, every guard, real policing,
 #      leak postconditions, the unprivileged refusal row)
+#   5. scripts/bench/quota-saver-ab.sh       - the quota saver's
+#      A/B proof (night-netrunner-4): the additive internet
+#      guest, run only here because this guest is the one CI lane
+#      with cgroup v2 + root + real egress; an honest refusal is
+#      a SKIP row and never reddens the kernel-floor verdict.
 #
 # Verdict relay: the VM cannot pass exit codes through qemu — the
 # E2E-RESULT / E2E-VERDICT sentinel lines ARE the relay (the
@@ -221,6 +226,31 @@ if ./scripts/sandbox/smoke-cli.sh --binary "$Z/zelynic"; then
 else
 	note "ROOT leg - CLI surface smoke (every verb, every guard)" FAIL
 fi
+
+# 5. The quota saver's A/B proof (night-netrunner-4, the final
+#    polish): scenario A (zelynic) against the legacy drop-based
+#    counterfactual - the same real download and upload twice over
+#    one virtual 100 MB ledger, the two exact contract lines. This
+#    guest is the one CI lane with cgroup v2 + root + real egress,
+#    so the lines print here, verbatim, in both legs' logs. The
+#    internet lane is a guest of the kernel-floor legs: a mirror
+#    hiccup or an honest refusal is a SKIP row (it never reddens
+#    the verdict); a run that claims success without both lines
+#    is a contract breach and FAILs.
+QUOTA_LOG=/tmp/quota-ab.log
+if ./scripts/bench/quota-saver-ab.sh --binary "$Z/zelynic" >"$QUOTA_LOG" 2>&1; then
+	cat "$QUOTA_LOG"
+	if grep -q '^test download results the internet kuota save total is ' "$QUOTA_LOG" &&
+		grep -q '^test upload results the internet kuota save total is ' "$QUOTA_LOG"; then
+		note "ROOT leg - quota saver A/B (the two exact contract lines)" PASS
+	else
+		note "ROOT leg - quota saver A/B (run claimed but the lines are missing)" FAIL
+	fi
+else
+	cat "$QUOTA_LOG" >&2 || true
+	echo "E2E-RESULT: ROOT leg - quota saver A/B — SKIP (the internet lane never reddens the kernel-floor legs)"
+fi
+rm -f "$QUOTA_LOG"
 # ── the verdict relay ──────────────────────────────────────────────────
 if [ "$FAILURES" -eq 0 ]; then
 	echo "E2E-VERDICT: PASS"

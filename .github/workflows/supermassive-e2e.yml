@@ -542,6 +542,11 @@ jobs:
           cd /tmp/kfloor
           echo "-- e2e depth verdicts (${{ matrix.title }}) --"
           grep -E '^E2E-(RESULT|VERDICT)' vm.log || true
+          # The quota saver's A/B contract lines (night-netrunner-4):
+          # the guest prints them verbatim; the CI output carries them
+          # (the task's own requirement - the two lines in the final
+          # output), a missing pair on a green verdict impossible.
+          grep -E '^test (download|upload) results the internet kuota save total is ' vm.log || true
           grep -q '^E2E-VERDICT: PASS' vm.log
           echo "OK: the E2E depth suite proven on the ${{ matrix.title }} leg"
 
@@ -570,5 +575,11 @@ jobs:
             echo
             echo '```'
             grep -E '^(FAIL|SKIP|X  |X )' vm.log | head -40 || true
+            echo '```'
+            echo
+            echo "### quota saver A/B (the exact contract lines)"
+            echo
+            echo '```'
+            grep -E '^test (download|upload) results the internet kuota save total is ' vm.log || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
