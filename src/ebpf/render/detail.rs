@@ -132,7 +132,12 @@ pub(crate) fn comm_from_label(label: &str) -> Option<String> {
 /// (six spellings, one call). A v6 socket's line reads its family
 /// at the tag now (`tcp6 [2001:db8::1]:443 [busy]`), not only
 /// through the bracketed remote.
-fn endpoint_text(socket: &SocketInfo, conns: Option<&ConnectionMap>, window: Duration) -> String {
+fn endpoint_text(
+    socket: &SocketInfo,
+    conns: Option<&ConnectionMap>,
+    window: Duration,
+    deep: bool,
+) -> String {
     let mut out = String::new();
     out.push_str(socket.proto.as_str());
     out.push(' ');
@@ -148,6 +153,14 @@ fn endpoint_text(socket: &SocketInfo, conns: Option<&ConnectionMap>, window: Dur
             steady_rate_field(super::rate_bps(b.dl, window)),
             steady_rate_field(super::rate_bps(b.ul, window))
         ));
+    }
+    // The deep suffix (night-netrunner-4, --deep): the figure family
+    // or the protocol tag rides the SAME line — inline suffixes,
+    // natural width, the steady_rate_field precedent. The ranked
+    // view passes deep=false (the default table's contract: bytes
+    // and rates only); the focus view passes the flag through.
+    if deep {
+        out.push_str(&super::deep::endpoint_deep_suffix(socket, conns));
     }
     out
 }
@@ -218,7 +231,7 @@ pub(crate) fn steady_rate_field(rate: u64) -> String {
 /// against the previous folded join and installs only the sockets
 /// that moved — a socket without a cookie, or one that moved
 /// nothing this frame, renders no figures.
-fn socket_bytes_of<'a>(
+pub(super) fn socket_bytes_of<'a>(
     socket: &SocketInfo,
     conns: Option<&'a ConnectionMap>,
 ) -> Option<&'a SocketBytes> {
@@ -320,13 +333,14 @@ fn eagle_holder_lines(
     endpoints: &[&SocketInfo],
     conns: Option<&ConnectionMap>,
     window: Duration,
+    deep: bool,
 ) -> Vec<String> {
     if endpoints.len() == 1 {
         return vec![format!(
             "    └ {} ({}) → {}",
             proc.comm,
             proc.pid,
-            endpoint_text(endpoints[0], conns, window)
+            endpoint_text(endpoints[0], conns, window, deep)
         )];
     }
     let mut ranked = endpoints.to_vec();
@@ -343,7 +357,7 @@ fn eagle_holder_lines(
         let branch = if i + 1 == shown { "└" } else { "├" };
         out.push(format!(
             "        {branch} {}",
-            endpoint_text(socket, conns, window)
+            endpoint_text(socket, conns, window, deep)
         ));
     }
     out
@@ -384,7 +398,10 @@ pub(crate) fn detail_lines(
     // Compose within DETAIL_LINE_CAP lines, summary included: the
     // summary slot is reserved while unshown holders remain, so the
     // overflow note can never push the block past the budget the
-    // flat list kept (three holders plus one summary line).
+    // flat list kept (three holders plus one summary line). The
+    // ranked view never carries the deep suffixes — the default
+    // table's deep family rides the row's own deep line instead
+    // (the audit's secondary-line design, no doubling).
     let mut shown = 0usize;
     for (proc, endpoints) in &holders {
         let cost = if endpoints.len() > 1 {
@@ -396,7 +413,13 @@ pub(crate) fn detail_lines(
         if lines.len() + cost + summary_slot > DETAIL_LINE_CAP {
             break;
         }
-        lines.extend(eagle_holder_lines(proc, endpoints, Some(conns), window));
+        lines.extend(eagle_holder_lines(
+            proc,
+            endpoints,
+            Some(conns),
+            window,
+            false,
+        ));
         shown += 1;
     }
     let remaining = holders.len().saturating_sub(shown);
@@ -424,6 +447,7 @@ pub(crate) fn full_detail_lines(
     conns: Option<&ConnectionMap>,
     cgroup_id: u32,
     window: Duration,
+    deep: bool,
 ) -> Vec<String> {
     let mut lines = Vec::new();
     let Some(conns) = conns else {
@@ -455,7 +479,7 @@ pub(crate) fn full_detail_lines(
                 "  └ {} ({}) → {}",
                 proc.comm,
                 proc.pid,
-                endpoint_text(endpoints[0], Some(conns), window)
+                endpoint_text(endpoints[0], Some(conns), window, deep)
             ));
         } else {
             lines.push(format!(
@@ -469,7 +493,7 @@ pub(crate) fn full_detail_lines(
                 let branch = if i == last { "└" } else { "├" };
                 lines.push(format!(
                     "      {branch} {}",
-                    endpoint_text(socket, Some(conns), window)
+                    endpoint_text(socket, Some(conns), window, deep)
                 ));
             }
         }

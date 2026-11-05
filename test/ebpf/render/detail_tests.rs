@@ -292,7 +292,7 @@ fn detail_lines_tree_budget() {
 fn full_detail_lines_tree() {
     let (conns, _) = fixture();
 
-    let lines = full_detail_lines(Some(&conns), 7001, WINDOW);
+    let lines = full_detail_lines(Some(&conns), 7001, WINDOW, false);
     assert_eq!(
         lines,
         vec![
@@ -308,8 +308,8 @@ fn full_detail_lines_tree() {
 
     // Degradation contract: no map, unknown cgroup, or a cgroup with
     // no socket holders at all renders nothing.
-    assert!(full_detail_lines(None, 7001, WINDOW).is_empty());
-    assert!(full_detail_lines(Some(&conns), 1234, WINDOW).is_empty());
+    assert!(full_detail_lines(None, 7001, WINDOW, false).is_empty());
+    assert!(full_detail_lines(Some(&conns), 1234, WINDOW, false).is_empty());
 }
 
 /// A three-endpoint holder (NIGHT-boost-21): the eagle view caps the
@@ -356,7 +356,7 @@ fn detail_lines_three_endpoints() {
         ]
     );
     assert_eq!(
-        full_detail_lines(Some(&conns), 7001, WINDOW),
+        full_detail_lines(Some(&conns), 7001, WINDOW, false),
         vec![
             "  processes with sockets (1 total processes):".to_string(),
             "  └ firefox (4242) 3 sockets:".to_string(),
@@ -449,6 +449,7 @@ fn detail_hides_and_cuts_on_narrow_frames() {
             height: 24,
         },
         &mut ScrollState::new(),
+        false,
     );
     assert!(
         !narrow.iter().any(|l| l.contains("└")),
@@ -483,6 +484,7 @@ fn detail_hides_and_cuts_on_narrow_frames() {
             height: 24,
         },
         &mut ScrollState::new(),
+        false,
     );
     let detail = snug
         .iter()

@@ -115,6 +115,7 @@ fn name_targets_expand_and_misses_note() {
         Duration::from_secs(70),
         classic(),
         &mut ScrollState::new(),
+        false,
     );
     let joined = lines.join("\n");
     assert!(
@@ -315,6 +316,7 @@ fn dead_transients_leave_the_board_but_active_unnamed_rows_stay() {
         Duration::from_secs(70),
         classic(),
         &mut ScrollState::new(),
+        false,
     );
     let joined = lines.join("\n");
     assert!(

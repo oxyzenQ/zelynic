@@ -93,6 +93,7 @@ mod baseline;
 mod baseline_panel;
 mod border;
 mod bypass;
+mod deep;
 mod depth_json;
 mod depth_traffic;
 mod detail;

@@ -60,6 +60,7 @@ fn baseline_panel_docks_flush_above_the_footer() {
             Duration::from_secs(70),
             FrameGeometry { width: 80, height },
             &mut ScrollState::new(),
+            false,
         );
         assert_eq!(lines.len(), height, "the frame stays pinned to the height");
         let joined = lines.join("\n");

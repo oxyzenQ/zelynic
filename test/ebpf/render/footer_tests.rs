@@ -93,6 +93,7 @@ fn eagle_frame_builds_lines() {
         Duration::from_secs(70),
         classic(),
         &mut ScrollState::new(),
+        false,
     );
     assert_eq!(lines.len(), 24, "the frame is pinned to the height");
     // NIGHT-engrave-12: the title rides the bar's middle — the
@@ -243,6 +244,7 @@ fn footer_layout_pins_to_the_bottom() {
         Duration::from_secs(70),
         classic(),
         &mut ScrollState::new(),
+        false,
     );
     let joined = lines.join("\n");
     // The owner's engrave-4 order, as positions: headline, census,
@@ -418,6 +420,7 @@ fn footer_discovery_pair_renders_with_the_autodetect_name() {
         Duration::from_secs(70),
         classic(),
         &mut ScrollState::new(),
+        false,
     );
     let joined = lines.join("\n");
     assert!(

@@ -80,6 +80,7 @@ fn footer_census_packets_ride_the_si_compact_ladder() {
         Duration::from_secs(3600),
         classic(),
         &mut ScrollState::new(),
+        false,
     );
     let joined = lines.join("\n");
     assert!(
@@ -101,6 +102,7 @@ fn footer_census_packets_ride_the_si_compact_ladder() {
         Duration::from_secs(2),
         classic(),
         &mut ScrollState::new(),
+        false,
     );
     assert!(
         fresh.join("\n").contains("2 packets + 1 cgroups"),
@@ -177,6 +179,7 @@ fn the_census_total_can_read_zettabytes() {
         Duration::from_secs(20_113_100), // ~233 days: 1 ZB at 1 Tbps
         classic(),
         &mut ScrollState::new(),
+        false,
     );
     let joined = lines.join("\n");
     assert!(

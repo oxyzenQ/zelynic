@@ -166,7 +166,7 @@ fn focus_ranks_endpoints_by_bytes() {
     // Cookie 3 joined nothing: moved zero bytes this frame.
     conns.apply_socket_bytes(bytes);
 
-    let lines = full_detail_lines(Some(&conns), 7001, WINDOW);
+    let lines = full_detail_lines(Some(&conns), 7001, WINDOW, false);
     let joined = lines.join("\n");
     let bravo = joined.find("10.0.0.2:443").expect("bravo renders");
     let alpha = joined.find("10.0.0.1:443").expect("alpha renders");

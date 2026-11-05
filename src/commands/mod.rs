@@ -308,6 +308,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             interval,
             focus,
             depth,
+            deep,
         }) => {
             #[cfg(feature = "ebpf")]
             {
@@ -322,6 +323,19 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                             "{}",
                             crate::output::warn_bold(
                                 "--interval ignored (--depth prints one report and exits)"
+                            )
+                        );
+                    }
+                    // night-netrunner-4: --deep names the LIVE
+                    // monitor's figure family; the one-shot report
+                    // already IS the deep surface (its whole job), so
+                    // the flag answers with the same ignored-note
+                    // honesty instead of silently double-meaning.
+                    if deep {
+                        eprintln_safe!(
+                            "{}",
+                            crate::output::warn_bold(
+                                "--deep ignored (--depth's report already carries the deep figures)"
                             )
                         );
                     }
@@ -345,12 +359,12 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                             )
                         );
                     }
-                    monitor::handle_eagle_eyes(targets.as_deref(), interval.as_deref())
+                    monitor::handle_eagle_eyes(targets.as_deref(), interval.as_deref(), deep)
                 }
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (targets, interval, focus, depth);
+                let _ = (targets, interval, focus, depth, deep);
                 ebpf_disabled()
             }
         }

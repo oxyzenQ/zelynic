@@ -86,6 +86,7 @@ fn cjk_label_keeps_the_rails_straight() {
         Duration::from_secs(70),
         classic(),
         &mut ScrollState::new(),
+        false,
     );
     let joined = lines.join("\n");
     // The label row exists and carries the ideographs (truncated to

@@ -14,7 +14,7 @@ use super::{EagleColumns, SessionAcc, format_rate_or_dash, label_with_count};
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::{format_bytes_wide, format_count};
-use crate::output::{hot, ok, pad_to_width, warn};
+use crate::output::{brand, hot, ok, pad_to_width, warn};
 
 /// One ranked data row. The static traffic-light tiers
 /// (NIGHT-boost-14): rank 1 champion red, rank 2 warning yellow,
@@ -98,4 +98,61 @@ pub(super) fn render_eagle_row(
         _ => ok(&body),
     };
     lines.push(painted);
+}
+
+/// The ranked table's header row (pure, split from eagle.rs at the
+/// 600-LOC law — the column family's one home, beside the row it
+/// titles). NIGHT-engrave-4's identity span (the process title
+/// covers the rank cell plus gap plus label column, titled from the
+/// frame's canonical text column), the right-aligned numeric titles
+/// over their columns, and — night-netrunner-4 — the retrans title
+/// between upload and total on the full rung (the rung's own header,
+/// spelled in full; the ladder's narrower shapes keep exactly the
+/// titles their columns carry).
+pub(super) fn render_eagle_header(
+    lines: &mut Vec<String>,
+    gutter: &str,
+    title_w: usize,
+    cols: &EagleColumns,
+) {
+    if cols.show_total && cols.retrans_w > 0 {
+        // The full rung (night-netrunner-4): retrans sits right
+        // of upload, left of total — the session figure keeps
+        // the rightmost anchor the right-gutter contract gave it.
+        lines.push(brand(&format!(
+            "{gutter}{:<w0$} {:>w1$} {:>w2$} {:>wr$} {:>w3$}",
+            super::truncate_label("top process", title_w),
+            "download",
+            "upload",
+            "retrans",
+            "total",
+            w0 = title_w,
+            w1 = cols.dl_w,
+            w2 = cols.ul_w,
+            wr = cols.retrans_w,
+            w3 = cols.dl_w
+        )));
+    } else if cols.show_total {
+        lines.push(brand(&format!(
+            "{gutter}{:<w0$} {:>w1$} {:>w2$} {:>w3$}",
+            super::truncate_label("top process", title_w),
+            "download",
+            "upload",
+            "total",
+            w0 = title_w,
+            w1 = cols.dl_w,
+            w2 = cols.ul_w,
+            w3 = cols.dl_w
+        )));
+    } else {
+        lines.push(brand(&format!(
+            "{gutter}{:<w0$} {:>w1$} {:>w2$}",
+            super::truncate_label("top process", title_w),
+            "download",
+            "upload",
+            w0 = title_w,
+            w1 = cols.dl_w,
+            w2 = cols.ul_w
+        )));
+    }
 }

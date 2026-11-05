@@ -87,6 +87,7 @@ fn arrow_scroll_walks_the_table_window() {
         Duration::from_secs(70),
         classic(),
         &mut scroll,
+        false,
     );
     let joined = lines.join("\n");
     assert!(
@@ -117,6 +118,7 @@ fn arrow_scroll_walks_the_table_window() {
         Duration::from_secs(70),
         classic(),
         &mut scroll,
+        false,
     );
     let w = walked.join("\n");
     assert!(
@@ -150,6 +152,7 @@ fn arrow_scroll_walks_the_table_window() {
         Duration::from_secs(70),
         classic(),
         &mut scroll,
+        false,
     );
     let header = refocused
         .iter()

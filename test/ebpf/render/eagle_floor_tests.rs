@@ -94,6 +94,7 @@ fn a_full_board_never_starves_the_baseline_panel() {
             Duration::from_secs(70),
             classic(height),
             &mut scroll,
+            false,
         );
         let joined = lines.join("\n");
         assert_eq!(lines.len(), height, "the frame stays pinned to the height");
@@ -140,6 +141,7 @@ fn the_panel_stays_through_the_window_walk() {
             Duration::from_secs(70),
             classic(24),
             scroll,
+            false,
         );
         lines.join("\n")
     };
@@ -202,6 +204,7 @@ fn a_frame_too_short_for_both_keeps_the_table() {
         Duration::from_secs(70),
         classic(14),
         &mut scroll,
+        false,
     );
     let joined = lines.join("\n");
     assert_eq!(lines.len(), 14, "the frame stays pinned to the height");

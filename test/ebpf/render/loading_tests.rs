@@ -165,6 +165,7 @@ fn the_first_live_frame_morphs_only_the_note_row() {
             Duration::ZERO,
             geo,
             &mut ScrollState::new(),
+            false,
         );
         let loading = loading_frame(interval, geo);
         (loading, live)

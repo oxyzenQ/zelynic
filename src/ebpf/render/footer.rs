@@ -405,6 +405,7 @@ pub(super) fn build_grip_footer(
     census: &FooterCensus,
     geo: FrameGeometry,
     interval: Duration,
+    deep: bool,
 ) -> Vec<String> {
     let tier = census.tier;
     let mut footer: Vec<String> = Vec::with_capacity(tier.lines());
@@ -449,6 +450,16 @@ pub(super) fn build_grip_footer(
         format_uptime(census.uptime),
         format_bytes_wide(census.grand)
     )));
+    // The deep legend (night-netrunner-4, --deep, the netrunner-3
+    // design's section 4.3): when the figure family is live and the
+    // footer holds the Full tier, one grey line joins the census
+    // family, above the speed pair — the three laws the deep figures
+    // ride, spelled once (the figures on screen never outrun the
+    // space to explain them). Compact/Minimal/Tiny drop it: the tier
+    // ladder's own degradation.
+    if deep && tier == FooterTier::Full {
+        footer.push(grey(&format!("  {}", super::deep::footer_legend_line())));
+    }
     // The NIGHT-engrave-6 speed pair (Full/Compact — the census
     // family; Minimal is survival height, where the total row alone
     // carries the story): the owner's data-center lines, directly

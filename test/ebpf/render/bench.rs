@@ -347,6 +347,7 @@ fn frame_bench_eagle() {
             // a live clock would drift the footer text between runs.
             Duration::from_secs(90),
             &mut scroll,
+            false,
         );
         println_safe!("###FRAME###");
         for line in &lines {

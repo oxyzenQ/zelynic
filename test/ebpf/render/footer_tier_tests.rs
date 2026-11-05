@@ -107,6 +107,7 @@ fn footer_tiers_degrade_in_the_engraved_order() {
             Duration::from_secs(70),
             FrameGeometry { width: 80, height },
             &mut ScrollState::new(),
+            false,
         );
         lines
     };
