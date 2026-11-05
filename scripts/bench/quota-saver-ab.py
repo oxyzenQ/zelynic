@@ -57,6 +57,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 
 # The download ladder (night-spark-3b's chain, the supermassive
 # realnet lane's own order — the report sibling's exact list): the
@@ -137,8 +138,10 @@ def status_entry(binary: str, cgroup_id: int) -> dict:
     fail(f"no limit row for cgroup {cgroup_id} — the strict apply did not hold")
 
 
-def probe(url: str) -> bool:
-    """One endpoint probe: curl exits 0 with a 2xx/2xx-range code."""
+def probe_once(url: str) -> tuple[bool, str]:
+    """One endpoint attempt: curl exits 0 with a 2xx/2xx-range code;
+    the detail names what the wire actually said (the refusal owes
+    its reader the evidence, not just the verdict)."""
     try:
         p = subprocess.run(
             [
@@ -158,9 +161,38 @@ def probe(url: str) -> bool:
             text=True,
             timeout=PROBE_TIMEOUT + 5,
         )
-    except (subprocess.TimeoutExpired, OSError):
-        return False
-    return p.returncode == 0 and p.stdout.strip() in ("200", "206")
+    except subprocess.TimeoutExpired:
+        return False, "timeout"
+    except OSError as e:
+        return False, str(e)[:60]
+    code = p.stdout.strip()
+    if p.returncode == 0 and code in ("200", "206"):
+        return True, code
+    return False, f"curl exit {p.returncode}, HTTP {code or 'none'}"
+
+
+def probe(url: str) -> bool:
+    """Two attempts, 4 s apart: the guest's SLIRP path and the shared
+    runner egress make a single attempt a coin flip (one real e2e
+    leg lost the upload rung to a one-shot probe while the download
+    ladder answered). The refusal still refuses — it just gets two
+    honest shots first."""
+    ok, _ = probe_once(url)
+    if ok:
+        return True
+    time.sleep(4)
+    ok, _ = probe_once(url)
+    return ok
+
+
+def probe_detail(url: str) -> tuple[bool, str]:
+    """The upload rung's gate: same two-attempt ladder, but the
+    caller keeps the evidence for its refusal line."""
+    ok, detail = probe_once(url)
+    if ok:
+        return True, detail
+    time.sleep(4)
+    return probe_once(url)
 
 
 def pick_download_endpoint(leg_bytes: int) -> tuple[str, str] | None:
@@ -520,8 +552,12 @@ def main() -> int:
 
     # ── the upload leg: A (zelynic) then B (legacy) ──────────────────
     ul_name, ul_url = UL_ENDPOINT
-    if not probe(ul_url.replace("/__up", "/__down?bytes=1024")):
-        fail("no upload endpoint reachable — the real-internet lane is down")
+    up_ok, up_detail = probe_detail(ul_url.replace("/__up", "/__down?bytes=1024"))
+    if not up_ok:
+        fail(
+            "no upload endpoint reachable — the real-internet lane is down "
+            f"(the probe saw: {up_detail})"
+        )
     ul_file = os.path.join("/tmp", "zelynic-quota-ab-upload.bin")
     with open(ul_file, "wb") as fh:
         fh.truncate(args.upload_bytes)  # sparse: no disk cost, exact Content-Length
