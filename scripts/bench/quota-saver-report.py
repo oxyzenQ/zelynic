@@ -250,7 +250,10 @@ def main() -> int:
 
     if os.geteuid() != 0:
         fail("this script programs the kernel datapath — run with sudo")
-    if not os.path.isdir(os.path.join(CGROUP_ROOT, "cgroup.controllers")):
+    # The v2 marker is a FILE (cgroup.controllers), never a directory
+    # — an isdir() probe here refused every real v2 host while the
+    # hierarchy sat healthy underneath (the e2e guest exposed it).
+    if not os.path.isfile(os.path.join(CGROUP_ROOT, "cgroup.controllers")):
         fail("cgroup v2 not found at /sys/fs/cgroup — a unified hierarchy is required")
     if shutil.which("curl") is None:
         fail("curl not found — the legs are real transfers")
