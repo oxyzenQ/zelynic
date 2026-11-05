@@ -295,6 +295,7 @@ fn full_frame_wears_the_border() {
             height: 24,
         },
         &mut ScrollState::new(),
+        false,
     );
     assert_eq!(
         lines.len(),
@@ -345,6 +346,7 @@ fn full_frame_wears_the_border() {
             height: 24,
         },
         &mut ScrollState::new(),
+        false,
     );
     crate::output::theme::set(Theme::Netrunner);
     // The rails follow the ACTIVE theme: cycling repaints color and

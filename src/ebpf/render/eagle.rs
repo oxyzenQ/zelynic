@@ -67,7 +67,7 @@ use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::Target;
 use crate::ebpf::loader::CounterSummary;
-use crate::output::{brand, grey};
+use crate::output::grey;
 
 /// Columns the rank furniture occupies between the shared gutter
 /// and the label column: the two-wide rank cell plus its two-wide
@@ -115,6 +115,14 @@ use super::targets::resolve_targets;
 /// NIGHT-engrave-6, dividing the footer speed pair's AVG legs; the
 /// session's watched-set peaks (the pair's MAX figures) fold in with
 /// the same frame's deltas.
+///
+/// `deep` (night-netrunner-4, the netrunner-3 design's section 4.3):
+/// the --deep figure family — one grey deep line under every ranked
+/// row (the hungriest endpoint's rtt ± jitter and the window's
+/// retransmit share, or the protocol tag), the deep suffixes on the
+/// focus view's endpoint lines, and the Full-tier footer legend. The
+/// figures ride the walk's own data; the flag gates DISPLAY, never
+/// the datapath.
 #[allow(clippy::too_many_arguments)]
 pub fn render_eagle_eyes(
     lines: &mut Vec<String>,
@@ -128,11 +136,12 @@ pub fn render_eagle_eyes(
     baseline: &BaselineLane,
     uptime: Duration,
     scroll: &mut ScrollState,
+    deep: bool,
 ) {
     let geo = FrameGeometry::probe();
     render_eagle_eyes_at(
         lines, summary, tokens, identity, conns, interval, span, session, baseline, uptime, geo,
-        scroll,
+        scroll, deep,
     );
 }
 
@@ -153,6 +162,7 @@ pub(super) fn render_eagle_eyes_at(
     uptime: Duration,
     geo: FrameGeometry,
     scroll: &mut ScrollState,
+    deep: bool,
 ) {
     // NIGHT-boost-20: compose into the bordered inset (render/border.rs).
     let full_width = geo.width;
@@ -204,7 +214,7 @@ pub(super) fn render_eagle_eyes_at(
     // count, the focus frame just holds nothing scrollable).
     if tokens.len() == 1 && ids.len() == 1 && unresolved.is_empty() {
         render_eagle_focus(
-            lines, summary, identity, conns, baseline, ids[0], interval, span, uptime, geo,
+            lines, summary, identity, conns, baseline, ids[0], interval, span, uptime, geo, deep,
         );
         return;
     }
@@ -282,6 +292,7 @@ pub(super) fn render_eagle_eyes_at(
         &FooterCensus::gather(tier, &board, identity, conns, uptime, session.peaks()),
         geo,
         interval,
+        deep,
     );
     // The pin line: the footer's measured length fixes where the
     // frame's content must stop.
@@ -351,46 +362,7 @@ pub(super) fn render_eagle_eyes_at(
         };
         // The identity span the header's title cell covers.
         let title_w = cols.label_w + RANK_SPAN;
-        if cols.show_total && cols.retrans_w > 0 {
-            // The full rung (night-netrunner-4): retrans sits right
-            // of upload, left of total — the session figure keeps
-            // the rightmost anchor the right-gutter contract gave it.
-            lines.push(brand(&format!(
-                "{gutter}{:<w0$} {:>w1$} {:>w2$} {:>wr$} {:>w3$}",
-                truncate_label("top process", title_w),
-                "download",
-                "upload",
-                "retrans",
-                "total",
-                w0 = title_w,
-                w1 = cols.dl_w,
-                w2 = cols.ul_w,
-                wr = cols.retrans_w,
-                w3 = cols.dl_w
-            )));
-        } else if cols.show_total {
-            lines.push(brand(&format!(
-                "{gutter}{:<w0$} {:>w1$} {:>w2$} {:>w3$}",
-                truncate_label("top process", title_w),
-                "download",
-                "upload",
-                "total",
-                w0 = title_w,
-                w1 = cols.dl_w,
-                w2 = cols.ul_w,
-                w3 = cols.dl_w
-            )));
-        } else {
-            lines.push(brand(&format!(
-                "{gutter}{:<w0$} {:>w1$} {:>w2$}",
-                truncate_label("top process", title_w),
-                "download",
-                "upload",
-                w0 = title_w,
-                w1 = cols.dl_w,
-                w2 = cols.ul_w
-            )));
-        }
+        super::eagle_row::render_eagle_header(lines, gutter, title_w, &cols);
         lines.push(grid_line(geo.width));
 
         // Row budget counts detail lines too (NIGHT-hunt-8): a row
@@ -423,13 +395,40 @@ pub(super) fn render_eagle_eyes_at(
             for line in &mut details {
                 *line = grey(&truncate_label(line, geo.width));
             }
-            let need = 1 + details.len();
+            // The deep line (night-netrunner-4, --deep): ONE grey
+            // line after the detail tree — the hungriest endpoint's
+            // rtt ± jitter and the window's retransmit share, or the
+            // protocol tag. Rides the same row budget the details
+            // ride (need grows by one when present); the deep line
+            // hides below the same show_total boundary that hides
+            // detail lines, and the champion trim below drops it
+            // FIRST (detail first, deep figures first to go — the
+            // sacrifice ladder's order, the audit's own).
+            let mut deep_line = if deep && cols.show_total {
+                super::deep::row_deep_line(conns, *cgroup_id)
+            } else {
+                None
+            };
+            if let Some(line) = deep_line.as_mut() {
+                *line = grey(&truncate_label(line, geo.width));
+            }
+            let need = 1 + details.len() + usize::from(deep_line.is_some());
             if used + need > row_room {
                 if emitted == 0 {
                     // The champion always shows (NIGHT-boost-5): trim
-                    // its own detail to what the window can hold.
-                    let room = row_room.saturating_sub(1).min(details.len());
-                    details.truncate(room);
+                    // its own detail to what the window can hold —
+                    // the deep line yields first (the ladder's
+                    // order), then the detail lines.
+                    let room = row_room.saturating_sub(1);
+                    if room == 0 {
+                        deep_line = None;
+                        details.clear();
+                    } else {
+                        if room < need {
+                            deep_line = None;
+                        }
+                        details.truncate(room.min(details.len()));
+                    }
                 } else {
                     break;
                 }
@@ -443,6 +442,7 @@ pub(super) fn render_eagle_eyes_at(
             let ul_rate = delta.map(|c| rate_bps(c.bytes, span)).unwrap_or(0);
 
             let shown_details = details.len();
+            let deep_shown = deep_line.is_some();
             // The row's retrans window (night-netrunner-4): the
             // walk-to-walk TCP truth, or absence (the em dash) when
             // the row holds no measured window.
@@ -462,7 +462,10 @@ pub(super) fn render_eagle_eyes_at(
             for line in details {
                 lines.push(line);
             }
-            used += 1 + shown_details;
+            if let Some(line) = deep_line {
+                lines.push(line);
+            }
+            used += 1 + shown_details + usize::from(deep_shown);
             emitted += 1;
         }
         // night-improve-58: the scroll-position note replaces the

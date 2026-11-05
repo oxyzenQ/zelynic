@@ -154,7 +154,7 @@ pub fn handle_status(json: bool) -> Result<()> {
 /// state or BPF work, the branded error teaching the scripted-output
 /// alternative (`status --print-json`).
 #[cfg(feature = "ebpf")]
-pub fn handle_eagle_eyes(targets: Option<&str>, interval: Option<&str>) -> Result<()> {
+pub fn handle_eagle_eyes(targets: Option<&str>, interval: Option<&str>, deep: bool) -> Result<()> {
     use crate::ebpf::connections::ConnectionMap;
     use crate::ebpf::limiter::Target;
     use crate::ebpf::loader::{Observer, SocketBytes};
@@ -444,6 +444,7 @@ pub fn handle_eagle_eyes(targets: Option<&str>, interval: Option<&str>) -> Resul
             &baseline,
             started.elapsed(),
             &mut scroll,
+            deep,
         );
     });
 
@@ -465,7 +466,8 @@ mod tests {
     #[cfg(feature = "ebpf")]
     #[test]
     fn duration_typo_surfaces_before_root_guard() {
-        let err = handle_eagle_eyes(None, Some("3min")).expect_err("typo'd interval must fail");
+        let err =
+            handle_eagle_eyes(None, Some("3min"), false).expect_err("typo'd interval must fail");
         let msg = format!("{err}");
         assert!(
             msg.contains("Invalid duration '3min'"),
@@ -489,8 +491,8 @@ mod tests {
     #[test]
     fn interval_bounds_surface_before_root_guard() {
         for bad in ["0", "61", "90s", "2m"] {
-            let err =
-                handle_eagle_eyes(None, Some(bad)).expect_err("out-of-range interval must fail");
+            let err = handle_eagle_eyes(None, Some(bad), false)
+                .expect_err("out-of-range interval must fail");
             let msg = format!("{err}");
             assert!(
                 msg.contains("must be between 1s and 60s"),
@@ -511,7 +513,8 @@ mod tests {
     #[test]
     fn empty_target_spec_surfaces_before_root_guard() {
         for bad in ["/", " // "] {
-            let err = handle_eagle_eyes(Some(bad), None).expect_err("empty target spec must fail");
+            let err =
+                handle_eagle_eyes(Some(bad), None, false).expect_err("empty target spec must fail");
             let msg = format!("{err}");
             assert!(
                 msg.contains("No targets in"),

@@ -145,6 +145,7 @@ fn header_and_total_column_carry_symmetric_air() {
         Duration::from_secs(70),
         classic(),
         &mut ScrollState::new(),
+        false,
     );
     let joined = lines.join("\n");
     // The header: title at the canonical text column (rail + the
@@ -243,6 +244,7 @@ fn rank_is_the_session_accumulation() {
         Duration::from_secs(70),
         classic(),
         &mut ScrollState::new(),
+        false,
     );
     let joined = lines.join("\n");
     // cg:7001 moved 995 KB this frame vs cg:7002's 15 KB — rank 1
@@ -298,6 +300,7 @@ fn quiet_frame_holds_the_board() {
         Duration::from_secs(70),
         classic(),
         &mut ScrollState::new(),
+        false,
     );
     assert!(lines.iter().any(|l| l.contains("cg:7001")));
 
@@ -316,6 +319,7 @@ fn quiet_frame_holds_the_board() {
         Duration::from_secs(70),
         classic(),
         &mut ScrollState::new(),
+        false,
     );
     let quiet_row = quiet
         .iter()
@@ -361,6 +365,7 @@ fn takeover_recrowns_rank1() {
         Duration::from_secs(70),
         classic(),
         &mut ScrollState::new(),
+        false,
     );
     // B accumulates past A.
     let mut lines = Vec::new();
@@ -377,6 +382,7 @@ fn takeover_recrowns_rank1() {
         Duration::from_secs(70),
         classic(),
         &mut ScrollState::new(),
+        false,
     );
     let rank1 = lines
         .iter()
@@ -431,6 +437,7 @@ fn single_resolved_target_takes_focus_view() {
         Duration::from_secs(70),
         classic(),
         &mut ScrollState::new(),
+        false,
     );
     let joined = lines.join("\n");
     assert!(
@@ -487,6 +494,7 @@ fn rate_columns_divide_by_the_measured_span_not_the_cadence() {
             Duration::from_secs(70),
             classic(),
             &mut ScrollState::new(),
+            false,
         );
         let joined = lines.join("\n");
         let rank1 = lines

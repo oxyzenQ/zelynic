@@ -62,6 +62,7 @@ fn note_and_classification_agree_both_ways() {
                 interval: None,
                 focus: None,
                 depth: true,
+                deep: false,
             })),
             "doctor" => command_honors_print_json(Some(&Commands::Doctor)),
             other => panic!("unknown surface named in the note: {other}"),
@@ -86,7 +87,8 @@ fn note_and_classification_agree_both_ways() {
             targets: None,
             interval: None,
             focus: None,
-            depth: false
+            depth: false,
+            deep: false
         })),
         "the live monitor renders a TUI, not a JSON document"
     );
@@ -102,13 +104,15 @@ fn depth_report_honors_the_flag_live_monitor_does_not() {
         targets: Some("12345".to_string()),
         interval: None,
         focus: None,
-        depth: true
+        depth: true,
+        deep: false
     })));
     assert!(!command_honors_print_json(Some(&Commands::EagleEyes {
         targets: Some("12345".to_string()),
         interval: None,
         focus: None,
-        depth: false
+        depth: false,
+        deep: false
     })));
 }
 

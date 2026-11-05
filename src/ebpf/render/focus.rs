@@ -116,6 +116,7 @@ pub fn render_eagle_focus(
     span: Duration,
     uptime: Duration,
     geo: FrameGeometry,
+    deep: bool,
 ) {
     // NIGHT-engrave-3: the focus title is identity only — the
     // legend's single home is the footer's status line, same as the
@@ -202,8 +203,12 @@ pub fn render_eagle_focus(
         // answer "who exactly") — except when the terminal cannot
         // hold them: the cap counts one honest "more hidden" note
         // (NIGHT-boost-14 adaptive compact), and degenerate heights
-        // drop the block entirely.
-        let mut details = super::full_detail_lines(conns, cgroup_id, span);
+        // drop the block entirely. night-netrunner-4: --deep gains
+        // every endpoint line its deep suffix — TCP the rtt ± jitter
+        // and retrans share, UDP the [encrypted/quic] tag, raw the
+        // [no l4 truth] one (the focus view is where an operator
+        // dissects one app; it is where the full family belongs).
+        let mut details = super::full_detail_lines(conns, cgroup_id, span, deep);
         let room = geo.height.saturating_sub(FOCUS_CHROME);
         if details.len() > room {
             if room == 0 {
@@ -301,6 +306,7 @@ mod tests {
                 width: 80,
                 height: 24,
             },
+            false,
         );
         let joined = lines.join("\n");
         // lifetime = 900 MB (dl lifetime) + 90 MB (ul lifetime) — the
@@ -365,6 +371,7 @@ mod tests {
                 width: 80,
                 height: 24,
             },
+            false,
         );
         let joined = lines.join("\n");
         assert!(
@@ -424,6 +431,7 @@ mod tests {
                 width: 80,
                 height: 24,
             },
+            false,
         );
         let joined = lines.join("\n");
         assert!(
@@ -458,6 +466,7 @@ mod tests {
                 width: 80,
                 height: 24,
             },
+            false,
         );
         assert_eq!(lines.len(), 24, "pinned frame spans the terminal height");
         // NIGHT-engrave-12: the centered title — the 29-col core

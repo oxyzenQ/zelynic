@@ -86,6 +86,7 @@ fn saturated_session_renders_without_panic() {
         Duration::from_secs(70),
         classic(),
         &mut ScrollState::new(),
+        false,
     );
     assert_eq!(lines.len(), 24, "the pin holds at saturation");
     let joined = lines.join("\n");

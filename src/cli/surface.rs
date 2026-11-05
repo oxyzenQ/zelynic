@@ -299,6 +299,7 @@ pub enum Commands {
     ///   zelynic eagle-eyes brave                  # watch one app (deep view)
     ///   zelynic eagle-eyes 12345/brave/firefox    # watch specific targets
     ///   zelynic eagle-eyes --interval 3s          # calmer cadence
+    ///   zelynic eagle-eyes --deep                 # ranked + the deep figure family
     ///   zelynic ee brave --interval 1s            # short alias form
     ///   zelynic ee cg:1234 --depth                # one-shot deep report
     ///   zelynic ee cg:1234 --depth --focus 5s     # deep report, 5s traffic window
@@ -336,6 +337,20 @@ pub enum Commands {
         /// is the only spelling (the vocabulary rescue redirects it here).
         #[arg(long = "depth")]
         depth: bool,
+
+        /// The deep figure family on the live monitor
+        /// (night-netrunner-4, the netrunner-3 design's section 4.3):
+        /// one grey deep line under every ranked row (the hungriest
+        /// endpoint's rtt ± jitter and the window's retransmit
+        /// share), the deep suffixes on the focus view's endpoint
+        /// lines, and the one-line legend at the Full-tier footer.
+        /// The figures refresh on the walk (the 3s TTL) — snapshot
+        /// truth at the cadence it is honest at; UDP renders
+        /// [encrypted/quic], raw [no l4 truth], never a fabricated
+        /// zero. Orthogonal to --depth (the one-shot report) and
+        /// --focus (the depth window).
+        #[arg(long = "deep")]
+        deep: bool,
     },
 
     /// Check host eBPF support and this binary's build facts.
