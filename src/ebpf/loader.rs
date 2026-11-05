@@ -21,7 +21,6 @@ use aya::{
     programs::{CgroupAttachMode, CgroupSkb, CgroupSkbAttachType},
 };
 use std::fs::File;
-use std::path::PathBuf;
 
 use crate::ebpf::bpf_syscall::kernel_release;
 use crate::ebpf::identity::IdentityMap;
@@ -88,13 +87,22 @@ impl Observer {
     /// TUI. Silent by default; stdout JSON stays clean.
     pub fn attach() -> Result<Self> {
         let started = std::time::Instant::now();
-        // night-netrunner-1: the 5.15.0 kernel floor — refused BEFORE
-        // any BPF syscall, with the actionable fix in the message.
-        crate::ebpf::kernel_floor::ensure_kernel_floor()?;
-        let cgroup_path = "/sys/fs/cgroup";
-        if !PathBuf::from(cgroup_path).exists() {
-            bail!("cgroup v2 not found at {cgroup_path}");
+        // night-netrunner-2 (the Adaptive Orchestra): ONE probe, every
+        // attach decision reads the struct — the floor law, the cgroup
+        // mount, the capability proxy. The verbose lane opens with the
+        // host's own answer (both layers), the refusal (if any) names
+        // the fix — never a deep EPERM from inside a BPF syscall.
+        let caps = crate::ebpf::host_caps::HostCaps::probe();
+        crate::output::verbose::vlog_line!(&caps.trace_lines()[0]);
+        crate::output::verbose::vlog_line!(&caps.trace_lines()[1]);
+        if let Some(refusal) = caps.observer_refusal() {
+            bail!(refusal);
         }
+
+        let cgroup_path = caps
+            .cgroup2_mount_path
+            .clone()
+            .unwrap_or_else(|| "/sys/fs/cgroup".to_string());
 
         crate::output::verbose::vlog!(
             "ebpf",
@@ -149,7 +157,7 @@ impl Observer {
         }
 
         let cgroup_file =
-            File::open(cgroup_path).context("Failed to open cgroup root directory")?;
+            File::open(&cgroup_path).context("Failed to open cgroup root directory")?;
 
         // Load + attach egress observer
         let egress_prog: &mut CgroupSkb = bpf

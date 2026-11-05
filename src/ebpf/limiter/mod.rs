@@ -95,7 +95,6 @@ use crate::ebpf::bpf_syscall::{
     kernel_release, load_with_verifier_verdict,
 };
 use crate::ebpf::identity::IdentityMap;
-use crate::ebpf::kernel_floor::ensure_kernel_floor;
 use crate::ebpf::pin::{
     PIN_LINK_PACE, PIN_LINK_RECWN, PIN_PROG_PACE, PIN_PROG_RECWN, link_mode_line, pins_operational,
 };
@@ -123,14 +122,22 @@ impl Limiter {
     /// and the total attach cost.
     pub fn attach() -> Result<()> {
         let started = std::time::Instant::now();
-        // night-netrunner-1: the 5.15.0 kernel floor — refused BEFORE
-        // any BPF syscall or pin reuse, with the actionable fix in the
-        // message (the observer's attach rides the same gate).
-        ensure_kernel_floor()?;
-        let cgroup_path = "/sys/fs/cgroup";
-        if !PathBuf::from(cgroup_path).exists() {
-            bail!("cgroup v2 not found at {cgroup_path}");
+        // night-netrunner-2 (the Adaptive Orchestra): ONE probe, every
+        // attach decision reads the struct. The refusal ladder (floor,
+        // cgroup v2, root, then the hunt-28 bpffs preflight) is the
+        // HostCaps verdict — the same wordings the re-derived checks
+        // carried, now one home. The verbose lane opens with the
+        // probe's own two-line table.
+        let caps = crate::ebpf::host_caps::HostCaps::probe();
+        crate::output::verbose::vlog_line!(&caps.trace_lines()[0]);
+        crate::output::verbose::vlog_line!(&caps.trace_lines()[1]);
+        if let Some(refusal) = caps.limiter_refusal() {
+            bail!(refusal);
         }
+        let cgroup_path = caps
+            .cgroup2_mount_path
+            .clone()
+            .unwrap_or_else(|| "/sys/fs/cgroup".to_string());
 
         // Check if the pinned state is fully operational from a previous
         // run. NIGHT-hunt-19: one predicate everywhere — on bpf_link
@@ -195,28 +202,13 @@ impl Limiter {
             bail!("{violation}");
         }
 
-        // NIGHT-hunt-28: preflight the pin filesystem BEFORE any pin
-        // attempt. The limiter pins every map it declares by name (nineteen
-        // since the ECN debt words), and a /sys/fs/bpf that is not a mounted bpffs
-        // (the kernel always creates the directory; some distros never
-        // mount bpffs on it) turns every BPF_OBJ_PIN into EINVAL deep
-        // inside EbpfLoader::load — a generic "Failed to load BPF
-        // object" far from any hint, the exact blind spot the owner's
-        // first Dragon run hit. Naming the mount fix here turns that
-        // dead end into a one-command repair. (The observer is
-        // deliberately NOT gated: its maps are unpinned, so observe
-        // works without bpffs — which also gives a natural diagnostic
-        // split: observe works + strict fails = pin filesystem.)
-        if !crate::capabilities::bpffs_mounted_at("/sys/fs/bpf") {
-            bail!(
-                "/sys/fs/bpf is not a mounted bpf filesystem — the limiter pins \
-                 its maps there so limits survive process exit, and every pin \
-                 would fail (EINVAL) deep inside the object load\n  \
-                 tip: sudo mount -t bpf bpf /sys/fs/bpf\n  \
-                 tip: make it permanent with an fstab entry or a systemd mount \
-                 unit — pins are wiped at boot unless the mount is"
-            );
-        }
+        // NIGHT-hunt-28: the pin-filesystem preflight rides the
+        // Orchestra now (the HostCaps limiter ladder above refused on
+        // a non-bpffs /sys/fs/bpf before any pin attempt — same
+        // wording, one home). The observer is deliberately NOT gated:
+        // its maps are unpinned, so observe works without bpffs —
+        // which also gives a natural diagnostic split: observe works
+        // + strict fails = pin filesystem.
 
         // Create pin directory BEFORE load so maps with LIBBPF_PIN_BY_NAME
         // can be auto-pinned by EbpfLoader.
@@ -325,7 +317,7 @@ impl Limiter {
 
             // Create + pin bpf_links (fire-and-forget with pin).
             let cgroup_file =
-                File::open(cgroup_path).context("Failed to open cgroup root directory")?;
+                File::open(&cgroup_path).context("Failed to open cgroup root directory")?;
             let cgroup_raw = cgroup_file.as_raw_fd();
             create_and_pin_link(
                 dl_prog_raw,
