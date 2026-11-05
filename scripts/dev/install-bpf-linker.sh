@@ -100,11 +100,16 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 # NIGHT-hunt-32: the bootstrap-ebpf.sh twin's curl contract, mirrored
-# (-f + --retry 3): without -f a 404/5xx page used to land in the
-# archive file with curl exiting 0, and the failure surfaced later as
-# a wrong-cause extractor diagnosis. The -s probe is the twin's
-# empty-download guard.
-curl -fsSL --retry 3 -o "${TMP_DIR}/bpf-linker.tar.zst" "${URL}"
+# (-f + a widened retry window): without -f a 404/5xx page used to
+# land in the archive file with curl exiting 0, and the failure
+# surfaced later as a wrong-cause extractor diagnosis. The -s probe
+# is the twin's empty-download guard. The retry window rides out
+# release-CDN 504 storms — one killed the ebpf-host CI job on
+# 2026-11-05 while every attempt of --retry 3 landed inside ~10 s of
+# exponential backoff. --retry re-walks only transient codes, so a
+# stale release stays fail-fast on 404, and --retry-max-time bounds
+# a dead network at two minutes instead of hanging forever.
+curl -fsSL --retry 5 --retry-delay 5 --retry-max-time 120 -o "${TMP_DIR}/bpf-linker.tar.zst" "${URL}"
 [ -s "${TMP_DIR}/bpf-linker.tar.zst" ] || {
 	echo "FAIL: the download came back empty (${URL}) — network or release problem, retry later." >&2
 	exit 1
