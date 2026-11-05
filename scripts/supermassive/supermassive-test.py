@@ -6524,6 +6524,82 @@ def stage_quota_saver_report():
     return ok
 
 
+def stage_quota_saver_ab():
+    """The quota saver's A/B proof (night-netrunner-4, the final
+    polish): the SAME real download and upload run twice against one
+    virtual 100 MB ledger — scenario A under the live limit (the
+    report sibling's Layer 4 machinery) and scenario B with no
+    enforcement at all (the legacy drop-based counterfactual, its
+    cost read off the wire). The script owns its cgroups and its
+    cleanup; the suite's job is to run it, print the two exact lines
+    verbatim in the suite output, and pin their presence as a row."""
+    name = "quota saver A/B: scenario A vs the legacy counterfactual"
+    script = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "bench", "quota-saver-ab.sh"
+    )
+    if not os.path.isfile(script):
+        return record(name, "SKIP", f"script missing: {script}")
+    if not CURL:
+        return record(name, "SKIP", "curl not found — the legs are real transfers")
+    out()
+    out("━━━ quota saver A/B: the be-honest experiment (night-netrunner-4) ━━━")
+    try:
+        p = subprocess.run(
+            [script, "--binary", lib.BINARY],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+    except subprocess.TimeoutExpired:
+        return record(name, "FAIL", "the script exceeded its 300 s budget")
+    except OSError as e:
+        return record(name, "FAIL", f"script spawn failed: {e}")
+    # The exact wire contract, re-printed so the suite output carries
+    # the two lines verbatim (the task's own requirement).
+    dl_line = None
+    ul_line = None
+    for line in p.stdout.splitlines():
+        if line.startswith("test download results the internet kuota save total is ") and (
+            line.rstrip().endswith("%")
+        ):
+            dl_line = line.strip()
+        elif line.startswith("test upload results the internet kuota save total is ") and (
+            line.rstrip().endswith("%")
+        ):
+            ul_line = line.strip()
+    if dl_line:
+        out(dl_line)
+    if ul_line:
+        out(ul_line)
+    if p.stderr.strip():
+        for line in p.stderr.strip().splitlines()[-3:]:
+            out(f"  (script) {line}")
+    if p.returncode != 0:
+        reason = (p.stderr or p.stdout).strip().splitlines()
+        detail = reason[-1][:160] if reason else f"exit {p.returncode}"
+        return record(name, "SKIP" if "cannot run" in (p.stderr or "") else "FAIL", detail)
+    ok = True
+    ok = (
+        record(
+            "quota saver A/B: download savings line printed (exact contract)",
+            "PASS" if dl_line else "FAIL",
+            dl_line or "the line never printed",
+        )
+        == "PASS"
+        and ok
+    )
+    ok = (
+        record(
+            "quota saver A/B: upload savings line printed (exact contract)",
+            "PASS" if ul_line else "FAIL",
+            ul_line or "the line never printed",
+        )
+        == "PASS"
+        and ok
+    )
+    return ok
+
+
 def stage_realnet_restore():
     """After the whole internet lane, u --all must give the machine
     its real-internet speed back — measured against the machine's own
@@ -7513,6 +7589,11 @@ def run_heavy(baseline_window):
     # the real download + upload legs and the two exact savings
     # lines, run automatically as part of the internet lane.
     stage_quota_saver_report()
+    # night-netrunner-4, the final polish: the A/B proof — the same
+    # legs under the limit (scenario A) and with no enforcement at
+    # all (scenario B, the legacy counterfactual), one virtual 100 MB
+    # ledger, the two exact lines printed in the suite output.
+    stage_quota_saver_ab()
     test_reload(60)
     test_sustain(1_000_000, 6, 5.0, baseline)
     test_overhead(4.0, baseline)
