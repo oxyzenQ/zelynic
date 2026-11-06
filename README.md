@@ -652,7 +652,7 @@ policy, supported versions, and what counts as a vulnerability live in
 - [Complete Usage Guide](docs/USAGE.md) — every command, workflows, honest limitations, troubleshooting (the flagship reference)
 - [Security Policy](SECURITY.md) — reporting, scope, supported versions
 - [Threat Model](docs/THREAT_MODEL.md) — the honest boundary: what the enforcement resists (application-layer bypass, per-process spoofing, connection escapes) and what it concedes (root, kernel, hardware); root is assumed trustworthy
-- [the cosmic dragon arc](docs/COSMIC_DRAGON_ARC.md) — the canonical index of the enforcement core: the fourteen scales, the estate map, the v81 roadmap
+- [the cosmic dragon arc](docs/COSMIC_DRAGON_ARC.md) — the canonical index of the enforcement core: the fourteen scales, the estate map, the quota-saver roadmap
 - [the cosmic dragon architecture](docs/COSMIC_DRAGON_ARCHITECTURE.md) — design + principles
 - [Kernel Compatibility](docs/KERNEL_COMPATIBILITY.md) — requirements + distro matrix
 - [Performance Metrics](docs/PERFORMANCE.md) — deep benchmark results + targets
@@ -779,7 +779,7 @@ zelynic's entire architectural stack: the fourteen kernel scales
 engines), the eyes (the lazy camera and bypass detection), and
 the claws (the pure-Rust eBPF objects and their userspace
 loaders). The canonical index — the estate map, the 2026-11-03
-depth audit, and the owner's v81 roadmap — lives in
+depth audit, and the owner's quota-saver roadmap — lives in
 [docs/COSMIC_DRAGON_ARC.md](docs/COSMIC_DRAGON_ARC.md).
 
 The arc is the reason zelynic can evolve from a rate limiter into

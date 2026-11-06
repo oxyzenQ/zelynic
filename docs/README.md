@@ -33,7 +33,7 @@ question well, and this page says which.
 | Doc | Covers |
 |-----|--------|
 | [INNOVATIONS.md](INNOVATIONS.md) | The innovation ledger: the cosmic dragon engine's canonical definition (the six-layer verdict path), the fourteen research wins — the Scales of the cosmic dragon arc — that compose it (MMSPA through RECWN receive-window control), plus the two retired by verdict |
-| [COSMIC_DRAGON_ARC.md](COSMIC_DRAGON_ARC.md) | The canonical index of the enforcement core: the cosmic dragon arc's estate map (the Scales, the Heart, the Eyes, the Claws), the 2026-11-03 depth audit, the quota gap, and the owner's v81 quota-saver roadmap (Layer 1 RECWN implemented as schema v25; ECN-for-QUIC and EDT next) |
+| [COSMIC_DRAGON_ARC.md](COSMIC_DRAGON_ARC.md) | The canonical index of the enforcement core: the cosmic dragon arc's estate map (the Scales, the Heart, the Eyes, the Claws), the 2026-11-03 depth audit, the quota gap, and the owner's quota-saver roadmap (Layer 1 RECWN implemented as schema v25; ECN-for-QUIC and EDT next) |
 | [GLOSSARY.md](GLOSSARY.md) | The coined-term decoder: one line per term the docs, commits, and source comments speak in (MMSPA, the ledger, retire_dead, the absent-lens contract, Pattern C, ...) |
 | [COSMIC_DRAGON_ARCHITECTURE.md](COSMIC_DRAGON_ARCHITECTURE.md) | Pure-eBPF architecture: single hooking layer, cgroup v2, why Linux-only |
 | [PHILOSOPHY.md](PHILOSOPHY.md) | The design canon: cgroup as the unit, observation before enforcement, frozen CLI grammar, local-first |
