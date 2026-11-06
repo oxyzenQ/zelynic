@@ -45,6 +45,14 @@ its limit (`strict --no-test`, the scripted-apply contract — no
 verification probe inflating the ledger) and removes it (`unstrict`)
 before the leg's cgroup is torn down.
 
+The run starts from a MEASURED clean slate (night-netrunner-5):
+`zelynic u --all` before scenario A, verified back to zero active
+rows via `status --print-json` — a pre-existing limit clamps the
+leg's sockets and the ledger reads a saving it did not earn (the
+99.62% e2e anomaly: the worker's flow entered the run already
+RECWN-clamped by an active row). A reset that cannot reach zero
+refuses with the residue named.
+
 Usage:
     ./scripts/bench/quota-saver-ab.sh                # both scenarios
     ./scripts/bench/quota-saver-ab.sh --binary PATH  # explicit binary
@@ -136,6 +144,53 @@ def status_entry(binary: str, cgroup_id: int) -> dict:
         if entry.get("cgroup_id") == cgroup_id:
             return entry
     fail(f"no limit row for cgroup {cgroup_id} — the strict apply did not hold")
+
+
+def active_limit_rows(binary: str) -> list:
+    """The whole limits[] array (the clean-slate preflight's own read):
+    an empty list is a clean host, every row is a limit the system
+    already carries."""
+    rc, stdout, stderr = zel(binary, ["status", "--print-json"])
+    if rc != 0:
+        fail(f"status --print-json failed: {(stderr or stdout).strip()[:200]}")
+    try:
+        doc = json.loads(stdout)
+    except json.JSONDecodeError as e:
+        fail(f"status JSON unreadable: {e}")
+    return doc.get("limits", []) or []
+
+
+def clean_slate_preflight(binary: str) -> None:
+    """Night-netrunner-5, the clean-slate preflight: `sudo zelynic u
+    --all` BEFORE scenario A. A pre-existing limit clamps the leg's
+    sockets before the probe applies its own policy — the ledger then
+    reads a saving it did not earn (the 99.62% e2e anomaly: the
+    worker's flow entered the run already RECWN-clamped by an active
+    row, so scenario A's wire figure was depressed by somebody else's
+    limit). The emergency reset is the one spelling that clears every
+    limit on the machine (it exits 0 on an already-clean host), and
+    the reset is VERIFIED: the status read after it must show zero
+    active rows, or the proof refuses with the residue named — a
+    clean slate is a measured fact here, not an assumption."""
+    pre_rows = active_limit_rows(binary)
+    rc, stdout, stderr = zel(binary, ["unstrict", "--all"], timeout=120)
+    if rc != 0:
+        fail(
+            "the clean-slate preflight failed: `unstrict --all` exited "
+            f"{rc}: {(stderr or stdout).strip()[:200]}"
+        )
+    post_rows = active_limit_rows(binary)
+    out(
+        f"clean-slate preflight: sudo zelynic u --all "
+        f"({len(pre_rows)} active limit row(s) before, {len(post_rows)} after)"
+    )
+    if post_rows:
+        residue = ", ".join(f"cg:{row.get('cgroup_id')}" for row in post_rows[:5])
+        fail(
+            "the clean-slate preflight could not reach zero — "
+            f"{len(post_rows)} limit row(s) still active ({residue}); "
+            "scenario A would measure against a depressed wire"
+        )
 
 
 def probe_once(url: str) -> tuple[bool, str]:
@@ -528,6 +583,11 @@ def main() -> int:
         fail(f"the binary does not run: {(stderr or stdout).strip()[:200]}")
     if "eBPF" not in stdout and "dormant" in stdout:
         fail("this is a half-life build (eBPF dormant) — install a full-life binary")
+
+    # Night-netrunner-5: the clean-slate preflight — zero active
+    # limits before scenario A applies its own policy, verified, not
+    # assumed (the 99.62% anomaly's fix).
+    clean_slate_preflight(binary)
 
     curl = shutil.which("curl")
     ledger = Ledger()

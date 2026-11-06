@@ -28,7 +28,11 @@
 # missing prerequisite refuses with the reason on stderr (exit 2),
 # never a fabricated line. Every zelynic side effect is cleaned up:
 # each scenario A leg's limit is removed and its cgroup torn down on
-# every exit path.
+# every exit path. The run starts from a MEASURED clean slate
+# (night-netrunner-5): `sudo zelynic u --all` before scenario A,
+# verified back to zero active rows — a pre-existing limit clamps
+# the leg's sockets and the ledger reads a saving it did not earn
+# (the 99.62% e2e anomaly).
 #
 # Usage:
 #   ./scripts/bench/quota-saver-ab.sh                # both scenarios
