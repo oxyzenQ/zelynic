@@ -13,6 +13,8 @@
 //! - `smoke` — end-to-end surface checks (doctor, version, cycles)
 //! - `cli_ux` — flag/error UX contract pins (suggestions, EPIPE)
 //! - `help_pins` — `--help` reference drift pins
+//! - `help_render_pins` — the reference's render-side pins (example
+//!   layout, green tier, the --help-all redirect)
 //! - `surface_pins` — command-surface wiring pins (aliases, removals)
 //! - `masterclass_pins` — the improve-53 one-verb-per-family
 //!   unification's reference contracts (canonical synopses, the
@@ -39,6 +41,7 @@ mod zelynic_json;
 mod architecture_pins;
 mod cli_ux;
 mod help_pins;
+mod help_render_pins;
 mod masterclass_pins;
 mod monitor_guard;
 mod privilege;
