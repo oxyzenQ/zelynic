@@ -195,6 +195,47 @@ pub(crate) fn drop_dishonest_escape_hatch(e: &mut clap::Error, argv: &[OsString]
     e.remove(ContextKind::Suggested);
 }
 
+// ── The pre-parse print-json scan (night-netrunner-5) ──────────────────────
+//
+// The JSON error contract (`{"error": ..., "tip": ...}` on stdout for
+// every usage and parse error) needs the same pre-parse sight the
+// color-mode seed above has: a usage error exits through
+// `cli::ux::exit_clap_error` BEFORE the parsed `--print-json` field
+// exists, and the contract must honor the flag on that lane too —
+// a JSON consumer's error surface stays JSON end to end.
+
+/// The pure core over an argv slice so the pins can drive it without
+/// touching process state (the forced_color_mode_from_argv shape);
+/// the process-global answer is [`print_json_requested`]'s job.
+fn print_json_in_argv(argv: &[OsString]) -> bool {
+    for arg in argv.iter().skip(1) {
+        let Some(word) = arg.to_str() else {
+            continue; // non-UTF-8 cannot name the flag
+        };
+        if word == "--" {
+            return false; // nothing after -- is an option
+        }
+        if word == "--print-json" || word.starts_with("--print-json=") {
+            return true;
+        }
+    }
+    false
+}
+
+/// Did the raw argv carry the global `--print-json` flag?
+///
+/// The exact token sets the answer; the `=value` spelling counts too —
+/// a malformed value dies as a usage error, and a user who typed the
+/// flag asked for JSON on that lane (the value grammar error then
+/// rides the contract instead of breaking it). `--` ends the scan
+/// because nothing after it is an option; a non-UTF-8 token cannot
+/// name the flag. Presence is the answer: the flag is boolean, there
+/// is no last-occurrence question.
+pub(crate) fn print_json_requested() -> bool {
+    let argv: Vec<OsString> = std::env::args_os().collect();
+    print_json_in_argv(&argv)
+}
+
 // ── The pre-parse color-mode seed (NIGHT-improve-73) ───────────────────────
 //
 // `--color-mode` must govern EVERY rendered byte of the process, but a

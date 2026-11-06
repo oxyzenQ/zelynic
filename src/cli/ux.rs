@@ -33,6 +33,10 @@ use clap::error::{ContextKind, ContextValue};
 use std::ffi::OsString;
 
 use super::argv::drop_dishonest_escape_hatch;
+use super::redirects::{
+    drop_hidden_subcommand_suggestions, enrich_removed_subcommand_redirect,
+    enrich_subcommand_flag_redirect,
+};
 use super::rescue::{flag_vocabulary_rescue, rescue_shadowed_suggestion, top_level_flag_rescue};
 use super::suggestion::closest_long_flag_ci;
 use crate::cli::Cli;
@@ -66,213 +70,6 @@ fn help_footer() -> String {
 
 // ── Clap error bridge ──────────────────────────────────────────────────────
 
-/// Removed-subcommand redirects (NIGHT-boost-1): the observe/top
-/// pair merged into eagle-eyes — old muscle memory gets the
-/// successor named instead of a dead end (the same redirect
-/// contract --help-all got when the help tiers merged,
-/// NIGHT-improve-3). Exact-match only: a fuzzy suggestion for a
-/// removed name is overridden, never supplemented — one tip, the
-/// right one.
-///
-/// NIGHT-improve-25: the singular `eagle-eye` alias is removed with
-/// the short-alias surface (one canonical name, one short form 'ee')
-/// — it joins the redirect table so the old spelling lands on the
-/// successor tip, the exact contract observe/top carry.
-///
-/// NIGHT-blade-2: limit-all/la renamed strict-all/sa (strict-family
-/// symmetry) — both old spellings join the redirect table's contract.
-///
-/// NIGHT-improve-54 (the sweep merge): strict-all, block-all, and
-/// unstrict-all are LANES of their family verbs now (`s --all`,
-/// `b --all`, `u --all`) — the six retired spellings (canonical +
-/// short alias each) join the table, and the blade-2 pair above
-/// repoints at `strict` with them: every one lands on its family's
-/// successor verb.
-///
-/// NIGHT-improve-53 (the masterclass unification): strict-single +
-/// strict-multi, block-single + block-multi, and unstrict-single +
-/// unstrict-multi merged into one verb per family (strict / block /
-/// unstrict — 's'/'b'/'u' the short forms, '::' the list separator).
-/// Twelve retired spellings join the table — every one of them
-/// lands on its family's successor verb.
-const REMOVED_SUBCOMMAND_REDIRECTS: &[(&str, &str)] = &[
-    ("observe", "eagle-eyes"),
-    ("top", "eagle-eyes"),
-    ("eagle-eye", "eagle-eyes"),
-    // NIGHT-improve-54: repointed with the sweep merge — strict-all
-    // itself is retired into strict's --all lane, so the blade-2
-    // spellings land on the sweep spelling like every -all after
-    // them. The successor string names WHAT TO TYPE (verb + flag):
-    // a bare 'strict' tip would strand the sweep-seeker on the
-    // TARGET-required rung one keystroke later.
-    ("limit-all", "strict --all"),
-    ("la", "strict --all"),
-    // NIGHT-improve-53: the masterclass retirees.
-    ("strict-single", "strict"),
-    ("strict-multi", "strict"),
-    ("ss", "strict"),
-    ("sm", "strict"),
-    ("block-single", "block"),
-    ("block-multi", "block"),
-    ("bs", "block"),
-    ("bm", "block"),
-    ("unstrict-single", "unstrict"),
-    ("unstrict-multi", "unstrict"),
-    ("us", "unstrict"),
-    ("um", "unstrict"),
-    // NIGHT-improve-54: the sweep retirees — the -all verbs are
-    // --all lanes of the family verbs now (the sa/ba/ua short
-    // aliases with them, the short-alias surface's own law). The
-    // successors name the runnable spelling (verb + flag), the
-    // limit-all contract one entry up.
-    ("strict-all", "strict --all"),
-    ("sa", "strict --all"),
-    ("block-all", "block --all"),
-    ("ba", "block --all"),
-    ("unstrict-all", "unstrict --all"),
-    ("ua", "unstrict --all"),
-    // NIGHT-improve-55: the persistence pair is retired whole —
-    // the owner's live-test verdict was that neither half earned
-    // its keep (remembering to dump before a reboot is a workflow
-    // the operator's own script already owns, and the state-file
-    // apply did not change that). Both spellings land on the
-    // vocabulary tip, the same contract every retired verb rides.
-    ("snapshot", "status"),
-    ("restore", "status"),
-];
-
-/// Inject the successor for a removed subcommand as clap's OWN
-/// SuggestedSubcommand context, so the tip renders in clap's
-/// canonical position and `valid` (white) style.
-///
-/// No-op for every error kind except InvalidSubcommand and every
-/// typed name outside the redirect table.
-fn enrich_removed_subcommand_redirect(e: &mut clap::Error) {
-    if e.kind() != clap::error::ErrorKind::InvalidSubcommand {
-        return;
-    }
-    let typed = match e.get(ContextKind::InvalidSubcommand) {
-        Some(ContextValue::String(s)) => s.as_str(),
-        _ => return,
-    };
-    for (gone, successor) in REMOVED_SUBCOMMAND_REDIRECTS {
-        if typed == *gone {
-            // Override any fuzzy suggestion clap already attached:
-            // for an exact removed name the redirect is strictly
-            // more correct than a near-miss candidate.
-            e.remove(ContextKind::Suggested);
-            e.insert(
-                ContextKind::SuggestedSubcommand,
-                ContextValue::String((*successor).to_string()),
-            );
-            return;
-        }
-    }
-}
-
-/// Subcommand spellings whose successor is a top-level FLAG, not
-/// another subcommand (NIGHT-boost-13).
-///
-/// `help` is the muscle memory every clap tool trains — clap's own
-/// auto-generated `help` subcommand would answer it — but zelynic
-/// runs the single-tier help surface (NIGHT-improve-3: `--help` is
-/// the one reference, the auto-generated help subcommand is disabled
-/// at every level), so `zelynic help` died as an unrecognized
-/// subcommand with no tip: the owner's terminal showed a dead end
-/// for the most natural spelling in the vocabulary. The redirect
-/// lands that muscle memory on the flag that succeeds it — the same
-/// contract the removed-subcommand table above gives observe/top.
-const SUBCOMMAND_FLAG_REDIRECTS: &[(&str, &str)] = &[("help", "zelynic --help")];
-
-/// Inject the flag successor for a subcommand spelling in the table
-/// above as a canonical `tip:` line.
-///
-/// The plain `Suggested` context is the only render slot that can
-/// carry a non-subcommand successor: `SuggestedSubcommand` renders
-/// "a similar subcommand exists" (and there is no help subcommand to
-/// name), `SuggestedArg` renders "a similar argument exists" (and
-/// `help` was typed as a subcommand). The successor renders in the
-/// `valid` (white) style, matching every other tip's highlighted
-/// command.
-fn enrich_subcommand_flag_redirect(e: &mut clap::Error, cmd: &clap::builder::Command) {
-    use std::fmt::Write as _;
-    if e.kind() != clap::error::ErrorKind::InvalidSubcommand {
-        return;
-    }
-    let typed = match e.get(ContextKind::InvalidSubcommand) {
-        Some(ContextValue::String(s)) => s.as_str(),
-        _ => return,
-    };
-    let Some(&(_, successor)) = SUBCOMMAND_FLAG_REDIRECTS
-        .iter()
-        .find(|(name, _)| *name == typed)
-    else {
-        return;
-    };
-    // Override any fuzzy suggestion clap already attached — for an
-    // exact vocabulary spelling the redirect is strictly more
-    // correct than a near-miss candidate.
-    e.remove(ContextKind::SuggestedSubcommand);
-    e.remove(ContextKind::Suggested);
-    let valid = cmd.get_styles().get_valid();
-    let mut tip = clap::builder::StyledStr::new();
-    let _ = write!(
-        tip,
-        "to see the reference, run '{valid}{successor}{valid:#}'"
-    );
-    e.insert(ContextKind::Suggested, ContextValue::StyledStrs(vec![tip]));
-}
-
-/// Strip hidden subcommands from clap's typo suggestions
-/// (NIGHT-hunt-Z9).
-///
-/// clap's `did_you_mean` engine scores candidates from
-/// `all_subcommand_names()` — hidden ones included — so a near-miss of
-/// an internal role (`zelynic __probe-serve`) rendered "some similar
-/// subcommands exist: '__probe-client', '__probe-server'": the
-/// vocabulary the help hides surfaced as a tip, teaching the operator
-/// to run the probe server (an unauthenticated loopback data blast)
-/// by hand. The flag-side rescue below already filters
-/// `is_hide_set()` candidates; this is the subcommand-side twin —
-/// the same one-vocabulary contract, both doors.
-///
-/// Pure filter over the `SuggestedSubcommand` context (clap stores
-/// its candidates there as `Strings`): every candidate that resolves
-/// to a hidden subcommand is dropped. When candidates remain, the
-/// trimmed list replaces the context (a visible suggestion survives
-/// beside a hidden one being removed); when NONE remain the context
-/// is removed entirely, leaving the unrecognized-subcommand verdict,
-/// the usage line, and the footer — the same honest dead end any
-/// no-candidate typo already owns. No-op for every other error kind
-/// and for errors carrying no suggestion.
-fn drop_hidden_subcommand_suggestions(e: &mut clap::Error, cmd: &clap::builder::Command) {
-    if e.kind() != clap::error::ErrorKind::InvalidSubcommand {
-        return;
-    }
-    let Some(ContextValue::Strings(candidates)) = e.get(ContextKind::SuggestedSubcommand) else {
-        return;
-    };
-    let candidates = candidates.clone();
-    let visible: Vec<String> = candidates
-        .iter()
-        .filter(|name| {
-            cmd.find_subcommand(name.as_str())
-                .is_none_or(|sub| !sub.is_hide_set())
-        })
-        .cloned()
-        .collect();
-    if visible.len() == candidates.len() {
-        return; // nothing hidden — clap's own suggestion stands
-    }
-    if visible.is_empty() {
-        e.remove(ContextKind::SuggestedSubcommand);
-    } else {
-        e.insert(
-            ContextKind::SuggestedSubcommand,
-            ContextValue::Strings(visible),
-        );
-    }
-}
 /// Case-insensitive flag-suggestion fallback for clap UnknownArgument
 /// errors.
 ///
@@ -377,6 +174,77 @@ fn enrich_unknown_arg_suggestion(e: &mut clap::Error, cmd: &clap::builder::Comma
     }
 }
 
+/// The subcommand local-help interception (night-netrunner-5).
+///
+/// When the error is an UnknownArgument for `-h`/`--help` AND the argv
+/// walk places that flag after a subcommand, the user asked THAT
+/// command for help — the request renders the subcommand's own local
+/// help (synopsis, arguments, options) instead of dying. The walk is
+/// the failing_subcommand forensics (`cli::argv`), run WITHOUT the
+/// failing-token stop: the flag itself is the failing token, and the
+/// subcommand sits before it. `-h` renders the summary help, `--help`
+/// the long one — clap's own two-depth contract, on the surface the
+/// single-tier law (NIGHT-improve-3) left to the subcommands. The
+/// brand styles ride the clone explicitly: the derive hangs them on
+/// the root only, and a local render with clap's default palette
+/// would break the one-paint law the error bridge keeps. `None` for
+/// every other error kind, every other token, and every root-level
+/// help request (the root `help` field parses before any error can
+/// fire — this door never sees a top-level ask).
+fn subcommand_local_help(
+    e: &clap::Error,
+    cmd: &clap::builder::Command,
+    argv: &[OsString],
+    forced_16: bool,
+) -> Option<clap::builder::StyledStr> {
+    if e.kind() != clap::error::ErrorKind::UnknownArgument {
+        return None;
+    }
+    let token = match e.get(ContextKind::InvalidArg) {
+        Some(ContextValue::String(s)) => s.as_str(),
+        _ => return None,
+    };
+    if token != "-h" && token != "--help" {
+        return None;
+    }
+    // The escape hatch (`--`) turns every later token into a value: a
+    // `-h` that arrived after one is a value-slot error, not a help
+    // request — the interception declines, and the escape-hatch honesty
+    // probe (the door that owns that contract) answers instead. Both
+    // positions come off one full walk: the first `--` and the first
+    // verbatim token (a token clap REPORTS but argv does not carry
+    // verbatim — a short cluster's tail — never declines here, the
+    // same no-proof-no-verdict law the honesty probe runs on).
+    let mut dashdash_at: Option<usize> = None;
+    let mut token_at: Option<usize> = None;
+    for (i, arg) in argv.iter().enumerate().skip(1) {
+        if token_at.is_none() && arg.as_os_str() == std::ffi::OsStr::new(token) {
+            token_at = Some(i);
+        }
+        if dashdash_at.is_none() && arg.as_os_str() == std::ffi::OsStr::new("--") {
+            dashdash_at = Some(i);
+        }
+    }
+    if let (Some(dd), Some(tp)) = (dashdash_at, token_at)
+        && tp > dd
+    {
+        return None;
+    }
+    let mut sub = super::argv::failing_subcommand(cmd, argv, None)?;
+    let bin = format!("zelynic {}", sub.get_name());
+    let styles = if forced_16 {
+        crate::cli::clap_styles_16()
+    } else {
+        crate::cli::clap_styles()
+    };
+    sub = sub.bin_name(bin).styles(styles);
+    Some(if token == "--help" {
+        sub.render_long_help()
+    } else {
+        sub.render_help()
+    })
+}
+
 /// Render a clap parse error in the canonical zelynic shape and exit.
 ///
 /// Every error kind: case-insensitive typo rescue first (including the
@@ -401,6 +269,39 @@ fn enrich_unknown_arg_suggestion(e: &mut clap::Error, cmd: &clap::builder::Comma
 pub(crate) fn exit_clap_error(e: clap::Error) -> ! {
     let mut e = e;
     let mut cmd = Cli::command();
+    let argv: Vec<OsString> = std::env::args_os().collect();
+    // Night-netrunner-5, the subcommand local-help door: `-h`/`--help`
+    // typed after a subcommand is a help REQUEST, not a usage error —
+    // the single-tier root reference (NIGHT-improve-3) owns the
+    // top-level surface, and the subcommand answers with its OWN local
+    // help (its synopsis, its arguments), the way clap's native flag
+    // would have, on stdout with exit 0. The interception runs before
+    // every enrichment: the top-level authority rescue would suggest
+    // the very flag the user just typed.
+    if let Some(help) =
+        subcommand_local_help(&e, &cmd, &argv, capability() == ColorCapability::Color16)
+    {
+        // The honesty note (NIGHT-boost-24): help is a text surface —
+        // when --print-json rode along, stderr says so BEFORE the help
+        // bytes land, so a JSON script watching the stream knows why
+        // it is not JSON. stdout and the exit code are untouched.
+        if super::argv::print_json_requested() {
+            super::warn_print_json_ignored();
+        }
+        match capability() {
+            ColorCapability::Mono => println_safe!("{}", help),
+            _ => println_safe!("{}", help.ansi()),
+        }
+        std::process::exit(0);
+    }
+    // Night-netrunner-5, the JSON error contract door: the raw argv
+    // carried --print-json, so every usage and parse error renders as
+    // the contract object on stdout (exit 1) — before the prose
+    // enrichment chain, whose styled render and footer are furniture a
+    // JSON consumer cannot parse.
+    if super::argv::print_json_requested() {
+        super::json_error::exit_clap_json(&e);
+    }
     // Depth honesty (NIGHT-improve-73): the forced 16-color rung gets
     // the palette mapping (clap_styles_16) BEFORE any enrichment —
     // the subcommand-flag redirect bakes the `valid` style into its
@@ -415,7 +316,6 @@ pub(crate) fn exit_clap_error(e: clap::Error) -> ! {
     if remapped_16 {
         cmd = cmd.styles(crate::cli::clap_styles_16());
     }
-    let argv: Vec<OsString> = std::env::args_os().collect();
     // Captured BEFORE enrichment: only clap's OWN suggestion narrows
     // the native usage (the parser adds the suggested flag to its
     // matcher, and `create_usage_with_title(&used)` then renders it
@@ -523,6 +423,21 @@ mod rescue_tests;
 #[cfg(test)]
 #[path = "../../test/cli/color_law_tests.rs"]
 mod color_law_tests;
+
+/// Drive the subcommand local-help door the way the bridge would
+/// (minus the process::exit and the stdout write), so the door's
+/// contracts are testable: Some(rendered help) means the door fires,
+/// None means the error path owns the argv. The test process runs in
+/// the Mono lane, so the forced-16 flag mirrors the bridge's
+/// condition and stays false under cargo test.
+#[cfg(test)]
+fn local_help_via_bridge(argv: &[&str]) -> Option<String> {
+    use clap::Parser;
+    let err = Cli::try_parse_from(argv).expect_err("argv must fail to parse");
+    let cmd = Cli::command();
+    let owned: Vec<std::ffi::OsString> = argv.iter().map(std::ffi::OsString::from).collect();
+    subcommand_local_help(&err, &cmd, &owned, false).map(|help| help.to_string())
+}
 
 /// Render an error exactly the way [`exit_clap_error`] does (minus
 /// the process::exit and the capability-lane byte choice), so

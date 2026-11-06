@@ -430,37 +430,49 @@ fn test_help_documents_the_depth_mode() {
     );
 }
 
-/// NIGHT-improve-3 owner contract: --help typed after a subcommand is a
-/// usage error (exit 2) whose tip points at the one help authority —
-/// `zelynic --help` — with the real usage line and exactly one
-/// canonical footer.
+/// Night-netrunner-5 owner contract: --help typed after a subcommand
+/// is a help REQUEST — the subcommand answers with its own local help
+/// (its synopsis, its arguments) on stdout, exit 0. The old verdict
+/// (exit 2 with a tip pointing at the top-level authority) was the
+/// single-tier law's dead end; the local help is the way out.
 #[test]
-fn test_subcommand_help_errors_with_suggestion() {
+fn test_subcommand_help_renders_local_help() {
     let output = zelynic_cmd()
         .args(["strict", "brave", "--help"])
         .output()
         .expect("Failed to execute zelynic strict brave --help");
 
-    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Usage: zelynic strict"),
+        "the local help must carry the subcommand's own usage, got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("--per-socket"),
+        "the local help must carry the command's own options, got:\n{stdout}"
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("unexpected argument '--help'"),
-        "must name the rejected flag, got:\n{stderr}"
+        !stderr.contains("unexpected argument"),
+        "a help request is not an error, stderr must stay clean, got:\n{stderr}"
     );
+}
+
+/// The -h short form rides the same door: local help on stdout,
+/// exit 0, and the root reference stays untouched on the top level.
+#[test]
+fn test_subcommand_short_help_renders_local_help() {
+    let output = zelynic_cmd()
+        .args(["status", "-h"])
+        .output()
+        .expect("Failed to execute zelynic status -h");
+
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stderr.contains("'zelynic --help'"),
-        "tip must point at the top-level help authority, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("Usage: zelynic"),
-        "error must carry the real usage line, got:\n{stderr}"
-    );
-    assert_eq!(
-        stderr
-            .matches("For more information, try '--help'.")
-            .count(),
-        1,
-        "exactly one canonical footer, got:\n{stderr}"
+        stdout.contains("Usage: zelynic status"),
+        "the local help must carry the subcommand's own usage, got:\n{stdout}"
     );
 }
 

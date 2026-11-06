@@ -40,6 +40,17 @@ use cli::Cli;
 
 fn main() {
     if let Err(e) = try_main() {
+        // Night-netrunner-5, the JSON error contract's runtime door:
+        // the raw argv carried --print-json, so the branded chain
+        // renders as the contract object on stdout (exit 1) — the
+        // error body and its embedded tip line book into their own
+        // fields, the shape a JSON consumer parses without the prose
+        // lane's labels.
+        let msg = format_error_chain(&e);
+        if cli::argv::print_json_requested() {
+            let (err, tip) = cli::json_error::chain_parts(&msg);
+            cli::json_error::exit_json(&err, &tip);
+        }
         // Single branded render + explicit exit 1 (runtime failure —
         // distinct from clap usage errors, which exit 2 inside
         // cli::ux::exit_clap_error). The line-aware renderer paints the
@@ -54,7 +65,6 @@ fn main() {
         // turned a load failure into a bare "Failed to load BPF
         // object" while the actual diagnosis (which map, which
         // syscall, which errno) sat invisible in the dropped chain.
-        let msg = format_error_chain(&e);
         output::eprintln_error_labeled(&msg);
         std::process::exit(1);
     }
@@ -133,6 +143,13 @@ fn try_main() -> Result<()> {
         match output::parse_color_mode(mode) {
             Ok(cap) => output::set_forced_capability(cap),
             Err(reason) => {
+                // Night-netrunner-5: a usage-class input error — the
+                // JSON error contract's door rides the same argv scan
+                // the clap bridge uses (exit 1 there, the prose lane
+                // keeps its own 2).
+                if cli::argv::print_json_requested() {
+                    cli::json_error::exit_json(&reason, "");
+                }
                 output::eprintln_error_labeled(&reason);
                 std::process::exit(2);
             }

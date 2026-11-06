@@ -338,3 +338,49 @@ fn dangling_flag_without_value_is_harmless() {
     let a = argv(&["zelynic", "s", "brave", "100kb", "--color-mode"]);
     assert_eq!(forced_color_mode_from_argv(&a), None);
 }
+
+// ── print_json_in_argv (night-netrunner-5, the JSON error contract) ──
+
+/// The exact token arms both contract doors: a usage error under
+/// --print-json renders as the {"error", "tip"} object on stdout.
+#[test]
+fn print_json_scan_exact_token_arms_the_contract() {
+    let a = argv(&["zelynic", "--print-json", "status"]);
+    assert!(print_json_in_argv(&a), "the exact token is the answer");
+    let a = argv(&["zelynic", "status", "--print-json"]);
+    assert!(print_json_in_argv(&a), "position does not matter");
+}
+
+/// The =value spelling counts too: a malformed value dies as a usage
+/// error, and a user who typed the flag asked for JSON on that lane.
+#[test]
+fn print_json_scan_value_form_counts() {
+    let a = argv(&["zelynic", "--print-json=true", "status"]);
+    assert!(
+        print_json_in_argv(&a),
+        "the =value spelling is still the flag"
+    );
+}
+
+/// The escape hatch ends the scan: nothing after `--` is an option,
+/// so a --print-json riding as an escaped value arms nothing.
+#[test]
+fn print_json_scan_stops_at_dashdash() {
+    let a = argv(&["zelynic", "--", "--print-json"]);
+    assert!(
+        !print_json_in_argv(&a),
+        "after -- it is a value, not the flag"
+    );
+    let a = argv(&["zelynic", "--print-json", "status", "--", "--print-json"]);
+    assert!(
+        print_json_in_argv(&a),
+        "the flag before -- is the answer; the escaped twin is noise"
+    );
+}
+
+/// No flag, no contract: the prose lane keeps its render.
+#[test]
+fn print_json_scan_absence_is_plain() {
+    let a = argv(&["zelynic", "-v", "s", "brave", "100kb"]);
+    assert!(!print_json_in_argv(&a));
+}
