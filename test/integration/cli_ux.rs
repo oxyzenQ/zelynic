@@ -171,12 +171,18 @@ fn test_help_pipe_to_head_does_not_panic() {
 /// carry `[38;2;139;139;139m` — same tier, same color, each lane's
 /// own encoding recorded here. The typed MISTAKE keeps the invalid
 /// yellow: it never rides a grey span.
+/// NIGHT-netrunner-9 hermeticity: COLORTERM joins the removal list
+/// — a hermetic test controls every color-relevant env var, and a
+/// runner's inherited COLORTERM=truecolor must not upgrade the
+/// pinned 256-color depth (the binary would answer 38;2 grey where
+/// this pin reads 38;5).
 #[test]
 fn test_error_lane_flag_mentions_render_grey() {
     let mut cmd = zelynic_cmd();
     cmd.arg("--verbos")
         .env_remove("NO_COLOR")
         .env_remove("CLICOLOR")
+        .env_remove("COLORTERM")
         .env("CLICOLOR_FORCE", "1")
         .env("TERM", "xterm-256color");
     let colored = cmd
@@ -211,12 +217,18 @@ fn test_error_lane_flag_mentions_render_grey() {
 /// subcommand's successor renders as one valid span — command and
 /// flag spelling together, the grey grammar tier (`zelynic --help`,
 /// `strict --all`). The successor is what to type next: grammar.
+/// NIGHT-netrunner-9 hermeticity: COLORTERM joins the removal list
+/// — a hermetic test controls every color-relevant env var, so the
+/// chain stays uniform with the grey-tier pins whatever the runner
+/// terminal reports (this clap lane's raw encoding is depth-blind
+/// under force; the removal keeps the pinned run deterministic).
 #[test]
 fn test_removed_subcommand_redirect_successor_renders_grey() {
     let mut cmd = zelynic_cmd();
     cmd.arg("help")
         .env_remove("NO_COLOR")
         .env_remove("CLICOLOR")
+        .env_remove("COLORTERM")
         .env("CLICOLOR_FORCE", "1")
         .env("TERM", "xterm-256color");
     let colored = cmd
