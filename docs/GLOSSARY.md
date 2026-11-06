@@ -293,7 +293,7 @@ first-time reader, and this page pays it once, up front.
   smooth, the architecture's heart
   ([INNOVATIONS.md](INNOVATIONS.md)).
 - **The cosmic dragon arc**: the canonical index document of the
-  enforcement core — the fourteen scales, the estate map, the v81
+  enforcement core — the fourteen scales, the estate map, the quota-saver
   roadmap ([COSMIC_DRAGON_ARC.md](COSMIC_DRAGON_ARC.md)); the named
   whole animal — the architecture, the engine, and the render
   lineage each keep their own entry on this page.

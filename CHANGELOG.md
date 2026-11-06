@@ -531,7 +531,7 @@ v80.0.0
   confirmation-gated short-header learning, cookie on every
   refusal; all thirteen scales green on Code/Doc/Test), the quota
   gap (no quota accumulator, no RWND, ECN enforcement-driven and
-  uncounted, no EDT), and the owner's v81 roadmap recorded verbatim
+  uncounted, no EDT), and the owner's quota-saver roadmap recorded verbatim
   (Layer 1 TCP receive window enforcement, Layer 2 ECN CE-marking
   for QUIC backoff, Layer 3 EDT pacing for egress). INNOVATIONS.md
   introduces the arc above the engine; README.md carries the new

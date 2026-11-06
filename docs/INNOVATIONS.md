@@ -64,7 +64,7 @@ compose one whole with its own name (the arc consolidation,
 zelynic's entire architectural stack. Where this page is the
 per-scale ledger and the architecture doc is the body, the arc is
 the whole animal: the canonical index, the estate map (Scales,
-Heart, Eyes, Claws), and the owner's v81 quota-saver roadmap all
+Heart, Eyes, Claws), and the owner's quota-saver roadmap all
 live in [COSMIC_DRAGON_ARC.md](COSMIC_DRAGON_ARC.md). When a doc,
 a license, or a roadmap says "the cosmic dragon arc", it means
 everything the entries below detail.

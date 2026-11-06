@@ -204,7 +204,7 @@ that goal, the arc holds four gaps:
    `tc`-qdiscs — the design must ride whatever qdisc the host
    already runs, or pace by other kernel means, and fail open.
 
-## The next evolution (v81) — the owner's roadmap
+## The next evolution — the owner's quota-saver roadmap
 
 The three layers below are the owner's stated vision, recorded
 verbatim in substance so a future agent neither invents a fourth
