@@ -10,7 +10,7 @@ trusting zelynic with anything that matters.
 
 ## The one-paragraph verdict
 
-Zelynic provides application-layer bypass resistance, not host-level
+zelynic provides application-layer bypass resistance, not host-level
 security. It assumes root is trustworthy. Everything zelynic enforces
 lives in the kernel's eBPF layer (cgroup skb/sock hooks, no tc, no
 nftables, no daemon), so it holds against every attempt to evade it
@@ -51,7 +51,7 @@ root account.
   root-removable kernel state, and root can unload the loader's
   programs outright. This is by design and unavoidable: on Linux,
   CAP_SYS_ADMIN (or CAP_BPF + CAP_NET_ADMIN, depending on the
-  kernel) outranks any eBPF control plane. Zelynic assumes root is
+  kernel) outranks any eBPF control plane. zelynic assumes root is
   trustworthy; if it is not, nothing in this document holds.
 - **Kernel compromise.** If the kernel is compromised, eBPF is
   compromised: the attacker owns the verifier, the helpers, and the
@@ -74,7 +74,7 @@ root account.
 - **Defends:** userspace evasion of rate limits and blocks — any
   app, any language, any library, below the syscall surface.
 - **Does not defend:** anyone with root, a compromised kernel, or
-  hardware access. Zelynic provides application-layer bypass
+  hardware access. zelynic provides application-layer bypass
   resistance, not host-level security. It assumes root is
   trustworthy.
 - **Failure mode:** loud, not silent — a missing pin, an unload, or

@@ -2240,6 +2240,20 @@ single stderr line names the honoring surfaces and the output itself
 is untouched. The featureless (dormant-mode) build answers with its
 honest smaller set (`doctor` only — the other three are eBPF
 surfaces).
+
+**The error contract (night-netrunner-5).** When the raw argv
+carried `--print-json`, a fatal CLI error — a usage/parse error from
+clap or a runtime failure — renders as ONE JSON object on stdout:
+
+```json
+{"error": "<message>", "tip": "<tip>"}
+```
+
+and exits 1 (the prose lane keeps its own codes: clap usage 2,
+runtime 1). The `tip` field is `""` when no suggestion exists —
+both keys are always present, so a consumer can index them blindly;
+the message carries the same verdict the prose render opens with,
+without the usage block and the footer a JSON parser cannot use.
 Field shapes:
 
 `status --print-json`:
@@ -2556,9 +2570,9 @@ means exactly that: nothing is limited right now.
 
 | Code | Meaning |
 |------|---------|
-| 0 | Success (including informational output like `--help`, `status`). |
-| 1 | Runtime failure — root missing, BPF object absent, stale state, or a named target that resolved to nothing. The error carries a branded `error:` label and often a white `tip:` line. |
-| 2 | Usage error — unknown command/flag, missing arguments, invalid values. clap renders it with did-you-mean suggestions for typos, the usage line is the FAILING command's own grammar (NIGHT-boost-13), and every escape-hatch tip is verified before printing: a "use `--`" tip that fails when followed is dropped. |
+| 0 | Success (including informational output like `--help`, `status`, and a subcommand's own local help — `-h`/`--help` typed after a subcommand renders THAT command's synopsis and options on stdout, night-netrunner-5). |
+| 1 | Runtime failure — root missing, BPF object absent, stale state, or a named target that resolved to nothing. The error carries a branded `error:` label and often a white `tip:` line. With `--print-json` on the argv, the error is the `{"error", "tip"}` object on stdout instead (the JSON error contract above) — still exit 1. |
+| 2 | Usage error — unknown command/flag, missing arguments, invalid values. clap renders it with did-you-mean suggestions for typos, the usage line is the FAILING command's own grammar (NIGHT-boost-13), and every escape-hatch tip is verified before printing: a "use `--`" tip that fails when followed is dropped. With `--print-json` on the argv, the same error renders as the JSON error contract object and exits 1 instead. |
 
 The no-match contract (NIGHT-dinner-11 — the eBPF-verifier lineage
 applied to the CLI surface: reject, never a soft no-op): a command
