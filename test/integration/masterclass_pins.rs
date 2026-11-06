@@ -107,12 +107,18 @@ fn test_help_strict_flags_are_complete() {
 /// law is part of the masterclass tidy's own contracts, and
 /// help_pins rode the 600-line cap the moment this pin landed
 /// (one theme, one file — the usage_tests discipline).
+/// NIGHT-netrunner-8 hermeticity: COLORTERM joins the removal list
+/// — a hermetic test controls every color-relevant env var, and a
+/// runner's inherited COLORTERM=truecolor must not upgrade the
+/// pinned 256-color depth (the binary would answer 38;2 grey where
+/// this pin reads 38;5).
 #[test]
 fn test_help_synopsis_lines_render_grey_under_purple_headings() {
     let mut cmd = zelynic_cmd();
     cmd.arg("--help")
         .env_remove("NO_COLOR")
         .env_remove("CLICOLOR")
+        .env_remove("COLORTERM")
         .env("CLICOLOR_FORCE", "1")
         .env("TERM", "xterm-256color");
     let colored = cmd
@@ -163,12 +169,18 @@ fn test_help_synopsis_lines_render_grey_under_purple_headings() {
 /// the solid green tier — zero grey bleed into boost-4's "this is
 /// what you type" tier. The NO_COLOR escape-free contract stays
 /// pinned in help_pins (the green-tier test).
+/// NIGHT-netrunner-8 hermeticity: COLORTERM joins the removal list
+/// — a hermetic test controls every color-relevant env var, and a
+/// runner's inherited COLORTERM=truecolor must not upgrade the
+/// pinned 256-color depth (the binary would answer 38;2 grey where
+/// this pin reads 38;5).
 #[test]
 fn test_help_flag_spellings_render_grey_across_tables_and_prose() {
     let mut cmd = zelynic_cmd();
     cmd.arg("--help")
         .env_remove("NO_COLOR")
         .env_remove("CLICOLOR")
+        .env_remove("COLORTERM")
         .env("CLICOLOR_FORCE", "1")
         .env("TERM", "xterm-256color");
     let colored = cmd
@@ -346,12 +358,18 @@ fn test_help_documents_the_masterclass_list_grammar() {
 /// stay default (content, not grammar). The geometry law rides
 /// too: ONE description column (18) across the section's rows and
 /// continuations, computed by target_row.
+/// NIGHT-netrunner-8 hermeticity: COLORTERM joins the removal list
+/// — a hermetic test controls every color-relevant env var, and a
+/// runner's inherited COLORTERM=truecolor must not upgrade the
+/// pinned 256-color depth (the binary would answer 38;2 grey where
+/// this pin reads 38;5).
 #[test]
 fn test_help_target_form_tokens_render_grey_in_grammar_sections() {
     let mut cmd = zelynic_cmd();
     cmd.arg("--help")
         .env_remove("NO_COLOR")
         .env_remove("CLICOLOR")
+        .env_remove("COLORTERM")
         .env("CLICOLOR_FORCE", "1")
         .env("TERM", "xterm-256color");
     let colored = cmd
