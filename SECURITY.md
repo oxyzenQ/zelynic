@@ -78,7 +78,7 @@ Concrete classes we care about, with the current posture of each:
 |-------|---------|
 | Privilege confusion (root used where it is not needed, or the inverse) | Guarded — `--check-update` refuses root; eBPF surfaces require root and fail fast |
 | Local DoS by an unprivileged user against the root tool or other users | In scope — the `/tmp` lock-squatting/symlink class was found and fixed (2026-09 audit) |
-| Injection (command, path, format-string, CI script) | Audited — argv-array curl, kernel-generated paths only, env-isolated CI scripts |
+| Injection (command, path, format-string, CI script) | Audited — argv-array curl, kernel-generated paths only, env-isolated CI scripts; the night-netrunner-5 sweep re-pinned every `Command::new` site (three: fixed-argv curl with the constant API URL, the binary spawning itself for the hidden probe roles, the rescue utils with hardcoded names and a root PATH pin) as carrying no unvalidated user input |
 | Memory safety in the kernel datapath | BPF verifier bounds-checks; C side reviewed per release |
 | Panic surfaces reachable from user input | Pinned by the non-root depth suite (exit 101 asserted absent) |
 | Supply chain (dependency compromise) | 7 direct deps, `cargo audit` + `cargo deny` in CI, chrono banned, every dep justified in [docs/DEPENDENCY_AUDIT.md](docs/DEPENDENCY_AUDIT.md) |
@@ -87,7 +87,9 @@ Concrete classes we care about, with the current posture of each:
 
 The full audit trail — findings, verdicts, and accepted risks — lives
 in [docs/SAFETY_ANALYSIS.md](docs/SAFETY_ANALYSIS.md) and is updated
-with every security pass.
+with every security pass. The enforcement boundary itself — what the
+eBPF layer can and cannot defend against, stated without marketing
+fluff — lives in [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
 
 ## Hardening posture (already shipped)
 

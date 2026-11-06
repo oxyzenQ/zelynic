@@ -99,6 +99,33 @@ fn test_verbose_flag_parses_globally() {
     );
 }
 
+/// Night-netrunner-5, the pipe law's own pin: stdout holds ONLY the
+/// report bytes — every `-v` trace rides stderr through the verbose
+/// lane's one door, so a piped consumer's bytes are identical with
+/// and without the flag (doctor: the surface that never touches
+/// eBPF, the quiet lane every trace call site must respect).
+#[test]
+fn test_verbose_trace_never_leaks_into_stdout() {
+    let quiet = zelynic_cmd()
+        .args(["doctor"])
+        .output()
+        .expect("Failed to execute zelynic doctor");
+    let traced = zelynic_cmd()
+        .args(["--verbose", "doctor"])
+        .output()
+        .expect("Failed to execute zelynic --verbose doctor");
+
+    assert_eq!(
+        quiet.status.code(),
+        traced.status.code(),
+        "the exit contract cannot change under -v"
+    );
+    assert_eq!(
+        quiet.stdout, traced.stdout,
+        "stdout must be byte-identical with and without -v — the trace rides stderr"
+    );
+}
+
 /// Piping into a short reader must not panic: the safe print macros
 /// discard EPIPE instead of aborting with exit 101 (verified live
 /// before NIGHT-hunt-5: `zelynic --help | head -2` panicked — then the
