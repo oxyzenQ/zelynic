@@ -19,20 +19,25 @@ different terms.
 
 ## The capability a license buys
 
-zelynic's headline capability is the **80% quota saver**: on metered
-links, its three kernel layers make senders slow down before the
-bytes cross — the RECWN receive-window clamp holds remote senders to
-the policy's bandwidth-delay product, ECN CE-marking converts
-would-be losses into lossless backoffs, and egress socket pacing
-spaces uploads at the policy rate with no drops — so the quota a
-workload would have burned on retransmissions and over-bursts stays
-unbilled. The quota telemetry (schema v28) makes the saving
-measurable: `zelynic status --print-json` names
-`bytes_saved_total` with the per-layer split, live-verified by the
-probe suite (`scripts/bench/recwn-probe.sh`, `ecn-probe.sh`,
-`edt-probe.sh`). The number is the layered lane's claim on the
-metered rates it exists for; the derivation law and its named
-assumption are documented in
+zelynic's headline capability is the **workload-conditional quota
+saver**: on metered links, its three kernel layers make senders slow
+down before the bytes cross — the RECWN receive-window clamp holds
+remote senders to the policy's bandwidth-delay product, ECN
+CE-marking converts would-be losses into lossless backoffs, and
+egress socket pacing spaces uploads at the policy rate with no
+drops — so the quota a workload would have burned on
+retransmissions and over-bursts stays unbilled. The saving is
+stated with its condition, never as a flat percentage: a bounded
+transfer's sender never overruns its file, and the A/B harness
+(`scripts/bench/quota-saver-ab.sh`) measures the difference — its
+ground-truth lines separate the ledger's counterfactual booking
+from the wire's measured saving, and the overrunning leg prices
+the workloads where the withholding is real. The quota telemetry
+(schema v28) makes the booking measurable: `zelynic status
+--print-json` names `bytes_saved_total` with the per-layer split,
+live-verified by the probe suite (`scripts/bench/recwn-probe.sh`,
+`ecn-probe.sh`, `edt-probe.sh`). The claim's conditions and its
+named assumptions are documented in
 [docs/COSMIC_DRAGON_ARC.md](docs/COSMIC_DRAGON_ARC.md), never a
 fabricated precision.
 

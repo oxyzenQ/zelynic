@@ -71,7 +71,7 @@ first-time reader, and this page pays it once, up front.
 - **The quota saver**: the umbrella name for the landed layer stack
   that turns policing into savings — RECWN, ECN-CE, EDT, and the
   Layer 4 books, one budget story per lane (INNOVATIONS.md, the
-  "How zelynic Saves 80% of Your Internet" section).
+  "The Quota Saver — the Workload-Conditional Claim" section).
 - **The quota saver's layers**: the four landed layers plus the one
   unbuilt slot — Layer 0 reserved (DSCP/XDP ideas, unscheduled),
   Layer 1 RECWN (the ingress receive window), Layer 2 ECN-CE (mark

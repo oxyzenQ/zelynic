@@ -83,7 +83,7 @@ name for zelynic's entire architectural stack, indexed in
 | **Guaranteed fair share** | `--floor 100kb` / `--ceil 300kb`: every subprocess under the target is guaranteed a minimum and capped at a maximum — the floor a PRIORITY (an idle subprocess lends its share back; the pool itself is the lender), the ceiling binding even a lone subprocess. HTB's rate/ceil idiom in a pure eBPF policer (improve-40, schema v24). Per-direction spellings for the asymmetric link: `--floor-download` / `--ceil-upload` bracket one direction's rows only, one spelling per side (improve-40-b). |
 | **Self-expiring limits** | `--during 20d` — a duration from the apply instant (units s, m, h, d, mn, y; bounds 1s..5y): the KERNEL expires the row, no daemon, no cron, drift-free monotonic spans (NIGHT-during, schema v23; the window and date forms are gone — the owner's duration-only revision, rows written by older builds keep their promises). |
 | **RECWN receive-window control** | A policed cgroup's own sockets advertise a rate-shaped receive window (rate x 200 ms delivery-cadence estimate, clamped [2 x MSS, 1 MiB]) — remote TCP senders hold their in-flight bytes down BEFORE the link bills them, the quota saver's Layer 1 (night-spark-2, schema v25; the owner's coined name, deliberately not "RWND"). |
-| **Quota Saved telemetry — the 80% quota saver** | The three quota-saver lanes' work is BOOKED, not just enforced: `status --print-json` names `bytes_saved_total` with the `bytes_saved_by_edt` / `bytes_saved_by_ecn` / `bytes_saved_by_recwn` split (schema v28, night-spark-7), and the human table's `Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)` line renders it — the preserved egress headroom, the delivered CE marks, and the window-clamp counterfactual, each by its own physics (the math: docs/COSMIC_DRAGON_ARC.md's Layer 4 section). |
+| **Quota Saved telemetry — the workload-conditional quota saver** | The three quota-saver lanes' work is BOOKED, not just enforced: `status --print-json` names `bytes_saved_total` with the `bytes_saved_by_edt` / `bytes_saved_by_ecn` / `bytes_saved_by_recwn` split (schema v28, night-spark-7), and the human table's `Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)` line renders it — the preserved egress headroom, the delivered CE marks, and the window-clamp counterfactual, each by its own physics (the math: docs/COSMIC_DRAGON_ARC.md's Layer 4 section). |
 | **Pinned bpf_links** | Enforcement survives process exit — no daemon, no battery drain (RAM/CPU/IO measured live, not asserted: the proof harness's footprint claim). |
 | **Fractional precision** | 0.00% measured rate error, sub-byte token accumulation (reproduce: `sudo ./scripts/bench/proof-claims.sh`; math pins: test/ebpf/limiter/math_tests.rs). |
 | **Schema migration** | BPF struct changes auto-detected + auto-cleaned on upgrade. |
@@ -817,21 +817,30 @@ schema v28: the three lanes' savings are BOOKED
 with the human table's `Quota Saved` line rendering the total and
 the layer split.
 
-**The 80% quota saver**: on the metered rates the lane exists for,
-the three physics stack — the receive-window clamp holds a sender
-to the policy's bandwidth-delay product (the window counterfactual
-books ~85% at the 100 kb rung on the conservative 128 KiB
-default-window assumption, named in
+**The workload-conditional quota saver**: the three physics stack on
+the metered rates the lane exists for — the receive-window clamp
+holds a sender to the policy's bandwidth-delay product (the window
+counterfactual books ~85% at the 100 kb rung on the conservative
+128 KiB default-window assumption, named in
 [docs/COSMIC_DRAGON_ARC.md](docs/COSMIC_DRAGON_ARC.md)'s math
 section), the CE mark converts would-be losses into backoffs
 without a lost datagram, and the pacer spaces the egress so the
-drop verdict never speaks — so the quota a workload would have
-burned on retransmissions and over-bursts stays unbilled. The
-telemetry makes the components readable; the workload makes the
-total (the live proofs: `recwn-probe.sh`, `ecn-probe.sh`,
+drop verdict never speaks — so quota a sender WOULD have burned
+stays unbilled, workload permitting. The saving is conditional, and
+the condition is measured: on a bounded transfer (a 20 MB curl that
+ends because the file ended) the sender never attempts the overrun
+the counterfactual books, and the A/B ground truth came back at
+~0% — the enforced leg moved equal-or-slightly-more wire than the
+unenforced leg on both directions (2026-11-06: download +1.21 MB,
+upload +0.64 MB, against bookings of 82.58% / 75.85%). The
+overrunning workload — a clock-bounded eager session, the A/B
+harness's own leg (`scripts/bench/quota-saver-ab.sh`) — is where
+the withheld window manifests as wire the link never carries. The
+telemetry makes the components readable; the workload conditions
+the total (the live proofs: `recwn-probe.sh`, `ecn-probe.sh`,
 `edt-probe.sh`, each carrying a saved-quota row).
 
-## The Quota Saver — How zelynic Saves 80% of Your Internet
+## The Quota Saver — the Workload-Conditional Claim
 
 The three quota-saver lanes save quota by three different physics —
 RECWN clamps what the sender CAN send, the ECN CE mark makes the
@@ -906,15 +915,19 @@ The lanes shape what a sender is ALLOWED to push and rescue what an
 honest congestion signal can rescue; they do not un-send a datagram
 the wire already carried.
 
-The headline number — the 80% quota saver — is the layered claim on
-the metered rates the lane exists for: at the 100 kb rung the RECWN
-estimate alone books ~85% under the conservative default-window
-assumption, the ECN lane books the lossless pressure valve it
-delivered, and the EDT lane books the burst headroom it preserved.
-The telemetry makes the components readable; the workload makes the
-total. The deep derivations (the per-packet EDT accrual form, the
-combined-ledger granularity concession, the datapath call sites)
-live in
+The headline is workload-conditional, not a single number: the
+ledger's counterfactual books ~85% at the 100 kb rung under the
+conservative default-window assumption — the sender the clamp WOULD
+hold back — while the measured A/B ground truth on a bounded 20 MB
+pair came back at ~0% (the enforced leg moved equal-or-more wire
+than the unenforced leg on both directions, night-netrunner-12's
+finding; `scripts/bench/quota-saver-ab.sh` prints the ground truth
+beside every booking). A bounded transfer's sender never overruns
+its file, so the booking priced an overrun that never existed; an
+overrunning workload's sender never stops, and the harness's
+overrunning leg is where the real saving gets measured. The deep
+derivations (the per-packet EDT accrual form, the combined-ledger
+granularity concession, the datapath call sites) live in
 [docs/COSMIC_DRAGON_ARC.md](docs/COSMIC_DRAGON_ARC.md)'s Layer 4
 section.
 
