@@ -217,6 +217,8 @@ fn test_help_groups_commands_by_verb() {
 /// (the misaligned inline notes the owner flagged as messy) — and
 /// every runnable example line renders in status green when color is
 /// on, staying plain when piped.
+/// NIGHT-netrunner-9 hermeticity: COLORTERM joins the removal list —
+/// the runner's truecolor terminal must not upgrade the pinned 256 depth.
 #[test]
 fn test_help_examples_annotate_above_and_render_green() {
     let output = zelynic_cmd()
@@ -253,6 +255,7 @@ fn test_help_examples_annotate_above_and_render_green() {
     cmd.arg("--help")
         .env_remove("NO_COLOR")
         .env_remove("CLICOLOR")
+        .env_remove("COLORTERM")
         .env("CLICOLOR_FORCE", "1")
         .env("TERM", "xterm-256color");
     let colored = cmd
