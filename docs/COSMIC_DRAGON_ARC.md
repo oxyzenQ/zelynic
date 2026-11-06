@@ -162,15 +162,15 @@ starts from evidence instead of folklore:
 The honest limiter physics (README limitation #15): a dropped
 download does not save quota — the ingress hook runs after the
 packets crossed the WiFi link, and retransmits bill them again.
-Egress drops save; ingress drops mostly do not. The 80% quota
-saver therefore cannot be a drop feature — it must make the
+Egress drops save; ingress drops mostly do not. The quota saver
+therefore cannot be a drop feature — it must make the
 SENDERS slow down before the bytes cross the link. Measured against
 that goal, the arc holds four gaps:
 
 1. **No quota accumulator.** Policies are rate policies; the
    ledger's `bytes_allowed` is cumulative-since-apply. There is no
    volume budget (a human quota with its own window and reset), so
-   there is nothing for an "80%" threshold to read.
+   there is nothing for a flat savings percentage to read.
 2. **No TCP receive-window enforcement — CLOSED by Layer 1
    (schema v25, night-spark-2).** The audit's absence proof stood:
    zero RECWN code before v25. The close is the sock_ops program
@@ -398,15 +398,21 @@ directions.
     volume into the estimate too — the single-direction row, the
     RECWN lane's own common shape, is exact.
 
-  The owner's headline number — the **80% quota saver** — is the
-  layered lane's claim on the metered rates it exists for: at the
-  100 kb rung the RECWN estimate alone books ~85% (the window
-  counterfactual), the ECN lane books the lossless pressure valve
-  it delivered, and the EDT lane books the burst headroom it
-  preserved — with the live proofs (recwn-probe, ecn-probe,
-  edt-probe) each carrying a row that reads the columns the
-  math fills. The telemetry makes the components readable; the
-  workload makes the total.
+  The owner's headline claim is workload-conditional, not a single
+  number: the lanes' bookings are the counterfactual each physics
+  owns — at the 100 kb rung the RECWN estimate alone books ~85%
+  (the window counterfactual), the ECN lane books the lossless
+  pressure valve it delivered, and the EDT lane books the burst
+  headroom it preserved — with the live proofs (recwn-probe,
+  ecn-probe, edt-probe) each carrying a row that reads the columns
+  the math fills. The wire prices the booking per workload: on a
+  bounded transfer the sender never attempts the overrun the window
+  books, and the A/B ground truth measured ~0% on both bounded
+  directions (2026-11-06, night-netrunner-12); on an overrunning
+  workload the withheld window is wire the link never carries, and
+  `scripts/bench/quota-saver-ab.py`'s overrunning leg is the
+  measurement. The telemetry makes the components readable; the
+  workload conditions the total.
 
   What landed: `status --print-json` carries
   `limits[].bytes_saved_by_edt` and `limits[].bytes_saved_total`
@@ -421,7 +427,7 @@ directions.
   48/56, the round-trip), and the live cross-check — each probe's
   saved row against the driven traffic.
 
-## The Quota Saver — How zelynic Saves 80% of Your Internet
+## The Quota Saver — the Workload-Conditional Claim
 
 The three quota-saver lanes save quota by three different physics —
 RECWN clamps what the sender CAN send, the ECN CE mark makes the
@@ -493,15 +499,16 @@ The lanes shape what a sender is ALLOWED to push and rescue what an
 honest congestion signal can rescue; they do not un-send a datagram
 the wire already carried.
 
-The headline number — the 80% quota saver — is the layered claim on
-the metered rates the lane exists for: at the 100 kb rung the RECWN
-estimate alone books ~85% under the conservative default-window
-assumption, the ECN lane books the lossless pressure valve it
-delivered, and the EDT lane books the burst headroom it preserved.
-The telemetry makes the components readable; the workload makes the
-total. The deep derivations (the per-packet EDT accrual form, the
-combined-ledger granularity concession, the datapath call sites)
-live in this document's Layer 4 section below.
+The headline is workload-conditional, not a single number: the
+ledger's counterfactual books ~85% at the 100 kb rung under the
+conservative default-window assumption — the sender the clamp WOULD
+hold back — while the measured A/B ground truth on a bounded 20 MB
+pair came back at ~0% (night-netrunner-12's finding:
+`scripts/bench/quota-saver-ab.py` prints the ground truth beside
+every booking, and its overrunning leg measures the workloads where
+the withholding is real). The deep derivations (the per-packet EDT
+accrual form, the combined-ledger granularity concession, the
+datapath call sites) live in this document's Layer 4 section below.
 
 ## The testing lane is pure eBPF (night-spark-3)
 

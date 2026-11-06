@@ -269,7 +269,7 @@ construction (every `tcp_call_bpf` call site lives in TCP code)
 — QUIC paces itself (RFC 9000) and the policer remains UDP's
 enforcement lane.
 
-## The Quota Saver — How zelynic Saves 80% of Your Internet
+## The Quota Saver — the Workload-Conditional Claim
 
 The fourteenth, fifteenth, and sixteenth entries above (RECWN, ECN,
 pacing) save quota by three different physics — the clamp holds what
@@ -342,15 +342,19 @@ The lanes shape what a sender is ALLOWED to push and rescue what an
 honest congestion signal can rescue; they do not un-send a datagram
 the wire already carried.
 
-The headline number — the 80% quota saver — is the layered claim on
-the metered rates the lane exists for: at the 100 kb rung the RECWN
-estimate alone books ~85% under the conservative default-window
-assumption, the ECN lane books the lossless pressure valve it
-delivered, and the EDT lane books the burst headroom it preserved.
-The telemetry makes the components readable; the workload makes the
-total. The deep derivations (the per-packet EDT accrual form, the
-combined-ledger granularity concession, the datapath call sites)
-live in `COSMIC_DRAGON_ARC.md`'s Layer 4 section.
+The headline is workload-conditional, not a single number: the
+ledger's counterfactual books ~85% at the 100 kb rung under the
+conservative default-window assumption — the sender the clamp WOULD
+hold back — while the measured A/B ground truth on a bounded 20 MB
+pair came back at ~0%, the enforced leg moving equal-or-more wire
+than the unenforced leg on both directions (2026-11-06). A bounded
+transfer's sender never attempts the overrun the booking prices;
+the overrunning workload's sender never stops, and the A/B harness
+(`scripts/bench/quota-saver-ab.sh`) now carries the overrunning leg
+that measures the real saving. The deep derivations (the per-packet
+EDT accrual form, the combined-ledger granularity concession, the
+datapath call sites) live in `COSMIC_DRAGON_ARC.md`'s Layer 4
+section.
 
 ## Retired by verdict
 
