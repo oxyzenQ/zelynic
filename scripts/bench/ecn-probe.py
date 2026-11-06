@@ -246,21 +246,39 @@ def cap_bound_bytes(window_s):
     return DEBT_CAP_BYTES + int(RATE_BPS * window_s) + PKT_BYTES
 
 
-def parse_ce_ledger(doc):
+def parse_ce_ledger(doc, only_cg=None):
     """Read the v26 CE ledger out of a `status --print-json` document:
-    the SUM across the limit rows (the probe's cgroup is one row; the
-    sum keeps the verdict honest if the host carries others). A
-    pre-v26 binary carries no such fields — the caller must see the
-    difference between zero and absent."""
+    the SUM across the limit rows the caller asked for — every row by
+    default, or ONE cgroup's row when only_cg names it
+    (night-netrunner-5: the probe's budget law judges its own lane; a
+    pre-existing row's CE marks are the user's background traffic, not
+    this probe's evidence, and summing them in failed the row on a
+    busy host). A pre-v26 binary carries no such fields — the caller
+    must see the difference between zero and absent."""
     marked_p = 0
     marked_b = 0
     present = False
     for row in (doc or {}).get("limits", []):
+        if only_cg is not None and row.get("cgroup_id") != only_cg:
+            continue
         if "ce_marked_packets" in row and "ce_marked_bytes" in row:
             present = True
             marked_p += row["ce_marked_packets"]
             marked_b += row["ce_marked_bytes"]
     return present, marked_p, marked_b
+
+
+def row_saved_bytes(doc, cg_id):
+    """One cgroup row's bytes_saved_by_ecn sum (night-netrunner-5: the
+    saved twin reads the same single-lane scope the CE ledger reads —
+    a pre-existing row's saved bytes are the user's accounting, not
+    this probe's). Absent columns read 0; the caller judges the v28
+    presence on the row's own shape."""
+    return sum(
+        int(row.get("bytes_saved_by_ecn", 0))
+        for row in (doc or {}).get("limits", [])
+        if row.get("cgroup_id") == cg_id
+    )
 
 
 def download_leg_standing(doc, cg_id, rate_bps):
@@ -937,6 +955,43 @@ def live_run():
             if rc != 0:
                 lib.out(f"FAIL: strict -d {RATE_STR} exited {rc}: {(err or out)[:200]}")
                 return 1
+
+        # Night-netrunner-5, the true-zero baseline: the budget law
+        # judges THIS probe's lane, and its evidence is the marks the
+        # probe's own legs book — not whatever the host's background
+        # traffic marked before (or while) the probe ran. The baseline
+        # reads the probe's own row BEFORE any probe traffic; a row
+        # that already carries marks is a stale survivor (a crashed
+        # earlier run's ledger — the cgroup dir was rebuilt, the map
+        # row was not), and the reset is the only one the kernel
+        # offers: remove the limit row (the counters die with it), let
+        # the removal land, re-plant fresh. A baseline that survives
+        # the reset keeps its seat honestly — the verdicts below ride
+        # DELTAS, so a contaminated ledger shifts every reading by the
+        # same constant instead of failing the lane.
+        doc0 = lib.status_json()
+        _, base_p, base_b = parse_ce_ledger(doc0, only_cg=cg_id)
+        base_saved = row_saved_bytes(doc0, cg_id)
+        if base_p != 0 or base_b != 0:
+            lib.out(
+                f"  baseline: the probe's row already carries {base_p} CE pkts / "
+                f"{base_b} B (a stale ledger from an earlier run) — resetting: "
+                "unstrict, 1s, re-plant"
+            )
+            lib.run_zel(["unstrict", f"cg:{cg_id}"])
+            time.sleep(1)
+            rc, out, err = _plant("d", cg_id)
+            if rc != 0:
+                lib.out(f"FAIL: the baseline re-plant exited {rc}: {(err or out)[:200]}")
+                return 1
+            doc0 = lib.status_json()
+            _, base_p, base_b = parse_ce_ledger(doc0, only_cg=cg_id)
+            base_saved = row_saved_bytes(doc0, cg_id)
+        lib.out(
+            f"  baseline: ce_marked {base_p} pkts / {base_b} B on cg:{cg_id} "
+            "(the pre-baseline the verdicts subtract)"
+        )
+
         if not _send_phase(go_w, b"1"):
             lib.out("FAIL: the worker is gone before the phase-1 go byte")
             return 1
@@ -976,36 +1031,42 @@ def live_run():
         drain = max(ect.get("drain_s", 0.0), 1.0)
         bound = cap_bound_bytes(drain)
         doc = lib.status_json()
-        _, led_p, led_b = parse_ce_ledger(doc)
+        _, led_p, led_b = parse_ce_ledger(doc, only_cg=cg_id)
+        mark_p, mark_b = led_p - base_p, led_b - base_b
         lib.record(
             "ecn: the ledger carries the marks inside the budget law",
-            "PASS" if led_p > 0 and led_b <= bound else "FAIL",
-            f"ce_marked {led_p} pkts / {led_b} B (bound {bound} B = cap {DEBT_CAP_BYTES} "
-            f"+ rate*t {int(RATE_BPS * drain)} + one packet) — the schema-v26 "
-            "columns, live",
+            "PASS" if mark_p > 0 and mark_b <= bound else "FAIL",
+            f"ce_marked {mark_p} pkts / {mark_b} B booked on the probe's own row "
+            f"(pre-baseline {base_p} pkts / {base_b} B subtracted; bound {bound} B = "
+            f"cap {DEBT_CAP_BYTES} + rate*t {int(RATE_BPS * drain)} + one packet) — the "
+            "schema-v26 columns, live",
         )
 
         # night-spark-7 (Layer 4, the quota telemetry's math): the
         # saved twin — one-for-one with the marked volume, the same
-        # sum-across-rows discipline parse_ce_ledger carries. A
-        # pre-v28 binary carries no field and the row names the
+        # single-lane scope parse_ce_ledger's only_cg read carries.
+        # A pre-v28 binary carries no field and the row names the
         # rebuild itself.
-        saved_rows = [r for r in (doc or {}).get("limits", []) if "bytes_saved_by_ecn" in r]
-        saved_b = sum(int(r.get("bytes_saved_by_ecn", 0)) for r in saved_rows)
+        saved_rows = [
+            r
+            for r in (doc or {}).get("limits", [])
+            if r.get("cgroup_id") == cg_id and "bytes_saved_by_ecn" in r
+        ]
+        saved_b = sum(int(r.get("bytes_saved_by_ecn", 0)) for r in saved_rows) - base_saved
         if not saved_rows:
             lib.record(
                 "ecn: the marked volume books its saved twin one-for-one",
                 "FAIL",
-                "status --print-json limits[] carries no bytes_saved_by_ecn — "
+                "the probe's own limits[] row carries no bytes_saved_by_ecn — "
                 "a pre-v28 (stale pinned) object is loaded; rebuild and re-apply",
             )
         else:
             lib.record(
                 "ecn: the marked volume books its saved twin one-for-one",
-                "PASS" if saved_b == led_b and saved_b > 0 else "FAIL",
-                f"bytes_saved_by_ecn {saved_b} B == ce_marked {led_b} B (summed "
-                "across rows) — every delivered mark is a byte that never "
-                "becomes a retransmission, the v28 tail live",
+                "PASS" if saved_b == mark_b and saved_b > 0 else "FAIL",
+                f"bytes_saved_by_ecn {saved_b} B == ce_marked {mark_b} B (the probe's "
+                "own row, deltas over the pre-baseline) — every delivered mark is a "
+                "byte that never becomes a retransmission, the v28 tail live",
             )
 
         # Phase 2 — the tap-visible witness: the upload policy joins,
@@ -1104,7 +1165,7 @@ def live_run():
         tcp_leg = report2.get("tcp_leg", {})
         quic_leg = report2.get("quic_leg", {})
         doc = lib.status_json()
-        _, post_p, post_b = parse_ce_ledger(doc)
+        _, post_p, post_b = parse_ce_ledger(doc, only_cg=cg_id)
         delta_p, delta_b = post_p - pre_led_p, post_b - pre_led_b
         dl_standing = download_leg_standing(doc, cg_id, RATE_BPS)
         tcp_verdict = internet_tcp_verdict(
