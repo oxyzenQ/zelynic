@@ -10,6 +10,15 @@
 // resolves identically through the re-exports below: crate::cli::Cli
 // and crate::cli::Commands are the paths they always were.
 pub(crate) mod argv;
+// Night-netrunner-5: the JSON error contract — the {"error", "tip"}
+// object every fatal CLI error emits on stdout when the raw argv
+// carried --print-json (the usage bridge door in ux.rs and the runtime
+// chain door in main.rs, one renderer in json_error.rs).
+pub(crate) mod json_error;
+// Night-netrunner-5 (the cap split): the redirect family — the
+// removed-verb table, the subcommand-to-flag redirect, and the
+// hidden-vocabulary filter the ux bridge drives.
+pub(crate) mod redirects;
 // NIGHT-improve-42: the flag-rescue family, split from ux.rs at the
 // 500-line cap — the tables and matchers that decide WHAT to suggest
 // (top-level authorities, cross-tool vocabulary, the

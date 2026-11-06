@@ -124,6 +124,38 @@ fn date_forms_are_gone() {
 
 // ━━ The grammar: every refusal family ━━
 
+/// Night-netrunner-5: the u64 overflow arm routes to the ceiling —
+/// `999y` has no u64 product, and the grammar's own verdict (the 5y
+/// ceiling) was already waiting one branch below; the machine's
+/// arithmetic ("the duration overflows") never leaks through the
+/// flag's error surface again.
+#[test]
+fn duration_overflow_routes_to_the_ceiling_message() {
+    // Every input here parses as a u64 value whose product with its
+    // unit overflows u64 — the exact arm 6y never reached.
+    for bad in ["999y", "1000000000h", "18446744073709551615s"] {
+        let err = parse_during(bad)
+            .err()
+            .unwrap_or_else(|| panic!("'{bad}' must be refused"));
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("the ceiling is 5y") && msg.contains("forever-limit"),
+            "'{bad}' must ride the ceiling verdict, got: {msg}"
+        );
+        assert!(
+            !msg.contains("overflows"),
+            "'{bad}' must not leak the machine arithmetic, got: {msg}"
+        );
+    }
+    // The product that FITS u64 but sits above the ceiling keeps the
+    // same verdict (6y: the pre-existing shape, byte-identical).
+    let msg = format!("{}", parse_during("6y").expect_err("6y must be refused"));
+    assert!(
+        msg.contains("the ceiling is 5y — a longer promise is a forever-limit wearing a date"),
+        "the ceiling verdict's shape is pinned, got: {msg}"
+    );
+}
+
 #[test]
 fn grammar_refusals_carry_the_block() {
     for bad in [

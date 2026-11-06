@@ -133,19 +133,27 @@ fn parse_duration(s: &str) -> Result<DuringSpec> {
             );
         }
     };
+    // Night-netrunner-5: the ceiling routes BOTH refusal shapes — a
+    // product that overflows u64 (999y: the multiplication itself has
+    // no answer) and a product above DURING_MAX_NS (6y) — into the
+    // same poetic ceiling message. Any u64 overflow is hundreds of
+    // years past the 5y ceiling, so the routing is exact, not a
+    // euphemism; the old overflow arm leaked the machine's arithmetic
+    // ("the duration overflows") where the grammar's own verdict was
+    // already waiting one branch below.
     let ns = value
         .checked_mul(unit_ns)
-        .ok_or_else(|| anyhow!("Invalid --during '{s}': the duration overflows"))?;
+        .filter(|ns| *ns <= DURING_MAX_NS)
+        .ok_or_else(|| {
+            anyhow!(
+                "Invalid --during '{s}': the ceiling is 5y — a longer promise \
+                 is a forever-limit wearing a date"
+            )
+        })?;
     if ns < DURING_MIN_NS {
         bail!(
             "Invalid --during '{s}': the floor is 1s — a shorter promise \
              rounds to \"not limited\""
-        );
-    }
-    if ns > DURING_MAX_NS {
-        bail!(
-            "Invalid --during '{s}': the ceiling is 5y — a longer promise \
-             is a forever-limit wearing a date"
         );
     }
     Ok(DuringSpec::Duration { ns })

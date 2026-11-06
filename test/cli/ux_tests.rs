@@ -55,44 +55,76 @@ fn rendered_error_carries_exactly_one_help_footer() {
     }
 }
 
-// ── Single-tier help surface (NIGHT-improve-3) ─────────────────────
+// ── Subcommand local help (night-netrunner-5) ──────────────────────
 
-/// Subcommand-position --help must fail (exit 2 family) with the
-/// error, the real usage line, a tip pointing at the one help
-/// authority, and exactly one canonical footer. `--help` parses at
-/// the top level, so this UnknownArgument can only mean the user
-/// placed it after a subcommand.
+/// `-h`/`--help` typed after a subcommand is a help REQUEST: the
+/// subcommand answers with its OWN local help (its synopsis, its
+/// arguments) on stdout with exit 0 — not the dead end the
+/// single-tier law (NIGHT-improve-3) used to leave there. The long
+/// form renders the long help, the summary keeps the short one.
 #[test]
-fn subcommand_help_position_points_at_top_level_help() {
-    let rendered = render_via_bridge(&["zelynic", "strict", "brave", "--help"]);
+fn subcommand_help_renders_local_help() {
+    let rendered = local_help_via_bridge(&["zelynic", "strict", "brave", "--help"])
+        .expect("a subcommand-level --help must render local help");
     assert!(
-        rendered.contains("unexpected argument '--help'"),
-        "must name the rejected flag, got:\n{rendered}"
+        rendered.contains("Usage: zelynic strict"),
+        "the local help must carry the subcommand's own usage, got:\n{rendered}"
     );
     assert!(
-        rendered.contains("'zelynic --help'"),
-        "tip must point at the top-level help authority, got:\n{rendered}"
+        rendered.contains("--per-socket"),
+        "the local help must carry the command's own options, got:\n{rendered}"
     );
     assert!(
-        rendered.contains("Usage: zelynic"),
-        "usage must be the real full usage, got:\n{rendered}"
+        !rendered.contains(HELP_FOOTER),
+        "a help render is not an error: no canonical footer, got:\n{rendered}"
     );
-    assert_eq!(rendered.matches(HELP_FOOTER).count(), 1);
 }
 
-/// The -h short form gets the same rescue as --help when typed in a
-/// subcommand position.
+/// The -h short form rides the same door, on any subcommand.
 #[test]
-fn subcommand_short_help_position_points_at_top_level_help() {
-    let rendered = render_via_bridge(&["zelynic", "status", "-h"]);
+fn subcommand_short_help_renders_local_help() {
+    let rendered = local_help_via_bridge(&["zelynic", "status", "-h"])
+        .expect("a subcommand-level -h must render local help");
+    assert!(
+        rendered.contains("Usage: zelynic status"),
+        "the local help must carry the subcommand's own usage, got:\n{rendered}"
+    );
+}
+
+/// The short alias resolves to the canonical verb: `s -h` renders
+/// strict's local help under the canonical bin name.
+#[test]
+fn alias_short_help_renders_canonical_local_help() {
+    let rendered = local_help_via_bridge(&["zelynic", "s", "-h"])
+        .expect("an alias-level -h must render local help");
+    assert!(
+        rendered.contains("Usage: zelynic strict"),
+        "the alias render must use the canonical name, got:\n{rendered}"
+    );
+}
+
+/// The escape hatch (`--`) turns a later `-h` into a VALUE: status
+/// has no value slots, so the honest answer is the usage error the
+/// escape-hatch probe owns — the help door must decline.
+#[test]
+fn escaped_help_after_dashdash_is_not_a_help_request() {
+    assert!(
+        local_help_via_bridge(&["zelynic", "status", "--", "-h"]).is_none(),
+        "a -h that arrived after -- is a value, not a help request"
+    );
+    let rendered = render_via_bridge(&["zelynic", "status", "--", "-h"]);
     assert!(
         rendered.contains("unexpected argument '-h'"),
-        "must name the rejected flag, got:\n{rendered}"
+        "the error path owns the escaped token, got:\n{rendered}"
     );
-    assert!(
-        rendered.contains("'zelynic --help'"),
-        "tip must point at the top-level help authority, got:\n{rendered}"
-    );
+}
+
+/// A typo'd flag after a subcommand is NOT a help request: the door
+/// stays shut and the rescue chain answers (the shadowed-suggestion
+/// law's own argv, `zelynic s brave --VERBOS`).
+#[test]
+fn non_help_unknown_arg_does_not_render_local_help() {
+    assert!(local_help_via_bridge(&["zelynic", "s", "brave", "--VERBOS"]).is_none());
 }
 
 /// The removed --help-all flag must still guide the user: the
