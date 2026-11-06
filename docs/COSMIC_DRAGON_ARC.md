@@ -147,7 +147,7 @@ starts from evidence instead of folklore:
   (`src/ebpf/render/detail.rs:89`) is the QUIC-adjacent surface.
   That is the documented posture, and it is also the first thing
   the quota saver must grow (the quota gap, below).
-- **All thirteen scales green on Code/Doc/Test** — the table above
+- **All fourteen scales green on Code/Doc/Test** — the table above
   is the verdict, each anchor re-checked against the tree during
   this audit.
 - **One drift flagged at the audit, closed by night-spark-2**

@@ -51,7 +51,7 @@ userspace tool coordination, no format mismatches, no leaked state.
    consumer of the observer's data. No black boxes, no "trust me bro"
    enforcement.
 
-6. **Linux-First, Linux-Only.** No portable abstractions. cgroup v2, BPF, kernel ≥ 5.13.
+6. **Linux-First, Linux-Only.** No portable abstractions. cgroup v2, BPF, kernel ≥ 5.15.
    Embrace the platform. BSD/macOS source compiles but `ebpf` feature is
    no-op. Windows is not supported and never will be.
 
@@ -195,12 +195,12 @@ line.
 ### Next (Phase W5 — Production Hardening)
 
 - [x] Cross-distro testing — 6 distros verified (see CROSS_DISTRO_RESULTS.md)
-- [ ] Kernel version testing (5.13, 6.12, 6.18+ verified; 6.1/6.6 LTS pending)
+- [ ] Kernel version testing (5.13 retired-floor, 5.15 floor, 6.12, 6.18+ verified; 6.1/6.6 LTS pending)
 - [x] Stress test: `scripts/supermassive/supermassive-test.sh` (NIGHT-master-2, renamed from brutal-stress-test in NIGHT-improve-11; retired the legacy `scripts/stress-test.sh`)
 - [x] Benchmark: `scripts/bench/benchmarking.sh` (CPU/memory overhead — see PERFORMANCE.md)
 - [x] Layer 4: `--print-json` output for tooling integration
 
-### Future ideas (unscheduled — v11 is maintenance mode)
+### Future ideas (unscheduled — maintenance mode)
 
 - [ ] Layer 0: `ebpf/src/bin/policer.rs` — DSCP marking via `sock_ops` (pure Rust, like the other two programs)
 - [ ] Layer 0: XDP ingress counter (separate from cgroup_skb)

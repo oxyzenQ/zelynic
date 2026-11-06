@@ -124,13 +124,13 @@ src/
 ebpf/                   — the pure-Rust BPF source (aya-ebpf; NIGHT-improve-1
                           phase 3): nightly-only crate, built by build.rs's
                           nested cross-build and embedded into the binary
-  src/main.rs           — the observer programs (egress + ingress traffic
+  ebpf/src/main.rs      — the observer programs (egress + ingress traffic
                           counters, throttle, events)
-  src/math.rs           — the enforcement arithmetic (refill, fill-detect,
+  ebpf/src/math.rs      — the enforcement arithmetic (refill, fill-detect,
                           fractional carry, clamps): pure core, #[path]-
                           shared with the userspace test tree (depthbore-1)
-  src/bin/limiter.rs    — the token-bucket enforcer (enforce_dl ingress +
-                          enforce_ul egress, nine PIN_BY_NAME maps)
+  ebpf/src/bin/limiter.rs — the token-bucket enforcer (enforce_dl ingress +
+                          enforce_ul egress, eleven PIN_BY_NAME maps)
 
 scripts/
   build.sh             — check-all orchestration
@@ -144,7 +144,7 @@ scripts/
   package/            — the install family (NIGHT-dinner-27:
                 scripts/install.sh + uninstall.sh moved here, the
                 repo-root clutter retired)
-    install.sh       — user-space build, root-escalated install
+    install-on-my-machine.sh — user-space build, escalated install
     uninstall.sh     — the install's exact inverse
   setup.sh             — the lazy one-command pipeline (NIGHT-improve-18:
                 bootstrap + static pro-native-musl flagship build,
@@ -471,9 +471,9 @@ report AFTER the build (the v3 legs execute `-V` and grep the
 be unable to execute, grep the embedded version literal in the
 bytes). The toolchain contract covers BOTH pin families: the
 stable toolchain via RUST_VERSION (checked by
-check-rust-version-sync.sh) and the dated eBPF nightly across all
-nine of its sites — the workflow installs, build.rs's
-EBPF_TOOLCHAIN const, scripts/package/install.sh,
+check-rust-version-sync.sh) and the dated eBPF nightly across
+every site it lives in — the workflow installs, build.rs's
+EBPF_TOOLCHAIN const, scripts/dev/bootstrap-ebpf.sh,
 scripts/package/uninstall.sh, and
 ebpf/rust-toolchain.toml as the authority (a half-bumped pin means
 CI installs one nightly while build.rs invokes another). The

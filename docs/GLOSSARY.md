@@ -68,6 +68,47 @@ first-time reader, and this page pays it once, up front.
   ingress link bills them — the quota saver's Layer 1. The cookie
   hint the ingress hook primes carries the attribution the sock_ops
   floor cannot resolve on its own. (schema v25, INNOVATIONS.md #14)
+- **The quota saver**: the umbrella name for the landed layer stack
+  that turns policing into savings — RECWN, ECN-CE, EDT, and the
+  Layer 4 books, one budget story per lane (INNOVATIONS.md, the
+  "How zelynic Saves 80% of Your Internet" section).
+- **The quota saver's layers**: the four landed layers plus the one
+  unbuilt slot — Layer 0 reserved (DSCP/XDP ideas, unscheduled),
+  Layer 1 RECWN (the ingress receive window), Layer 2 ECN-CE (mark
+  instead of drop), Layer 3 EDT (the egress socket pacing), Layer 4
+  the quota telemetry books (schema v28). (INNOVATIONS.md,
+  COSMIC_DRAGON_ARC.md)
+- **ECN-CE**: ECN with the Congestion Experienced mark (RFC 3168) —
+  an ECT-capable packet delivered with CE set instead of dropped,
+  the wire shape the ECN-first policing lane books one-for-one into
+  the saved byte. (schema v19, the ECN-first entry above)
+- **EDT — Earliest Departure Time**: the quota saver's Layer 3 —
+  the EGRESS lane: the upload policy pinned onto the cgroup's TCP
+  sockets as SO_MAX_PACING_RATE at connection setup, the kernel's
+  own TCP pacer spacing the stream BEFORE the link bills the bytes
+  — no tc, no qdisc. (`ebpf/src/pace.rs`,
+  scripts/bench/edt-probe.py)
+- **SO_MAX_PACING_RATE**: the socket option the EDT lane pins — the
+  kernel-native pacing knob behind the lane (the internal pacer on
+  the 5.15 floor), no qdisc and no userspace clock involved.
+- **The steal-tick budget**: the EDT probe's drop-row tolerance — a
+  steal-tick tail priced as a share of the leg's policed volume,
+  1.0% (the RECWN retrans bound's convention; 0.5% was the clean-VM
+  calibration, recalibrated night-netrunner-7).
+  (scripts/bench/edt-probe.py, DROP_BUDGET_FRAC)
+- **drop_verdict**: the EDT probe's drop-row helper — the actual
+  share always prints; PASS inside the steal-tick budget, X past it.
+- **pacing_rate_bytes**: the `--print-json` `limits[]` field
+  carrying the upload lane's commanded rate (absent on upload-less
+  and blocked rows). (schema v27)
+- **The saved-quota books**: `bytes_saved_by_recwn` /
+  `bytes_saved_by_ecn` / `bytes_saved_by_edt` / `bytes_saved_total`
+  — the schema v28 ledger tail: the three layers' saved-byte words
+  plus the sum, the human table's Quota Saved line (the RECWN word
+  stays a userspace estimate, the arc doc owns its math).
+- **HostCaps**: the one-probe capability snapshot taken once per
+  attach entry (`src/ebpf/host_caps.rs`) — the Adaptive Orchestra
+  reads it for every attach decision, so no lane re-probes the host.
 - **The ledger**: `cgroup_limiter_stats` — the exact cumulative
   byte/packet counters every verdict books through. "The ring is a
   monitor, the ledger is the truth."
@@ -251,6 +292,11 @@ first-time reader, and this page pays it once, up front.
   (NIGHT-improve-68) — the six-layer verdict path that polices
   smooth, the architecture's heart
   ([INNOVATIONS.md](INNOVATIONS.md)).
+- **The cosmic dragon arc**: the canonical index document of the
+  enforcement core — the fourteen scales, the estate map, the v81
+  roadmap ([COSMIC_DRAGON_ARC.md](COSMIC_DRAGON_ARC.md)); the named
+  whole animal — the architecture, the engine, and the render
+  lineage each keep their own entry on this page.
 - **the cosmic dragon render engine**: cosmostrix's diff-based
   renderer whose discipline `src/terminal/diff.rs` ports (QA.md Q8)
   — the render lineage, distinct from the enforcement engine.
