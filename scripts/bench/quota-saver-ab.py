@@ -53,6 +53,17 @@ leg's sockets and the ledger reads a saving it did not earn (the
 RECWN-clamped by an active row). A reset that cannot reach zero
 refuses with the residue named.
 
+The download leg walks the ladder as ATTEMPTS (night-netrunner-6):
+a rung is accepted only when scenario A's own ledger clears 90% of
+the leg's size — a 1 KB probe cannot see a small object, a stalled
+mirror or a lane that dies between probe and leg, the leg's own
+wire can — and the next rung takes the attempt, three rungs at
+most, every skip named on stdout. Cloudflare's reach probe asks the
+endpoint's own bytes= knob for its 1 KB: __down ignores the Range
+header (measured live — the ranged probe rode back with the whole
+20 MB body), so the old probe downloaded the entire leg each time
+and a slow link demoted the best rung as dead.
+
 Usage:
     ./scripts/bench/quota-saver-ab.sh                # both scenarios
     ./scripts/bench/quota-saver-ab.sh --binary PATH  # explicit binary
@@ -90,6 +101,16 @@ QUOTA_BUDGET = 100_000_000
 # MSS minus timestamps option); the table labels it an estimate.
 RETRANS_SEG_BYTES = 1448
 SNMP = "/proc/net/snmp"
+# The download leg's delivery floor and attempt cap (night-netrunner-6):
+# a rung that answers the 1 KB probe can still fail the real leg (an
+# object smaller than the leg rides the range past its EOF into a
+# short read, a mirror stalls under the speed floor, the lane dies
+# between probe and leg — the wire reads 0.00 MB). Under 90% of the
+# leg's own size the rung did not deliver, and the next rung takes
+# the attempt; three rungs is the cap (every attempt is real wire on
+# a quota-metered host).
+DL_FLOOR_FRAC = 0.9
+DL_MAX_RUNGS = 3
 
 
 def out(line: str) -> None:
@@ -193,29 +214,30 @@ def clean_slate_preflight(binary: str) -> None:
         )
 
 
-def probe_once(url: str) -> tuple[bool, str]:
+def probe_once(url: str, ranged: bool = True) -> tuple[bool, str]:
     """One endpoint attempt: curl exits 0 with a 2xx/2xx-range code;
     the detail names what the wire actually said (the refusal owes
-    its reader the evidence, not just the verdict)."""
+    its reader the evidence, not just the verdict). The ranged probe
+    rides -r 0-1023; the native-size probe omits the header entirely
+    (night-netrunner-6: cloudflare's __down ignores Range — measured
+    live, the 1 KB ranged probe rode back with the whole 20 MB body,
+    so a slow link timed the probe out and demoted the best rung as
+    dead; its probe asks the endpoint's own bytes= knob instead)."""
+    args = [
+        "curl",
+        "-s",
+        "-o",
+        "/dev/null",
+        "-w",
+        "%{http_code}",
+        "--max-time",
+        str(PROBE_TIMEOUT),
+    ]
+    if ranged:
+        args += ["-r", "0-1023"]
+    args.append(url)
     try:
-        p = subprocess.run(
-            [
-                "curl",
-                "-s",
-                "-o",
-                "/dev/null",
-                "-w",
-                "%{http_code}",
-                "--max-time",
-                str(PROBE_TIMEOUT),
-                "-r",
-                "0-1023",
-                url,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=PROBE_TIMEOUT + 5,
-        )
+        p = subprocess.run(args, capture_output=True, text=True, timeout=PROBE_TIMEOUT + 5)
     except subprocess.TimeoutExpired:
         return False, "timeout"
     except OSError as e:
@@ -226,36 +248,36 @@ def probe_once(url: str) -> tuple[bool, str]:
     return False, f"curl exit {p.returncode}, HTTP {code or 'none'}"
 
 
-def probe(url: str) -> bool:
-    """Two attempts, 4 s apart: the guest's SLIRP path and the shared
-    runner egress make a single attempt a coin flip (one real e2e
-    leg lost the upload rung to a one-shot probe while the download
-    ladder answered). The refusal still refuses — it just gets two
-    honest shots first."""
-    ok, _ = probe_once(url)
-    if ok:
-        return True
-    time.sleep(4)
-    ok, _ = probe_once(url)
-    return ok
-
-
-def probe_detail(url: str) -> tuple[bool, str]:
-    """The upload rung's gate: same two-attempt ladder, but the
-    caller keeps the evidence for its refusal line."""
-    ok, detail = probe_once(url)
+def probe_detail(url: str, ranged: bool = True) -> tuple[bool, str]:
+    """The rung's gate, two attempts 4 s apart (the guest's SLIRP path
+    and the shared runner egress make a single attempt a coin flip —
+    one real e2e leg lost the upload rung to a one-shot probe while
+    the download ladder answered), with the evidence kept for the
+    caller's refusal line."""
+    ok, detail = probe_once(url, ranged=ranged)
     if ok:
         return True, detail
     time.sleep(4)
-    return probe_once(url)
+    return probe_once(url, ranged=ranged)
 
 
-def pick_download_endpoint(leg_bytes: int) -> tuple[str, str] | None:
-    for name, template, _mode in DL_ENDPOINTS:
-        url = template.format(bytes=leg_bytes)
-        if probe(url):
-            return name, url
-    return None
+def probe_url(name: str, template: str, leg_bytes: int) -> str:
+    """The reachability probe's own URL, per rung: cloudflare's __down
+    ignores the Range header (the 1 KB ranged probe came back with the
+    whole leg — a slow link then timed the probe out at 15 s and
+    demoted the best rung as dead), so its probe asks the endpoint's
+    own bytes= knob for the 1 KB; the range rungs keep the ranged
+    probe against the leg-sized URL — the range answer IS what the
+    leg needs from them."""
+    if name == "cloudflare":
+        return template.format(bytes=1024)
+    return template.format(bytes=leg_bytes)
+
+
+def download_url(template: str, leg_bytes: int) -> str:
+    """The leg's own URL: cloudflare caps by its bytes= form, the
+    range rungs cut the size off the object at transfer time."""
+    return template.format(bytes=leg_bytes)
 
 
 def make_cgroup(name: str) -> int:
@@ -464,18 +486,119 @@ def run_scenario_a_download(
 
 def run_scenario_b_download(worker: list[str]) -> Leg:
     """The legacy leg: the same worker, no enforcement, the wire's
-    own retransmission read around it."""
+    own retransmission read around it. A dead attempt returns the
+    honest zero wire with the error carried (night-netrunner-6: the
+    caller's failover names it and moves to the next rung — the hard
+    refusal was the caller's alone, and it killed a run whose A leg
+    had already delivered)."""
     leg = Leg()
     t0 = tcp_counters()
     got, err = run_worker(worker, None, 70)
     t1 = tcp_counters()
+    leg.wire = got or 0
     if got is None:
-        fail(f"the legacy download leg failed: {err}")
-    leg.wire = got
-    leg.retrans = retrans_delta(t0, t1)
-    if got == 0:
         leg.partial = True
+        leg.err = err
+    elif got == 0:
+        leg.partial = True
+    leg.retrans = retrans_delta(t0, t1)
     return leg
+
+
+def run_download_leg(
+    binary: str, curl: str, ledger: "Ledger", dl_bytes: int, rate: str
+) -> tuple[Leg, Leg, str]:
+    """The download leg with the rung failover (night-netrunner-6,
+    the wire 0.00 MB fix): the ladder is walked as ATTEMPTS now. A
+    rung is accepted only when scenario A's own ledger clears the
+    delivery floor (90% of the leg's size); a rung whose leg
+    under-delivers is named and the NEXT rung takes the attempt,
+    three rungs at most — a 1 KB probe cannot see a small object, a
+    stalled mirror or a lane that dies between probe and leg, but the
+    leg's own wire can, and the verdict rides the wire, not the probe.
+    Scenario B rides the accepted rung; if its own wire misses the
+    floor, the remaining rungs carry B alone (A's ledger is banked,
+    never re-run — the counterfactual needs a working lane, not the A
+    lane's identity). Every skipped rung and every under-delivering
+    leg is named on stdout before the next attempt — the walk is
+    visible, never silent."""
+    floor = int(dl_bytes * DL_FLOOR_FRAC)
+    tried: list[str] = []
+    a_dl = None
+    dl_name = None
+    dl_rung = None
+    rungs = 0
+    for rung in DL_ENDPOINTS:
+        name, template, _mode = rung
+        if rungs >= DL_MAX_RUNGS:
+            break
+        ok, detail = probe_detail(
+            probe_url(name, template, dl_bytes), ranged=(name != "cloudflare")
+        )
+        if not ok:
+            tried.append(f"{name}: probe dead ({detail})")
+            continue
+        rungs += 1
+        worker = download_worker(curl, download_url(template, dl_bytes), name, dl_bytes)
+        a = run_scenario_a_download(
+            binary,
+            "zelynic-quota-ab-dl",
+            os.path.join(CGROUP_ROOT, "zelynic-quota-ab-dl"),
+            rate,
+            worker,
+        )
+        if a.transferred < floor:
+            tried.append(
+                f"{name}: the ledger moved wire {fmt_mb(a.transferred)}, "
+                f"under the {fmt_mb(floor)} floor"
+            )
+            out(f"  (download rung skipped: {tried[-1]})")
+            continue
+        a_dl, dl_name, dl_rung = a, name, rung
+        break
+    if a_dl is None or dl_rung is None:
+        fail(
+            f"no download rung delivered the leg after {DL_MAX_RUNGS} attempt(s) "
+            "— the tried rungs say: " + "; ".join(tried)
+        )
+    out(f"the download rung: {dl_name} (the leg cleared the {fmt_mb(floor)} floor)")
+    ledger.spend("the scenario A download leg", a_dl.transferred)
+
+    # Scenario B — the accepted rung first, then the remaining rungs
+    # (each probed before it is spent; A never re-runs).
+    b_dl = None
+    b_rungs = 0
+    candidates = [dl_rung] + [r for r in DL_ENDPOINTS if r[0] != dl_name]
+    for name, template, _mode in candidates:
+        if b_rungs >= DL_MAX_RUNGS:
+            break
+        if name != dl_name:
+            ok, detail = probe_detail(
+                probe_url(name, template, dl_bytes), ranged=(name != "cloudflare")
+            )
+            if not ok:
+                out(f"  (legacy rung skipped: {name}: probe dead ({detail}))")
+                continue
+        b_rungs += 1
+        b = run_scenario_b_download(
+            download_worker(curl, download_url(template, dl_bytes), name, dl_bytes)
+        )
+        if b.wire < floor:
+            note = f"{name}: wire {fmt_mb(b.wire)}, under the {fmt_mb(floor)} floor"
+            if b.err:
+                note += f" ({b.err[:80]})"
+            out(f"  (legacy leg under-delivered: {note})")
+            continue
+        b_dl = b
+        break
+    if b_dl is None:
+        fail(
+            f"the legacy download leg delivered nothing after {DL_MAX_RUNGS} "
+            "attempt(s) — the wire says: " + ("; ".join(tried) or "every rung rode under the floor")
+        )
+    est = 0 if b_dl.retrans is None else b_dl.retrans[1] * RETRANS_SEG_BYTES
+    ledger.spend("the scenario B download leg", b_dl.wire, est)
+    return a_dl, b_dl, dl_name
 
 
 def run_scenario_a_upload(binary: str, cg: str, cg_path: str, rate: str, worker: list[str]) -> Leg:
@@ -592,27 +715,15 @@ def main() -> int:
     curl = shutil.which("curl")
     ledger = Ledger()
 
-    # ── the download leg: A (zelynic) then B (legacy) ────────────────
-    picked = pick_download_endpoint(args.download_bytes)
-    if picked is None:
-        fail("no download endpoint reachable — the real-internet lane is down")
-    dl_name, dl_url = picked
-    dl_worker = download_worker(curl, dl_url, dl_name, args.download_bytes)
-    a_dl = run_scenario_a_download(
-        binary,
-        "zelynic-quota-ab-dl",
-        os.path.join(CGROUP_ROOT, "zelynic-quota-ab-dl"),
-        args.download_rate,
-        dl_worker,
+    # ── the download leg: A (zelynic) then B (legacy), the rung
+    #    failover walking the ladder (night-netrunner-6) ─────────────
+    a_dl, b_dl, dl_name = run_download_leg(
+        binary, curl, ledger, args.download_bytes, args.download_rate
     )
-    ledger.spend("the scenario A download leg", a_dl.transferred)
-    b_dl = run_scenario_b_download(dl_worker)
-    est = 0 if b_dl.retrans is None else b_dl.retrans[1] * RETRANS_SEG_BYTES
-    ledger.spend("the scenario B download leg", b_dl.wire, est)
 
     # ── the upload leg: A (zelynic) then B (legacy) ──────────────────
     ul_name, ul_url = UL_ENDPOINT
-    up_ok, up_detail = probe_detail(ul_url.replace("/__up", "/__down?bytes=1024"))
+    up_ok, up_detail = probe_detail(ul_url.replace("/__up", "/__down?bytes=1024"), ranged=False)
     if not up_ok:
         fail(
             "no upload endpoint reachable — the real-internet lane is down "
