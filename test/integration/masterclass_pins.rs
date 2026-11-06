@@ -102,7 +102,7 @@ fn test_help_strict_flags_are_complete() {
 /// group headings keep the bold brand purple. Pinned at 256-color
 /// depth: grey = index 245 (the #8B8B8B cube match), brand bold
 /// purple = index 135. The NO_COLOR escape-free contract is pinned
-/// in help_pins (the green-tier test); this pin holds the tier
+/// in help_render_pins (the green-tier test); this pin holds the tier
 /// split in the colored run. Lives HERE (NIGHT-hunt-35): the tier
 /// law is part of the masterclass tidy's own contracts, and
 /// help_pins rode the 600-line cap the moment this pin landed
@@ -168,7 +168,7 @@ fn test_help_synopsis_lines_render_grey_under_purple_headings() {
 /// this pin holds it closed). Boundaries: the example lines keep
 /// the solid green tier — zero grey bleed into boost-4's "this is
 /// what you type" tier. The NO_COLOR escape-free contract stays
-/// pinned in help_pins (the green-tier test).
+/// pinned in help_render_pins (the green-tier test).
 /// NIGHT-netrunner-8 hermeticity: COLORTERM joins the removal list
 /// — a hermetic test controls every color-relevant env var, and a
 /// runner's inherited COLORTERM=truecolor must not upgrade the
