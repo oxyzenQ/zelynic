@@ -55,9 +55,11 @@ their first VM runs caught the endurance pin drift the same day.
   `main` / `-updates` / `-security` pockets straight off the
   archive's own `Version:` field (YY.04 with an even YY — the LTS
   cadence, no hardcoded codename list to rot); `--kernel floor`
-  boots impish 5.13.0-* — the documented minimum, the same lane as
-  CI's low-specs leg, resolved live from the frozen old-releases
-  archive; `--kernel latest` resolves the archive's newest generic
+  boots jammy 5.15.0-* — the documented minimum, the same lane as
+  CI's low-specs leg, resolved live from the archive's pockets
+  (the retired pre-floor impish 5.13 lane left behind at
+  night-netrunner-1); `--kernel latest` resolves the archive's
+  newest generic
   kernel across the two newest suites by REAL release date (the
   former string sort ranked "Thu, 23 Apr" above "Sat, 26 Sep", and
   the former codename-based fetch 404'd on the devel suite — both
@@ -133,7 +135,7 @@ whichever is present, with a clear error naming the fix when none is.
 
 The CI supermassive workflow remains the authority: it runs the same
 batteries on hosted runners with docker-built rootfs, on both the
-5.13 floor and the latest kernel, low and best envelopes, on every
+5.15 floor and the latest kernel, low and best envelopes, on every
 qualifying push. The sandbox is the LOCAL instrument — same kernel
 lanes, same userland, same sentinel discipline — for the tight loop:
 agent boxes, laptops, any machine with qemu. Anything the sandbox
