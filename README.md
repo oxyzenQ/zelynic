@@ -651,6 +651,7 @@ policy, supported versions, and what counts as a vulnerability live in
 
 - [Complete Usage Guide](docs/USAGE.md) — every command, workflows, honest limitations, troubleshooting (the flagship reference)
 - [Security Policy](SECURITY.md) — reporting, scope, supported versions
+- [Threat Model](docs/THREAT_MODEL.md) — the honest boundary: what the enforcement resists (application-layer bypass, per-process spoofing, connection escapes) and what it concedes (root, kernel, hardware); root is assumed trustworthy
 - [the cosmic dragon arc](docs/COSMIC_DRAGON_ARC.md) — the canonical index of the enforcement core: the fourteen scales, the estate map, the v81 roadmap
 - [the cosmic dragon architecture](docs/COSMIC_DRAGON_ARCHITECTURE.md) — design + principles
 - [Kernel Compatibility](docs/KERNEL_COMPATIBILITY.md) — requirements + distro matrix

@@ -46,6 +46,7 @@ question well, and this page says which.
 | Doc | Covers |
 |-----|--------|
 | [CLAIMS_VERIFICATION.md](CLAIMS_VERIFICATION.md) | The ledger: every public claim maps to the mechanism that verifies it |
+| [THREAT_MODEL.md](THREAT_MODEL.md) | The honest threat model: the one-paragraph verdict (application-layer bypass resistance, not host-level security — root is assumed trustworthy), what holds (userspace evasion, per-process spoofing, connection escapes) and what falls (root, kernel, hardware) |
 | [SAFETY_ANALYSIS.md](SAFETY_ANALYSIS.md) | Malware-question analysis, crash behavior, pin cleanup, recovery |
 | [STABILITY.md](STABILITY.md) | The dated nightly eBPF toolchain pin and the LTS reasoning |
 | [DEPENDENCY_AUDIT.md](DEPENDENCY_AUDIT.md) | Supply-chain posture: why each dependency exists, deny.toml policy |
