@@ -64,6 +64,28 @@ header (measured live — the ranged probe rode back with the whole
 20 MB body), so the old probe downloaded the entire leg each time
 and a slow link demoted the best rung as dead.
 
+The ledger-vs-wire gap (night-netrunner-12): the bounded pair's
+verdict percentage is scenario A's OWN Layer 4 booking — the
+counterfactual the window law estimates — not a measured A/B
+saving. Measured on the owner host (2026-11-06): the bounded 20 MB
+download booked 82.58% while A moved +1.21 MB MORE wire than B; the
+bounded upload booked 75.85% while A moved +0.64 MB MORE. A bounded
+transfer never gives the sender room to overrun its file, so the
+counterfactual books savings the wire never withheld. The harness
+now prints the three numbers per leg — the ledger's booking, the
+wire ground truth (A's bytes_allowed vs B's wire), and the gap —
+and carries an OVERRUNNING leg: N seconds of back-to-back chunk
+GETs on the bounded leg's accepted rung, the eager receiver whose
+sender always has more — the only workload where the withheld
+window manifests as wire the link never carried. The workload
+matrix the honest claim must answer: the bounded download and
+upload (the in-frame pair), the overrunning download (the campaign
+leg, on by default), the cellular envelope (rerun with
+--download-rate 50kb), the EDT-dominant upload and the ECN-dominant
+QUIC stream (the lanes' own probes: edt-probe.sh, ecn-probe.sh),
+and the browsing mix (a human session — no script can honestly
+synthesize it).
+
 Usage:
     ./scripts/bench/quota-saver-ab.sh                # both scenarios
     ./scripts/bench/quota-saver-ab.sh --binary PATH  # explicit binary
@@ -111,6 +133,10 @@ SNMP = "/proc/net/snmp"
 # a quota-metered host).
 DL_FLOOR_FRAC = 0.9
 DL_MAX_RUNGS = 3
+# The overrunning leg's chunk (night-netrunner-12): small enough that
+# a slow rung still turns iterations inside the wall-clock budget,
+# large enough that each GET is real wire, not a probe.
+OVERRUN_CHUNK_BYTES = 2_000_000
 
 
 def out(line: str) -> None:
@@ -458,8 +484,33 @@ def download_worker(curl: str, url: str, name: str, size: int) -> list[str]:
     return worker
 
 
+def overrun_worker(curl: str, url: str, name: str, size: int, seconds: int) -> list[str]:
+    """The overrunning leg's worker (night-netrunner-12): back-to-back
+    chunk GETs until the wall clock says stop — the eager receiver
+    whose sender always has more. The savings manifest here or
+    nowhere: a bounded transfer ends because the FILE ended, an
+    overrunning session ends because the CLOCK ended, so the enforced
+    leg's slower drain is wire the link never carried. One small bash
+    loop, every iteration a real 2 MB GET (a stalled one dies at its
+    own --max-time and reads zero, the loop never lies), the final
+    stdout line the summed bytes the metric reader expects."""
+    fetch = f"{curl} -s -o /dev/null -w '%{{size_download}}' --max-time 30"
+    if name == "cloudflare":
+        cmd = f"{fetch} '{url}'"
+    else:
+        cmd = f"{fetch} -r 0-{size - 1} '{url}'"
+    inner = (
+        f"total=0; end=$((SECONDS + {seconds})); "
+        f"while [ $SECONDS -lt $end ]; do "
+        f"b=$({cmd} 2>/dev/null) || true; "
+        f"case $b in (*[!0-9]*|'') b=0;; esac; "
+        f"total=$((total + b)); done; echo $total"
+    )
+    return ["bash", "-c", inner]
+
+
 def run_scenario_a_download(
-    binary: str, cg: str, cg_path: str, rate: str, worker: list[str]
+    binary: str, cg: str, cg_path: str, rate: str, worker: list[str], timeout: int = 70
 ) -> Leg:
     """The product leg: cgroup + strict + the Layer 4 deltas."""
     leg = Leg()
@@ -469,7 +520,7 @@ def run_scenario_a_download(
         if rc != 0:
             fail(f"strict {rate} failed: {(stderr or '').strip()[:200]}")
         before = status_entry(binary, cg_id)
-        got, err = run_worker(worker, cg_path, 70)
+        got, err = run_worker(worker, cg_path, timeout)
         after = status_entry(binary, cg_id)
         leg.transferred, leg.saved = delta_savings(before, after)
         if got is None:
@@ -484,7 +535,7 @@ def run_scenario_a_download(
     return leg
 
 
-def run_scenario_b_download(worker: list[str]) -> Leg:
+def run_scenario_b_download(worker: list[str], timeout: int = 70) -> Leg:
     """The legacy leg: the same worker, no enforcement, the wire's
     own retransmission read around it. A dead attempt returns the
     honest zero wire with the error carried (night-netrunner-6: the
@@ -493,7 +544,7 @@ def run_scenario_b_download(worker: list[str]) -> Leg:
     had already delivered)."""
     leg = Leg()
     t0 = tcp_counters()
-    got, err = run_worker(worker, None, 70)
+    got, err = run_worker(worker, None, timeout)
     t1 = tcp_counters()
     leg.wire = got or 0
     if got is None:
@@ -598,7 +649,7 @@ def run_download_leg(
         )
     est = 0 if b_dl.retrans is None else b_dl.retrans[1] * RETRANS_SEG_BYTES
     ledger.spend("the scenario B download leg", b_dl.wire, est)
-    return a_dl, b_dl, dl_name
+    return a_dl, b_dl, dl_name, dl_rung
 
 
 def run_scenario_a_upload(binary: str, cg: str, cg_path: str, rate: str, worker: list[str]) -> Leg:
@@ -640,6 +691,19 @@ def run_scenario_b_upload(worker: list[str]) -> Leg:
     return leg
 
 
+def ground_truth_line(a: Leg, b: Leg) -> str | None:
+    """The wire's own verdict (night-netrunner-12): scenario A's wire
+    (the bytes_allowed delta) against scenario B's raw wire — the
+    measurement the ledger cannot print about itself."""
+    if b.wire <= 0:
+        return None
+    delta = a.transferred - b.wire
+    pct = (b.wire - a.transferred) / b.wire * 100.0
+    if delta >= 0:
+        return f"A moved +{fmt_mb(delta)} MORE wire than B -> A/B wire saving {pct:.2f}%"
+    return f"A moved {fmt_mb(-delta)} LESS wire than B -> A/B wire saving {pct:.2f}%"
+
+
 def print_leg(leg_name: str, a: Leg, b: Leg) -> None:
     out(f"  {leg_name}:")
     out(
@@ -652,6 +716,16 @@ def print_leg(leg_name: str, a: Leg, b: Leg) -> None:
         f" -> saved 0.00%  (nothing withholds on the drop-based path)"
         + ("  (partial leg)" if b.partial else "")
     )
+    truth = ground_truth_line(a, b)
+    if truth:
+        out(f"    ground truth: {truth}")
+        out(
+            f"    the gap: the ledger books {save_percent(a.transferred, a.saved)}% "
+            f"(its counterfactual), the wire measured "
+            f"{(b.wire - a.transferred) / b.wire * 100.0:.2f}% (the A/B difference)"
+        )
+    else:
+        out("    ground truth: unavailable (B moved nothing)")
     if a.partial and a.err:
         out(f"    (A worker note: {a.err[:90]})")
 
@@ -679,6 +753,18 @@ def main() -> int:
         "--download-rate", default="5mb", help="scenario A's download limit (default 5mb)"
     )
     ap.add_argument("--upload-rate", default="5mb", help="scenario A's upload limit (default 5mb)")
+    ap.add_argument(
+        "--overrun-seconds",
+        type=int,
+        default=20,
+        help="the overrunning leg's wall-clock budget in seconds (default 20)",
+    )
+    ap.add_argument(
+        "--skip-overrun",
+        action="store_true",
+        help="skip the overrunning leg (quota-poor hosts) — the bounded pair alone "
+        "prices the booking, never the saving",
+    )
     args, unknown = ap.parse_known_args()
     if unknown:
         print(
@@ -717,7 +803,7 @@ def main() -> int:
 
     # ── the download leg: A (zelynic) then B (legacy), the rung
     #    failover walking the ladder (night-netrunner-6) ─────────────
-    a_dl, b_dl, dl_name = run_download_leg(
+    a_dl, b_dl, dl_name, dl_rung = run_download_leg(
         binary, curl, ledger, args.download_bytes, args.download_rate
     )
 
@@ -763,17 +849,57 @@ def main() -> int:
         except OSError:
             pass
 
+    # ── the overrunning leg (night-netrunner-12): savings only
+    #    manifest where the sender would push more if it could — the
+    #    bounded pair's sender never attempts the overrun the
+    #    counterfactual books, this leg's sender never stops ─────────
+    if args.skip_overrun:
+        out("")
+        out(
+            "the overrunning leg: skipped (--skip-overrun) — the bounded pair "
+            "prices the booking, not the saving"
+        )
+    else:
+        out("")
+        out(
+            f"the overrunning leg: {args.overrun_seconds}s of back-to-back "
+            f"{fmt_mb(OVERRUN_CHUNK_BYTES)} chunk GETs on the {dl_name} rung "
+            "(the eager receiver — the clock ends its session, not the file)"
+        )
+        or_url = dl_rung[1].format(bytes=OVERRUN_CHUNK_BYTES)
+        or_worker = overrun_worker(
+            curl, or_url, dl_rung[0], OVERRUN_CHUNK_BYTES, args.overrun_seconds
+        )
+        or_timeout = 70 + max(args.overrun_seconds, 0) + 30
+        a_or = run_scenario_a_download(
+            binary,
+            "zelynic-quota-ab-or",
+            os.path.join(CGROUP_ROOT, "zelynic-quota-ab-or"),
+            args.download_rate,
+            or_worker,
+            or_timeout,
+        )
+        b_or = run_scenario_b_download(or_worker, or_timeout)
+        print_leg("overrun download", a_or, b_or)
+        out(
+            "    (the overrun leg spends real quota outside the virtual frame: "
+            f"A {fmt_mb(a_or.transferred)} + B {fmt_mb(b_or.wire)} — "
+            "size it with --overrun-seconds)"
+        )
+
     # ── the A/B ledger, both legs side by side ───────────────────────
     out("")
     out(
         f"the A/B ledger (virtual quota {fmt_mb(QUOTA_BUDGET)}, "
-        f"{fmt_mb(ledger.remaining)} left after both scenarios)"
+        f"{fmt_mb(ledger.remaining)} left after the bounded pair)"
     )
     print_leg("download", a_dl, b_dl)
     print_leg("upload", a_ul, b_ul)
     out(
-        "  the bridge: absent the saver lanes, A's withheld share is the overrun the "
-        "drop-based path burns —"
+        "  the bridge: absent the saver lanes, A's withheld share is the wire the "
+        "counterfactual books — the bounded legs' ground truth prices that booking "
+        "on a transfer whose sender never overruns, the overrunning leg prices it "
+        "where the sender is eager —"
     )
     out(
         f"    download {fmt_mb(a_dl.transferred + a_dl.saved)} carried "
@@ -782,6 +908,10 @@ def main() -> int:
     )
 
     # ── the exact wire contract: scenario A's ledger, one per leg ────
+    out(
+        "  the ledger's self-report (the counterfactual booking — the ground "
+        "truth lines above are the A/B wire):"
+    )
     out(
         f"test download results the internet kuota save total is {save_percent(a_dl.transferred, a_dl.saved)}%"
     )
