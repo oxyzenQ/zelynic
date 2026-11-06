@@ -96,7 +96,7 @@ tool. The AGPL-3.0-only core is free forever — that is not charity,
 that is distribution insurance, the widest possible base of users
 and auditors who can carry the tool forward. The commercial tiers
 (Individual, Business, Company — terms and current prices in
-[COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md), repriced as the
+[COMMERCIAL_LICENSE.md](../COMMERCIAL_LICENSE.md), repriced as the
 value compounds; the 2026-10-10 move is the recorded precedent)
 are the fuel: a maintainer funded by the tiers beats a committee
 funded by nobody.
@@ -106,7 +106,7 @@ Unauthorized use — stealing the code, forking it illegally,
 shipping it inside a closed-source commercial product without
 contacting the owner and paying — is theft, and the warning
 stands in every licensing surface (README,
-[COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md),
+[COMMERCIAL_LICENSE.md](../COMMERCIAL_LICENSE.md),
 [LICENSING_FAQ.md](LICENSING_FAQ.md)). A project that cannot
 defend its license cannot fund its maintenance; the trademark
 policy ([TRADEMARK.md](../TRADEMARK.md)) carries the same logic
@@ -172,7 +172,7 @@ mechanism is documented:
 | Reproducibility | prebuilt-parity gate + manifest | [MAINTENANCE.md](MAINTENANCE.md) |
 | Supply chain | minimal deps, deny.toml policy | [DEPENDENCY_AUDIT.md](DEPENDENCY_AUDIT.md) |
 | Compatibility contract | frozen CLI + kernel matrix | [PHILOSOPHY.md](PHILOSOPHY.md), [KERNEL_COMPATIBILITY.md](KERNEL_COMPATIBILITY.md) |
-| Economics | GPL core + commercial tiers | [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md) |
+| Economics | GPL core + commercial tiers | [COMMERCIAL_LICENSE.md](../COMMERCIAL_LICENSE.md) |
 | Defense | unauthorized-use warnings + trademark | [TRADEMARK.md](../TRADEMARK.md), [LICENSING_FAQ.md](LICENSING_FAQ.md) |
 | Knowledge | the doc corpus + dated audits | [README.md](README.md) |
 | Standards without memory | the machine-enforced gate battery | [MAINTENANCE.md](MAINTENANCE.md) |

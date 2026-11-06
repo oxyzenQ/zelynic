@@ -475,7 +475,7 @@ families above.
 
 ### 4.1. Logo file
 
-The official logo is located at [`assets/zelynic-logo-master.png`](../assets/zelynic-logo-master.png).
+The official logo is located at [`assets/zelynic-original-logo-2026.png`](../assets/zelynic-original-logo-2026.png).
 
 ### 4.2. Usage rules
 

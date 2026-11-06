@@ -40,7 +40,8 @@
 > micro-VM, under two resource envelopes derived from the runner at
 > boot time (low specs: a quarter of the cores floored at 1 +
 > an eighth of the RAM floored at 1024 MB, booting the TRUE
-> documented floor kernel — impish indri 5.13 from the frozen
+> documented floor kernel at recording time — impish indri 5.13 (the
+> floor since moved to 5.15.0, night-netrunner-1) from the frozen
 > old-releases archive; best specs: every core + three quarters of
 > the RAM, booting the archive's LATEST kernel, resolved dynamically
 > at run time), each crossed with the payload's libc (the musl legs

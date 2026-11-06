@@ -23,6 +23,11 @@ added, removed, trimmed, or accepted-as-risk.
 | cargo-deny CI coverage | non-eBPF subtree only | full tree (all-features) | aya chain now policy-checked |
 | Release binary size | 1,777,928 B | 1,777,912 B | unchanged (unused deps never linked) |
 
+The table is the NIGHT-hunt-6 (2026-09-18) snapshot, kept as recorded;
+the current direct set is the newest section's verdict (post-S1: six
+direct across the workspace — clap, anyhow, nix, libc at the root, aya
+behind the `ebpf` feature, aya-ebpf inside the ebpf crate).
+
 The supply-chain surface — crates downloaded, hashed, compiled, and
 audited on every build — shrank by one third. Binary size did not move
 because dead dependencies were never linked into the binary in the

@@ -540,7 +540,7 @@ and the missing 1% fails closed and says so.**
   the number cannot drift
 - **Overflow detection**: absurd rates show a friendly warning, not wrapped values
 - **File lock**: prevents concurrent operations from corrupting BPF state
-- **Kernel version detection**: graceful fallback for kernel < 5.7 (legacy bpf_prog_attach)
+- **Kernel version detection**: attach is refused below the 5.15.0 floor with the reason spelled out — the legacy bpf_prog_attach fallback is gone (one create-and-pin `bpf_link` strategy, night-netrunner-1)
 
 (Fire-and-forget, crash recovery, and schema migration are already in
 the feature table above; the full audit trail is
