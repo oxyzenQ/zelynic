@@ -2,7 +2,7 @@
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: AGPL-3.0-only
 # OS: Linux only — zelynic is a Linux eBPF tool; no other OS is supported.
-# LOC_EXEMPT: one runnable A/B proof — the ladder, the ledger, both scenarios and the verdict plumbing share one module by design; the module-package split is the tracked debt (night-spark-8 crossed the 1000 scripts cap adding the one-unit wire rule)
+# LOC_EXEMPT: one runnable A/B proof — the ladder, the ledger, both scenarios, the overrunning pair and the verdict plumbing share one module by design; the module-package split is the tracked debt (night-spark-8 crossed the 1000 scripts cap adding the one-unit wire rule, night-spark-10 grew it with the overrun upload leg and the metered-plan translation)
 """The quota saver's A/B proof (night-netrunner-4, the final polish).
 
 The "be honest" experiment: the same real download and the same real
@@ -27,21 +27,41 @@ enforcement at all (scenario B, the legacy drop-based counterfactual).
       B/segment estimate and printed as an estimate, never as fact.
 
 The verdict lines are the task's exact wire contract, printed to
-stdout at the end, one per leg — always scenario A's ledger (the
-product's own accounting, byte-identical math to the report
-sibling):
+stdout at the end, one per leg:
 
     test download results the internet kuota save total is X%
     test upload results the internet kuota save total is Y%
 
-The percentage is saved / (transferred + saved) — of everything the
-quota WOULD have carried, the share the saver lanes avoided. A leg
-that moved bytes and saved none prints 0.00% honestly; a leg that
-could not run (no root, no cgroup v2, no full-life binary, no curl,
-no reachable endpoint, the virtual ledger exhausted) says why on
-stderr and exits 2 — the house honest-refusal posture, never a
-fabricated line. Scenario B never fabricates either: its retrans
-figure prints `n/a` when the kernel counters are unreadable.
+Since night-spark-10 the number is the overrunning leg's own A/B
+wire saving when that leg completed — what a metered plan would
+actually see with an eager sender — and the clarifier above the
+line says so. The bounded ledger's counterfactual (saved /
+(transferred + saved), of everything the quota WOULD have carried
+the share the saver lanes avoided) prints only as the named
+fallback, when the overrunning legs were skipped or did not
+complete. A leg that moved bytes and saved none prints 0.00%
+honestly; a leg that could not run (no root, no cgroup v2, no
+full-life binary, no curl, no reachable endpoint, the virtual
+ledger exhausted) says why on stderr and exits 2 — the house
+honest-refusal posture, never a fabricated line. Scenario B never
+fabricates either: its retrans figure prints `n/a` when the kernel
+counters are unreadable.
+
+Night-spark-10, the practical proof: the overrunning UPLOAD leg is
+the mirror of the download leg (the same loop, the same clock, the
+tx wire unit), so the eager-sender savings are measured in BOTH
+directions, and the run ends with the beginner's answer — the
+metered-plan block prices each overrunning session's measured wire
+against a 100 MB plan ("with zelynic: X MB consumed, Y MB left;
+without: A MB consumed, B MB left"), no jargon, no counterfactual,
+n/a where a leg did not complete. The binary ladder follows the
+owner's preference: --binary, then the INSTALLED /usr/bin/zelynic
+(the owner's real v80.1.0), then the pro-linux-amd64-v3-musl alias
+the owner actually builds and runs, then pro-native-musl, then
+target/release (fallback only — a stale artifact has mis-reported
+its version there before), then PATH; when the resolved binary and
+the alias build both exist and disagree on their -V banner, the
+divergence is named on stderr and the run continues.
 
 Every zelynic side effect is cleaned up: each scenario A leg applies
 its limit (`strict --no-test`, the scripted-apply contract — no
@@ -78,17 +98,18 @@ counterfactual books savings the wire never withheld. The harness
 now prints the three numbers per leg — the ledger's booking, the
 wire ground truth (A's cgroup counter vs B's interface delta, one
 wire unit on both sides), and the gap —
-and carries an OVERRUNNING leg: N seconds of back-to-back chunk
-GETs on the bounded leg's accepted rung, the eager receiver whose
-sender always has more — the only workload where the withheld
-window manifests as wire the link never carried. The workload
-matrix the honest claim must answer: the bounded download and
-upload (the in-frame pair), the overrunning download (the campaign
-leg, on by default), the cellular envelope (rerun with
---download-rate 50kb), the EDT-dominant upload and the ECN-dominant
-QUIC stream (the lanes' own probes: edt-probe.sh, ecn-probe.sh),
-and the browsing mix (a human session — no script can honestly
-synthesize it).
+and carries OVERRUNNING legs: N seconds of back-to-back chunk GETs
+on the bounded leg's accepted rung (night-netrunner-12) and, since
+night-spark-10, N seconds of back-to-back uploads on cloudflare —
+the eager receiver and the eager sender, the only workloads where
+the withheld window manifests as wire the link never carried. The
+workload matrix the honest claim must answer: the bounded download
+and upload (the in-frame pair), the overrunning download and upload
+(the campaign legs, on by default), the cellular envelope (rerun
+with --download-rate 50kb), the EDT-dominant upload and the
+ECN-dominant QUIC stream (the lanes' own probes: edt-probe.sh,
+ecn-probe.sh), and the browsing mix (a human session — no script
+can honestly synthesize it).
 
 The one-unit rule (night-spark-8): the first measured run priced
 scenario A's wire against scenario B's APP bytes — the cgroup counter
@@ -164,23 +185,39 @@ DL_MAX_RUNGS = 3
 # a slow rung still turns iterations inside the wall-clock budget,
 # large enough that each GET is real wire, not a probe.
 OVERRUN_CHUNK_BYTES = 2_000_000
+# The overrunning upload leg's per-iteration file (night-spark-10):
+# a sparse PUT sized so one iteration clears its own --max-time
+# well before the wall clock ends the session — the loop drives the
+# total up, not the file size.
+OVERRUN_UPLOAD_CHUNK_BYTES = 500_000
 
 
 def out(line: str) -> None:
     print(line, flush=True)
 
 
+def repo_root() -> str:
+    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
 def resolve_binary(explicit: str | None) -> str:
-    """The harness's own ladder: an explicit path outranks the
-    repo-local build, which outranks the PATH install."""
+    """The harness's ladder (night-spark-10, the owner's preference):
+    an explicit path outranks everything; then the INSTALLED binary
+    (/usr/bin/zelynic — the owner's real v80.1.0), then the alias
+    pro-linux-amd64-v3-musl build the owner actually builds and runs,
+    then the pro-native-musl shape, then target/release (fallback
+    only — a stale artifact has mis-reported its version there
+    before), then the PATH install."""
     if explicit:
         if os.path.isfile(explicit) and os.access(explicit, os.X_OK):
             return explicit
         return fail(f"binary not executable: {explicit}")
-    repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    target = os.path.join(repo_root(), "target", "x86_64-unknown-linux-musl")
     for candidate in (
-        os.path.join(repo, "target", "x86_64-unknown-linux-musl", "pro-native-musl", "zelynic"),
-        os.path.join(repo, "target", "release", "zelynic"),
+        "/usr/bin/zelynic",
+        os.path.join(target, "pro-linux-amd64-v3-musl", "zelynic"),
+        os.path.join(target, "pro-native-musl", "zelynic"),
+        os.path.join(repo_root(), "target", "release", "zelynic"),
     ):
         if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
             return candidate
@@ -190,6 +227,35 @@ def resolve_binary(explicit: str | None) -> str:
     return fail(
         "no zelynic binary found — build one (./scripts/build.sh release) or pass --binary PATH"
     )
+
+
+def note_binary_divergence(binary: str) -> None:
+    """The stale-artifact tell (night-spark-10): the resolved
+    binary's own -V banner against the alias build's, when both
+    exist and the resolved binary is not the alias itself. A
+    disagreement is named on stderr and the harness continues —
+    informational, never a hard fail (the stale target/release copy
+    mis-reported its version while /usr/bin and the alias agreed on
+    v80.1.0)."""
+    alias = os.path.join(
+        repo_root(), "target", "x86_64-unknown-linux-musl", "pro-linux-amd64-v3-musl", "zelynic"
+    )
+    if binary == alias or not (os.path.isfile(alias) and os.access(alias, os.X_OK)):
+        return
+    rc_a, out_a, _ = zel(binary, ["-V"])
+    rc_b, out_b, _ = zel(alias, ["-V"])
+    if rc_a != 0 or rc_b != 0:
+        return
+    banner_a = (out_a.strip().splitlines() or [""])[0].strip()
+    banner_b = (out_b.strip().splitlines() or [""])[0].strip()
+    if banner_a and banner_b and banner_a != banner_b:
+        print(
+            f"quota-saver-ab: note — the resolved binary reports '{banner_a}' "
+            f"while the alias build reports '{banner_b}'; the resolved "
+            "binary may be stale (informational, the run continues)",
+            file=sys.stderr,
+            flush=True,
+        )
 
 
 def fail(reason: str) -> "str":
@@ -575,6 +641,25 @@ def overrun_worker(curl: str, url: str, name: str, size: int, seconds: int) -> l
     return ["bash", "-c", inner]
 
 
+def overrun_upload_worker(curl: str, url: str, path: str, seconds: int) -> list[str]:
+    """The overrunning upload leg's worker (night-spark-10): the
+    mirror of overrun_worker on the egress direction — back-to-back
+    PUTs of the sparse file until the wall clock says stop, the
+    eager sender whose file is small but whose clock never ends.
+    The enforced leg's slower drain is wire the link never carried,
+    the same one-unit rule as the download leg, and the final
+    stdout line is the summed bytes the metric reader expects."""
+    put = f"{curl} -s -o /dev/null -w '%{{size_upload}}' --max-time 30 -T '{path}' '{url}'"
+    inner = (
+        f"total=0; end=$((SECONDS + {seconds})); "
+        f"while [ $SECONDS -lt $end ]; do "
+        f"b=$({put} 2>/dev/null) || true; "
+        f"case $b in (*[!0-9]*|'') b=0;; esac; "
+        f"total=$((total + b)); done; echo $total"
+    )
+    return ["bash", "-c", inner]
+
+
 def run_scenario_a_download(
     binary: str, cg: str, cg_path: str, rate: str, worker: list[str], timeout: int = 70
 ) -> Leg:
@@ -739,7 +824,9 @@ def run_download_leg(
     return a_dl, b_dl, dl_name, dl_rung
 
 
-def run_scenario_a_upload(binary: str, cg: str, cg_path: str, rate: str, worker: list[str]) -> Leg:
+def run_scenario_a_upload(
+    binary: str, cg: str, cg_path: str, rate: str, worker: list[str], timeout: int = 70
+) -> Leg:
     """The product leg, upload policy (`-u`): the pacing lane's
     commanded rate rides the egress policed path."""
     leg = Leg()
@@ -750,7 +837,7 @@ def run_scenario_a_upload(binary: str, cg: str, cg_path: str, rate: str, worker:
             fail(f"strict -u {rate} failed: {(stderr or '').strip()[:200]}")
         before = status_entry(binary, cg_id)
         w0 = total_wire_bytes("tx")
-        got, err = run_worker(worker, cg_path, 70)
+        got, err = run_worker(worker, cg_path, timeout)
         w1 = total_wire_bytes("tx")
         after = status_entry(binary, cg_id)
         leg.transferred, leg.saved = delta_savings(before, after)
@@ -768,14 +855,14 @@ def run_scenario_a_upload(binary: str, cg: str, cg_path: str, rate: str, worker:
     return leg
 
 
-def run_scenario_b_upload(worker: list[str]) -> Leg:
+def run_scenario_b_upload(worker: list[str], timeout: int = 70) -> Leg:
     """The legacy upload leg; the wire figure from the hardware-
     agnostic tx interface delta (night-spark-8), curl's app bytes
     kept beside it."""
     leg = Leg()
     t0 = tcp_counters()
     w0 = total_wire_bytes("tx")
-    got, err = run_worker(worker, None, 70)
+    got, err = run_worker(worker, None, timeout)
     t1 = tcp_counters()
     w1 = total_wire_bytes("tx")
     if got is None:
@@ -840,6 +927,106 @@ def print_leg(leg_name: str, a: Leg, b: Leg) -> None:
         out(f"    (A worker note: {a.err[:90]})")
 
 
+def overrun_wire_percent(a: "Leg | None", b: "Leg | None") -> float | None:
+    """The overrunning leg's own wire saving (night-spark-10): the
+    A/B difference, one wire unit on both sides — the number a
+    metered plan would actually see with an eager sender. None when
+    the leg did not run (skipped) or did not complete; the verdict
+    then falls back to the bounded ledger's counterfactual and the
+    clarifier names it."""
+    if a is None or b is None:
+        return None
+    if a.partial or b.partial or a.transferred <= 0 or b.wire <= 0:
+        return None
+    return (b.wire - a.transferred) / b.wire * 100.0
+
+
+def plan_left_mb(wire: int) -> str:
+    """The plan arithmetic the metered block prints: the 100 MB
+    frame minus the measured wire, clamped at zero, one decimal."""
+    return f"{max(100.0 - wire / 1_000_000, 0.0):.1f} MB"
+
+
+def print_metered_plan(
+    seconds: int,
+    a_or: "Leg | None",
+    b_or: "Leg | None",
+    a_or_ul: "Leg | None",
+    b_or_ul: "Leg | None",
+) -> None:
+    """The beginner's answer (night-spark-10): each overrunning
+    session's measured wire priced against a 100 MB plan —
+    with-zelynic wire against without-zelynic wire, the arithmetic
+    a bill actually follows, the counterfactual booking appearing
+    nowhere here. A direction whose leg did not run or complete
+    says n/a, never a hopeful number."""
+    out("")
+    out("━━━ what this means on a metered plan ━━━")
+    for label, a, b in (
+        ("download", a_or, b_or),
+        ("upload", a_or_ul, b_or_ul),
+    ):
+        out(f"  {label} — {seconds}s overrun session:")
+        if a is None or b is None or a.partial or b.partial or a.transferred <= 0 or b.wire <= 0:
+            out("    n/a — the leg did not complete")
+            continue
+        out(
+            f"    with zelynic:    {fmt_mb(a.transferred)} consumed  →  "
+            f"on a 100 MB plan: {plan_left_mb(a.transferred)} left"
+        )
+        out(
+            f"    without:         {fmt_mb(b.wire)} consumed  →  "
+            f"on a 100 MB plan: {plan_left_mb(b.wire)} left"
+        )
+        out(f"    savings:  {(b.wire - a.transferred) / b.wire * 100.0:.1f}%")
+
+
+def print_masterclass_verdict(
+    a_dl: Leg,
+    a_ul: Leg,
+    a_or: "Leg | None",
+    b_or: "Leg | None",
+    a_or_ul: "Leg | None",
+    b_or_ul: "Leg | None",
+) -> None:
+    """The exact wire contract: one line per leg — the number the
+    beginner repeats (night-spark-10). The overrunning legs are the
+    claim: when a leg completed, its A/B wire saving IS the verdict,
+    the clarifier above the line saying so. The bounded ledger's
+    counterfactual prints only as the named fallback (overrun skipped
+    or a leg that did not complete) — the pre-night-spark-10 shape,
+    unchanged. Both byte strings stay regex-matchable for the CI
+    e2e-init.sh grep."""
+    wire_clarifier = (
+        "  (wire-measured over the overrun leg — what a metered plan "
+        "would actually see with an eager sender)"
+    )
+    ledger_clarifier = (
+        "  (the percentage below is the cgroup ledger's counterfactual "
+        "booking; the A/B wire ground truth is the line above)"
+    )
+    wire_dl = overrun_wire_percent(a_or, b_or)
+    wire_ul = overrun_wire_percent(a_or_ul, b_or_ul)
+    dl_line = (
+        f"test download results the internet kuota save total is {wire_dl:.1f}%"
+        if wire_dl is not None
+        else "test download results the internet kuota save total is "
+        f"{save_percent(a_dl.transferred, a_dl.saved)}%"
+    )
+    ul_line = (
+        f"test upload results the internet kuota save total is {wire_ul:.1f}%"
+        if wire_ul is not None
+        else "test upload results the internet kuota save total is "
+        f"{save_percent(a_ul.transferred, a_ul.saved)}%"
+    )
+    out("")
+    out("━━━ the masterclass verdict ━━━")
+    out(wire_clarifier if wire_dl is not None else ledger_clarifier)
+    out(dl_line)
+    out(wire_clarifier if wire_ul is not None else ledger_clarifier)
+    out(ul_line)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         prog="quota-saver-ab",
@@ -867,12 +1054,12 @@ def main() -> int:
         "--overrun-seconds",
         type=int,
         default=20,
-        help="the overrunning leg's wall-clock budget in seconds (default 20)",
+        help="the overrunning legs' wall-clock budget in seconds (default 20)",
     )
     ap.add_argument(
         "--skip-overrun",
         action="store_true",
-        help="skip the overrunning leg (quota-poor hosts) — the bounded pair alone "
+        help="skip the overrunning legs (quota-poor hosts) — the bounded pair alone "
         "prices the booking, never the saving",
     )
     args, unknown = ap.parse_known_args()
@@ -892,6 +1079,7 @@ def main() -> int:
     if shutil.which("curl") is None:
         fail("curl not found — the legs are real transfers")
     binary = resolve_binary(args.binary)
+    note_binary_divergence(binary)
     # The Orchestra's gate, verified through the binary's own doctor:
     # floor, cgroup v2, bpffs, root — a missing capability refuses with
     # the doctor's wording before any leg starts.
@@ -959,14 +1147,19 @@ def main() -> int:
         except OSError:
             pass
 
-    # ── the overrunning leg (night-netrunner-12): savings only
-    #    manifest where the sender would push more if it could — the
-    #    bounded pair's sender never attempts the overrun the
-    #    counterfactual books, this leg's sender never stops ─────────
+    # ── the overrunning legs (night-netrunner-12 download,
+    #    night-spark-10 upload): savings only manifest where the
+    #    sender would push more if it could — the bounded pair's
+    #    senders never attempt the overrun the counterfactual books,
+    #    these legs' senders never stop ─────────────────────────
+    a_or = None
+    b_or = None
+    a_or_ul = None
+    b_or_ul = None
     if args.skip_overrun:
         out("")
         out(
-            "the overrunning leg: skipped (--skip-overrun) — the bounded pair "
+            "the overrunning legs: skipped (--skip-overrun) — the bounded pair "
             "prices the booking, not the saving"
         )
     else:
@@ -996,6 +1189,42 @@ def main() -> int:
             f"A {fmt_mb(a_or.transferred)} + B {fmt_mb(b_or.wire)} — "
             "size it with --overrun-seconds)"
         )
+        # The overrunning upload leg (night-spark-10): the mirror of
+        # the download leg on the egress direction — the same loop,
+        # the same clock, the tx wire unit, the cloudflare endpoint
+        # the bounded upload leg just proved reachable.
+        out("")
+        out(
+            f"the overrun upload leg: {args.overrun_seconds}s of back-to-back "
+            f"{fmt_mb(OVERRUN_UPLOAD_CHUNK_BYTES)} uploads on cloudflare "
+            "(the eager sender — the clock ends the session, not the file)"
+        )
+        or_ul_file = os.path.join("/tmp", "zelynic-quota-ab-or-ul.bin")
+        with open(or_ul_file, "wb") as fh:
+            fh.truncate(OVERRUN_UPLOAD_CHUNK_BYTES)  # sparse: no disk cost
+        try:
+            or_ul_worker = overrun_upload_worker(curl, ul_url, or_ul_file, args.overrun_seconds)
+            or_ul_timeout = 70 + max(args.overrun_seconds, 0) + 30
+            a_or_ul = run_scenario_a_upload(
+                binary,
+                "zelynic-quota-ab-or-ul",
+                os.path.join(CGROUP_ROOT, "zelynic-quota-ab-or-ul"),
+                args.upload_rate,
+                or_ul_worker,
+                or_ul_timeout,
+            )
+            b_or_ul = run_scenario_b_upload(or_ul_worker, or_ul_timeout)
+            print_leg("overrun upload", a_or_ul, b_or_ul)
+            out(
+                "    (the overrun leg spends real quota outside the virtual frame: "
+                f"A {fmt_mb(a_or_ul.transferred)} + B {fmt_mb(b_or_ul.wire)} — "
+                "size it with --overrun-seconds)"
+            )
+        finally:
+            try:
+                os.unlink(or_ul_file)
+            except OSError:
+                pass
 
     # ── the A/B ledger, both legs side by side ───────────────────────
     out("")
@@ -1017,19 +1246,12 @@ def main() -> int:
         f"carried vs {fmt_mb(a_ul.transferred)} spent."
     )
 
-    # ── the exact wire contract: scenario A's ledger, one per leg ────
-    clarifier = (
-        "  (the percentage below is the cgroup ledger's counterfactual "
-        "booking; the A/B wire ground truth is the line above)"
-    )
-    out(clarifier)
-    out(
-        f"test download results the internet kuota save total is {save_percent(a_dl.transferred, a_dl.saved)}%"
-    )
-    out(clarifier)
-    out(
-        f"test upload results the internet kuota save total is {save_percent(a_ul.transferred, a_ul.saved)}%"
-    )
+    # ── the beginner's answer: the measured wire priced against the ──
+    #    plan the user actually pays for (night-spark-10).
+    print_metered_plan(args.overrun_seconds, a_or, b_or, a_or_ul, b_or_ul)
+
+    # ── the exact wire contract: the number the beginner repeats ──
+    print_masterclass_verdict(a_dl, a_ul, a_or, b_or, a_or_ul, b_or_ul)
     return 0
 
 
