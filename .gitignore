@@ -44,3 +44,8 @@ download/
 __pycache__/
 *.pyc
 .ruff_cache
+
+# Legacy release binaries for the vs-legacy harness
+# (scripts/bench/quota-saver-ab-vs-legacy.sh auto-downloads the pinned
+# release tarball here; a test artifact, never tracked)
+/legacy/
