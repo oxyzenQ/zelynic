@@ -2,6 +2,7 @@
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: AGPL-3.0-only
 # OS: Linux only — zelynic is a Linux eBPF tool; no other OS is supported.
+# LOC_EXEMPT: one runnable A/B proof — the ladder, the ledger, both scenarios and the verdict plumbing share one module by design; the module-package split is the tracked debt (night-spark-8 crossed the 1000 scripts cap adding the one-unit wire rule)
 """The quota saver's A/B proof (night-netrunner-4, the final polish).
 
 The "be honest" experiment: the same real download and the same real
@@ -17,11 +18,13 @@ enforcement at all (scenario B, the legacy drop-based counterfactual).
       carried).
   scenario B (legacy): the same legs with no zelynic enforcement —
       no cgroup attach, no limiter, the raw path a drop-based setup
-      walks. The cost is what curl moved plus the TCP retransmission
-      the wire itself reports: the system-wide /proc/net/snmp Tcp
-      deltas (a quiet-runner measurement), converted at the
-      conservative 1448 B/segment estimate and printed as an
-      estimate, never as fact.
+      walks. The wire cost is the hardware-agnostic interface delta
+      (night-spark-8) — the same unit scenario A's cgroup counter
+      books — with curl's app-byte read kept alongside as the
+      completion proof, plus the TCP retransmission the wire itself
+      reports: the system-wide /proc/net/snmp Tcp deltas (a
+      quiet-runner measurement), converted at the conservative 1448
+      B/segment estimate and printed as an estimate, never as fact.
 
 The verdict lines are the task's exact wire contract, printed to
 stdout at the end, one per leg — always scenario A's ledger (the
@@ -73,7 +76,8 @@ bounded upload booked 75.85% while A moved +0.64 MB MORE. A bounded
 transfer never gives the sender room to overrun its file, so the
 counterfactual books savings the wire never withheld. The harness
 now prints the three numbers per leg — the ledger's booking, the
-wire ground truth (A's bytes_allowed vs B's wire), and the gap —
+wire ground truth (A's cgroup counter vs B's interface delta, one
+wire unit on both sides), and the gap —
 and carries an OVERRUNNING leg: N seconds of back-to-back chunk
 GETs on the bounded leg's accepted rung, the eager receiver whose
 sender always has more — the only workload where the withheld
@@ -85,6 +89,21 @@ leg, on by default), the cellular envelope (rerun with
 QUIC stream (the lanes' own probes: edt-probe.sh, ecn-probe.sh),
 and the browsing mix (a human session — no script can honestly
 synthesize it).
+
+The one-unit rule (night-spark-8): the first measured run priced
+scenario A's wire against scenario B's APP bytes — the cgroup counter
+books every byte the kernel let through (headers, ACKs, retransmits)
+while curl's size metric counts payload only, and the owner's own
+host priced a 20 MB download at 21,493,059 interface bytes (7.47%
+overhead curl never saw). The "+A moved MORE wire" reading was that
+overhead, an apples-to-oranges artifact, not a product finding. Both
+scenarios now read the same wire unit: the interface delta, summed
+hardware-agnostically across every real interface in /proc/net/dev
+(wifi, ethernet, usb tethering, a 4g dongle — no name configured
+anywhere), scenario A keeping the cgroup counter as its primary wire
+figure with the interface read as a cross-check whose agreement line
+prices background traffic, scenario B taking its wire from the
+interface delta with the app bytes printed beside it.
 
 Usage:
     ./scripts/bench/quota-saver-ab.sh                # both scenarios
@@ -123,6 +142,14 @@ QUOTA_BUDGET = 100_000_000
 # MSS minus timestamps option); the table labels it an estimate.
 RETRANS_SEG_BYTES = 1448
 SNMP = "/proc/net/snmp"
+PROC_NET_DEV = "/proc/net/dev"
+# The hardware-agnostic wire counter's exclusion list (night-spark-8):
+# loopback and virtual/overlay name prefixes — bytes there also
+# traverse a physical interface, so summing them would double-count.
+# Everything else counts as-is (eth*, en*, wlan*, wlp*, usb*, wwan*,
+# rmnet*, ppp* — ppp stays IN: a physical-modem protocol on 3g/4g
+# dongles). No interface name is configured anywhere.
+VIRTUAL_IFACE_PREFIXES = ("lo", "docker", "veth", "br-", "virbr", "tun", "tap", "wg")
 # The download leg's delivery floor and attempt cap (night-netrunner-6):
 # a rung that answers the 1 KB probe can still fail the real leg (an
 # object smaller than the leg rides the range past its EOF into a
@@ -398,6 +425,40 @@ def retrans_delta(before: tuple[int, int] | None, after: tuple[int, int] | None)
     return max(after[0] - before[0], 0), max(after[1] - before[1], 0)
 
 
+def total_wire_bytes(direction: str) -> int | None:
+    """The system-wide wire-byte counter, hardware-agnostic
+    (night-spark-8): the rx or tx byte total summed across every real
+    interface in /proc/net/dev — virtual/overlay names excluded, no
+    interface name configured anywhere, so wifi, ethernet, usb
+    tethering and a 4g dongle all measure the same way. The counter
+    is SYSTEM-WIDE: unrelated traffic on the host during a leg
+    inflates it (the A-side cgroup counter is cgroup-isolated — the
+    report's agreement line prices that gap). None when the table is
+    unreadable."""
+    if direction not in ("rx", "tx"):
+        return None
+    try:
+        with open(PROC_NET_DEV, "r", encoding="ascii") as fh:
+            lines = fh.readlines()[2:]  # the two header lines
+    except OSError:
+        return None
+    total = 0
+    for line in lines:
+        if ":" not in line:
+            continue
+        name, _, rest = line.partition(":")
+        if name.strip().startswith(VIRTUAL_IFACE_PREFIXES):
+            continue
+        fields = rest.split()
+        if len(fields) < 9:
+            continue
+        try:
+            total += int(fields[0] if direction == "rx" else fields[8])
+        except ValueError:
+            return None
+    return total
+
+
 def fmt_mb(n: int) -> str:
     return f"{n / 1_000_000:.2f} MB"
 
@@ -449,15 +510,20 @@ class Ledger:
 
 
 class Leg:
-    """One leg's two-scenario books: scenario A's Layer 4 deltas,
-    scenario B's live wire cost, the wire's own retrans reports."""
+    """One leg's two-scenario books: scenario A's Layer 4 deltas plus
+    its interface cross-check, scenario B's hardware-agnostic wire
+    cost with the app bytes beside it, the wire's own retrans
+    reports."""
 
     def __init__(self) -> None:
         self.transferred = 0
         self.saved = 0
         self.wire = 0
+        self.wire_interface = None
+        self.app_bytes = None
         self.retrans = None
         self.partial = False
+        self.err = ""
 
 
 def download_worker(curl: str, url: str, name: str, size: int) -> list[str]:
@@ -512,7 +578,10 @@ def overrun_worker(curl: str, url: str, name: str, size: int, seconds: int) -> l
 def run_scenario_a_download(
     binary: str, cg: str, cg_path: str, rate: str, worker: list[str], timeout: int = 70
 ) -> Leg:
-    """The product leg: cgroup + strict + the Layer 4 deltas."""
+    """The product leg: cgroup + strict + the Layer 4 deltas, the
+    cgroup counter kept as the primary wire figure (cgroup-isolated,
+    immune to background traffic) with the hardware-agnostic
+    interface delta as the cross-check (night-spark-8)."""
     leg = Leg()
     cg_id = make_cgroup(cg)
     try:
@@ -520,9 +589,13 @@ def run_scenario_a_download(
         if rc != 0:
             fail(f"strict {rate} failed: {(stderr or '').strip()[:200]}")
         before = status_entry(binary, cg_id)
+        w0 = total_wire_bytes("rx")
         got, err = run_worker(worker, cg_path, timeout)
+        w1 = total_wire_bytes("rx")
         after = status_entry(binary, cg_id)
         leg.transferred, leg.saved = delta_savings(before, after)
+        if w0 is not None and w1 is not None:
+            leg.wire_interface = max(w1 - w0, 0)
         if got is None:
             leg.partial = True
             leg.err = err
@@ -537,16 +610,30 @@ def run_scenario_a_download(
 
 def run_scenario_b_download(worker: list[str], timeout: int = 70) -> Leg:
     """The legacy leg: the same worker, no enforcement, the wire's
-    own retransmission read around it. A dead attempt returns the
+    own retransmission read around it, the wire figure taken from the
+    hardware-agnostic interface delta (night-spark-8) — the same unit
+    scenario A's cgroup counter books — with curl's app bytes kept as
+    leg.app_bytes, printed beside the wire. A dead attempt returns the
     honest zero wire with the error carried (night-netrunner-6: the
     caller's failover names it and moves to the next rung — the hard
     refusal was the caller's alone, and it killed a run whose A leg
     had already delivered)."""
     leg = Leg()
     t0 = tcp_counters()
+    w0 = total_wire_bytes("rx")
     got, err = run_worker(worker, None, timeout)
     t1 = tcp_counters()
-    leg.wire = got or 0
+    w1 = total_wire_bytes("rx")
+    leg.app_bytes = got
+    if w0 is not None and w1 is not None:
+        leg.wire = max(w1 - w0, 0)
+    elif got is not None:
+        # /proc/net/dev went unreadable mid-run: the wire falls back
+        # to the app bytes and the leg is marked partial — the unit
+        # switch is named, never silent.
+        leg.wire = got
+        leg.partial = True
+        leg.err = err or "the interface counter went unreadable; wire = app bytes"
     if got is None:
         leg.partial = True
         leg.err = err
@@ -662,9 +749,13 @@ def run_scenario_a_upload(binary: str, cg: str, cg_path: str, rate: str, worker:
         if rc != 0:
             fail(f"strict -u {rate} failed: {(stderr or '').strip()[:200]}")
         before = status_entry(binary, cg_id)
+        w0 = total_wire_bytes("tx")
         got, err = run_worker(worker, cg_path, 70)
+        w1 = total_wire_bytes("tx")
         after = status_entry(binary, cg_id)
         leg.transferred, leg.saved = delta_savings(before, after)
+        if w0 is not None and w1 is not None:
+            leg.wire_interface = max(w1 - w0, 0)
         if got is None:
             leg.partial = True
             leg.err = err
@@ -678,13 +769,24 @@ def run_scenario_a_upload(binary: str, cg: str, cg_path: str, rate: str, worker:
 
 
 def run_scenario_b_upload(worker: list[str]) -> Leg:
+    """The legacy upload leg; the wire figure from the hardware-
+    agnostic tx interface delta (night-spark-8), curl's app bytes
+    kept beside it."""
     leg = Leg()
     t0 = tcp_counters()
+    w0 = total_wire_bytes("tx")
     got, err = run_worker(worker, None, 70)
     t1 = tcp_counters()
+    w1 = total_wire_bytes("tx")
     if got is None:
         fail(f"the legacy upload leg failed: {err}")
-    leg.wire = got
+    leg.app_bytes = got
+    if w0 is not None and w1 is not None:
+        leg.wire = max(w1 - w0, 0)
+    else:
+        # the unit switch is named, never silent
+        leg.wire = got
+        leg.partial = True
     leg.retrans = retrans_delta(t0, t1)
     if got == 0:
         leg.partial = True
@@ -693,8 +795,9 @@ def run_scenario_b_upload(worker: list[str]) -> Leg:
 
 def ground_truth_line(a: Leg, b: Leg) -> str | None:
     """The wire's own verdict (night-netrunner-12): scenario A's wire
-    (the bytes_allowed delta) against scenario B's raw wire — the
-    measurement the ledger cannot print about itself."""
+    (the bytes_allowed delta) against scenario B's wire (the
+    interface delta) — one unit on both sides since night-spark-8,
+    the measurement the ledger cannot print about itself."""
     if b.wire <= 0:
         return None
     delta = a.transferred - b.wire
@@ -711,8 +814,15 @@ def print_leg(leg_name: str, a: Leg, b: Leg) -> None:
         f" -> saved {save_percent(a.transferred, a.saved)}%"
         + ("  (partial leg)" if a.partial else "")
     )
+    if a.wire_interface is not None and a.transferred > 0:
+        gap = abs(a.wire_interface - a.transferred) / a.transferred * 100.0
+        out(
+            f"    cgroup/interface agreement: A cgroup {fmt_mb(a.transferred)} "
+            f"vs interface {fmt_mb(a.wire_interface)} ({gap:.2f}% gap)"
+        )
+    app = f" (app {fmt_mb(b.app_bytes)})" if b.app_bytes is not None else ""
     out(
-        f"    B (legacy):   wire {fmt_mb(b.wire)} + retrans {retrans_mb(b.retrans)} (est)"
+        f"    B (legacy):   wire {fmt_mb(b.wire)}{app} + retrans {retrans_mb(b.retrans)} (est)"
         f" -> saved 0.00%  (nothing withholds on the drop-based path)"
         + ("  (partial leg)" if b.partial else "")
     )
@@ -908,13 +1018,15 @@ def main() -> int:
     )
 
     # ── the exact wire contract: scenario A's ledger, one per leg ────
-    out(
-        "  the ledger's self-report (the counterfactual booking — the ground "
-        "truth lines above are the A/B wire):"
+    clarifier = (
+        "  (the percentage below is the cgroup ledger's counterfactual "
+        "booking; the A/B wire ground truth is the line above)"
     )
+    out(clarifier)
     out(
         f"test download results the internet kuota save total is {save_percent(a_dl.transferred, a_dl.saved)}%"
     )
+    out(clarifier)
     out(
         f"test upload results the internet kuota save total is {save_percent(a_ul.transferred, a_ul.saved)}%"
     )
