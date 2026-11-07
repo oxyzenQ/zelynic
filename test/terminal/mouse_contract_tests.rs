@@ -264,8 +264,8 @@ fn selection_guard_beat_pinned() {
 }
 
 /// The loop scheduler contract (NIGHT-improve-8): a due render
-/// outranks a due guard (fresh content is also the strongest
-/// selection killer), the guard fires on its own clock between
+/// outranks a due guard (fresh content also clears the
+/// selection outright), the guard fires on its own clock between
 /// renders (a diff-only render never resets it — unchanged rows
 /// stay selectable, the hole the guard closes), and the non-TTY
 /// fallback never guards (a pipe has no selection machinery; the

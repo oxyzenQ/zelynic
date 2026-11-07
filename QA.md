@@ -29,7 +29,7 @@ render):
   number is humanized by `format_count`
   (`src/ebpf/limiter/format.rs`): 24 packets stays `24`, 2,500-ish
   reads `2.5K`, an eight-hour 2,244,843 reads `2.2M` — no raw u64 is
-  allowed to explode the line (NIGHT-boost-16 counter hardening).
+  allowed to overflow the line (NIGHT-boost-16 counter hardening).
 - **`16 cgroups`** — how many cgroups the frame's **board** carries,
   i.e. `board.len()`. In eagle eyes mode the board is the watched set:
   the 16 cgroups your filter matched. The doc contract is explicit —
@@ -162,7 +162,7 @@ discipline that followed from it. The existing landscape asked for
 daemons, config files, service managers, and dependency stacks to
 answer one question: *what is this app doing with my network, and how
 do I cap it?* zelynic is the answer built the other way around:
-**simple masterclass, silent but killer.**
+**simple masterclass, boring and silent.**
 
 The shape that philosophy produced, concretely:
 
@@ -176,7 +176,7 @@ The shape that philosophy produced, concretely:
   monitor is the one interactive surface, and it is designed to be
   read at a glance.
 - **Boring where it counts.** The Cargo description says it outright —
-  "Boring and silent but killer" — boring in the operational sense:
+  "Boring and silent" — boring in the operational sense:
   predictable, stable, nothing to babysit.
 
 The rule the frustration left behind: every piece of friction that

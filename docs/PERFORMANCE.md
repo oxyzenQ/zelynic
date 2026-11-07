@@ -1914,7 +1914,7 @@ module's own cost note), and the composed run is a pure function of
 (theme, capability, glyph, start, len, span, anchor), so the memo
 pays the blend work ONCE per shape and every later frame clones
 the bytes (a theme cycle, a resize, or a capability change misses
-once and re-fills; the drift-killer pin runs the hoisted walk
+once and re-fills; the drift-guard pin runs the hoisted walk
 against the per-cell rail_rgb walk byte for byte, both engines).
 What is left is the string volume: -15.6% release fps at a
 18,504 fps synthetic blast — about 6.3 us per frame, 0.0006% of

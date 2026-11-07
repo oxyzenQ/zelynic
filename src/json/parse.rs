@@ -29,8 +29,8 @@ use std::ops::Index;
 
 /// How deep the parser may nest containers before refusing (a
 /// hostile reply must not overflow the stack — the docker reply
-/// budget caps bytes at 4 MiB, but 4 MiB of `[[[[...` is a stack
-/// bomb all the same). The cap counts CONTAINER frames: the 128-deep
+/// budget caps bytes at 4 MiB, but 4 MiB of `[[[[...` is stack
+/// exhaustion all the same). The cap counts CONTAINER frames: the 128-deep
 /// document parses, the 129th frame refuses.
 const DEPTH_CAP: usize = 128;
 

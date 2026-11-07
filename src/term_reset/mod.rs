@@ -37,7 +37,7 @@
 //! own exit-restore SKIPS when the output flags were changed out
 //! from under it — which the in-flight apply does on purpose — so
 //! the common case needs no post-exit touch at all, and a blanket
-//! re-apply would only fight the user's shell).
+//! re-apply would only work against the user's shell).
 //!
 //! 1. The termios restore, in-process and FIRST (NIGHT-improve-30,
 //!    the maturity the first port owed): `tcsetattr` of a sane cooked

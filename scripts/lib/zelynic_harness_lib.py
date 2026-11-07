@@ -11,9 +11,9 @@ engine helpers by copy-paste back when there were two: verdict
 recording, zelynic subprocess control, status-JSON reading,
 environment probes, binary resolution, and the final report.
 Fourteen near-identical functions across two 1000-line files was the
-classic drift trap: the brutal twin got the kernfs-inode fix
+classic drift trap: the exacting twin got the kernfs-inode fix
 (NIGHT-hunt-31) days before the depth twin, and the same week the
-brutal twin gained a target/pro-native-gnu binary candidate the
+exacting twin gained a target/pro-native-gnu binary candidate the
 depth twin never saw (the alias has since retired with the gnu
 packaging, night-dragon-maintenance-6). This module is the single engine all three
 import.

@@ -51,7 +51,7 @@
 //!
 //! NIGHT-engrave-4 (symmetric rails): the table's rows end two
 //! columns short of the content inset — the RIGHT gutter, mirror of
-//! the left — so the TOTAL column's figures never fight the right
+//! the left — so the TOTAL column's figures never contend with the right
 //! rail for their column, and the header's process title spans the
 //! whole identity region (rank cell + gap + label), starting at the
 //! frame's canonical text column instead of floating past the blank

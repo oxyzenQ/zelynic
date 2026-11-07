@@ -44,8 +44,8 @@ fn guard_repaint_beats_the_idle_fast_path() {
     assert!(out.is_empty());
 
     // Guard beat: the whole frame goes back out — every row, no
-    // screen erase (NIGHT-hunt-26: the rewrite is the selection
-    // killer; the erase only opened the blank flash window).
+    // screen erase (NIGHT-hunt-26: the rewrite clears the
+    // selection; the erase only opened the blank flash window).
     let mut stale = lines_of(&rows); // swap scratch (receives the stale shadow)
     let g = s.force_repaint_at(80, 24, &mut stale, &mut out);
     assert!(g > 0, "the guard must re-emit a painted frame");

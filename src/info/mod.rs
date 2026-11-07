@@ -160,7 +160,7 @@ fn version_body() -> String {
 ///
 /// ```text
 /// zelynic: v11.0.0
-/// Per-app network rate limiter and traffic monitor for Linux. Pure eBPF. Boring and silent but killer.
+/// Per-app network rate limiter and traffic monitor for Linux. Pure eBPF. Boring and silent.
 /// Build: pro-linux-amd64-v3-musl (ad36a81)
 /// Build-time: 9/18/2026 01:30 (UTC)
 /// Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)

@@ -70,7 +70,7 @@ cannot be measured at a boundary is not claimed at that boundary.
 | Group lifecycle: 256-slot maps stay proportional; no silent-unlimited | USAGE/STABILITY (lts-7) | dead-group decision pins; BPF fallback (schema v8); supermassive group-lane rows | verified |
 | Theme accuracy: brand/ok on computed nearest cube cells | BRANDING 2.2 (lts-9) | the computed walk pins (`test/output/theme_palette_tests.rs`) | verified |
 | Monitor survives boot-edge start (no epoch underflow panic) | STABILITY Time row (lts-7) | beat-epoch floor pin (`mouse_contract_tests.rs`) | verified |
-| Sudo rescue does not fight the user's shell | USAGE/SAFETY_ANALYSIS (improve-34) | discrimination-matrix pins + the live sudo-interposer harness (scratch, owner-runnable) | verified |
+| Sudo rescue does not work against the user's shell | USAGE/SAFETY_ANALYSIS (improve-34) | discrimination-matrix pins + the live sudo-interposer harness (scratch, owner-runnable) | verified |
 | Package teardown: uninstall clears enforcement first, never under `--user` | README "the package scripts" note (improve-15) | `scripts/package/uninstall.sh`'s own contract (kernel-first: `u --all` while pins are live, the exact manual steps when no binary is left), the rust-version-sync gate's uninstall-hint check, and the supermassive v2 crash-family teardown (recover + cleanup + dmesg postconditions) | verified (the blade-8 install/uninstall runtime rig retired with `scripts/package/install.sh` in night-dragon-maintenance-3 — the from-source install path is bootstrap-ebpf.sh + a plain `cp`; a dedicated uninstall runtime rig is a future lane if the owner calls one) |
 
 ## Re-proving, on demand

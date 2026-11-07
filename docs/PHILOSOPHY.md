@@ -3,7 +3,7 @@
 
 # zelynic Design Philosophy
 
-> zelynic is "boring and silent but killer" — a per-app network rate
+> zelynic is "boring and silent" — a per-app network rate
 > limiter and traffic monitor that does its work in the kernel, prints
 > only what it verified, and never makes a claim it cannot back. The
 > terminal speaks once, the datapath never speaks at all.

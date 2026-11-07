@@ -823,7 +823,7 @@ fi
 # The ebpf-prebuilt/ lane is what a plain `cargo install zelynic`
 # embeds (the full-featured registry build). The gate holds its three
 # contracts: sane ELF objects, manifest rows that match the disk, and
-# the ebpf/ tree-hash pin — the staleness killer that forces a
+# the ebpf/ tree-hash pin — the staleness guard that forces a
 # refresh-prebuilt.sh run after every ebpf/ change.
 header "Prebuilt eBPF Parity (check-prebuilt-parity.sh)"
 if [ -f scripts/gates/check-prebuilt-parity.sh ]; then

@@ -32,8 +32,8 @@
 //! (`DiffScreen::force_repaint`): a partial rewrite would leave the
 //! unrewritten rows selectable, exactly the "still can copy some
 //! text" the owner reported. Since NIGHT-hunt-26 the beat's
-//! rewrite carries NO screen erase — the rewrite itself is the
-//! selection killer, and an erase between renders opened the blank
+//! rewrite carries NO screen erase — the rewrite itself clears the
+//! selection, and an erase between renders opened the blank
 //! window the owner read as an intermittent flash on long-running
 //! monitors (see diff.rs for the mechanism). Honest physics
 //! boundaries, documented not hidden: (a) an X11-style terminal

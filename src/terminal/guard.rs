@@ -201,7 +201,7 @@ impl TerminalGuard {
                 // n < 0: EINTR retries (signals arrive, the pipe is
                 // patient); any other error is the pipe's own death
                 // — the guard cannot sense the parent anymore, exit
-                // without touching the tty (never fight a monitor
+                // without touching the tty (never work against a monitor
                 // that may still be alive).
                 // SAFETY: read errno is only consulted by retrying.
                 let err = std::io::Error::last_os_error();

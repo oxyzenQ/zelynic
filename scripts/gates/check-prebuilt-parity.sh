@@ -22,13 +22,13 @@
 #      fails here instead of shipping an unaccounted artifact.
 #   3. The manifest's ebpf_tree_blake3 equals the blake3 over the
 #      byte-order-sorted git-tracked ebpf/ file hashes — the
-#      STALENESS killer: any change under ebpf/ (sources, locks,
+#      STALENESS guard: any change under ebpf/ (sources, locks,
 #      pins, target spec) changes the tree hash, and the gate fails
 #      until scripts/release/refresh-prebuilt.sh regenerates the
 #      lane. The shipped objects can never silently fall behind the
 #      sources they claim to carry.
 #   4. No tracked file under ebpf/ hides behind an assume-unchanged
-#      or skip-worktree flag — the PHANTOM-PIN killer (NIGHT-repair-1):
+#      or skip-worktree flag — the PHANTOM-PIN guard (NIGHT-repair-1):
 #      the tree hash in row 3 reads on-disk content, so a hidden
 #      file's local churn hashes into the pin while the commit stages
 #      the old bytes; the pin then passes locally and fails CI's
@@ -145,7 +145,7 @@ for name in zelynic-observer zelynic-limiter; do
 		continue
 	fi
 	pass "${name} is a structurally sane ELF (${size} bytes)"
-	# The RELOCATABLE-SYMBOL killer (NIGHT-repair-4): aya's loader
+	# The RELOCATABLE-SYMBOL guard (NIGHT-repair-4): aya's loader
 	# resolves map relocations and in-section function relocations;
 	# any GLOBAL UNDEFINED FUNC symbol it must instead refuse with
 	# "function 0xADDR not found while relocating <prog>" at LOAD
