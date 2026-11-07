@@ -134,9 +134,7 @@ pub(crate) use baseline::BaselineLane;
 // pure over assembled facts. NIGHT-blade-5: the JSON half lives in
 // the depth_json sibling and keeps its stable scripting shape.
 pub use depth_json::depth_doc_json;
-pub use report::{
-    DepthReport, Enforcement, depth_report_lines, lanes_sentence, package_name,
-};
+pub use report::{DepthReport, Enforcement, depth_report_lines, lanes_sentence, package_name};
 
 // NIGHT-upgrade-charger-core-1-a: the bypass audit's report section
 // — the machine-scope shadow verdict the depth handler prints after

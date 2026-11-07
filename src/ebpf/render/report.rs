@@ -191,11 +191,7 @@ pub fn enforcement_sentence(enforcement: &Enforcement) -> String {
             match (direction_word(download), direction_word(upload)) {
                 ("unlimited", "unlimited") => "unlimited".to_string(),
                 (a, b) if a == "blocked" && b == "blocked" => "blocked".to_string(),
-                _ => format!(
-                    "limited — dl {} · ul {}",
-                    render(download),
-                    render(upload)
-                ),
+                _ => format!("limited — dl {} · ul {}", render(download), render(upload)),
             }
         }
     }

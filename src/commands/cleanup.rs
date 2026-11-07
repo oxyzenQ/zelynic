@@ -58,7 +58,10 @@ pub(crate) fn trace_pinned_state_inventory(tag: &str) -> Option<usize> {
             Some(0)
         }
         Err(e) => {
-            crate::output::verbose::vlog!(tag, "pinned state unreadable ({e}) — no inventory claimed");
+            crate::output::verbose::vlog!(
+                tag,
+                "pinned state unreadable ({e}) — no inventory claimed"
+            );
             None
         }
     }
