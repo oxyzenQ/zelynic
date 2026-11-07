@@ -39,6 +39,15 @@ fn clean_window_is_one_line_with_both_shares() {
         plain.contains("tx shadow 2%") && plain.contains("rx shadow 4%"),
         "both sides' shares ride the line, got: {plain}"
     );
+    // night-ux-1 (the owner's 200kb-on-Brave session): the verdict
+    // prints the band it cleared — "clean" beside a 22% figure must
+    // not force the reader to guess whether the figure sits inside
+    // it. The thresholds ride the line from the same constants the
+    // verdict was computed from.
+    assert!(
+        plain.contains("under 25%/40% thresholds"),
+        "the clean line names the thresholds it cleared, got: {plain}"
+    );
 }
 
 /// The flagged block carries every figure a triage needs: the window,

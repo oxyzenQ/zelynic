@@ -1331,8 +1331,10 @@ report compares what the interfaces physically moved
 (/sys/class/net counters) against what the cgroup_skb hooks saw (the
 observer's machine-wide totals) over the focus window, and prints
 the gap. A healthy machine renders one compact line (`bypass audit:
-clean — cgroup hooks and interfaces agree (tx shadow 0%, rx shadow
-2%)`). A window where the gap exceeds BOTH thresholds — 25% of
+clean (under 25%/40% thresholds; tx shadow 0%, rx shadow 2%)` —
+night-ux-1: the verdict carries the band it cleared, so a shadow
+figure never reads against an unnamed threshold). A window where the
+gap exceeds BOTH thresholds — 25% of
 interface tx or 40% of interface rx (the receive band is looser:
 every frame the stack dropped before socket demux — firewall drops,
 port scans — lands in that gap without being a bypass) plus an
@@ -1357,7 +1359,9 @@ time, and stated here because the feature brief guessed otherwise).
 
 Two honesty contracts ride the mode. The live-only `--interval`
 flag answers with exactly one stderr note (`--interval ignored
-(--depth prints one report and exits)`) — stdout and the exit code
+(--depth prints one report and exits; use --focus <SEC> to widen
+the measurement window)` — night-ux-1: the note names the flag
+that DOES control the window) — stdout and the exit code
 stay the report's own. And target resolution keeps the ladder,
 hardened at NIGHT-dinner-18: a target that resolves to no live
 cgroup — a typo'd NAME or a cgroup ID whose processes are gone — is

@@ -149,7 +149,8 @@ pub fn enforcement_word(enforcement: &Enforcement) -> &'static str {
 }
 
 /// The summary line's human sentence: "limited — dl 100.0 KB/s · ul
-/// blocked", "blocked", or "unlimited" (pure).
+/// blocked", "blocked", or "unlimited (no policy for this cgroup)"
+/// (pure).
 ///
 /// night-private-research-7: a `shaping` window (the focus window's
 /// bracket reads saw the ledger's dropped counter MOVE — the limit
@@ -160,10 +161,18 @@ pub fn enforcement_word(enforcement: &Enforcement) -> &'static str {
 /// The tag rides the mixed limited arm only: a blocked policy drops
 /// by definition (the tag would be noise) and an unlimited one has
 /// nothing to shape.
+///
+/// night-ux-1 (the owner's 200kb-on-Brave session): the unlimited
+/// sentence names WHY it is unlimited — no policy rows name this
+/// cgroup (the [`Enforcement::Unlimited`] arm's own definition) — so
+/// a reader who just set a policy on a DIFFERENT cgroup reads the
+/// absence as the honest state it is ("no policy HERE"), never as
+/// "my policy isn't working". The limited arms keep their shape
+/// (a policy exists there; the sentence names its figures).
 #[must_use]
 pub fn enforcement_sentence(enforcement: &Enforcement, shaping: bool) -> String {
     match enforcement {
-        Enforcement::Unlimited => "unlimited".to_string(),
+        Enforcement::Unlimited => "unlimited (no policy for this cgroup)".to_string(),
         Enforcement::Limited { download, upload } => {
             // charger-core-3c: a per-socket policy's figure names its
             // unit ("/socket") — an unmarked rate would read as the
