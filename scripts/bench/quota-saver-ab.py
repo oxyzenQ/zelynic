@@ -1037,24 +1037,33 @@ def main() -> int:
     ap.add_argument(
         "--download-bytes",
         type=int,
-        default=20_000_000,
-        help="download leg size in bytes (default 20000000)",
+        default=500_000,
+        help="download leg size in bytes (default 500000 — a bounded transfer at "
+        "the default 100kb rate completes in ~5s; raise only if you also raise "
+        "--download-rate)",
     )
     ap.add_argument(
         "--upload-bytes",
         type=int,
-        default=20_000_000,
-        help="upload leg size in bytes (default 20000000)",
+        default=500_000,
+        help="upload leg size in bytes (default 500000)",
     )
     ap.add_argument(
-        "--download-rate", default="5mb", help="scenario A's download limit (default 5mb)"
+        "--download-rate",
+        default="100kb",
+        help="scenario A's download limit (default 100kb — the metered envelope "
+        "the harness exists for)",
     )
-    ap.add_argument("--upload-rate", default="5mb", help="scenario A's upload limit (default 5mb)")
+    ap.add_argument(
+        "--upload-rate",
+        default="100kb",
+        help="scenario A's upload limit (default 100kb — the metered envelope)",
+    )
     ap.add_argument(
         "--overrun-seconds",
         type=int,
-        default=20,
-        help="the overrunning legs' wall-clock budget in seconds (default 20)",
+        default=30,
+        help="the overrunning leg's wall-clock budget in seconds (default 30)",
     )
     ap.add_argument(
         "--skip-overrun",
