@@ -107,8 +107,14 @@ pub struct HostCaps {
     /// NOTHING in the tree requires it — aya's objects carry no
     /// CO-RE relocations, so a BTF-less kernel attaches identically
     /// (the audit's `needs_kernel_btf: false`, recorded as the pair
-    /// "not needed" x "present or not"). Kept as a recorded fact so
-    /// a future CO-RE adoption re-opens the question with data.
+    /// "not needed" x "present or not"; the MMSPA/QUIC lanes key off
+    /// pinned maps and compile-time schema constants, never BTF —
+    /// the consumer walk found zero readers). Kept as a recorded
+    /// fact so a future CO-RE adoption re-opens the question with
+    /// data — which is exactly what the trace line's
+    /// "(informational)" parenthetical says (night-ux-2: the former
+    /// "(not required)" read as "we probe this but it does not
+    /// matter" without saying the probe exists for the record).
     pub btf_present: bool,
     /// The QUIC hint maps' availability (schema v22+): the
     /// `quic_cid_hint_dl/ul` + `recwn_socket_hint` LRU maps the
@@ -244,7 +250,7 @@ impl HostCaps {
                 yn(self.is_root),
             ),
             format!(
-                "[host-caps] bpf_link {} · bpf_atomic_64 {} · ecn_set_ce {} · btf {} (not required) · quic hints {}",
+                "[host-caps] bpf_link {} · bpf_atomic_64 {} · ecn_set_ce {} · btf {} (informational) · quic hints {}",
                 yn(self.bpf_link),
                 yn(self.bpf_atomic_64),
                 yn(self.ecn_set_ce),
@@ -373,7 +379,12 @@ mod tests {
         assert!(lines[1].contains("bpf_link"), "{}", lines[1]);
         assert!(lines[1].contains("ecn_set_ce"), "{}", lines[1]);
         assert!(lines[1].contains("quic hints"), "{}", lines[1]);
-        assert!(lines[1].contains("not required"), "{}", lines[1]);
+        assert!(
+            !lines[1].contains("not required"),
+            "the misleading parenthetical is retired, got: {}",
+            lines[1]
+        );
+        assert!(lines[1].contains("informational"), "{}", lines[1]);
     }
 
     /// The QUIC hint verdict is the compile-time contract: true
