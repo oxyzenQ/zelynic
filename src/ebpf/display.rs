@@ -507,8 +507,9 @@ pub fn print_status(
         // the placeholders book nothing yet, so the line stays silent
         // until the v28 tail lands and the math fills it (the
         // dormant-watchdog precedent: a zero is absence, never
-        // information).
-        if let Some(line) = quota_saved_line(d) {
+        // information). night-ux-2: the terminal's own width is the
+        // narrow-form trigger — the wide honesty label never wraps.
+        if let Some(line) = quota_saved_line(d, terminal_width()) {
             println_safe!("{line}");
         }
     }
