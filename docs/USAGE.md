@@ -801,7 +801,11 @@ lock skips the sweep silently — the row renders with its honest
 `active_limits` counts live windows only.
 
 Reading the last two columns (spelled out after the rc.2 long-run
-audit showed the pair can read as a mystery):
+audit showed the pair can read as a mystery; night-ux-1 carried the
+short form onto the surface itself — the table's own grey footer
+line reads "allowed / dropped: cumulative since apply. A dropped
+share is the rate limiter working — a hard cap always drops the
+surplus"):
 
 - **allowed** — the cumulative BYTES that passed enforcement for
   the cgroup while its limit was active (download and upload are
@@ -839,13 +843,19 @@ audit showed the pair can read as a mystery):
 - **Quota Saved** (the grey line under a row that has one) — the
   quota telemetry's total with its layer split (night-spark-7,
   the quota saver's Layer 4 math, schema v28):
-  `Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)` — the three lanes'
-  saved-byte sum with the physics that produced it named in the
-  parentheses (EDT: the preserved egress headroom, ECN: the
-  delivered marks, RECWN: the window-clamp counterfactual, the
-  documented userspace estimate). The line stays silent on a zero
-  total (the dormant-watchdog precedent), so a row without the
-  line has booked no savings yet, never "no lane".
+  `Quota Saved: X (counterfactual estimate — the bytes the rate
+  limit prevented; wire-measured savings: run
+  scripts/bench/quota-saver-ab.sh)` over the split's own
+  `(est.; EDT: Y, ECN: Z, RECWN: W)` line — night-ux-1: the line
+  itself says the total is the counterfactual booking (the bytes
+  the rate limit prevented), not a wire measurement, and names
+  the A/B harness that measures the wire truth; the three lanes'
+  physics still ride the split (EDT: the preserved egress
+  headroom, ECN: the delivered marks, RECWN: the window-clamp
+  counterfactual, the documented userspace estimate). The line
+  stays silent on a zero total (the dormant-watchdog precedent),
+  so a row without the line has booked no savings yet, never
+  "no lane".
 
 Both counters live for the lifetime of the limit: re-applying
 `strict` with a different rate keeps the accounting continuous
@@ -911,7 +921,9 @@ Receive Window Control, the quota saver's Layer 1). A status report
 from a v25 object carries one more top-level key, `recwn_limits`,
 describing the receive-window lane that shapes a policed cgroup's
 own sockets (the sender-side slowdown; the human table prints it as
-its subordinate `RECWN: 20.0 KB (est. RTT 200ms)` line):
+its subordinate `RECWN window: 20.0 KB (binding across 1 download
+policy; est. RTT 200ms)` line — the line itself names the value a
+receive window, not saved bytes, night-ux-1):
 
 - `recwn_limits.enabled` — `true` when a live download policy
   stands for the lane to shape, `false` when the lane rides the

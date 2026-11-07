@@ -15,9 +15,13 @@ use super::*;
 
 /// The Quota Saved line renders the three lanes' saved-byte total
 /// with the layer split through format_bytes' own human shape — the
-/// window family's indent — and stays SILENT while the lanes book
-/// nothing (the dormant-watchdog precedent: a zero is absence,
-/// never information).
+/// window family's indent — under night-ux-1's honesty contract: the
+/// total's line names the number a counterfactual estimate (not a
+/// wire measurement) and points at the A/B harness that measures
+/// the wire truth, and the split's subordinate line carries the
+/// short form ("est.;"). Stays SILENT while the lanes book nothing
+/// (the dormant-watchdog precedent: a zero is absence, never
+/// information).
 #[test]
 fn quota_saved_line_renders_the_lane_sum_and_stays_silent_on_zero() {
     let booked = DisplayData {
@@ -41,7 +45,9 @@ fn quota_saved_line_renders_the_lane_sum_and_stays_silent_on_zero() {
     };
     assert_eq!(
         quota_saved_line(&booked).unwrap(),
-        "    Quota Saved: 1.0 MB (EDT: 0 B, ECN: 300.0 KB, RECWN: 700.0 KB)"
+        "    Quota Saved: 1.0 MB (counterfactual estimate — the bytes the rate limit \
+         prevented; wire-measured savings: run scripts/bench/quota-saver-ab.sh)\n      \
+         (est.; EDT: 0 B, ECN: 300.0 KB, RECWN: 700.0 KB)"
     );
 
     // A single lane's savings still render — the total leads, the
@@ -55,7 +61,9 @@ fn quota_saved_line_renders_the_lane_sum_and_stays_silent_on_zero() {
     };
     assert_eq!(
         quota_saved_line(&one_lane).unwrap(),
-        "    Quota Saved: 862.0 KB (EDT: 0 B, ECN: 862.0 KB, RECWN: 0 B)"
+        "    Quota Saved: 862.0 KB (counterfactual estimate — the bytes the rate limit \
+         prevented; wire-measured savings: run scripts/bench/quota-saver-ab.sh)\n      \
+         (est.; EDT: 0 B, ECN: 862.0 KB, RECWN: 0 B)"
     );
 
     // All three lanes live at once: the total is the saturating sum
@@ -68,7 +76,9 @@ fn quota_saved_line_renders_the_lane_sum_and_stays_silent_on_zero() {
     };
     assert_eq!(
         quota_saved_line(&three_lanes).unwrap(),
-        "    Quota Saved: 264.6 KB (EDT: 25.0 KB, ECN: 17.4 KB, RECWN: 222.1 KB)"
+        "    Quota Saved: 264.6 KB (counterfactual estimate — the bytes the rate limit \
+         prevented; wire-measured savings: run scripts/bench/quota-saver-ab.sh)\n      \
+         (est.; EDT: 25.0 KB, ECN: 17.4 KB, RECWN: 222.1 KB)"
     );
 
     let quiet = DisplayData {

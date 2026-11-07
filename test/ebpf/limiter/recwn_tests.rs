@@ -154,6 +154,7 @@ fn recwn_lane_reports_the_binding_window() {
         RecwnLane {
             planted: false,
             window_bytes: None,
+            binding_policies: 1,
         }
     );
 
@@ -163,14 +164,16 @@ fn recwn_lane_reports_the_binding_window() {
         RecwnLane {
             planted: true,
             window_bytes: Some(20_000),
+            binding_policies: 1,
         }
     );
 
     // Multi-policy: the BINDING (minimum) window wins.
-    assert_eq!(
-        recwn_lane(&[(7, pol(1_000_000)), (9, pol(100_000))], true).window_bytes,
-        Some(20_000),
-    );
+    let multi = recwn_lane(&[(7, pol(1_000_000)), (9, pol(100_000))], true);
+    assert_eq!(multi.window_bytes, Some(20_000));
+    // night-ux-1: the count names the unit the clamp binds — both
+    // active policies, the human line's "across 2 download policies".
+    assert_eq!(multi.binding_policies, 2);
 
     // Block-only (rate 0) and upload-only census: no window shaped.
     assert_eq!(recwn_lane(&[(7, pol(0))], true).window_bytes, None);

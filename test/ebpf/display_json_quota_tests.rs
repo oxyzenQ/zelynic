@@ -90,6 +90,7 @@ fn the_recwn_estimate_rides_the_window_law_on_a_planted_lane() {
     let lane = RecwnLane {
         planted: true,
         window_bytes: Some(20_000),
+        binding_policies: 1,
     };
     let json = status_json(
         &dl,
@@ -122,6 +123,7 @@ fn the_recwn_estimate_extinguishes_where_the_clamp_is_not_binding() {
     let lane = RecwnLane {
         planted: true,
         window_bytes: Some(140_000),
+        binding_policies: 1,
     };
     let json = status_json(
         &dl,
