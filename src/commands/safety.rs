@@ -135,21 +135,33 @@ pub(crate) fn is_dangerous_target(name: &str) -> bool {
         .any(|d| name_lower.starts_with(&d.to_lowercase()))
 }
 
-/// The sweeps' shared skip note (NIGHT-ux-3): "24 were skipped" forced
-/// the reader to guess WHICH services the sweep protected — the live
-/// run skipped unbound (the host's DNS) and the count alone never said
-/// so. The note now names the skipped comms: the first six distinct
-/// names sorted, the distinct total when the sample truncates.
+/// The sweeps' shared skip note (NIGHT-ux-3, reworded NIGHT-ux-4):
+/// "24 were skipped" forced the reader to guess WHICH services the
+/// sweep protected — the live run skipped unbound (the host's DNS) and
+/// the count alone never said so. NIGHT-ux-4 then fixed the ux-3
+/// wording's own mismatch: the live run printed "26 system app(s) …
+/// (24 total)" where 26 counted cgroup rows, 24 counted distinct
+/// names, and both were called "apps". The honest unit is the cgroup
+/// — the sweep iterates cgroup rows — so the headline says "system
+/// cgroups"; when a daemon owns several cgroups the name count is
+/// labeled beside it ("across M names") and the "(N total)" tail is
+/// gone, so the two counts can never masquerade as one.
+///
+/// The roster stays the first six distinct names sorted; when even
+/// that roster clears ~120 cols (the narrow-terminal fallback) it is
+/// explicitly a sample: "first six:".
 ///
 /// `comms` is the per-identity-row skip list (a daemon in several
-/// cgroups repeats, so the headline count is the row count the old
-/// line already carried); the names dedup inside. Pure — both sweep
+/// cgroups repeats — that repeat is exactly the rows/names gap the
+/// headline now labels); the names dedup inside. Pure — both sweep
 /// lanes (s --all, b --all) print it through the labeled warn channel,
 /// which owns the "! " prefix.
 #[cfg(feature = "ebpf")]
 pub(crate) fn skipped_system_apps_note(comms: &[String]) -> String {
     const SAMPLE: usize = 6;
+    const MAX_COLS: usize = 120;
 
+    let rows = comms.len();
     let mut names: Vec<&str> = comms.iter().map(String::as_str).collect();
     names.sort_unstable();
     names.dedup();
@@ -159,17 +171,19 @@ pub(crate) fn skipped_system_apps_note(comms: &[String]) -> String {
         .copied()
         .collect::<Vec<_>>()
         .join(", ");
-    if names.len() > SAMPLE {
-        format!(
-            "Skipped {} system app(s) — {listed} … ({} total) — re-run with --force-this to include.",
-            comms.len(),
-            names.len()
-        )
+    // The headline counts what the sweep iterates (cgroup rows); a
+    // name owning several cgroups gets its own label instead of the
+    // old "(N total)" tail that read as a second app count.
+    let head = if names.len() < rows {
+        format!("Skipped {rows} system cgroups across {} names", names.len())
     } else {
-        format!(
-            "Skipped {} system app(s) — {listed} — re-run with --force-this to include.",
-            comms.len()
-        )
+        format!("Skipped {rows} system cgroups")
+    };
+    let wide = format!("{head} — {listed} — re-run with --force-this to include.");
+    if wide.chars().count() > MAX_COLS {
+        format!("{head} — first six: {listed} — re-run with --force-this to include.")
+    } else {
+        wide
     }
 }
 

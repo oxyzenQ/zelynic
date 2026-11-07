@@ -476,37 +476,42 @@ fn language_runtimes_stay_limitable() {
 }
 
 /// NIGHT-ux-3: the sweeps' shared skip note names WHAT it skipped —
-/// the first six distinct comms sorted, the distinct total when the
-/// sample truncates, and the headline count stays the per-row count
-/// the old line carried (a daemon in several cgroups repeats).
+/// the first six distinct comms sorted. NIGHT-ux-4 fixes the wording's
+/// own unit: the sweep iterates cgroup rows, so the headline says
+/// "system cgroups" (the ux-3 live run printed "26 system app(s) …
+/// (24 total)" — two different counts, both called apps); when a name
+/// owns several cgroups the distinct count is labeled beside it
+/// ("across M names") and the "(N total)" tail is gone. When even the
+/// six-name roster clears ~120 cols the roster is explicitly a sample
+/// ("first six:").
 #[test]
 fn the_skip_note_names_the_skipped_comms() {
+    // The common shape: rows == names, the roster fits — one count,
+    // the honest unit, no ellipsis, no total.
     let comms: Vec<String> = ["sshd", "unbound"].iter().map(|s| s.to_string()).collect();
     assert_eq!(
         skipped_system_apps_note(&comms),
-        "Skipped 2 system app(s) — sshd, unbound — re-run with --force-this to include.",
-        "the short roster names every comm — no ellipsis, no total"
+        "Skipped 2 system cgroups — sshd, unbound — re-run with --force-this to include.",
+        "the short roster names every comm under one labeled count"
     );
 
-    // Duplicates collapse in the name roster; the headline keeps the
-    // row count.
+    // A daemon in several cgroups repeats in the row list: both
+    // counts print, each with its own label — the ux-4 contract the
+    // live run's "26 app(s) … (24 total)" shape could not satisfy.
     let comms: Vec<String> = ["sshd", "sshd", "unbound"]
         .iter()
         .map(|s| s.to_string())
         .collect();
-    let note = skipped_system_apps_note(&comms);
-    assert!(
-        note.starts_with("Skipped 3 system app(s) — "),
-        "the headline count stays the row count, got: {note}"
-    );
-    assert!(
-        note.contains("— sshd, unbound —"),
-        "the name roster dedups, got: {note}"
+    assert_eq!(
+        skipped_system_apps_note(&comms),
+        "Skipped 3 system cgroups across 2 names — sshd, unbound — re-run with --force-this to include.",
+        "the headline stays the row count and the name count is labeled"
     );
 
-    // Past six distinct names the sample truncates with the distinct
-    // total — the shape the live run's dense roster needed (the
-    // seventh name sorts out of the sample; the total says it exists).
+    // Past six distinct names the roster truncates to the sorted
+    // first six with no "(total)" tail — the count and the six-name
+    // sample carry it (this roster still fits ~120 cols, so the wide
+    // form prints).
     let comms: Vec<String> = [
         "sshd",
         "unbound",
@@ -520,12 +525,35 @@ fn the_skip_note_names_the_skipped_comms() {
     .map(|s| s.to_string())
     .collect();
     let note = skipped_system_apps_note(&comms);
-    assert!(
-        note.contains("— chronyd, cron, dbus-daemon, polkitd, rsyslogd, sshd … (7 total) —"),
-        "the truncated roster carries the sorted first six and the total, got: {note}"
+    assert_eq!(
+        note,
+        "Skipped 7 system cgroups — chronyd, cron, dbus-daemon, polkitd, rsyslogd, sshd — re-run with --force-this to include.",
+        "the truncated roster carries the sorted first six under the row count, got: {note}"
     );
     assert!(
         note.ends_with("re-run with --force-this to include."),
         "the note teaches the override, got: {note}"
+    );
+
+    // The narrow-terminal fallback (the live run's dense roster): the
+    // six-name sample clears ~120 cols, so it is labeled "first six:"
+    // — and the rows/names labels survive the fallback.
+    let comms: Vec<String> = [
+        "NetworkManager",
+        "dbus-broker-launch",
+        "dbus-broker-launch",
+        "kwin_wayland_wrapper",
+        "napi/phy0-0",
+        "pipewire",
+        "systemd-journald",
+        "systemd-logind",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    assert_eq!(
+        skipped_system_apps_note(&comms),
+        "Skipped 8 system cgroups across 7 names — first six: NetworkManager, dbus-broker-launch, kwin_wayland_wrapper, napi/phy0-0, pipewire, systemd-journald — re-run with --force-this to include.",
+        "the wide roster is explicitly a sample, both counts still labeled"
     );
 }
