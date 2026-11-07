@@ -26,6 +26,44 @@ pub fn handle_unstrict(target_str: &str) -> Result<()> {
     }
 }
 
+/// The unstrict family's empty-path trace (night-ux-2): the mutation
+/// verb never silently no-ops under `-v`. Before the verdict, the
+/// path traces what it checked and what it saw — the pin directory's
+/// own inventory, numbers from the actual read (an absent pin
+/// directory is the clean state's own shape: zero objects, not a
+/// failure). A read that genuinely fails names the failure and
+/// returns None — the empty-path verdict still stands, the trace just
+/// refuses to fabricate a count. Call sites guard on
+/// `verbose::enabled()`; the helper prints only what it read.
+/// pub(crate) so recover's clean state (commands/recover.rs) speaks
+/// the same shape under its own tag — one law, every mutation verb's
+/// empty path.
+#[cfg(feature = "ebpf")]
+pub(crate) fn trace_pinned_state_inventory(tag: &str) -> Option<usize> {
+    match std::fs::read_dir(crate::ebpf::limiter::PIN_DIR) {
+        Ok(entries) => {
+            let pins = entries.count();
+            crate::output::verbose::vlog!(
+                tag,
+                "checked pinned state — {pins} pinned objects under {}",
+                crate::ebpf::limiter::PIN_DIR
+            );
+            Some(pins)
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            crate::output::verbose::vlog!(
+                tag,
+                "checked pinned state — 0 pinned objects (no pin directory)"
+            );
+            Some(0)
+        }
+        Err(e) => {
+            crate::output::verbose::vlog!(tag, "pinned state unreadable ({e}) — no inventory claimed");
+            None
+        }
+    }
+}
+
 /// Remove the rate limit from one app — the single lane.
 #[cfg(feature = "ebpf")]
 fn handle_unstrict_single(target_str: &str) -> Result<()> {
@@ -43,7 +81,13 @@ fn handle_unstrict_single(target_str: &str) -> Result<()> {
         // NIGHT-dinner-11: the named-target no-match contract —
         // nothing is limited at all, so the target the user NAMED
         // cannot match. (the --all reset keeps its clean-state exit 0;
-        // that sweep names no target.)
+        // that sweep names no target.) night-ux-2: under -v the empty
+        // path traces what it checked BEFORE the verdict — the
+        // mutation verb never silently no-ops on the flag; the
+        // verdict itself stands.
+        if crate::output::verbose::enabled() {
+            trace_pinned_state_inventory("unstrict");
+        }
         return Err(super::target_no_match_error(
             format!("No active limits — nothing to remove for '{target_str}'"),
             &[super::TIP_STATUS.to_string()],
@@ -126,6 +170,11 @@ fn handle_unstrict_multi(targets_str: &str) -> Result<()> {
     if !crate::ebpf::limiter::Limiter::is_pinned() {
         // NIGHT-dinner-11: the named-target no-match contract (see
         // handle_unstrict — the --all reset owns the clean-state exit 0).
+        // night-ux-2: the -v trace rides before the verdict, the
+        // single lane's law.
+        if crate::output::verbose::enabled() {
+            trace_pinned_state_inventory("unstrict");
+        }
         return Err(super::target_no_match_error(
             format!("No active limits — nothing to remove for any target in '{targets_str}'"),
             &[super::TIP_STATUS.to_string()],
@@ -276,7 +325,21 @@ pub fn handle_unstrict_all() -> Result<()> {
         // already-clean system IS that state, so this stays the
         // exit-0 success `recover`'s clean path owns. The forms that
         // NAME a target (unstrict, either lane) error on a miss;
-        // this sweep never can.
+        // this sweep never can. night-ux-2: under -v the empty path
+        // traces what it checked BEFORE the verdict, the numbers the
+        // actual read produced — a pin directory with no files holds
+        // no maps, so the policy rows and group buckets are zero by
+        // construction (nothing exists to read), never a fabricated
+        // count; a directory that cannot be listed names the failure
+        // and the clean verdict stands.
+        if crate::output::verbose::enabled()
+            && let Some(pins) = trace_pinned_state_inventory("unstrict")
+        {
+            crate::output::verbose::vlog!(
+                "unstrict",
+                "nothing to remove (0 policy rows, 0 group buckets, {pins} pins)"
+            );
+        }
         eprintln_safe!(
             "{}",
             crate::output::grey("No active limits. Nothing to remove.")

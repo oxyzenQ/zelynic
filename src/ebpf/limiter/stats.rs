@@ -22,6 +22,7 @@ impl super::Limiter {
     /// exact opposite of the enforced truth on the one surface owners
     /// use to check it.
     pub fn print_status(&self) -> Result<()> {
+        let started = std::time::Instant::now();
         let dl = self.read_policies(Direction::Download)?;
         let ul = self.read_policies(Direction::Upload)?;
         let stats = self.read_stats()?;
@@ -36,6 +37,39 @@ impl super::Limiter {
         // program pin's existence (is_pinned's own lane check), and
         // the window comes from the download census already in hand.
         let recwn = recwn_lane(&dl, std::path::PathBuf::from(PIN_PROG_RECWN).exists());
+        // night-ux-2: the -v read summary — the counts the read pass
+        // just produced, traced before the table (the identity walk's
+        // size, the policy census and the cgroups it spans, the
+        // read's own cost). Two or three informative lines, not a
+        // datapath trace — status is a read-only surface. Read
+        // failures propagate above (NIGHT-hunt-22): the error
+        // surfaces named through the CLI error lane, and the trace
+        // only ever prints what it actually read.
+        if crate::output::verbose::enabled() {
+            let mut cgroups = std::collections::BTreeSet::new();
+            for (id, _) in &dl {
+                cgroups.insert(*id);
+            }
+            for (id, _) in &ul {
+                cgroups.insert(*id);
+            }
+            crate::output::verbose::vlog!(
+                "status",
+                "identity walk: {} live cgroups",
+                self.identity.len()
+            );
+            crate::output::verbose::vlog!(
+                "status",
+                "policy read: {} rows across {} cgroups",
+                dl.len() + ul.len(),
+                cgroups.len()
+            );
+            crate::output::verbose::vlog!(
+                "status",
+                "read pass: {} ms",
+                crate::ebpf::trace::ms(started.elapsed())
+            );
+        }
         crate::ebpf::display::print_status(&dl, &ul, &stats, &self.identity, wd, &windows, &recwn);
         Ok(())
     }

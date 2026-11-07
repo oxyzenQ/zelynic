@@ -58,6 +58,16 @@ pub fn handle_recover() -> Result<()> {
     eprintln_safe!();
 
     if !pin_dir_has_files() {
+        // night-ux-2: the clean state is still a CHECKED state — under
+        // -v the diagnostic verb traces what it examined before the
+        // verdict (the mutation-verb law, applied to the hygiene
+        // command's own empty path). The inventory is the actual
+        // read; a genuinely unreadable directory names the failure
+        // and the clean verdict stands. The shared helper is the
+        // unstrict family's — one law, every verb's empty path.
+        if crate::output::verbose::enabled() {
+            super::cleanup::trace_pinned_state_inventory("recover");
+        }
         eprintln_safe!(
             "{}",
             crate::output::field(
