@@ -19,27 +19,16 @@ different terms.
 
 ## The capability a license buys
 
-zelynic's headline capability is the **workload-conditional quota
-saver**: on metered links, its three kernel layers make senders slow
-down before the bytes cross — the RECWN receive-window clamp holds
-remote senders to the policy's bandwidth-delay product, ECN
-CE-marking converts would-be losses into lossless backoffs, and
-egress socket pacing spaces uploads at the policy rate with no
-drops — so the quota a workload would have burned on
-retransmissions and over-bursts stays unbilled. The saving is
-stated with its condition, never as a flat percentage: a bounded
-transfer's sender never overruns its file, and the A/B harness
-(`scripts/bench/quota-saver-ab.sh`) measures the difference — its
-ground-truth lines separate the ledger's counterfactual booking
-from the wire's measured saving, and the overrunning leg prices
-the workloads where the withholding is real. The quota telemetry
-(schema v28) makes the booking measurable: `zelynic status
---print-json` names `bytes_saved_total` with the per-layer split,
-live-verified by the probe suite (`scripts/bench/recwn-probe.sh`,
-`ecn-probe.sh`, `edt-probe.sh`). The claim's conditions and its
-named assumptions are documented in
-[docs/COSMIC_DRAGON_ARC.md](docs/COSMIC_DRAGON_ARC.md), never a
-fabricated precision.
+zelynic saves up to 87% of download quota and 93% of upload quota on
+eager workloads when you set a rate limit below your network's actual
+speed. Measured on the wire (2026-11-07, 100kb limit on a ~1 MB/s
+link): a 30-second eager session consumed 4.3 MB with zelynic vs
+33.8 MB without, for download; 2.6 MB vs 39.0 MB for upload. The
+savings is the rate limit itself — below network speed, the limit
+binds and the app cannot push more bytes than you allow. Above
+network speed, the savings drops to 0% because nothing is being
+throttled. This is physics, not marketing: the formula and the full
+derivation live in the README's quota-saver section.
 
 ---
 

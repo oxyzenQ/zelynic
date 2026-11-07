@@ -842,6 +842,46 @@ the total (the live proofs: `recwn-probe.sh`, `ecn-probe.sh`,
 
 ## The Quota Saver — the Workload-Conditional Claim
 
+**The measured claim.** Measured on the wire (2026-11-07, host: WiFi
+at ~1 MB/s): at a 100kb rate limit, zelynic's 30-second
+eager-session test shows 87.3% download wire savings and 93.4%
+upload wire savings against an unthrottled app. These are A/B wire
+deltas (zelynic limited vs bare) — not the ledger's counterfactual.
+The ledger's ~85% booking is kept for internal accounting.
+
+**The condition.** The savings is the rate limit itself. When
+`rate_limit < network_speed`, the limit binds, and the eager app
+cannot push more bytes than the limit allows. At 5mb on a 1 MB/s
+link, the limit is above network speed, nothing is being throttled,
+and the same test shows ~0% savings. The formula:
+
+```
+(network_speed - rate_limit) / network_speed × 100%
+```
+
+**The saver lanes, honestly.** The saver lanes (RECWN v25, ECN v26,
+EDT v27) are neutral at 100kb on this workload: a v80.0.0 build
+limited at the same rate measured 87.33% overrun download (vs
+v80.1.0's 87.58% — within noise) and 16.86% bounded upload (vs
+v80.1.0's 16.44% — within noise). The savings comes from the rate
+limiter, not the lanes. The lanes' value at other rates (50kb,
+200kb, QUIC-heavy or retransmit-billed workloads) remains to be
+measured — the vs-legacy harness
+(`scripts/bench/quota-saver-ab-vs-legacy.sh`) is the instrument for
+that.
+
+**On a metered plan.** The practical translation:
+
+```
+A 30-second eager session on a 100 MB plan:
+  with zelynic at 100kb: 4.30 MB consumed → 95.7 MB left
+  without:              33.76 MB consumed → 66.2 MB left
+  download savings: 87.3% (wire-measured)
+  with zelynic at 100kb: 2.58 MB consumed → 97.4 MB left
+  without:              39.01 MB consumed → 61.0 MB left
+  upload savings: 93.4% (wire-measured)
+```
+
 The three quota-saver lanes save quota by three different physics —
 RECWN clamps what the sender CAN send, the ECN CE mark makes the
 sender back off, the EDT pacer spaces the departure — and Layer 4
