@@ -41,6 +41,7 @@ fn recwn_limits_fields_are_pinned_when_the_lane_is_planted() {
         &super::RecwnLane {
             planted: true,
             window_bytes: Some(20_000),
+            binding_policies: 1,
         },
         0,
         0,
@@ -71,6 +72,7 @@ fn recwn_limits_carries_the_derived_window_and_rtt_estimate() {
         &super::RecwnLane {
             planted: true,
             window_bytes: Some(20_000),
+            binding_policies: 1,
         },
         0,
         0,
@@ -98,6 +100,7 @@ fn recwn_limits_enabled_false_omits_the_window() {
         &super::RecwnLane {
             planted: true,
             window_bytes: None,
+            binding_policies: 0,
         },
         0,
         0,

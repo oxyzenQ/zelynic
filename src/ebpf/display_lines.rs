@@ -96,16 +96,24 @@ pub(crate) fn status_header_line(col_widths: &[usize; 5]) -> String {
 
 /// The v26 CE ledger's subordinate line (night-spark-4, schema
 /// v26): the ECN-first lane's own truth under the row that carries
-/// it — "CE Marked: N packets (M bytes)", the volume book_rescue's
-/// correction delivered CE-marked. Rendered ONLY when the row has
-/// actually marked something (the dormant-watchdog precedent: zeros
-/// are noise pretending to be information), the window family's
-/// grey indent.
+/// it — "CE Marked: N packets (M) — delivered instead of dropped",
+/// the volume book_rescue's correction delivered CE-marked.
+/// night-ux-1 (the owner's 200kb-on-Brave session): the byte figure
+/// rides the same SI ladder every other surface speaks
+/// (format_bytes — "127.6 KB", never raw "127581 bytes"), and the
+/// clause names what CE-marked MEANS — the over-budget packet the
+/// sender's ECN read let through instead of dropping — so the lane
+/// reads as the exception to the drop branch it sits beside, not a
+/// second drop counter. Rendered ONLY when the row has actually
+/// marked something (the dormant-watchdog precedent: zeros are
+/// noise pretending to be information), the window family's grey
+/// indent.
 pub(crate) fn ce_marked_line(d: &DisplayData) -> Option<String> {
     (d.ce_marked_packets > 0).then(|| {
         grey(&format!(
-            "    CE Marked: {} packets ({} bytes)",
-            d.ce_marked_packets, d.ce_marked_bytes
+            "    CE Marked: {} packets ({}) — delivered instead of dropped",
+            d.ce_marked_packets,
+            format_bytes(d.ce_marked_bytes)
         ))
     })
 }
@@ -135,30 +143,71 @@ pub(crate) fn pacing_line(d: &DisplayData) -> Option<String> {
 /// The quota telemetry's subordinate line (night-spark-7, the quota
 /// saver's Layer 4 math — the line night-spark-6's PREP reserved):
 /// the three lanes' saved-byte total with its layer split —
-/// "Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)", format_bytes' own
-/// human shape on every number. The total leads (the one number an
-/// owner reads at a glance); the split rides in the parentheses so
-/// the row can never disagree with itself — the layers name the
-/// physics that produced the saving (EDT: the preserved headroom,
-/// ECN: the delivered marks, RECWN: the window counterfactual, the
-/// userspace estimate). Rendered ONLY when the total books something
-/// (the dormant-watchdog precedent: a zero is absence pretending
-/// to be information); the window family's grey indent, one rung
-/// under the Upload Pacing line it completes.
+/// "Quota Saved: X (counterfactual estimate — ...)", format_bytes'
+/// own human shape on every number. night-ux-1 (the owner's
+/// 200kb-on-Brave session): the total's line now NAMES what the
+/// number IS — the counterfactual booking (the bytes the rate
+/// limit prevented), not a wire measurement — and points at the
+/// A/B harness that measures the wire truth, because a reader who
+/// sees "Quota Saved" must be one line away from the physics, not
+/// one whitepaper chapter (docs/QUOTA_SAVER_PHYSICS.md owns the
+/// record). The per-lane split stays on its subordinate line, now
+/// prefixed with the short form of the same honesty ("est.;") so
+/// the breakdown cannot read as a wire ledger either. The total
+/// leads (the one number an owner reads at a glance); the split
+/// rides underneath so the row can never disagree with itself —
+/// the layers name the physics that produced the saving (EDT: the
+/// preserved headroom, ECN: the delivered marks, RECWN: the
+/// window counterfactual, the userspace estimate). Rendered ONLY
+/// when the total books something (the dormant-watchdog precedent:
+/// a zero is absence pretending to be information); the window
+/// family's grey indent, one rung under the Upload Pacing line it
+/// completes.
 pub(crate) fn quota_saved_line(d: &DisplayData) -> Option<String> {
     let saved = d
         .bytes_saved_by_edt
         .saturating_add(d.bytes_saved_by_ecn)
         .saturating_add(d.bytes_saved_by_recwn);
     (saved > 0).then(|| {
-        grey(&format!(
-            "    Quota Saved: {} (EDT: {}, ECN: {}, RECWN: {})",
-            format_bytes(saved),
+        // The color layer's own law (night-dragon-maintenance-8):
+        // split the lines, wrap each, join — never one grey wrap
+        // across a newline.
+        let total = format!(
+            "    Quota Saved: {} (counterfactual estimate — the bytes the rate limit \
+             prevented; wire-measured savings: run scripts/bench/quota-saver-ab.sh)",
+            format_bytes(saved)
+        );
+        let split = format!(
+            "      (est.; EDT: {}, ECN: {}, RECWN: {})",
             format_bytes(d.bytes_saved_by_edt),
             format_bytes(d.bytes_saved_by_ecn),
             format_bytes(d.bytes_saved_by_recwn)
-        ))
+        );
+        format!("{}\n{}", grey(&total), grey(&split))
     })
+}
+
+/// The status table's counter footer (night-ux-1, the owner's
+/// 200kb-on-Brave session): the grey line under the counters that
+/// says WHAT the allowed / dropped columns count and WHEN they
+/// started — "cumulative since apply", the --help grammar's own
+/// contract (src/commands/help.rs, NIGHT-dinner-11) carried onto
+/// the surface the owner was actually reading, plus the one
+/// sentence the drop-rate question needs: a hard cap ALWAYS drops
+/// the surplus (that is the mechanism teaching TCP to back off),
+/// so a dropped share is the limiter working, not a fault. The
+/// apply timestamp itself is NOT trivially available — the stats
+/// row is a pinned 8-u64 kernel layout (types.rs LimiterStatsRaw)
+/// and no policy row books one — so the footer states the window
+/// without inventing a number (adding an apply-time column would
+/// be a datapath/schema change, out of a strings-and-layout task's
+/// law). PURE text shaping, unit-pinnable without capturing
+/// stdout.
+pub(crate) fn counters_footer_line() -> String {
+    grey(
+        "  allowed / dropped: cumulative since apply. A dropped share is \
+         the rate limiter working — a hard cap always drops the surplus.",
+    )
 }
 
 /// One status data row (pure, NIGHT-engrave-5): the whole row in
@@ -228,12 +277,17 @@ pub(crate) fn active_limits_line(dl: usize, ul: usize) -> String {
 /// The RECWN lane's subordinate line (pure, night-spark-2, schema
 /// v25 — Receive Window Control, the quota saver's Layer 1): the
 /// binding receive window the lane derives and the RTT estimate it
-/// derived it from, in the watchdog's grey family. RECWN keeps its
-/// brand capitals — the owner's coined vocabulary, the BLOCKED
-/// verdict-value family (furniture stays lowercase, the brand is
-/// the message). None when the lane shapes no window (not planted,
-/// or no download policy with a live rate) — the dormant-watchdog
-/// honesty: an unenforcing lane prints nothing.
+/// derived it from, in the watchdog's grey family. night-ux-1 (the
+/// owner's 200kb-on-Brave session): the line now says WHAT the
+/// number IS — the receive WINDOW the lane clamps sockets to, not
+/// saved bytes — and HOW MANY download policies it binds (the
+/// count the derivation itself produced; singular for one, the
+/// owner's own scenario). RECWN keeps its brand capitals — the
+/// owner's coined vocabulary, the BLOCKED verdict-value family
+/// (furniture stays lowercase, the brand is the message). None
+/// when the lane shapes no window (not planted, or no download
+/// policy with a live rate) — the dormant-watchdog honesty: an
+/// unenforcing lane prints nothing.
 pub(crate) fn recwn_line(lane: &super::display::RecwnLane) -> Option<String> {
     // The belt the derivation already owns: an unplanted lane shapes
     // nothing, whatever a stale census might claim — silence, never
@@ -242,9 +296,11 @@ pub(crate) fn recwn_line(lane: &super::display::RecwnLane) -> Option<String> {
         return None;
     }
     let window = lane.window_bytes?;
+    let n = lane.binding_policies;
     Some(grey(&format!(
-        "  RECWN: {} (est. RTT {}ms)",
+        "  RECWN window: {} (binding across {n} download {}; est. RTT {}ms)",
         format_bytes(window),
+        if n == 1 { "policy" } else { "policies" },
         super::display::RECWN_RTT_ESTIMATE_US / 1000
     )))
 }

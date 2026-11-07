@@ -587,14 +587,12 @@ mod display_json_pacing_tests;
 mod display_json_quota_tests;
 
 // night-spark-2 (RECWN, schema v25): the inert lane every legacy
-// status_json pin passes — planted false, window None — so the
+// status_json pin passes — the Default value IS the inert lane
+// (not planted, no window, no binding policies) — so the
 // pre-RECWN assertions ride the additive-absence shape exactly
 // (the object absent from the document), and the lane's own pins
 // carry the planted shapes.
 #[cfg(test)]
 fn inert_recwn() -> super::display::RecwnLane {
-    super::display::RecwnLane {
-        planted: false,
-        window_bytes: None,
-    }
+    super::display::RecwnLane::default()
 }

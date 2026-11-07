@@ -105,6 +105,7 @@ fn collect_display_data_joins_the_bracket_per_direction() {
         &RecwnLane {
             planted: false,
             window_bytes: None,
+            binding_policies: 0,
         },
     );
     assert_eq!(data[0].download.floor_bps, 100_000);
@@ -121,6 +122,7 @@ fn collect_display_data_joins_the_bracket_per_direction() {
         &RecwnLane {
             planted: false,
             window_bytes: None,
+            binding_policies: 0,
         },
     );
     assert_eq!(data[0].download.floor_bps, 100_000);

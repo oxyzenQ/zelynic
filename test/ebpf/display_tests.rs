@@ -168,7 +168,7 @@ fn ce_marked_line_renders_only_when_traffic_was_marked() {
     };
     assert_eq!(
         ce_marked_line(&marked).unwrap(),
-        "    CE Marked: 12 packets (17432 bytes)"
+        "    CE Marked: 12 packets (17.4 KB) — delivered instead of dropped"
     );
 
     let quiet = DisplayData {
@@ -504,6 +504,7 @@ fn collect_display_data_joins_windows_by_cgroup() {
     let inert = RecwnLane {
         planted: false,
         window_bytes: None,
+        binding_policies: 0,
     };
     let data = collect_display_data(&dl, &[], &[], &windows, &inert);
     assert!(data[0].window.is_some(), "the window joins its row");
@@ -512,10 +513,11 @@ fn collect_display_data_joins_windows_by_cgroup() {
 }
 
 /// night-spark-2 (RECWN, schema v25): the receive-window lane's
-/// subordinate line — the owner's exact wording shape ("RECWN:
-/// <window> (est. RTT <estimate>)"), the grey family, and the dormant
-/// silence when the lane shapes no window (the dormant-watchdog
-/// honesty).
+/// subordinate line — night-ux-1's wording shape ("RECWN window:
+/// <window> (binding across <N> download <policy/policies>; est. RTT
+/// <estimate>)" — the line says WHAT the number is and HOW MANY
+/// policies it binds), the grey family, and the dormant silence when
+/// the lane shapes no window (the dormant-watchdog honesty).
 #[test]
 fn recwn_line_pins_the_owner_wording_and_stays_silent_when_unshaping() {
     use super::{RECWN_RTT_ESTIMATE_US, RecwnLane, recwn_line};
@@ -523,19 +525,21 @@ fn recwn_line_pins_the_owner_wording_and_stays_silent_when_unshaping() {
         recwn_line(&RecwnLane {
             planted: true,
             window_bytes: Some(20_000),
+            binding_policies: 1,
         })
         .unwrap(),
-        "  RECWN: 20.0 KB (est. RTT 200ms)",
+        "  RECWN window: 20.0 KB (binding across 1 download policy; est. RTT 200ms)",
         "the 100 kb/s policy's own line, wording and window"
     );
     assert_eq!(
         recwn_line(&RecwnLane {
             planted: true,
             window_bytes: Some(1_048_576),
+            binding_policies: 3,
         })
         .unwrap(),
-        "  RECWN: 1.0 MB (est. RTT 200ms)",
-        "the ceiling's own tier"
+        "  RECWN window: 1.0 MB (binding across 3 download policies; est. RTT 200ms)",
+        "the ceiling's own tier, the multi-policy plural"
     );
     // The dormant shapes: not planted, or planted with no window to
     // shape — silence, never noise.
@@ -543,6 +547,7 @@ fn recwn_line_pins_the_owner_wording_and_stays_silent_when_unshaping() {
         recwn_line(&RecwnLane {
             planted: false,
             window_bytes: Some(20_000),
+            binding_policies: 1,
         })
         .is_none()
     );
@@ -550,6 +555,7 @@ fn recwn_line_pins_the_owner_wording_and_stays_silent_when_unshaping() {
         recwn_line(&RecwnLane {
             planted: true,
             window_bytes: None,
+            binding_policies: 0,
         })
         .is_none()
     );
@@ -557,4 +563,21 @@ fn recwn_line_pins_the_owner_wording_and_stays_silent_when_unshaping() {
     // of the kernel core's 200 ms cadence estimate (the E2E-evidence
     // constant, ebpf/src/recwn.rs's doc owns the record).
     assert_eq!(RECWN_RTT_ESTIMATE_US, 200_000);
+}
+
+/// night-ux-1 (the owner's 200kb-on-Brave session): the counter
+/// footer — the allowed / dropped columns' units-and-window line,
+/// the --help grammar's NIGHT-dinner-11 contract carried onto the
+/// status surface itself. The wording is pinned whole: the window
+/// ("cumulative since apply" — no fabricated apply timestamp) and
+/// the drop-rate verdict (a hard cap always drops the surplus; the
+/// limiter working, not a fault).
+#[test]
+fn counters_footer_names_the_window_and_the_drop_semantics() {
+    use super::counters_footer_line;
+    assert_eq!(
+        counters_footer_line(),
+        "  allowed / dropped: cumulative since apply. A dropped share is the rate \
+         limiter working — a hard cap always drops the surplus."
+    );
 }

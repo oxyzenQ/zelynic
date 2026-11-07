@@ -79,9 +79,9 @@ pub(crate) struct DisplayData {
 // (use super::*) and the list-apps surface see the same paths as
 // before the split.
 pub(crate) use super::display_lines::{
-    active_limits_line, ce_marked_line, guarantee_line, list_apps_header_line, pacing_line,
-    quota_saved_line, recwn_line, status_cells, status_header_line, status_row_line, watchdog_line,
-    window_lifetime_line,
+    active_limits_line, ce_marked_line, counters_footer_line, guarantee_line,
+    list_apps_header_line, pacing_line, quota_saved_line, recwn_line, status_cells,
+    status_header_line, status_row_line, watchdog_line, window_lifetime_line,
 };
 
 /// Collect display data from policies + stats (the window join, and
@@ -184,10 +184,23 @@ pub(super) fn collect_display_data(
 /// policy tree reports the tightest clamp the lane enforces
 /// anywhere). Absent when no download policy with a live rate
 /// stands (upload-only or block-only rows shape no window).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// night-ux-1: `Default` is the INERT lane (not planted, no window,
+/// no binding policies) — the shape every pre-RECWN surface and
+/// test helper rides.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(crate) struct RecwnLane {
     pub(crate) planted: bool,
     pub(crate) window_bytes: Option<u64>,
+    /// night-ux-1: the count of ACTIVE download policies (rate > 0)
+    /// the binding window derives across — the human line's "binding
+    /// across N download policies" names the unit the clamp polices
+    /// (the multi-policy tree reports the tightest clamp and the
+    /// count it wins across). Derived beside the window in
+    /// [`recwn_lane`] so the pair can never drift; the human line is
+    /// its only consumer (the JSON twin stays the pinned scripting
+    /// shape).
+    pub(crate) binding_policies: usize,
 }
 
 /// The Layer 1 RTT assumption, microseconds — the userspace twin
@@ -233,18 +246,19 @@ pub(crate) fn recwn_window_bytes(rate_bps: u64) -> u64 {
 /// census (an unplanted tree with stale map rows reports no window,
 /// never a phantom clamp).
 pub(crate) fn recwn_lane(dl_policies: &[(u32, PolicyRaw)], planted: bool) -> RecwnLane {
-    let window_bytes = planted
-        .then(|| {
-            dl_policies
-                .iter()
-                .filter(|(_, p)| p.rate_bps > 0)
-                .map(|(_, p)| recwn_window_bytes(p.rate_bps))
-                .min()
-        })
-        .flatten();
+    // night-ux-1: the active set derives BOTH the binding window and
+    // the count that names it — one filter, one truth, no drift
+    // between the clamp and the "across N" the line prints.
+    let binding: Vec<u64> = dl_policies
+        .iter()
+        .filter(|(_, p)| p.rate_bps > 0)
+        .map(|(_, p)| recwn_window_bytes(p.rate_bps))
+        .collect();
+    let window_bytes = planted.then(|| binding.iter().copied().min()).flatten();
     RecwnLane {
         planted,
         window_bytes,
+        binding_policies: binding.len(),
     }
 }
 
@@ -498,6 +512,13 @@ pub fn print_status(
             println_safe!("{line}");
         }
     }
+
+    // night-ux-1 (the owner's 200kb-on-Brave session): the counter
+    // footer — the allowed / dropped columns' own units-and-window
+    // line, the --help grammar's NIGHT-dinner-11 contract carried
+    // onto the surface the owner was actually reading. One grey
+    // line under the table it explains.
+    println_safe!("{}", counters_footer_line());
 
     // night-spark-2 (RECWN, schema v25): the receive-window lane's
     // own subordinate line — the watchdog's grey family, one line
