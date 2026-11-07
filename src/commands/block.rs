@@ -262,12 +262,12 @@ pub fn handle_block_all(force_this: bool, during: Option<&str>) -> Result<()> {
         // NIGHT-improve-30 collapses the skipped surface to ONE warn
         // line — the count and the flag that includes them; the old
         // bulleted roster (capped at 20) re-printed the safety
-        // blocklist on every whole-system block, while the names are
-        // one 'zelynic list-apps' away.
-        crate::output::eprintln_warn_labeled(&format!(
-            "Skipped {} system app(s) — re-run with --force-this to include.",
-            system_apps.len()
-        ));
+        // blocklist on every whole-system block. NIGHT-ux-3 rejoins
+        // the names through the strict sweep's shared note (one
+        // wording, two callers, no drift class): a count-only line
+        // never said WHICH services stayed protected.
+        let comms: Vec<String> = system_apps.iter().map(|e| e.comm.clone()).collect();
+        crate::output::eprintln_warn_labeled(&super::safety::skipped_system_apps_note(&comms));
     }
     if force_this && system_apps.iter().any(|e| is_root_row(e)) {
         crate::output::eprintln_warn_labeled(

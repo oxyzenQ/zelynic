@@ -14,7 +14,7 @@ use anyhow::Result;
 #[cfg(feature = "ebpf")]
 use crate::commands::rates::resolve_rates;
 #[cfg(feature = "ebpf")]
-use crate::commands::safety::is_dangerous_target;
+use crate::commands::safety::{is_dangerous_target, skipped_system_apps_note};
 // NIGHT-hunt-30: the sweep carries the single's verification lane
 // now — the probe orchestrator and its report family join the
 // import set (strict.rs's own shape, one lane over).
@@ -130,13 +130,12 @@ pub(crate) fn handle_strict_all(
     // collapses the skipped surface to ONE warn line — the count and
     // the flag that includes them: the old bulleted roster re-printed
     // the safety blocklist on every sweep (a server lists dozens of
-    // system apps), while the names are one 'zelynic list-apps' away
-    // for the rare case the count itself is the surprise.
+    // system apps). NIGHT-ux-3 rejoins the names: a count-only line
+    // let `s --all` limit unbound (the host's DNS) while the user saw
+    // "24 were skipped" and no name — the shared note now names the
+    // first six distinct comms and the distinct total.
     if !skipped.is_empty() {
-        crate::output::eprintln_warn_labeled(&format!(
-            "Skipped {} system app(s) — re-run with --force-this to include.",
-            skipped.len()
-        ));
+        crate::output::eprintln_warn_labeled(&skipped_system_apps_note(&skipped));
     }
 
     if user_apps.is_empty() {

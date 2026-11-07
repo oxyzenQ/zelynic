@@ -427,3 +427,105 @@ fn the_multi_danger_guard_keeps_first_refusal_order() {
     check_dangerous_targets_multi(&["brave".to_string(), "curl".to_string()], false)
         .expect("the clean name list passes the batched guard");
 }
+
+/// NIGHT-ux-3 (the live-run find): the network-critical services an
+/// `s --all` sweep exposed on the host — DNS, intrusion prevention,
+/// wireless/DHCP control, and the firewall family — are blocklist
+/// members now. Limiting unbound breaks the host's name resolution;
+/// limiting sshguard weakens SSH protection mid-attack; every
+/// spelling below must refuse the sweep without --force-this.
+#[test]
+fn network_critical_services_are_dangerous() {
+    for name in [
+        "unbound",
+        "sshguard",
+        "fail2ban",
+        "iwd",
+        "dhclient",
+        "dhcpcd",
+        "connman",
+        "nft",
+        "iptables",
+        "firewalld",
+    ] {
+        assert!(
+            is_dangerous_target(name),
+            "the network-critical service '{name}' must be dangerous — \
+             the s --all sweep limited unbound and sshguard on the live host"
+        );
+    }
+    // The family rule extends to the daemons' own sibling spellings.
+    assert!(is_dangerous_target("fail2ban-server"));
+    assert!(is_dangerous_target("unbound-host"));
+    assert!(is_dangerous_target("SSHGuard"));
+}
+
+/// NIGHT-ux-3's negative contract: language runtimes stay LIMITABLE —
+/// the owner's own trading bot is a root python3 process he limits on
+/// purpose, so the blocklist is name-based and may never grow a uid
+/// guard or a runtime name.
+#[test]
+fn language_runtimes_stay_limitable() {
+    for name in ["python3", "node", "bash", "sh"] {
+        assert!(
+            !is_dangerous_target(name),
+            "the runtime '{name}' must stay limitable — user workloads \
+             (the owner's trading bot) run on it"
+        );
+    }
+}
+
+/// NIGHT-ux-3: the sweeps' shared skip note names WHAT it skipped —
+/// the first six distinct comms sorted, the distinct total when the
+/// sample truncates, and the headline count stays the per-row count
+/// the old line carried (a daemon in several cgroups repeats).
+#[test]
+fn the_skip_note_names_the_skipped_comms() {
+    let comms: Vec<String> = ["sshd", "unbound"].iter().map(|s| s.to_string()).collect();
+    assert_eq!(
+        skipped_system_apps_note(&comms),
+        "Skipped 2 system app(s) — sshd, unbound — re-run with --force-this to include.",
+        "the short roster names every comm — no ellipsis, no total"
+    );
+
+    // Duplicates collapse in the name roster; the headline keeps the
+    // row count.
+    let comms: Vec<String> = ["sshd", "sshd", "unbound"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+    let note = skipped_system_apps_note(&comms);
+    assert!(
+        note.starts_with("Skipped 3 system app(s) — "),
+        "the headline count stays the row count, got: {note}"
+    );
+    assert!(
+        note.contains("— sshd, unbound —"),
+        "the name roster dedups, got: {note}"
+    );
+
+    // Past six distinct names the sample truncates with the distinct
+    // total — the shape the live run's dense roster needed (the
+    // seventh name sorts out of the sample; the total says it exists).
+    let comms: Vec<String> = [
+        "sshd",
+        "unbound",
+        "chronyd",
+        "polkitd",
+        "rsyslogd",
+        "cron",
+        "dbus-daemon",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    let note = skipped_system_apps_note(&comms);
+    assert!(
+        note.contains("— chronyd, cron, dbus-daemon, polkitd, rsyslogd, sshd … (7 total) —"),
+        "the truncated roster carries the sorted first six and the total, got: {note}"
+    );
+    assert!(
+        note.ends_with("re-run with --force-this to include."),
+        "the note teaches the override, got: {note}"
+    );
+}
