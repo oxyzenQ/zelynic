@@ -1920,6 +1920,12 @@ sudo zelynic recover
 zelynic is deliberately small and stateless. These are real behaviors,
 not bugs — knowing them makes the tool predictable.
 
+For the two most-asked questions — is zelynic hardware agnostic (any
+interface type: WiFi, Ethernet, USB tethering, 4G dongle, Bluetooth
+tethering), and does it accelerate internet (no, it preserves quota
+and improves fairness within the same bandwidth) — see
+[docs/audits/NIGHT_SKILL_2_HARDWARE_AND_ACCELERATION_AUDIT_2026-11-08.md](audits/NIGHT_SKILL_2_HARDWARE_AND_ACCELERATION_AUDIT_2026-11-08.md).
+
 **1. Rules are a snapshot of TARGETS, not of subtrees.**
 When you run `zelynic strict A 100kb` or `s --all 100kb`,
 zelynic resolves the apps that exist **at that moment** and writes
