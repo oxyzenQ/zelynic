@@ -3,7 +3,7 @@
 
 # cargo-deny policy for zelynic (NIGHT-hunt-6 strict supply-chain audit,
 # 2026-09-18). Enforced by .github/workflows/ci.yml ("Check dependency
-# policies": cargo deny check all) and the daily observation run in
+# policies": cargo deny check all) and the weekly observation run in
 # .github/workflows/audit.yml. Local: cargo deny check all
 # (install: cargo install cargo-deny --locked).
 
