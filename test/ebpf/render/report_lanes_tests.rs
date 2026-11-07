@@ -1,13 +1,15 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: AGPL-3.0-only
 
-//! Pins for the enforcement LANES verdict (night-netrunner-4): the
-//! quota saver's three lanes as the policy arms them — RECWN on a
-//! download policy, the ECN-first lane on the helper's fact (the CE
-//! ledger proving delivery when it marked), pacing on the upload
-//! policy's commanded rate — and the honest None for an unlimited
-//! target. Wired into `src/ebpf/render/report.rs` via #[path]
-//! (cosmostrix Pattern C), the LOC-cap split discipline.
+//! Pins for the enforcement LANES verdict (night-netrunner-4, the
+//! night-ux-2 wording): the quota saver's three lanes as the policy
+//! arms them — RECWN on the download policy ("download only", the
+//! full word), the ECN-first lane ARMED on the helper's fact (the
+//! mark count saying whether it HAS marked: "no marks yet", "N
+//! marks") or honestly "unavailable" without the helper, pacing on
+//! the upload policy's commanded rate — and the honest None for an
+//! unlimited target. Wired into `src/ebpf/render/report.rs` via
+//! #[path] (cosmostrix Pattern C), the LOC-cap split discipline.
 
 use super::*;
 
@@ -30,21 +32,27 @@ fn lanes_sentence_names_the_armed_lanes() {
     // Unlimited: no lanes, no line.
     assert_eq!(lanes_sentence(&Enforcement::Unlimited, true, 0), None);
 
-    // Download only: recwn armed, ECN ready (helper present), no
-    // pacing (no upload policy).
+    // Download only: recwn armed (the full word, not "(dl)"), ECN
+    // armed with nothing booked yet, no pacing (no upload policy).
     let dl = Enforcement::Limited {
         download: Some(pol(200_000)),
         upload: None,
     };
     assert_eq!(
         lanes_sentence(&dl, true, 0).as_deref(),
-        Some("recwn (dl) \u{b7} ecn ready")
+        Some("recwn (download only) \u{b7} ecn armed, no marks yet")
     );
 
-    // CE marks delivered: the ledger's own proof replaces "ready".
+    // CE marks delivered: the ledger's own count says the lane HAS
+    // marked — the count rides the SI compact ladder, the noun
+    // pluralizes (1 mark / N marks).
     assert_eq!(
         lanes_sentence(&dl, true, 1_234_567).as_deref(),
-        Some("recwn (dl) \u{b7} ecn marked 1.2 MB")
+        Some("recwn (download only) \u{b7} ecn armed, 1.2M marks")
+    );
+    assert_eq!(
+        lanes_sentence(&dl, true, 1).as_deref(),
+        Some("recwn (download only) \u{b7} ecn armed, 1 mark")
     );
 
     // Upload only: pacing at the commanded rate; no recwn.
@@ -54,12 +62,15 @@ fn lanes_sentence_names_the_armed_lanes() {
     };
     assert_eq!(
         lanes_sentence(&ul, true, 0).as_deref(),
-        Some("ecn ready \u{b7} pacing 100.0 KB/s")
+        Some("ecn armed, no marks yet \u{b7} pacing 100.0 KB/s")
     );
 
     // A host without the ECN helper (below 5.1 — the shape-facts
-    // ladder): the lane stays honestly absent.
-    assert_eq!(lanes_sentence(&dl, false, 0).as_deref(), Some("recwn (dl)"));
+    // ladder): the lane's absence is NAMED, not silently omitted.
+    assert_eq!(
+        lanes_sentence(&dl, false, 0).as_deref(),
+        Some("recwn (download only) \u{b7} ecn unavailable")
+    );
 
     // Blocked upload (rate 0): no pacing rate to command — the lane
     // rides out of the sentence.
@@ -69,6 +80,6 @@ fn lanes_sentence_names_the_armed_lanes() {
     };
     assert_eq!(
         lanes_sentence(&blocked, true, 0).as_deref(),
-        Some("ecn ready")
+        Some("ecn armed, no marks yet")
     );
 }

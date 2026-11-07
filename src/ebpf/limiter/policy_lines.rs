@@ -115,10 +115,15 @@ pub(super) fn group_apply_lines(group_id: u32, rates: &RateSpec, members: usize)
 }
 
 /// Verbose trace line for a /proc target resolution (NIGHT-hunt-9):
-/// which cgroups a process name landed in and how many PIDs each
-/// hosts. This is the diagnostic the alacritty-hosting-curl confusion
-/// (NIGHT-hunt-8 lineage) always needed — the walk's decision, not
-/// just its count. `matched` carries (pid, cgroup_id) pairs.
+/// which cgroups a process name landed in and how many PROCESSES each
+/// hosts (night-ux-2: the depth report's summary says "N processes",
+/// so the resolve trace speaks the same word — one vocabulary, both
+/// surfaces, so a count difference reads as a snapshot race, not a
+/// unit change). This is the diagnostic the alacritty-hosting-curl
+/// confusion (NIGHT-hunt-8 lineage) always needed — the walk's
+/// decision, not just its count. `matched` carries (pid, cgroup_id)
+/// pairs; the word "resolved" IS the snapshot marker — the count is
+/// as-of the walk it reports.
 pub(super) fn resolution_trace_line(name: &str, matched: &[(u32, u32)]) -> String {
     if matched.is_empty() {
         format!("[limiter] '{name}': no process matched in /proc walk — try 'zelynic list-apps'")
@@ -130,7 +135,12 @@ pub(super) fn resolution_trace_line(name: &str, matched: &[(u32, u32)]) -> Strin
         }
         let parts: Vec<String> = per_cgroup
             .iter()
-            .map(|(cg, n)| format!("cg:{cg} ({n} pid{})", if *n == 1 { "" } else { "s" }))
+            .map(|(cg, n)| {
+                format!(
+                    "cg:{cg} ({n} {})",
+                    if *n == 1 { "process" } else { "processes" }
+                )
+            })
             .collect();
         format!("[limiter] '{name}' resolved: {}", parts.join(", "))
     }

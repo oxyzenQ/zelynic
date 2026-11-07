@@ -1137,9 +1137,9 @@ question a bare `cg:1234` row leaves open — WHAT is this:
   ────────────────────────────────────────────────────────────────
   run from:         uid 1000 (cat) · /home/cat
   cgroup:           /sys/fs/cgroup/cat-test
-  enforcement:      limited (shaping) — dl 100.0 KB/s · ul 100.0 KB/s
+  enforcement:      limited — dl 100.0 KB/s · ul 100.0 KB/s
   accounting:       1.4 GB let through, 6.2 MB dropped (0.44% of what arrived)
-  lanes:            recwn (dl) · ecn ready · pacing 100.0 KB/s
+  lanes:            recwn (download only) · ecn armed, no marks yet · pacing 100.0 KB/s
   resources:        12.5 MB memory · 1m:2s cpu
   started:          10m:20s ago
   command:          ./cat-test --serve
@@ -1253,12 +1253,13 @@ policy was bypassed (it was not: the arrival rate was 40 KB/s and
 the drops were booked the whole time). `arrival` itself is the
 honesty label: these are PRE-VERDICT figures — what reached the
 cgroup, including what the limit then dropped; `status`'s
-allowed/dropped ledger is the twin that splits them. The enforcement
-line completes the answer with the `(shaping)` tag — when the
-window's bracketing ledger reads saw the dropped counter MOVE,
-`limited (shaping) — dl 200.0 KB/s · ul 200.0 KB/s` says the limit
-was actively biting during the window, on the line itself, with no
-`status` round-trip. The live monitor's endpoint suffixes joined the
+allowed/dropped ledger is the twin that splits them, and the depth
+report's `accounting:` line renders that ledger with its drop share
+— whether the limit was actively biting during the window is the
+accounting line's answer, on the line the reader is already reading
+(night-ux-2: the former `(shaping)` enforcement tag retired — it
+misnamed a policer as a shaper and split identical cgroups into two
+wordings). The live monitor's endpoint suffixes joined the
 same vocabulary: the per-socket cookie counters are differenced
 frame over frame (the join carries THIS FRAME's movers), and each
 figure divides by the measured poll-to-poll span — the same honest

@@ -77,13 +77,6 @@ pub struct DepthReport {
     pub enforcement_stats: Option<LimiterStatsRaw>,
     /// The connection walk's census for this cgroup, when it saw one.
     pub conns: Option<CgroupConnections>,
-    /// The focus window's dropped bytes (night-private-research-7):
-    /// the ledger's dropped-counter delta across the window's
-    /// bracketing reads — the bytes the limit killed while the
-    /// window measured. Zero when nothing was dropped in the window
-    /// (or no window or no limit ran); drives the enforcement line's
-    /// `(shaping)` tag.
-    pub window_dropped: u64,
     /// The network-traffic focus window (NIGHT-private-research-3,
     /// the think-like-light-years-3 upgrade): the kernel's own
     /// window totals plus every endpoint's joined bytes, measured
@@ -148,19 +141,28 @@ pub fn enforcement_word(enforcement: &Enforcement) -> &'static str {
     }
 }
 
+/// The one noun-pluralizer (night-ux-2, pure): "1 process" reads
+/// whole, "1 processes" reads like a bug. The count itself rides
+/// format_count (the SI ladder); this helper carries only the noun.
+#[must_use]
+pub(crate) fn pluralize<'a>(n: usize, singular: &'a str, plural: &'a str) -> &'a str {
+    if n == 1 { singular } else { plural }
+}
+
 /// The summary line's human sentence: "limited — dl 100.0 KB/s · ul
 /// blocked", "blocked", or "unlimited (no policy for this cgroup)"
 /// (pure).
 ///
-/// night-private-research-7: a `shaping` window (the focus window's
-/// bracket reads saw the ledger's dropped counter MOVE — the limit
-/// was actively dropping bytes while the window measured) tags the
-/// limited verdict `limited (shaping)`, the one-word answer to the
-/// owner's standing question — "is the limit biting RIGHT NOW?" —
-/// on the enforcement line itself, no `status` round-trip needed.
-/// The tag rides the mixed limited arm only: a blocked policy drops
-/// by definition (the tag would be noise) and an unlimited one has
-/// nothing to shape.
+/// night-ux-2 (the owner's live-run residue): the enforcement line is
+/// the SAME line for every limited cgroup. The former `(shaping)`
+/// window tag retired for three reasons — it misnamed the mechanism
+/// (zelynic DROPS at the hard cap, a policer's act; "shaping" means
+/// queue-delay smoothing), it was redundant (the accounting line
+/// right below names the drop share, the kernel's own ledger), and
+/// it split identical cgroups into two different wordings in one
+/// report. Whether the limit bit during the measurement window is
+/// the accounting line's answer, on the line the reader is already
+/// reading.
 ///
 /// night-ux-1 (the owner's 200kb-on-Brave session): the unlimited
 /// sentence names WHY it is unlimited — no policy rows name this
@@ -170,7 +172,7 @@ pub fn enforcement_word(enforcement: &Enforcement) -> &'static str {
 /// "my policy isn't working". The limited arms keep their shape
 /// (a policy exists there; the sentence names its figures).
 #[must_use]
-pub fn enforcement_sentence(enforcement: &Enforcement, shaping: bool) -> String {
+pub fn enforcement_sentence(enforcement: &Enforcement) -> String {
     match enforcement {
         Enforcement::Unlimited => "unlimited (no policy for this cgroup)".to_string(),
         Enforcement::Limited { download, upload } => {
@@ -186,12 +188,11 @@ pub fn enforcement_sentence(enforcement: &Enforcement, shaping: bool) -> String 
                 Some(raw) => format_rate(raw.rate_bps),
                 None => "unlimited".to_string(),
             };
-            let tag = if shaping { " (shaping)" } else { "" };
             match (direction_word(download), direction_word(upload)) {
                 ("unlimited", "unlimited") => "unlimited".to_string(),
                 (a, b) if a == "blocked" && b == "blocked" => "blocked".to_string(),
                 _ => format!(
-                    "limited{tag} — dl {} · ul {}",
+                    "limited — dl {} · ul {}",
                     render(download),
                     render(upload)
                 ),
@@ -200,33 +201,44 @@ pub fn enforcement_sentence(enforcement: &Enforcement, shaping: bool) -> String 
     }
 }
 
-/// The enforcement LANES verdict (night-netrunner-4, the deep
-/// report's "RECWN/ECN/Pacing active?" row, pure): the quota saver's
-/// three lanes as this cgroup's policy arms them — RECWN shapes every
-/// download policy, the ECN-first lane marks the policed path when
-/// the host carries the helper (the CE ledger proves delivery), the
-/// pacing lane commands the upload policy's rate onto its sockets.
-/// None for an unlimited target (no lanes to name — absence, not an
-/// empty promise).
+/// The enforcement LANES verdict (night-netrunner-4, night-ux-2
+/// wording, the deep report's "RECWN/ECN/Pacing active?" row, pure):
+/// the quota saver's three lanes as this cgroup's policy arms them —
+/// RECWN shapes the download policy ("download only", the full word
+/// — "(dl)" was engineer shorthand on a human surface), the ECN-first
+/// lane is ARMED when the host carries the helper (attached and able
+/// to mark — the mark count then says whether it HAS: "no marks yet"
+/// while the ledger is empty, "N marks" once the CE ledger books
+/// deliveries; singular for one, the pluralize law) and honestly
+/// "unavailable" when the host lacks the helper, and the pacing lane
+/// commands the upload policy's rate onto its sockets. None for an
+/// unlimited target (no lanes to name — absence, not an empty
+/// promise).
 #[must_use]
 pub fn lanes_sentence(
     enforcement: &Enforcement,
     ecn_set_ce: bool,
-    ce_marked_bytes: u64,
+    ce_marked_packets: u64,
 ) -> Option<String> {
     let Enforcement::Limited { download, upload } = enforcement else {
         return None;
     };
     let mut parts: Vec<String> = Vec::new();
     if download.is_some() {
-        parts.push("recwn (dl)".to_string());
+        parts.push("recwn (download only)".to_string());
     }
     if ecn_set_ce {
-        if ce_marked_bytes > 0 {
-            parts.push(format!("ecn marked {}", format_bytes(ce_marked_bytes)));
+        if ce_marked_packets > 0 {
+            parts.push(format!(
+                "ecn armed, {} {}",
+                format_count(ce_marked_packets),
+                pluralize(ce_marked_packets as usize, "mark", "marks")
+            ));
         } else {
-            parts.push("ecn ready".to_string());
+            parts.push("ecn armed, no marks yet".to_string());
         }
+    } else {
+        parts.push("ecn unavailable".to_string());
     }
     if let Some(up) = upload
         && up.rate_bps > 0
@@ -234,25 +246,6 @@ pub fn lanes_sentence(
         parts.push(format!("pacing {}", format_rate(up.rate_bps)));
     }
     (!parts.is_empty()).then(|| parts.join(" \u{b7} "))
-}
-
-/// The focus window's dropped-byte verdict (pure,
-/// night-private-research-7): the ledger's dropped counter moved
-/// between the window's bracketing reads — the exact bytes the limit
-/// killed INSIDE the window, the honest basis for the enforcement
-/// line's `(shaping)` tag. A missing row on either side of the
-/// bracket counts as zero booked (a fresh pin mid-window books its
-/// first drops whole; a swept row stopped moving either way), and
-/// the saturating subtraction keeps a swept-and-reborn row honest
-/// too (its counter restarts — the delta reads zero, never negative).
-#[must_use]
-pub fn window_dropped_bytes(
-    closing: Option<&LimiterStatsRaw>,
-    baseline: Option<&LimiterStatsRaw>,
-) -> u64 {
-    closing
-        .map_or(0, |c| c.bytes_dropped)
-        .saturating_sub(baseline.map_or(0, |b| b.bytes_dropped))
 }
 
 /// The cgroup's absolute path, composed the same way the identity
@@ -365,11 +358,18 @@ pub fn depth_report_lines(reports: &[DepthReport], width: usize) -> Vec<String> 
         let census = if procs == 0 {
             "no live processes — the cgroup is empty or its members exited".to_string()
         } else {
+            // night-ux-2: every count speaks in whole sentences — "1
+            // holders" read like a bug; each noun pluralizes with the
+            // one helper (1 process / N processes, 1 holder / N
+            // holders, 1 socket / N sockets).
             format!(
-                "{} processes · {} holders · {} sockets",
+                "{} {} · {} {} · {} {}",
                 format_count(procs as u64),
+                pluralize(procs, "process", "processes"),
                 format_count(holders as u64),
-                format_count(sockets as u64)
+                pluralize(holders, "holder", "holders"),
+                format_count(sockets as u64),
+                pluralize(sockets, "socket", "sockets")
             )
         };
         lines.push(grey(&format!("  {census}")));
@@ -403,7 +403,7 @@ pub fn depth_report_lines(reports: &[DepthReport], width: usize) -> Vec<String> 
         }
         lines.push(kv(
             "enforcement",
-            &enforcement_sentence(&report.enforcement, report.window_dropped > 0),
+            &enforcement_sentence(&report.enforcement),
         ));
         // NIGHT-blade-5: the accounting line — what the limit DID. The
         // ledger is the kernel's own book (bytes/packets allowed and
