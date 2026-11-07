@@ -319,12 +319,17 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     // live-only cadence flag answers with the same
                     // honesty the --print-json ignored-note carries —
                     // one stderr line, stdout and exit codes
-                    // untouched (NIGHT-master-1).
+                    // untouched (NIGHT-master-1). night-ux-1 (the
+                    // owner's 200kb-on-Brave session): the note names
+                    // the flag that DOES control the one-shot run's
+                    // window and what that window IS (the measurement
+                    // span), so the reader lands on the working
+                    // answer instead of a dead end.
                     if interval.is_some() {
                         eprintln_safe!(
                             "{}",
                             crate::output::warn_bold(
-                                "--interval ignored (--depth prints one report and exits)"
+                                "--interval ignored (--depth prints one report and exits; use --focus <SEC> to widen the measurement window)"
                             )
                         );
                     }

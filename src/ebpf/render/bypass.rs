@@ -19,7 +19,9 @@
 //! (`depth_json::bypass_audit_json`) carries the same fields for
 //! scripts.
 
-use crate::ebpf::bypass::{ShadowAudit, ShadowVerdict, shadow_percent};
+use crate::ebpf::bypass::{
+    SHADOW_RX_NUM_PERCENT, SHADOW_TX_NUM_PERCENT, ShadowAudit, ShadowVerdict, shadow_percent,
+};
 use crate::ebpf::limiter::{format_bytes, format_rate};
 use crate::output::warn_bold;
 
@@ -35,12 +37,17 @@ fn side_figures(bytes: u64, window_secs: u64) -> String {
 /// Render the bypass audit section (pure). One line when clean, the
 /// full block when a side exceeded its thresholds, one line when the
 /// window ran but the interface counters could not be read — every
-/// verdict says what it is, none is silent. The printed percents are
+/// verdict says what it is, none is silent. The clean line names the
+/// thresholds it cleared (night-ux-1, the owner's 200kb-on-Brave
+/// session: "clean" beside a 22% figure forced the reader to guess
+/// whether 22% sat inside the band — now the line carries the band:
+/// "clean (under 25%/40% thresholds; tx shadow 22%, rx shadow 10%)",
+/// the constants imported, never restated). The printed percents are
 /// the shadow's whole-window share, not the flag bands themselves: a
 /// side flags only past both gates (share tx 25% / rx 40% AND floor
-/// tx 1 MiB / rx 2 MiB — `SHADOW_*_NUM_PERCENT`, `SHADOW_*_FLOOR_BYTES`
-/// in `ebpf/bypass.rs`), so "clean" under a 22% tx figure is the band
-/// holding, not the figure being unread.
+/// tx 1 MiB / rx 2 MiB — `SHADOW_*_NUM_PERCENT`,
+/// `SHADOW_*_FLOOR_BYTES` in `ebpf/bypass.rs`), so "clean" under a
+/// 22% tx figure is the band holding, not the figure being unread.
 #[must_use]
 pub fn bypass_section(audit: &ShadowAudit) -> Vec<String> {
     let mut lines = Vec::new();
@@ -53,11 +60,15 @@ pub fn bypass_section(audit: &ShadowAudit) -> Vec<String> {
     }
     match audit.verdict {
         ShadowVerdict::Clean => {
+            // night-ux-1: the verdict prints the band it cleared —
+            // the constants ride inline (the implicit-capture format
+            // args read the same two u64s the verdict was computed
+            // from), so the line can never drift from the law.
             lines.push(kv(
                 "bypass audit",
                 &format!(
-                    "clean — cgroup hooks and interfaces agree \
-                     (tx shadow {}%, rx shadow {}%)",
+                    "clean (under {SHADOW_TX_NUM_PERCENT}%/{SHADOW_RX_NUM_PERCENT}% thresholds; \
+                     tx shadow {}%, rx shadow {}%)",
                     shadow_percent(audit.shadow_tx, audit.nic_tx),
                     shadow_percent(audit.shadow_rx, audit.nic_rx)
                 ),

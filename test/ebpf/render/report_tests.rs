@@ -99,8 +99,10 @@ fn enforcement_words_and_sentences_match_the_verdicts() {
     assert_eq!(enforcement_word(&Enforcement::Unlimited), "unlimited");
     assert_eq!(
         enforcement_sentence(&Enforcement::Unlimited, true),
-        "unlimited",
-        "unlimited never carries the shaping tag"
+        "unlimited (no policy for this cgroup)",
+        "the human sentence names WHY it is unlimited (night-ux-1: the \
+         absence is the state, never a broken policy) and never carries \
+         the shaping tag"
     );
 
     let blocked = Enforcement::Limited {

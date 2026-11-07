@@ -395,6 +395,14 @@ fn test_eagle_eyes_depth_surface_pins() {
         1,
         "exactly one honest note, got:\n{stderr}"
     );
+    // night-ux-1 (the owner's 200kb-on-Brave session): the note names
+    // the flag that DOES control the one-shot run's window and what
+    // that window is — the reader lands on the working answer, not a
+    // dead end.
+    assert!(
+        stderr.contains("--focus <SEC>") && stderr.contains("measurement window"),
+        "the note names the flag that controls the window, got:\n{stderr}"
+    );
     if euid_is_root() {
         // Root: the one-shot report RUNS piped (no interactive gate —
         // that refusal belongs to the live TUI only) and names the
