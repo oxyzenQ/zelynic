@@ -842,6 +842,11 @@ the total (the live proofs: `recwn-probe.sh`, `ecn-probe.sh`,
 
 ## The Quota Saver — the Workload-Conditional Claim
 
+The canonical record — the physics, the mechanism, the measured
+curve, the eight losses no receiver can close, the lanes'
+contribution boundary, and the peak declaration — is
+[docs/QUOTA_SAVER_PHYSICS.md](docs/QUOTA_SAVER_PHYSICS.md).
+
 **The measured claim.** Measured on the wire (2026-11-07, host: WiFi
 at ~1 MB/s): at a 100kb rate limit, zelynic's 30-second
 eager-session test shows 87.3% download wire savings and 93.4%
