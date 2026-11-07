@@ -44,7 +44,7 @@ fn quota_saved_line_renders_the_lane_sum_and_stays_silent_on_zero() {
         bytes_saved_by_ecn: 300_000,
     };
     assert_eq!(
-        quota_saved_line(&booked).unwrap(),
+        quota_saved_line(&booked, 200).unwrap(),
         "    Quota Saved: 1.0 MB (counterfactual estimate — the bytes the rate limit \
          prevented; wire-measured savings: run scripts/bench/quota-saver-ab.sh)\n      \
          (est.; EDT: 0 B, ECN: 300.0 KB, RECWN: 700.0 KB)"
@@ -60,7 +60,7 @@ fn quota_saved_line_renders_the_lane_sum_and_stays_silent_on_zero() {
         ..booked
     };
     assert_eq!(
-        quota_saved_line(&one_lane).unwrap(),
+        quota_saved_line(&one_lane, 200).unwrap(),
         "    Quota Saved: 862.0 KB (counterfactual estimate — the bytes the rate limit \
          prevented; wire-measured savings: run scripts/bench/quota-saver-ab.sh)\n      \
          (est.; EDT: 0 B, ECN: 862.0 KB, RECWN: 0 B)"
@@ -75,7 +75,7 @@ fn quota_saved_line_renders_the_lane_sum_and_stays_silent_on_zero() {
         ..booked
     };
     assert_eq!(
-        quota_saved_line(&three_lanes).unwrap(),
+        quota_saved_line(&three_lanes, 200).unwrap(),
         "    Quota Saved: 264.6 KB (counterfactual estimate — the bytes the rate limit \
          prevented; wire-measured savings: run scripts/bench/quota-saver-ab.sh)\n      \
          (est.; EDT: 25.0 KB, ECN: 17.4 KB, RECWN: 222.1 KB)"
@@ -87,5 +87,64 @@ fn quota_saved_line_renders_the_lane_sum_and_stays_silent_on_zero() {
         bytes_saved_by_ecn: 0,
         ..booked
     };
-    assert!(quota_saved_line(&quiet).is_none());
+    assert!(quota_saved_line(&quiet, 200).is_none());
+}
+
+/// night-ux-2: the width switch — the wide form is a ~130-character
+/// line, and a WRAPPED honesty label is not an honest label. When
+/// the total line exceeds the caller's width budget, the line
+/// collapses to the narrow form: the two facts that make the number
+/// honest ("est.", "counterfactual") hold, the physics pointer
+/// becomes the one-click surface (--help). The switch is binary —
+/// either the full form or the narrow form, never a wrapped or
+/// truncated long line — and the narrow form is ONE line.
+#[test]
+fn quota_saved_line_collapses_to_the_narrow_form_under_budget() {
+    let booked = DisplayData {
+        window: None,
+        download: BracketPair::UNSET,
+        upload: BracketPair::UNSET,
+        cgroup_id: 73386,
+        dl_bps: Some(100_000),
+        ul_bps: Some(50_000),
+        dl_per_socket: false,
+        ul_per_socket: false,
+        packets_allowed: 50,
+        packets_dropped: 3,
+        bytes_allowed: 50_000,
+        bytes_dropped: 3_000,
+        ce_marked_packets: 12,
+        ce_marked_bytes: 17_432,
+        bytes_saved_by_edt: 1_200_000,
+        bytes_saved_by_recwn: 3_800_000,
+        bytes_saved_by_ecn: 500_000,
+    };
+    // The narrow form: the owner's own sample shape, one line.
+    let narrow = quota_saved_line(&booked, 80).unwrap();
+    assert_eq!(
+        narrow,
+        "    Quota Saved: 5.5 MB (est., counterfactual — see --help)"
+    );
+    // The single-line law holds: the narrow form carries no newline
+    // (the color layer wraps single lines only), and it fits the
+    // budget that triggered it.
+    assert!(!narrow.contains('\n'));
+    assert!(crate::output::display_width(&narrow) <= 80);
+    // The boundary is the total line's own width: one column above
+    // it the wide form still renders (the fit path), at it the wide
+    // form holds (<=), below it the narrow form takes over.
+    let wide_total = "    Quota Saved: 5.5 MB (counterfactual estimate — the bytes the \
+         rate limit prevented; wire-measured savings: run \
+         scripts/bench/quota-saver-ab.sh)";
+    let boundary = crate::output::display_width(wide_total);
+    let at_boundary = quota_saved_line(&booked, boundary).unwrap();
+    assert!(
+        at_boundary.contains("counterfactual estimate"),
+        "exactly-at-budget renders the wide form, got: {at_boundary}"
+    );
+    let below = quota_saved_line(&booked, boundary - 1).unwrap();
+    assert_eq!(
+        below,
+        "    Quota Saved: 5.5 MB (est., counterfactual — see --help)"
+    );
 }

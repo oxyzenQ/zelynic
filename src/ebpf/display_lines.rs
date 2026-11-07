@@ -163,7 +163,21 @@ pub(crate) fn pacing_line(d: &DisplayData) -> Option<String> {
 /// a zero is absence pretending to be information); the window
 /// family's grey indent, one rung under the Upload Pacing line it
 /// completes.
-pub(crate) fn quota_saved_line(d: &DisplayData) -> Option<String> {
+///
+/// night-ux-2 (the owner's live-run residue): the wide form is a
+/// ~130-character line — on most terminals it wraps or truncates,
+/// and a WRAPPED honesty label is not an honest label. The narrow
+/// form keeps the two facts that make the number honest ("est.",
+/// "counterfactual") and points one click away (--help) instead of
+/// spelling the physics: `Quota Saved: 5.5 MB (est., counterfactual
+/// — see --help)`. The width budget is the caller's terminal width,
+/// measured by the canonical display-width twin (output/width.rs —
+/// the one place a rendered width is decided); the switch is
+/// BINARY — the full form when the total line fits, the narrow form
+/// when it does not — never a wrapped or truncated long line. The
+/// color layer's single-line law still applies: either form is one
+/// line, shorter than the budget it renders in.
+pub(crate) fn quota_saved_line(d: &DisplayData, width: usize) -> Option<String> {
     let saved = d
         .bytes_saved_by_edt
         .saturating_add(d.bytes_saved_by_ecn)
@@ -177,13 +191,22 @@ pub(crate) fn quota_saved_line(d: &DisplayData) -> Option<String> {
              prevented; wire-measured savings: run scripts/bench/quota-saver-ab.sh)",
             format_bytes(saved)
         );
-        let split = format!(
-            "      (est.; EDT: {}, ECN: {}, RECWN: {})",
-            format_bytes(d.bytes_saved_by_edt),
-            format_bytes(d.bytes_saved_by_ecn),
-            format_bytes(d.bytes_saved_by_recwn)
-        );
-        format!("{}\n{}", grey(&total), grey(&split))
+        if crate::output::display_width(&total) <= width {
+            let split = format!(
+                "      (est.; EDT: {}, ECN: {}, RECWN: {})",
+                format_bytes(d.bytes_saved_by_edt),
+                format_bytes(d.bytes_saved_by_ecn),
+                format_bytes(d.bytes_saved_by_recwn)
+            );
+            format!("{}\n{}", grey(&total), grey(&split))
+        } else {
+            // The narrow form: the honest label holds, the physics
+            // pointer collapses to the one-click surface.
+            grey(&format!(
+                "    Quota Saved: {} (est., counterfactual — see --help)",
+                format_bytes(saved)
+            ))
+        }
     })
 }
 
