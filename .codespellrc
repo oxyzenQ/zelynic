@@ -10,4 +10,8 @@ skip = ./.git,./target,./ebpf/target,./assets,./Cargo.lock
 # ect is the RFC 3168 ECN codepoint family (ECT(0), ECT(1),
 # CE) — the ECN-first lane's vocabulary since NIGHT-private-research-4,
 # not a typo of "etc".
-ignore-words-list = ratatui,uptodate,hevy,statu,ect
+# iif is the kernel's own input-interface token (skb->iif in the
+# cgroup_skb world, the nftables/iproute2 iif match) — the
+# night-skill-2 audit quotes the interface-blindness grep
+# 'ifindex|iif|oif' verbatim; it is kernel vocabulary, not a typo.
+ignore-words-list = ratatui,uptodate,hevy,statu,ect,iif
