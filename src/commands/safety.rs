@@ -17,6 +17,12 @@ use crate::output::eprintln_warn_labeled;
 
 /// List of dangerous/system process names that should not be limited
 /// without the --force-this flag. Limiting these can destabilize the system.
+///
+/// NIGHT-ux-3 (the live-run find): the roster is NAME-based by
+/// contract — the owner's own workloads run as root (a python3
+/// trading bot is limited on purpose), so no uid guard belongs here;
+/// unbound, sshguard, and the firewall/DHCP family joined after an
+/// `s --all` sweep limited them on the host.
 pub(crate) const DANGEROUS_TARGETS: &[&str] = &[
     "root",
     "init",
@@ -75,6 +81,20 @@ pub(crate) const DANGEROUS_TARGETS: &[&str] = &[
     "Xwayland",
     "ksmserver",
     "plasmashell",
+    // NIGHT-ux-3: the network-critical services — DNS, intrusion
+    // prevention, wireless/DHCP control, and the firewall family.
+    // Limiting any of them can take down the host's name resolution,
+    // remote access, or connectivity wholesale.
+    "unbound",
+    "sshguard",
+    "fail2ban",
+    "iwd",
+    "dhclient",
+    "dhcpcd",
+    "connman",
+    "nft",
+    "iptables",
+    "firewalld",
 ];
 
 /// Check if a target name is dangerous (system process).
@@ -113,6 +133,44 @@ pub(crate) fn is_dangerous_target(name: &str) -> bool {
     DANGEROUS_TARGETS
         .iter()
         .any(|d| name_lower.starts_with(&d.to_lowercase()))
+}
+
+/// The sweeps' shared skip note (NIGHT-ux-3): "24 were skipped" forced
+/// the reader to guess WHICH services the sweep protected — the live
+/// run skipped unbound (the host's DNS) and the count alone never said
+/// so. The note now names the skipped comms: the first six distinct
+/// names sorted, the distinct total when the sample truncates.
+///
+/// `comms` is the per-identity-row skip list (a daemon in several
+/// cgroups repeats, so the headline count is the row count the old
+/// line already carried); the names dedup inside. Pure — both sweep
+/// lanes (s --all, b --all) print it through the labeled warn channel,
+/// which owns the "! " prefix.
+#[cfg(feature = "ebpf")]
+pub(crate) fn skipped_system_apps_note(comms: &[String]) -> String {
+    const SAMPLE: usize = 6;
+
+    let mut names: Vec<&str> = comms.iter().map(String::as_str).collect();
+    names.sort_unstable();
+    names.dedup();
+    let listed = names
+        .iter()
+        .take(SAMPLE)
+        .copied()
+        .collect::<Vec<_>>()
+        .join(", ");
+    if names.len() > SAMPLE {
+        format!(
+            "Skipped {} system app(s) — {listed} … ({} total) — re-run with --force-this to include.",
+            comms.len(),
+            names.len()
+        )
+    } else {
+        format!(
+            "Skipped {} system app(s) — {listed} — re-run with --force-this to include.",
+            comms.len()
+        )
+    }
 }
 
 // NIGHT-depthbore-1: the family-aware blocklist contract pins live
