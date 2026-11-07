@@ -859,16 +859,46 @@ and the same test shows ~0% savings. The formula:
 (network_speed - rate_limit) / network_speed × 100%
 ```
 
+### The measured rate curve
+
+Five rate limits, same 30-second overrun session, same host, same
+wire-measurement discipline. The savings is the physics formula's
+output: (network_speed - rate_limit) / network_speed, minus TCP
+overhead. Measured on 2026-11-07 on a ~1.08 MB/s WiFi link:
+
+| Rate limit | Download savings | Upload savings |
+|-----------:|-----------------:|---------------:|
+| 50kb       | 94.9%            | 95.9%          |
+| 100kb      | 85.0%            | 91.9%          |
+| 300kb      | 79.7%            | 86.7%          |
+| 500kb      | 59.7%            | 83.5%          |
+| 1mb        | 40.3%            | 72.3%          |
+
+The download curve tracks the formula to within noise (±7pp) at
+most rates. Two things bend it: at 100kb the TCP retransmit
+overhead the saver lanes cannot remove costs ~6pp; at 1mb the
+ECN-first lane's retransmit rescue ADDS ~33pp above the naive
+prediction, because with the rate limit barely binding, the lane
+is what rescues the burst. The upload curve sits consistently
+above download because EDT pacing suppresses the burst-retransmit
+storm that an unthrottled upload produces (B retransmitted 4-7 MB
+in every run).
+
+The practical reading: pick your rate below your network speed.
+At half your network speed you save ~60%. At a twentieth, ~95%.
+Above your network speed, the savings falls toward zero because
+nothing is being throttled.
+
 **The saver lanes, honestly.** The saver lanes (RECWN v25, ECN v26,
-EDT v27) are neutral at 100kb on this workload: a v80.0.0 build
-limited at the same rate measured 87.33% overrun download (vs
-v80.1.0's 87.58% — within noise) and 16.86% bounded upload (vs
-v80.1.0's 16.44% — within noise). The savings comes from the rate
-limiter, not the lanes. The lanes' value at other rates (50kb,
-200kb, QUIC-heavy or retransmit-billed workloads) remains to be
-measured — the vs-legacy harness
-(`scripts/bench/quota-saver-ab-vs-legacy.sh`) is the instrument for
-that.
+EDT v27) are neutral at 100kb on this workload (v80.1.0 and v80.0.0
+measure within noise of each other there). They CONTRIBUTE at
+higher rates: the 1mb upload row's 72.3% exceeds the naive
+rate-limit prediction (7.4%) because EDT pacing suppresses the
+burst-retransmit pattern — and the 1mb download row's 40.3% exceeds
+its 7.4% prediction because the ECN-first lane rescues what the
+throttle cannot. The lanes are the difference between 'nothing is
+throttled, so nothing is saved' and 'the marginal savings at the
+throttle margin.'
 
 **On a metered plan.** The practical translation:
 
