@@ -64,17 +64,20 @@ fn policy_write_line_renders_configured_rates_exactly() {
 }
 
 #[test]
-fn resolution_trace_line_reports_pids_per_cgroup_deterministically() {
-    // Two pids share cg:73386 (the NIGHT-hunt-8 lie: one cgroup
+fn resolution_trace_line_reports_processes_per_cgroup_deterministically() {
+    // Two processes share cg:73386 (the NIGHT-hunt-8 lie: one cgroup
     // hosting several processes), one more lands in cg:73390.
     // BTreeMap keeps the cgroup order stable regardless of walk order.
+    // night-ux-2: the noun is "processes" — the depth report's summary
+    // speaks the same word, so a count difference across the two
+    // surfaces reads as a snapshot race, not a unit change.
     assert_eq!(
         resolution_trace_line("brave", &[(202, 73386), (101, 73386), (303, 73390)]),
-        "[limiter] 'brave' resolved: cg:73386 (2 pids), cg:73390 (1 pid)"
+        "[limiter] 'brave' resolved: cg:73386 (2 processes), cg:73390 (1 process)"
     );
     assert_eq!(
         resolution_trace_line("curl", &[(101, 73386)]),
-        "[limiter] 'curl' resolved: cg:73386 (1 pid)"
+        "[limiter] 'curl' resolved: cg:73386 (1 process)"
     );
 }
 

@@ -68,7 +68,6 @@ fn report_fixture(enforcement: Enforcement) -> DepthReport {
         enforcement,
         enforcement_stats: None,
         conns: None,
-        window_dropped: 0,
         traffic: None,
         traffic_note: None,
         lanes: None,
@@ -91,18 +90,20 @@ fn package_name_ladder_comm_then_basename_then_unknown() {
 }
 
 /// The enforcement vocabulary: unlimited / blocked / limited, with
-/// the summary sentence carrying per-direction truth. Since
-/// night-private-research-7 the sentence takes the window's SHAPING
-/// verdict — the `(shaping)` tag rides the mixed limited arm only.
+/// the summary sentence carrying per-direction truth. Since night-ux-2
+/// the sentence is the SAME line for every limited cgroup — the
+/// `(shaping)` tag retired (it misnamed a policer as a shaper, was
+/// redundant with the accounting line's own drop share, and split
+/// identical cgroups into two wordings); the accounting line speaks
+/// for what the limit DID.
 #[test]
 fn enforcement_words_and_sentences_match_the_verdicts() {
     assert_eq!(enforcement_word(&Enforcement::Unlimited), "unlimited");
     assert_eq!(
-        enforcement_sentence(&Enforcement::Unlimited, true),
+        enforcement_sentence(&Enforcement::Unlimited),
         "unlimited (no policy for this cgroup)",
         "the human sentence names WHY it is unlimited (night-ux-1: the \
-         absence is the state, never a broken policy) and never carries \
-         the shaping tag"
+         absence is the state, never a broken policy)"
     );
 
     let blocked = Enforcement::Limited {
@@ -110,18 +111,14 @@ fn enforcement_words_and_sentences_match_the_verdicts() {
         upload: policy(0),
     };
     assert_eq!(enforcement_word(&blocked), "blocked");
-    assert_eq!(
-        enforcement_sentence(&blocked, true),
-        "blocked",
-        "blocked drops by definition — the tag would be noise"
-    );
+    assert_eq!(enforcement_sentence(&blocked), "blocked");
 
     let mixed = Enforcement::Limited {
         download: policy(100_000),
         upload: policy(0),
     };
     assert_eq!(enforcement_word(&mixed), "limited");
-    let sentence = enforcement_sentence(&mixed, false);
+    let sentence = enforcement_sentence(&mixed);
     assert!(sentence.starts_with("limited — dl "), "got: {sentence}");
     assert!(sentence.contains("ul blocked"), "got: {sentence}");
 
@@ -129,20 +126,13 @@ fn enforcement_words_and_sentences_match_the_verdicts() {
         download: policy(100_000),
         upload: None,
     };
-    assert!(enforcement_sentence(&one_sided, false).contains("ul unlimited"));
-
-    // night-private-research-7: the shaping tag — the window's
-    // bracket reads saw the dropped counter MOVE, so "limited"
-    // arrives with its active-consequence marker on the one arm
-    // that can carry it (the mixed limited verdict).
-    let shaping = enforcement_sentence(&one_sided, true);
+    assert!(enforcement_sentence(&one_sided).contains("ul unlimited"));
+    // night-ux-2: the limited verdict carries no window tag on ANY
+    // arm — one line, every limited cgroup.
     assert!(
-        shaping.starts_with("limited (shaping) — dl "),
-        "the tag rides the verdict word, got: {shaping}"
-    );
-    assert!(
-        enforcement_sentence(&one_sided, false).starts_with("limited — dl "),
-        "no window drops, no tag"
+        !enforcement_sentence(&one_sided).contains("(shaping)"),
+        "the tag is retired, got: {}",
+        enforcement_sentence(&one_sided)
     );
 
     // charger-core-3c: a per-socket policy's figure names its unit —
@@ -159,7 +149,7 @@ fn enforcement_words_and_sentences_match_the_verdicts() {
         }),
         upload: None,
     };
-    let sentence = enforcement_sentence(&per_socket, false);
+    let sentence = enforcement_sentence(&per_socket);
     assert!(
         sentence.contains("dl 500.0 KB/s /socket"),
         "the per-socket unit is named, got: {sentence}"
@@ -298,73 +288,58 @@ fn socket_section_lists_endpoints_and_caps_overflow() {
 // split (same fixtures, same vocabulary, plus the ledger and
 // controller-resource fields).
 
-/// night-private-research-7: the window's shaping verdict — the
-/// ledger's dropped counter across the window's bracketing reads.
-/// A moved counter is the window's own drops; a missing row on
-/// either side counts as zero booked; a swept-and-reborn counter
-/// (restarted at a lower value) reads zero, never negative.
+/// night-ux-2: the noun pluralizer — "1 process" reads whole, "1
+/// processes" reads like a bug. The pure helper is pinned word by
+/// word; the summary line's counts ride it.
 #[test]
-fn window_dropped_bytes_is_the_bracket_delta() {
-    let baseline = LimiterStatsRaw {
-        packets_allowed: 900,
-        packets_dropped: 100,
-        bytes_allowed: 900_000,
-        bytes_dropped: 100_000,
-        ce_marked_packets: 0,
-        ce_marked_bytes: 0,
-        bytes_saved_by_edt: 0,
-        bytes_saved_by_ecn: 0,
-    };
-    let mut closing = baseline;
-    closing.bytes_dropped = 171_000;
-    assert_eq!(
-        window_dropped_bytes(Some(&closing), Some(&baseline)),
-        71_000,
-        "the window killed exactly the counter's movement"
-    );
-    assert_eq!(
-        window_dropped_bytes(Some(&baseline), Some(&baseline)),
-        0,
-        "a still counter is a quiet window — no tag"
-    );
-    assert_eq!(
-        window_dropped_bytes(None, Some(&baseline)),
-        0,
-        "a swept closing row booked nothing"
-    );
-    assert_eq!(
-        window_dropped_bytes(Some(&closing), None),
-        171_000,
-        "a fresh pin mid-window books its first drops whole"
-    );
-    let mut reborn = baseline;
-    reborn.bytes_dropped = 40_000; // swept and re-pinned below baseline
-    assert_eq!(
-        window_dropped_bytes(Some(&reborn), Some(&baseline)),
-        0,
-        "a restarted counter never reads negative"
-    );
+fn pluralize_carries_the_noun_not_the_count() {
+    assert_eq!(pluralize(1, "process", "processes"), "process");
+    assert_eq!(pluralize(0, "process", "processes"), "processes");
+    assert_eq!(pluralize(21, "process", "processes"), "processes");
+    assert_eq!(pluralize(1, "holder", "holders"), "holder");
+    assert_eq!(pluralize(2, "holder", "holders"), "holders");
+    assert_eq!(pluralize(1, "socket", "sockets"), "socket");
+    assert_eq!(pluralize(11, "socket", "sockets"), "sockets");
+    assert_eq!(pluralize(1, "mark", "marks"), "mark");
+    assert_eq!(pluralize(98, "mark", "marks"), "marks");
 }
 
-/// night-private-research-7: the report wires the verdict — a
-/// window_dropped above zero tags the enforcement line, zero does
-/// not, and the unlimited verdict stays tagless either way.
+/// night-ux-2: the depth summary speaks in whole sentences — every
+/// count pluralizes (1 process / N processes, 1 holder / N holders,
+/// 1 socket / N sockets), so a singular cgroup no longer reads
+/// "1 holders".
 #[test]
-fn report_lines_tag_the_shaping_window() {
-    let mut report = report_fixture(Enforcement::Limited {
-        download: policy(100_000),
-        upload: policy(100_000),
+fn summary_line_pluralizes_every_count() {
+    use crate::ebpf::connections::{CgroupConnections, ProcessDetail, Proto, SocketInfo};
+    let socket = SocketInfo {
+        inode: 42,
+        proto: Proto::Tcp,
+        remote: "10.0.0.1:443".to_string(),
+        state: "ESTABLISHED",
+        queued: false,
+        cookie: None,
+        deep: None,
+    };
+    let mut report = report_fixture(Enforcement::Unlimited);
+    report.conns = Some(CgroupConnections {
+        total_procs: 1,
+        socket_holders: vec![ProcessDetail {
+            pid: 4242,
+            comm: "curl".to_string(),
+            sockets: vec![socket],
+        }],
     });
-    let quiet = depth_report_lines(&[report.clone()], 100).join("\n");
+    let singular = depth_report_lines(&[report], 100).join("\n");
     assert!(
-        quiet.contains("limited — dl 100.0 KB/s"),
-        "a quiet window carries no tag, got:\n{quiet}"
+        singular.contains("1 process · 1 holder · 1 socket"),
+        "every singular noun is singular, got:\n{singular}"
     );
-    report.window_dropped = 71_000;
-    let shaping = depth_report_lines(&[report], 100).join("\n");
+
+    let plural_report = report_fixture(Enforcement::Unlimited);
+    let plural = depth_report_lines(&[plural_report], 100).join("\n");
     assert!(
-        shaping.contains("limited (shaping) — dl 100.0 KB/s"),
-        "the window's drops tag the verdict, got:\n{shaping}"
+        plural.contains("1 process · 0 holders · 0 sockets"),
+        "zero reads plural (the honest empty-census shape), got:\n{plural}"
     );
 }
 

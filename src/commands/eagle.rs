@@ -38,7 +38,7 @@ use crate::ebpf::limiter::{
 };
 use crate::ebpf::render::{
     DepthReport, Enforcement, bypass_section, depth_doc_json, depth_report_lines, package_name,
-    traffic_focus, window_dropped_bytes,
+    traffic_focus,
 };
 use crate::output::{grey, print_json};
 
@@ -269,15 +269,6 @@ pub(crate) fn handle_eagle_eyes_depth(
     let mut conns = ConnectionMap::new();
     conns.refresh();
     let limiter = open_enforcement()?;
-    // The ledger's BASELINE read (night-private-research-7): brackets
-    // the focus window's START — the dropped counter's delta across
-    // the bracket is the window's own shaping verdict (the
-    // enforcement line's `(shaping)` tag). The closing read below
-    // feeds the accounting line.
-    let baseline_stats = match &limiter {
-        Some(l) => Some(l.read_stats_public()?),
-        None => None,
-    };
 
     // NIGHT-private-research-3 (the think-like-light-years-3 ability):
     // the network-traffic focus window. The one-shot report gains
@@ -388,13 +379,10 @@ pub(crate) fn handle_eagle_eyes_depth(
     // The stats join as a map (the find-per-id scan was
     // O(ids x rows) — the census row family is 1024-wide, a
     // fleet-scale depth spec paid a 4M-compare scan for nothing).
-    // Both bracket sides join the same way (night-private-research-7):
-    // closing feeds the accounting line, baseline feeds the window's
-    // shaping delta.
+    // The closing read feeds the accounting line (night-ux-2: the
+    // enforcement line carries no window tag anymore — the
+    // accounting line is the drop verdict, the kernel's own ledger).
     let stats_by_id: Option<HashMap<u32, LimiterStatsRaw>> = closing_stats
-        .as_ref()
-        .map(|rows| rows.iter().cloned().collect());
-    let baseline_by_id: Option<HashMap<u32, LimiterStatsRaw>> = baseline_stats
         .as_ref()
         .map(|rows| rows.iter().cloned().collect());
     for (token, ids) in tokens.iter().zip(ids_per_token) {
@@ -416,21 +404,16 @@ pub(crate) fn handle_eagle_eyes_depth(
             // row is the CLOSING bracket (as-of-print, the window
             // included — see the read's comment).
             let enforcement_stats = stats_by_id.as_ref().and_then(|m| m.get(&id)).copied();
-            // The window's own shaping verdict: the dropped counter's
-            // movement across the bracket (night-private-research-7).
-            let window_dropped = window_dropped_bytes(
-                stats_by_id.as_ref().and_then(|m| m.get(&id)),
-                baseline_by_id.as_ref().and_then(|m| m.get(&id)),
-            );
             let conns_view = conns.get(id).cloned();
-            // The enforcement LANES verdict (night-netrunner-4): the
-            // quota saver's three lanes as THIS cgroup's policy arms
-            // them — one probe (HostCaps), the pure composer, the CE
-            // ledger's own proof when it marked.
+            // The enforcement LANES verdict (night-netrunner-4, the
+            // night-ux-2 wording): the quota saver's three lanes as
+            // THIS cgroup's policy arms them — one probe (HostCaps),
+            // the pure composer, the CE ledger's own mark count when
+            // it delivered.
             let lanes = crate::ebpf::render::lanes_sentence(
                 &enforcement,
                 caps.ecn_set_ce,
-                enforcement_stats.map_or(0, |s| s.ce_marked_bytes),
+                enforcement_stats.map_or(0, |s| s.ce_marked_packets),
             );
             // The focus window's per-cgroup composition (pure): the
             // kernel's window totals joined onto this report's census
@@ -454,7 +437,6 @@ pub(crate) fn handle_eagle_eyes_depth(
                 enforcement,
                 enforcement_stats,
                 conns: conns_view,
-                window_dropped,
                 traffic,
                 traffic_note: traffic_note.clone(),
                 lanes,
