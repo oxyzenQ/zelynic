@@ -1332,9 +1332,14 @@ report compares what the interfaces physically moved
 (/sys/class/net counters) against what the cgroup_skb hooks saw (the
 observer's machine-wide totals) over the focus window, and prints
 the gap. A healthy machine renders one compact line (`bypass audit:
-clean (under 25%/40% thresholds; tx shadow 0%, rx shadow 2%)` —
-night-ux-1: the verdict carries the band it cleared, so a shadow
-figure never reads against an unnamed threshold). A window where the
+clean (under 25%/40% thresholds; tx shadow 20%, rx shadow 30%)` on a
+window with real traffic — night-ux-1: the verdict carries the band
+it cleared, so a shadow figure never reads against an unnamed
+threshold — or `bypass audit: clean (quiet window — under 1 MiB tx /
+2 MiB rx floor; tx shadow 0%, rx shadow 100%)` when the shadows sit
+under the absolute floors; night-ux-3: a floor-bound window says so,
+because a 100% share on a quiet interface is the floor holding, not
+a threshold cleared). A window where the
 gap exceeds BOTH thresholds — 25% of
 interface tx or 40% of interface rx (the receive band is looser:
 every frame the stack dropped before socket demux — firewall drops,
