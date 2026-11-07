@@ -56,7 +56,7 @@ Design:
     refusals are fail-fast: they fire during argument validation,
     before any privilege or BPF work, so this stage is safe even on a
     machine where the datapath is half-attached.
-  * The brutal battery (NIGHT-improve-21, moved to v2 in
+  * The exacting battery (NIGHT-improve-21, moved to v2 in
     NIGHT-refactor-2): SIGKILL of the live TUI (`eagle-eyes`)
     mid-render under active strict enforcement, five times over;
     jittered SIGKILLs of one-shot CLI invocations racing the
@@ -1116,7 +1116,7 @@ def test_cli_depth():
     return fails == 0
 
 
-# ── the brutal battery (NIGHT-improve-21; moved to v2, NIGHT-refactor-2) ────
+# ── the exacting battery (NIGHT-improve-21; moved to v2, NIGHT-refactor-2) ────
 #
 # The stages above answer "does the input behave?" The battery answers
 # "does it SURVIVE violence?" — the live TUI SIGKILLed mid-render while
@@ -1560,7 +1560,7 @@ def test_bypass_audit():
     an unpoliced megabyte stream.
 
     The NEGATIVE lane (the checklist's own kritikal row — the one
-    a false positive would destroy): the same depth window over
+    a false positive would invalidate): the same depth window over
     REAL stack traffic only (the fleet's workers under a live
     policy, hooks traversed on both sides) must read CLEAN — the
     thresholds (25%/1MiB tx, 40%/2MiB rx — an order of magnitude
@@ -1746,7 +1746,7 @@ def test_bypass_audit():
 def test_regression_battery():
     """Re-prove the core invariants AFTER the kills.
 
-    Every check here already ran green BEFORE the brutal battery (the
+    Every check here already ran green BEFORE the exacting battery (the
     rate guards in the guard phase, the JSON surfaces in doctor and
     list-apps, the version token at resolve time). Running them again
     after five TUI kills and twelve mid-flight kills is the regression
@@ -2096,7 +2096,7 @@ def run_survival(phases):
     test_cli_depth()
     test_rate_guard()
 
-    # phase base+1/total: the brutal battery
+    # phase base+1/total: the exacting battery
     out()
     out(
         f"━━━ phase {base + 1}/{total}: kills (SIGKILL/SIGHUP the TUI, kill the mid-flight writers) ━━━"

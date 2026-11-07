@@ -41,7 +41,7 @@ pub(crate) fn read_validated_ebpf_object(path: &std::path::Path) -> Result<Vec<u
 /// little-endian, EV_CURRENT — bytes 0..16), ET_REL + EM_BPF (the
 /// only shape bpf-linker emits), a section header table that exists,
 /// uses 64-byte entries, and lies fully inside the file (bpf-linker
-/// places it LAST, which makes this the truncation killer), every
+/// places it LAST, which makes this the truncation guard), every
 /// non-NOBITS section's offset+size inside the file (catches a cut
 /// that stops at the table edge while the .text or .shstrtab behind
 /// it is gone), and a section-name string table index in range (aya

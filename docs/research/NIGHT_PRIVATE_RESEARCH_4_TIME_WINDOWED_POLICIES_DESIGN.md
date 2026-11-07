@@ -51,7 +51,7 @@ next zelynic invocation sweeps the dead row through the existing
 unstrict/reclaim path. Always coherent: "limit with auto-expire"
 has a beginning (now), an end (the instant), and no third state to
 name. Works on every lane unchanged — `-d`/`-u`, `--per-socket`,
-`block-single` (a bedtime block that lifts itself is the killer
+`block-single` (a bedtime block that lifts itself is the defining
 combination of the whole feature).
 
 ### Option B — `--during <window>` (recurring daily window): the v2

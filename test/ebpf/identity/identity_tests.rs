@@ -210,7 +210,7 @@ fn test_display_name_caps_at_24_columns() {
     // The footer's frame-harmony budget: 37 + name + 7 = 68
     // columns on the classic 80 — a longer name would wrap the
     // pinned footer. Pathological basenames degrade to 23 chars
-    // plus the ellipsis, never explode the line.
+    // plus the ellipsis, never overflow the line.
     let long = b"/opt/app/some-very-long-launcher-name-v2.bin\0";
     let got = display_name("some-very-long-", long);
     assert_eq!(

@@ -13,7 +13,7 @@
 <h1 align="center">zelynic</h1>
 
 <p align="center">
-  <strong>Per-app network rate limiter and traffic monitor for Linux. Pure eBPF. Boring and silent but killer.</strong>
+  <strong>Per-app network rate limiter and traffic monitor for Linux. Pure eBPF. Boring and silent.</strong>
 </p>
 
 <p align="center">
@@ -572,11 +572,11 @@ the eyes, the claws — is indexed in
 
 ## Philosophy
 
-**Boring and silent but killer.**
+**Boring and silent.**
 
 zelynic is a Linux utility that stays out of the user's way while
 doing serious work underneath. The interface rarely changes. Features don't
-explode. Every release makes it slightly more stable, slightly faster,
+balloon. Every release makes it slightly more stable, slightly faster,
 slightly easier to maintain.
 
 ### What zelynic IS

@@ -127,8 +127,8 @@ impl TrafficEndpoint {
     /// the bracketed `[rtt X ±Y | retrans N/M (P%)]` suffix (or the
     /// em-dash pair when the window was not readable), UDP the
     /// `[encrypted/quic]` tag, raw the `[no l4 truth]` one. The
-    /// one-shot report IS the deep surface (the task's Ultimate
-    /// Weapon): RTT, jitter, loss share, and the protocol honesty on
+    /// one-shot report IS the deep surface (the task's flagship):
+    /// RTT, jitter, loss share, and the protocol honesty on
     /// every row, readable in one terminal view.
     fn row(&self, window_secs: u64) -> String {
         let deep_suffix = match self.deep {

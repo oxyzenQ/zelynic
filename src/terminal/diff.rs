@@ -70,8 +70,8 @@
 //!   STABILITY.md's silent-killer inventory.
 //!
 //! - **Guard repaint never erases (NIGHT-hunt-26)**: the selection
-//!   guard's rewrite carries NO screen erase — the REWRITE itself is
-//!   the selection killer. The old reset-route repaint (HOME +
+//!   guard's rewrite carries NO screen erase — the REWRITE itself
+//!   clears the selection. The old reset-route repaint (HOME +
 //!   erase-below + every row) opened a blank window between the
 //!   erase and the rewrite whenever the terminal's frame clock
 //!   caught the pty write split: the intermittent flash the owner
@@ -452,8 +452,8 @@ impl DiffScreen {
     /// Mechanism (NIGHT-hunt-26): flip the shadow back into the
     /// caller's buffer and raise the REPAINT flag — every row goes
     /// out dirty through the sequential path with NO screen erase
-    /// (HOME + every row). The rewrite itself is the selection
-    /// killer; the old ever_drawn=false route rode the RESET path,
+    /// (HOME + every row). The rewrite itself clears the
+    /// selection; the old ever_drawn=false route rode the RESET path,
     /// whose erase-below opened the blank flash window when the
     /// terminal's frame clock caught a split pty write (long-running
     /// monitors grow frames past the write-chunking boundary). The

@@ -12,7 +12,7 @@
 # cases, size pinned by --self-test: typos, wrong values, ambiguous orders, shell-injection
 # payloads, fatal usage — every flag and alias end to end, zero
 # hangs, zero panics), the CLI input guards (bounds, typo rescue,
-# dangerous blocklist, override), the brutal battery (SIGKILL of the
+# dangerous blocklist, override), the exacting battery (SIGKILL of the
 # live TUI mid-render, jittered SIGKILLs of one-shot writers inside
 # the attach/pin/write window), the post-kill regression re-proof,
 # and the crash-family teardown (recover, cleanup, dmesg). Python is

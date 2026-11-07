@@ -225,7 +225,7 @@ pub fn handle_block_all(force_this: bool, during: Option<&str>) -> Result<()> {
     // Same "system app" definition as the strict sweep lane: uid 0 OR on the
     // dangerous-target blocklist. The old filter (uid == 0 only) would
     // have blocked user-session processes like gnome-shell, pipewire,
-    // and the display manager — a desktop-killer inconsistency with
+    // and the display manager — a desktop-breaking inconsistency with
     // the strict sweep's guard (NIGHT-blade-2 renamed limit-all;
     // improve-54 merged strict-all into the s --all lane — both old
     // spellings are gone). NIGHT-hunt-Z3 adds the root

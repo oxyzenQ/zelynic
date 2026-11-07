@@ -29,7 +29,7 @@ use std::sync::Mutex;
 /// per-column work is the lightness lerp, the polar chroma lerp,
 /// and the gamut-mapped encode alone — the same operations in the
 /// same order [`crate::output::chroma::oklab_blend_rgb`] performs,
-/// bit-exact, minus the per-cell conversions. The drift killer is
+/// bit-exact, minus the per-cell conversions. The drift guard is
 /// the pin: `sweep_run` over a whole span must equal the per-column
 /// [`rail_rgb`] + [`rail_escape`] composition, byte for byte (the
 /// border pins run both paths against each other).

@@ -695,7 +695,7 @@ complaint). One real terminal-safety hazard found and removed:
 ## Eagle-Eyes Accumulate-Explosion Audit (NIGHT-boost-16 / safety-security-1, 2026-09)
 
 The owner's long-horizon question: what happens to the eagle-eyes
-monitor when session totals EXPLODE — months of uptime, saturated
+monitor when session totals balloon — months of uptime, saturated
 u64 counters, cgroup churn? Every arithmetic surface in the
 monitor's session path was audited; four real hazards were found
 and fixed, one purely as defense-in-depth:
@@ -1458,7 +1458,7 @@ the repair era against these very CI fingerprints), with the live
 quietest recorded as an advisory diagnostic — the numbers stay in
 every CI log and the `--json` output, never a red verdict the
 medium cannot support. The drain+settle prelude (repair-8) is
-deleted: it existed to fight the startup lottery for rows that no
+deleted: it existed to work against the startup lottery for rows that no
 longer ride it, and the rounds now measure apply-to-spawn, the
 same shape the rate ladder already proved. The product's own
 documentation carried the physics all along (USAGE.md's deep

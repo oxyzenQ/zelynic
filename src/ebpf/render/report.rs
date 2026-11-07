@@ -191,8 +191,8 @@ pub fn enforcement_sentence(enforcement: &Enforcement, shaping: bool) -> String 
     }
 }
 
-/// The enforcement LANES verdict (night-netrunner-4, the Ultimate
-/// Weapon's "RECWN/ECN/Pacing active?" row, pure): the quota saver's
+/// The enforcement LANES verdict (night-netrunner-4, the deep
+/// report's "RECWN/ECN/Pacing active?" row, pure): the quota saver's
 /// three lanes as this cgroup's policy arms them — RECWN shapes every
 /// download policy, the ECN-first lane marks the policed path when
 /// the host carries the helper (the CE ledger proves delivery), the
@@ -405,8 +405,8 @@ pub fn depth_report_lines(reports: &[DepthReport], width: usize) -> Vec<String> 
             lines.push(kv("accounting", &accounting_sentence(stats)));
         }
         // night-netrunner-4: the LANES row — the quota saver's three
-        // lanes as this cgroup's policy arms them (the Ultimate
-        // Weapon's enforcement-status answer, one glance).
+        // lanes as this cgroup's policy arms them (the deep
+        // report's enforcement-status answer, one glance).
         if let Some(lanes) = &report.lanes {
             lines.push(kv("lanes", lanes));
         }

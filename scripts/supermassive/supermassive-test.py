@@ -4982,7 +4982,7 @@ def test_mmspa_fairshare(window, baseline):
     across the repair era against these very CI fingerprints), with
     the live quietest recorded as an advisory diagnostic, never a
     red verdict the medium cannot certify. The drain+settle prelude
-    (repair-8) is gone with it: it existed to fight the startup
+    (repair-8) is gone with it: it existed to work against the startup
     lottery for rows that no longer ride it, and the rounds now
     measure apply-to-spawn like every other stage — simpler, and
     the same shape the rate ladder already proved.
@@ -5050,7 +5050,7 @@ def test_mmspa_fairshare(window, baseline):
         rounds divide by the SPAN (window + stagger): the pool's
         budget covers the whole wall time the leaves were drawing.
         NIGHT-hunt-Z5: no drain, no settle — the prelude existed to
-        fight the startup lottery for rows that no longer ride it,
+        work against the startup lottery for rows that no longer ride it,
         and a fresh apply's carry-in rides the band the way the rate
         ladder's rungs already tolerate."""
         ok, payload = apply_single("a", rate_str, rate, rate)

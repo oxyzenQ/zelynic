@@ -46,7 +46,7 @@ pub(crate) const SELECTION_GUARD_BEAT: Duration = Duration::from_millis(100);
 
 /// What the monitor loop owes the terminal this iteration
 /// (NIGHT-improve-8). A due `Render` outranks a due `Guard` —
-/// fresh content is also the strongest selection killer — but a
+/// fresh content also clears the selection outright — but a
 /// render never resets the guard clock: a diff-only frame leaves
 /// the unchanged rows untouched, and those rows must still die on
 /// the next beat (the exact hole the guard exists to close).

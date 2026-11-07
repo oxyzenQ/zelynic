@@ -14,7 +14,7 @@ version = "80.1.0"
 # 10's toolchain contract is untouched (edition and channel are
 # different axes).
 edition = "2024"
-description = "Per-app network rate limiter and traffic monitor for Linux. Pure eBPF. Boring and silent but killer."
+description = "Per-app network rate limiter and traffic monitor for Linux. Pure eBPF. Boring and silent."
 authors = ["rezky_nightky (oxyzenQ) <with dot rezky at gmail dot com>"]
 license = "AGPL-3.0-only"
 repository = "https://github.com/oxyzenQ/zelynic"

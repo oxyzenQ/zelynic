@@ -63,7 +63,7 @@ CI regression guard.
 
 The owner mandate: expert audit for supply-chain attack risk; remove
 any dependency whose risk outweighs its gain; the project stays lean,
-small, silent but killer. This pass goes beyond call-site liveness
+small, boring and silent. This pass goes beyond call-site liveness
 (the improve-11 security-4 scope) into actual attack surface: what
 code runs, from whom, with which tokens.
 

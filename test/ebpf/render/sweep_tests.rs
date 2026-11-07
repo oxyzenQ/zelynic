@@ -5,7 +5,7 @@
 //! the NIGHT-improve-44 LOC law): the sweep test moved with the
 //! composer it pins — `sweep_run` over a span must equal the
 //! per-column `rail_rgb` + `rail_escape` composition byte for byte
-//! (the drift killer), one escape per column, no RESET inside the
+//! (the drift guard), one escape per column, no RESET inside the
 //! run, and the flat rungs keep the plain glyph bytes.
 
 use super::sweep_run;
@@ -111,7 +111,7 @@ fn sweep_run_is_the_rails_method_across_the_columns() {
         ),
         "five columns of the sweep, no inner reset (dark, mid, brand, mid, dark)"
     );
-    // The drift killer: the hoisted composer must equal the
+    // The drift guard: the hoisted composer must equal the
     // per-cell rail_rgb + rail_escape walk byte for byte, every
     // column of the span, both engines — the hoist moves the
     // endpoint conversions out of the loop, never the math.
