@@ -20,7 +20,8 @@
 //! scripts.
 
 use crate::ebpf::bypass::{
-    SHADOW_RX_NUM_PERCENT, SHADOW_TX_NUM_PERCENT, ShadowAudit, ShadowVerdict, shadow_percent,
+    SHADOW_RX_FLOOR_BYTES, SHADOW_RX_NUM_PERCENT, SHADOW_TX_FLOOR_BYTES, SHADOW_TX_NUM_PERCENT,
+    ShadowAudit, ShadowVerdict, shadow_percent,
 };
 use crate::ebpf::limiter::{format_bytes, format_rate};
 use crate::output::warn_bold;
@@ -38,16 +39,24 @@ fn side_figures(bytes: u64, window_secs: u64) -> String {
 /// full block when a side exceeded its thresholds, one line when the
 /// window ran but the interface counters could not be read — every
 /// verdict says what it is, none is silent. The clean line names the
-/// thresholds it cleared (night-ux-1, the owner's 200kb-on-Brave
-/// session: "clean" beside a 22% figure forced the reader to guess
-/// whether 22% sat inside the band — now the line carries the band:
-/// "clean (under 25%/40% thresholds; tx shadow 22%, rx shadow 10%)",
-/// the constants imported, never restated). The printed percents are
-/// the shadow's whole-window share, not the flag bands themselves: a
-/// side flags only past both gates (share tx 25% / rx 40% AND floor
-/// tx 1 MiB / rx 2 MiB — `SHADOW_*_NUM_PERCENT`,
-/// `SHADOW_*_FLOOR_BYTES` in `ebpf/bypass.rs`), so "clean" under a
-/// 22% tx figure is the band holding, not the figure being unread.
+/// basis it cleared (night-ux-1, the owner's 200kb-on-Brave session:
+/// "clean" beside a 22% figure forced the reader to guess whether 22%
+/// sat inside the band — the line carries the band, the constants
+/// imported, never restated).
+///
+/// NIGHT-ux-3 (the live run's tx shadow 0% / rx shadow 100% window):
+/// a CLEAN verdict can be floor-bound, not band-bound — a side flags
+/// only past BOTH gates (`side_flagged`: shadow > floor AND share >
+/// band), so a 100% rx share on a quiet interface is the FLOOR
+/// holding, and "under thresholds" beside it was false. The line
+/// names which gate held, per side: both shadows at-or-under their
+/// floors render the quiet-window wording, both above render the
+/// band wording, and a mixed window names each side's own basis —
+/// the branch condition is the exact complement of `side_flagged`'s
+/// strict `>` on the floor gate (`shadow <= floor`). The printed
+/// percents stay the shadow's whole-window share; the MiB figures
+/// derive from the floor consts (the floors are MiB-round by
+/// definition), never restated.
 #[must_use]
 pub fn bypass_section(audit: &ShadowAudit) -> Vec<String> {
     let mut lines = Vec::new();
@@ -60,14 +69,34 @@ pub fn bypass_section(audit: &ShadowAudit) -> Vec<String> {
     }
     match audit.verdict {
         ShadowVerdict::Clean => {
-            // night-ux-1: the verdict prints the band it cleared —
-            // the constants ride inline (the implicit-capture format
-            // args read the same two u64s the verdict was computed
-            // from), so the line can never drift from the law.
+            // night-ux-1 / night-ux-3: the verdict prints the gate it
+            // cleared — per side, from the same constants the verdict
+            // was computed from, so the line can never drift from
+            // the law. A floor-bound side cannot flag whatever its
+            // share reads; a share over the band beside "clean" now
+            // names the floor that held instead of a false band.
+            let tx_quiet = audit.shadow_tx <= SHADOW_TX_FLOOR_BYTES;
+            let rx_quiet = audit.shadow_rx <= SHADOW_RX_FLOOR_BYTES;
+            let tx_mib = SHADOW_TX_FLOOR_BYTES / (1024 * 1024);
+            let rx_mib = SHADOW_RX_FLOOR_BYTES / (1024 * 1024);
+            let basis = match (tx_quiet, rx_quiet) {
+                (true, true) => {
+                    format!("quiet window — under {tx_mib} MiB tx / {rx_mib} MiB rx floor")
+                }
+                (false, false) => {
+                    format!("under {SHADOW_TX_NUM_PERCENT}%/{SHADOW_RX_NUM_PERCENT}% thresholds")
+                }
+                (true, false) => format!(
+                    "tx under {tx_mib} MiB floor; rx under {SHADOW_RX_NUM_PERCENT}% thresholds"
+                ),
+                (false, true) => format!(
+                    "tx under {SHADOW_TX_NUM_PERCENT}% thresholds; rx under {rx_mib} MiB floor"
+                ),
+            };
             lines.push(kv(
                 "bypass audit",
                 &format!(
-                    "clean (under {SHADOW_TX_NUM_PERCENT}%/{SHADOW_RX_NUM_PERCENT}% thresholds; \
+                    "clean ({basis}; \
                      tx shadow {}%, rx shadow {}%)",
                     shadow_percent(audit.shadow_tx, audit.nic_tx),
                     shadow_percent(audit.shadow_rx, audit.nic_rx)

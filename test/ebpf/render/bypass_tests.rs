@@ -39,14 +39,96 @@ fn clean_window_is_one_line_with_both_shares() {
         plain.contains("tx shadow 2%") && plain.contains("rx shadow 4%"),
         "both sides' shares ride the line, got: {plain}"
     );
-    // night-ux-1 (the owner's 200kb-on-Brave session): the verdict
-    // prints the band it cleared — "clean" beside a 22% figure must
-    // not force the reader to guess whether the figure sits inside
-    // it. The thresholds ride the line from the same constants the
-    // verdict was computed from.
+    // night-ux-3 (the live run's tx 0% / rx 100% window): this
+    // fixture's shadows (20 KB / 40 KB) sit under the absolute
+    // floors, so the honest basis is the QUIET-WINDOW wording — the
+    // floor held, not the band. "under 25%/40% thresholds" beside
+    // these shares would be the false claim night-ux-3 retires.
+    assert!(
+        plain.contains("quiet window"),
+        "a floor-bound clean names the quiet window, got: {plain}"
+    );
+    assert!(
+        plain.contains("under 1 MiB tx / 2 MiB rx floor"),
+        "the clean line names the floor it sat under, got: {plain}"
+    );
+}
+
+/// night-ux-1's shape survives on a window with real traffic: shadows
+/// above the floors with shares inside the bands print the band — the
+/// thresholds ride the line from the same constants the verdict was
+/// computed from (night-ux-3: this is now the BOTH-sides-above-floor
+/// arm, not the only clean shape).
+#[test]
+fn band_clean_window_names_the_thresholds() {
+    let audit = shadow_audit(
+        Some(NicTotals::default()),
+        Some(NicTotals {
+            tx_bytes: 100_000_000,
+            rx_bytes: 100_000_000,
+        }),
+        80_000_000,
+        70_000_000,
+        3,
+    );
+    assert_eq!(audit.verdict, ShadowVerdict::Clean);
+    let plain = strip_ansi(&bypass_section(&audit)[0]);
     assert!(
         plain.contains("under 25%/40% thresholds"),
-        "the clean line names the thresholds it cleared, got: {plain}"
+        "a band-bound clean names the thresholds it cleared, got: {plain}"
+    );
+    assert!(
+        plain.contains("tx shadow 20%") && plain.contains("rx shadow 30%"),
+        "both sides' shares ride the line, got: {plain}"
+    );
+    assert!(
+        !plain.contains("quiet window"),
+        "a band-bound clean is not a quiet window, got: {plain}"
+    );
+}
+
+/// night-ux-3's mixed windows: one side floor-bound, the other
+/// band-bound — the line names EACH side's own basis, never a band
+/// claim over a floor-bound side (the false wording the live run's
+/// 100% rx share exposed, one side at a time).
+#[test]
+fn mixed_windows_name_each_side_basis() {
+    // tx quiet (20 KB shadow, under the 1 MiB floor), rx band-clean
+    // (35 MB shadow, 35% — above the 2 MiB floor, under the 40% band).
+    let audit = shadow_audit(
+        Some(NicTotals::default()),
+        Some(NicTotals {
+            tx_bytes: 1_000_000,
+            rx_bytes: 100_000_000,
+        }),
+        980_000,
+        65_000_000,
+        3,
+    );
+    assert_eq!(audit.verdict, ShadowVerdict::Clean);
+    let plain = strip_ansi(&bypass_section(&audit)[0]);
+    assert!(
+        plain.contains("tx under 1 MiB floor; rx under 40% thresholds"),
+        "the mixed line names each side's basis, got: {plain}"
+    );
+
+    // The mirror: tx band-clean (20%, above the floor), rx quiet
+    // (500 KB shadow, under the 2 MiB floor).
+    let audit = shadow_audit(
+        Some(NicTotals::default()),
+        Some(NicTotals {
+            tx_bytes: 100_000_000,
+            rx_bytes: 2_000_000,
+        }),
+        80_000_000,
+        1_500_000,
+        3,
+    );
+    assert_eq!(audit.verdict, ShadowVerdict::Clean);
+    let plain = strip_ansi(&bypass_section(&audit)[0]);
+    assert!(
+        plain.contains("tx under 25% thresholds; rx under 2 MiB floor"),
+        "the mirror mixed line names each side's basis, got: {plain}"
     );
 }
 
