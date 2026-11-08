@@ -155,6 +155,55 @@ v80.0.0
 
 ### Fixed
 
+- **fix(ebpf): the quota saved estimate errs low as documented —
+  the EDT booking retired (night-quota-audit, schema v29).** The
+  owner's 2026-11-09 live reading broke the quota doc's own
+  contract ("the estimate errs LOW, never high"): a brave at 500kb
+  with 65.1 MB allowed read `Quota Saved` 744.6 MB against a 20 MB
+  doc-formula prediction (36.8x over), a python3 at 300kb with
+  60.8 MB allowed read 132.3 MB against 72 MB (1.8x over). The
+  audit's Phase 1 cleared the other two lanes byte for byte:
+  `recwn_saved_bytes` IS the documented window law
+  `(bytes_allowed / clamped) x (default - clamped)`
+  (display.rs:307-317, now pinned directly against the formula by
+  display_quota_tests' `the_recwn_estimate_is_the_documented_formula_byte_exact`),
+  and `bytes_saved_by_ecn` is one-for-one with `ce_marked_bytes`
+  (math_atomics.rs book_rescue). The inflation was all EDT: the
+  v28 kernel booked `(rate x elapsed) - uploaded` per egress packet
+  (pace.rs pacing_saved_bytes against a per-cgroup wall-clock
+  stamp), and the formula's only NONZERO content is the budget the
+  sender did not use — a saturated paced lane books nothing (the
+  budget lands within the packet's own length), while an idle-ish
+  lane books `rate x capped-gap` per packet, headroom for an upload
+  that was never pending (the residual back-solves to 1449 s of
+  capped wall-clock gaps at brave's 500 KB/s and 201 s at python3's
+  300 KB/s). A pacer reschedules bytes; it does not remove them —
+  no input, multiplier, or time-base tweak makes the counterfactual
+  honest, so the booking retires: pace_saved_stamp,
+  pace_saved_accrue, pacing_saved_bytes, and book_edt_saved leave
+  the object (the egress hot path loses one map read and one map
+  write per packet), the `bytes_saved_by_edt` word stays at its
+  offset 48 reading zero (the pure-append layout law — every
+  pre-v29 reader unchanged), `bytes_saved_total` becomes the RECWN
+  estimate plus the ECN one-for-one, and SCHEMA_VERSION bumps 28 ->
+  29 (no layout change — the bump exists so the reload wipes a
+  pre-v29 ledger's stale nonzero word; active limits drop once,
+  re-apply after upgrade). The pacing lane's ENFORCEMENT (the hint
+  prime, the sock_ops SO_MAX_PACING_RATE pin, the policed verdicts)
+  is untouched, `allowed` / `dropped` / `CE Marked` all stay, and
+  the lane's real wire effect — the suppressed
+  burst-retransmission storm — remains the A/B harness's
+  measurement, never a booked number. The pin family shrinks to 44
+  objects (endurance-test.py re-derived); edt-probe's saved row now
+  pins the retirement live (the word moves ZERO over a paced
+  upload; a reintroduced booking fails the probe); the quota-saver
+  report's composition text reads the two-lane truth. The doc
+  correction (the doc's EDT formula was the wrong side — the code
+  implemented it faithfully and the result errs HIGH) lands in the
+  same night: QUOTA_SAVER_PHYSICS, COSMIC_DRAGON_ARC's Layer 4,
+  README's formulas block, USAGE's JSON table, GLOSSARY, and
+  INNOVATIONS all state the actual behavior.
+
 - **fix(harness): the overhead row's drop conjunct rides the bounded
   tail (night-netrunner-1 CI follow-up, part 2).** The interleaved law's
   first live filing caught its own second lesson: the a3a24fb jammy

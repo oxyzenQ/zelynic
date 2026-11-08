@@ -83,7 +83,7 @@ name for zelynic's entire architectural stack, indexed in
 | **Guaranteed fair share** | `--floor 100kb` / `--ceil 300kb`: every subprocess under the target is guaranteed a minimum and capped at a maximum — the floor a PRIORITY (an idle subprocess lends its share back; the pool itself is the lender), the ceiling binding even a lone subprocess. HTB's rate/ceil idiom in a pure eBPF policer (improve-40, schema v24). Per-direction spellings for the asymmetric link: `--floor-download` / `--ceil-upload` bracket one direction's rows only, one spelling per side (improve-40-b). |
 | **Self-expiring limits** | `--during 20d` — a duration from the apply instant (units s, m, h, d, mn, y; bounds 1s..5y): the KERNEL expires the row, no daemon, no cron, drift-free monotonic spans (NIGHT-during, schema v23; the window and date forms are gone — the owner's duration-only revision, rows written by older builds keep their promises). |
 | **RECWN receive-window control** | A policed cgroup's own sockets advertise a rate-shaped receive window (rate x 200 ms delivery-cadence estimate, clamped [2 x MSS, 1 MiB]) — remote TCP senders hold their in-flight bytes down BEFORE the link bills them, the quota saver's Layer 1 (night-spark-2, schema v25; the owner's coined name, deliberately not "RWND"). |
-| **Quota Saved telemetry — the workload-conditional quota saver** | The three quota-saver lanes' work is BOOKED, not just enforced: `status --print-json` names `bytes_saved_total` with the `bytes_saved_by_edt` / `bytes_saved_by_ecn` / `bytes_saved_by_recwn` split (schema v28, night-spark-7), and the human table's `Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)` line renders it — the preserved egress headroom, the delivered CE marks, and the window-clamp counterfactual, each by its own physics (the math: docs/COSMIC_DRAGON_ARC.md's Layer 4 section). |
+| **Quota Saved telemetry — the workload-conditional quota saver** | The quota-saver lanes' work is BOOKED, not just enforced: `status --print-json` names `bytes_saved_total` with the `bytes_saved_by_edt` / `bytes_saved_by_ecn` / `bytes_saved_by_recwn` split (schema v28, night-spark-7; the EDT booking retired in v29 — the word reads zero, the split is the ECN marks and the RECWN window counterfactual, each by its own physics; the math: docs/COSMIC_DRAGON_ARC.md's Layer 4 section), and the human table's `Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)` line renders it. |
 | **Pinned bpf_links** | Enforcement survives process exit — no daemon, no battery drain (RAM/CPU/IO measured live, not asserted: the proof harness's footprint claim). |
 | **Fractional precision** | 0.00% measured rate error, sub-byte token accumulation (reproduce: `sudo ./scripts/bench/proof-claims.sh`; math pins: test/ebpf/limiter/math_tests.rs). |
 | **Schema migration** | BPF struct changes auto-detected + auto-cleaned on upgrade. |
@@ -735,12 +735,15 @@ row's upload sockets, so the kernel's own TCP pacer spaces the
 outgoing stream at the policy rate with no tc qdisc anywhere (the
 live proof in `scripts/bench/edt-probe.sh`: 800000 b/s bit-exact,
 zero drops). And its Layer 4 — the quota telemetry — landed as
-schema v28: the three lanes' savings are BOOKED
-(`bytes_saved_by_edt`, `bytes_saved_by_ecn` in the kernel ledger;
-`bytes_saved_by_recwn` as the documented userspace estimate) and
-`status --print-json` names all three plus `bytes_saved_total`,
-with the human table's `Quota Saved` line rendering the total and
-the layer split.
+schema v28 and was corrected by night-quota-audit in schema v29:
+the lanes' savings are BOOKED (`bytes_saved_by_ecn` in the kernel
+ledger, `bytes_saved_by_recwn` as the documented userspace
+estimate) and `status --print-json` names them plus
+`bytes_saved_total` and the retired `bytes_saved_by_edt` word
+(zero since v29 — its preserved-headroom formula booked the budget
+an idle sender never used, erring HIGH by up to 36.8x against the
+"errs LOW, never high" contract), with the human table's `Quota
+Saved` line rendering the total and the layer split.
 
 **The workload-conditional quota saver**: the three physics stack on
 the metered rates the lane exists for — the receive-window clamp
@@ -880,25 +883,25 @@ one is pinned by rootless unit tests and read live by the probes.
   pole: the column books exactly the marked volume, never a modeled
   multiple.
 
-- `bytes_saved_by_edt` — the egress pacing headroom (kernel-booked,
-  egress path). Over the gap since the lane's last policed egress
-  packet, the budget the rate accrued minus the volume actually
-  delivered — `saved = (rate x dt_capped) - pkt_len`, clamped at
-  zero per call. Summed over the lane's life it reads the task's own
-  formula:
+- `bytes_saved_by_edt` — RETIRED (night-quota-audit, schema v29).
+  The v28 law booked the egress pacing headroom — over the gap
+  since the lane's last policed egress packet, the budget the rate
+  accrued minus the volume actually delivered, summed over the
+  lane's life as `(rate x time_elapsed) - bytes_uploaded`, the gap
+  capped at one second and the rate sanitized at 4 GiB/s. The
+  owner's live reading killed it: a brave at 500kb booked 744.6 MB
+  against a 20 MB doc-formula prediction (36.8x over), a python3
+  at 300kb 1.8x over — the formula's only NONZERO content is the
+  budget an idle sender never used (a saturated paced lane books
+  nothing; an idle-ish lane books `rate x capped-gap` per packet).
+  A pacer reschedules bytes; it does not remove them — the honest
+  booking is zero, the word stays at its offset reading zero from
+  v29 on, the pacing lane's ENFORCEMENT is untouched, and its wire
+  effect (the suppressed burst-retransmission storm) is the A/B
+  harness's measurement, never a booked number.
 
-  ```
-  bytes_saved_by_edt = (rate x time_elapsed) - bytes_uploaded
-  ```
-
-  The caps are load-bearing and borrowed from laws the house already
-  pins: the gap caps at ONE SECOND (refill_credits' idle cap — the
-  counter never rewards idleness the bucket itself refuses to
-  credit) and the rate sanitizes at 4 GiB/s (the recwn clamp's own
-  guard — the BPF ISA has no widening multiply, so bounded factors
-  keep the u64 product overflow-impossible).
-
-- `bytes_saved_total` — the sum of the three, the number `status
+- `bytes_saved_total` — the sum of the surviving lanes (RECWN +
+  ECN, plus the retired EDT word reading zero), the number `status
   --print-json` carries and the human table renders as
   `Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)`.
 

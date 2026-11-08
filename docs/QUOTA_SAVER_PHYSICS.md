@@ -88,12 +88,14 @@ primes a cookie-keyed hint and the sock_ops program pins
 TCP pacer spaces the outgoing stream at the policy rate, with no tc
 qdisc anywhere.
 
-**Layer 4 — telemetry (schema v28).** The three lanes' work is
-booked, not just enforced: `bytes_saved_by_edt` and
-`bytes_saved_by_ecn` in the kernel ledger, `bytes_saved_by_recwn` as
-the documented userspace estimate, and `bytes_saved_total` named by
-`status --print-json` and rendered by the human table's
-`Quota Saved` line.
+**Layer 4 — telemetry (schema v28, the EDT booking retired in v29).**
+The lanes' work is booked, not just enforced: `bytes_saved_by_ecn`
+in the kernel ledger, `bytes_saved_by_recwn` as the documented
+userspace estimate, and `bytes_saved_total` named by `status
+--print-json` and rendered by the human table's `Quota Saved` line.
+The v28 `bytes_saved_by_edt` word keeps its place in the layout and
+reads zero since v29 (the retirement is documented with the bookings
+below).
 
 The bookings, one law each (the derivations live in
 docs/COSMIC_DRAGON_ARC.md's Layer 4 section):
@@ -108,9 +110,22 @@ docs/COSMIC_DRAGON_ARC.md's Layer 4 section):
   delivered CE-marked byte is a byte that never becomes a
   loss-and-retransmission pair, and a dropped byte costs metered
   quota twice, so 1:1 is the conservative pole.
-- `bytes_saved_by_edt` — the egress pacing headroom:
-  `(rate x time_elapsed) - bytes_uploaded`, clamped at zero per call,
-  the idle gap capped at one second, the rate sanitized at 4 GiB/s.
+- `bytes_saved_by_edt` — RETIRED (night-quota-audit, schema v29).
+  The v28 law read `(rate x time_elapsed) - bytes_uploaded`, the
+  preserved-headroom counterfactual with the idle gap capped at one
+  second and the rate sanitized at 4 GiB/s. The owner's 2026-11-09
+  live reading broke the contract this document's other bookings
+  keep: a brave at 500kb booked 744.6 MB against a 20 MB
+  doc-formula prediction (36.8x over), a python3 at 300kb booked
+  1.8x over. The formula's only NONZERO content is the budget the
+  sender did not use — a saturated paced lane books nothing, and an
+  idle-ish lane books `rate x capped-gap` per packet, headroom for
+  an upload that was never pending. A pacer reschedules bytes; it
+  does not remove them, so the honest booking is zero: the word
+  stays at its offset reading zero from v29 on, the pacing lane's
+  enforcement is untouched, and the lane's real wire effect — the
+  suppressed burst-retransmission storm — is the A/B harness's
+  measurement (section 5), never a booked number.
 
 Direction split, stated plainly: RECWN and ECN shape the download
 side (they keep bytes from crossing), EDT owns the upload side (it
@@ -123,8 +138,8 @@ did their work — the bytes the token bucket's drop verdict actually
 discarded since apply. The status counter `bytes_saved_total` is
 the counterfactual estimate of what the lanes prevented (the
 schema-v28 telemetry's sum: the RECWN estimate plus the ECN
-one-for-one plus the EDT headroom, rendered with the honest
-"(est., counterfactual)" label). The two are not the same number
+one-for-one, plus the retired EDT word reading zero since v29,
+rendered with the honest "(est., counterfactual)" label). The two are not the same number
 and answer different questions: `dropped` says how many bytes the
 policer was forced to drop; `bytes_saved_total` says how many bytes
 the saver lanes withheld the policer from ever seeing. On a working
@@ -358,11 +373,12 @@ measure, which is a new campaign, not this one.
 - **The lane docs** — docs/COSMIC_DRAGON_ARC.md (Layers 1-4 and the
   booking math), the live proofs `scripts/bench/recwn-probe.sh`,
   `scripts/bench/ecn-probe.sh`, `scripts/bench/edt-probe.sh`, and
-  the README's "The formulas" block (the three booking laws and
-  their conservative poles).
-- **The schemas** — `ebpf/src/schema.rs` (`SCHEMA_VERSION` 28 and
+  the README's "The formulas" block (the booking laws, their
+  conservative poles, and the EDT retirement).
+- **The schemas** — `ebpf/src/schema.rs` (`SCHEMA_VERSION` 29 and
   the contract history): v25 RECWN, v26 ECN, v27 EDT, v28 quota
-  telemetry; the `bytes_saved_total` /
+  telemetry, v29 the EDT booking retired (night-quota-audit); the
+  `bytes_saved_total` /
   `bytes_saved_by_edt` / `bytes_saved_by_ecn` /
   `bytes_saved_by_recwn` keys in `status --print-json`.
 - **The asymmetry record** — docs/USAGE.md limitation #15 (ingress

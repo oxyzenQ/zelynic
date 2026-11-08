@@ -119,17 +119,22 @@ first-time reader, and this page pays it once, up front.
   it. (src/ebpf/limiter/stats.rs, USAGE.md §reading)
 - **The saved-quota books**: `bytes_saved_by_recwn` /
   `bytes_saved_by_ecn` / `bytes_saved_by_edt` / `bytes_saved_total`
-  — the schema v28 ledger tail: the three layers' saved-byte words
-  plus the sum, the human table's Quota Saved line (the RECWN word
-  stays a userspace estimate, the arc doc owns its math).
-- **bytes_saved_total**: the sum of the three lanes' counterfactual
-  savings bookings (RECWN estimate + ECN one-for-one + EDT
-  headroom), schema v28. NOT a wire measurement — the
+  — the schema v28 ledger tail: the layers' saved-byte words plus
+  the sum, the human table's Quota Saved line (the RECWN word
+  stays a userspace estimate, the arc doc owns its math; the EDT
+  word is RETIRED — schema v29, night-quota-audit — and reads
+  zero).
+- **bytes_saved_total**: the sum of the lanes' counterfactual
+  savings bookings (RECWN estimate + ECN one-for-one, plus the
+  retired EDT word reading zero since schema v29). NOT a wire
+  measurement — the
   wire-measured savings is the A/B harness's output — and NOT the
   same number as `dropped`; the status surface labels it
-  "(est., counterfactual)". (schema v28, src/ebpf/display.rs,
+  "(est., counterfactual)". (schema v29, src/ebpf/display.rs,
   USAGE.md §reading)
-- **Quota Saved (status line)**: the schema-v28 telemetry's sum,
+- **Quota Saved (status line)**: the saved-lane telemetry's sum
+  (since schema v29: the RECWN estimate plus the ECN one-for-one,
+  the EDT word retired and reading zero),
   rendered with the honest "(est., counterfactual)" label. NOT the
   same number as `dropped`; for the distinction, see USAGE.md
   §reading. (src/ebpf/display_lines.rs, USAGE.md §reading)

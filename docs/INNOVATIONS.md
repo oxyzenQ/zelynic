@@ -308,29 +308,36 @@ pinned by rootless unit tests and read live by the probes.
   pole: the column books exactly the marked volume, never a modeled
   multiple.
 
-- `bytes_saved_by_edt` — the egress pacing headroom (kernel-booked,
-  egress path). Over the gap since the lane's last policed egress
-  packet, the budget the rate accrued minus the volume actually
-  delivered — `saved = (rate x dt_capped) - pkt_len`, clamped at
-  zero per call. Summed over the lane's life it reads the task's own
-  formula:
+- `bytes_saved_by_edt` — RETIRED (night-quota-audit, schema v29).
+  The v28 booking read `(rate x time_elapsed) - bytes_uploaded` —
+  the lane's theoretical budget minus the volume actually delivered,
+  the preserved-headroom counterfactual. The owner's 2026-11-09 live
+  reading broke the contract the other two lanes keep: a brave at
+  500kb booked 744.6 MB against a 20 MB doc-formula prediction
+  (36.8x over), a python3 at 300kb booked 1.8x over — different
+  ratios per cgroup because the formula's only NONZERO content is
+  the budget the sender did not use. A saturated paced lane books
+  nothing (the budget lands within the packet's own length); an
+  idle-ish lane books `rate x capped-gap` per packet — headroom for
+  an upload that was never pending. A pacer RESCHEDULES bytes; it
+  does not remove them, and no cap short of zero makes the
+  counterfactual honest. From v29 on the word stays at its offset
+  (offset 48, the pure-append layout law) and reads zero; the
+  pacing lane's ENFORCEMENT (the SO_MAX_PACING_RATE pin, the
+  policed verdicts) is untouched, and its wire effect — the
+  suppressed burst-retransmission storm — is the A/B harness's
+  measurement, never a booked number.
 
-      bytes_saved_by_edt = (rate x time_elapsed) - bytes_uploaded
-
-  The caps are load-bearing and borrowed from laws the house already
-  pins: the gap caps at ONE SECOND (refill_credits' idle cap — the
-  counter never rewards idleness the bucket itself refuses to
-  credit) and the rate sanitizes at 4 GiB/s (the recwn clamp's own
-  guard — the BPF ISA has no widening multiply, so bounded factors
-  keep the u64 product overflow-impossible).
-
-- `bytes_saved_total` — the sum of the three, the number `status
-  --print-json` carries and the human table renders as
-  `Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)`.
+- `bytes_saved_total` — the sum of the surviving lanes (the RECWN
+  estimate + the ECN one-for-one, plus the retired EDT word reading
+  zero), the number `status --print-json` carries and the human
+  table renders as `Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)`.
 
 **The probe record.** The live proofs carry a saved row each
 (`recwn-probe.sh` row 6, `ecn-probe.sh`'s saved twin, `edt-probe.sh`
-row 6), and the recorded runs read like this:
+row 6 — the EDT row pins the retirement live since schema v29: the
+word moves ZERO over a paced upload, and a reintroduced booking
+fails the probe), and the recorded runs read like this:
 
 - A 3 MB download with RECWN active saved 18.1 MB of unnecessary
   TCP window expansion.
@@ -351,10 +358,10 @@ than the unenforced leg on both directions (2026-11-06). A bounded
 transfer's sender never attempts the overrun the booking prices;
 the overrunning workload's sender never stops, and the A/B harness
 (`scripts/bench/quota-saver-ab.sh`) now carries the overrunning leg
-that measures the real saving. The deep derivations (the per-packet
-EDT accrual form, the combined-ledger granularity concession, the
-datapath call sites) live in `COSMIC_DRAGON_ARC.md`'s Layer 4
-section.
+that measures the real saving. The deep derivations (the combined-
+ledger granularity concession, the datapath call sites, and the
+EDT booking's retirement record) live in `COSMIC_DRAGON_ARC.md`'s
+Layer 4 section.
 
 ## Retired by verdict
 
