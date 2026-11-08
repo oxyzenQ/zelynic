@@ -98,22 +98,24 @@ pub(crate) fn status_header_line(col_widths: &[usize; 5]) -> String {
 
 /// The v26 CE ledger's subordinate line (night-spark-4, schema
 /// v26): the ECN-first lane's own truth under the row that carries
-/// it — "CE Marked: N packets (M) — delivered instead of dropped",
-/// the volume book_rescue's correction delivered CE-marked.
-/// night-ux-1 (the owner's 200kb-on-Brave session): the byte figure
-/// rides the same SI ladder every other surface speaks
-/// (format_bytes — "127.6 KB", never raw "127581 bytes"), and the
-/// clause names what CE-marked MEANS — the over-budget packet the
-/// sender's ECN read let through instead of dropping — so the lane
-/// reads as the exception to the drop branch it sits beside, not a
-/// second drop counter. Rendered ONLY when the row has actually
-/// marked something (the dormant-watchdog precedent: zeros are
-/// noise pretending to be information), the window family's grey
-/// indent.
+/// it — "CE Marked: N packets (M) — a drop prevented (ECN
+/// delivered it)", the volume book_rescue's correction delivered
+/// CE-marked. night-ux-1 (the owner's 200kb-on-Brave session): the
+/// byte figure rides the same SI ladder every other surface speaks
+/// (format_bytes — "127.6 KB", never raw "127581 bytes").
+/// night-docs-1: the closing clause names the LANE and the drop
+/// story in one breath — the count is a drop PREVENTED, and ECN is
+/// the lane that delivered it — so a reader walking the row
+/// connects the grey sub-line to the `dropped` column beside it
+/// (a marked byte never books there; the old "delivered instead of
+/// dropped" shape named the exception but not the lane). Rendered
+/// ONLY when the row has actually marked something (the
+/// dormant-watchdog precedent: zeros are noise pretending to be
+/// information), the window family's grey indent.
 pub(crate) fn ce_marked_line(d: &DisplayData) -> Option<String> {
     (d.ce_marked_packets > 0).then(|| {
         grey(&format!(
-            "    CE Marked: {} packets ({}) — delivered instead of dropped",
+            "    CE Marked: {} packets ({}) — a drop prevented (ECN delivered it)",
             d.ce_marked_packets,
             format_bytes(d.ce_marked_bytes)
         ))

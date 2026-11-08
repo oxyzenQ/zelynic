@@ -168,7 +168,7 @@ fn ce_marked_line_renders_only_when_traffic_was_marked() {
     };
     assert_eq!(
         ce_marked_line(&marked).unwrap(),
-        "    CE Marked: 12 packets (17.4 KB) — delivered instead of dropped"
+        "    CE Marked: 12 packets (17.4 KB) — a drop prevented (ECN delivered it)"
     );
 
     let quiet = DisplayData {
