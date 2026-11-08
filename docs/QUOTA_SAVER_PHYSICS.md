@@ -117,6 +117,27 @@ side (they keep bytes from crossing), EDT owns the upload side (it
 spaces the bytes that leave). None of them un-send a datagram the
 wire already carried.
 
+**Reading the counters: `dropped` is not `bytes_saved_total`.**
+The status counter `dropped` is the kernel discards AFTER the lanes
+did their work — the bytes the token bucket's drop verdict actually
+discarded since apply. The status counter `bytes_saved_total` is
+the counterfactual estimate of what the lanes prevented (the
+schema-v28 telemetry's sum: the RECWN estimate plus the ECN
+one-for-one plus the EDT headroom, rendered with the honest
+"(est., counterfactual)" label). The two are not the same number
+and answer different questions: `dropped` says how many bytes the
+policer was forced to drop; `bytes_saved_total` says how many bytes
+the saver lanes withheld the policer from ever seeing. On a working
+saver-lane deployment, `dropped` is SMALL and `bytes_saved_total`
+is LARGE; on a lane-not-binding rate — the sender not cooperating
+with the clamp, the mark, or the pace — `dropped` grows and
+`bytes_saved_total` flattens, and the honest wire savings is the
+A/B harness's number (section 8), not the booked counterfactual.
+The lane-by-lane physics live in the layers above and in
+docs/COSMIC_DRAGON_ARC.md's Layer 4 section (the lane docs); the
+schemas are v25 RECWN, v26 ECN, v27 EDT, v28 telemetry. USAGE.md's
+status section carries the same distinction for the surface reader.
+
 ## 3. The formula and the measured curve
 
 The savings is the rate limit itself. When `rate_limit <
