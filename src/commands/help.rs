@@ -183,11 +183,17 @@ pub(crate) fn print_help() {
     println_safe!("    Show active limits and watchdog status.");
     // NIGHT-dinner-11: the owner read "allowed 3.4gb / dropped 4.4 mb"
     // as a mystery — the pair's semantics belong ON the surface he
-    // was looking at, not only in docs/USAGE.md. Three lines, the
-    // full contract: units, window, reset.
-    println_safe!("    allowed / dropped: cumulative BYTES per cgroup since the limit");
-    println_safe!("    was set — allowed passed the budget, dropped exceeded it (the");
-    println_safe!("    sender retries); removing the limit clears both.");
+    // was looking at, not only in docs/USAGE.md. night-ux-6: the
+    // wording IS the live footer's own sentences (the night-docs-1
+    // counters footer, display_lines::counters_footer_lines) —
+    // cumulative since apply, the saver-lanes reading of a small
+    // dropped, the ingress/egress direction law, and the unstrict
+    // reset — so the reference can never contradict the surface it
+    // describes (the old "allowed passed the budget, dropped
+    // exceeded it" phrasing was the pre-night-docs-1 footer).
+    println_safe!("    allowed / dropped: cumulative since apply. Small dropped = the saver");
+    println_safe!("    lanes working; ingress drops burn quota, egress drops save it.");
+    println_safe!("    (unstrict clears both)");
     println_safe!();
     synopsis("zelynic list-apps");
     println_safe!("    List apps with their cgroup IDs.");
