@@ -295,10 +295,16 @@ fn test_help_documents_status_ledger_and_no_match_contract() {
 
     assert_eq!(output.status.code(), Some(0));
     let stdout = String::from_utf8_lossy(&output.stdout);
+    // night-ux-6: the status block rides the LIVE footer's own
+    // sentences (display_lines::counters_footer_lines, the
+    // night-docs-1 wording) — the reference may not contradict the
+    // surface it describes. The pre-night-docs-1 phrasing ("allowed
+    // passed the budget, dropped exceeded it") is retired here with
+    // the source.
     for needle in [
-        "allowed / dropped: cumulative BYTES per cgroup since the limit",
-        "was set — allowed passed the budget, dropped exceeded it (the",
-        "sender retries); removing the limit clears both.",
+        "allowed / dropped: cumulative since apply. Small dropped = the saver",
+        "lanes working; ingress drops burn quota, egress drops save it.",
+        "(unstrict clears both)",
         "A target that matches nothing is a hard error (exit 1) — never a",
         "silent no-op; the --all reset on an already-clean system exits 0.",
     ] {
