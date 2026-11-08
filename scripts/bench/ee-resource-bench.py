@@ -87,6 +87,16 @@ def main():
         "--duration", type=int, default=30, help="sampling window in seconds (default 30)"
     )
     ap.add_argument("--interval", default="1s", help="eagle-eyes --interval (default 1s)")
+    ap.add_argument(
+        "--target",
+        type=float,
+        default=0.1,
+        help=(
+            "CPU budget, percent of one core (default 0.1 — the night-perf-1 "
+            "wake-skeleton budget; the owner's live-TUI budget is 0.5 and the "
+            "htop/btop range for live TUIs is 1-5)"
+        ),
+    )
     args = ap.parse_args()
 
     if os.geteuid() != 0:
@@ -169,7 +179,12 @@ def main():
         print()
         print(f"  RSS (before):        {rss0_kb / 1024:.2f} MB")
         print(f"  RSS (after):         {rss1_kb / 1024:.2f} MB")
-        print(f"  RSS delta:           {(rss1_kb - rss0_kb) / 1024:+.2f} MB")
+        rss_delta_mb = (rss1_kb - rss0_kb) / 1024
+        print(f"  RSS delta:           {rss_delta_mb:+.2f} MB")
+        rss_verdict = (
+            "no leak detected" if rss_delta_mb < 0.1 else "REVIEW — RSS grew over the window"
+        )
+        print(f"  RSS verdict:         {rss_verdict}")
         print()
         print(f"  threads (before):    {len(names_before)} — {', '.join(names_before)}")
         print(f"  threads (after):     {len(names_after)} — {', '.join(names_after)}")
@@ -179,9 +194,11 @@ def main():
         print(f"  ctx switches (vol):  {dvcs} ({dvcs / elapsed:.1f}/s)")
         print(f"  ctx switches (inv):  {divcs} ({divcs / elapsed:.1f}/s)")
         print()
-        verdict = "PEAK" if pct_per_core < 0.1 else "REVIEW — above 0.1% target"
+        verdict = (
+            "PEAK" if pct_per_core < args.target else f"REVIEW — above the {args.target:g}% target"
+        )
         print(f"  verdict:             {verdict}")
-        print("  (target: <0.1% per core; zylaxion reference: 0.035%)")
+        print(f"  (target: <{args.target:g}% per core; the htop/btop range for live TUIs is 1-5%)")
 
     finally:
         try:
