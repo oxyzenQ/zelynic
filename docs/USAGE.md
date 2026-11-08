@@ -803,9 +803,9 @@ lock skips the sweep silently — the row renders with its honest
 Reading the last two columns (spelled out after the rc.2 long-run
 audit showed the pair can read as a mystery; night-ux-1 carried the
 short form onto the surface itself — the table's own grey footer
-line reads "allowed / dropped: cumulative since apply. A dropped
-share is the rate limiter working — a hard cap always drops the
-surplus"):
+lines read "allowed/dropped: cumulative since apply." / "small
+dropped = saver lanes working; ingress burns quota, egress saves
+it", night-docs-1's direction-and-residual wording):
 
 - **allowed** — the cumulative BYTES that passed enforcement for
   the cgroup while its limit was active (download and upload are
@@ -856,6 +856,42 @@ surplus"):
   stays silent on a zero total (the dormant-watchdog precedent),
   so a row without the line has booked no savings yet, never
   "no lane".
+
+#### Reading the counters under the saver lanes (night-docs-1)
+
+A small `dropped` under a policed cgroup is the saver lanes
+working — RECWN clamped the sender, ECN marked instead of dropped,
+EDT paced the egress, so few would-be drops reached the drop
+verdict. A large `dropped` means the lane is not binding at this
+rate (the sender not cooperating, or the rate above the network
+speed); the rate limit itself is policing, as it did in v80.0.0.
+
+Direction matters for the meter: ingress drops burn quota (the
+packet already crossed the meter; the sender retransmits and the
+meter bills it again). Egress drops save quota (the packet never
+left the NIC). Since schema v25 (RECWN), the download-side clamp
+makes the remote sender slow before the bytes cross — so the
+ingress drop count drops visibly and download quota is preserved
+by the clamp, not by a drop.
+
+`bytes_saved_total` is NOT the same number as `dropped`.
+`bytes_saved_total` is the counterfactual quota the lanes
+prevented (a booked estimate, labeled `(est., counterfactual)` on
+the status surface). `dropped` is the real kernel discards AFTER
+the lanes did their work. On a working saver-lane deployment,
+`dropped` is small and `bytes_saved_total` is large. The honest
+wire-measured savings number is the A/B harness's output
+(scripts/bench/quota-saver-ab.py), not the booked counterfactual.
+The lane-by-lane accounting and the peak declaration live in
+[QUOTA_SAVER_PHYSICS.md](QUOTA_SAVER_PHYSICS.md).
+
+Two worked readings close the section: a policed download at
+200kb with `dropped=0` and `bytes_saved_total=5.5 MB` — the lanes
+are working; RECWN clamped the sender, no packet reached the drop
+verdict, and the quota is preserved by the clamp, not by a drop.
+A policed download with `dropped=34 MB` — the rate limit itself is
+policing; the 34 MB are real discards and ingress quota was
+burned.
 
 Both counters live for the lifetime of the limit: re-applying
 `strict` with a different rate keeps the accounting continuous
