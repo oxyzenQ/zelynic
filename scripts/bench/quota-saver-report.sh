@@ -14,8 +14,9 @@
 #   test upload results the internet kuota save total is Y%
 #
 # The percentages come from the kernel's own Layer 4 telemetry: the
-# bytes_saved_total delta (EDT pacing + ECN marks + the RECWN window
-# counterfactual) against the bytes_allowed delta (what actually
+# bytes_saved_total delta (the RECWN window counterfactual plus the
+# ECN marks; the retired EDT word reads zero since schema v29,
+# night-quota-audit) against the bytes_allowed delta (what actually
 # transferred). Python is the engine for the same reasons as the
 # supermassive suite: subprocess control and precise timeout
 # discipline are things bash cannot do well.

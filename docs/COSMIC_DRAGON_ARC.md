@@ -326,10 +326,10 @@ directions.
   pure append, the six legacy words keep their offsets, the pinned
   stats maps wipe once at the bump): `LimiterStats` grows its tail
   from 48 to 64 bytes with `bytes_saved_by_edt` and
-  `bytes_saved_by_ecn` — the two lanes the KERNEL can book — plus
-  ONE new pinned LRU map, `pace_saved_stamp` (policy root ->
-  last-seen egress stamp, the ecn_debt family's datapath-internal
-  posture), the time base the EDT accrual reads. The night-spark-6
+  `bytes_saved_by_ecn` — plus ONE new pinned LRU map,
+  `pace_saved_stamp` (policy root -> last-seen egress stamp, the
+  ecn_debt family's datapath-internal posture), the time base the
+  v28 EDT accrual read. The night-spark-6
   outline planned a recwn word in the tail; the landing moved the
   RECWN saving to the USERSPACE side on purpose (the find that
   shaped it): the sock_ops clamp carries no observable
@@ -341,26 +341,37 @@ directions.
   The three derivation laws (the estimate's law is the arc's own;
   each names its model, never a fabricated precision):
 
-  - **EDT — `bytes_saved_by_edt` (kernel-booked, egress path).**
-    The task's own formula, per-packet form: over the gap since the
-    lane's last policed egress packet, the budget the rate accrued
-    minus the volume actually delivered —
+  - **EDT — `bytes_saved_by_edt` (RETIRED, night-quota-audit,
+    schema v29).** The v28 booking read, per-packet form: over the
+    gap since the lane's last policed egress packet, the budget the
+    rate accrued minus the volume actually delivered —
     `saved = (rate x dt_capped) - pkt_len`, clamped at zero per
-    call. Summed over the lane's life it reads
-    `(rate x active-time) - uploaded`, the preserved headroom. The
-    caps are load-bearing and both borrowed from laws the house
-    already pins: the gap caps at ONE SECOND (refill_credits' own
-    idle cap — the counter must never reward idleness the bucket
-    itself refuses to credit) and the rate sanitizes at 4 GiB/s
-    (the recwn clamp's own guard — the BPF ISA has no widening
-    multiply, so bounded factors keep the product
-    overflow-impossible on a plain u64 multiply). The pure law
-    lives in pace.rs (`pacing_saved_bytes`), rootless-pinned by
-    pace_tests.rs; the accrual rides ONE insertion point in
-    try_enforce (after the stats entry materializes, before any
-    budgeted lane consumes the borrow), so every egress lane —
-    per-socket, group, DRR — books through it and the ingress
-    never pays for it.
+    call, summed over the lane's life as `(rate x active-time) -
+    uploaded`, the preserved headroom. The owner's 2026-11-09 live
+    reading killed it: a brave at 500kb booked 744.6 MB against a
+    20 MB doc-formula prediction (36.8x over), a python3 at 300kb
+    1.8x over — and the ratios differing per cgroup was the
+    formula's own shape confessing. Its only NONZERO content is the
+    budget the sender did not use: a saturated paced lane books
+    nothing (the budget lands within the packet's own length), and
+    an idle-ish lane books `rate x capped-gap` per packet —
+    headroom for an upload that was never pending. The one-second
+    gap cap (refill_credits' idle discipline) limits how fast idle
+    accrues; it does not make the accrual honest — the counter
+    still rewards idleness the bucket itself refuses to credit,
+    exactly what the cap was borrowed to prevent. A pacer
+    RESCHEDULES bytes; it does not remove them, and no cap short of
+    zero makes the counterfactual honest. The retirement takes the
+    accrual machinery out of the object (pace_saved_stamp,
+    pace_saved_accrue, pacing_saved_bytes, book_edt_saved — the
+    egress hot path loses one map read and one map write per
+    packet) and leaves the word at its offset reading zero; the
+    pacing lane's ENFORCEMENT (the hint prime, the sock_ops pin,
+    the policed verdicts) is untouched, and the lane's wire effect
+    — the suppressed burst-retransmission storm — stays what the
+    A/B harness measures, never a booked number. The schema bumps
+    to v29 (no layout change) so the reload wipes a pre-v29
+    ledger's stale fiction.
 
   - **ECN — `bytes_saved_by_ecn` (kernel-booked, book_rescue's
     correction).** One-for-one with `ce_marked_bytes`: every
@@ -401,11 +412,11 @@ directions.
   The owner's headline claim is workload-conditional, not a single
   number: the lanes' bookings are the counterfactual each physics
   owns — at the 100 kb rung the RECWN estimate alone books ~85%
-  (the window counterfactual), the ECN lane books the lossless
-  pressure valve it delivered, and the EDT lane books the burst
-  headroom it preserved — with the live proofs (recwn-probe,
+  (the window counterfactual) and the ECN lane books the lossless
+  pressure valve it delivered — with the live proofs (recwn-probe,
   ecn-probe, edt-probe) each carrying a row that reads the columns
-  the math fills. The wire prices the booking per workload: on a
+  the math fills (the EDT row pins the retirement: the word moves
+  zero). The wire prices the booking per workload: on a
   bounded transfer the sender never attempts the overrun the window
   books, and the A/B ground truth measured ~0% on both bounded
   directions (2026-11-06, night-netrunner-12); on an overrunning
@@ -420,8 +431,9 @@ directions.
   additive contract the CE-ledger pair set), the human table's
   `Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)` subordinate line
   renders the total with the layer split, and the verification
-  ladder closed: the pure-law pins (pacing_saved_bytes across the
-  cap/sanitize/monotonic matrix), the v28 JSON pins in the display
+  ladder closed: the pure-law pins (the v28-era pacing_saved_bytes
+  matrix rode out with the law it pinned — night-quota-audit), the
+  v28 JSON pins in the display
   suites (the live mapping, the window-law estimate, the
   self-extinguishing edge), the layout pins (64 bytes, offsets
   48/56, the round-trip), and the live cross-check — each probe's
@@ -466,23 +478,19 @@ the probes.
   pole: the column books exactly the marked volume, never a modeled
   multiple.
 
-- `bytes_saved_by_edt` — the egress pacing headroom (kernel-booked,
-  egress path). Over the gap since the lane's last policed egress
-  packet, the budget the rate accrued minus the volume actually
-  delivered — `saved = (rate x dt_capped) - pkt_len`, clamped at
-  zero per call. Summed over the lane's life it reads the task's own
-  formula:
+- `bytes_saved_by_edt` — RETIRED (night-quota-audit, schema v29;
+  the derivation record lives in this document's Layer 4 section
+  above). The v28 law booked `(rate x time_elapsed) - bytes_uploaded`
+  and the owner's live reading had it erring HIGH by up to 36.8x
+  against the doc's own "errs LOW, never high" contract: the
+  formula's only nonzero content is the budget an idle sender
+  never used. The word stays at its offset reading zero from v29
+  on; the pacing lane's enforcement is untouched and its wire
+  effect (the suppressed burst-retransmission storm) is the A/B
+  harness's measurement, never a booked number.
 
-      bytes_saved_by_edt = (rate x time_elapsed) - bytes_uploaded
-
-  The caps are load-bearing and borrowed from laws the house already
-  pins: the gap caps at ONE SECOND (refill_credits' idle cap — the
-  counter never rewards idleness the bucket itself refuses to
-  credit) and the rate sanitizes at 4 GiB/s (the recwn clamp's own
-  guard — the BPF ISA has no widening multiply, so bounded factors
-  keep the u64 product overflow-impossible).
-
-- `bytes_saved_total` — the sum of the three, the number `status
+- `bytes_saved_total` — the sum of the surviving lanes (RECWN +
+  ECN, plus the retired EDT word reading zero), the number `status
   --print-json` carries and the human table renders as
   `Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)`.
 

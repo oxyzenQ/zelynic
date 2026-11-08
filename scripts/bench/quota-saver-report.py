@@ -10,9 +10,10 @@ Cloudflare's capped speed store first, the Vultr Singapore rung and
 the Asian mirrors behind it), under a live zelynic limit, and reads
 `zelynic status --print-json` before and after each leg. The savings
 come from the kernel's own Layer 4 telemetry: the delta of
-`bytes_saved_total` (EDT pacing + ECN marks + the RECWN window
-counterfactual) against the delta of `bytes_allowed` (the bytes that
-actually transferred) across each leg.
+`bytes_saved_total` (the RECWN window counterfactual plus the ECN
+marks; the retired EDT word reads zero since schema v29,
+night-quota-audit) against the delta of `bytes_allowed` (the bytes
+that actually transferred) across each leg.
 
 The verdict lines are the task's exact wire contract, printed to
 stdout, one per leg:
@@ -328,8 +329,9 @@ def main() -> int:
     try:
         ul_id = make_cgroup(ul_cg)
         # Upload-only policy (`-u`): the pacing lane's commanded rate
-        # rides the egress policed path — exactly the leg the saver's
-        # EDT lane books.
+        # rides the egress policed path — the lane the retired EDT
+        # word once booked (zero since schema v29); the leg's honest
+        # savings read is the wire delta, never a booked number.
         rc, _, stderr = zel(binary, ["strict", str(ul_id), "-u", args.upload_rate, "--no-test"])
         if rc != 0:
             fail(f"strict -u {args.upload_rate} failed: {(stderr or '').strip()[:200]}")
