@@ -153,20 +153,14 @@ matrix and troubleshooting).
 ### Install from a release (recommended)
 
 Each release is a flat three-file tarball — `zelynic`, `README.md`,
-`LICENSE`, nothing else (the cosmostrix release invariant): the
-pure-Rust eBPF objects are embedded in the binary, so no toolchain,
-no clang, no cargo, and no installer is needed on the target machine.
+`LICENSE`, nothing else: the pure-Rust eBPF objects are embedded in
+the binary, so no toolchain, no clang, no cargo, and no installer is
+needed on the target machine.
 
-Releases are arch-baseline builds (NIGHT-improve-22, cosmostrix
-pro-linux lineage): every package is x86-64-v3 (AVX/AVX2/BMI1/BMI2/
-FMA — any x86_64 CPU from ~2013 Haswell onward) or x86-64-v4
-(AVX-512), fully static musl — two packages per tag, and only those
-two (NIGHT-dragon-maintenance-6: the gnu/glibc packages are retired;
-a static binary runs on every distro and every glibc version, the
-old "which libc leg" question no longer exists). The native v1
-baseline is retired from releases: every CPU that can run a release
-at all can run v3, and v3's vector paths are what the limiter's hot
-loops actually use.
+Releases ship as static musl builds in two CPU baselines:
+x86-64-v3 (any x86_64 CPU from ~2013 onward, Haswell-class) and
+x86-64-v4 (AVX-512, Zen 4/Ice Lake and newer). Pick v3 when in doubt
+— every CPU that can run a release runs v3.
 
 ```bash
 mkdir /tmp/zelynic-rel
@@ -179,12 +173,6 @@ install -Dm755 /tmp/zelynic-rel/zelynic ~/.local/bin/zelynic
 # or: sudo install -Dm755 /tmp/zelynic-rel/zelynic /usr/local/bin/zelynic
 ```
 
-Every package name carries its platform id (NIGHT-boost-36): the two
-tarballs are `zelynic-vX.Y.Z-linux-amd64-v3-musl.tar.gz` and
-`-v4-musl` — the same id the binary inside reports in `Build:`
-(`linux-amd64-v3-musl`): one string names the download and the
-binary's own self-description, so the two can never drift.
-
 Not sure which baseline your CPU takes? `grep -o 'avx512f'
 /proc/cpuinfo` answers v4 eligibility — any hit means yes, everything
 else takes v3.
@@ -192,17 +180,10 @@ else takes v3.
 Uninstall is `rm` on the binary — the release payload is that one
 file, so there is nothing else to clean (no /usr/lib payload, no
 service, no man page). Building from source?
-`scripts/package/install-on-my-machine.sh` does the whole job: it
-detects the CPU's x86-64-v3/v4 level, builds the release-tier musl
-binary the release matrix parity-gates against, and installs it to
-`/usr/bin` — the one install path, by law, no flags
-(night-dragon-maintenance-7, the zejtron mature-infra shape; a stale
-`~/.local/bin/zelynic` is removed first so nothing shadows
-`/usr/bin`). It is the install twin of `scripts/package/uninstall.sh`
-— the `-V` verdict is verified at the destination, and teardown
-clears kernel enforcement first (see below). A v1/v2 core gets the
-honest pointer to the native dev tier: bootstrap with
-`scripts/dev/bootstrap-ebpf.sh`.
+`scripts/package/install-on-my-machine.sh` detects the CPU's v3/v4
+level, builds the release-tier musl binary, and installs it to
+`/usr/bin`; a v1/v2 core gets the honest pointer to the native dev
+tier: bootstrap with `scripts/dev/bootstrap-ebpf.sh`.
 
 Each release tarball carries three checksums (SHA-512 + BLAKE3 +
 SHAKE256) and a detached GPG signature from the maintainer's
@@ -214,76 +195,43 @@ published key. Verify before installing — the one-liners live in
 
 `cargo install zelynic --locked` builds from the published source
 tarball and lands the **full-featured binary** — monitor and limiter,
-eBPF objects embedded — on a plain **stable toolchain: no nightly, no
-bpf-linker, no bootstrap** ever touches the installing machine
-(NIGHT-ask-2). The detached `ebpf/` workspace still cannot ride a
-registry tarball (cargo's package walk auto-excludes nested packages,
-verified live), so the crate ships **`ebpf-prebuilt/`** instead: the
-two maintainer-built objects — the same bytes the release tarballs
-above embed, so kernel compatibility is identical — which build.rs
-stages for the default `ebpf` feature. `zelynic -V` answers with the
-exact source sha under the full-life Signature line, `zelynic doctor`
-names the lane — `registry-prebuilt` (text and JSON) — and the
-provenance (source-tree hash, toolchain, linker, per-object sha256)
-rides the tarball as `ebpf-prebuilt/manifest.toml`. The dormant lane
-(stable binary, eBPF surfaces disabled) survives as the explicit
-opt-out: `--no-default-features`. Cargo verifies the tarball SHA-256
-against the registry index before extraction, the publish is
-`--locked` to the tagged `Cargo.lock`, and after any change under
-`ebpf/` the parity gate fails until the maintainer refreshes the
-prebuilt lane — enforced at commit time (a self-installing
-pre-commit hook), at push time (the wholesale Dragon Guard
-workflow), and at ship time (parity steps in the release and
-crates.io publish pipelines). The full channel contract lives in
-[docs/VERIFY_RELEASE.md](docs/VERIFY_RELEASE.md) (section 4, with the
-owner's first-publish manual).
+eBPF objects embedded — on a plain **stable toolchain**: no nightly,
+no bpf-linker, no bootstrap ever touches the installing machine:
+
+```bash
+cargo install zelynic --locked
+```
+
+The eBPF objects ship prebuilt in the crate (`ebpf-prebuilt/`) — the
+same bytes the release tarballs embed, so kernel compatibility is
+identical. `zelynic -V` and `zelynic doctor` identify the build and
+the `registry-prebuilt` lane; the dormant lane (eBPF surfaces
+disabled) is the explicit opt-out: `--no-default-features`.
+
+Full channel contract, provenance, and the prebuilt-lane freshness
+story: [docs/VERIFY_RELEASE.md](docs/VERIFY_RELEASE.md) (section 4,
+with the owner's first-publish manual).
 
 ### Install from source
 
-Lazy? Skip the manual order entirely — one command runs the WHOLE
-bring-up (bootstrap + static musl flagship build + engine self-test +
-the full supermassive matrix) and ends with a next-steps menu
-(NIGHT-improve-18):
+One command runs the whole bring-up — bootstrap, the static musl
+flagship build, the engine self-test, and the full supermassive test
+matrix — and ends with a next-steps menu:
 
 ```bash
 ./scripts/setup.sh               # everything
 ./scripts/setup.sh --skip-heavy  # bootstrap + build + self-test only
 ```
 
-The whole bring-up-plus-batteries flow runs on CI too (NIGHT-ultimate-3,
-the re-issued label; consolidated in NIGHT-improve-31; the kernel
-span + dynamic envelopes are NIGHT-improve-33): a push touching
-core files triggers `.github/workflows/supermassive.yml`, which runs
-this exact owner-facing path (`setup.sh` itself, not a CI-shaped
-shortcut) and then the supermassive batteries inside a KVM micro-VM
-on a hosted runner, under two resource envelopes derived at boot
-time from whatever runner the job lands on (the owner's "don't set
-fixed, let dynamic"; the small envelope is renamed low —
-NIGHT-blade-3): "supermassive test - low specs" (a quarter of the
-cores floored at 1 + an eighth of the RAM floored at 1024 MB, the
-dense-little-host slice, booting the documented floor kernel —
-jammy's 5.15.0 LTS line, the floor since night-netrunner-1 raised
-it off the retired impish 5.13 lane, resolved dynamically from the
-live archive) and "supermassive test - best specs" (every core + three quarters of the RAM, the big-host width,
-booting the Ubuntu archive's LATEST kernel, resolved dynamically at
-run time — nothing pinned, the resolver walks onto each new release
-by itself). The payload is the static musl flagship on the frozen
-ubuntu:22.04 userland it has always ridden (NIGHT-blade-12's
-"low/best with musl version" ask, made the WHOLE story by
-NIGHT-dragon-maintenance-6: the gnu legs retired with the gnu
-packaging — musl is the only shape built and shipped). So "does it
-work end to end?" is answered per push across the whole kernel span
-AND the machine span — no VirtualBox session needed;
-`workflow_dispatch` fires the same two legs on demand as the
-pre-release qualification run, and a weekly
-run keeps the span proven between pushes (a plain container cannot
-change the host kernel; the micro-VM is the honest container-shaped
-answer).
+CI runs the same flow on every push, against the 5.15 kernel floor
+and the latest kernel the Ubuntu archive ships, inside a KVM
+micro-VM. Full CI architecture and per-run results:
+[docs/CROSS_DISTRO_RESULTS.md](docs/CROSS_DISTRO_RESULTS.md).
 
 Building needs the pinned Rust toolchain (rustup installs the exact
-version from `rust-toolchain.toml`) plus the eBPF nightly pair — and
-one command readies the whole host: the prerequisites, the PATH fix,
-and the flagship binary itself (NIGHT-improve-16):
+version from `rust-toolchain.toml`) plus the eBPF nightly pair — one
+command readies the whole host: the prerequisites, the PATH fix, and
+the flagship binary itself:
 
 ```bash
 git clone https://github.com/oxyzenQ/zelynic.git
@@ -304,13 +252,11 @@ cargo build --release --features ebpf
 
 #### Native-CPU host builds
 
-For a binary compiled specifically for the host CPU (maximum
-performance on the machine it runs on, cosmostrix `pro-native`
-lineage):
+For a binary compiled specifically for the host CPU — maximum
+performance on the machine it runs on:
 
 ```bash
-# Static linking (musl — the only libc shape, NIGHT-dragon-
-# maintenance-6) — lands in
+# Static linking (musl) — lands in
 # target/x86_64-unknown-linux-musl/pro-native-musl/zelynic
 cargo pro-native-musl
 ```
@@ -326,26 +272,17 @@ Build-time: 9/18/2026 01:30 (UTC)
 Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)
 ```
 
-The `Build-time` line is stamped at compile time in `build.rs` — UTC
-only, no time crate in the dependency tree (see the
-dependency policy above).
-
 A native build never clobbers `target/release/zelynic` — the separate
-profile names keep both binaries side by side. The `-C
-target-cpu=native` tune applies to the host binary only: build.rs
-strips host-CPU and host-linker rustflags from the nested eBPF
-build's environment before invoking it (NIGHT-hunt-28), so the bpfel
-objects are identical no matter which alias built them. Note: a
-native binary only runs on the CPU family it was compiled for; ship
-the arch-baseline release packages for distribution.
+profile names keep both binaries side by side. Note: a native binary
+only runs on the CPU family it was compiled for; ship the
+arch-baseline release packages for distribution.
 
 #### Arch-baseline release builds (v3 / v4)
 
-The release packages' exact shapes, locally (NIGHT-improve-22,
-cosmostrix pro-linux lineage) — full flagship binary (`--features
-ebpf`), same optimization tier as release, a `-V` build label that
-names the shape, and a separate profile per shape so nothing
-clobbers anything:
+The release packages' exact shapes, built locally — full flagship
+binary (`--features ebpf`), same optimization tier as release, a `-V`
+build label that names the shape, and a separate profile per shape so
+nothing clobbers anything:
 
 ```bash
 cargo pro-linux-amd64-v3-musl # target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic
@@ -353,25 +290,20 @@ cargo pro-linux-amd64-v4-musl # target/x86_64-unknown-linux-musl/pro-linux-amd64
 ```
 
 Each alias injects `-C target-cpu=x86-64-v3` (or `-v4`) plus
-`-C target-feature=+crt-static` — so a local build reproduces the
-release artifact's optimization tier bit-for-bit (same flags the
-release workflow composes). build.rs strips the baseline flags from
-the nested eBPF build (NIGHT-hunt-28), exactly as for the native
-alias, so the bpfel objects stay identical across the three build
-shapes. A v3 build runs on any x86_64 CPU from
-~2013 onward; a v4 build needs AVX-512 (check with `grep -o
-'avx512f' /proc/cpuinfo`).
+`-C target-feature=+crt-static` — a local build reproduces the
+release artifact's optimization tier bit-for-bit. A v3 build runs on
+any x86_64 CPU from ~2013 onward; a v4 build needs AVX-512 (check
+with `grep -o 'avx512f' /proc/cpuinfo`).
 
 From source, `scripts/dev/bootstrap-ebpf.sh` builds the same alias
-lineage — the static `cargo pro-native-musl` flagship (the only libc
-shape, NIGHT-dragon-maintenance-6) — and verifies the binary answers
-`-V`; land it on PATH with a plain
-`cp target/x86_64-unknown-linux-musl/pro-native-musl/zelynic ~/.local/bin/`
-(NIGHT-improve-15). `scripts/package/uninstall.sh` clears kernel
-enforcement first: while BPF pins are still live under
-`/sys/fs/bpf/zelynic` it runs `u --all` (or prints the exact manual
-steps when no binary is left) before deleting files, so active limits
-never outlive the tool that can remove them.
+lineage — the static `cargo pro-native-musl` flagship — and verifies
+the binary answers `-V`; land it on PATH with a plain
+`cp target/x86_64-unknown-linux-musl/pro-native-musl/zelynic ~/.local/bin/`.
+`scripts/package/uninstall.sh` clears kernel enforcement first: while
+BPF pins are still live under `/sys/fs/bpf/zelynic` it runs `u --all`
+(or prints the exact manual steps when no binary is left) before
+deleting files, so active limits never outlive the tool that can
+remove them.
 
 ### Usage
 
