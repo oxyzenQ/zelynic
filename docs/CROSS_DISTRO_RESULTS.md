@@ -73,6 +73,29 @@
 > that change are the current status; the numbers above stay the
 > run-eleven record. The rows below stay the place for
 > owner-machine results (real desktop workloads, real browsers).
+>
+> Addendum — the workflow's current shape, moved here from the
+> README's install prose so the install sections stay boring and
+> silent (2026-11-09). The trigger surface is any push, any branch,
+> and any pull request, plus the workflow_dispatch click as the
+> pre-release qualification run (night-dragon-maintenance-2's blind
+> posture; NIGHT-reject-1 retired the weekly Monday 03:00 UTC clock —
+> the watch-summary step lands the FAIL/SKIP rows on every push and
+> dispatch run without it). The micro-VM is the honest
+> container-shaped answer: a plain container cannot change the host
+> kernel, so the batteries ride a real KVM boot — no VirtualBox
+> session needed. The payload is the static musl flagship on the
+> frozen ubuntu:22.04 userland — NIGHT-blade-12's "low/best with musl
+> version" ask, made the WHOLE story by night-dragon-maintenance-6:
+> the gnu legs retired with the gnu packaging, musl is the only shape
+> built and shipped ({low, best} x musl). The low leg now boots the
+> documented floor — jammy's 5.15.0 LTS line, the floor since
+> night-netrunner-1 raised it off the retired impish 5.13 lane —
+> resolved dynamically from the live archive to the newest
+> 5.15.0-ABI jammy-updates point release (HWE 6.x deliberately
+> excluded); the best leg boots the archive's LATEST kernel, resolved
+> dynamically at run time — nothing pinned.
+>
 
 ## Summary
 
