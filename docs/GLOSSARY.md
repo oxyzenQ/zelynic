@@ -82,6 +82,11 @@ first-time reader, and this page pays it once, up front.
   an ECT-capable packet delivered with CE set instead of dropped,
   the wire shape the ECN-first policing lane books one-for-one into
   the saved byte. (schema v19, the ECN-first entry above)
+- **CE marked**: the ECN-first lane's delivered CE-marked volume —
+  a drop prevented, the packet delivered with the CE codepoint
+  instead. Booked in `ce_marked_packets` / `ce_marked_bytes`; the
+  status row renders it as the grey "CE Marked" sub-line. (schema
+  v26, `ebpf/src/ecn.rs`, USAGE.md §reading)
 - **EDT — Earliest Departure Time**: the quota saver's Layer 3 —
   the EGRESS lane: the upload policy pinned onto the cgroup's TCP
   sockets as SO_MAX_PACING_RATE at connection setup, the kernel's
@@ -101,11 +106,33 @@ first-time reader, and this page pays it once, up front.
 - **pacing_rate_bytes**: the `--print-json` `limits[]` field
   carrying the upload lane's commanded rate (absent on upload-less
   and blocked rows). (schema v27)
+- **allowed**: the cumulative bytes the token bucket ADMITTED since
+  the policy applied, per cgroup, both directions aggregated — the
+  wire bytes the app received. The column header is the contract;
+  the name stays. (src/ebpf/limiter/stats.rs, USAGE.md §reading)
+- **dropped**: the cumulative bytes the token bucket's drop verdict
+  DISCARDED since the policy applied. Under the saver lanes, most
+  would-be drops are prevented (RECWN), marked (ECN), or paced
+  (EDT) before reaching this verdict; a small value under a policed
+  cgroup is the lanes working, a large one means the lane is not
+  binding at this rate. Ingress drops burn quota, egress drops save
+  it. (src/ebpf/limiter/stats.rs, USAGE.md §reading)
 - **The saved-quota books**: `bytes_saved_by_recwn` /
   `bytes_saved_by_ecn` / `bytes_saved_by_edt` / `bytes_saved_total`
   — the schema v28 ledger tail: the three layers' saved-byte words
   plus the sum, the human table's Quota Saved line (the RECWN word
   stays a userspace estimate, the arc doc owns its math).
+- **bytes_saved_total**: the sum of the three lanes' counterfactual
+  savings bookings (RECWN estimate + ECN one-for-one + EDT
+  headroom), schema v28. NOT a wire measurement — the
+  wire-measured savings is the A/B harness's output — and NOT the
+  same number as `dropped`; the status surface labels it
+  "(est., counterfactual)". (schema v28, src/ebpf/display.rs,
+  USAGE.md §reading)
+- **Quota Saved (status line)**: the schema-v28 telemetry's sum,
+  rendered with the honest "(est., counterfactual)" label. NOT the
+  same number as `dropped`; for the distinction, see USAGE.md
+  §reading. (src/ebpf/display_lines.rs, USAGE.md §reading)
 - **HostCaps**: the one-probe capability snapshot taken once per
   attach entry (`src/ebpf/host_caps.rs`) — the Adaptive Orchestra
   reads it for every attach decision, so no lane re-probes the host.
