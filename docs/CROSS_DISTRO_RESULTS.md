@@ -111,6 +111,27 @@
 > kubelet, so the container-native round trip (resolve
 > `docker://`/`k8s://` to a real cgroup, enforce, teardown) has its
 > own honest lane.
+>
+> Addendum 3 — the server-shape lane (night-server-1, 2026-11-09): the
+> kernel-span pair holds the userland constant on purpose, so it proves
+> kernels and says nothing about a distro's server shape. The new
+> Supermassive Server lane (.github/workflows/supermassive-server.yml)
+> boots the REAL Ubuntu Server 24.04 LTS cloud image — the distro's own
+> GRUB, kernel, systemd multi-user target and server daemon population
+> (sshd, systemd-networkd, journald, rsyslog, the resolve stack) —
+> inside a KVM micro-VM, installs the release-tier musl flagship from a
+> labeled payload drive, and drives the four-line proof: doctor
+> FULL-LIFE with cgroup v2 + BPF fs YES; strict → status → unstrict on
+> the machine JSON surface (active_limits 1 → 0); the self-probing
+> strict that prints VERIFIED; recover leaving no pins, no bpffs
+> directory, no lingering process. The image is pinned to a frozen
+> dated snapshot (release-20261017, SHA-512 verified before boot — a
+> mutable URL is not a test). The verdict rides the serial sentinel
+> SERVER-SENTINEL: PASS / SERVER-SENTINEL: FAIL <section>, the console
+> log uploaded on every run. The four-line proof is the lane's scope —
+> the Summary row says what it proves, no more (no 17/17 or 13/13
+> numbers are claimed for it; the depth and leak batteries remain the
+> kernel-span lanes' own jurisdiction).
 
 ## Summary
 
@@ -122,8 +143,12 @@
 | **Fedora 44** | 6.19.10 | GNU | 17/17 PASS | 13/13 PASS | firefox 100kb → 690 Kbps, 10kb → 72 Kbps | PASS |
 | **Ubuntu 21.10** | **5.13.0** | **MUSL** | **17/17 PASS** | **13/13 PASS** | **GeckoMain 100kb → 770 Kbps, 10kb → 72 Kbps** | PASS |
 | **Debian 13** (trixie) | 6.12.86 | MUSL | 17/17 PASS | 13/13 PASS | firefox-esr -d 900kb → 7.0 Mbps, -u 100kb → 1.1 Mbps | PASS |
+| **Ubuntu Server 24.04 LTS** (cloud image) | 6.8.0-147 | MUSL | the four-line server proof (doctor FULL-LIFE + apply/read/clean clean + verify VERIFIED + recover clean) — green on CI run 42513540887 | — | — | PASS |
 
 **Overall: 6/6 distros pass depth test + leak test. Real enforcement verified on all. Minimum kernel 5.13 verified. Both GNU + MUSL binaries verified. Zero bugs. Zero leaks. Production-ready.**
+
+Server 24.04 (cloud image, full boot, systemd multi-user target) — the kernel-span
+matrix proves kernels; this row proves the server distro shape.
 
 ### Build Verification (Debian 13 sandbox)
 
