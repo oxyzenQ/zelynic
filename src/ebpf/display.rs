@@ -79,7 +79,7 @@ pub(crate) struct DisplayData {
 // (use super::*) and the list-apps surface see the same paths as
 // before the split.
 pub(crate) use super::display_lines::{
-    StatusLineKind, active_limits_line, ce_marked_line, counters_footer_line, frame_status_output,
+    StatusLineKind, active_limits_line, ce_marked_line, counters_footer_lines, frame_status_output,
     guarantee_line, list_apps_header_line, pacing_line, quota_saved_line, recwn_line, status_cells,
     status_header_line, status_row_line, watchdog_line, window_lifetime_line,
 };
@@ -526,8 +526,14 @@ pub fn print_status(
         // counter footer — the allowed / dropped columns' own
         // units-and-window line, the --help grammar's NIGHT-dinner-11
         // contract carried onto the surface the owner was actually
-        // reading. One grey line under the table it explains.
-        below.push((StatusLineKind::FooterProse, counters_footer_line()));
+        // reading. night-docs-1: TWO grey lines under the table it
+        // explains — the window line and the direction law — each
+        // its own frame-law entry (the frame measures one line per
+        // entry), so the 80-column budget never cuts the direction
+        // clause.
+        for line in counters_footer_lines() {
+            below.push((StatusLineKind::FooterProse, line));
+        }
 
         // night-spark-2 (RECWN, schema v25): the receive-window
         // lane's own subordinate line — the watchdog's grey family,
