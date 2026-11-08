@@ -160,14 +160,34 @@ pub(super) fn docker_match(entries: &[DockerEntry], typed: &str) -> DockerMatch 
     }
 }
 
-/// The socket path to try, in probe order — the rootless daemon's
-/// $XDG_RUNTIME_DIR socket rides last.
-fn docker_socket_candidates() -> Vec<PathBuf> {
-    let mut candidates: Vec<PathBuf> = DOCKER_SOCKETS.iter().map(PathBuf::from).collect();
-    if let Ok(xdg) = std::env::var("XDG_RUNTIME_DIR") {
-        candidates.push(PathBuf::from(xdg).join("docker.sock"));
+/// Pure: the socket paths to try, in probe order, as a function of
+/// the XDG value — the two system sockets first, then the rootless
+/// daemon's $XDG_RUNTIME_DIR socket. night-cyber-2 split the ladder
+/// out of the env reader (verbatim, zero behavior change) so the
+/// rootless probe order pins rootlessly: the system daemon answers
+/// when both sockets exist, and the operator's rootless socket is
+/// the fallback where no system socket is present.
+fn socket_path_ladder(xdg: Option<&str>) -> Vec<PathBuf> {
+    let mut ladder: Vec<PathBuf> = DOCKER_SOCKETS.iter().map(PathBuf::from).collect();
+    if let Some(xdg) = xdg {
+        ladder.push(PathBuf::from(xdg).join("docker.sock"));
     }
-    candidates
+    ladder
+}
+
+fn docker_socket_candidates() -> Vec<PathBuf> {
+    socket_path_ladder(std::env::var("XDG_RUNTIME_DIR").ok().as_deref())
+}
+
+/// Pure: the honest fallthrough line — the refusal names every
+/// probed path, so the operator sees the whole ladder the resolver
+/// walked before giving up. night-cyber-2 extracted the inline
+/// literal verbatim so the wording pins rootlessly, the same
+/// pure-verdict-line pattern as `stopped_container_line`; the bytes
+/// the binary emits are unchanged.
+fn socket_not_found_line() -> &'static str {
+    "docker socket not found — is the docker daemon running?\n  \
+     tried: /var/run/docker.sock, /run/docker.sock, $XDG_RUNTIME_DIR/docker.sock"
 }
 
 /// One HTTP-over-unix-socket GET, read to EOF with a 2s deadline
@@ -262,12 +282,7 @@ pub(super) fn resolve_docker(name: &str) -> Result<Vec<u32>> {
     let socket = docker_socket_candidates()
         .into_iter()
         .find(|p| p.exists())
-        .ok_or_else(|| {
-            anyhow!(
-                "docker socket not found — is the docker daemon running?\n  \
-                 tried: /var/run/docker.sock, /run/docker.sock, $XDG_RUNTIME_DIR/docker.sock"
-            )
-        })?;
+        .ok_or_else(|| anyhow!(socket_not_found_line()))?;
     crate::output::verbose::vlog!("container", "docker API via {}", socket.display());
     let entries = parse_docker_reply(docker_http_get(&socket)?)?;
     crate::output::verbose::vlog!(

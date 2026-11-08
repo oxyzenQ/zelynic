@@ -4,7 +4,9 @@
 //! Pins for the docker half of the container-native resolution —
 //! the API-entry matching, the HTTP reply parser, the liveness
 //! verdict (charger-core-2d: State.Running plus State.Status,
-//! parsed defensively), the stopped-container refusal line, and the
+//! parsed defensively), the stopped-container refusal line, the
+//! socket-path ladder with its rootless $XDG_RUNTIME_DIR probe
+//! (night-cyber-2), and the
 //! docker cgroup matcher with its bounded-walk find. Split from
 //! container_tests.rs at the 500-LOC owner cap when the 2d pins
 //! grew the file past it (the same sibling-split lineage as
@@ -266,6 +268,122 @@ fn stopped_container_line_names_the_real_cause() {
     assert!(
         !line.contains("unrecognized cgroup driver layout"),
         "a stopped container must not be blamed on the layout: {line}"
+    );
+}
+
+// ── the socket-path ladder (night-cyber-2: the rootless pin) ━━━━
+
+/// The env lane's gate. The process env is a shared static and the
+/// harness runs tests in parallel threads, so the one test that
+/// writes XDG_RUNTIME_DIR holds this mutex for its whole read-write-
+/// restore window (the verbose lane's FLAG_GATE, the same
+/// one-writer discipline). No other test in any binary touches the
+/// real var — the update cooldown pins its XDG lane through the
+/// pure `stamp_path(Some(..))` vectors — so the gate's scope here
+/// is the whole env surface the suite owns.
+static ENV_GATE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// The pure ladder: the two system sockets in probe order, the
+/// rootless $XDG_RUNTIME_DIR socket appended LAST. The system
+/// daemon answers when both sockets exist; the operator's rootless
+/// socket is the fallback where no system socket is present (the
+/// probe order the audit recorded, NIGHT_CYBER_1 :117). Pinned as
+/// plain vectors so any re-ordering is a reviewable diff, not a
+/// silent drift.
+#[test]
+fn socket_path_ladder_pins_the_probe_order() {
+    // XDG unset: the system ladder only.
+    assert_eq!(
+        socket_path_ladder(None),
+        vec![
+            PathBuf::from("/var/run/docker.sock"),
+            PathBuf::from("/run/docker.sock"),
+        ]
+    );
+    // XDG set: the rootless socket rides last, after the system pair.
+    assert_eq!(
+        socket_path_ladder(Some("/tmp/xdg-test")),
+        vec![
+            PathBuf::from("/var/run/docker.sock"),
+            PathBuf::from("/run/docker.sock"),
+            PathBuf::from("/tmp/xdg-test/docker.sock"),
+        ]
+    );
+}
+
+/// The env wiring: the wrapper reads the REAL XDG_RUNTIME_DIR and
+/// produces the same ladder the pure fn pins — first unset, then
+/// set, then restored, all inside the ENV_GATE window. The unsafe
+/// blocks are the edition-2024 shape; the safety argument is the
+/// gate itself (one writer, no concurrent reader in the suite).
+#[test]
+fn docker_socket_candidates_read_the_real_env() {
+    let _guard = ENV_GATE.lock().unwrap();
+    let saved = std::env::var("XDG_RUNTIME_DIR").ok();
+
+    // SAFETY: env writes serialized by ENV_GATE; no other test
+    // reads XDG_RUNTIME_DIR (see the gate's doc above).
+    unsafe { std::env::remove_var("XDG_RUNTIME_DIR") };
+    assert_eq!(
+        docker_socket_candidates(),
+        vec![
+            PathBuf::from("/var/run/docker.sock"),
+            PathBuf::from("/run/docker.sock"),
+        ],
+        "unset: the system ladder only"
+    );
+
+    // SAFETY: same gate, same single-writer discipline.
+    unsafe { std::env::set_var("XDG_RUNTIME_DIR", "/tmp/xdg-test") };
+    assert_eq!(
+        docker_socket_candidates(),
+        vec![
+            PathBuf::from("/var/run/docker.sock"),
+            PathBuf::from("/run/docker.sock"),
+            PathBuf::from("/tmp/xdg-test/docker.sock"),
+        ],
+        "set: the rootless socket rides last, after the system pair"
+    );
+
+    // Restore the harness's own env before releasing the gate.
+    match saved {
+        // SAFETY: still inside the ENV_GATE window; the single-writer
+        // discipline is the gate's own doc above.
+        Some(v) => unsafe { std::env::set_var("XDG_RUNTIME_DIR", v) },
+        // SAFETY: same gate, same window, same single writer.
+        None => unsafe { std::env::remove_var("XDG_RUNTIME_DIR") },
+    }
+}
+
+/// The honest fallthrough: when the whole ladder misses, the
+/// refusal names EVERY probed path — the operator sees the exact
+/// three paths the resolver walked before giving up, including the
+/// rootless socket symbolically (docker.rs carried the wording
+/// inline; night-cyber-2 extracted it verbatim to make it pinnable,
+/// bytes unchanged).
+#[test]
+fn socket_not_found_line_names_every_probed_path() {
+    let line = socket_not_found_line();
+    assert!(
+        line.contains("docker socket not found"),
+        "the verdict leads the refusal: {line}"
+    );
+    assert!(
+        line.contains("/var/run/docker.sock"),
+        "the canonical path rides: {line}"
+    );
+    assert!(
+        line.contains("/run/docker.sock"),
+        "the /run alias rides: {line}"
+    );
+    assert!(
+        line.contains("$XDG_RUNTIME_DIR/docker.sock"),
+        "the rootless path rides symbolically: {line}"
+    );
+    assert_eq!(
+        line.matches("docker.sock").count(),
+        3,
+        "exactly the three probed paths, no fewer and no invented ones: {line}"
     );
 }
 
