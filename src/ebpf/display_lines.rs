@@ -16,7 +16,9 @@ use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::format_bytes;
 use crate::ebpf::limiter::types::{BracketPair, PolicyWindowRaw, WINDOW_KIND_SPAN};
 use crate::ebpf::limiter::{format_rate_exact, format_wall_utc, wall_minus_mono, window_state};
-use crate::output::{brand, grey, ok, warn};
+use crate::output::{
+    brand, colored_display_width, fit_colored_to_width, grey, ok, pad_colored_to_width, warn,
+};
 
 /// One rate cell's text: the rate, plus " /socket" when the policy
 /// enforces per socket (charger-core-3b — the marker that keeps the
@@ -450,3 +452,119 @@ fn pair_halves(pair: BracketPair) -> String {
     };
     format!("{floor_half}{ceil_half}").trim().to_string()
 }
+
+// ── the Shape B frame law (night-ux-5) ──────────────────────────────────────
+
+/// Which family of the status output one composed line belongs to —
+/// the frame law's only question is the truncation ladder: the
+/// footer prose cuts first (the least load-bearing prose for a
+/// one-glance read), the table's own lines and the signature stamp
+/// never cut. The order of the cut tiers below is the owner's Shape
+/// B boundary made code: the sacrifice ladder runs down through the
+/// standalone telemetry lines to the per-row subordinate family.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum StatusLineKind {
+    /// The counter footer's units-and-window prose (night-ux-1).
+    FooterProse,
+    /// The RECWN lane's window line (night-spark-2).
+    Recwn,
+    /// The quota telemetry's saved line, narrow form included
+    /// (night-spark-7).
+    Quota,
+    /// The watchdog countdown / expiry line (NIGHT-boost-5).
+    Watchdog,
+    /// The census line and the empty board's verdict.
+    Census,
+    /// A row's subordinate lifetime/guarantee/CE/pacing line.
+    RowSubordinate,
+    /// The table's header, data rows, and the signature stamp —
+    /// the load-bearing lines, never truncated.
+    Protected,
+}
+
+impl StatusLineKind {
+    /// The tier's place in the sacrifice ladder — `None` marks the
+    /// lines a terminal narrower than the content can never claim.
+    fn cut_rank(self) -> Option<usize> {
+        match self {
+            StatusLineKind::FooterProse => Some(0),
+            StatusLineKind::Recwn => Some(1),
+            StatusLineKind::Quota => Some(2),
+            StatusLineKind::Watchdog => Some(3),
+            StatusLineKind::Census => Some(4),
+            StatusLineKind::RowSubordinate => Some(5),
+            StatusLineKind::Protected => None,
+        }
+    }
+}
+
+/// The status frame, fitted: the grid's two flanks already ordered
+/// as print_status prints them, and the frame WIDTH every chrome
+/// line (title bar, grid) must span — the widest line the output
+/// carries, however humble its family.
+pub(crate) struct StatusFrame {
+    /// The lines above the grid: watchdog, census, header row.
+    pub(crate) above_grid: Vec<String>,
+    /// The lines below: data rows, subordinate lines, footer,
+    /// RECWN, stamp.
+    pub(crate) below_grid: Vec<String>,
+    /// The frame's width in rendered columns — the title bar and
+    /// the grid compose at exactly this width.
+    pub(crate) width: usize,
+}
+
+/// The Shape B frame law (night-ux-5, the owner's 2026-11-08 live
+/// run): the frame is the CONTENT's own width, never the table's
+/// alone. PURE text shaping, unit-pinnable without capturing
+/// stdout — the composition (which lines, which order) stays with
+/// print_status; this function owns the three passes:
+///
+/// 1. the CUT pass — a line whose family rides the truncation
+///    ladder and whose rendered width exceeds the terminal budget
+///    truncates to the budget, ellipsis last (never wrapped; a
+///    wrapped honesty label is not an honest label). Protected
+///    lines never cut.
+/// 2. the WIDTH pass — the frame width is the widest line either
+///    flank carries after the cut.
+/// 3. the PAD pass — every line pads to exactly that width, so the
+///    right edge is one straight column, not ragged.
+pub(crate) fn frame_status_output(
+    mut above: Vec<(StatusLineKind, String)>,
+    mut below: Vec<(StatusLineKind, String)>,
+    budget: usize,
+) -> StatusFrame {
+    let cut = |lines: &mut Vec<(StatusLineKind, String)>| {
+        for (kind, line) in lines.iter_mut() {
+            if kind.cut_rank().is_some() && colored_display_width(line) > budget {
+                *line = fit_colored_to_width(line, budget);
+            }
+        }
+    };
+    cut(&mut above);
+    cut(&mut below);
+    let width = above
+        .iter()
+        .chain(below.iter())
+        .map(|(_, line)| colored_display_width(line))
+        .max()
+        .unwrap_or(0);
+    let pad = |lines: Vec<(StatusLineKind, String)>| {
+        lines
+            .into_iter()
+            .map(|(_, line)| pad_colored_to_width(&line, width))
+            .collect::<Vec<_>>()
+    };
+    StatusFrame {
+        above_grid: pad(above),
+        below_grid: pad(below),
+        width,
+    }
+}
+
+// night-ux-5: the Shape B frame-law pins live under the single
+// test/ tree (cosmostrix Pattern C), #[path]-wired exactly like the
+// quota pins — split from display_tests.rs, whose own LOC headroom
+// the branch-frame pins already spent.
+#[cfg(test)]
+#[path = "../../test/ebpf/display_frame_tests.rs"]
+mod display_frame_tests;

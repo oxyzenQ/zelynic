@@ -183,6 +183,129 @@ pub fn pad_to_width(s: &str, w: usize) -> String {
     out
 }
 
+// ── the colored-line twins (night-ux-5, Shape B) ────────────────────────────
+//
+// The status frame's lines arrive ALREADY COLORED — the pure renderers
+// (display_lines.rs) wrap each line in its tier's escape before the frame
+// assembly sees it. [`display_width`] is not that function's business (its
+// doc says so), but the frame law needs the same measurement over a line
+// that carries an escape prefix and the layer's bare-ESC reset: these two
+// walk the escapes the eagle border's own `fit` walks (render/border.rs —
+// escapes copy through whole and claim zero columns, visible glyphs count
+// by [`char_width`]), so the frame and the border answer to one width
+// family. The same routing discipline holds: a future surface that fits
+// colored lines measures here, not its own.
+
+/// The rendered width of an already-colored line: escape sequences
+/// ride free (copied, never counted), visible glyphs count by
+/// [`char_width`]. The layer spells escapes two ways — a full SGR
+/// open (`ESC [ ... m`) and the bare-ESC reset (`color::reset()`) —
+/// the walk consumes the open through its terminating `m` and the
+/// reset as the one invisible byte it is, so a line's tail after
+/// its own reset (the frame's pad spaces) measures again.
+#[must_use]
+pub fn colored_display_width(s: &str) -> usize {
+    let mut width = 0usize;
+    let mut it = s.chars().peekable();
+    while let Some(c) = it.next() {
+        if c == '\x1b' {
+            // The escape class the sanitizer already narrowed to two
+            // spellings: the SGR open (through its `m`) and the
+            // bare-ESC reset (one byte, nothing to skip). The probe
+            // PEEKS — a consumed non-`[` byte after the reset is
+            // visible content, never sequence furniture.
+            if it.peek() == Some(&'[') {
+                it.next();
+                for n in it.by_ref() {
+                    if n == 'm' {
+                        break;
+                    }
+                }
+            }
+            continue;
+        }
+        width += if (c as u32) < 0x0300 {
+            1
+        } else {
+            char_width(c)
+        };
+    }
+    width
+}
+
+/// The colored twin of [`fit_to_width`]: fit an already-colored line
+/// to `w` rendered columns, truncating with an ellipsis when it does
+/// not fit. Escapes copy through whole (never cut mid-sequence); a
+/// cut that drops the line's trailing reset re-closes the color with
+/// the layer's own bare-ESC spelling, so a truncated line can never
+/// bleed its tier into the lines below it.
+#[must_use]
+pub fn fit_colored_to_width(s: &str, w: usize) -> String {
+    if colored_display_width(s) <= w {
+        return s.to_string();
+    }
+    if w == 0 {
+        return String::new();
+    }
+    let mut out = String::with_capacity(s.len());
+    let mut visible = 0usize;
+    let mut seen_escape = false;
+    let mut it = s.chars().peekable();
+    while let Some(c) = it.next() {
+        if c == '\x1b' {
+            seen_escape = true;
+            out.push(c);
+            // The SGR open copies through its `m`; the bare-ESC
+            // reset copies as the one byte it is (the peek keeps a
+            // visible byte after the reset out of the sequence).
+            if it.peek() == Some(&'[') {
+                it.next();
+                out.push('[');
+                for n in it.by_ref() {
+                    out.push(n);
+                    if n == 'm' {
+                        break;
+                    }
+                }
+            }
+            continue;
+        }
+        let cw = if (c as u32) < 0x0300 {
+            1
+        } else {
+            char_width(c)
+        };
+        // One column reserved for the ellipsis — the same budget
+        // law [`fit_to_width`] renders by.
+        if visible + cw > w - 1 {
+            break;
+        }
+        out.push(c);
+        visible += cw;
+    }
+    out.push('…');
+    if seen_escape && !out.ends_with('\x1b') {
+        out.push('\x1b');
+    }
+    out
+}
+
+/// The colored twin of [`pad_to_width`]: fit ([`fit_colored_to_width`])
+/// AND pad so the line renders exactly `w` columns — the frame's one
+/// straight right edge. Pad spaces land AFTER the line's own reset
+/// (plain, uncolored), the border's fit shape.
+#[must_use]
+pub fn pad_colored_to_width(s: &str, w: usize) -> String {
+    let width = colored_display_width(s);
+    if width >= w {
+        return fit_colored_to_width(s, w);
+    }
+    let mut out = String::with_capacity(s.len() + (w - width));
+    out.push_str(s);
+    out.push_str(&" ".repeat(w - width));
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -269,5 +392,37 @@ mod tests {
         // The realistic Trojan-Source comm: four ASCII chars + RLO +
         // three ASCII chars = 7 columns (the RLO claims none).
         assert_eq!(display_width("evil\u{202E}nwp"), 7);
+    }
+
+    /// The colored twins (night-ux-5, Shape B): escapes claim zero
+    /// columns, the ellipsis cut re-closes an open color with the
+    /// layer's bare-ESC reset, and the pad lands past the reset —
+    /// the frame's lines measure, cut, and pad by VISIBLE width
+    /// whatever tier they wear.
+    #[test]
+    fn colored_lines_measure_cut_and_pad_by_visible_width() {
+        let open = "\x1b[38;2;168;85;247m";
+        let esc = "\x1b";
+        let line = format!("{open}  allowed / dropped{esc}");
+        // The SGR prefix and the bare-ESC reset claim nothing.
+        assert_eq!(colored_display_width(&line), 19);
+        // Cut inside the visible text: budget 10 -> 9 glyphs + '…',
+        // the open SGR copied whole, the color re-closed.
+        let cut = fit_colored_to_width(&line, 10);
+        assert_eq!(colored_display_width(&cut), 10);
+        assert!(cut.starts_with(open));
+        assert!(cut.ends_with("…\x1b"));
+        // A line that fits passes through byte-identical.
+        assert_eq!(fit_colored_to_width(&line, 19), line);
+        assert_eq!(fit_colored_to_width(&line, 40), line);
+        // Pad lands exactly on the budget, spaces after the reset.
+        let padded = pad_colored_to_width(&line, 30);
+        assert_eq!(colored_display_width(&padded), 30);
+        assert!(padded.starts_with(&line));
+        assert!(padded[line.len()..].chars().all(|c| c == ' '));
+        // A CJK-visible colored line measures 2 per glyph.
+        let cjk = format!("{open}谷歌{esc}");
+        assert_eq!(colored_display_width(&cjk), 4);
+        assert_eq!(colored_display_width(&pad_colored_to_width(&cjk, 9)), 9);
     }
 }
