@@ -96,6 +96,21 @@
 > excluded); the best leg boots the archive's LATEST kernel, resolved
 > dynamically at run time — nothing pinned.
 >
+> Addendum 2 — the lanes behind the README's old "no machine handy"
+> paragraph (2026-11-09): the E2E depth workflow
+> (.github/workflows/supermassive-e2e.yml) runs the four depth suites
+> no other lane carries — the full command surface as an unprivileged
+> user (the honest refusal contract) plus the limiter depth
+> stresstest, the endurance clocks, and the whole-CLI smoke battery
+> as root — on both ends of the kernel span (the 5.15.0 floor and the
+> dynamically resolved latest kernel), each leg against the
+> release-tier alias build. The container E2E lanes
+> (.github/workflows/supermassive-container.yml) run docker://
+> (native docker on the runner) and k8s:// (a kind cluster) against
+> real runtimes — the micro-VM pair ships no docker daemon and no
+> kubelet, so the container-native round trip (resolve
+> `docker://`/`k8s://` to a real cgroup, enforce, teardown) has its
+> own honest lane.
 
 ## Summary
 
