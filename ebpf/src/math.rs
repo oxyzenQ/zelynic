@@ -225,13 +225,20 @@ pub struct Bucket {
 ///
 /// v28 (night-spark-7, the quota telemetry's math — Layer 4 of the
 /// quota saver): the tail grows again, 48 -> 64 bytes, the same
-/// pure-append law. `bytes_saved_by_edt` (offset 48) is booked on
-/// the egress policed path (pace_flow.rs pace_saved_accrue ->
-/// book_edt_saved) as the lane's theoretical budget minus the volume
-/// actually delivered — rate x elapsed minus uploaded, the task's
-/// own formula, accrued per packet against a per-cgroup stamp with
-/// the refill_credits one-second idle cap — so the column reads the
-/// quota headroom the pacer preserved while the lane was active.
+/// pure-append law. `bytes_saved_by_edt` (offset 48) was booked on
+/// the egress policed path as the lane's theoretical budget minus
+/// the volume actually delivered — rate x elapsed minus uploaded.
+/// night-quota-audit (2026-11-09, schema v29) RETIRED that booking:
+/// the formula's only nonzero content is the budget an idle sender
+/// never used (a saturated paced lane books nothing; an idle-ish
+/// lane books rate x capped-gap per packet — the owner's live
+/// reading had it erring HIGH by up to 36.8x against the doc's
+/// "errs LOW, never high" contract), and a pacer reschedules bytes
+/// rather than removing them. The word stays at its offset reading
+/// zero — the pure-append law keeps every pre-v29 reader unchanged
+/// — and the quota saved total is the two lanes whose physics
+/// actually withhold bytes: ECN's one-for-one marks and the RECWN
+/// userspace estimate.
 /// `bytes_saved_by_ecn` (offset 56) is booked by book_rescue's
 /// correction beside the ce_marked pair it already writes: every
 /// delivered CE-marked byte is a byte that never becomes a
@@ -251,9 +258,12 @@ pub struct LimiterStats {
     pub bytes_dropped: u64,
     pub ce_marked_packets: u64,
     pub ce_marked_bytes: u64,
-    /// The egress pacing lane's preserved headroom, bytes (v28):
-    /// the running (rate x elapsed) - uploaded, booked per allowed
-    /// egress packet on a paced lane.
+    /// The egress pacing lane's retired saved word, bytes (v28):
+    /// booked (rate x elapsed) - uploaded until night-quota-audit
+    /// (schema v29) retired the counterfactual — the formula's only
+    /// nonzero content was the budget an idle sender never used.
+    /// Kept at offset 48 for layout stability; reads zero from v29
+    /// on.
     pub bytes_saved_by_edt: u64,
     /// The ECN lane's saved volume, bytes (v28): one-for-one with
     /// ce_marked_bytes — every delivered mark is a byte that never

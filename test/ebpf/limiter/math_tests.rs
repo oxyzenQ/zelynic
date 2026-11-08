@@ -28,9 +28,7 @@
 #[path = "../../../ebpf/src/math.rs"]
 pub(super) mod ebpf_math;
 
-use self::ebpf_math::{
-    Bucket, LimiterStats, MAX_ENFORCABLE_BURST, NS_PER_SEC, Policy, book_edt_saved, enforce,
-};
+use self::ebpf_math::{Bucket, LimiterStats, MAX_ENFORCABLE_BURST, NS_PER_SEC, Policy, enforce};
 
 pub(super) fn pol(rate: u64, burst: u64) -> Policy {
     Policy {
@@ -64,26 +62,12 @@ fn fresh_stats() -> LimiterStats {
     }
 }
 
-/// night-spark-7 (the quota telemetry's math — Layer 4): the EDT
-/// saved word's booking pin — book_edt_saved adds exactly the
-/// volume the pure law computed, moves no other word (the v28
-/// tail's words are strangers to the legacy quartet and the CE
-/// pair), and a zero booking is the no-op the hot path relies on
-/// (a saturated paced lane pays no RMW at all).
-#[test]
-fn book_edt_saved_moves_only_its_own_word() {
-    let mut stats = fresh_stats();
-    book_edt_saved(&mut stats, 25_000);
-    book_edt_saved(&mut stats, 17_432);
-    assert_eq!(stats.bytes_saved_by_edt, 42_432);
-    assert_eq!(stats.bytes_saved_by_ecn, 0);
-    assert_eq!(stats.packets_allowed, 0);
-    assert_eq!(stats.bytes_allowed, 0);
-    assert_eq!(stats.ce_marked_bytes, 0);
-    // The no-op shape: zero books nothing, the counter never moves.
-    book_edt_saved(&mut stats, 0);
-    assert_eq!(stats.bytes_saved_by_edt, 42_432);
-}
+// ── night-quota-audit (2026-11-09): the night-spark-7 booking pin
+// (book_edt_saved moves only its own word) retired WITH the function
+// it pinned — the egress accrual is gone from schema v29 on (the
+// saved-headroom law booked the budget an idle sender never used;
+// pace.rs carries the retirement record) and the word it wrote now
+// reads zero for the life of the map.
 
 // ── fill-detect: the overflow guard, behaviorally invisible ─────────────
 

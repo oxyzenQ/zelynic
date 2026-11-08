@@ -99,10 +99,13 @@ QUICK_SOAK_S = 10.0
 # (night-spark-2, RECWN): the recwn_socket_hint map + the
 # zelynic_recwn sock_ops program + its link — 35 maps + 3 programs
 # + 3 links, the 41-object family. Grown once more with schema
-# v27+v28 (night-spark-5/7, the quota saver's pacing lane and its
-# Layer 4 stamp): the pace_socket_hint map, the pace_saved_stamp
-# map, the zelynic_pace sock_ops program + its link — 37 maps +
-# 4 programs + 4 links, the 45-object family. The *_counters maps
+# v27 (night-spark-5, the quota saver's pacing lane): the
+# pace_socket_hint map, the zelynic_pace sock_ops program + its
+# link — 36 maps + 4 programs + 4 links, the 44-object family.
+# Schema v28 grew the family by one (the pace_saved_stamp map,
+# the Layer 4 accrual's time base); schema v29 (night-quota-audit,
+# 2026-11-09) retired that accrual with the law it served, and the
+# family is back to 44 objects. The *_counters maps
 # stay off the rig on purpose: telemetry, never loader state.
 PIN_FAMILY = {
     # the 22 pinned maps the base loader pins (schema v18 and before)
@@ -161,18 +164,18 @@ PIN_FAMILY = {
     "enforce_ul_link",
     "zelynic_recwn",
     "zelynic_recwn_link",
-    # the schema v27+v28 additions (night-spark-5/7, the quota
-    # saver's pacing lane and its Layer 4 stamp): the cookie-keyed
-    # upload pacing-rate hint map, the stamp map the saved-headroom
-    # accrual keys (v28), the zelynic_pace sock_ops program, and
-    # its BPF_CGROUP_SOCK_OPS link — the loader's fourth
+    # the schema v27 addition (night-spark-5, the quota saver's
+    # pacing lane): the cookie-keyed upload pacing-rate hint map,
+    # the zelynic_pace sock_ops program, and its
+    # BPF_CGROUP_SOCK_OPS link — the loader's fourth
     # program/link pair, pinned beside the RECWN twin by the same
     # law. Re-derived from live CI reality (the E2E rig's own diff
     # output, runs 41803525041 and 41813297926: "44 pins ... extra:
-    # pace_socket_hint, zelynic_pace, zelynic_pace_link" at v27,
-    # the stamp map joining at v28).
+    # pace_socket_hint, zelynic_pace, zelynic_pace_link" at v27).
+    # The v28 stamp map (pace_saved_stamp) joined and left again:
+    # schema v29 (night-quota-audit) retired the saved-headroom
+    # accrual with the law it served.
     "pace_socket_hint",
-    "pace_saved_stamp",
     "zelynic_pace",
     "zelynic_pace_link",
 }

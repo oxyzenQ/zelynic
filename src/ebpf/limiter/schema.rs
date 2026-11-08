@@ -529,7 +529,23 @@
 ///     programs to reload into the v28 object — active limits are
 ///     dropped once, re-apply after upgrade, the same one-time
 ///     contract as every bump before it.
-pub const SCHEMA_VERSION_EXPECTED: u32 = 28;
+/// v29 (night-quota-audit, the quota saved estimate errs low as
+///     documented): the EDT saved word's booking is RETIRED kernel-
+///     side — no struct layout change, the mirror LimiterStatsRaw
+///     stays 64 bytes, every offset holds, and the JSON keys stay
+///     (always present, the additive contract). The v28 booking
+///     ((rate x elapsed) - uploaded) booked the budget an idle
+///     sender never used — the owner's live reading had the column
+///     erring HIGH by up to 36.8x against the doc's "errs LOW,
+///     never high" contract — so from v29 on the word reads zero,
+///     `bytes_saved_total` is the ECN one-for-one plus the RECWN
+///     userspace estimate, and the pacing lane's wire effect stays
+///     the A/B harness's measurement, never a booked number. The
+///     VERSION bump (no size change) forces the reload that wipes a
+///     pre-v29 ledger's stale nonzero word; active limits are
+///     dropped once, re-apply after upgrade, the same one-time
+///     contract as every bump before it.
+pub const SCHEMA_VERSION_EXPECTED: u32 = 29;
 
 #[cfg(test)]
 mod sync_pin {

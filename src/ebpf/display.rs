@@ -41,10 +41,12 @@ pub(crate) struct DisplayData {
     pub(crate) ce_marked_packets: u64,
     pub(crate) ce_marked_bytes: u64,
     /// night-spark-7, schema v28 (the quota telemetry's math — Layer
-    /// 4 of the quota saver): the egress pacing lane's preserved
-    /// headroom, read off the stats row's v28 tail — the running
-    /// (rate x elapsed) - uploaded the kernel books on the egress
-    /// policed path. The Quota Saved line's EDT half.
+    /// 4 of the quota saver): the egress pacing lane's saved word,
+    /// read off the stats row's tail — (rate x elapsed) - uploaded
+    /// until night-quota-audit (schema v29) retired the kernel
+    /// booking (the counterfactual's only nonzero content was the
+    /// budget an idle sender never used). The Quota Saved line's EDT
+    /// half, zero from v29 on.
     pub(crate) bytes_saved_by_edt: u64,
     /// night-spark-7, Layer 4: the RECWN lane's saved volume — the
     /// window-law counterfactual (recwn_saved_bytes below): the
@@ -147,9 +149,11 @@ pub(super) fn collect_display_data(
                 ce_marked_packets: s.map(|(_, s)| s.ce_marked_packets).unwrap_or(0),
                 ce_marked_bytes: s.map(|(_, s)| s.ce_marked_bytes).unwrap_or(0),
                 // night-spark-7 (the quota telemetry's math — Layer
-                // 4): the two kernel-booked columns copy straight off
-                // the v28 stats tail, and the RECWN estimate runs the
-                // window-law counterfactual below — planted lane,
+                // 4): the kernel-booked ECN column copies straight off
+                // the stats tail, the EDT column rides the same tail
+                // but reads zero from schema v29 on (night-quota-audit
+                // retired the kernel booking), and the RECWN estimate
+                // runs the window-law counterfactual below — planted lane,
                 // live download rate, the row's delivered volume. A
                 // row with no stats entry books nothing (the
                 // unwrap_or(0) family's own honesty).

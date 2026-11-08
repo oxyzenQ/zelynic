@@ -148,3 +148,37 @@ fn quota_saved_line_collapses_to_the_narrow_form_under_budget() {
         "    Quota Saved: 5.5 MB (est., counterfactual — see --help)"
     );
 }
+
+/// night-quota-audit (2026-11-09): the Layer 4 estimate's
+/// pure-formula pin, asserted directly against the documented law —
+/// given (allowed, clamped, default), recwn_saved_bytes returns
+/// `(allowed / clamped) x (default - clamped)`, the integer-floor
+/// form of docs/QUOTA_SAVER_PHYSICS.md's booking. The owner's live
+/// shape rides the matrix: a 500kb policy (parse.rs's x1000 bytes/s)
+/// derives a 100_000-byte clamp, so 65_100_000 delivered bytes are
+/// 651 full window-cycles, each worth 131_072 - 100_000 bytes of
+/// counterfactual flight — 20_227_872, the number the Quota Saved
+/// total must track now that the EDT word is retired (the live
+/// reading that broke the errs-LOW contract was the EDT lane's
+/// 36.8x idle booking, never this estimate).
+#[test]
+fn the_recwn_estimate_is_the_documented_formula_byte_exact() {
+    let rate = 500_000; // the "500kb" policy, bytes per second
+    let allowed = 65_100_000; // the owner's live 65.1 MB reading
+    let clamped = recwn_window_bytes(rate);
+    assert_eq!(clamped, 100_000);
+    let expected = (allowed / clamped) * (RECWN_SAVED_DEFAULT_WINDOW_BYTES - clamped);
+    assert_eq!(recwn_saved_bytes(rate, allowed), expected);
+    assert_eq!(recwn_saved_bytes(rate, allowed), 20_227_872);
+
+    // The same identity across the binding-rate matrix — the formula
+    // is the contract, so the function may not drift from it at any
+    // input whose clamp still binds under the default window.
+    let allowed: u64 = 61_000_000;
+    for rate in [50_000, 100_000, 300_000, 500_000] {
+        let clamped = recwn_window_bytes(rate);
+        assert!(clamped < RECWN_SAVED_DEFAULT_WINDOW_BYTES);
+        let expected = (allowed / clamped) * (RECWN_SAVED_DEFAULT_WINDOW_BYTES - clamped);
+        assert_eq!(recwn_saved_bytes(rate, allowed), expected);
+    }
+}

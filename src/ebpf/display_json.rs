@@ -472,13 +472,13 @@ struct LimitEntry {
     ce_marked_packets: u64,
     ce_marked_bytes: u64,
     /// The quota telemetry's saved-volume columns (night-spark-6
-    /// landed the pair as placeholders; night-spark-7 books them
-    /// live), in BYTES: what the three lanes kept the sender from
-    /// sending — RECWN (the userspace estimate), ECN (one-for-one
-    /// with the delivered marks), EDT (the egress headroom). Always
-    /// present, the additive contract the CE-ledger pair set; a
-    /// scripted `Quota Saved: X` reads `bytes_saved_total` (the
-    /// three-lane sum, saturating), the split names the physics.
+    /// landed the pair; night-spark-7 books them live), in BYTES:
+    /// what the lanes kept the sender from sending — RECWN (the
+    /// userspace estimate), ECN (one-for-one with the delivered
+    /// marks), EDT (the retired word, zero since night-quota-audit,
+    /// schema v29). Always present (the CE-ledger additive
+    /// contract); a scripted `Quota Saved: X` reads
+    /// `bytes_saved_total`, the split names the physics.
     bytes_saved_by_recwn: u64,
     bytes_saved_by_ecn: u64,
     bytes_saved_by_edt: u64,

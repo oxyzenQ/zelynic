@@ -245,7 +245,15 @@ fn test_schema_version_constant() {
     // bytes_saved_by_ecn (48 -> 64 bytes, pure append) plus ONE new
     // pinned LRU map, pace_saved_stamp (the egress lane's saved
     // accrual time base, datapath-internal).
-    assert_eq!(SCHEMA_VERSION_EXPECTED, 28);
+    // v29 (night-quota-audit, the quota saved estimate errs low as
+    // documented): the EDT booking is RETIRED — no layout change
+    // (the tail stays 64 bytes, every offset holds), the accrual
+    // machinery (pace_saved_stamp, pace_saved_accrue,
+    // pacing_saved_bytes, book_edt_saved) leaves the object, and
+    // the word reads zero for the life of the map. The version bump
+    // (no size change) forces the reload that wipes a pre-v29
+    // ledger's stale nonzero word.
+    assert_eq!(SCHEMA_VERSION_EXPECTED, 29);
 }
 
 // ── night-spark-4, schema v26: the CE ledger's layout pins ─────────

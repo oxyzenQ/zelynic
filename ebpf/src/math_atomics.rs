@@ -175,27 +175,6 @@ pub fn book_rescue(stats: &mut LimiterStats, pkt_len: u32) {
     rmw_view(ecn_saved_ptr).fetch_add(u64::from(pkt_len), Ordering::Relaxed);
 }
 
-/// Book the egress pacing lane's preserved headroom into the v28
-/// stats tail (night-spark-7, Layer 4 of the quota saver): one
-/// relaxed fetch_add on bytes_saved_by_edt (offset 48). The single-writer-per-call shape
-/// is book's own — the SMP guarantee the boost-38 rewrite owns
-/// (lost increments are impossible when every add rides the RMW
-/// view). The caller (enforce.rs's Layer 4 block, through the raw
-/// lookup pointer) computes the saved volume through the pure law
-/// (pace.rs pacing_saved_bytes) and only calls this with saved > 0,
-/// so a
-/// saturated paced lane — the common steady state, where the
-/// per-packet budget lands within the packet's own length — pays
-/// no RMW at all: zero saved books nothing, exactly the
-/// dormant-watchdog economy the house keeps.
-#[inline(always)]
-pub fn book_edt_saved(stats: &mut LimiterStats, saved: u64) {
-    // Field pointer (8-aligned repr(C) offset 48 — the size pin in
-    // math.rs).
-    let edt_saved_ptr = core::ptr::addr_of_mut!(stats.bytes_saved_by_edt);
-    rmw_view(edt_saved_ptr).fetch_add(saved, Ordering::Relaxed);
-}
-
 /// Pure refill arithmetic for one owned window (NIGHT-boost-38
 /// extracted the branch from the old monolithic enforce so the
 /// overflow-guard and carry contracts pin independently): returns

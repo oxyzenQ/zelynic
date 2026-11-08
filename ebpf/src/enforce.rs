@@ -32,9 +32,7 @@ use crate::enforce_helpers::{
     debt_key_for, ecn_rescue, get_bucket_ptr, get_debt_ptr, get_stats_ptr, ring_verdict,
     window_gate,
 };
-use crate::math::{
-    Bucket, MAX_ENFORCABLE_BURST, POLICY_FLAG_PER_SOCKET, Policy, book, book_edt_saved, enforce,
-};
+use crate::math::{Bucket, MAX_ENFORCABLE_BURST, POLICY_FLAG_PER_SOCKET, Policy, book, enforce};
 use crate::mmspa_resolve::mmspa_resolve_root;
 use crate::pace_flow;
 use crate::quic_flow;
@@ -285,47 +283,22 @@ pub(crate) fn try_enforce(
     // no second map read.
     let stats_ptr = get_stats_ptr(&cgroup_id);
 
-    // night-spark-7 (the quota telemetry's math — Layer 4 of the
-    // quota saver): on the EGRESS policed path only, accrue the
-    // pacing lane's saved headroom into the entry the verdict is
-    // about to book through — the kernel half of (rate x elapsed) -
-    // uploaded. The accrual (pace_flow.rs pace_saved_accrue) is
-    // POINTER-FREE by design and the booking rides the RAW lookup
-    // pointer BEFORE the Option<&mut> materializes (v28.1, the
-    // 5.13 verifier lesson): an as_deref_mut reborrow that carried
-    // the Option through the stamp-map operations forced the
-    // compiler to materialize it as a (discriminant, payload)
-    // stack pair, and the verifier's walk lost the payload's
-    // pointer-or-null correlation at the merge points — the lanes'
-    // dereferences then ran on walks where the payload slot held
-    // the None arm's scalar zero, and the 5.13 floor refused the
-    // whole program ("R2 invalid mem access 'inv'" at the booking
-    // atomics; 5.15+ walked it clean by pruning, so only the floor
-    // went red). Booking through the raw pointer ahead of the
-    // materialization keeps every later deref behind the niche
-    // null-check the 5.13 floor already accepted (the v27 shape),
-    // and no &mut is live across the write — the Option below is
-    // created after this block ends, the rate-0 lane's own
-    // sequential-borrow class. The rate-0 block verdict returned
-    // above: a blocked lane delivers nothing, so no headroom can
-    // be preserved on it. UDP/QUIC egress rides the same accrual
-    // by design: the formula names the LANE's budget-vs-delivered
-    // gap, and the policer — not the TCP pacer — is the lane UDP
-    // actually answers to; the column's subject is the lane, never
-    // the protocol.
-    if !is_ingress {
-        let saved = pace_flow::pace_saved_accrue(&cgroup_id, pol_sane.rate_bps, now, pkt_len);
-        if saved > 0
-            && let Some(sp) = stats_ptr
-        {
-            // SAFETY: the stats map's value pointer, stable kernel
-            // memory for this invocation — the same contract the
-            // rescue tail's raw place rides; this exclusive borrow
-            // ends at book_edt_saved's return, BEFORE the Option's
-            // own borrow below begins, so the two never alias.
-            book_edt_saved(unsafe { &mut *sp }, saved);
-        }
-    }
+    // night-quota-audit (2026-11-09): the Layer 4 saved-headroom
+    // accrual that ran here on the egress policed path (night-spark-7's
+    // (rate x elapsed) - uploaded, booked through the raw pointer
+    // ahead of the Option's materialization — the v28.1 5.13 verifier
+    // lesson) is RETIRED with the law it served. The formula's only
+    // nonzero content was the budget an idle sender never used — the
+    // owner's live reading had the column erring HIGH by up to 36.8x
+    // against the doc's "errs LOW, never high" contract — and a pacer
+    // reschedules bytes, it does not remove them. The booking's
+    // removal also dissolves the v28.1 ordering constraint itself:
+    // with no raw-pointer write ahead of the materialization below,
+    // the Option's shape is the plain v27-era one the 5.13 floor
+    // already accepted. The stats map's word stays where the
+    // pure-append law put it (offset 48) and reads zero from schema
+    // v29 on; the record lives in ../pace.rs's retirement block and
+    // docs/QUOTA_SAVER_PHYSICS.md.
 
     // SAFETY: same stats-map contract as the rate-0 lane above —
     // stable kernel memory, one invocation lifetime; the Option's
