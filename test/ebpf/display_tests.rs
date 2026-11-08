@@ -568,16 +568,21 @@ fn recwn_line_pins_the_owner_wording_and_stays_silent_when_unshaping() {
 /// night-ux-1 (the owner's 200kb-on-Brave session): the counter
 /// footer — the allowed / dropped columns' units-and-window line,
 /// the --help grammar's NIGHT-dinner-11 contract carried onto the
-/// status surface itself. The wording is pinned whole: the window
-/// ("cumulative since apply" — no fabricated apply timestamp) and
-/// the drop-rate verdict (a hard cap always drops the surplus; the
-/// limiter working, not a fault).
+/// status surface itself. The wording is pinned whole, byte-exact
+/// (night-docs-1's two-line shape): the window ("cumulative since
+/// apply" — no fabricated apply timestamp), the saver-lane residual
+/// (small dropped = the lanes working), and the direction law
+/// (ingress burns quota, egress saves it). The old "a dropped share
+/// is the rate limiter working" verdict is gone — true but
+/// incomplete under the saver lanes.
 #[test]
-fn counters_footer_names_the_window_and_the_drop_semantics() {
-    use super::counters_footer_line;
+fn counters_footer_names_the_window_the_residual_and_the_direction() {
+    use super::counters_footer_lines;
+    let lines = counters_footer_lines();
+    assert_eq!(lines.len(), 2, "the footer is exactly the two lines");
+    assert_eq!(lines[0], "  allowed/dropped: cumulative since apply.");
     assert_eq!(
-        counters_footer_line(),
-        "  allowed / dropped: cumulative since apply. A dropped share is the rate \
-         limiter working — a hard cap always drops the surplus."
+        lines[1],
+        "  small dropped = saver lanes working; ingress burns quota, egress saves it."
     );
 }

@@ -7,12 +7,16 @@
 //! eats the sacrifice ladder (footer prose first) without ever
 //! touching the table or the stamp. Wired from display_lines.rs at
 //! the display_tests LOC headroom, the house split discipline.
-//! Colors are identity in the test env (Mono), so the escape path
-//! rides hand-built SGR + bare-ESC strings — the exact bytes the
-//! color layer emits on a real terminal.
+//! night-docs-1: the footer is TWO lines (the window line, the
+//! direction law), each its own frame entry, and both fit the
+//! owner's 80-column budget whole — the pins below hold the fit,
+//! the cut ladder, and the escape path. Colors are identity in the
+//! test env (Mono), so the escape path rides hand-built SGR +
+//! bare-ESC strings — the exact bytes the color layer emits on a
+//! real terminal.
 
 use super::{
-    StatusLineKind, counters_footer_line, frame_status_output, recwn_line, status_header_line,
+    StatusLineKind, counters_footer_lines, frame_status_output, recwn_line, status_header_line,
     status_row_line,
 };
 use crate::ebpf::display::RecwnLane;
@@ -22,7 +26,10 @@ use crate::output::colored_display_width;
 type Flanks = (Vec<(StatusLineKind, String)>, Vec<(StatusLineKind, String)>);
 
 /// The owner's 2026-11-08 live run, composed: a 57-column table, a
-/// 74-column RECWN line, a ~115-column footer prose, a short stamp.
+/// 74-column RECWN line (one binding policy — the owner's own
+/// scenario), the night-docs-1 two-line footer (42 and 76 columns
+/// — the direction line is the widest line the run carries), a
+/// short stamp.
 fn owner_run_lines() -> Flanks {
     let widths = [17usize, 10, 10, 7, 7];
     let cells = (
@@ -38,13 +45,20 @@ fn owner_run_lines() -> Flanks {
             StatusLineKind::Protected,
             status_row_line(&cells.0, &cells, &widths),
         ),
-        (StatusLineKind::FooterProse, counters_footer_line()),
+        (
+            StatusLineKind::FooterProse,
+            counters_footer_lines()[0].clone(),
+        ),
+        (
+            StatusLineKind::FooterProse,
+            counters_footer_lines()[1].clone(),
+        ),
         (
             StatusLineKind::Recwn,
             recwn_line(&RecwnLane {
                 planted: true,
                 window_bytes: Some(40_000),
-                binding_policies: 2,
+                binding_policies: 1,
             })
             .unwrap(),
         ),
@@ -56,11 +70,11 @@ fn owner_run_lines() -> Flanks {
     (above, below)
 }
 
-/// The wide terminal: the frame widens to the footer prose — the
-/// widest line the output prints — and EVERY line pads to that one
-/// width, so the right edge is one straight column. The table (57)
-/// and the RECWN line (74) ride inside the frame, byte-identical
-/// with pad spaces after them.
+/// The wide terminal: the frame widens to the footer's direction
+/// line — the widest line the output prints (76 columns) — and
+/// EVERY line pads to that one width, so the right edge is one
+/// straight column. The table (57) and the RECWN line (74) ride
+/// inside the frame, byte-identical with pad spaces after them.
 #[test]
 fn frame_widens_to_its_widest_content() {
     let (above, below) = owner_run_lines();
@@ -68,11 +82,11 @@ fn frame_widens_to_its_widest_content() {
         .iter()
         .filter(|(k, _)| *k == StatusLineKind::FooterProse)
         .map(|(_, l)| colored_display_width(l))
-        .next()
+        .max()
         .unwrap();
-    assert!(
-        footer_w > 100,
-        "the owner's prose is the wide line, got {footer_w}"
+    assert_eq!(
+        footer_w, 76,
+        "the direction line is the wide line, 76 columns"
     );
     let frame = frame_status_output(above, below, 200);
     assert_eq!(
@@ -91,27 +105,62 @@ fn frame_widens_to_its_widest_content() {
     assert!(header.contains("download") && header.contains("dropped"));
 }
 
-/// The narrow terminal: the footer prose cuts FIRST (the least
-/// load-bearing line for a one-glance read), to exactly the budget,
-/// ellipsis last — never wrapped. The RECWN line under it only cuts
-/// when it too exceeds the budget; the table never cuts.
+/// night-docs-1's own law: the two-line footer fits the owner's
+/// 80-column budget WHOLE — no line cuts, and the direction clause
+/// ("ingress burns quota, egress saves it") survives to its last
+/// column. The single-line shape the task measured first could not
+/// do this: cut at 80 it lost the direction clause entirely (the
+/// cut landed mid-"working."), which is why the footer is two
+/// lines, each its own frame entry.
+#[test]
+fn the_direction_footer_fits_the_80_column_budget() {
+    let (above, below) = owner_run_lines();
+    let frame = frame_status_output(above, below, 80);
+    assert!(
+        frame.width <= 80,
+        "nothing in the composed run exceeds the budget, got {}",
+        frame.width
+    );
+    let direction = frame
+        .below_grid
+        .iter()
+        .find(|l| l.contains("ingress burns quota"))
+        .expect("the direction line prints");
+    assert!(
+        direction.contains("egress saves it."),
+        "the direction clause is never truncated at 80 columns: {direction}"
+    );
+    assert!(!direction.ends_with('…'), "no ellipsis at the budget");
+}
+
+/// The narrow terminal: the footer's direction line cuts FIRST (the
+/// least load-bearing line for a one-glance read), to exactly the
+/// budget, ellipsis last — never wrapped. At a 75-column budget the
+/// 76-column direction line gives up its tail (the "egress saves
+/// it" half truncates; the burn clause — the more important half —
+/// survives the cut), the window line and the 74-column RECWN line
+/// under it ride untouched, and the table never cuts.
 #[test]
 fn narrow_terminal_cuts_the_footer_prose_first() {
     let (above, below) = owner_run_lines();
-    let frame = frame_status_output(above, below, 80);
+    let frame = frame_status_output(above, below, 75);
     let cut_footer = frame
         .below_grid
         .iter()
-        .find(|l| l.contains("allowed / dropped"))
-        .expect("the counter footer prints");
+        .find(|l| l.contains("ingress burns quota"))
+        .expect("the direction line prints");
     assert_eq!(
         colored_display_width(cut_footer),
-        80,
+        75,
         "the cut lands exactly on the budget, got: {cut_footer}"
     );
     assert!(
         cut_footer.ends_with('…'),
         "ellipsis, never a wrap or a hard cut"
+    );
+    assert!(
+        cut_footer.contains("ingress burns quota"),
+        "the burn clause survives the cut: {cut_footer}"
     );
     let recwn = frame
         .below_grid
@@ -120,9 +169,9 @@ fn narrow_terminal_cuts_the_footer_prose_first() {
         .expect("the RECWN line prints");
     assert!(
         !recwn.ends_with('…'),
-        "the 74-column RECWN line fits the 80-column budget untouched"
+        "the 74-column RECWN line fits the 75-column budget untouched"
     );
-    assert_eq!(frame.width, 80);
+    assert_eq!(frame.width, 75);
     // The header row survives byte-identical (pad only).
     let header = &frame.above_grid[0];
     assert!(!header.contains('…') && header.contains("cgroup"));
@@ -213,8 +262,9 @@ fn the_empty_board_fits_its_two_lines() {
 /// past the reset.
 #[test]
 fn colored_lines_frame_by_their_visible_width() {
-    let footer = counters_footer_line();
+    let footer = counters_footer_lines()[1].clone();
     let plain_w = colored_display_width(&footer);
+    assert_eq!(plain_w, 76, "the direction line is the wide one");
     let colored = format!("\x1b[38;2;139;139;139m{footer}\x1b");
     assert_eq!(
         colored_display_width(&colored),
@@ -223,15 +273,19 @@ fn colored_lines_frame_by_their_visible_width() {
     );
     let (above, below) = owner_run_lines();
     let mut below_colored = below;
-    below_colored[1] = (StatusLineKind::FooterProse, colored);
-    let frame = frame_status_output(above, below_colored, 80);
-    assert_eq!(frame.width, 80);
+    let idx = below_colored
+        .iter()
+        .position(|(k, l)| *k == StatusLineKind::FooterProse && l.contains("ingress"))
+        .expect("the direction line sits in the lower flank");
+    below_colored[idx] = (StatusLineKind::FooterProse, colored);
+    let frame = frame_status_output(above, below_colored, 70);
+    assert_eq!(frame.width, 70);
     let cut = frame
         .below_grid
         .iter()
-        .find(|l| l.contains("allowed / dropped"))
+        .find(|l| l.contains("ingress"))
         .unwrap();
-    assert_eq!(colored_display_width(cut), 80);
+    assert_eq!(colored_display_width(cut), 70);
     assert!(
         cut.starts_with("\x1b[38;2;139;139;139m"),
         "the open SGR copies whole"

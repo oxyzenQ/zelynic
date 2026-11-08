@@ -213,26 +213,38 @@ pub(crate) fn quota_saved_line(d: &DisplayData, width: usize) -> Option<String> 
 }
 
 /// The status table's counter footer (night-ux-1, the owner's
-/// 200kb-on-Brave session): the grey line under the counters that
-/// says WHAT the allowed / dropped columns count and WHEN they
+/// 200kb-on-Brave session): the grey lines under the counters that
+/// say WHAT the allowed / dropped columns count and WHEN they
 /// started — "cumulative since apply", the --help grammar's own
 /// contract (src/commands/help.rs, NIGHT-dinner-11) carried onto
-/// the surface the owner was actually reading, plus the one
-/// sentence the drop-rate question needs: a hard cap ALWAYS drops
-/// the surplus (that is the mechanism teaching TCP to back off),
-/// so a dropped share is the limiter working, not a fault. The
-/// apply timestamp itself is NOT trivially available — the stats
-/// row is a pinned 8-u64 kernel layout (types.rs LimiterStatsRaw)
-/// and no policy row books one — so the footer states the window
-/// without inventing a number (adding an apply-time column would
-/// be a datapath/schema change, out of a strings-and-layout task's
-/// law). PURE text shaping, unit-pinnable without capturing
-/// stdout.
-pub(crate) fn counters_footer_line() -> String {
-    grey(
-        "  allowed / dropped: cumulative since apply. A dropped share is \
-         the rate limiter working — a hard cap always drops the surplus.",
-    )
+/// the surface the owner was actually reading. night-docs-1: the
+/// old "a dropped share is the rate limiter working" verdict is
+/// gone — true but incomplete, it left the reader unable to tell a
+/// wasted drop from a saved one. The two lines state the truths the
+/// counters actually carry under the saver lanes: the residual (a
+/// SMALL dropped under a policed cgroup is the lanes working —
+/// RECWN clamped the sender, ECN marked, EDT paced, so few
+/// would-be drops reached the verdict) and the direction law
+/// (ingress drops burn quota, egress drops save it). The shape is
+/// TWO grey lines instead of one wide line because the frame law
+/// (night-ux-5) measures, cuts, and pads ONE line per flank entry:
+/// a footer carrying an embedded newline would be measured as a
+/// single over-wide line and truncated mid-prose, while two entries
+/// ride the frame independently. Each line fits the owner's
+/// 80-column budget whole (42 and 76 columns), so the direction
+/// clause never truncates at the width a laptop terminal actually
+/// is. The apply timestamp itself is NOT trivially available — the
+/// stats row is a pinned 8-u64 kernel layout (types.rs
+/// LimiterStatsRaw) and no policy row books one — so the footer
+/// states the window without inventing a number (adding an
+/// apply-time column would be a datapath/schema change, out of a
+/// strings-and-layout task's law). PURE text shaping,
+/// unit-pinnable without capturing stdout.
+pub(crate) fn counters_footer_lines() -> [String; 2] {
+    [
+        grey("  allowed/dropped: cumulative since apply."),
+        grey("  small dropped = saver lanes working; ingress burns quota, egress saves it."),
+    ]
 }
 
 /// One status data row (pure, NIGHT-engrave-5): the whole row in
