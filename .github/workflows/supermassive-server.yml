@@ -257,8 +257,12 @@ jobs:
                 TTY=/dev/ttyS0
                 emit() { echo "$1" > "$TTY"; }
                 bail() {
-                  echo "---- $1 log tail ----" > "$TTY"
-                  tail -n 20 "/tmp/proof-$1.log" > "$TTY" 2>&1
+                  echo "---- $1 evidence ----" > "$TTY"
+                  for f in /tmp/proof-*.log; do
+                    test -e "$f" || continue
+                    echo "== $f ==" > "$TTY"
+                    tail -n 12 "$f" > "$TTY" 2>&1
+                  done
                   emit "SERVER-SENTINEL: FAIL $1"
                   sleep 2
                   poweroff -f
@@ -281,14 +285,19 @@ jobs:
                 # -- 2. apply/read/clean: a real bash worker (a while
                 #    loop keeps the process alive — a bare `bash -c
                 #    sleep` execs away), one limit row, then none.
+                #    The scripting surface is status --print-json (the
+                #    flag the CLI ships — screen.rs's own tip line);
+                #    the positional rate polices BOTH directions into
+                #    ONE merged cgroup row (collect_display_data joins
+                #    the dl+ul pair per cgroup), so the count reads 1.
                 nohup bash -c 'while :; do sleep 1; done' &
                 sleep 1
                 zelynic strict bash 500kb --no-test \
                   > /tmp/proof-apply.log 2>&1 || bail apply
-                zelynic status --json > /tmp/proof-status1.log 2>&1 || bail apply
+                zelynic status --print-json > /tmp/proof-status1.log 2>&1 || bail apply
                 grep -q '"active_limits":1' /tmp/proof-status1.log || bail apply
                 zelynic unstrict bash > /tmp/proof-unstrict.log 2>&1 || bail apply
-                zelynic status --json > /tmp/proof-status2.log 2>&1 || bail apply
+                zelynic status --print-json > /tmp/proof-status2.log 2>&1 || bail apply
                 grep -q '"active_limits":0' /tmp/proof-status2.log || bail apply
 
                 # -- 3. verify: the self-proving apply (no --no-test) —
@@ -315,8 +324,8 @@ jobs:
                   echo "---- doctor rows ----"
                   grep -E "FULL-LIFE|cgroup v2:|BPF fs:" /tmp/proof-doctor.log
                   echo "---- apply/read/clean ----"
-                  echo "status --json after apply: $(grep -o '"active_limits":[0-9]*' /tmp/proof-status1.log)"
-                  echo "status --json after unstrict: $(grep -o '"active_limits":[0-9]*' /tmp/proof-status2.log)"
+                  echo "status --print-json after apply: $(grep -o '"active_limits":[0-9]*' /tmp/proof-status1.log)"
+                  echo "status --print-json after unstrict: $(grep -o '"active_limits":[0-9]*' /tmp/proof-status2.log)"
                   echo "---- verify ----"
                   grep "VERIFIED" /tmp/proof-verify.log | tail -n 2
                   echo "---- recover ----"
