@@ -3,6 +3,8 @@
 
 # The night-perf-1 audit — the observability thread budget and the CLI death audit
 
+> CORRECTED by NIGHT_PERF_2_LIVE_MEASUREMENT_CORRECTION_2026-11-08: the 0.033% replica was a wake skeleton, not the live cost; the 2026-11-08 host run measured 2.37-2.40% of one core — see the correction doc.
+>
 > Audit date: 2026-11-08 (night-perf-1, the owner's final closure
 > task). Scope: TWO questions, one audit — how many threads does
 > eagle-eyes actually use and what does its idle cost, and does every
