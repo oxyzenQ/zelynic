@@ -1,0 +1,401 @@
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: AGPL-3.0-only
+# =============================================================================
+# Dragon Guard - Supermassive Server E2E (night-server-1)
+# =============================================================================
+#
+# The owner's honest-server ask: the existing supermassive pair proves
+# the KERNEL span — the 5.15.0 floor and the archive's latest kernel,
+# both booted through the minimal kernel+initramfs contract on a frozen
+# ubuntu:22.04 userland. That pair deliberately holds the userland
+# constant, so it proves kernels and says nothing about any distro's
+# server shape. This lane is the missing axis: Ubuntu Server 24.04 LTS
+# as a REAL cloud image — the full systemd multi-user target, the
+# server daemon population (sshd, systemd-networkd, journald, the
+# resolve stack), the server default ulimits and sysctls, the cgroup
+# v2 unified hierarchy a server actually boots with — inside a KVM
+# micro-VM, with zelynic installed and the four-line proof driven
+# through the serial console.
+#
+# Approach A, argued (the owner's own bar: "bukan basic distro, harus
+# server distro"): a kernel+server-userland tarball under the existing
+# boot contract would repeat the kernel-span shape the pair already
+# owns — no systemd target graph, no daemon population, no server
+# defaults — a kernel that says "Ubuntu Server" in its version string
+# on a hand-packed userland is not a server test. The cloud image IS
+# the server: it boots the distro's own GRUB, its own kernel, its own
+# cloud-init provisioning, into the exact multi-user target a cloud
+# server runs. That honesty costs one disk-image boot instead of a
+# direct-kernel boot — a different contract, which is exactly why this
+# is a SEPARATE workflow (the container lane's own precedent: a
+# different contract gets its own file, not a third leg bolted into a
+# matrix that shares one contract).
+#
+# The test scope is the four-line proof — doctor green, apply/read/
+# clean clean, verify VERIFIED, recover leaves nothing — NOT the
+# supermassive battery (that is the kernel-span lanes' own job; this
+# lane answers "does zelynic work on Ubuntu Server", not "does every
+# battery pass on Ubuntu Server"). The verdict rides the serial
+# sentinel SERVER-SENTINEL: PASS / SERVER-SENTINEL: FAIL <section>,
+# the same log-is-the-verdict contract the MASS-* rows own upstairs.
+#
+# The image pin is FROZEN, not rolling: a dated snapshot directory
+# (release-20261017) that Canonical never mutates — new point releases
+# land in NEW dated directories. A mutable "latest"/"release" URL is
+# not a test; it is a source of future red. The SHA-512 below was
+# computed from the pinned file and cross-checked against the
+# directory's own SHA256SUMS (the digest set the cloud-image release
+# directories actually publish) at pin time; the boot refuses any
+# byte that does not match.
+#
+# Cost: one standard hosted runner for ~5-12 min per qualifying push
+# (the image rides the actions cache after the first run; the cold
+# download is the one-time budget hit). The payload is the release-tier
+# pro-linux-amd64-v3-musl alias — the only shipped shape
+# (night-dragon-maintenance-6), executing under KVM's -cpu host on the
+# same silicon that built it, exactly like the container lane.
+
+name: Dragon Guard - Supermassive Server
+
+on:
+  # The estate's blind posture (night-dragon-maintenance-2): any push,
+  # any branch, any pull request burns this lane. The dispatch click
+  # exists for lane iteration (Phase 6's honest "CI iteration N"
+  # ledger) without manufacturing commits.
+  push:
+  pull_request:
+  workflow_dispatch: {}
+
+# Least privilege (cosmostrix contract): this workflow only reads the
+# repository. The sudo inside is host-level (apt, the loop mount, the
+# KVM boot), never a GitHub permission; the artifact upload rides the
+# runtime token, not GITHUB_TOKEN scopes.
+permissions:
+  contents: read
+
+# Rapid pushes to the same ref cancel the superseded run instead of
+# queueing a duplicate (cosmostrix stability pattern).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  RUST_BACKTRACE: 1
+
+jobs:
+  server-e2e:
+    name: Server E2E - Ubuntu Server 24.04 LTS (cloud image, full boot)
+    runs-on: ubuntu-24.04
+    # The cloud-image boot + proof is ~3-5 min on a hosted runner once
+    # the image is cached; the budget is for the cold download and the
+    # one retry a flaky mirror may owe.
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          # GITHUB_TOKEN hardening: never persists into .git/config.
+          persist-credentials: false
+
+      # The runner guarantee (the supermassive pair's law, same shape):
+      # /dev/kvm exists on every current Linux hosted image, the node
+      # ships it 0660 root:kvm, and the job opens it up itself. Failing
+      # LOUDLY beats a confusing TCG fallback — the pro-native payload
+      # is x86-64-v3 native codegen and would SIGILL under TCG's
+      # baseline CPU.
+      - name: Verify KVM
+        run: |
+          test -e /dev/kvm || {
+            echo "FAIL: /dev/kvm is absent — this runner image cannot boot the cloud image"
+            echo "(nested virt is expected on every current GitHub Linux runner image)"
+            exit 1
+          }
+          test -w /dev/kvm || sudo chmod 666 /dev/kvm
+          test -w /dev/kvm || {
+            echo "FAIL: /dev/kvm is not usable by the runner user even after chmod"
+            ls -l /dev/kvm
+            exit 1
+          }
+          echo "OK: /dev/kvm present and usable"
+
+      - name: Install qemu + cloud-image-utils
+        run: >-
+          sudo apt-get -o Acquire::Retries=5 update -qq &&
+          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends
+          qemu-system-x86 cloud-image-utils
+
+      # The 593 MiB image is the one real budget hit; the cache key IS
+      # the snapshot id, and a dated snapshot directory is immutable by
+      # Canonical policy — a cache hit can never serve a different byte
+      # than the pin names, so the key needs no hashFiles term.
+      - name: Cache the pinned cloud image
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6, NIGHT-hunt-20 SHA pin
+        with:
+          path: ~/.cache/zelynic-server-image
+          key: server-image-24.04-release-20261017
+
+      # The frozen pin (the lane's honesty clause): the dated snapshot
+      # directory, the exact file, the exact digest. The SHA-512 was
+      # computed from the pinned artifact at pin time and cross-checked
+      # against the directory's own SHA256SUMS; the SHA-512 literal
+      # rides split across two variables only because yamllint caps the
+      # line at 120 columns.
+      - name: Download the pinned 24.04 cloud image (SHA-512 verified)
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.cache/zelynic-server-image
+          cd ~/.cache/zelynic-server-image
+          IMG=ubuntu-24.04-server-cloudimg-amd64.img
+          PIN_A="a4522881be8c71c3d656a377099055910907f3a35766c55146dc674b38c0704bae6811d89"
+          PIN_B="d511ac0d5f485d408708a61080e8b2486978608c9286efa6a4bf039"
+          PIN_SHA512="$PIN_A$PIN_B"
+          if test -f "$IMG" && echo "$PIN_SHA512  $IMG" | sha512sum -c --status; then
+            echo "cache hit: $IMG already pinned and verified"
+          else
+            echo "cache miss: downloading the frozen 24.04 release-20261017 snapshot"
+            curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --connect-timeout 15 \
+              -o "$IMG" \
+              "https://cloud-images.ubuntu.com/releases/24.04/release-20261017/$IMG"
+          fi
+          echo "$PIN_SHA512  $IMG" | sha512sum -c -
+          echo "IMAGE=$PWD/$IMG" >> "$GITHUB_ENV"
+          echo "image: $(du -h "$IMG" | cut -f1) at $PWD/$IMG"
+
+      # The build shape is the container lane's (a separate-contract
+      # workflow that already carries it): the eBPF objects build, then
+      # the release-tier alias — never a bare cargo build shape
+      # (night-dragon-maintenance-3) — with the artifact verified
+      # through its embedded build label.
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: "1.98.1"
+          targets: x86_64-unknown-linux-musl
+
+      - name: Install eBPF nightly toolchain (dated pin)
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: nightly-2026-09-18
+          components: rust-src
+
+      - name: Install bpf-linker 0.11.1 (prebuilt static musl)
+        run: bash scripts/dev/install-bpf-linker.sh
+
+      - name: Cache cargo registry
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6, NIGHT-hunt-20 SHA pin
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            ebpf/target
+          key: ${{ runner.os }}-server-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-server-cargo-
+            ${{ runner.os }}-cargo-
+
+      - name: Build pure-Rust eBPF objects (direct crate build)
+        run: RUSTFLAGS="-D warnings -C target-cpu=v3" cargo build --release --locked
+        working-directory: ebpf
+
+      - name: Build the release-tier v3 payload (pro-linux-amd64-v3-musl)
+        run: |
+          RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3 -C target-feature=+crt-static" \
+            cargo pro-linux-amd64-v3-musl --locked
+          ./target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic -V \
+            | grep -F "Build: local-pro-linux-amd64-v3-musl"
+
+      # The payload rides a labeled ext4 virtio drive, not the network:
+      # the proof must not depend on guest egress coming up (the verify
+      # probe is loopback; sshd starts regardless). ext4 is built into
+      # every Ubuntu kernel the image can boot — no module staging, the
+      # one-filesystem contract. The label (PAYLOAD) makes the guest
+      # mount order-independent — no /dev/vdX guessing.
+      - name: Pack the payload drive (ext4, label PAYLOAD)
+        run: |
+          set -euo pipefail
+          cd /tmp && mkdir -p kserver && cd kserver
+          truncate -s 64M payload.ext4
+          mkfs.ext4 -L PAYLOAD -F payload.ext4
+          sudo mkdir -p /tmp/pmnt
+          sudo mount -o loop payload.ext4 /tmp/pmnt
+          sudo cp "$GITHUB_WORKSPACE/target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic" \
+            /tmp/pmnt/zelynic
+          sudo chmod 755 /tmp/pmnt/zelynic
+          sudo umount /tmp/pmnt
+          echo "payload packed: $(du -h payload.ext4 | cut -f1)"
+
+      # The cloud-init seed. NoCloud via cloud-localds (the standard
+      # CIDATA ISO). The user-data carries NO secrets — the proof needs
+      # no tokens; it installs the payload from the labeled drive and
+      # drives the four lines. runcmd runs as root: that is cloud-init's
+      # own documented provisioning context (the honest shape — not a
+      # root autologin hack; the image's ubuntu user and its sudo stay
+      # exactly as the distro ships them). The script name carries no
+      # "zelynic" so the final pgrep -x cannot match the proof's own
+      # process tree.
+      - name: Write the cloud-init seed
+        run: |
+          set -euo pipefail
+          cd /tmp/kserver
+          cat > user-data <<'EOF'
+          #cloud-config
+          write_files:
+            - path: /usr/local/sbin/server-proof.sh
+              permissions: '0755'
+              content: |
+                #!/bin/bash
+                # The four-line server proof (night-server-1): doctor
+                # green, apply/read/clean clean, verify VERIFIED,
+                # recover leaves nothing. Any red in any section emits
+                # SERVER-SENTINEL: FAIL <section> on the serial console
+                # and powers the guest off; the section's own log tail
+                # rides the serial line ahead of the sentinel so the
+                # console artifact carries the evidence.
+                set -u
+                TTY=/dev/ttyS0
+                emit() { echo "$1" > "$TTY"; }
+                bail() {
+                  echo "---- $1 log tail ----" > "$TTY"
+                  tail -n 20 "/tmp/proof-$1.log" > "$TTY" 2>&1
+                  emit "SERVER-SENTINEL: FAIL $1"
+                  sleep 2
+                  poweroff -f
+                }
+
+                # -- 1. doctor: the payload lands, the build label is
+                #    the binary's own proof, the capability rows are
+                #    machine-grepped off the doctor's report.
+                install -Dm755 /mnt/zelynic /usr/local/bin/zelynic \
+                  > /tmp/proof-install.log 2>&1 || bail doctor
+                umount /mnt
+                zelynic -V > /tmp/proof-install.log 2>&1 || bail doctor
+                grep -F "Build: local-pro-linux-amd64-v3-musl" \
+                  /tmp/proof-install.log || bail doctor
+                zelynic doctor > /tmp/proof-doctor.log 2>&1 || bail doctor
+                grep -q "FULL-LIFE" /tmp/proof-doctor.log || bail doctor
+                grep -Eq "cgroup v2:.*YES" /tmp/proof-doctor.log || bail doctor
+                grep -Eq "BPF fs:.*YES" /tmp/proof-doctor.log || bail doctor
+
+                # -- 2. apply/read/clean: a real bash worker (a while
+                #    loop keeps the process alive — a bare `bash -c
+                #    sleep` execs away), one limit row, then none.
+                nohup bash -c 'while :; do sleep 1; done' &
+                sleep 1
+                zelynic strict bash 500kb --no-test \
+                  > /tmp/proof-apply.log 2>&1 || bail apply
+                zelynic status --json > /tmp/proof-status1.log 2>&1 || bail apply
+                grep -q '"active_limits":1' /tmp/proof-status1.log || bail apply
+                zelynic unstrict bash > /tmp/proof-unstrict.log 2>&1 || bail apply
+                zelynic status --json > /tmp/proof-status2.log 2>&1 || bail apply
+                grep -q '"active_limits":0' /tmp/proof-status2.log || bail apply
+
+                # -- 3. verify: the self-proving apply (no --no-test) —
+                #    the built-in probe runs a 3s loopback flow through
+                #    the limited subtree and prints VERIFIED. "applied"
+                #    is a claim; VERIFIED is the measurement.
+                zelynic strict bash 500kb > /tmp/proof-verify.log 2>&1 || bail verify
+                grep -q "VERIFIED" /tmp/proof-verify.log || bail verify
+                zelynic unstrict bash >> /tmp/proof-verify.log 2>&1 || bail verify
+
+                # -- 4. recover: the cleanup verdict is read, never
+                #    assumed — no pins, no bpffs directory, no
+                #    lingering process (pgrep -x: comm-exact, so the
+                #    check cannot match anything but the real binary).
+                zelynic recover > /tmp/proof-recover.log 2>&1 || bail recover
+                grep "State:" /tmp/proof-recover.log | grep -q clean || bail recover
+                ls /sys/fs/bpf/zelynic > /tmp/proof-fs.log 2>&1 && bail recover
+                pgrep -x zelynic > /dev/null 2>&1 && bail recover
+
+                # The "why did it pass" proof rides the serial line
+                # ahead of the sentinel: the doctor's verdict rows and
+                # the machine surfaces each section answered.
+                {
+                  echo "---- doctor rows ----"
+                  grep -E "FULL-LIFE|cgroup v2:|BPF fs:" /tmp/proof-doctor.log
+                  echo "---- apply/read/clean ----"
+                  echo "status --json after apply: $(grep -o '"active_limits":[0-9]*' /tmp/proof-status1.log)"
+                  echo "status --json after unstrict: $(grep -o '"active_limits":[0-9]*' /tmp/proof-status2.log)"
+                  echo "---- verify ----"
+                  grep "VERIFIED" /tmp/proof-verify.log | tail -n 2
+                  echo "---- recover ----"
+                  grep "State:" /tmp/proof-recover.log
+                  echo "bpffs: $(ls /sys/fs/bpf/zelynic 2>&1)"
+                } > "$TTY" 2>&1
+                emit "SERVER-SENTINEL: PASS"
+                sleep 2
+                poweroff -f
+          runcmd:
+            - mount LABEL=PAYLOAD /mnt
+            - [ bash, /usr/local/sbin/server-proof.sh ]
+          EOF
+          cat > meta-data <<'EOF'
+          instance-id: zelynic-server-proof-24.04-20261017
+          local-hostname: zelynic-server
+          EOF
+          cloud-localds seed.iso user-data meta-data
+          echo "seed: $(du -h seed.iso | cut -f1)"
+
+      # Boot the server: the image's OWN grub, kernel and systemd (no
+      # -kernel/-append — the distro's boot is part of the test), KVM
+      # host-passthrough CPU, the seed ISO + the payload drive as virtio
+      # disks, user-mode egress (the server shape: networkd brings a
+      # link up; nothing in the proof depends on it), serial to a file,
+      # -no-reboot so an unexpected reboot ends qemu loudly. The outer
+      # timeout owns the wedged-guest case: no sentinel inside 600 s
+      # fails the job with the console attached.
+      - name: Boot Ubuntu Server 24.04 and run the four-line proof
+        run: |
+          set -euo pipefail
+          cd /tmp/kserver
+          set +e
+          timeout 600 qemu-system-x86_64 \
+            -machine q35,accel=kvm -cpu host \
+            -m 2048 -smp 2 \
+            -drive file="$IMAGE",format=qcow2,if=virtio \
+            -drive file=seed.iso,format=raw,if=virtio,read-only=on \
+            -drive file=payload.ext4,format=raw,if=virtio \
+            -netdev user,id=net0 \
+            -device virtio-net-pci,netdev=net0 \
+            -display none \
+            -serial file:console.log \
+            -no-reboot
+          QEMU_RC=$?
+          set -e
+          if test "$QEMU_RC" -ne 0; then
+            echo "FAIL: qemu exited $QEMU_RC without the guest's own poweroff — console tail:"
+            tail -n 40 console.log || true
+            exit 1
+          fi
+          echo "OK: the guest powered itself off (rc 0)"
+
+      # The verdict lives in the serial log (the sentinel contract): a
+      # PASS line greps green; a FAIL line names its own section; no
+      # sentinel at all is the loudest failure — the boot died before
+      # the proof could speak.
+      - name: Verdict
+        run: |
+          set -euo pipefail
+          cd /tmp/kserver
+          echo "── server sentinel rows (Ubuntu Server 24.04 LTS) ──"
+          grep -a "SERVER-SENTINEL" console.log || true
+          grep -aq "SERVER-SENTINEL: PASS" console.log || {
+            echo "FAIL: no SERVER-SENTINEL: PASS in the serial console"
+            echo "FAIL rows found: $(grep -ac 'SERVER-SENTINEL: FAIL' console.log || true)"
+            tail -n 60 console.log || true
+            exit 1
+          }
+          echo "OK: the server distro shape proven — doctor, apply/read/clean, verify, recover"
+
+      # The console log lands as an artifact ALWAYS, not just on
+      # failure — the "why did it pass" proof matters too (the sentinel
+      # evidence block rides the same lines).
+      - name: Upload the console log (always)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          name: server-console-log
+          path: /tmp/kserver/console.log
+          if-no-files-found: warn
+          retention-days: 7
