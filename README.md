@@ -670,23 +670,11 @@ checkout's Cargo.toml, so a stale distro install can never masquerade
 as the build under test.
 
 No machine handy at all? The whole qualification — bring-up, v1, v2,
-v3, v4, in that order — runs on CI on every push (real root, real BPF,
-real KVM micro-VMs), and the 5.15.0 floor lane is proven on the TRUE
-documented floor kernel (jammy's 5.15.0 LTS line — the floor since
-night-netrunner-1 raised it off the retired impish 5.13 lane) inside
-its own KVM micro-VM workflow. The E2E depth
-lane runs the four depth suites no other lane carries — the full
-command surface as an unprivileged user (the honest refusal contract)
-plus the limiter depth stresstest, the endurance clocks, and the
-whole-CLI smoke battery as root — on both ends of the kernel span:
-the 5.15.0 floor and the archive's dynamically resolved latest kernel,
-each leg against the release-tier alias build. The v3 container E2E
-lanes (docker + k8s via kind) run on their own CI workflow against
-real runtimes — the micro-VM pair ships no docker daemon and no
-kubelet, so the container-native round trip (resolve
-`docker://`/`k8s://` to a real cgroup, enforce, teardown) has its own
-honest lane. A green Actions run is the same verdict these commands
-produce locally.
+v3, v4, in that order — runs on CI on every push (real root, real
+BPF, real KVM micro-VMs), and a green Actions run is the same verdict
+these commands produce locally. The lane map — the E2E depth lane,
+the container round trip, the per-run results — lives in
+[docs/CROSS_DISTRO_RESULTS.md](docs/CROSS_DISTRO_RESULTS.md).
 
 ## Release Verification
 
