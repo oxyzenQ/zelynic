@@ -59,12 +59,18 @@ one layer up. This harness pins the lane LIVE:
     two-window noise law, shaped for a counter that accumulates);
     past the budget the row fails.
 
-  row 6 — the saved quota books (live, night-spark-7 Layer 4): the
-    same ledger's v28 tail moves — limits[].bytes_saved_by_edt
-    grows by the preserved headroom ((rate x elapsed) - uploaded,
-    the formula the pure law pins) and bytes_saved_total carries
-    the row's three-lane sum. A pre-v28 object carries no fields
-    and fails this row with the rebuild reason spelled out.
+  row 6 — the retired saved word books nothing (live,
+    night-quota-audit, schema v29): the same ledger's tail is read
+    before and after the paced upload — limits[].bytes_saved_by_edt
+    moves ZERO. The v28 booking ((rate x elapsed) - uploaded) was
+    retired because its only nonzero content was the budget an idle
+    sender never used (the owner's live reading had it erring HIGH
+    by up to 36.8x against the quota doc's own "errs LOW, never
+    high" contract); a pacer reschedules bytes, it does not remove
+    them, and the wire effect the A/B harness measures is the lane's
+    honest claim. bytes_saved_total stays readable (it is the
+    ECN + RECWN sum); a pre-v28 object carries no fields and fails
+    this row with the rebuild reason spelled out.
 
 Honesty contracts: the upload policy is planted BEFORE the
 uploader fork (the sockets curl creates are born policed — the
@@ -644,14 +650,17 @@ def live_run():
             f"{d_tail} (the token bucket's own ledger, the probe's cgroup row only)",
         )
 
-        # Row 6 — the saved quota (the Layer 4 telemetry, live): the
-        # v28 tail's growth over the paced upload — the preserved
-        # headroom the pacer held back while the lane delivered.
+        # Row 6 — the retired saved word (the Layer 4 telemetry,
+        # live): the tail's EDT word moves ZERO over the paced upload
+        # — the v28 booking was retired (night-quota-audit, schema
+        # v29) because its only nonzero content was the budget an
+        # idle sender never used; the row pins the retirement live
+        # (a reintroduced booking fails here).
         post_e = (row or {}).get("bytes_saved_by_edt")
         post_t = (row or {}).get("bytes_saved_total")
         if post_e is None or post_t is None:
             lib.record(
-                "edt: the paced lane books its saved quota",
+                "edt: the retired saved word books nothing",
                 "FAIL",
                 "status --print-json limits[] carries no bytes_saved_by_edt / "
                 "bytes_saved_total — a pre-v28 (stale pinned) object is "
@@ -661,12 +670,14 @@ def live_run():
             delta_e = int(post_e) - int(pre_saved_e or 0)
             delta_t = int(post_t) - int(pre_saved_t or 0)
             lib.record(
-                "edt: the paced lane books its saved quota",
-                "PASS" if delta_e > 0 and delta_t >= delta_e else "FAIL",
+                "edt: the retired saved word books nothing",
+                "PASS" if delta_e == 0 else "FAIL",
                 f"the ledger moved {delta_e} B saved-by-edt / {delta_t} B "
-                "total during the paced upload — the v28 tail books the "
-                "preserved headroom ((rate x elapsed) - uploaded), the "
-                "quota saver's Layer 4, live",
+                "total during the paced upload — the EDT word is retired "
+                "(schema v29: the headroom formula booked the budget an "
+                "idle sender never used), the saved total is ECN + "
+                "RECWN, and the lane's wire effect is the A/B harness's "
+                "to measure",
             )
 
         lib.out(f"  EDT live probe — the egress pacing lane, {time.monotonic() - started:.0f}s")

@@ -517,8 +517,33 @@
 ///     v27 programs to reload into the v28 object — active limits
 ///     are dropped once, re-apply after upgrade, the same one-time
 ///     contract as every bump before it.
+/// v29 (night-quota-audit, the quota saved estimate errs low as
+///     documented): the EDT saved word's booking is RETIRED —
+///     no struct layout change, the stats tail stays 64 bytes and
+///     every word keeps its offset. The v28 booking
+///     ((rate x elapsed) - uploaded, the preserved-headroom
+///     counterfactual) turned out to book the budget an idle sender
+///     never used: a saturated paced lane books nothing and an
+///     idle-ish lane books rate x capped-gap per packet, so the
+///     owner's live reading had the column erring HIGH by up to
+///     36.8x against the quota doc's own "errs LOW, never high"
+///     contract (brave at 500kb: 744.6 MB booked against a 20 MB
+///     doc-formula prediction). A pacer reschedules bytes; it does
+///     not remove them — the honest booking is zero, the quota
+///     saved total is ECN's one-for-one marks plus the RECWN
+///     userspace estimate, and the pacing lane's wire effect (the
+///     suppressed burst-retransmission storm) stays what the A/B
+///     harness measures. The accrual machinery (pace_saved_stamp,
+///     pace_saved_accrue, pacing_saved_bytes, book_edt_saved) comes
+///     out of the object; the egress hot path loses a map read and
+///     a map write per packet. The VERSION bump (no size change)
+///     exists to force the reload that wipes a pre-v29 ledger's
+///     stale fiction: without it an upgraded host would keep
+///     rendering its old nonzero EDT word forever. Active limits
+///     are dropped once, re-apply after upgrade, the same one-time
+///     contract as every bump before it.
 #[allow(dead_code)]
-pub(crate) const SCHEMA_VERSION: u32 = 28;
+pub(crate) const SCHEMA_VERSION: u32 = 29;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs

@@ -245,10 +245,12 @@ pub struct LimiterStatsRaw {
     pub ce_marked_packets: u64,
     pub ce_marked_bytes: u64,
     /// night-spark-7, schema v28 (the quota telemetry's math —
-    /// Layer 4 of the quota saver): the egress pacing lane's
-    /// preserved headroom, booked by the kernel's egress policed
-    /// path — the running (rate x elapsed) - uploaded. Layout twin
-    /// of the v28 LimiterStats tail; the map read copies it whole.
+    /// Layer 4 of the quota saver): the egress pacing lane's saved
+    /// word — (rate x elapsed) - uploaded until night-quota-audit
+    /// (schema v29) retired the booking: the counterfactual's only
+    /// nonzero content was the budget an idle sender never used, so
+    /// the word reads zero from v29 on. Layout twin of the v28
+    /// LimiterStats tail; the map read copies it whole.
     pub bytes_saved_by_edt: u64,
     /// night-spark-7, schema v28: the ECN lane's saved volume, one
     /// for one with ce_marked_bytes — every delivered CE-marked byte
