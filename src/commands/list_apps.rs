@@ -53,7 +53,13 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
     }
 
     let mut entries: Vec<_> = identity.all().into_iter().collect();
-    entries.sort_by(|a, b| a.comm.cmp(&b.comm));
+    // night-ux-6: the row order is the name-first law in
+    // crate::ebpf::display_order — case-insensitive displayed name,
+    // cgroup ID ascending within the name — applied BEFORE both
+    // surfaces read the vec, so the human table and the
+    // --print-json document are one truth (the old key was ASCII
+    // case-sensitive on the name alone).
+    crate::ebpf::display_order::sort_discovery_entries(&mut entries);
     entries.retain(|e| !e.comm.is_empty());
 
     if json {

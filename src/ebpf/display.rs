@@ -395,7 +395,10 @@ pub fn print_status(
     windows: &[(u32, PolicyWindowRaw)],
     recwn: &RecwnLane,
 ) {
-    let data = collect_display_data(dl_policies, ul_policies, stats, windows, recwn);
+    let mut data = collect_display_data(dl_policies, ul_policies, stats, windows, recwn);
+    // night-ux-6: the name-first row order, the one law the JSON
+    // document shares (crate::ebpf::display_order).
+    super::display_order::sort_status_rows(&mut data, identity);
     let rows: Vec<(String, String, String, String, String)> =
         data.iter().map(|d| status_cells(d, identity)).collect();
     // night-during (schema v23): one clock pair for every lifetime

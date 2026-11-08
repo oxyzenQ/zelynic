@@ -22,6 +22,8 @@ mod display_json_ring;
 #[cfg(feature = "ebpf")]
 mod display_lines;
 #[cfg(feature = "ebpf")]
+pub(crate) mod display_order;
+#[cfg(feature = "ebpf")]
 pub mod embedded;
 pub mod host_caps;
 #[cfg(feature = "ebpf")]

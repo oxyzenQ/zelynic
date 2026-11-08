@@ -100,7 +100,8 @@ fn status_json(
     };
 
     let now = mono_now_ns;
-    let data = collect_display_data(dl_policies, ul_policies, stats, windows, recwn);
+    let mut data = collect_display_data(dl_policies, ul_policies, stats, windows, recwn);
+    super::display_order::sort_status_rows(&mut data, identity); // night-ux-6: one sort law with the human table
 
     let limits: Vec<LimitEntry> = data
         .iter()
