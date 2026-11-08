@@ -510,9 +510,14 @@ budgets) plus upload drops. Since schema v25 the RECWN lane
 side itself: a policed cgroup's sockets advertise a rate-shaped
 receive window, so cooperative TCP senders hold their in-flight
 bytes down before the bytes cross the link — the convergence a
-drop-only policer could never buy. For hard download-quota
-guarantees, shape at the router or close the app; zelynic's
-contract is fair-share and predictable budgets. The full
+drop-only policer could never buy. On the status surface that
+reads as the ingress `dropped` count falling visibly under a
+policed cgroup — download quota preserved by the clamp, not by a
+drop — while the remaining ingress drops (non-cooperative senders,
+rate changes mid-window) still burn quota; the honest
+per-direction reading lives in USAGE's status section. For hard
+download-quota guarantees, shape at the router or close the app;
+zelynic's contract is fair-share and predictable budgets. The full
 asymmetry is limitation #15 in
 [USAGE.md](docs/USAGE.md#honest-limitations--read-this).
 
