@@ -20,10 +20,10 @@ use crate::cli::surface::Commands;
 // same path), the pre-split file's own shape.
 use super::clap_styles;
 
-/// zelynic — Per-app network rate limiter and traffic monitor for Linux
+/// zelynic — per-app network rate limiter for Linux
 ///
-/// Limit and observe any app's download/upload speed using eBPF —
-/// pure kernel enforcement.
+/// Rate-limit and monitor any app's network speed. Pure eBPF, no
+/// daemon.
 #[derive(Parser, Debug)]
 #[command(
     name = "zelynic",
