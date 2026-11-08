@@ -273,4 +273,7 @@ pub(crate) use spinner::Spinner;
 pub use labeled::eprintln_warn_labeled;
 pub use sanitize::sanitize_comm;
 #[cfg(feature = "ebpf")]
-pub use width::{char_width, display_width, fit_to_width, pad_to_width};
+pub use width::{
+    char_width, colored_display_width, display_width, fit_colored_to_width, fit_to_width,
+    pad_colored_to_width, pad_to_width,
+};

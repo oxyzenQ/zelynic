@@ -79,8 +79,8 @@ pub(crate) struct DisplayData {
 // (use super::*) and the list-apps surface see the same paths as
 // before the split.
 pub(crate) use super::display_lines::{
-    active_limits_line, ce_marked_line, counters_footer_line, guarantee_line,
-    list_apps_header_line, pacing_line, quota_saved_line, recwn_line, status_cells,
+    StatusLineKind, active_limits_line, ce_marked_line, counters_footer_line, frame_status_output,
+    guarantee_line, list_apps_header_line, pacing_line, quota_saved_line, recwn_line, status_cells,
     status_header_line, status_row_line, watchdog_line, window_lifetime_line,
 };
 
@@ -357,10 +357,18 @@ pub(crate) fn status_stale_lines(width: usize) -> Vec<String> {
 /// Flagship engraving (NIGHT-boost-5): the surface opens with the
 /// same purple title bar the eagle-eyes monitor carries and signs
 /// off with the signature footer — status is not an afterthought
-/// table, it is the second flagship surface. The title bar spans
-/// the table's own width (content-width table + its gutter), not
-/// the full terminal — the status grid sizes to its rows, and a
-/// full-width bar would overhang it on wide screens.
+/// table, it is the second flagship surface.
+///
+/// night-ux-5 (Shape B, the owner's 2026-11-08 live run): the title
+/// bar and the grid span the WIDEST line the output prints — the
+/// table's own width when the table is the widest content, the
+/// footer prose's width when the prose runs longer — and every
+/// line pads to that one width, so the frame's right edge is a
+/// straight column instead of prose bleeding past a table-sized
+/// bar. On a terminal narrower than the content, the truncation
+/// ladder cuts the sacrifice lines (footer prose first, table and
+/// stamp never) — [`super::display_lines::frame_status_output`]
+/// owns the law, this composition owns the lines.
 ///
 /// NIGHT-engrave-5 (the eagle-eyes style match, the owner's audit):
 /// the table itself answers to the monitor's contract — lowercase
@@ -414,15 +422,25 @@ pub fn print_status(
         col_widths[0] = col_widths[0].saturating_sub(excess).max(10);
     }
 
-    let sep_len: usize = col_widths.iter().sum::<usize>() + 4;
-    // NIGHT-engrave-5 opened the frame with the title bar and a
-    // breathing gap; NIGHT-private-research-3 (the owner's
-    // compact-and-simple directive) retired the gap on the report
-    // surfaces: the frame starts at the title and every following
-    // line is content — the watchdog, the census, and the table
-    // stack directly under the bar.
-    println_safe!("{}", title_bar("zelynic status", sep_len + 2));
+    // night-ux-5 (Shape B, the owner's 2026-11-08 live run): the
+    // frame is the CONTENT's own width — compose every line the
+    // status output will print FIRST, then size the title bar and
+    // the grid to the widest of them and pad the rest to the same
+    // right edge. The old shape sized the chrome to the table alone
+    // (57 columns) while the counter footer prose and the RECWN
+    // line printed beside it at 115 and 74 — the frame stopped and
+    // the prose kept going. [`frame_status_output`] owns the
+    // truncate-to-terminal belt (the footer prose cuts first, the
+    // table and the stamp never cut) and the pad pass; the
+    // composition below only decides WHICH lines exist, in the
+    // order they print.
+    let show_grid = !dl_policies.is_empty() || !ul_policies.is_empty();
+    let mut above: Vec<(StatusLineKind, String)> = Vec::new();
+    let mut below: Vec<(StatusLineKind, String)> = Vec::new();
 
+    // Watchdog honesty (NIGHT-boost-5): the line appears only when
+    // a deadline is actually ARMED — dormant (deadline 0 / None)
+    // prints no line at all.
     match watchdog_deadline {
         Some(deadline) if deadline > 0 => {
             let now = monotonic_ns();
@@ -431,111 +449,118 @@ pub fn print_status(
             } else {
                 watchdog_line(None)
             };
-            println_safe!("{line}");
+            above.push((StatusLineKind::Watchdog, line));
         }
-        // Dormant (deadline 0 / None): no line at all — the function
-        // docs above hold the why.
         _ => {}
     }
 
-    if dl_policies.is_empty() && ul_policies.is_empty() {
-        println_safe!("{}", grey("  active limits: none"));
-        println_safe!("  {}", signature_footer());
-        return;
-    }
+    if !show_grid {
+        // The clean board is still a verdict (NIGHT-engrave-5):
+        // "no active limits" names the state — no table, no grid,
+        // the frame fits the verdict and the stamp.
+        above.push((StatusLineKind::Census, grey("  active limits: none")));
+    } else {
+        // The census line lands directly above the header row it
+        // counts (NIGHT-private-research-3): one table cluster, zero
+        // filler between the summary and the columns it summarizes.
+        above.push((
+            StatusLineKind::Census,
+            active_limits_line(dl_policies.len(), ul_policies.len()),
+        ));
+        // NIGHT-engrave-5: lowercase purple titles over the grid —
+        // the eagle table contract, flush with the left edge (the
+        // `|---` shape, never `| ---`): one border family across
+        // every zelynic table.
+        above.push((StatusLineKind::Protected, status_header_line(&col_widths)));
 
-    // The census line lands directly above the header row it
-    // counts (NIGHT-private-research-3): one table cluster, zero
-    // filler between the summary and the columns it summarizes.
-    println_safe!(
-        "{}",
-        active_limits_line(dl_policies.len(), ul_policies.len())
-    );
-    // NIGHT-engrave-5: the header row and the grid under it are the
-    // eagle table contract — lowercase purple titles, then the
-    // monitor's own purple grid spanning the full title width and
-    // flush with the left edge (the `|---` shape, never `| ---`):
-    // one border family across every zelynic table.
-    println_safe!("{}", status_header_line(&col_widths));
-    println_safe!("{}", grid_line(sep_len + 2));
+        for (row, d) in rows.iter().zip(data.iter()) {
+            let label = if row.0.chars().count() > col_widths[0] {
+                let truncated: String = row
+                    .0
+                    .chars()
+                    .take(col_widths[0].saturating_sub(1))
+                    .collect();
+                format!("{truncated}…")
+            } else {
+                row.0.clone()
+            };
+            below.push((
+                StatusLineKind::Protected,
+                status_row_line(&label, row, &col_widths),
+            ));
+            // The row's subordinate family — the window lifetime
+            // line (night-during, schema v23), the guarantee bracket
+            // (improve-40, schema v24), the CE ledger (night-spark-4,
+            // schema v26), the egress pacing lane (night-spark-5,
+            // schema v27): one indent under the row that carries
+            // them, the grey window family, each rendered only when
+            // its lane actually holds something (absence stays
+            // silence, never a zero).
+            if let Some(win) = &d.window {
+                below.push((
+                    StatusLineKind::RowSubordinate,
+                    window_lifetime_line(win, wall_now, mono_now),
+                ));
+            }
+            if let Some(line) = guarantee_line(d.download, d.upload) {
+                below.push((StatusLineKind::RowSubordinate, line));
+            }
+            if let Some(line) = ce_marked_line(d) {
+                below.push((StatusLineKind::RowSubordinate, line));
+            }
+            if let Some(line) = pacing_line(d) {
+                below.push((StatusLineKind::RowSubordinate, line));
+            }
+            // night-spark-6/7 (the quota saver's Layer 4): the saved
+            // volume's line, the narrow-form switch still keyed on
+            // the terminal's own width (night-ux-2 — the wide
+            // honesty label never wraps; the narrow form fires
+            // BEFORE the frame law sees the line, so a narrow-quota
+            // row never drives the frame width past the footer).
+            if let Some(line) = quota_saved_line(d, terminal_width()) {
+                below.push((StatusLineKind::Quota, line));
+            }
+        }
 
-    for (row, d) in rows.iter().zip(data.iter()) {
-        let label = if row.0.chars().count() > col_widths[0] {
-            let truncated: String = row
-                .0
-                .chars()
-                .take(col_widths[0].saturating_sub(1))
-                .collect();
-            format!("{truncated}…")
-        } else {
-            row.0.clone()
-        };
-        println_safe!("{}", status_row_line(&label, row, &col_widths));
-        // night-during (schema v23): the lifetime line lands directly
-        // under its row — one indent deeper than the table, the same
-        // grey subordinate family the watchdog prose rides (warn
-        // yellow when the span has ended and the sweep has not
-        // collected the row yet).
-        if let Some(win) = &d.window {
-            println_safe!("{}", window_lifetime_line(win, wall_now, mono_now));
-        }
-        // improve-40 (schema v24): the bracket's own subordinate
-        // line, the window family's indent and grey — only the rows
-        // that carry a side render one.
-        if let Some(line) = guarantee_line(d.download, d.upload) {
-            println_safe!("{line}");
-        }
-        // night-spark-4 (schema v26): the CE ledger's subordinate
-        // line — the marking lane's own volume under the row that
-        // carries it, the window family's grey; only rows that
-        // actually marked traffic render one (absence stays
-        // silence, never a zero).
-        if let Some(line) = ce_marked_line(d) {
-            println_safe!("{line}");
-        }
-        // night-spark-5 (schema v27): the egress pacing lane's
-        // subordinate line — the rate the sock_ops program pins onto
-        // the row's upload sockets, the window family's grey; only
-        // rows carrying a live upload policy render one (absence
-        // stays silence, never a zero).
-        if let Some(line) = pacing_line(d) {
-            println_safe!("{line}");
-        }
-        // night-spark-6 (the quota saver's Layer 4 PREP): the quota
-        // telemetry's subordinate line — the saved volume the Layer 4
-        // columns will book (RECWN + ECN), the window family's grey;
-        // the placeholders book nothing yet, so the line stays silent
-        // until the v28 tail lands and the math fills it (the
-        // dormant-watchdog precedent: a zero is absence, never
-        // information). night-ux-2: the terminal's own width is the
-        // narrow-form trigger — the wide honesty label never wraps.
-        if let Some(line) = quota_saved_line(d, terminal_width()) {
-            println_safe!("{line}");
-        }
-    }
+        // night-ux-1 (the owner's 200kb-on-Brave session): the
+        // counter footer — the allowed / dropped columns' own
+        // units-and-window line, the --help grammar's NIGHT-dinner-11
+        // contract carried onto the surface the owner was actually
+        // reading. One grey line under the table it explains.
+        below.push((StatusLineKind::FooterProse, counters_footer_line()));
 
-    // night-ux-1 (the owner's 200kb-on-Brave session): the counter
-    // footer — the allowed / dropped columns' own units-and-window
-    // line, the --help grammar's NIGHT-dinner-11 contract carried
-    // onto the surface the owner was actually reading. One grey
-    // line under the table it explains.
-    println_safe!("{}", counters_footer_line());
-
-    // night-spark-2 (RECWN, schema v25): the receive-window lane's
-    // own subordinate line — the watchdog's grey family, one line
-    // under the table, rendered ONLY when the lane is actively
-    // shaping a window (the dormant-watchdog precedent: an unenforcing
-    // lane printing state noise is absence pretending to be
-    // information).
-    if let Some(line) = recwn_line(recwn) {
-        println_safe!("{line}");
+        // night-spark-2 (RECWN, schema v25): the receive-window
+        // lane's own subordinate line — the watchdog's grey family,
+        // one line under the table, rendered ONLY when the lane is
+        // actively shaping a window.
+        if let Some(line) = recwn_line(recwn) {
+            below.push((StatusLineKind::Recwn, line));
+        }
     }
 
     // Signature footer (NIGHT-boost-5): bottom-left identity stamp,
-    // flush with the last row (NIGHT-private-research-3: the blank
-    // line of breathing room above it retired with the rest of the
-    // report-surface fillers).
-    println_safe!("  {}", signature_footer());
+    // flush with the last row — under the frame at the left, not
+    // part of the table (its width rides the composition; it never
+    // truncates).
+    below.push((
+        StatusLineKind::Protected,
+        format!("  {}", signature_footer()),
+    ));
+
+    // The Shape B frame: cut, measure, pad — then the chrome sizes
+    // to the same width (the title bar above the upper flank, the
+    // grid between header and rows on the populated path only).
+    let frame = frame_status_output(above, below, term_w);
+    println_safe!("{}", title_bar("zelynic status", frame.width));
+    for line in &frame.above_grid {
+        println_safe!("{line}");
+    }
+    if show_grid {
+        println_safe!("{}", grid_line(frame.width));
+    }
+    for line in &frame.below_grid {
+        println_safe!("{line}");
+    }
 }
 
 // NIGHT-hunt-17: pins live under the single test/ tree, #[path]-wired
