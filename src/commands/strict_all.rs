@@ -132,8 +132,11 @@ pub(crate) fn handle_strict_all(
     // the safety blocklist on every sweep (a server lists dozens of
     // system apps). NIGHT-ux-3 rejoins the names: a count-only line
     // let `s --all` limit unbound (the host's DNS) while the user saw
-    // "24 were skipped" and no name — the shared note now names the
-    // first six distinct comms and the distinct total.
+    // "24 were skipped" and no name. The shared note (safety.rs)
+    // states the skipped row count and the distinct comms behind it —
+    // the first six when the roster does not all fit — and points at
+    // --force-this for the lift; night-ux-4 dropped the note's
+    // "(N total)" tail (the row count already leads the line).
     if !skipped.is_empty() {
         crate::output::eprintln_warn_labeled(&skipped_system_apps_note(&skipped));
     }
