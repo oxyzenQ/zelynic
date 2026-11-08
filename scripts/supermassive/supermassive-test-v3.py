@@ -136,10 +136,12 @@ _V1_SPEC.loader.exec_module(sm1)
 # Per-case timeout: a container target that cannot resolve must ANSWER
 # within this window — a hang is the loudest failure a CLI can produce
 # (the same contract v2's CLI depth stresstest carries). 15s is generous
-# for a socket probe + a bounded cgroup walk (the resolver caps depth
-# at 32 and visits at 4096 — pathwalk.rs; NIGHT-hunt-32 corrected a
-# stale "depth 10 / entries 200_000" claim that predated the walker's
-# real bounds).
+# for a socket probe + a bounded cgroup walk — the container walk
+# carries its own bounds of depth 10 / 200 000 entries
+# (container/mod.rs:44-45); the identity pathwalk's 32 / 4096 bounds
+# (pathwalk.rs, NIGHT-hunt-32) belong to the process-target walk, not
+# this one (night-cyber-2 corrected the header's earlier citation,
+# which pinned the wrong walker's bounds here).
 CLI_CASE_TIMEOUT = 15
 
 # The panic sentinel: a Rust panic leaking past the CLI's error path is
