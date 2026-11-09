@@ -121,9 +121,8 @@ Then you are the person the licensing docs warn about. Taking
 zelynic's code — stealing it, forking it illegally, stripping the
 license, or building a closed-source commercial product on it —
 without contacting the owner (rezky_nightky / oxyzenQ) and paying
-for the license is theft, not a gray area: a breach of AGPL-3.0-only
-and the Commercial License alike, and — in the owner's own words —
-the mark of the worst kind of human, a rotten one. The honest
+for the license is theft — not a gray area: a breach of
+AGPL-3.0-only and the Commercial License alike. The honest
 options are exactly two: open-source what you build under
 AGPL-3.0-only (free and first-class), or buy the tier your revenue
 honestly matches. Closed source without a license is not a third
