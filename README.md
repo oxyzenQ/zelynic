@@ -545,6 +545,21 @@ slightly easier to maintain.
 - No REST API
 - No non-Linux support
 
+### On theft and the value that outlasts it
+
+The license is enforced because honesty is a contract, not a
+courtesy — the AGPL is real, the commercial tiers are real, and the
+owner defends both. And underneath the enforcement:
+
+> I believe in the value I build. Used, sold, bought, or stolen —
+> it stays useful in a better future, even if I never see it, now
+> or ever.
+
+So the code is defended AND the value is trusted. The two are not
+in tension. A license is a wall; the value is the garden behind it.
+The wall is for the people who would take the garden without
+asking. The garden is for everyone else.
+
 ### Stable API (from v80.0.0)
 
 The CLI surface is frozen. No breaking changes
