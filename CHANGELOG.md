@@ -155,6 +155,47 @@ v80.0.0
 
 ### Fixed
 
+- **fix(ebpf): the recwn estimate books a clamp that rarely binds —
+  the RECWN booking retired (night-recvn-audit, schema v30).** The
+  owner's 2026-11-09 live ss -tip reading (brave at 200kb on the
+  home WiFi, 11 connections, 72.4 MB allowed) proved the window-law
+  estimate's three hidden assumptions false on a normal link: the
+  formula books against the kernel's 128 KiB default receive
+  buffer, but the autotuned rcv_wnd ran 48-78 KB — the default was
+  never on the wire; the formula needs the 40 KB clamp to bind
+  every cycle, but only 1 of 11 connections carried a BDP at or
+  above the clamp (the other ten sat at 1.8-14.7 KB at the policed
+  rate — physically impossible to fill); and almost every socket
+  carried `app_limited`, so the window never filled regardless.
+  The formula booked 165 MB against 72.4 MB of allowed traffic
+  while the honest per-connection upper bound recomputes to at
+  most a few MB (only the one long-RTT connection can contribute
+  at all; the strict fill-bounded bound is ~6.5 MB) — 10-30x over,
+  erring HIGH against the quota doc's own "errs LOW, never high"
+  contract, the same class the night-quota-audit EDT retirement
+  closed. Zero errs neither high nor low, so the booking retires:
+  `recwn_saved_bytes` and its 128 KiB constant leave the display
+  layer, `collect_display_data` books the word zero
+  unconditionally, the `bytes_saved_by_recwn` JSON key keeps its
+  place reading zero (the additive contract — every pre-v30 reader
+  unchanged), and `bytes_saved_total` becomes the ECN one-for-one
+  alone. SCHEMA_VERSION bumps 29 -> 30 (no layout change — the
+  bump follows the v29 shape: one forced reload so an upgraded
+  host's pin, docs, and rendered totals describe the same schema
+  generation; active limits drop once, re-apply after upgrade).
+  The RECWN lane's ENFORCEMENT (the ingress hint prime, the
+  sock_ops SO_RCVBUF clamp, the RTT re-apply) is untouched — the
+  clamp still lands, the bufferbloat still shrinks — and the
+  lane's wire effect stays the A/B harness's measurement, never a
+  booked number. recwn-probe's row 6 now pins the retirement live
+  (the word moves ZERO over a clamped download; a reintroduced
+  booking fails the probe, the edt-probe row 6 shape), and the
+  edt-probe row's total-composition prose reads the one-lane
+  truth. The estimate's test pins (the byte-exact formula pin, the
+  planted-lane law pin, the self-extinguishing-edge pin) rode out
+  with the law they pinned; the retirement pins (zero on a planted
+  lane, the total is the ECN one-for-one) replace them.
+
 - **fix(ebpf): the quota saved estimate errs low as documented —
   the EDT booking retired (night-quota-audit, schema v29).** The
   owner's 2026-11-09 live reading broke the quota doc's own

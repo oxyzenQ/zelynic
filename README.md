@@ -83,7 +83,7 @@ name for zelynic's entire architectural stack, indexed in
 | **Guaranteed fair share** | `--floor 100kb` / `--ceil 300kb`: every subprocess under the target is guaranteed a minimum and capped at a maximum — the floor a PRIORITY (an idle subprocess lends its share back; the pool itself is the lender), the ceiling binding even a lone subprocess. HTB's rate/ceil idiom in a pure eBPF policer (improve-40, schema v24). Per-direction spellings for the asymmetric link: `--floor-download` / `--ceil-upload` bracket one direction's rows only, one spelling per side (improve-40-b). |
 | **Self-expiring limits** | `--during 20d` — a duration from the apply instant (units s, m, h, d, mn, y; bounds 1s..5y): the KERNEL expires the row, no daemon, no cron, drift-free monotonic spans (NIGHT-during, schema v23; the window and date forms are gone — the owner's duration-only revision, rows written by older builds keep their promises). |
 | **RECWN receive-window control** | A policed cgroup's own sockets advertise a rate-shaped receive window (rate x 200 ms delivery-cadence estimate, clamped [2 x MSS, 1 MiB]) — remote TCP senders hold their in-flight bytes down BEFORE the link bills them, the quota saver's Layer 1 (night-spark-2, schema v25; the owner's coined name, deliberately not "RWND"). |
-| **Quota Saved telemetry — the workload-conditional quota saver** | The quota-saver lanes' work is BOOKED, not just enforced: `status --print-json` names `bytes_saved_total` with the `bytes_saved_by_edt` / `bytes_saved_by_ecn` / `bytes_saved_by_recwn` split (schema v28, night-spark-7; the EDT booking retired in v29 — the word reads zero, the split is the ECN marks and the RECWN window counterfactual, each by its own physics; the math: docs/COSMIC_DRAGON_ARC.md's Layer 4 section), and the human table's `Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)` line renders it. |
+| **Quota Saved telemetry — the workload-conditional quota saver** | The quota-saver lanes' work is BOOKED, not just enforced: `status --print-json` names `bytes_saved_total` with the `bytes_saved_by_edt` / `bytes_saved_by_ecn` / `bytes_saved_by_recwn` split (schema v28, night-spark-7; the EDT booking retired in v29 and the RECWN estimate retired in v30 — both words read zero, the sole live booking is the ECN one-for-one with the delivered marks; the math and the retirement records: docs/COSMIC_DRAGON_ARC.md's Layer 4 section), and the human table's `Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)` line renders it. |
 | **Pinned bpf_links** | Enforcement survives process exit — no daemon, no battery drain (RAM/CPU/IO measured live, not asserted: the proof harness's footprint claim). |
 | **Fractional precision** | 0.00% measured rate error, sub-byte token accumulation (reproduce: `sudo ./scripts/bench/proof-claims.sh`; math pins: test/ebpf/limiter/math_tests.rs). |
 | **Schema migration** | BPF struct changes auto-detected + auto-cleaned on upgrade. |
@@ -735,14 +735,17 @@ row's upload sockets, so the kernel's own TCP pacer spaces the
 outgoing stream at the policy rate with no tc qdisc anywhere (the
 live proof in `scripts/bench/edt-probe.sh`: 800000 b/s bit-exact,
 zero drops). And its Layer 4 — the quota telemetry — landed as
-schema v28 and was corrected by night-quota-audit in schema v29:
-the lanes' savings are BOOKED (`bytes_saved_by_ecn` in the kernel
-ledger, `bytes_saved_by_recwn` as the documented userspace
-estimate) and `status --print-json` names them plus
-`bytes_saved_total` and the retired `bytes_saved_by_edt` word
-(zero since v29 — its preserved-headroom formula booked the budget
-an idle sender never used, erring HIGH by up to 36.8x against the
-"errs LOW, never high" contract), with the human table's `Quota
+schema v28 and was corrected by night-quota-audit in schema v29 and
+night-recvn-audit in schema v30: the lanes' savings are BOOKED
+(`bytes_saved_by_ecn` in the kernel ledger, the sole live booking)
+and `status --print-json` names it plus
+`bytes_saved_total` and the two retired words `bytes_saved_by_edt`
+and `bytes_saved_by_recwn` (zero since v29/v30 — the EDT
+preserved-headroom formula booked the budget an idle sender never
+used, erring HIGH by up to 36.8x against the
+"errs LOW, never high" contract, and the RECWN window-law estimate
+booked a clamp that rarely binds, over-claiming 10-30x on the
+owner's live reading), with the human table's `Quota
 Saved` line rendering the total and the layer split.
 
 **The workload-conditional quota saver**: the three physics stack on
@@ -849,30 +852,37 @@ The three quota-saver lanes save quota by three different physics —
 RECWN clamps what the sender CAN send, the ECN CE mark makes the
 sender back off, the EDT pacer spaces the departure — and Layer 4
 books each lane's saving by the physics it actually owns (schema
-v28). The formulas are the empirical math the telemetry fills; every
-one is pinned by rootless unit tests and read live by the probes.
+v28; the EDT and RECWN bookings are retired since — v29 and v30,
+the records live below and in docs/COSMIC_DRAGON_ARC.md — the sole
+live booking is ECN's one-for-one). The formulas are the empirical
+math the telemetry fills; every one is pinned by rootless unit tests
+and read live by the probes.
 
 **The formulas.**
 
-- `bytes_saved_by_recwn` — the TCP counterfactual window law
-  (userspace estimate, `display.rs recwn_saved_bytes`). The clamp
-  holds a sender to `clamped` bytes per delivery cadence, so every
-  `clamped` bytes delivered is one window-cycle in which a
-  default-window sender would have had `default - clamped` more
-  bytes in flight:
+- `bytes_saved_by_recwn` — RETIRED (night-recvn-audit, schema v30).
+  The v28-era law booked the userspace window-law counterfactual
+  (`display.rs recwn_saved_bytes`):
 
   ```
   bytes_saved_by_recwn = (bytes_allowed / clamped) x (default - clamped)
   ```
 
-  The NAMED ASSUMPTION: `default` is pinned at 128 KiB (the kernel's
-  `tcp_rmem[0]` initial receive buffer — the window a socket carries
-  BEFORE autotuning grows it), deliberately the conservative pole:
-  the estimate errs LOW, never high. The law is self-extinguishing —
-  a rate whose clamped window reaches the default (about 655 KB/s at
-  the 200 ms cadence) books ZERO, because there the clamp is not the
-  binding constraint and the column refuses to claim the policer's
-  work as the window's.
+  with `default` pinned at 128 KiB (the kernel's `tcp_rmem[0]`
+  initial receive buffer), named "the conservative pole: the
+  estimate errs LOW, never high". The owner's live ss -tip reading
+  (2026-11-09, brave at 200kb) proved the assumption false on a
+  normal WiFi link: the autotuned rcv_wnd ran 48-78 KB across 11
+  connections — the 128 KiB default was never on the wire — only
+  1 of 11 carried a BDP at or above the 40 KB clamp (the other ten
+  sat at 1.8-14.7 KB, impossible to fill the clamp with), and
+  almost every socket was app_limited. The formula booked 165 MB
+  against 72.4 MB of allowed traffic; the honest upper bound
+  recomputes to at most a few MB — 10-30x lower, erring HIGH
+  against the contract it named. The honest booking is zero: the
+  JSON key stays reading zero, the estimate function is gone, and
+  the lane's real work (the SO_RCVBUF clamp, the bufferbloat
+  reduction) is untouched.
 
 - `bytes_saved_by_ecn` — the QUIC 1:1 retransmission prevention
   (kernel-booked, one-for-one with `ce_marked_bytes`). Every
@@ -900,16 +910,19 @@ one is pinned by rootless unit tests and read live by the probes.
   effect (the suppressed burst-retransmission storm) is the A/B
   harness's measurement, never a booked number.
 
-- `bytes_saved_total` — the sum of the surviving lanes (RECWN +
-  ECN, plus the retired EDT word reading zero), the number `status
-  --print-json` carries and the human table renders as
-  `Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)`.
+- `bytes_saved_total` — the sum of the surviving lanes (ECN's
+  one-for-one, plus the retired EDT and RECWN words reading zero),
+  the number `status --print-json` carries and the human table
+  renders as `Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)`.
 
 **The probe record.** The live proofs carry a saved row each, and
 the recorded runs read like this:
 
-- A 3 MB download with RECWN active saved 18.1 MB of unnecessary
-  TCP window expansion.
+- A 3 MB download with RECWN active booked 18.1 MB by the
+  window-law estimate — the booking night-recvn-audit retired
+  (schema v30): the estimate was the counterfactual, not a wire
+  measurement; the clamp's real effect is the clamped window the
+  recwn-probe rows pin plus the A/B harness's wire verdict.
 - A 3 MB QUIC stream saved 65 KB of retransmission storm via ECN.
 
 **The limitation, stated plainly.** QUIC first-packet still crosses

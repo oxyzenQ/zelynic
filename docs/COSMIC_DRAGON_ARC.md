@@ -338,8 +338,9 @@ directions.
   the object — the estimate runs instead where the census already
   lives, against an assumption the docs NAME.
 
-  The three derivation laws (the estimate's law is the arc's own;
-  each names its model, never a fabricated precision):
+  The three derivation laws (each names its model, never a
+  fabricated precision; two are retired with their records kept —
+  the record is the lesson):
 
   - **EDT — `bytes_saved_by_edt` (RETIRED, night-quota-audit,
     schema v29).** The v28 booking read, per-packet form: over the
@@ -385,38 +386,44 @@ directions.
     point every mark delivery already returns through, through the
     same relaxed fetch_add — SMP-exact by construction.
 
-  - **RECWN — `bytes_saved_by_recwn` (userspace estimate,
-    display.rs `recwn_saved_bytes`).** The window-law
-    counterfactual: the clamp holds a sender to `clamped` bytes per
-    delivery cadence, so every `clamped` bytes the lane DELIVERED
-    is one full window-cycle — and in that same cycle a sender with
-    the DEFAULT window would have had `default - clamped` more
-    bytes in flight. Scaled over the delivered volume:
-    `saved = (bytes_allowed / clamped) x (default - clamped)`.
-    The NAMED ASSUMPTION: `default` is pinned at 128 KiB — the
-    kernel's tcp_rmem[0] initial receive buffer, the window a
-    socket carries BEFORE autotuning grows it — deliberately the
-    conservative pole of the assumption band (autotuning grows
-    real defaults toward the MiB scale, so the estimate errs LOW,
-    never high). The self-extinguishing edge is the law's own
-    honesty: a rate whose clamped window reaches the default
-    (about 655 KB/s at the 200 ms cadence estimate) books ZERO —
-    the clamp is not the binding constraint there, the policer is,
-    and the column refuses to claim the policer's work as the
-    window's. The one granularity concession, stated:
-    `bytes_allowed` is the combined dl+ul ledger (the stats map's
-    own shape), so a row policing BOTH directions scales its upload
-    volume into the estimate too — the single-direction row, the
-    RECWN lane's own common shape, is exact.
+  - **RECWN — `bytes_saved_by_recwn` (RETIRED, night-recvn-audit,
+    schema v30; was the userspace estimate, display.rs
+    `recwn_saved_bytes`).** The window-law
+    counterfactual the estimate booked until v30: the clamp holds a
+    sender to `clamped` bytes per delivery cadence, so every
+    `clamped` bytes the lane DELIVERED is one full window-cycle —
+    and in that same cycle a sender with the DEFAULT window would
+    have had `default - clamped` more bytes in flight. Scaled over
+    the delivered volume:
+    `saved = (bytes_allowed / clamped) x (default - clamped)`,
+    with `default` pinned at 128 KiB — the kernel's tcp_rmem[0]
+    initial receive buffer — named the conservative pole: the
+    estimate errs LOW, never high. The owner's live ss -tip reading
+    (2026-11-09, brave at 200kb) proved the named assumption FALSE
+    on a normal WiFi link: the autotuned rcv_wnd ran 48-78 KB (the
+    128 KiB default was never on the wire), only 1 of 11
+    connections carried a BDP at or above the 40 KB clamp (the
+    other ten sat at 1.8-14.7 KB — a clamp they could never fill),
+    and almost every socket was app_limited (the window never
+    filled). The formula booked 165 MB against 72.4 MB of allowed
+    traffic; the honest per-connection upper bound recomputes to at
+    most a few MB — 10-30x lower, erring HIGH against the very
+    contract it named. The booking is retired (zero errs neither
+    high nor low): the estimate function came out of the display
+    layer, the JSON key stays reading zero, and the lane's real
+    work — the SO_RCVBUF clamp, the bufferbloat reduction — is
+    untouched. The one granularity concession the estimate carried
+    (bytes_allowed being the combined dl+ul ledger) retires with
+    it.
 
   The owner's headline claim is workload-conditional, not a single
   number: the lanes' bookings are the counterfactual each physics
-  owns — at the 100 kb rung the RECWN estimate alone books ~85%
-  (the window counterfactual) and the ECN lane books the lossless
-  pressure valve it delivered — with the live proofs (recwn-probe,
+  owns — since the v29 and v30 retirements the sole live booking is
+  the ECN lane's one-for-one (the delivered marks) — with the live
+  proofs (recwn-probe,
   ecn-probe, edt-probe) each carrying a row that reads the columns
-  the math fills (the EDT row pins the retirement: the word moves
-  zero). The wire prices the booking per workload: on a
+  the math fills (the EDT and RECWN rows pin the retirements: the
+  words move zero). The wire prices the booking per workload: on a
   bounded transfer the sender never attempts the overrun the window
   books, and the A/B ground truth measured ~0% on both bounded
   directions (2026-11-06, night-netrunner-12); on an overrunning
@@ -434,8 +441,9 @@ directions.
   ladder closed: the pure-law pins (the v28-era pacing_saved_bytes
   matrix rode out with the law it pinned — night-quota-audit), the
   v28 JSON pins in the display
-  suites (the live mapping, the window-law estimate, the
-  self-extinguishing edge), the layout pins (64 bytes, offsets
+  suites (the live mapping; the window-law estimate and
+  self-extinguishing-edge pins rode out with the law they pinned —
+  night-recvn-audit), the layout pins (64 bytes, offsets
   48/56, the round-trip), and the live cross-check — each probe's
   saved row against the driven traffic.
 
@@ -445,29 +453,32 @@ The three quota-saver lanes save quota by three different physics —
 RECWN clamps what the sender CAN send, the ECN CE mark makes the
 sender back off, the EDT pacer spaces the departure — and Layer 4
 books each lane's saving by the physics it actually owns
-(schema v28). The formulas are the empirical math the telemetry
-fills; every one is pinned by rootless unit tests and read live by
-the probes.
+(schema v28; the EDT and RECWN bookings are retired since — v29 and
+v30, the records live in this document's Layer 4 section — the sole
+live booking is ECN's one-for-one). The formulas are the empirical
+math the telemetry fills; every one is pinned by rootless unit tests
+and read live by the probes.
 
 **The formulas.**
 
-- `bytes_saved_by_recwn` — the TCP counterfactual window law
-  (userspace estimate, `display.rs recwn_saved_bytes`). The clamp
-  holds a sender to `clamped` bytes per delivery cadence, so every
-  `clamped` bytes delivered is one window-cycle in which a
-  default-window sender would have had `default - clamped` more
-  bytes in flight:
+- `bytes_saved_by_recwn` — RETIRED (night-recvn-audit, schema v30;
+  the derivation record lives in this document's Layer 4 section
+  above). The v28-era law booked the userspace window-law
+  counterfactual
 
       bytes_saved_by_recwn = (bytes_allowed / clamped) x (default - clamped)
 
-  The NAMED ASSUMPTION: `default` is pinned at 128 KiB (the kernel's
-  `tcp_rmem[0]` initial receive buffer — the window a socket carries
-  BEFORE autotuning grows it), deliberately the conservative pole:
-  the estimate errs LOW, never high. The law is self-extinguishing —
-  a rate whose clamped window reaches the default (about 655 KB/s at
-  the 200 ms cadence) books ZERO, because there the clamp is not the
-  binding constraint and the column refuses to claim the policer's
-  work as the window's.
+  with `default` pinned at 128 KiB (the kernel's `tcp_rmem[0]`
+  initial receive buffer), named "the conservative pole: the
+  estimate errs LOW, never high". The owner's live ss -tip reading
+  (2026-11-09, brave at 200kb) proved the assumption false on a
+  normal WiFi link — autotuned windows of 48-78 KB, 1 of 11
+  connections with a BDP at or above the 40 KB clamp, almost every
+  socket app_limited — and the formula over-claimed 10-30x, erring
+  HIGH against the contract it named. The honest booking is zero:
+  the key stays in the JSON reading zero, the estimate function is
+  gone, and the lane's real work (the SO_RCVBUF clamp) is
+  untouched.
 
 - `bytes_saved_by_ecn` — the QUIC 1:1 retransmission prevention
   (kernel-booked, one-for-one with `ce_marked_bytes`). Every
@@ -489,16 +500,19 @@ the probes.
   effect (the suppressed burst-retransmission storm) is the A/B
   harness's measurement, never a booked number.
 
-- `bytes_saved_total` — the sum of the surviving lanes (RECWN +
-  ECN, plus the retired EDT word reading zero), the number `status
-  --print-json` carries and the human table renders as
-  `Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)`.
+- `bytes_saved_total` — the sum of the surviving lanes (ECN's
+  one-for-one, plus the retired EDT and RECWN words reading zero),
+  the number `status --print-json` carries and the human table
+  renders as `Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)`.
 
 **The probe record.** The live proofs carry a saved row each, and
 the recorded runs read like this:
 
-- A 3 MB download with RECWN active saved 18.1 MB of unnecessary
-  TCP window expansion.
+- A 3 MB download with RECWN active booked 18.1 MB by the
+  window-law estimate — the booking night-recvn-audit retired
+  (schema v30): the estimate was the counterfactual, not a wire
+  measurement, and the clamp's real effect is the clamped window
+  the recwn-probe rows pin plus the A/B harness's wire verdict.
 - A 3 MB QUIC stream saved 65 KB of retransmission storm via ECN.
 
 **The limitation, stated plainly.** QUIC first-packet still crosses
