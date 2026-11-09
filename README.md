@@ -66,6 +66,17 @@ Traditional tools limit interfaces. zelynic limits **applications**.
 Brave can be limited to 100 KB/s while Firefox runs at full speed — all on the
 same WiFi interface. No `tc`, no `nftables`, no `LD_PRELOAD`, no daemon.
 
+### What zelynic actually saves
+
+Measured on the wire: at a 100kb rate limit on a ~1 MB/s link, an eager app
+(autoplay, background sync, streaming) uses 87% less wire than the same app
+unthrottled. A bounded transfer (a file that ends) saves ~0% — the file ends,
+nothing is being throttled, nothing is being saved.
+
+The savings is the rate limit itself, not packet rescue. The full physics,
+the measured curve (50kb-1mb), and the peak declaration live in
+[docs/QUOTA_SAVER_PHYSICS.md](docs/QUOTA_SAVER_PHYSICS.md).
+
 ### What makes zelynic sharp
 
 Every claim below maps to a mechanism that verifies it — the full
