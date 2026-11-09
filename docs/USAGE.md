@@ -850,9 +850,11 @@ it", night-docs-1's direction-and-residual wording):
   itself says the total is the counterfactual booking (the bytes
   the rate limit prevented), not a wire measurement, and names
   the A/B harness that measures the wire truth; the three lanes'
-  physics still ride the split (EDT: the preserved egress
-  headroom, ECN: the delivered marks, RECWN: the window-clamp
-  counterfactual, the documented userspace estimate). The line
+  physics still ride the split (EDT: the retired word, zero since
+  schema v29; ECN: the delivered marks, the sole live booking;
+  RECWN: the retired estimate, zero since schema v30 —
+  night-recvn-audit retired the window-law counterfactual that
+  over-claimed 10-30x on the owner's live reading). The line
   stays silent on a zero total (the dormant-watchdog precedent),
   so a row without the line has booked no savings yet, never
   "no lane".
@@ -877,7 +879,9 @@ by the clamp, not by a drop.
 `bytes_saved_total` is NOT the same number as `dropped`.
 `bytes_saved_total` is the counterfactual quota the lanes
 prevented (a booked estimate, labeled `(est., counterfactual)` on
-the status surface). `dropped` is the real kernel discards AFTER
+the status surface — since schema v30 the booking is the ECN
+one-for-one alone, the retired EDT and RECWN words reading zero).
+`dropped` is the real kernel discards AFTER
 the lanes did their work. On a working saver-lane deployment,
 `dropped` is small and `bytes_saved_total` is large. The honest
 wire-measured savings number is the A/B harness's output
@@ -886,12 +890,13 @@ The lane-by-lane accounting and the peak declaration live in
 [QUOTA_SAVER_PHYSICS.md](QUOTA_SAVER_PHYSICS.md).
 
 Two worked readings close the section: a policed download at
-200kb with `dropped=0` and `bytes_saved_total=5.5 MB` — the lanes
-are working; RECWN clamped the sender, no packet reached the drop
-verdict, and the quota is preserved by the clamp, not by a drop.
-A policed download with `dropped=34 MB` — the rate limit itself is
-policing; the 34 MB are real discards and ingress quota was
-burned.
+200kb with `dropped=0` — the lanes are working; RECWN clamped the
+sender, no packet reached the drop verdict, and the quota is
+preserved by the clamp, not by a drop (the booked total, if any,
+reads from the ECN marks — the retired RECWN word stays zero since
+schema v30). A policed download with `dropped=34 MB` — the rate
+limit itself is policing; the 34 MB are real discards and ingress
+quota was burned.
 
 Both counters live for the lifetime of the limit: re-applying
 `strict` with a different rate keeps the accounting continuous
@@ -903,7 +908,9 @@ per-row counters (packets_allowed, packets_dropped, bytes_allowed,
 bytes_dropped, the schema-v26 CE-ledger pair
 ce_marked_packets, ce_marked_bytes, and the schema-v28 quota
 telemetry quartet bytes_saved_by_edt, bytes_saved_by_ecn,
-bytes_saved_by_recwn, bytes_saved_total)
+bytes_saved_by_recwn, bytes_saved_total — the EDT and RECWN words
+retired and reading zero since schema v29/v30, the total the ECN
+one-for-one)
 where automation reads them — one metric per cell, evidence of
 enforcement rather than a live rate meter.
 
@@ -2346,8 +2353,8 @@ one table, script-facing):
 | `limits[].ce_marked_packets` / `ce_marked_bytes` | number | the ECN-first lane's delivered CE-marked volume (night-spark-4, schema v26 — always present): packets the policer DELIVERED with the CE codepoint set instead of dropping, and their bytes. A refused mark never reaches the pair |
 | `limits[].bytes_saved_by_edt` | number | the egress pacing lane's RETIRED saved word (night-spark-7, schema v28 — always present; the booking retired by night-quota-audit, schema v29): the v28 kernel booked the running `(rate x elapsed) - uploaded` on the egress policed path, but the formula's only nonzero content was the budget an idle sender never used — the owner's live reading had it erring HIGH by up to 36.8x against the doc's "errs LOW, never high" contract. The word keeps its place in the layout and reads zero from v29 on; the pacing lane's enforcement (the `SO_MAX_PACING_RATE` pin) is untouched |
 | `limits[].bytes_saved_by_ecn` | number | the ECN lane's saved volume (night-spark-7, schema v28 — always present): one-for-one with `ce_marked_bytes` — every delivered CE-marked byte is a byte that never becomes a loss-and-retransmission pair, the estimate's conservative floor |
-| `limits[].bytes_saved_by_recwn` | number | the RECWN lane's saved volume (night-spark-7 — always present): the userspace window-law estimate `(bytes_allowed / clamped_window) x (default_window - clamped_window)` against the documented 128 KiB default-window assumption (tcp_rmem[0], the conservative pole); zero when the lane is unplanted or the row's clamped window reaches the default (~655 KB/s — the clamp is not the binding constraint there, the policer is) |
-| `limits[].bytes_saved_total` | number | the row's saved-lane sum, saturating (night-spark-7 — always present): the one field a scripted `Quota Saved: X` reads — since schema v29 the RECWN estimate plus the ECN one-for-one (the retired EDT word contributes zero); the human table's Quota Saved line renders this total with the layer split |
+| `limits[].bytes_saved_by_recwn` | number | the RECWN lane's RETIRED saved word (night-spark-7, schema v28 — always present; the estimate retired by night-recvn-audit, schema v30): the userspace window-law estimate `(bytes_allowed / clamped_window) x (default_window - clamped_window)` against the documented 128 KiB default-window assumption booked a clamp that rarely binds — the owner's live ss -tip reading (2026-11-09, brave at 200kb) had autotuned windows of 48-78 KB, 1 of 11 connections with a BDP at or above the 40 KB clamp, and almost every socket app_limited, so the formula over-claimed 10-30x against the doc's "errs LOW, never high" contract. The key keeps its place and reads zero from v30 on; the RECWN lane's enforcement (the SO_RCVBUF clamp) is untouched |
+| `limits[].bytes_saved_total` | number | the row's saved-lane sum, saturating (night-spark-7 — always present): the one field a scripted `Quota Saved: X` reads — since schema v30 the ECN one-for-one alone (the retired EDT and RECWN words contribute zero); the human table's Quota Saved line renders this total with the layer split |
 | `limits[].pacing_rate_bytes` | number | the egress pacing lane's commanded rate (night-spark-5, schema v27), in BYTES per second — the upload policy's own rate pinned onto the row's TCP sockets via `SO_MAX_PACING_RATE`. Present only when a live upload policy stands; absent on upload-less and blocked rows (never a fabricated zero) |
 | `limits[].rate_ring` | object | the last eight seconds' per-second delivered bytes, per direction — a traffic MONITOR, not the policy window (see the callout below) |
 | `limits[].window` | object | the row's `--during` policy window — the thing that expires (see the callout below) |

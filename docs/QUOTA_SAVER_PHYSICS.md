@@ -19,8 +19,10 @@ measurement discipline is the A/B harness
 (`scripts/bench/quota-saver-ab.sh`): the same real download and the
 same real upload run twice — scenario A under a live zelynic limit,
 scenario B with no enforcement — and the saving is read off the
-interface deltas, not off any ledger. Where a number is an estimate
-(the RECWN booking), this document says so. Nothing here is
+interface deltas, not off any ledger. Where a booking was an
+estimate, this document says so — and where an estimate broke the
+errs-LOW contract (the RECWN booking, retired 2026-11-09,
+night-recvn-audit), the retirement record below names it. Nothing here is
 extrapolated: five rates were measured, and exactly five rows exist.
 The README's quota-saver section is the buyer-facing summary; this
 document is what it summarizes.
@@ -88,24 +90,47 @@ primes a cookie-keyed hint and the sock_ops program pins
 TCP pacer spaces the outgoing stream at the policy rate, with no tc
 qdisc anywhere.
 
-**Layer 4 — telemetry (schema v28, the EDT booking retired in v29).**
+**Layer 4 — telemetry (schema v28; the EDT booking retired in v29,
+the RECWN estimate retired in v30).**
 The lanes' work is booked, not just enforced: `bytes_saved_by_ecn`
-in the kernel ledger, `bytes_saved_by_recwn` as the documented
-userspace estimate, and `bytes_saved_total` named by `status
---print-json` and rendered by the human table's `Quota Saved` line.
-The v28 `bytes_saved_by_edt` word keeps its place in the layout and
-reads zero since v29 (the retirement is documented with the bookings
-below).
+in the kernel ledger — the sole live booking — and
+`bytes_saved_total` named by `status --print-json` and rendered by
+the human table's `Quota Saved` line. The v28 `bytes_saved_by_edt`
+word keeps its place in the layout and reads zero since v29, and
+the `bytes_saved_by_recwn` key keeps its place reading zero since
+v30 (the retirements are documented with the bookings below).
 
 The bookings, one law each (the derivations live in
 docs/COSMIC_DRAGON_ARC.md's Layer 4 section):
 
-- `bytes_saved_by_recwn` — the TCP counterfactual window law:
-  `(bytes_allowed / clamped) x (default - clamped)`, with `default`
-  pinned at the kernel's 128 KiB initial receive buffer — the
-  conservative pole, so the estimate errs low, never high. This is
-  the one ESTIMATED number in the saver; everything else in this
-  document is wire-read.
+- `bytes_saved_by_recwn` — RETIRED (night-recvn-audit, schema v30).
+  The v28-era law read `(bytes_allowed / clamped) x (default -
+  clamped)` userspace-side, with `default` pinned at the kernel's
+  128 KiB initial receive buffer and named "the conservative pole,
+  so the estimate errs low, never high". The formula booked a
+  counterfactual that assumes the clamp binds for every delivery
+  cycle, and on a real link it rarely does. The owner's live
+  ss -tip reading (2026-11-09, brave at 200kb on the home WiFi)
+  proved the law's three hidden assumptions false: the autotuned
+  rcv_wnd ran 48-78 KB across 11 connections — the 128 KiB
+  "default" the formula books against was never on the wire; only
+  1 of the 11 connections carried a BDP at or above the 40 KB clamp
+  (the other ten sat at 1.8-14.7 KB — physically impossible to fill
+  a 40 KB clamp at the policed rate, let alone the 128 KiB
+  default); and almost every socket carried `app_limited` — the
+  sender was not pushing at max, so the window never filled. The
+  formula booked 165 MB against 72.4 MB of allowed traffic; the
+  honest per-connection upper bound recomputes to at most a few MB
+  (only the one long-RTT connection can contribute at all; the
+  strict fill-bounded bound is ~6.5 MB, ~25x lower). A value that
+  errs 20x HIGH cannot sit under the "errs LOW, never high"
+  contract, and zero errs neither high nor low. The key stays in
+  `status --print-json` at zero (the additive contract), the
+  estimate function came out of the display layer, and the lane's
+  real work — the SO_RCVBUF clamp, the bufferbloat reduction — is
+  untouched: the RECWN lane still primes hints and clamps when it
+  can, and its wire effect is the A/B harness's measurement, never
+  a booked number.
 - `bytes_saved_by_ecn` — one-for-one with `ce_marked_bytes`: every
   delivered CE-marked byte is a byte that never becomes a
   loss-and-retransmission pair, and a dropped byte costs metered
@@ -137,9 +162,9 @@ The status counter `dropped` is the kernel discards AFTER the lanes
 did their work — the bytes the token bucket's drop verdict actually
 discarded since apply. The status counter `bytes_saved_total` is
 the counterfactual estimate of what the lanes prevented (the
-schema-v28 telemetry's sum: the RECWN estimate plus the ECN
-one-for-one, plus the retired EDT word reading zero since v29,
-rendered with the honest "(est., counterfactual)" label). The two are not the same number
+telemetry sum: the ECN one-for-one alone — the retired EDT word
+reads zero since v29 and the retired RECWN estimate reads zero
+since v30, rendered with the honest "(est., counterfactual)" label). The two are not the same number
 and answer different questions: `dropped` says how many bytes the
 policer was forced to drop; `bytes_saved_total` says how many bytes
 the saver lanes withheld the policer from ever seeing. On a working
@@ -150,7 +175,8 @@ with the clamp, the mark, or the pace — `dropped` grows and
 A/B harness's number (section 8), not the booked counterfactual.
 The lane-by-lane physics live in the layers above and in
 docs/COSMIC_DRAGON_ARC.md's Layer 4 section (the lane docs); the
-schemas are v25 RECWN, v26 ECN, v27 EDT, v28 telemetry. USAGE.md's
+schemas are v25 RECWN, v26 ECN, v27 EDT, v28 telemetry, v29/v30 the
+retirements. USAGE.md's
 status section carries the same distinction for the surface reader.
 
 ## 3. The formula and the measured curve

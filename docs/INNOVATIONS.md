@@ -281,23 +281,26 @@ pinned by rootless unit tests and read live by the probes.
 
 **The formulas.**
 
-- `bytes_saved_by_recwn` — the TCP counterfactual window law
-  (userspace estimate, `display.rs recwn_saved_bytes`). The clamp
-  holds a sender to `clamped` bytes per delivery cadence, so every
-  `clamped` bytes delivered is one window-cycle in which a
-  default-window sender would have had `default - clamped` more
-  bytes in flight:
+- `bytes_saved_by_recwn` — RETIRED (night-recvn-audit, schema v30).
+  The v28-era law booked the userspace window-law counterfactual
+  (`display.rs recwn_saved_bytes`):
 
       bytes_saved_by_recwn = (bytes_allowed / clamped) x (default - clamped)
 
-  The NAMED ASSUMPTION: `default` is pinned at 128 KiB (the kernel's
-  `tcp_rmem[0]` initial receive buffer — the window a socket carries
-  BEFORE autotuning grows it), deliberately the conservative pole:
-  the estimate errs LOW, never high. The law is self-extinguishing —
-  a rate whose clamped window reaches the default (about 655 KB/s at
-  the 200 ms cadence) books ZERO, because there the clamp is not the
-  binding constraint and the column refuses to claim the policer's
-  work as the window's.
+  with `default` pinned at 128 KiB (the kernel's `tcp_rmem[0]`
+  initial receive buffer), named "the conservative pole: the
+  estimate errs LOW, never high". The owner's live ss -tip reading
+  (2026-11-09, brave at 200kb) proved the assumption false on a
+  normal WiFi link — autotuned rcv_wnd of 48-78 KB across 11
+  connections (the 128 KiB default was never on the wire), 1 of 11
+  connections with a BDP at or above the 40 KB clamp (the other
+  ten at 1.8-14.7 KB, impossible to fill the clamp with), almost
+  every socket app_limited — and the formula booked 165 MB against
+  72.4 MB of allowed traffic while the honest upper bound
+  recomputes to at most a few MB: 10-30x over, erring HIGH against
+  the contract it named. The honest booking is zero: the JSON key
+  stays reading zero, the estimate function is gone, and the
+  lane's real work (the SO_RCVBUF clamp) is untouched.
 
 - `bytes_saved_by_ecn` — the QUIC 1:1 retransmission prevention
   (kernel-booked, one-for-one with `ce_marked_bytes`). Every
@@ -328,19 +331,23 @@ pinned by rootless unit tests and read live by the probes.
   suppressed burst-retransmission storm — is the A/B harness's
   measurement, never a booked number.
 
-- `bytes_saved_total` — the sum of the surviving lanes (the RECWN
-  estimate + the ECN one-for-one, plus the retired EDT word reading
-  zero), the number `status --print-json` carries and the human
-  table renders as `Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)`.
+- `bytes_saved_total` — the sum of the surviving lanes (the ECN
+  one-for-one, plus the retired EDT and RECWN words reading zero),
+  the number `status --print-json` carries and the human table
+  renders as `Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)`.
 
 **The probe record.** The live proofs carry a saved row each
 (`recwn-probe.sh` row 6, `ecn-probe.sh`'s saved twin, `edt-probe.sh`
-row 6 — the EDT row pins the retirement live since schema v29: the
-word moves ZERO over a paced upload, and a reintroduced booking
+row 6 — the EDT row pins its retirement live since schema v29 and
+the RECWN row pins its retirement live since schema v30: the words
+move ZERO over the driven legs, and a reintroduced booking
 fails the probe), and the recorded runs read like this:
 
-- A 3 MB download with RECWN active saved 18.1 MB of unnecessary
-  TCP window expansion.
+- A 3 MB download with RECWN active booked 18.1 MB by the
+  window-law estimate — the booking night-recvn-audit retired
+  (schema v30): the estimate was the counterfactual, not a wire
+  measurement; the clamp's real effect is the clamped window the
+  recwn-probe rows pin plus the A/B harness's wire verdict.
 - A 3 MB QUIC stream saved 65 KB of retransmission storm via ECN.
 
 **The limitation, stated plainly.** QUIC first-packet still crosses
@@ -350,11 +357,12 @@ honest congestion signal can rescue; they do not un-send a datagram
 the wire already carried.
 
 The headline is workload-conditional, not a single number: the
-ledger's counterfactual books ~85% at the 100 kb rung under the
-conservative default-window assumption — the sender the clamp WOULD
-hold back — while the measured A/B ground truth on a bounded 20 MB
-pair came back at ~0%, the enforced leg moving equal-or-more wire
-than the unenforced leg on both directions (2026-11-06). A bounded
+ledger's counterfactual — the ECN one-for-one alone since the EDT
+and RECWN retirements (schema v29/v30) — prices the marks the
+lanes delivered, while the measured A/B ground truth on a bounded
+20 MB pair came back at ~0%, the enforced leg moving equal-or-more
+wire than the unenforced leg on both directions (2026-11-06). A
+bounded
 transfer's sender never attempts the overrun the booking prices;
 the overrunning workload's sender never stops, and the A/B harness
 (`scripts/bench/quota-saver-ab.sh`) now carries the overrunning leg
