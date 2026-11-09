@@ -1069,9 +1069,8 @@ $5,199 for the term they bought; new Business licenses are $9,999.
 forking it illegally, stripping the license, or building a
 closed-source commercial product on it — without first
 contacting the owner (rezky_nightky / oxyzenQ) and paying the
-license is, in the owner's own words, the mark of the worst
-kind of human — a rotten one. The honest paths are exactly two:
-comply with AGPL-3.0-only (free, first-class, not a trial), or
+license is theft — not a gray area. The honest paths are exactly
+two: comply with AGPL-3.0-only (free, first-class, not a trial), or
 buy the tier your revenue honestly matches. There is no third
 path that leaves you clean.
 
