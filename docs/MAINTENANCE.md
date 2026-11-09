@@ -63,6 +63,23 @@ because a publish is the owner's deliberate act) and the clock
 lanes (`maintenance.yml` plus the weekly audit/CodeQL/miri
 schedules — they watch external state, not the tree).
 
+### Red runs that are not failures (the concurrency supersede)
+
+The Miri and Supermassive lanes occasionally show red on an older commit
+after a rapid follow-up push, and the log says it is by design: `miri.yml`,
+`supermassive.yml`, and `supermassive-e2e.yml` each run the cosmostrix
+stability pattern (`concurrency` keyed on workflow + ref,
+`cancel-in-progress: true`), so a newer push to the same ref cancels the
+still-running run and the superseded commit reads as failed. The record:
+the night-peace-1 push (ae265c6) logged three such reds 14 s after the
+night-price-1 push (fc0b018) landed — each killed run's last line is
+`##[error]The operation was canceled.`, no test failed, and no
+`timeout-minutes` (40–55) was reached at the ~7m50s kill; the identical
+code, one docs-only commit later, went fully green on fc0b018 (the same
+Miri lane ran 8m42s to `[OK] Miri verification PASSED (121 tests, 0 fail,
+439537ms)`). Rerun — or read the newer push's runs — before
+investigating.
+
 ## 3. The prebuilt eBPF lane (the one ritual with a hard rule)
 
 After **any** change under `ebpf/`, the same task must also refresh the
