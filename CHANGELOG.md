@@ -35,6 +35,13 @@ v80.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The $99 Individual tier is retired; the entry paid tier is
+  Professional at $1,899, matching the owner's forensic tool
+  zejtron. Existing $99 buyers are grandfathered for their term.
+  (night-price-1)
+
 ### Added
 
 - **docs(readme): the quota saver's empirical math, on the front
