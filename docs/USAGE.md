@@ -2330,7 +2330,7 @@ Field shapes:
 `status --print-json`:
 
 ```json
-{"watchdog":"enforcing","active_limits":2,"limits":[{"cgroup_id":18571,"label":"brave","download_bytes_per_sec":100000,"upload_bytes_per_sec":100000,"packets_allowed":232,"packets_dropped":4718,"bytes_allowed":29520,"bytes_dropped":8031234,"ce_marked_packets":12,"ce_marked_bytes":17432,"bytes_saved_by_edt":61000,"bytes_saved_by_ecn":17432,"bytes_saved_by_recwn":16438312,"bytes_saved_total":16516744}]}
+{"watchdog":"enforcing","active_limits":2,"limits":[{"cgroup_id":18571,"label":"brave","download_bytes_per_sec":100000,"upload_bytes_per_sec":100000,"packets_allowed":232,"packets_dropped":4718,"bytes_allowed":29520,"bytes_dropped":8031234,"ce_marked_packets":12,"ce_marked_bytes":17432,"bytes_saved_by_edt":0,"bytes_saved_by_ecn":17432,"bytes_saved_by_recwn":0,"bytes_saved_total":17432}]}
 ```
 
 The complete field reference (night-improve-60 — the owner read
