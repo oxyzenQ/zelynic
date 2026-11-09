@@ -68,9 +68,10 @@ one layer up. This harness pins the lane LIVE:
     by up to 36.8x against the quota doc's own "errs LOW, never
     high" contract); a pacer reschedules bytes, it does not remove
     them, and the wire effect the A/B harness measures is the lane's
-    honest claim. bytes_saved_total stays readable (it is the
-    ECN + RECWN sum); a pre-v28 object carries no fields and fails
-    this row with the rebuild reason spelled out.
+    honest claim. bytes_saved_total stays readable (it is the ECN
+    one-for-one; the RECWN estimate joined the retirement,
+    night-recvn-audit, schema v30); a pre-v28 object carries no
+    fields and fails this row with the rebuild reason spelled out.
 
 Honesty contracts: the upload policy is planted BEFORE the
 uploader fork (the sockets curl creates are born policed — the
@@ -675,8 +676,9 @@ def live_run():
                 f"the ledger moved {delta_e} B saved-by-edt / {delta_t} B "
                 "total during the paced upload — the EDT word is retired "
                 "(schema v29: the headroom formula booked the budget an "
-                "idle sender never used), the saved total is ECN + "
-                "RECWN, and the lane's wire effect is the A/B harness's "
+                "idle sender never used), the saved total is ECN's "
+                "one-for-one (the RECWN estimate retired too, schema "
+                "v30), and the lane's wire effect is the A/B harness's "
                 "to measure",
             )
 

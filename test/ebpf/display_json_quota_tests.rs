@@ -4,9 +4,11 @@
 //! The quota telemetry's JSON pins (night-spark-6 landed the PREP
 //! family as placeholders; night-spark-7, the quota saver's Layer 4
 //! math, rewrote it for the live mapping): the four-field contract
-//! on every limit row and the RECWN estimate's own law, split from
-//! display_json_tests.rs at the 600-line owner cap (the
-//! window/recwn/pacing sibling-split lineage, one family over).
+//! on every limit row and the retirement pins the saved word carries
+//! since night-quota-audit (EDT, schema v29) and night-recvn-audit
+//! (RECWN, schema v30), split from display_json_tests.rs at the
+//! 600-line owner cap (the window/recwn/pacing sibling-split
+//! lineage, one family over).
 //!
 //! The helpers below are LOCAL on purpose (the pacing sibling's own
 //! discipline): a split family carries its own fixtures, so the
@@ -29,7 +31,9 @@ fn policy(rate_bps: u64) -> PolicyRaw {
 
 /// The Layer 4 fixture: a stats row whose saved tail books what the
 /// kernel books — the ECN word one-for-one with the delivered marks,
-/// the EDT word the egress accrual's own volume.
+/// the EDT word the retired kernel column (zero from the kernel
+/// since v29; the display copies whatever the tail carries, so the
+/// fixture's nonzero value pins the verbatim copy).
 fn stats_saved(bytes_allowed: u64, edt_saved: u64, ecn_saved: u64) -> LimiterStatsRaw {
     LimiterStatsRaw {
         packets_allowed: bytes_allowed / 100,
@@ -77,15 +81,16 @@ fn status_json_carries_the_quota_telemetry_columns_live() {
     assert!(text.contains("\"bytes_saved_total\":42432"), "{text}");
 }
 
-/// night-spark-7 (Layer 4): the RECWN estimate's own law, live on a
-/// planted lane — the window-law counterfactual against the
-/// documented 128 KiB default-window assumption. A 100 KB/s policy
-/// derives a 20_000-byte window; 40_000 delivered bytes are two
-/// full window-cycles; each cycle held back 131_072 - 20_000 bytes
-/// a default-window sender would have had in flight: the estimate
-/// books exactly 2 x 111_072.
+/// night-recvn-audit (schema v30): the saved word's retirement, live
+/// on a planted lane — every ingredient the old window-law estimate
+/// asked for (a planted lane shaping a 20_000-byte window from a
+/// 100 KB/s policy, 40_000 delivered bytes) and the RECWN word reads
+/// ZERO. The old estimate booked 2 x 111_072 here; the counterfactual
+/// assumed a 128 KiB default window the autotuned 48-78 KB windows
+/// of the owner's live reading never carried, and a clamp 10 of 11
+/// connections' BDP could never fill.
 #[test]
-fn the_recwn_estimate_rides_the_window_law_on_a_planted_lane() {
+fn the_recwn_saved_word_is_retired_on_a_planted_lane() {
     let dl = vec![(73386, policy(100_000))];
     let lane = RecwnLane {
         planted: true,
@@ -105,30 +110,31 @@ fn the_recwn_estimate_rides_the_window_law_on_a_planted_lane() {
         0,
     );
     let row = &json.limits[0];
-    assert_eq!(row.bytes_saved_by_recwn, 222_144);
-    // The estimate is the only lane that booked: the total IS it.
-    assert_eq!(row.bytes_saved_total, 222_144);
-    assert!(json.to_json().contains("\"bytes_saved_by_recwn\":222144"));
+    assert_eq!(row.bytes_saved_by_recwn, 0);
+    assert_eq!(row.bytes_saved_total, 0);
+    // The key stays present at zero (the additive contract): a
+    // pre-v30 reader reads the same four fields.
+    assert!(json.to_json().contains("\"bytes_saved_by_recwn\":0"));
 }
 
-/// The estimate's self-extinguishing edge (the law's own honesty): a
-/// rate whose clamped window reaches the default (700 KB/s derives
-/// a 140_000-byte window against the 131_072 assumption) books ZERO
-/// — the clamp is not the binding constraint there, the policer is,
-/// and the column refuses to claim the policer's work as the
-/// window's.
+/// night-recvn-audit (schema v30): the total is ECN's one-for-one
+/// alone — the retired EDT and RECWN words stay in the additive sum
+/// at zero, so a scripted `Quota Saved: X` reads the delivered ECN
+/// marks exactly. The estimate's old self-extinguishing edge (the
+/// clamp-not-binding rate books zero) is subsumed: every rate books
+/// zero now, the booking is the marks'.
 #[test]
-fn the_recwn_estimate_extinguishes_where_the_clamp_is_not_binding() {
-    let dl = vec![(73386, policy(700_000))];
+fn the_saved_total_is_the_ecn_one_for_one_alone() {
+    let dl = vec![(73386, policy(100_000))];
     let lane = RecwnLane {
         planted: true,
-        window_bytes: Some(140_000),
+        window_bytes: Some(20_000),
         binding_policies: 1,
     };
     let json = status_json(
         &dl,
         &[],
-        &[(73386, stats_saved(1_000_000, 0, 0))],
+        &[(73386, stats_saved(40_000, 0, 862_000))],
         &IdentityMap::new(),
         Some(0),
         &RingReads::absent(),
@@ -137,8 +143,12 @@ fn the_recwn_estimate_extinguishes_where_the_clamp_is_not_binding() {
         0,
         0,
     );
-    assert_eq!(json.limits[0].bytes_saved_by_recwn, 0);
-    assert_eq!(json.limits[0].bytes_saved_total, 0);
+    let row = &json.limits[0];
+    assert_eq!(row.bytes_saved_by_ecn, 862_000);
+    assert_eq!(row.bytes_saved_by_edt, 0);
+    assert_eq!(row.bytes_saved_by_recwn, 0);
+    assert_eq!(row.bytes_saved_total, 862_000);
+    assert!(json.to_json().contains("\"bytes_saved_total\":862000"));
 }
 
 /// The zero row keeps the additive contract: no stats entry at all

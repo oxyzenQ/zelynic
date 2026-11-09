@@ -236,19 +236,19 @@ pub struct Bucket {
 /// "errs LOW, never high" contract), and a pacer reschedules bytes
 /// rather than removing them. The word stays at its offset reading
 /// zero — the pure-append law keeps every pre-v29 reader unchanged
-/// — and the quota saved total is the two lanes whose physics
-/// actually withhold bytes: ECN's one-for-one marks and the RECWN
-/// userspace estimate.
+/// — and the quota saved total is the lane whose physics actually
+/// withhold bytes: ECN's one-for-one marks (the RECWN userspace
+/// estimate joined the EDT word in retirement, night-recvn-audit,
+/// schema v30 — the window-law counterfactual booked a clamp that
+/// rarely binds, 10-30x HIGH on the owner's live reading).
 /// `bytes_saved_by_ecn` (offset 56) is booked by book_rescue's
 /// correction beside the ce_marked pair it already writes: every
 /// delivered CE-marked byte is a byte that never becomes a
 /// loss-and-retransmission pair, booked one-for-one (the estimate's
-/// conservative floor). The RECWN lane's saving stays a USERSPACE
-/// estimate (display.rs recwn_saved_bytes — the window-law
-/// counterfactual) because the sock_ops clamp carries no observable
-/// default-window column to book against; the derivation law and
-/// its named assumption live in docs/COSMIC_DRAGON_ARC.md. Every
-/// pre-v28 reader of the head and the v26 tail reads unchanged.
+/// conservative floor). The saved total carries no other live
+/// booking; the derivation histories live in docs/COSMIC_DRAGON_ARC.md
+/// and the schema contract history. Every pre-v28 reader of the head
+/// and the v26 tail reads unchanged.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct LimiterStats {

@@ -100,7 +100,7 @@ fn status_json(
     };
 
     let now = mono_now_ns;
-    let mut data = collect_display_data(dl_policies, ul_policies, stats, windows, recwn);
+    let mut data = collect_display_data(dl_policies, ul_policies, stats, windows);
     super::display_order::sort_status_rows(&mut data, identity); // night-ux-6: one sort law with the human table
 
     let limits: Vec<LimitEntry> = data
@@ -163,12 +163,12 @@ fn status_json(
                 ce_marked_bytes: d.ce_marked_bytes,
                 // night-spark-7 (the quota telemetry's math — Layer
                 // 4): the live mapping — the two kernel-booked
-                // columns copy off the v28 stats tail, the RECWN
-                // estimate rides collect_display_data's own window
-                // law, and the row's total sums the three lanes
-                // (always present, the additive contract the
-                // CE-ledger pair set — a scripted `Quota Saved: X`
-                // reads one field, never a three-way sum).
+                // columns copy off the v28 stats tail, the RECWN word
+                // reads zero since night-recvn-audit retired the
+                // userspace estimate (schema v30), and the row's
+                // total sums the three lanes (always present, the
+                // additive contract — every live booking is ECN's
+                // one-for-one).
                 bytes_saved_by_recwn: d.bytes_saved_by_recwn,
                 bytes_saved_by_ecn: d.bytes_saved_by_ecn,
                 bytes_saved_by_edt: d.bytes_saved_by_edt,
@@ -473,11 +473,12 @@ struct LimitEntry {
     ce_marked_bytes: u64,
     /// The quota telemetry's saved-volume columns (night-spark-6
     /// landed the pair; night-spark-7 books them live), in BYTES:
-    /// what the lanes kept the sender from sending — RECWN (the
-    /// userspace estimate), ECN (one-for-one with the delivered
-    /// marks), EDT (the retired word, zero since night-quota-audit,
-    /// schema v29). Always present (the CE-ledger additive
-    /// contract); a scripted `Quota Saved: X` reads
+    /// what the lanes kept the sender from sending — ECN (one-for-one
+    /// with the delivered marks, the sole live booking), EDT (the
+    /// retired word, zero since night-quota-audit, schema v29),
+    /// RECWN (the retired userspace estimate, zero since
+    /// night-recvn-audit, schema v30). Always present (the CE-ledger
+    /// additive contract); a scripted `Quota Saved: X` reads
     /// `bytes_saved_total`, the split names the physics.
     bytes_saved_by_recwn: u64,
     bytes_saved_by_ecn: u64,

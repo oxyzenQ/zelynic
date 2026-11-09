@@ -89,7 +89,9 @@ and a slow link demoted the best rung as dead.
 
 The ledger-vs-wire gap (night-netrunner-12): the bounded pair's
 verdict percentage is scenario A's OWN Layer 4 booking — the
-counterfactual the window law estimates — not a measured A/B
+counterfactual the saved ledger books (the ECN one-for-one alone
+since the EDT and RECWN retirements, schema v29/v30) — not a
+measured A/B
 saving. Measured on the owner host (2026-11-06): the bounded 20 MB
 download booked 82.58% while A moved +1.21 MB MORE wire than B; the
 bounded upload booked 75.85% while A moved +0.64 MB MORE. A bounded

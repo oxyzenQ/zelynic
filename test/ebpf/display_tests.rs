@@ -499,16 +499,12 @@ fn collect_display_data_joins_windows_by_cgroup() {
             end_s: 0,
         },
     )];
-    // night-spark-7: the RECWN lane join rides every census call —
-    // the inert lane here (the pre-v25 shape these pins own).
-    let inert = RecwnLane {
-        planted: false,
-        window_bytes: None,
-        binding_policies: 0,
-    };
-    let data = collect_display_data(&dl, &[], &[], &windows, &inert);
+    // night-recvn-audit (schema v30): the RECWN lane join the Layer 4
+    // estimate once rode came out with the estimate — the census call
+    // takes policies, stats, and windows only.
+    let data = collect_display_data(&dl, &[], &[], &windows);
     assert!(data[0].window.is_some(), "the window joins its row");
-    let data = collect_display_data(&dl, &[], &[], &[], &inert);
+    let data = collect_display_data(&dl, &[], &[], &[]);
     assert!(data[0].window.is_none(), "absent window = no lifetime line");
 }
 
