@@ -400,10 +400,11 @@ measure, which is a new campaign, not this one.
   booking math), the live proofs `scripts/bench/recwn-probe.sh`,
   `scripts/bench/ecn-probe.sh`, `scripts/bench/edt-probe.sh`, and
   the README's "The formulas" block (the booking laws, their
-  conservative poles, and the EDT retirement).
-- **The schemas** — `ebpf/src/schema.rs` (`SCHEMA_VERSION` 29 and
+  conservative poles, and the EDT and RECWN retirements).
+- **The schemas** — `ebpf/src/schema.rs` (`SCHEMA_VERSION` 30 and
   the contract history): v25 RECWN, v26 ECN, v27 EDT, v28 quota
-  telemetry, v29 the EDT booking retired (night-quota-audit); the
+  telemetry, v29 the EDT booking retired (night-quota-audit), v30
+  the RECWN estimate retired (night-recvn-audit); the
   `bytes_saved_total` /
   `bytes_saved_by_edt` / `bytes_saved_by_ecn` /
   `bytes_saved_by_recwn` keys in `status --print-json`.
