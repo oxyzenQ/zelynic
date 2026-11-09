@@ -48,13 +48,23 @@ pub(crate) struct DisplayData {
     /// budget an idle sender never used). The Quota Saved line's EDT
     /// half, zero from v29 on.
     pub(crate) bytes_saved_by_edt: u64,
-    /// night-spark-7, Layer 4: the RECWN lane's saved volume — the
-    /// window-law counterfactual (recwn_saved_bytes below): the
-    /// bytes the receive-window clamp kept a sender from sending,
-    /// estimated userspace-side against the documented default-window
-    /// assumption because the sock_ops clamp carries no observable
-    /// default-window column to book against. Zero when the lane is
-    /// not planted or the row carries no live download rate.
+    /// night-spark-7, Layer 4: the RECWN lane's saved-volume word —
+    /// RETIRED (night-recvn-audit, schema v30). The window-law
+    /// counterfactual this field carried until v30
+    /// ((allowed / clamped) x (default - clamped), the userspace
+    /// estimate against the documented 128 KiB default window) booked
+    /// a clamp that rarely binds on a real link: the owner's live
+    /// ss -tip reading (2026-11-09, brave at 200kb) had 1 of 11
+    /// connections with a BDP at or above the 40 KB clamp, the other
+    /// ten at 1.8-14.7 KB, almost every socket app_limited, and
+    /// autotuned windows of 48-78 KB — the formula booked 165 MB
+    /// against an honest upper bound of a few MB, 10-30x HIGH against
+    /// the quota doc's "errs LOW, never high" contract. The honest
+    /// booking is zero: the field keeps its place (the JSON key
+    /// stays, the additive contract) and reads zero from v30 on. The
+    /// lane's real work — the SO_RCVBUF clamp, the bufferbloat
+    /// reduction — is untouched; its wire effect is the A/B harness's
+    /// measurement, never a booked number.
     pub(crate) bytes_saved_by_recwn: u64,
     /// night-spark-7, Layer 4: the ECN lane's saved volume, read off
     /// the stats row's v28 tail — one-for-one with ce_marked_bytes,
@@ -86,16 +96,16 @@ pub(crate) use super::display_lines::{
     status_header_line, status_row_line, watchdog_line, window_lifetime_line,
 };
 
-/// Collect display data from policies + stats (the window join, and
-/// the RECWN lane join — night-spark-7: the Layer 4 estimate needs
-/// the lane's planted verdict, the same belt the bottom RECWN
-/// line's own derivation rides).
+/// Collect display data from policies + stats (the window join).
+/// The RECWN lane join the Layer 4 estimate once rode came out with
+/// the estimate itself (night-recvn-audit, schema v30 — the saved
+/// word reads zero unconditionally); the lane's own window
+/// derivation lives in [`recwn_lane`], the bottom RECWN line's belt.
 pub(super) fn collect_display_data(
     dl_policies: &[(u32, PolicyRaw)],
     ul_policies: &[(u32, PolicyRaw)],
     stats: &[(u32, LimiterStatsRaw)],
     windows: &[(u32, PolicyWindowRaw)],
-    recwn: &RecwnLane,
 ) -> Vec<DisplayData> {
     // The census row: (dl, ul, dl per-socket, ul per-socket, the
     // per-direction guarantee pairs — improve-40-b: each leg's pair
@@ -152,18 +162,17 @@ pub(super) fn collect_display_data(
                 // 4): the kernel-booked ECN column copies straight off
                 // the stats tail, the EDT column rides the same tail
                 // but reads zero from schema v29 on (night-quota-audit
-                // retired the kernel booking), and the RECWN estimate
-                // runs the window-law counterfactual below — planted lane,
-                // live download rate, the row's delivered volume. A
-                // row with no stats entry books nothing (the
-                // unwrap_or(0) family's own honesty).
+                // retired the kernel booking), and the RECWN word reads
+                // zero from schema v30 on (night-recvn-audit retired
+                // the userspace estimate — it booked a clamp that
+                // rarely binds, 10-30x HIGH on the owner's live
+                // reading). A row with no stats entry books nothing
+                // (the unwrap_or(0) family's own honesty).
                 bytes_saved_by_edt: s.map(|(_, s)| s.bytes_saved_by_edt).unwrap_or(0),
-                bytes_saved_by_recwn: match (recwn.planted, dl) {
-                    (true, Some(rate)) if *rate > 0 => {
-                        recwn_saved_bytes(*rate, s.map(|(_, s)| s.bytes_allowed).unwrap_or(0))
-                    }
-                    _ => 0,
-                },
+                // night-recvn-audit (schema v30): the retired word,
+                // zero unconditionally — the field's own doc carries
+                // the retirement record.
+                bytes_saved_by_recwn: 0,
                 bytes_saved_by_ecn: s.map(|(_, s)| s.bytes_saved_by_ecn).unwrap_or(0),
                 window: windows
                     .iter()
@@ -266,59 +275,12 @@ pub(crate) fn recwn_lane(dl_policies: &[(u32, PolicyRaw)], planted: bool) -> Rec
     }
 }
 
-/// night-spark-7 (the quota telemetry's math — Layer 4 of the quota
-/// saver): the RECWN lane's saved-volume estimate — the window-law
-/// counterfactual, userspace-side by design (the sock_ops clamp
-/// carries no observable default-window column to book against, so
-/// the kernel cannot book this lane's saving; the estimate runs
-/// where the census already lives). THE LAW, in words: the clamp
-/// holds a sender to `clamped` bytes per delivery cadence, so every
-/// `clamped` bytes the lane DELIVERED is one full window-cycle —
-/// and in that same cycle a sender with the DEFAULT window would
-/// have had `default - clamped` more bytes in flight. Scaled over
-/// the delivered volume:
-///
-///     bytes_saved_by_recwn = (bytes_allowed / clamped) x (default - clamped)
-///
-/// The NAMED ASSUMPTION (the arc doc's math section owns it): the
-/// default window is pinned at 128 KiB — the kernel's tcp_rmem[0]
-/// initial receive buffer, the window a socket carries BEFORE
-/// autotuning grows it. That is deliberately the CONSERVATIVE pole
-/// of the assumption band: autotuning grows real defaults toward
-/// the MiB scale, so the true saving sits between this bound and
-/// the link's own ceiling — the estimate errs LOW, never high, the
-/// same direction every honest counter in this house leans. The
-/// self-extinguishing edge is the law's own honesty: a rate whose
-/// clamped window reaches the default (about 655 KB/s at the 200 ms
-/// cadence estimate) books ZERO — the clamp is not the binding
-/// constraint there, the policer is, and this column refuses to
-/// claim the policer's work as the window's. The one granularity
-/// concession, stated: bytes_allowed is the combined dl+ul ledger
-/// (the stats map's own shape), so a row policing BOTH directions
-/// scales its upload volume into the estimate too — the
-/// single-direction row, the RECWN lane's own common shape (a
-/// download policy, an unlimited upload), is exact.
-pub(crate) const RECWN_SAVED_DEFAULT_WINDOW_BYTES: u64 = 131_072;
-
-/// The Layer 4 RECWN estimate (see
-/// [`RECWN_SAVED_DEFAULT_WINDOW_BYTES`]'s law): the bytes a
-/// default-window sender would have put in flight beyond the
-/// clamp's own volume, over the lane's delivered volume. Integer
-/// division floors the cycle count (conservative) and the
-/// saturating multiply bounds the extreme tail (a u64-extreme
-/// delivered volume cannot panic the estimate in debug builds).
-#[must_use]
-pub(crate) fn recwn_saved_bytes(rate_bps: u64, bytes_allowed: u64) -> u64 {
-    let clamped = recwn_window_bytes(rate_bps);
-    if clamped >= RECWN_SAVED_DEFAULT_WINDOW_BYTES {
-        // The clamp is not the binding constraint at this rate —
-        // the estimate self-extinguishes rather than claim the
-        // policer's work as the window's.
-        return 0;
-    }
-    let cycles = bytes_allowed / clamped;
-    cycles.saturating_mul(RECWN_SAVED_DEFAULT_WINDOW_BYTES - clamped)
-}
+// night-recvn-audit (schema v30): the RECWN saved-volume estimate
+// (recwn_saved_bytes, the window-law counterfactual against the 128 KiB
+// default-window assumption) is RETIRED — the machinery came out of the
+// display layer the way the v29 EDT retirement took the kernel accrual
+// out of the object. The field stays at zero; DisplayData's
+// bytes_saved_by_recwn doc carries the retirement record.
 
 /// The clean-state frame (no pins, NIGHT-engrave-5; compacted in
 /// NIGHT-private-research-3): the flagship chrome and one grey line
@@ -399,7 +361,7 @@ pub fn print_status(
     windows: &[(u32, PolicyWindowRaw)],
     recwn: &RecwnLane,
 ) {
-    let mut data = collect_display_data(dl_policies, ul_policies, stats, windows, recwn);
+    let mut data = collect_display_data(dl_policies, ul_policies, stats, windows);
     // night-ux-6: the name-first row order, the one law the JSON
     // document shares (crate::ebpf::display_order).
     super::display_order::sort_status_rows(&mut data, identity);

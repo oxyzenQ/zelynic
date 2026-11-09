@@ -542,8 +542,33 @@
 ///     rendering its old nonzero EDT word forever. Active limits
 ///     are dropped once, re-apply after upgrade, the same one-time
 ///     contract as every bump before it.
+/// v30 (night-recvn-audit, the RECWN saved estimate over-claims): the
+///     userspace RECWN booking is RETIRED — no struct layout change,
+///     the stats tail stays 64 bytes and every word keeps its offset
+///     (the estimate never had a kernel word: it was computed in the
+///     userspace display layer from bytes_allowed, so the JSON keys
+///     stay, the additive contract holds, and `bytes_saved_total` is
+///     the ECN one-for-one alone). The window-law counterfactual
+///     ((allowed / clamped) x (default - clamped), the 128 KiB
+///     default-window assumption) booked a clamp that rarely binds on
+///     a real link: the owner's live ss -tip reading (2026-11-09,
+///     brave at 200kb) had autotuned rcv_wnd of 48-78 KB across 11
+///     connections, 1 of 11 with a BDP at or above the 40 KB clamp,
+///     the other ten at 1.8-14.7 KB, and almost every socket
+///     app_limited — the formula booked 165 MB against an honest
+///     upper bound of a few MB, 10-30x HIGH against the quota doc's
+///     "errs LOW, never high" contract. The honest booking is zero:
+///     the estimate function came out of the display layer (the v29
+///     retirement shape), the lane's real work — the SO_RCVBUF clamp
+///     this object's sock_ops program and hint map deliver — is
+///     untouched, and the wire effect stays the A/B harness's
+///     measurement. The VERSION bump (no size change) follows the
+///     v29 shape: one forced reload so an upgraded host's pin, docs,
+///     and rendered totals all describe the same schema generation;
+///     active limits are dropped once, re-apply after upgrade, the
+///     same one-time contract as every bump before it.
 #[allow(dead_code)]
-pub(crate) const SCHEMA_VERSION: u32 = 29;
+pub(crate) const SCHEMA_VERSION: u32 = 30;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs

@@ -253,7 +253,14 @@ fn test_schema_version_constant() {
     // the word reads zero for the life of the map. The version bump
     // (no size change) forces the reload that wipes a pre-v29
     // ledger's stale nonzero word.
-    assert_eq!(SCHEMA_VERSION_EXPECTED, 29);
+    // v30 (night-recvn-audit, the RECWN saved estimate
+    // over-claims): the userspace RECWN booking is RETIRED — no
+    // layout change (the estimate never had a kernel word), the
+    // JSON keys stay, and `bytes_saved_total` is the ECN
+    // one-for-one alone. The version bump follows the v29 shape:
+    // one forced reload so an upgraded host's pin, docs, and
+    // rendered totals describe the same schema generation.
+    assert_eq!(SCHEMA_VERSION_EXPECTED, 30);
 }
 
 // ── night-spark-4, schema v26: the CE ledger's layout pins ─────────

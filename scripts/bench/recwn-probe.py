@@ -57,14 +57,22 @@ cgroup, a real curl child, and the real internet:
     absence there means zero) — the whole point of shaping the
     window instead of letting the drops teach the sender.
 
-  row 6 — the saved quota books (live, night-spark-7 Layer 4): the
-    row's bytes_saved_by_recwn grows during the clamped download —
-    the window-law counterfactual (delivered x (default window -
+  row 6 — the retired saved word books nothing (live,
+    night-recvn-audit, schema v30): the same ledger tail is read
+    before and after the clamped download — the row's
+    bytes_saved_by_recwn moves ZERO. The window-law counterfactual
+    the word carried until v30 (delivered x (default window -
     clamped window) / clamped window, the 128 KiB assumption the
-    arc doc names), computed userspace-side because the sock_ops
-    clamp carries no observable default-window column to book
-    against. A pre-v28 binary carries no field and fails this row
-    with the rebuild reason spelled out.
+    arc doc named) booked a clamp that rarely binds on a real link:
+    the owner's live ss -tip reading (2026-11-09, brave at 200kb)
+    had 1 of 11 connections with a BDP at or above the 40 KB clamp,
+    the other ten at 1.8-14.7 KB, and almost every socket
+    app_limited — the formula over-claimed 10-30x against the quota
+    doc's "errs LOW, never high" contract. The honest booking is
+    zero; the lane's wire effect is the measurement (the clamped
+    window rows above, the A/B harness's wire verdict). A pre-v28
+    binary carries no field and fails this row with the rebuild
+    reason spelled out.
 
 Honesty contracts: the child is forked BEFORE any socket exists and
 writes its own pid into the target's cgroup.procs only AFTER the
@@ -1016,8 +1024,9 @@ def live_run(byte_cap):
 
         # The Layer 4 baseline (night-spark-7): the probe's own row's
         # saved columns, read off the same doc the schema row rode —
-        # the RECWN estimate's growth over the download is the
-        # quota-saved row's own evidence.
+        # the retired word's zero-movement over the download is the
+        # quota-saved row's own evidence (night-recvn-audit, schema
+        # v30: the booking is retired, the clamp is the lane's work).
         base_row = next(
             (r for r in (doc or {}).get("limits", []) if r.get("cgroup_id") == cg_id),
             None,
@@ -1118,12 +1127,13 @@ def live_run(byte_cap):
             retrans_detail,
         )
 
-        # Row 6 — the saved quota (night-spark-7, Layer 4 live): the
-        # RECWN estimate's own growth — the window-law counterfactual
-        # (the delivered volume x the held-back-per-cycle, against the
-        # documented 128 KiB default-window assumption) moving as the
-        # download delivered. A pre-v28 binary carries no fields and
-        # the row names the rebuild itself.
+        # Row 6 — the retired saved word (the Layer 4 telemetry,
+        # live): the tail's RECWN word moves ZERO over the clamped
+        # download — the window-law counterfactual was retired
+        # (night-recvn-audit, schema v30) because it booked a clamp
+        # that rarely binds (10-30x HIGH on the owner's live
+        # reading); the row pins the retirement live (a
+        # reintroduced booking fails here).
         post_doc = lib.status_json()
         post_row = next(
             (r for r in (post_doc or {}).get("limits", []) if r.get("cgroup_id") == cg_id),
@@ -1133,7 +1143,7 @@ def live_run(byte_cap):
         post_saved_t = (post_row or {}).get("bytes_saved_total")
         if post_saved_r is None or post_saved_t is None:
             lib.record(
-                "recwn: the download books its saved quota",
+                "recwn: the retired saved word books nothing",
                 "FAIL",
                 "status --print-json limits[] carries no bytes_saved_by_recwn / "
                 "bytes_saved_total — a pre-v28 (stale pinned) object is "
@@ -1143,15 +1153,17 @@ def live_run(byte_cap):
         else:
             delta_r = int(post_saved_r) - int(pre_saved_r or 0)
             delta_t = int(post_saved_t) - int(pre_saved_t or 0)
-            saved_ok = delta_r > 0 and delta_t >= delta_r
+            saved_ok = delta_r == 0
             lib.record(
-                "recwn: the download books its saved quota",
+                "recwn: the retired saved word books nothing",
                 "PASS" if saved_ok else "FAIL",
                 f"the ledger moved {delta_r} B saved-by-recwn / {delta_t} B "
                 "total during the clamped download — the window-law "
-                "counterfactual (delivered x (default - clamped) / clamped, "
-                "the 128 KiB assumption named), the quota saver's Layer 4, "
-                "live",
+                "counterfactual is retired (schema v30: it booked a "
+                "clamp that rarely binds, 10-30x HIGH on the owner's "
+                "live reading), the saved total is ECN's one-for-one, "
+                "and the lane's wire effect is the A/B harness's to "
+                "measure",
             )
         ok = schema_ok and clamp_ok and band_ok and retrans_ok and saved_ok
     finally:

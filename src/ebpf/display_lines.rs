@@ -162,8 +162,10 @@ pub(crate) fn pacing_line(d: &DisplayData) -> Option<String> {
 /// rides underneath so the row can never disagree with itself —
 /// the layers name the physics that produced the saving (EDT: the
 /// retired pacing word, zero since night-quota-audit retired the
-/// kernel booking, schema v29; ECN: the delivered marks, RECWN:
-/// the window counterfactual, the userspace estimate). Rendered ONLY
+/// kernel booking, schema v29; ECN: the delivered marks, the sole
+/// live booking; RECWN: the retired window counterfactual, zero
+/// since night-recvn-audit retired the userspace estimate, schema
+/// v30 — every live booking is ECN's one-for-one). Rendered ONLY
 /// when the total books something (the dormant-watchdog precedent:
 /// a zero is absence pretending to be information); the window
 /// family's grey indent, one rung under the Upload Pacing line it

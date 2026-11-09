@@ -149,36 +149,52 @@ fn quota_saved_line_collapses_to_the_narrow_form_under_budget() {
     );
 }
 
-/// night-quota-audit (2026-11-09): the Layer 4 estimate's
-/// pure-formula pin, asserted directly against the documented law —
-/// given (allowed, clamped, default), recwn_saved_bytes returns
-/// `(allowed / clamped) x (default - clamped)`, the integer-floor
-/// form of docs/QUOTA_SAVER_PHYSICS.md's booking. The owner's live
-/// shape rides the matrix: a 500kb policy (parse.rs's x1000 bytes/s)
-/// derives a 100_000-byte clamp, so 65_100_000 delivered bytes are
-/// 651 full window-cycles, each worth 131_072 - 100_000 bytes of
-/// counterfactual flight — 20_227_872, the number the Quota Saved
-/// total must track now that the EDT word is retired (the live
-/// reading that broke the errs-LOW contract was the EDT lane's
-/// 36.8x idle booking, never this estimate).
+/// night-recvn-audit (2026-11-09, schema v30): the RECWN saved
+/// estimate is RETIRED — the window-law counterfactual booked a
+/// clamp that rarely binds on a real link. The owner's live ss -tip
+/// reading (brave at 200kb): 1 of 11 connections with a BDP at or
+/// above the 40 KB clamp, the other ten at 1.8-14.7 KB, almost
+/// every socket app_limited, autotuned windows of 48-78 KB — the
+/// formula booked 165 MB against an honest upper bound of a few MB,
+/// 10-30x HIGH against the quota doc's "errs LOW, never high"
+/// contract. The pin: every ingredient the old estimate asked for
+/// (a live download rate, a delivered volume) and the word reads
+/// ZERO, unconditionally — the userspace twin of the v29 EDT
+/// retirement's live pin (edt-probe's row 6). With marks delivered,
+/// the ECN word is the only column that moves.
 #[test]
-fn the_recwn_estimate_is_the_documented_formula_byte_exact() {
-    let rate = 500_000; // the "500kb" policy, bytes per second
-    let allowed = 65_100_000; // the owner's live 65.1 MB reading
-    let clamped = recwn_window_bytes(rate);
-    assert_eq!(clamped, 100_000);
-    let expected = (allowed / clamped) * (RECWN_SAVED_DEFAULT_WINDOW_BYTES - clamped);
-    assert_eq!(recwn_saved_bytes(rate, allowed), expected);
-    assert_eq!(recwn_saved_bytes(rate, allowed), 20_227_872);
+fn the_recwn_saved_word_is_retired_and_books_zero() {
+    let dl = vec![(
+        73386u32,
+        PolicyRaw {
+            rate_bps: 500_000, // the "500kb" policy, bytes per second
+            ..PolicyRaw::default()
+        },
+    )];
+    let stats = vec![(
+        73386u32,
+        LimiterStatsRaw {
+            bytes_allowed: 65_100_000, // the owner's live 65.1 MB reading
+            ..LimiterStatsRaw::default()
+        },
+    )];
+    let data = collect_display_data(&dl, &[], &stats, &[]);
+    assert_eq!(data[0].bytes_saved_by_recwn, 0);
+    assert_eq!(data[0].bytes_saved_by_edt, 0);
 
-    // The same identity across the binding-rate matrix — the formula
-    // is the contract, so the function may not drift from it at any
-    // input whose clamp still binds under the default window.
-    let allowed: u64 = 61_000_000;
-    for rate in [50_000, 100_000, 300_000, 500_000] {
-        let clamped = recwn_window_bytes(rate);
-        assert!(clamped < RECWN_SAVED_DEFAULT_WINDOW_BYTES);
-        let expected = (allowed / clamped) * (RECWN_SAVED_DEFAULT_WINDOW_BYTES - clamped);
-        assert_eq!(recwn_saved_bytes(rate, allowed), expected);
-    }
+    // The ECN word is the sole live booking: with marks delivered,
+    // it is the only column that moves.
+    let stats = vec![(
+        73386u32,
+        LimiterStatsRaw {
+            bytes_allowed: 65_100_000,
+            ce_marked_packets: 40_000,
+            ce_marked_bytes: 60_000_000,
+            bytes_saved_by_ecn: 60_000_000,
+            ..LimiterStatsRaw::default()
+        },
+    )];
+    let data = collect_display_data(&dl, &[], &stats, &[]);
+    assert_eq!(data[0].bytes_saved_by_recwn, 0);
+    assert_eq!(data[0].bytes_saved_by_ecn, 60_000_000);
 }

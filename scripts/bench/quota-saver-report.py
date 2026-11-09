@@ -10,10 +10,11 @@ Cloudflare's capped speed store first, the Vultr Singapore rung and
 the Asian mirrors behind it), under a live zelynic limit, and reads
 `zelynic status --print-json` before and after each leg. The savings
 come from the kernel's own Layer 4 telemetry: the delta of
-`bytes_saved_total` (the RECWN window counterfactual plus the ECN
-marks; the retired EDT word reads zero since schema v29,
-night-quota-audit) against the delta of `bytes_allowed` (the bytes
-that actually transferred) across each leg.
+`bytes_saved_total` (the ECN marks one-for-one, the sole live
+booking; the retired EDT word reads zero since schema v29,
+night-quota-audit, and the retired RECWN estimate reads zero since
+schema v30, night-recvn-audit) against the delta of `bytes_allowed`
+(the bytes that actually transferred) across each leg.
 
 The verdict lines are the task's exact wire contract, printed to
 stdout, one per leg:
