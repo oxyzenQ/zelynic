@@ -1061,7 +1061,7 @@ live in [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md); the short version:
 | Tier                 | Price          | Target                                                        |
 | -------------------- | -------------- | ------------------------------------------------------------- |
 | Personal             | Free (AGPL-3.0) | Hobby, personal, non-commercial, contributions                |
-| Individual           | $99/year       | Solo devs, freelancers, revenue < $100K/year                  |
+| Professional         | $1,899/year    | Solo devs, freelancers, revenue < $100K/year                  |
 | Business             | $9,999/year    | SMB, revenue $100K – $10M/year                                |
 | Enterprise Node      | $2,499/node/year (min 5, max 19 nodes) | Enterprise deployments of 5–19 nodes, unlimited internal use   |
 | Enterprise Internal  | $49,999/year   | Enterprise (>$10M/year), unlimited nodes, internal use only, NO redistribution |
@@ -1069,6 +1069,17 @@ live in [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md); the short version:
 
 Full terms, payment instructions, the two OEM paths (annual vs
 perpetual), and the grandfathering clause live in
+[COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md).
+
+zelynic's entry paid tier starts at $1,899 (Professional), not $99.
+zelynic is not a hobbyist tool — it ships 5 audit documents, a
+quota-saver physics whitepaper with a formal peak declaration,
+container-native support (docker://, k8s://), and a real Ubuntu
+Server 24.04 CI leg. Its commercial buyer is an SRE, a fleet
+operator, or a bandwidth-cost owner whose infrastructure value pays
+off the license in one shift. The $99 tier was retired in the same
+revision that made zelynic's claims auditable per byte. Full
+reasoning and the market calibration live in
 [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md).
 
 The business end of the ladder follows the value upward
@@ -1079,6 +1090,11 @@ compounds. Buyers who paid before a move are grandfathered at the
 price they bought, for the term they bought. Business tier
 customers who paid $5,199 before this revision are grandfathered at
 $5,199 for the term they bought; new Business licenses are $9,999.
+The $99 Individual tier is retired as of this revision (the entry
+paid tier is now Professional at $1,899, matching the owner's
+forensic tool zejtron); any Individual-tier customer who bought
+before this revision is grandfathered at $99 for the term they
+bought.
 
 **Unauthorized use is theft.** Taking this code — stealing it,
 forking it illegally, stripping the license, or building a

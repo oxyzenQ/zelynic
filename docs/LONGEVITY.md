@@ -95,7 +95,7 @@ the same way the first one is: by the people who profit from the
 tool. The AGPL-3.0-only core is free forever — that is not charity,
 that is distribution insurance, the widest possible base of users
 and auditors who can carry the tool forward. The commercial tiers
-(Individual, Business, Company — terms and current prices in
+(Professional, Business, Enterprise — terms and current prices in
 [COMMERCIAL_LICENSE.md](../COMMERCIAL_LICENSE.md), repriced as the
 value compounds; the 2026-10-10 move is the recorded precedent)
 are the fuel: a maintainer funded by the tiers beats a committee
