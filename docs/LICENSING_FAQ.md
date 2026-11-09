@@ -25,7 +25,7 @@ Tiers follow your total annual revenue:
 | Your annual revenue                | Tier                                 |
 | ---------------------------------- | ------------------------------------ |
 | No commercial use (hobby/personal) | Personal (free, AGPL-3.0)             |
-| Solo dev / freelancer, < $100K     | Individual ($99/year)                |
+| Solo dev / freelancer, < $100K     | Professional ($1,899/year)           |
 | $100K – $10M                       | Business ($9,999/year)               |
 | 5–19 nodes, internal use           | Enterprise Node ($2,499/node/year)   |
 | > $10M, internal use only          | Enterprise Internal ($49,999/year)   |
@@ -55,7 +55,7 @@ the industry band. The perpetual path ($249,999 one-time +
 ## Why is there a per-node tier? Enterprise Internal is already unlimited.
 
 Because between 5 and 19 nodes, a $49,999 flat tier is hard to
-justify internally, and the Individual/Business tiers do not fit an
+justify internally, and the Professional/Business tiers do not fit an
 enterprise deployment either. Enterprise Node prices that shape
 honestly: $2,499/node/year, minimum 5 nodes, maximum 19 — a
 10-node deployment pays $24,990, proportional and approvable. At

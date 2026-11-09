@@ -80,11 +80,42 @@ license terms.
 | Tier                 | Price          | Target                                                        |
 | -------------------- | -------------- | ------------------------------------------------------------- |
 | Personal             | Free (AGPL-3.0) | Hobby, personal, non-commercial, contributions                |
-| Individual           | $99/year       | Solo devs, freelancers, revenue < $100K/year                  |
+| Professional         | $1,899/year    | Solo devs, freelancers, revenue < $100K/year                  |
 | Business             | $9,999/year    | SMB, revenue $100K – $10M/year                                |
 | Enterprise Node      | $2,499/node/year (min 5, max 19 nodes) | Enterprise deployments of 5–19 nodes, unlimited internal use   |
 | Enterprise Internal  | $49,999/year   | Enterprise (>$10M/year), unlimited nodes, internal use only, NO redistribution |
 | OEM / Redistribution | $149,999/year (annual) OR $249,999 one-time + 20%/year maintenance (perpetual) | Embedding or reselling in a shipped product; redistribution rights |
+
+### Why zelynic starts at $1,899, not $99.
+
+zelynic is not a hobbyist tool. It ships five audit documents
+(skill, LTS, hardware, container, perf), a quota-saver physics
+whitepaper with a formal peak declaration, container-native support
+(docker://, k8s://), and a real Ubuntu Server 24.04 CI leg — and
+every claim in it is verifiable per byte. Its commercial buyer is
+an SRE, a fleet operator, or a bandwidth-cost owner whose
+infrastructure value pays off the Professional license in one
+shift, not a hobbyist whose commercial use is small and personal —
+the Personal tier (Free, AGPL-3.0) already covers hobby, learning,
+and open-source contributions completely. The Professional tier
+($1,899/year) is the entry point for commercial use, carrying the
+same target the $99 Individual tier served (solo devs, freelancers,
+revenue under $100K/year).
+
+The anchor matches the owner's forensic tool
+[zejtron](https://github.com/oxyzenQ/zejtron), whose entry paid
+tier is Professional at $1,899/year: the two tools are the same
+rigour class — audit trails, measured claims, frozen contracts —
+and they price it identically. The $99 Individual tier is retired
+as of this revision, the revision that made zelynic's claims
+auditable per byte.
+
+The standing grandfather pattern covers the retirement: any
+Individual-tier customer who bought before this revision is
+grandfathered at $99 for the term they bought — no existing
+customer pays more than they agreed to. A buyer who needs the
+capability without a commercial license still has the AGPL-3.0
+path — read the source, learn from it, contribute back.
 
 **OEM pricing note:** the OEM tier offers two equivalent paths —
 annual ($149,999/year) for buyers who prefer opex, and perpetual
@@ -104,7 +135,15 @@ Notes:
 - **Multi-year discount** (owner discretion): 20% off a 2-year term,
   30% off a 3-year term. The OEM perpetual path is a single payment
   plus maintenance — the discount does not stack on it.
-- **2026-10-30 price move** (current revision, effective from the
+- **2026-11-10 price move** (night-price-1, current revision,
+  effective from the first release tag after that date): the $99
+  Individual tier is retired; the entry paid tier is Professional
+  at $1,899/year, matching the owner's forensic tool zejtron.
+  Existing Individual-tier customers are grandfathered at $99 for
+  the term they bought. All other tiers unchanged. Grandfathering
+  unchanged: buyers who paid before the move keep the price they
+  paid, for the term they bought.
+- **2026-10-30 price move** (effective from the
   first release tag after that date): OEM annual $110,199 →
   $149,999/year (+36%); the OEM perpetual path added at $249,999
   one-time + 20%/year maintenance; the Enterprise Node bridge tier
