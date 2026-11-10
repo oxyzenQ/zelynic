@@ -661,11 +661,30 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/kfloor
+          # The guest's own staging shape (tracked files only + the
+          # payload, world-readable under /opt): run 42870927440's
+          # lesson — the runner's home tree is not nobody-traversable,
+          # so the USER-mode leg's setpriv exec and the smoke battery's
+          # unprivileged rows hit Permission denied straight at the
+          # path. The guest rootfs assembly ships /opt/zelynic; the
+          # host twin stages /opt/zelynic-e2e the same way and the
+          # twin runs FROM it (its repo-root law resolves to the stage).
+          STAGE=/opt/zelynic-e2e
+          sudo rm -rf "$STAGE"
+          sudo mkdir -p "$STAGE/target/aarch64-unknown-linux-musl/pro-native-arm64-musl"
+          git -C "$GITHUB_WORKSPACE" archive HEAD | sudo tar -x -C "$STAGE"
+          sudo cp "$GITHUB_WORKSPACE/target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic" \
+            "$STAGE/target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic"
           cd "$GITHUB_WORKSPACE"
           set +e
-          sudo timeout ${{ matrix.vm_timeout }} \
-            bash scripts/ci/e2e-native.sh \
-            --binary "$GITHUB_WORKSPACE/target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic" \
+          # ZELYNIC_UPLOAD_WINDOWS=4: the estimator-rung widen (the
+          # rig's own comment carries the run 42870927440 evidence) —
+          # more samples of the same honest max for the host whose
+          # physics sit outside the guest envelope; the x86 legs keep
+          # the default 2 untouched.
+          sudo ZELYNIC_UPLOAD_WINDOWS=4 timeout ${{ matrix.vm_timeout }} \
+            bash "$STAGE/scripts/ci/e2e-native.sh" \
+            --binary "$STAGE/target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic" \
             2>&1 | tee /tmp/kfloor/vm.log
           RC=${PIPESTATUS[0]}
           set -e
