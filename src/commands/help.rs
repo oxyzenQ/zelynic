@@ -47,7 +47,7 @@
 //! grammar spellings: every target-form token — the placeholder
 //! shapes (<process_name>, <cgroup_id>, <a>::<b>::<c>), the
 //! cg:<cgroup_id> display prefix, and the container URI forms
-//! (docker://<name>, k8s://<namespace>/<pod>) — rides the same
+//! (docker://<name>, k8s://<namespace>/<pod>, netns://<name>) — rides the same
 //! grey tier through the [`target_row`] helper, the target
 //! grammar's computed-column twin of flag_row. Grammar is grey;
 //! concrete examples (brave, 73386, cg:73386) and prose stay
@@ -146,6 +146,7 @@ pub(crate) fn print_help() {
     );
     example("docker container", "sudo zelynic s docker://nginx 100kb");
     example("kubernetes pod", "sudo zelynic s k8s://prod/web-abc 1mb");
+    example("named netns", "sudo zelynic s netns://sandbox 500kb");
     println_safe!();
     // NIGHT-hunt-35: the container note nests INSIDE the strict
     // block (indent 4, the description column) — it is strict-family
@@ -162,6 +163,10 @@ pub(crate) fn print_help() {
     println_safe!(
         "    {} via the kubelet's pod log dirs.",
         grey("k8s://<namespace>/<pod>")
+    );
+    println_safe!(
+        "    {} through its member processes.",
+        grey("netns://<name>")
     );
     println_safe!("    unstrict accepts the same references.");
     println_safe!();

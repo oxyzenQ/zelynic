@@ -269,6 +269,27 @@ construction (every `tcp_call_bpf` call site lives in TCP code)
 — QUIC paces itself (RFC 9000) and the policer remains UDP's
 enforcement lane.
 
+**16. netns:// namespace targeting** (night-netns-1 — the
+five-frontier review's netns half; its iface:// twin was ruled
+out). The third workload URI (`src/ebpf/identity/container/netns.rs`,
+`netns://sandbox`): a named network namespace (the
+`ip netns add <name>` family) resolves through its member
+processes to the ONE workload cgroup living in it. The handle's
+nsfs inode is matched against every `/proc/<pid>/ns/net` link —
+the namespace is read, never entered, and no eBPF changed. A
+namespace spanning two or more cgroups refuses with them named:
+`ip netns exec` leaves the exec'd process in the caller's
+cgroup, and a URI target can starve the workload, never a
+host-side cgroup the operator shares — the direct `cg:<id>`
+route is the honest door there. Volatility is stated, not
+hidden: namespace names are host-local and their inodes churn
+across reboots; resolution reads live state at apply time, the
+same contract the process-name lane owns, and the resolved
+cgroup id is the durable handle. Rootless pins: `netns_tests.rs`
+(the grammar arm, the ns-link parser, the verdict reduction);
+live proof: `sudo zelynic -v s netns://sandbox 500kb` (the
+verbose trace names the handle, the member count, the cgroup).
+
 ## The Quota Saver — the Workload-Conditional Claim
 
 The fourteenth, fifteenth, and sixteenth entries above (RECWN, ECN,
