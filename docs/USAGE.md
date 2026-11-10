@@ -2629,7 +2629,7 @@ document (no `build` key) still parses — the block is honestly
 absent, never fabricated:
 
 ```json
-{"system":{"kernel":"6.18.0","cgroup_v2":true,"cgroup2_mount_path":"/sys/fs/cgroup","bpf_fs_mounted":true,"is_root":true},"ebpf_supported":true,"build_flavor":"full-life","ebpf_lane":"source-built","build":{"version":"50.0.0-beta.1","git_sha":"83375c3","variant":"linux-amd64-v3-musl","build_time":"10/9/2026 19:40 (UTC)","rustc_version":"rustc 1.98.1 (48a229cea 2026-09-01)","profile":"release, opt-level=3, lto=fat, codegen-units=1, panic=unwind, strip=yes"},"warnings":[],"pins":{"state":"active","files":4}}
+{"system":{"kernel":"6.18.0","cgroup_v2":true,"cgroup2_mount_path":"/sys/fs/cgroup","bpf_fs_mounted":true,"is_root":true},"ebpf_supported":true,"build_flavor":"full-life","ebpf_lane":"source-built","build":{"version":"80.1.0","git_sha":"fc0b018","variant":"pro-linux-amd64-v3-musl","build_time":"11/9/2026 19:05 (UTC)","rustc_version":"rustc 1.99.1 (58cf8f9c3 2026-10-13)","profile":"release, opt-level=3, lto=fat, codegen-units=1, panic=unwind, strip=yes"},"warnings":[],"pins":{"state":"active","files":4}}
 ```
 
 A missing limit list with `"active_limits": 0` and `watchdog: "enforcing"`

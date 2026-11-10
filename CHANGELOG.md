@@ -37,6 +37,15 @@ v80.0.0
 
 ### Changed
 
+- The final docs consistency audit (night-zen-lts-1) closed the
+  drifts the v30 retirement left behind: the retired window-law
+  counterfactual no longer reads as a live ledger booking in
+  README.md and docs/COSMIC_DRAGON_ARC.md (the ledger books the ECN
+  one-for-one alone), the USAGE.md doctor-JSON sample carries the
+  current build contract (v80.1.0, the release variant label), and
+  README's flowing prose no longer carries the past-24h task
+  codenames.
+
 - The $99 Individual tier is retired; the entry paid tier is
   Professional at $1,899, matching the owner's forensic tool
   zejtron. Existing $99 buyers are grandfathered for their term.
