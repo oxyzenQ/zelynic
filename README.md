@@ -288,6 +288,24 @@ profile names keep both binaries side by side. Note: a native binary
 only runs on the CPU family it was compiled for; ship the
 arch-baseline release packages for distribution.
 
+#### Arm64 hosts
+
+The alias estate carries an arm64 twin of the native build —
+`pro-native-arm64-musl` (aarch64-unknown-linux-musl, fully static
+musl, the same `--features ebpf` flagship contract):
+
+```bash
+# Static arm64 linking (musl) — lands in
+# target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic
+cargo pro-native-arm64-musl
+```
+
+The label contract is identical (`Build: local-pro-native-arm64-musl`),
+the nested eBPF build emits the same host-arch-independent bpfel
+objects, and the prebuilt bpf-linker resolves its aarch64 asset by
+itself (NIGHT-hunt-32). The CI estate proves the shape on the free
+arm64 runner on every push (the musl-arm64 leg in ci.yml).
+
 #### Arch-baseline release builds (v3 / v4)
 
 The release packages' exact shapes, built locally — full flagship
