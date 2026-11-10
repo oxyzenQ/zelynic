@@ -1142,7 +1142,11 @@ pre-v15 object, or maps torn down mid-session renders no baseline
 (the honest absence, the same contract the status JSON's
 `rate_ring` field owns) — and a read that fails resets the learned
 state, so a re-applied policy starts learning fresh instead of
-serving a frozen verdict for a dead policy.
+serving a frozen verdict for a dead policy. The practical flip
+side of the same contract: open `eagle-eyes` before applying any
+limit and the section is simply absent — no panel, not an empty
+one; apply a limit first (`sudo zelynic s brave 100kb`) and the
+verdicts fill within the first eight-second horizon.
 
 The verdicts describe the POLICY's delivered aggregate (the ring is
 keyed at the resolved policy root — for a `--per-socket` policy the
