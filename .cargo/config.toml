@@ -57,9 +57,11 @@ rustflags = ["-C", "target-feature=+crt-static"]
 # native+static contract stays self-contained if the [target] block
 # ever changes.
 #
-# aarch64 hosts: the alias is x86_64-only because cargo aliases cannot
-# detect the host arch — mirror this block with the aarch64 target
-# triple if a static aarch64 native build is ever needed.
+# aarch64 hosts: cargo aliases cannot detect the host arch, so the arm
+# twin is its own explicit alias — `pro-native-arm64-musl` (the owner's
+# arm64 mandate) mirrors this block onto the aarch64 target triple; the
+# [target.aarch64-unknown-linux-musl] block above already carries the
+# static-linking baseline it composes with.
 #
 # Prerequisites (one-time, NIGHT-host-1): the alias carries
 # --features ebpf, so the host needs the dated nightly pin +
@@ -78,6 +80,46 @@ pro-native-musl = [
   "target.x86_64-unknown-linux-musl.rustflags=[\"-C\",\"target-cpu=native\",\"-C\",\"target-feature=+crt-static\"]",
   "--target",
   "x86_64-unknown-linux-musl",
+]
+
+# ── The arm64 twin (the owner's arm64 mandate) ─────────────────────────
+#
+# Owner contract: `cargo pro-native-arm64-musl` is pro-native-musl's
+# arm64 mirror — host-CPU native codegen (-C target-cpu=native), fully
+# static musl (night-dragon-maintenance-6: the only libc shape), the
+# full flagship feature set (--features ebpf), and the T1 build-label
+# contract (`zelynic -V` names "local-pro-native-arm64-musl"). The
+# artifact lands in target/aarch64-unknown-linux-musl/
+# pro-native-arm64-musl/ so an arm build never clobbers the x86 target
+# tree or target/release/zelynic.
+#
+# arm notes the x86 twins never need:
+# - No x86-64-v3 equivalent: armv8-a IS the universal arm64 baseline,
+#   so target-cpu=native is the only codegen tier this family carries
+#   (a portable release-tier shape is the owner's separate call).
+# - The nested eBPF build rides the SAME BPF ISA on every host arch
+#   (the bpfel objects are host-arch-independent), and the prebuilt
+#   bpf-linker ships an aarch64 asset (install-bpf-linker.sh's own
+#   case), so --features ebpf works on an arm host unmodified.
+# - build.rs strips any target-cpu=/target-feature= token from the
+#   nested eBPF build's environment (NIGHT-hunt-28), so host-native
+#   arm codegen never reaches bpf-linker either.
+# - CI proof: ci.yml's musl-arm64 leg builds this alias on the free
+#   arm64 runner and verifies the label — the v11.0.0-alpha.1 E0308
+#   lesson (a musl-only type error must surface on push, never first
+#   at tag time) now covers the aarch64 musl graph too.
+pro-native-arm64-musl = [
+  "build",
+  "--profile",
+  "pro-native-arm64-musl",
+  "--features",
+  "ebpf",
+  "--config",
+  "env.ZELYNIC_BUILD=\"local-pro-native-arm64-musl\"",
+  "--config",
+  "target.aarch64-unknown-linux-musl.rustflags=[\"-C\",\"target-cpu=native\",\"-C\",\"target-feature=+crt-static\"]",
+  "--target",
+  "aarch64-unknown-linux-musl",
 ]
 
 # ── Arch-baseline release aliases (NIGHT-improve-22, cosmostrix
