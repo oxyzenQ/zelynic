@@ -53,8 +53,7 @@ fn parse_rejects_malformed_netns_uris() {
 #[test]
 fn target_parse_rides_netns() {
     use crate::ebpf::limiter::Target;
-    let Some(Target::Container(ContainerRef::Netns { name })) = Target::parse("netns://sandbox")
-    else {
+    let Target::Container(ContainerRef::Netns { name }) = Target::parse("netns://sandbox") else {
         panic!("netns://sandbox must parse as a container target");
     };
     assert_eq!(name, "sandbox");

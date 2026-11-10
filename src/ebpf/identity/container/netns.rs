@@ -129,7 +129,12 @@ pub(super) fn resolve_netns(name: &str) -> Result<Vec<u32>> {
     // The handle's inode is the namespace identity (an nsfs inode —
     // the same number the member pids' ns links report).
     let ns_ino = std::fs::metadata(&handle)
-        .map_err(|e| anyhow!("namespace handle {} could not be stat()ed: {e}", handle.display()))?
+        .map_err(|e| {
+            anyhow!(
+                "namespace handle {} could not be stat()ed: {e}",
+                handle.display()
+            )
+        })?
         .ino();
     crate::output::verbose::vlog!(
         "netns",
