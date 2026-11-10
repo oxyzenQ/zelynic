@@ -41,8 +41,10 @@ v80.0.0
   drifts the v30 retirement left behind: the retired window-law
   counterfactual no longer reads as a live ledger booking in
   README.md and docs/COSMIC_DRAGON_ARC.md (the ledger books the ECN
-  one-for-one alone), the USAGE.md doctor-JSON sample carries the
-  current build contract (v80.1.0, the release variant label), and
+  one-for-one alone), the USAGE.md doctor-JSON sample is the
+  live-verified contract (the maintainer's real unprivileged run:
+  `kernel_floor_met` in its wire slot, the pinned 1.98.1 toolchain,
+  `pins` honestly absent), and
   README's flowing prose no longer carries the past-24h task
   codenames.
 
