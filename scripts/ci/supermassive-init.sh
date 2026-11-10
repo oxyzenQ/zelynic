@@ -252,7 +252,12 @@ fi
 # value fails LOUDLY (a red row) and falls back to all — a selector
 # typo can never silently shallow a leg.
 BATTERIES="all"
-while read -r word; do
+# The `|| [ -n "$word" ]` tail is load-bearing (the e2e init's run
+# 42889381702 lesson): /proc/cmdline carries NO trailing newline, and
+# a bare `while read` drops its final (here: only) line on the EOF
+# exit — the selector would never parse and every shard would
+# silently run the full battery.
+while read -r word || [ -n "$word" ]; do
 	case "$word" in
 	zelynic-batteries=*) BATTERIES=${word#zelynic-batteries=} ;;
 	esac
