@@ -278,7 +278,7 @@ dependencies = [
 
 [[package]]
 name = "zelynic-ebpf"
-version = "80.1.0"
+version = "80.1.1"
 dependencies = [
  "aya-ebpf",
 ]
