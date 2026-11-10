@@ -78,6 +78,18 @@
 # the VM, and the exit rides qemu's isa-debug-exit port device
 # (reboot(2) poweroff silently no-ops in a direct-boot guest) —
 # see guest_exit.
+#
+# The battery selector (night-T-1): the workflow builds ONE initramfs
+# per kernel envelope and every CI shard boots it, naming its battery
+# set on the kernel cmdline (zelynic-batteries=engine|legacy|
+# survival|rigs|desktop) — the wall clock of the lane belongs to the
+# slowest SINGLE battery, never to the sum. The prelude below (kernel
+# floor, surfaces, egress, payload probes) runs on EVERY boot, selector
+# or not: every shard still proves the floor. No cmdline parameter =
+# every battery, the canonical order, the pre-split behavior. Depth is
+# never cut: the v1 desktop matrix runs WHOLE (it is one stateful
+# sequence — baseline, policies, realnet lane, quota pair — by
+# design), on the nightly schedule's own shard.
 
 set -u
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -230,42 +242,70 @@ else
 	note "doctor (bpf syscall on the floor)" FAIL
 fi
 
+# ── the battery selector (night-T-1's shard relay) ───────────────────
+# The workflow's stage job builds ONE initramfs per kernel envelope;
+# each CI shard boots the SAME initrd and names its battery set on
+# the kernel cmdline (zelynic-batteries=), read here from
+# /proc/cmdline — the selector rides the boot, never the image. No
+# parameter (the local /init shape) means every battery, the
+# canonical order, byte-for-byte the pre-split behavior. An unknown
+# value fails LOUDLY (a red row) and falls back to all — a selector
+# typo can never silently shallow a leg.
+BATTERIES="all"
+while read -r word; do
+	case "$word" in
+	zelynic-batteries=*) BATTERIES=${word#zelynic-batteries=} ;;
+	esac
+done </proc/cmdline
+case "$BATTERIES" in
+engine | legacy | survival | rigs | desktop | all) ;;
+*)
+	note "battery selector '$BATTERIES' (wanted engine|legacy|survival|rigs|desktop|all)" FAIL
+	BATTERIES="all"
+	;;
+esac
+echo "MASS: battery selector: $BATTERIES"
+
 # The engine smoke (rootless, canonical) — the harness itself is
 # sound inside this userland before either full battery runs.
-if python3 scripts/supermassive/supermassive-test.py --self-test; then
-	note "supermassive engine self-test" PASS
-else
-	note "supermassive engine self-test" FAIL
-fi
+case "$BATTERIES" in
+engine | all)
+	if python3 scripts/supermassive/supermassive-test.py --self-test; then
+		note "supermassive engine self-test" PASS
+	else
+		note "supermassive engine self-test" FAIL
+	fi
 
-# v3's engine smoke (NIGHT-improve-34): the container depth harness is
-# sound — v1 importable, the shared lib surface present, v3's grammar
-# tables populated. Runs before the full container depth battery.
-if python3 scripts/supermassive/supermassive-test-v3.py --self-test; then
-	note "supermassive v3 engine self-test" PASS
-else
-	note "supermassive v3 engine self-test" FAIL
-fi
+	# v3's engine smoke (NIGHT-improve-34): the container depth harness is
+	# sound — v1 importable, the shared lib surface present, v3's grammar
+	# tables populated. Runs before the full container depth battery.
+	if python3 scripts/supermassive/supermassive-test-v3.py --self-test; then
+		note "supermassive v3 engine self-test" PASS
+	else
+		note "supermassive v3 engine self-test" FAIL
+	fi
 
-# v4's engine smoke (NIGHT-improve-35): the CLI depth harness is sound
-# — v1 importable, the shared lib surface present, v4's case tables
-# populated. Runs before the full CLI depth battery.
-if python3 scripts/supermassive/supermassive-test-v4.py --self-test; then
-	note "supermassive v4 engine self-test" PASS
-else
-	note "supermassive v4 engine self-test" FAIL
-fi
+	# v4's engine smoke (NIGHT-improve-35): the CLI depth harness is sound
+	# — v1 importable, the shared lib surface present, v4's case tables
+	# populated. Runs before the full CLI depth battery.
+	if python3 scripts/supermassive/supermassive-test-v4.py --self-test; then
+		note "supermassive v4 engine self-test" PASS
+	else
+		note "supermassive v4 engine self-test" FAIL
+	fi
 
-# The emergency rescue smoke (NIGHT-improve-31's terminal half): the
-# rescue runs clean on the floor kernel and exits 0 — as PID 1 there
-# is no interposer and no parent, so this proves the classic path's
-# exit shape, not the sudo lane (whose proof is the pin family plus
-# the live harness, recorded in SAFETY_ANALYSIS).
-if ./zelynic --reset-terminal; then
-	note "zelynic --reset-terminal (exit 0 on the floor)" PASS
-else
-	note "zelynic --reset-terminal (exit 0 on the floor)" FAIL
-fi
+	# The emergency rescue smoke (NIGHT-improve-31's terminal half): the
+	# rescue runs clean on the floor kernel and exits 0 — as PID 1 there
+	# is no interposer and no parent, so this proves the classic path's
+	# exit shape, not the sudo lane (whose proof is the pin family plus
+	# the live harness, recorded in SAFETY_ANALYSIS).
+	if ./zelynic --reset-terminal; then
+		note "zelynic --reset-terminal (exit 0 on the floor)" PASS
+	else
+		note "zelynic --reset-terminal (exit 0 on the floor)" FAIL
+	fi
+	;;
+esac
 
 # ── the stresstest: BOTH full engines, canonical invocations ─────────
 # v1, the limiter matrix (the e2e pipeline's phase two): the
@@ -279,12 +319,39 @@ fi
 # rates, accounting. A green row here is the "holds everywhere it
 # claims" verdict, server shape included, on the leg's kernel,
 # inside the profile's derived resource envelope.
-if python3 scripts/supermassive/supermassive-test.py \
-	--binary /opt/zelynic/zelynic; then
-	note "supermassive v1 - limiter matrix (full, server-first)" PASS
-else
-	note "supermassive v1 - limiter matrix (full, server-first)" FAIL
-fi
+# night-T-1: the harness's own --server-only / --desktop-only phase
+# flags are the shard boundary — the per-push engine shard rides the
+# server depth phase, the nightly desktop shard rides the desktop
+# matrix, and "all" keeps the full server-first matrix (the local
+# shape). run_heavy is ONE stateful sequence (baseline threaded
+# through every stage, the realnet lane's own teardown) — the
+# desktop half is never sharded inside, only scheduled.
+case "$BATTERIES" in
+engine)
+	if python3 scripts/supermassive/supermassive-test.py \
+		--binary /opt/zelynic/zelynic --server-only; then
+		note "supermassive v1 - server depth phase (full, server-first)" PASS
+	else
+		note "supermassive v1 - server depth phase (full, server-first)" FAIL
+	fi
+	;;
+desktop)
+	if python3 scripts/supermassive/supermassive-test.py \
+		--binary /opt/zelynic/zelynic --desktop-only; then
+		note "supermassive v1 - desktop matrix (full, loopback + realnet)" PASS
+	else
+		note "supermassive v1 - desktop matrix (full, loopback + realnet)" FAIL
+	fi
+	;;
+all)
+	if python3 scripts/supermassive/supermassive-test.py \
+		--binary /opt/zelynic/zelynic; then
+		note "supermassive v1 - limiter matrix (full, server-first)" PASS
+	else
+		note "supermassive v1 - limiter matrix (full, server-first)" FAIL
+	fi
+	;;
+esac
 
 # ── the MMSPA-vs-legacy DELTA (NIGHT-perf-1, the owner's ask: "verify
 # and proof the MMSPA works 99% or not"): the identical subtree battery
@@ -299,17 +366,21 @@ fi
 # absent only when the assembly could not run (the manual/local shape);
 # the CI rootfs step FAILS the leg instead, so a skip here never hides
 # on the supermassive lanes.
-if [ -x /opt/zelynic/legacy/zelynic ]; then
-	if python3 scripts/supermassive/mmspa-vs-legacy-test.py \
-		--binary /opt/zelynic/zelynic \
-		--legacy-binary /opt/zelynic/legacy/zelynic; then
-		note "MMSPA vs legacy v11.0.0 - subtree coverage delta (>= 99%)" PASS
+case "$BATTERIES" in
+legacy | all)
+	if [ -x /opt/zelynic/legacy/zelynic ]; then
+		if python3 scripts/supermassive/mmspa-vs-legacy-test.py \
+			--binary /opt/zelynic/zelynic \
+			--legacy-binary /opt/zelynic/legacy/zelynic; then
+			note "MMSPA vs legacy v11.0.0 - subtree coverage delta (>= 99%)" PASS
+		else
+			note "MMSPA vs legacy v11.0.0 - subtree coverage delta (>= 99%)" FAIL
+		fi
 	else
-		note "MMSPA vs legacy v11.0.0 - subtree coverage delta (>= 99%)" FAIL
+		note "MMSPA vs legacy v11.0.0 - subtree coverage delta (>= 99%)" SKIP
 	fi
-else
-	note "MMSPA vs legacy v11.0.0 - subtree coverage delta (>= 99%)" SKIP
-fi
+	;;
+esac
 
 # v2, the survival battery (the e2e pipeline's phase three, LAST per
 # the qualification order): the NIGHT-blade-4 server phase FIRST
@@ -322,70 +393,74 @@ fi
 # row here is the "works under fire" verdict — the observer AND the
 # violent-death guard on the leg's kernel (the floor or the latest
 # head), the old kernel-floor probe's surface and more.
-if python3 scripts/supermassive/supermassive-test-v2.py \
-	--binary /opt/zelynic/zelynic; then
-	note "supermassive v2 - survival battery (full, server-first)" PASS
-else
-	note "supermassive v2 - survival battery (full, server-first)" FAIL
-fi
+case "$BATTERIES" in
+survival | all)
+	if python3 scripts/supermassive/supermassive-test-v2.py \
+		--binary /opt/zelynic/zelynic; then
+		note "supermassive v2 - survival battery (full, server-first)" PASS
+	else
+		note "supermassive v2 - survival battery (full, server-first)" FAIL
+	fi
 
-# v3, the container depth battery (NIGHT-improve-34, the e2e
-# pipeline's phase four): the docker:// and k8s:// target surface
-# end to end — the URI grammar depth (every malformed shape the
-# parse_container pure core rejects), the resolution error paths
-# (no docker socket, no /var/log/pods, no container named X), the
-# resolve-only contract (container targets ride the same strict-
-# single machinery), and the docker E2E lane (self-skips when no
-# daemon — the CI micro-VM ships no docker, the same shape v1's
-# realnet lane self-skips when every endpoint is down). A green row here is
-# the "names a workload by its container and enforces on the cgroup
-# the name resolves to, clean on every error path" verdict. The
-# rootless stages (help + privilege gate) run on every host; the
-# root stages (grammar + resolution) run on this leg's root (the
-# floor or the latest head). NIGHT-improve-49: this leg runs as
-# root (the init context), so the privilege-gate stage's refusal
-# rows re-execute through the real-user drop lane (setpriv to uid
-# 65534) instead of skipping — the gate refuses the dropped user
-# exactly as it refuses a real one, the refusal needle asserts for
-# real on every leg.
-if python3 scripts/supermassive/supermassive-test-v3.py \
-	--binary /opt/zelynic/zelynic; then
-	note "supermassive v3 - container depth battery (full, user rows via the real-user drop)" PASS
-else
-	note "supermassive v3 - container depth battery (full, user rows via the real-user drop)" FAIL
-fi
+	# v3, the container depth battery (NIGHT-improve-34, the e2e
+	# pipeline's phase four): the docker:// and k8s:// target surface
+	# end to end — the URI grammar depth (every malformed shape the
+	# parse_container pure core rejects), the resolution error paths
+	# (no docker socket, no /var/log/pods, no container named X), the
+	# resolve-only contract (container targets ride the same strict-
+	# single machinery), and the docker E2E lane (self-skips when no
+	# daemon — the CI micro-VM ships no docker, the same shape v1's
+	# realnet lane self-skips when every endpoint is down). A green row here is
+	# the "names a workload by its container and enforces on the cgroup
+	# the name resolves to, clean on every error path" verdict. The
+	# rootless stages (help + privilege gate) run on every host; the
+	# root stages (grammar + resolution) run on this leg's root (the
+	# floor or the latest head). NIGHT-improve-49: this leg runs as
+	# root (the init context), so the privilege-gate stage's refusal
+	# rows re-execute through the real-user drop lane (setpriv to uid
+	# 65534) instead of skipping — the gate refuses the dropped user
+	# exactly as it refuses a real one, the refusal needle asserts for
+	# real on every leg.
+	if python3 scripts/supermassive/supermassive-test-v3.py \
+		--binary /opt/zelynic/zelynic; then
+		note "supermassive v3 - container depth battery (full, user rows via the real-user drop)" PASS
+	else
+		note "supermassive v3 - container depth battery (full, user rows via the real-user drop)" FAIL
+	fi
 
-# v4, the CLI depth battery (NIGHT-improve-35, the e2e pipeline's phase
-# five): every CLI surface end to end — every command (canonical +
-# alias), every global flag, every color mode (zero to hero), every
-# near-miss typo's suggestion tip, every rate-explode shape's category
-# error, every removed/retired command's clean redirect, and every
-# hidden subcommand. Rootless by design (the CLI surface parses
-# before the root check), so v4 is the most CI-friendly supermassive
-# test — it runs on every host without sudo. A green row here is the
-# "the surface is COMPLETE" verdict — v4 proves coverage, v2 proves
-# hardness (the same surface from both ends). NIGHT-hunt-Z9 adds
-# stage 9, the hardening seat: hostile control-byte payloads against
-# every pre-root echo path (the render boundary's '?' contract), the
-# shadowed-positional ladder, and the hidden-vocabulary leak cases.
-# This leg runs the battery as root (the init context), so the
-# rootless-lane rows — the ones asserting the root-refusal message a
-# real user sees — re-execute through the real-user drop lane
-# (NIGHT-improve-49: setpriv to uid 65534) instead of skipping: the
-# gate refuses the dropped user exactly as it refuses a real one,
-# and a dropped uid cannot pass the root gate, so no v4 case ever
-# makes an enforcement attempt (only a host without setpriv keeps
-# the honest SKIP — this rootfs ships util-linux, so the drop runs).
-# The rootless Dragon Guard - CI leg still runs all rows on every
-# push that touches the Rust/scripts surface (ci.yml is
-# paths-filtered — NIGHT-hunt-32 corrected the unqualified "every
-# push").
-if python3 scripts/supermassive/supermassive-test-v4.py \
-	--binary /opt/zelynic/zelynic; then
-	note "supermassive v4 - CLI depth battery (full, user rows via the real-user drop)" PASS
-else
-	note "supermassive v4 - CLI depth battery (full, user rows via the real-user drop)" FAIL
-fi
+	# v4, the CLI depth battery (NIGHT-improve-35, the e2e pipeline's phase
+	# five): every CLI surface end to end — every command (canonical +
+	# alias), every global flag, every color mode (zero to hero), every
+	# near-miss typo's suggestion tip, every rate-explode shape's category
+	# error, every removed/retired command's clean redirect, and every
+	# hidden subcommand. Rootless by design (the CLI surface parses
+	# before the root check), so v4 is the most CI-friendly supermassive
+	# test — it runs on every host without sudo. A green row here is the
+	# "the surface is COMPLETE" verdict — v4 proves coverage, v2 proves
+	# hardness (the same surface from both ends). NIGHT-hunt-Z9 adds
+	# stage 9, the hardening seat: hostile control-byte payloads against
+	# every pre-root echo path (the render boundary's '?' contract), the
+	# shadowed-positional ladder, and the hidden-vocabulary leak cases.
+	# This leg runs the battery as root (the init context), so the
+	# rootless-lane rows — the ones asserting the root-refusal message a
+	# real user sees — re-execute through the real-user drop lane
+	# (NIGHT-improve-49: setpriv to uid 65534) instead of skipping: the
+	# gate refuses the dropped user exactly as it refuses a real one,
+	# and a dropped uid cannot pass the root gate, so no v4 case ever
+	# makes an enforcement attempt (only a host without setpriv keeps
+	# the honest SKIP — this rootfs ships util-linux, so the drop runs).
+	# The rootless Dragon Guard - CI leg still runs all rows on every
+	# push that touches the Rust/scripts surface (ci.yml is
+	# paths-filtered — NIGHT-hunt-32 corrected the unqualified "every
+	# push").
+	if python3 scripts/supermassive/supermassive-test-v4.py \
+		--binary /opt/zelynic/zelynic; then
+		note "supermassive v4 - CLI depth battery (full, user rows via the real-user drop)" PASS
+	else
+		note "supermassive v4 - CLI depth battery (full, user rows via the real-user drop)" FAIL
+	fi
+	;;
+esac
 
 # ── the rig suites (NIGHT-hunt-35): the root bash rigs, canonical ────
 # The three suites the owner runs with sudo on nightpc — reload
@@ -402,29 +477,33 @@ fi
 # inherits the lane — the same sibling shape a systemd session
 # slice gives the owner's local runs.
 RIG_MOVE='echo $$ > "/sys/fs/cgroup/zelynic-rig-suite/cgroup.procs"; exec "$@"'
-mkdir -p /sys/fs/cgroup/zelynic-rig-suite
-if bash -c "$RIG_MOVE" rig \
-	./scripts/depth/reload-test.sh --binary /opt/zelynic/zelynic; then
-	note "rig suite - reload (rate changes under live traffic)" PASS
-else
-	note "rig suite - reload (rate changes under live traffic)" FAIL
-fi
-if bash -c "$RIG_MOVE" rig \
-	./scripts/depth/crash-recovery-test.sh --binary /opt/zelynic/zelynic; then
-	note "rig suite - crash recovery (pin death, recover, auto-heal)" PASS
-else
-	note "rig suite - crash recovery (pin death, recover, auto-heal)" FAIL
-fi
-if bash -c "$RIG_MOVE" rig \
-	./scripts/depth/race-condition-test.sh --binary /opt/zelynic/zelynic; then
-	note "rig suite - race condition (the lock under concurrency)" PASS
-else
-	note "rig suite - race condition (the lock under concurrency)" FAIL
-fi
-# The lane empties itself (each rig kills its own sleeps and curls in
-# cleanup; a straggler zombie can hold the directory a moment) — the
-# removal is best-effort hygiene, never a verdict.
-rmdir /sys/fs/cgroup/zelynic-rig-suite 2>/dev/null || true
+case "$BATTERIES" in
+rigs | all)
+	mkdir -p /sys/fs/cgroup/zelynic-rig-suite
+	if bash -c "$RIG_MOVE" rig \
+		./scripts/depth/reload-test.sh --binary /opt/zelynic/zelynic; then
+		note "rig suite - reload (rate changes under live traffic)" PASS
+	else
+		note "rig suite - reload (rate changes under live traffic)" FAIL
+	fi
+	if bash -c "$RIG_MOVE" rig \
+		./scripts/depth/crash-recovery-test.sh --binary /opt/zelynic/zelynic; then
+		note "rig suite - crash recovery (pin death, recover, auto-heal)" PASS
+	else
+		note "rig suite - crash recovery (pin death, recover, auto-heal)" FAIL
+	fi
+	if bash -c "$RIG_MOVE" rig \
+		./scripts/depth/race-condition-test.sh --binary /opt/zelynic/zelynic; then
+		note "rig suite - race condition (the lock under concurrency)" PASS
+	else
+		note "rig suite - race condition (the lock under concurrency)" FAIL
+	fi
+	# The lane empties itself (each rig kills its own sleeps and curls in
+	# cleanup; a straggler zombie can hold the directory a moment) — the
+	# removal is best-effort hygiene, never a verdict.
+	rmdir /sys/fs/cgroup/zelynic-rig-suite 2>/dev/null || true
+	;;
+esac
 
 # ── the claims proof, LIVE on this leg's kernel (NIGHT-lts-6) ─────────
 # The four-plus-one headline claims proven with root on the exact
@@ -441,12 +520,16 @@ rmdir /sys/fs/cgroup/zelynic-rig-suite 2>/dev/null || true
 # tool-absent SKIP rows the VM carried since lts-6 are closed,
 # and the quick-mode verdict should read 29 passed, 0 skipped
 # on this shape.
-if python3 scripts/bench/proof-claims.py \
-	--quick --binary /opt/zelynic/zelynic; then
-	note "claims proof (live, quick)" PASS
-else
-	note "claims proof (live, quick)" FAIL
-fi
+case "$BATTERIES" in
+survival | all)
+	if python3 scripts/bench/proof-claims.py \
+		--quick --binary /opt/zelynic/zelynic; then
+		note "claims proof (live, quick)" PASS
+	else
+		note "claims proof (live, quick)" FAIL
+	fi
+	;;
+esac
 
 # ── the verdict ───────────────────────────────────────────────────────
 if [ "$FAILURES" -eq 0 ]; then

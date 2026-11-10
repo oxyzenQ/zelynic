@@ -7,6 +7,18 @@
 # guest side of .github/workflows/supermassive-e2e.yml, the sibling's
 # supermassive-e2e contract sized to zelynic's own physics.
 #
+# The shard selector (night-T-1): the workflow builds ONE initramfs
+# per kernel envelope and every CI shard boots it, naming its slice
+# on the kernel cmdline (zelynic-suite=fast|surface|endurance) — the
+# wall clock of the lane belongs to the slowest SINGLE suite, never
+# to the sum. The prelude below (kernel floor, surfaces, egress,
+# binary gate, doctor) runs on EVERY boot, selector or not: every
+# shard still proves the floor. No cmdline parameter = all five
+# suites, the canonical order, the pre-split behavior. Depth is
+# never cut: the endurance clocks (the 300-cycle churn that exists
+# to cross the 256-slot map boundary) run WHOLE, on the nightly
+# schedule's own shard — never sharded, never shortened.
+#
 # The contract: every surface, every guard, every error path,
 # exercised against the REAL alias-built release binary, on two
 # KVM micro-VM legs (the workflow owns them): the low-spec leg
@@ -189,44 +201,83 @@ if ./zelynic doctor >/dev/null 2>&1; then
 else
 	note "doctor (bpf syscall answers on this kernel)" FAIL
 fi
+# ── the suite selector (night-T-1's shard relay) ──────────────────────
+# The workflow's stage job builds ONE initramfs per kernel envelope;
+# each CI shard boots the SAME initrd and names its slice on the
+# kernel cmdline (zelynic-suite=), read here from /proc/cmdline — the
+# selector rides the boot, never the image. No parameter (the local
+# /init shape) means all five, the canonical order, byte-for-byte
+# the pre-split behavior. An unknown value fails LOUDLY (a red row)
+# and falls back to all — a selector typo can never silently shallow
+# a leg.
+SUITE="all"
+while read -r word; do
+	case "$word" in
+	zelynic-suite=*) SUITE=${word#zelynic-suite=} ;;
+	esac
+done </proc/cmdline
+case "$SUITE" in
+fast | surface | endurance | all) ;;
+*)
+	note "suite selector '$SUITE' (wanted fast|surface|endurance|all)" FAIL
+	SUITE="all"
+	;;
+esac
+echo "E2E: suite selector: $SUITE (fast = nonroot + limiter, surface = smoke + quota, endurance = the LTS clocks)"
+
 # ── the suite: four canonical invocations, USER leg first ─────────────
 # 1. The USER-mode leg (night-dragon-maintenance-2's "real user"):
 #    the full command surface as an unprivileged user — setpriv into
 #    nobody's uid/gid from a writable cwd. The rig REFUSES euid 0 by
 #    design (it pins what an unprivileged user sees), so the setpriv
 #    drop is the contract, not a workaround.
-if (cd /tmp && setpriv --reuid=65534 --regid=65534 --clear-groups \
-	"$Z/scripts/depth/nonroot-depth-test.sh" --binary "$Z/zelynic"); then
-	note "USER leg - nonroot depth suite (the unprivileged contract)" PASS
-else
-	note "USER leg - nonroot depth suite (the unprivileged contract)" FAIL
-fi
-# 2. The realtime depth stresstest (the owner's words), FULL depth on
-#    both legs — the budget buys headroom, never depth.
-if ./scripts/depth/limiter-depth-test.sh --binary "$Z/zelynic"; then
-	note "ROOT leg - limiter depth stresstest (full, measured + cross-checked)" PASS
-else
-	note "ROOT leg - limiter depth stresstest (full, measured + cross-checked)" FAIL
-fi
+case "$SUITE" in
+fast | all)
+	if (cd /tmp && setpriv --reuid=65534 --regid=65534 --clear-groups \
+		"$Z/scripts/depth/nonroot-depth-test.sh" --binary "$Z/zelynic"); then
+		note "USER leg - nonroot depth suite (the unprivileged contract)" PASS
+	else
+		note "USER leg - nonroot depth suite (the unprivileged contract)" FAIL
+	fi
+	# 2. The realtime depth stresstest (the owner's words), FULL depth on
+	#    both legs — the budget buys headroom, never depth.
+	if ./scripts/depth/limiter-depth-test.sh --binary "$Z/zelynic"; then
+		note "ROOT leg - limiter depth stresstest (full, measured + cross-checked)" PASS
+	else
+		note "ROOT leg - limiter depth stresstest (full, measured + cross-checked)" FAIL
+	fi
+	;;
+esac
 # 3. The LTS clocks, FULL depth on both legs: the map-slot churn
 #    amplification (any group-slot leak exhausts the 256 cap and
 #    fails loudly) plus the monitor's pty soak (no unbounded
-#    collection, no fd leak).
-if ./scripts/depth/endurance-test.sh --binary "$Z/zelynic"; then
-	note "ROOT leg - endurance clocks (full churn + monitor soak)" PASS
-else
-	note "ROOT leg - endurance clocks (full churn + monitor soak)" FAIL
-fi
+#    collection, no fd leak). The 300-cycle campaign exists to walk
+#    ~300 fresh group slots against the 256-entry map cap — the
+#    boundary crossing IS the test, so it is never sharded and never
+#    shortened; it runs whole (night-T-1 moved it to the nightly
+#    schedule, never out of depth).
+case "$SUITE" in
+endurance | all)
+	if ./scripts/depth/endurance-test.sh --binary "$Z/zelynic"; then
+		note "ROOT leg - endurance clocks (full churn + monitor soak)" PASS
+	else
+		note "ROOT leg - endurance clocks (full churn + monitor soak)" FAIL
+	fi
+	;;
+esac
 # 4. The whole CLI surface as root: every verb, every guard, real
 #    policing against the unlimited baseline, leak postconditions,
 #    the unprivileged refusal row — the smoke battery the sandbox
 #    lane runs, on both kernel ends of the span.
-if ./scripts/sandbox/smoke-cli.sh --binary "$Z/zelynic"; then
-	note "ROOT leg - CLI surface smoke (every verb, every guard)" PASS
-else
-	note "ROOT leg - CLI surface smoke (every verb, every guard)" FAIL
-fi
-
+case "$SUITE" in
+surface | all)
+	if ./scripts/sandbox/smoke-cli.sh --binary "$Z/zelynic"; then
+		note "ROOT leg - CLI surface smoke (every verb, every guard)" PASS
+	else
+		note "ROOT leg - CLI surface smoke (every verb, every guard)" FAIL
+	fi
+	;;
+esac
 # 5. The quota saver's A/B proof (night-netrunner-4, the final
 #    polish): scenario A (zelynic) against the legacy drop-based
 #    counterfactual - the same real download and upload twice over
@@ -237,20 +288,24 @@ fi
 #    hiccup or an honest refusal is a SKIP row (it never reddens
 #    the verdict); a run that claims success without both lines
 #    is a contract breach and FAILs.
-QUOTA_LOG=/tmp/quota-ab.log
-if ./scripts/bench/quota-saver-ab.sh --binary "$Z/zelynic" >"$QUOTA_LOG" 2>&1; then
-	cat "$QUOTA_LOG"
-	if grep -q '^test download results the internet kuota save total is ' "$QUOTA_LOG" &&
-		grep -q '^test upload results the internet kuota save total is ' "$QUOTA_LOG"; then
-		note "ROOT leg - quota saver A/B (the two exact contract lines)" PASS
+case "$SUITE" in
+surface | all)
+	QUOTA_LOG=/tmp/quota-ab.log
+	if ./scripts/bench/quota-saver-ab.sh --binary "$Z/zelynic" >"$QUOTA_LOG" 2>&1; then
+		cat "$QUOTA_LOG"
+		if grep -q '^test download results the internet kuota save total is ' "$QUOTA_LOG" &&
+			grep -q '^test upload results the internet kuota save total is ' "$QUOTA_LOG"; then
+			note "ROOT leg - quota saver A/B (the two exact contract lines)" PASS
+		else
+			note "ROOT leg - quota saver A/B (run claimed but the lines are missing)" FAIL
+		fi
 	else
-		note "ROOT leg - quota saver A/B (run claimed but the lines are missing)" FAIL
+		cat "$QUOTA_LOG" >&2 || true
+		echo "E2E-RESULT: ROOT leg - quota saver A/B — SKIP (the internet lane never reddens the kernel-floor legs)"
 	fi
-else
-	cat "$QUOTA_LOG" >&2 || true
-	echo "E2E-RESULT: ROOT leg - quota saver A/B — SKIP (the internet lane never reddens the kernel-floor legs)"
-fi
-rm -f "$QUOTA_LOG"
+	rm -f "$QUOTA_LOG"
+	;;
+esac
 # ── the verdict relay ──────────────────────────────────────────────────
 if [ "$FAILURES" -eq 0 ]; then
 	echo "E2E-VERDICT: PASS"
