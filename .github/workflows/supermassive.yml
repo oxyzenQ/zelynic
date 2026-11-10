@@ -598,8 +598,15 @@ jobs:
           docker pull -q "$SUITE"
           docker rm -f floor-rootfs >/dev/null 2>&1 || true
           docker run --name floor-rootfs -d "$SUITE" sleep infinity
-          docker exec floor-rootfs apt-get update -qq
-          docker exec floor-rootfs apt-get install -y --no-install-recommends python3 iproute2 kmod curl nftables
+          # NIGHT-dinner-12's knob, completed for the rootfs lane: the
+          # contract's both-halves rule covers every apt fetch, and
+          # run 579's lesson is the class it guards — a mirror edge
+          # caught mid-sync served a stale Packages.gz against the
+          # fresh Release ("File has unexpected size", exit 100) that
+          # the knob the kernel resolvers already own absorbs.
+          docker exec floor-rootfs apt-get -o Acquire::Retries=5 update -qq
+          docker exec floor-rootfs apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
+            python3 iproute2 kmod curl nftables
           # bpftool (NIGHT-improve-48): Ubuntu ships no standalone
           # package — the binary lives inside the per-ABI linux-tools
           # debs, and the VM's kernel (the 5.15.0 floor or the
@@ -632,7 +639,7 @@ jobs:
             test -n "$pkg" || { echo "FAIL: no per-kernel linux-tools resolved"; exit 1; }
             src=""
             for _ in 1 2 3; do
-              apt-get download "$pkg" >/dev/null
+              apt-get -o Acquire::Retries=5 download "$pkg" >/dev/null
               rm -rf /tmp/bpx
               dpkg-deb -x "${pkg}"_*.deb /tmp/bpx
               src=$(find /tmp/bpx/usr/lib -type f -name bpftool | head -n1)
@@ -662,7 +669,7 @@ jobs:
           # cheap (the improve-48 bpftool law): the in-VM QUIC row
           # must never silently skip its proof.
           docker exec floor-rootfs sh -ec '
-            apt-get install -y --no-install-recommends python3-pip >/dev/null
+            apt-get -o Acquire::Retries=5 install -y --no-install-recommends python3-pip >/dev/null
             pip3 install --no-cache-dir aioquic >/dev/null 2>&1 \
               || pip3 install --no-cache-dir --break-system-packages aioquic >/dev/null
             python3 -c "import aioquic, cryptography, pylsqpack" \
