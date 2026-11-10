@@ -62,16 +62,27 @@ note() {
 }
 
 usage() {
-	echo "usage: $0 --binary PATH" >&2
+	echo "usage: $0 --binary PATH [--suite fast|surface|endurance|all]" >&2
 	exit 2
 }
 
 BINARY=""
+SUITE="all"
 while [ $# -gt 0 ]; do
 	case "$1" in
 	--binary)
 		[ $# -ge 2 ] || usage
 		BINARY=$2
+		shift 2
+		;;
+	--suite)
+		# The shard selector (night-T-1): the workflow's stage job
+		# builds the payload once; each arm64 shard boots nothing and
+		# names its slice here. "all" keeps the pre-split behavior
+		# (the canonical five, in order). An unknown value fails
+		# LOUDLY — a selector typo can never silently shallow a leg.
+		[ $# -ge 2 ] || usage
+		SUITE=$2
 		shift 2
 		;;
 	*)
@@ -80,6 +91,13 @@ while [ $# -gt 0 ]; do
 	esac
 done
 [ -n "$BINARY" ] || usage
+case "$SUITE" in
+fast | surface | endurance | all) ;;
+*)
+	echo "E2E: --suite '$SUITE' is not one of fast|surface|endurance|all" >&2
+	exit 2
+	;;
+esac
 [ -x "$BINARY" ] || {
 	echo "E2E: --binary $BINARY is not an executable" >&2
 	exit 2
@@ -150,41 +168,58 @@ else
 	note "doctor (bpf syscall answers on this kernel)" FAIL
 fi
 
+echo "E2E: suite selector: $SUITE (fast = nonroot + limiter, surface = smoke + quota, endurance = the LTS clocks)"
+
 # ── the suite: the identical five canonical invocations, USER leg first
 # 1. The USER-mode leg (the unprivileged contract): the full command
 #    surface as an unprivileged user — setpriv into nobody's uid/gid
 #    from a writable cwd. The rig REFUSES euid 0 by design (it pins
 #    what an unprivileged user sees), so the setpriv drop is the
 #    contract, not a workaround.
-if (cd /tmp && setpriv --reuid=65534 --regid=65534 --clear-groups \
-	"$Z/scripts/depth/nonroot-depth-test.sh" --binary "$BINARY"); then
-	note "USER leg - nonroot depth suite (the unprivileged contract)" PASS
-else
-	note "USER leg - nonroot depth suite (the unprivileged contract)" FAIL
-fi
-# 2. The realtime depth stresstest (the owner's words), FULL depth —
-#    the budget buys headroom, never depth.
-if "$Z/scripts/depth/limiter-depth-test.sh" --binary "$BINARY"; then
-	note "ROOT leg - limiter depth stresstest (full, measured + cross-checked)" PASS
-else
-	note "ROOT leg - limiter depth stresstest (full, measured + cross-checked)" FAIL
-fi
+case "$SUITE" in
+fast | all)
+	if (cd /tmp && setpriv --reuid=65534 --regid=65534 --clear-groups \
+		"$Z/scripts/depth/nonroot-depth-test.sh" --binary "$BINARY"); then
+		note "USER leg - nonroot depth suite (the unprivileged contract)" PASS
+	else
+		note "USER leg - nonroot depth suite (the unprivileged contract)" FAIL
+	fi
+	# 2. The realtime depth stresstest (the owner's words), FULL depth —
+	#    the budget buys headroom, never depth.
+	if "$Z/scripts/depth/limiter-depth-test.sh" --binary "$BINARY"; then
+		note "ROOT leg - limiter depth stresstest (full, measured + cross-checked)" PASS
+	else
+		note "ROOT leg - limiter depth stresstest (full, measured + cross-checked)" FAIL
+	fi
+	;;
+esac
 # 3. The LTS clocks, FULL depth: the map-slot churn amplification
 #    (any group-slot leak exhausts the 256 cap and fails loudly) plus
 #    the monitor's pty soak (no unbounded collection, no fd leak).
-if "$Z/scripts/depth/endurance-test.sh" --binary "$BINARY"; then
-	note "ROOT leg - endurance clocks (full churn + monitor soak)" PASS
-else
-	note "ROOT leg - endurance clocks (full churn + monitor soak)" FAIL
-fi
+#    The 300-cycle campaign exists to cross the 256-slot boundary —
+#    it runs WHOLE or not at all (night-T-1: the nightly schedule's
+#    own shard), never sharded, never shortened.
+case "$SUITE" in
+endurance | all)
+	if "$Z/scripts/depth/endurance-test.sh" --binary "$BINARY"; then
+		note "ROOT leg - endurance clocks (full churn + monitor soak)" PASS
+	else
+		note "ROOT leg - endurance clocks (full churn + monitor soak)" FAIL
+	fi
+	;;
+esac
 # 4. The whole CLI surface as root: every verb, every guard, real
 #    policing against the unlimited baseline, leak postconditions,
 #    the unprivileged refusal row.
-if "$Z/scripts/sandbox/smoke-cli.sh" --binary "$BINARY"; then
-	note "ROOT leg - CLI surface smoke (every verb, every guard)" PASS
-else
-	note "ROOT leg - CLI surface smoke (every verb, every guard)" FAIL
-fi
+case "$SUITE" in
+surface | all)
+	if "$Z/scripts/sandbox/smoke-cli.sh" --binary "$BINARY"; then
+		note "ROOT leg - CLI surface smoke (every verb, every guard)" PASS
+	else
+		note "ROOT leg - CLI surface smoke (every verb, every guard)" FAIL
+	fi
+	;;
+esac
 
 # 5. The quota saver's A/B proof (night-netrunner-4): scenario A
 #    (zelynic) against the legacy drop-based counterfactual — the
@@ -194,20 +229,24 @@ fi
 #    refusal is a SKIP row (it never reddens the verdict); a run
 #    that claims success without both lines is a contract breach
 #    and FAILs.
-QUOTA_LOG=/tmp/quota-ab.log
-if "$Z/scripts/bench/quota-saver-ab.sh" --binary "$BINARY" >"$QUOTA_LOG" 2>&1; then
-	cat "$QUOTA_LOG"
-	if grep -q '^test download results the internet kuota save total is ' "$QUOTA_LOG" &&
-		grep -q '^test upload results the internet kuota save total is ' "$QUOTA_LOG"; then
-		note "ROOT leg - quota saver A/B (the two exact contract lines)" PASS
+case "$SUITE" in
+surface | all)
+	QUOTA_LOG=/tmp/quota-ab.log
+	if "$Z/scripts/bench/quota-saver-ab.sh" --binary "$BINARY" >"$QUOTA_LOG" 2>&1; then
+		cat "$QUOTA_LOG"
+		if grep -q '^test download results the internet kuota save total is ' "$QUOTA_LOG" &&
+			grep -q '^test upload results the internet kuota save total is ' "$QUOTA_LOG"; then
+			note "ROOT leg - quota saver A/B (the two exact contract lines)" PASS
+		else
+			note "ROOT leg - quota saver A/B (run claimed but the lines are missing)" FAIL
+		fi
 	else
-		note "ROOT leg - quota saver A/B (run claimed but the lines are missing)" FAIL
+		cat "$QUOTA_LOG" >&2 || true
+		echo "E2E-RESULT: ROOT leg - quota saver A/B — SKIP (the internet lane never reddens the kernel-floor legs)"
 	fi
-else
-	cat "$QUOTA_LOG" >&2 || true
-	echo "E2E-RESULT: ROOT leg - quota saver A/B — SKIP (the internet lane never reddens the kernel-floor legs)"
-fi
-rm -f "$QUOTA_LOG"
+	rm -f "$QUOTA_LOG"
+	;;
+esac
 
 # ── the verdict relay ──────────────────────────────────────────────────
 # The same sentinel contract every leg carries, plus the native

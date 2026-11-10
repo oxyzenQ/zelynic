@@ -188,6 +188,49 @@
 # and hunt-35's rig battery adds its minutes inside the budgets
 # above); the push pipeline stays decoupled from ci.yml's own
 # failure modes — this workflow can only redden itself.
+#
+# =============================================================================
+#
+# night-T-1 — the lane reshaped, never the depth
+# =============================================================================
+# The owner's night-T-1 ask: a single run must not chain the owner
+# to a slow machine for half an hour — split the lane so every
+# per-push JOB targets ~5 minutes. The reshape is structural only:
+#
+#   stage (one job, once per run) builds the musl flagship via
+#   scripts/setup.sh --skip-heavy, fetches BOTH kernel envelopes
+#   (the jammy 5.15.0 floor + the archive's dynamically resolved
+#   latest), assembles each into its own initramfs (the ubuntu:22.04
+#   userland, bpftool, the QUIC client, the legacy v11.0.0
+#   counterfactual — all staged once), and uploads the two boot
+#   bundles as artifacts. No shard pays for a toolchain, a resolver,
+#   or an assembly again.
+#
+#   the per-push shards boot the SAME initramfs per envelope and name
+#   their battery set on the kernel cmdline (zelynic-batteries=,
+#   scripts/ci/supermassive-init.sh reads it from /proc/cmdline):
+#   engine (the harness self-tests + v1's server depth phase),
+#   legacy (the MMSPA-vs-v11.0.0 subtree delta), survival (v2 + v3 +
+#   v4 + the live claims proof), rigs (reload / crash-recovery /
+#   race-condition). Each shard's wall clock is one battery, the
+#   ~5-minute target, never the sum.
+#
+#   the ONE battery that is irreducible serial physics — v1's
+#   desktop matrix (run_heavy is ONE stateful sequence: the baseline
+#   threads through every stage, the realnet lane owns its own
+#   teardown, the quota pair rides the same policy window) — rides
+#   its own shard on the NIGHTLY schedule (20:00 UTC, the small
+#   hours in the owner's Asia/Jakarta night), full depth, while
+#   nobody waits. Nothing is cut: the per-push union still proves
+#   every other battery on both kernel envelopes, the night train
+#   proves the desktop matrix whole. NIGHT-reject-1 retired the
+#   weekly FULL-matrix clock in an era when one run WAS the whole
+#   battery; this schedule is the different thing the new shape
+#   needs — one 12-minute shard nobody waits on — and the owner's
+#   night-T-1 ask is its mandate.
+#
+# Depth is never cut anywhere; the budget still buys headroom,
+# never depth.
 
 name: Dragon Guard - Supermassive
 
@@ -198,20 +241,17 @@ on:
   # workflow (the no-drift law between the push and pull_request
   # blocks, the manual glob audit every new consumer needed) outgrew
   # the runner minutes it saved. Any push (any branch, any tag) and
-  # any pull request burns the micro-VM battery now, the same blind
+  # any pull request burns the per-push shards now, the same blind
   # posture every push-triggered lane carries.
   push:
   pull_request:
-  # NIGHT-reject-1: the weekly clock is retired — the owner's call,
-  # the schedule is not needed. The Monday 03:00 UTC slot
-  # NIGHT-approved-1 landed (its runs watched the resolver lanes'
-  # mirrors — the frozen pocket the retired impish floor used, the
-  # live archive's structure — and the busy-hour residual, the
-  # round-1 audit's documented shared-runner limit) comes off the
-  # trigger surface.
-  # The watch-summary step stays on every push and dispatch run,
-  # so the FAIL/SKIP rows keep landing in the step summary without
-  # the weekly cadence.
+  # The night train (night-T-1): the v1 desktop matrix runs WHOLE
+  # on the schedule — full depth at the small hours, nobody
+  # waiting. workflow_dispatch runs BOTH the per-push shards and
+  # the night shards: a dispatch is the full sweep, the manual
+  # recovery lane (and the pre-release click).
+  schedule:
+    - cron: "30 19 * * *" # 19:30 UTC = 02:30 WIB (Asia/Jakarta), staggered off the e2e train
   workflow_dispatch: {}
 
 # Least privilege (cosmostrix contract): this workflow only reads
@@ -222,13 +262,17 @@ permissions:
 
 # The most expensive workflow in the estate (the e2e.yml
 # inheritance): a superseded push cancels its in-flight
-# supermassive runs instead of queueing duplicate 30-minute
-# batteries (the cosmostrix stability pattern; a tag push lands in a
-# different group by construction and never interacts — the
-# NIGHT-improve-32 combined-push contract).
+# supermassive shards instead of queueing duplicates (the
+# cosmostrix stability pattern; a tag push lands in a different
+# group by construction and never interacts — the
+# NIGHT-improve-32 combined-push contract). The night train lives
+# in its own group: a push neither cancels nor is cancelled by the
+# scheduled desktop-matrix runs.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: >-
+    ${{ github.workflow }}-${{ github.ref }}-
+    ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'night' || 'push' }}
+  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -237,39 +281,17 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  supermassive:
-    name: ${{ matrix.title }}
-    strategy:
-      # A low-specs failure must not hide the best-specs result
-      # (and vice versa) — the envelope pair is the point of the
-      # split, each leg reports its own verdict.
-      fail-fast: false
-      matrix:
-        include:
-          # The two ends of the machines zelynic promises to run on
-          # (see the header), on the musl payload (night-dragon-
-          # maintenance-6: the gnu legs retired with the gnu
-          # packaging — musl is the only shipped shape, the version
-          # dimension collapsed to it). Resources are NOT pinned
-          # here anymore (NIGHT-improve-33) — the boot step derives
-          # each envelope from the runner at run time. What stays
-          # per-leg: the title (the owner's exact base strings plus
-          # the version suffix), the kernel lane, the version, and
-          # the VM budget (the low envelope's tight CPU slice
-          # serializes the battery — engines plus rigs — so its
-          # budget rides at 2100 s, NIGHT-hunt-35's +300 for the
-          # rig battery; the best envelope's wide slice rides at
-          # 1500 s).
-          - title: supermassive test - low specs (the jammy 5.15.0 floor kernel, musl)
-            profile: low
-            version: musl
-            vm_timeout: "2100"
-          - title: supermassive test - best specs (musl)
-            profile: best
-            version: musl
-            vm_timeout: "1500"
+  # ── the stage: build once, boot many ────────────────────────────────
+  # The lane's only build and only kernel resolving: the musl
+  # flagship (setup.sh --skip-heavy, the canonical bring-up), both
+  # kernel envelopes, both initramfs assemblies (the ubuntu:22.04
+  # userland, bpftool, the QUIC client, the legacy counterfactual),
+  # two boot-bundle artifacts. Everything downstream downloads and
+  # boots.
+  stage:
+    name: supermassive - stage (payload + both kernel envelopes)
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
@@ -277,38 +299,10 @@ jobs:
           # GITHUB_TOKEN hardening: never persists into .git/config.
           persist-credentials: false
 
-      # The kernel can change; /dev/kvm is a GitHub runner guarantee
-      # (nested virt is enabled on every current Linux hosted image) —
-      # but the node ships 0660 root:kvm and the runner user is not in
-      # the kvm group, so the job opens it up itself. Failing LOUDLY
-      # here beats a confusing TCG fallback: the pro-native binary is
-      # native codegen and would SIGILL under TCG's -cpu qemu64 —
-      # KVM's -cpu host passthrough is what makes "native" honest
-      # inside the VM.
-      - name: Verify KVM
-        run: |
-          test -e /dev/kvm || {
-            echo "FAIL: /dev/kvm is absent — this runner image cannot boot the micro-VM"
-            echo "(nested virt is expected on every current GitHub Linux runner image)"
-            exit 1
-          }
-          test -w /dev/kvm || sudo chmod 666 /dev/kvm
-          test -w /dev/kvm || {
-            echo "FAIL: /dev/kvm is not usable by the runner user even after chmod"
-            ls -l /dev/kvm
-            exit 1
-          }
-          echo "OK: /dev/kvm present and usable"
-
-      # NIGHT-dinner-12: apt's own retry knob rides both halves of
-      # every apt traffic below (the install here, the update + download
-      # steps in the kernel resolvers) — a flaky archive mirror is the
-      # same GitHub-infra class as the curl 500s, and apt's default is
-      # zero retries.
-      - name: Install qemu + cpio
-        run: >-
-          sudo apt-get -o Acquire::Retries=5 update -qq &&
-          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends qemu-system-x86 cpio
+      - name: Install cpio
+        run: |-
+          sudo apt-get -o Acquire::Retries=5 update -qq
+          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends cpio
 
       # The E2E pipeline's phase one, the owner-facing bring-up on the
       # RUNNER (outside the VM — a low-specs guest cannot host a
@@ -335,10 +329,9 @@ jobs:
       # deliberately excludes jammy's HWE 6.x images — those are the
       # best leg's jurisdiction.
       - name: Fetch the jammy 5.15.0 floor kernel (low specs)
-        if: matrix.profile == 'low'
         run: |
           set -euo pipefail
-          mkdir -p /tmp/kfloor && cd /tmp/kfloor
+          mkdir -p /tmp/stage/low && cd /tmp/stage/low
           {
             echo "deb http://archive.ubuntu.com/ubuntu/ jammy main"
             echo "deb http://archive.ubuntu.com/ubuntu/ jammy-updates main"
@@ -368,8 +361,8 @@ jobs:
             ls -la pkg/boot || true
             exit 1
           fi
-          cp "$VMLINUZ" /tmp/kfloor/vmlinuz-floor
-          echo "kernel: $(du -h /tmp/kfloor/vmlinuz-floor | cut -f1) at /tmp/kfloor/vmlinuz-floor"
+          cp "$VMLINUZ" /tmp/stage/low/vmlinuz-floor
+          echo "kernel: $(du -h /tmp/stage/low/vmlinuz-floor | cut -f1) at /tmp/stage/low/vmlinuz-floor"
           # NIGHT-approved-1 (the egress half): stage the kernel's
           # OWN virtio_net module pair when the driver is a module —
           # the same config-driven staging walk the e2e jammy leg
@@ -385,7 +378,7 @@ jobs:
           KVER="${IMG#linux-image-unsigned-}"
           MODPKG="linux-modules-$KVER"
           apt-get -o Acquire::Retries=5 download "$MODPKG"
-          rm -rf mods /tmp/kfloor/virtio-mods
+          rm -rf mods /tmp/stage/low/virtio-mods
           dpkg-deb -x "${MODPKG}"*_amd64.deb mods
           CFG="mods/boot/config-$KVER"
           test -f "$CFG" || {
@@ -403,7 +396,7 @@ jobs:
                 # DIFFERENT directory than drivers/net. Run
                 # 37520041688's lesson: staging the pair without the
                 # core leaf fails every insmod with Unknown symbol.
-                STG="/tmp/kfloor/virtio-mods/lib/modules/$KVER/kernel"
+                STG="/tmp/stage/low/virtio-mods/lib/modules/$KVER/kernel"
                 mkdir -p "$STG/net/core" "$STG/drivers/net"
                 stage_mod() {
                   mod=$1; dir=$2; flag=$3
@@ -417,7 +410,8 @@ jobs:
                 stage_mod failover net/core FAILOVER
                 stage_mod net_failover drivers/net NET_FAILOVER
                 stage_mod virtio_net drivers/net VIRTIO_NET
-                echo "staged virtio modules: $(du -sh /tmp/kfloor/virtio-mods | cut -f1) at /tmp/kfloor/virtio-mods" ;;
+                echo "staged virtio modules: $(du -sh /tmp/stage/low/virtio-mods | cut -f1)"
+                echo "  at /tmp/stage/low/virtio-mods" ;;
             *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET — no usable virtio-net driver on this kernel"; exit 1 ;;
           esac
 
@@ -436,10 +430,9 @@ jobs:
       # edit; if the archive ever restructures, it fails LOUDLY with
       # the discovery evidence attached.
       - name: Resolve the archive's latest kernel (best specs)
-        if: matrix.profile == 'best'
         run: |
           set -euo pipefail
-          mkdir -p /tmp/kfloor && cd /tmp/kfloor
+          mkdir -p /tmp/stage/best && cd /tmp/stage/best
           # NIGHT-dinner-12: the dists index + Release probes carry the
           # curl retry contract (a plain-HTTP archive mirror 500s on
           # its bad days; the resolver must not die on one bad poll).
@@ -498,8 +491,8 @@ jobs:
             ls -la pkg/boot || true
             exit 1
           fi
-          cp "$VMLINUZ" /tmp/kfloor/vmlinuz-floor
-          echo "kernel: $(du -h /tmp/kfloor/vmlinuz-floor | cut -f1) at /tmp/kfloor/vmlinuz-floor"
+          cp "$VMLINUZ" /tmp/stage/best/vmlinuz-floor
+          echo "kernel: $(du -h /tmp/stage/best/vmlinuz-floor | cut -f1) at /tmp/stage/best/vmlinuz-floor"
           # NIGHT-approved-1 (the egress half, the latest-kernel
           # twin of the floor lane above): the SAME config-driven
           # staging walk, the kernel's OWN modules deb from the
@@ -512,7 +505,7 @@ jobs:
           KVER="${IMG#linux-image-unsigned-}"
           MODPKG="linux-modules-$KVER"
           apt-get -o Acquire::Retries=5 download "$MODPKG"
-          rm -rf mods /tmp/kfloor/virtio-mods
+          rm -rf mods /tmp/stage/best/virtio-mods
           dpkg-deb -x "${MODPKG}"*_amd64.deb mods
           CFG="mods/boot/config-$KVER"
           test -f "$CFG" || {
@@ -528,7 +521,7 @@ jobs:
                 # failover.ko under net/core owns the symbols
                 # net_failover.ko imports, so the pair alone fails
                 # with Unknown symbol.
-                STG="/tmp/kfloor/virtio-mods/lib/modules/$KVER/kernel"
+                STG="/tmp/stage/best/virtio-mods/lib/modules/$KVER/kernel"
                 mkdir -p "$STG/net/core" "$STG/drivers/net"
                 stage_mod() {
                   mod=$1; dir=$2; flag=$3
@@ -542,52 +535,28 @@ jobs:
                 stage_mod failover net/core FAILOVER
                 stage_mod net_failover drivers/net NET_FAILOVER
                 stage_mod virtio_net drivers/net VIRTIO_NET
-                echo "staged virtio modules: $(du -sh /tmp/kfloor/virtio-mods | cut -f1) at /tmp/kfloor/virtio-mods" ;;
+                echo "staged virtio modules: $(du -sh /tmp/stage/best/virtio-mods | cut -f1)"
+                echo "  at /tmp/stage/best/virtio-mods" ;;
             *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET — no usable virtio-net driver on this kernel"; exit 1 ;;
           esac
 
-      # The userland (BOTH profiles' legs, held constant on purpose —
+      # The userland (BOTH envelopes' legs, held constant on purpose —
       # the leg's only variables are the kernel and the envelope): the
       # frozen ubuntu:22.04 CONTAINER, unchanged since NIGHT-improve-31
       # (a static binary owes no userland anything; the gnu legs' old
       # same-distro 24.04 rootfs retired with the gnu packaging).
-      # 2.35's kernel floor is 3.2, so the 5.15.0 kernel is safe.
-      # python3 +
-      # iproute2 + kmod ride along (the engine + `ip link set lo up`
-      # + the egress block's insmod pair), and
-      # curl joins the set for the consolidated battery (the v1
-      # limiter matrix drives its lanes with it — the loopback lanes
-      # AND the realnet lane, which RUNS since NIGHT-approved-1 gave
-      # the VM egress). The checkout (tracked files only) and the
-      # payload binary land at /opt/zelynic, scripts/ci/supermassive-init.sh
-      # becomes /init (PID 1) — then the whole tree packs into ONE
+      # One docker userland is prepared (bpftool walked out of the
+      # linux-tools chain, the QUIC client staged and purge-proven),
+      # then one assemble() walk per envelope directory packs it with
+      # the checkout tree, the payload, and
+      # scripts/ci/supermassive-init.sh as /init (PID 1) into its own
       # newc cpio (the initramfs IS the rootfs; no disk, no modules).
-      # PAYLOAD-FLAVOR (NIGHT-blade-12) names the libc for the init's
-      # probe rows: a four-leg matrix's verdict lines must say which
-      # payload they proved, and the marker is written by the same
-      # step that copies the binary, one /opt/zelynic apart.
-      # NIGHT-improve-48 adds the claims battery's diagnostic tools to
-      # the rootfs (the round-2 completeness audit's closure): nftables
-      # rides the plain apt line, bpftool is extracted from one
-      # per-kernel linux-tools deb and staged at /usr/bin — the three
-      # tool-absent SKIP rows the VM legs carried since the claims
-      # battery landed (the nft ruleset snapshot, both bpftool
-      # surfaces) run for real on every leg now, the real-user shape:
-      # a desktop machine has both one apt away, and the claims the
-      # rows prove (no netfilter path, the kernel run-time cost) are
-      # the claims a user buys the tool on.
-      # NIGHT-hunt-37 adds the QUIC client: aioquic + its wheel
-      # dependencies (cryptography, pylsqpack, ~10 MB) staged through
-      # the container's own python and survived past pip's purge —
-      # the v1 matrix's QUIC row (the hunt-36 residual, owner-
-      # approved) drives N real HTTP/3 connections through one
-      # listening socket on every leg; a lane without the stack
-      # SKIPs honestly, but the CI rootfs must never carry that
-      # skip, so the staging FAILS the leg instead.
-      - name: Assemble the micro-VM rootfs
+      # Each envelope's directory is swept back to the boot pair
+      # (kernel + initramfs) before the artifact upload — the shards
+      # download the bundle, never the build furniture.
+      - name: Assemble the micro-VM rootfs (both envelopes)
         run: |
           set -euo pipefail
-          cd /tmp/kfloor
           # The frozen jammy userland, unchanged since NIGHT-improve-31
           # (a static binary owes no userland anything) — the version
           # dimension collapsed to musl with the gnu packaging
@@ -680,85 +649,201 @@ jobs:
               || { echo "FAIL: the QUIC client stack did not survive the pip purge"; exit 1; }
             echo "QUIC client staged: $(python3 -c "import aioquic; print(aioquic.__version__)")"
           '
-          docker export floor-rootfs -o rootfs.tar
-          mkdir -p rootfs
-          tar -xf rootfs.tar -C rootfs
-          mkdir -p rootfs/opt/zelynic
-          git -C "$GITHUB_WORKSPACE" archive HEAD | tar -x -C rootfs/opt/zelynic
-          cp "$PAYLOAD" rootfs/opt/zelynic/zelynic
-          printf '%s\n' '${{ matrix.version }}' > rootfs/opt/zelynic/PAYLOAD-FLAVOR
-          cp "$GITHUB_WORKSPACE/scripts/ci/supermassive-init.sh" rootfs/init
-          chmod +x rootfs/init
-          # NIGHT-approved-1: the virtio module pair a resolver step
-          # staged (the floor leg whose driver is =m — 160 KB) rides the cpio
-          # under the kernel's own module path; the =y heads staged
-          # nothing and the init's insmod pair simply finds no files
-          # (the built-in driver needs none). kmod in the apt line
-          # above owns the insmod. The copy respects the usr-merge:
-          # the ubuntu containers ship /lib as a SYMLINK to usr/lib
-          # (run 37518266382's lesson — `cp -a .../lib rootfs/` tried
-          # to overwrite the symlink itself and failed the
-          # assembly), so the modules land at the physical
-          # /usr/lib/modules while the init reads the canonical
-          # /lib/modules path through the link — both homes resolve
-          # to the same bytes either way, and a non-merged rootfs
-          # (a real /lib directory) takes the direct copy.
-          if [ -d /tmp/kfloor/virtio-mods ]; then
-            if [ -L rootfs/lib ]; then
-              mkdir -p rootfs/usr/lib
-              cp -a /tmp/kfloor/virtio-mods/lib/modules rootfs/usr/lib/
-            else
-              mkdir -p rootfs/lib
-              cp -a /tmp/kfloor/virtio-mods/lib/modules rootfs/lib/
-            fi
-            echo "virtio modules staged into the rootfs cpio"
-          fi
+          docker export floor-rootfs -o /tmp/stage/rootfs.tar
           # NIGHT-perf-1: the MMSPA-vs-legacy A/B needs the pre-MMSPA
           # stable INSIDE the VM on its own loopback lane (the A/B
           # rides the guest's deterministic loopback traffic, not the
           # internet — the egress changes nothing here, both sides
-          # measured on the same lane either way).
-          # The v11.0.0 release — the last leaf-anchored datapath, the
-          # exact counterfactual the subtree contract is measured
-          # against — is staged with its own sha512sum sidecar so the
+          # measured on the same lane either way). The v11.0.0
+          # release — the last leaf-anchored datapath, the exact
+          # counterfactual the subtree contract is measured against —
+          # is fetched ONCE with its own sha512sum sidecar so the
           # legacy binary is checksum-verified exactly like the
-          # release's other consumers (VERIFY_RELEASE contract), the
-          # libc matching the leg's payload. A fetch failure FAILS the
-          # leg here on the runner, where retries are cheap — the
-          # in-VM stage must never silently skip the proof.
+          # release's other consumers (VERIFY_RELEASE contract). A
+          # fetch failure FAILS the leg here on the runner, where
+          # retries are cheap — the in-VM stage must never silently
+          # skip the proof.
           LEGACY_VER="v11.0.0"
-          LEGACY_ASSET="zelynic-v11.0.0-linux-amd64-v3-${{ matrix.version }}.tar.gz"
-          mkdir -p legacy-fetch rootfs/opt/zelynic/legacy
+          LEGACY_ASSET="zelynic-v11.0.0-linux-amd64-v3-musl.tar.gz"
+          mkdir -p /tmp/stage/legacy-fetch
           curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 \
-            -o "legacy-fetch/$LEGACY_ASSET" \
+            -o "/tmp/stage/legacy-fetch/$LEGACY_ASSET" \
             "https://github.com/oxyzenQ/zelynic/releases/download/$LEGACY_VER/$LEGACY_ASSET"
           curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 \
-            -o "legacy-fetch/$LEGACY_ASSET.sha512sum" \
+            -o "/tmp/stage/legacy-fetch/$LEGACY_ASSET.sha512sum" \
             "https://github.com/oxyzenQ/zelynic/releases/download/$LEGACY_VER/$LEGACY_ASSET.sha512sum"
-          ( cd legacy-fetch && sha512sum -c "$LEGACY_ASSET.sha512sum" )
-          tar xzf "legacy-fetch/$LEGACY_ASSET" -C rootfs/opt/zelynic/legacy
-          test -x rootfs/opt/zelynic/legacy/zelynic
-          echo "legacy staged: $(rootfs/opt/zelynic/legacy/zelynic -V | head -1)"
-          # PID 1 needs a console to exec onto before devtmpfs lands
-          # (the kernel opens the initramfs's static /dev/console for
-          # it; the init's devtmpfs mount takes over from there). The
-          # docker export ships a /dev/console entry tar could not
-          # restore as a device (a non-root extract degrades it to a
-          # placeholder file) — remove whatever landed, mknod the real
-          # char device fresh.
-          sudo rm -f rootfs/dev/console
-          sudo mknod -m 600 rootfs/dev/console c 5 1
-          ( cd rootfs && sudo find . -print0 | sudo cpio --null -o -H newc ) | gzip -1 > initrd.gz
-          echo "initramfs: $(du -h initrd.gz | cut -f1)"
+          ( cd /tmp/stage/legacy-fetch && sha512sum -c "$LEGACY_ASSET.sha512sum" )
+          assemble() {
+            DIR=$1
+            mkdir -p "$DIR/rootfs/opt/zelynic/legacy"
+            tar -xf /tmp/stage/rootfs.tar -C "$DIR/rootfs"
+            git -C "$GITHUB_WORKSPACE" archive HEAD | tar -x -C "$DIR/rootfs/opt/zelynic"
+            cp "$PAYLOAD" "$DIR/rootfs/opt/zelynic/zelynic"
+            # night-dragon-maintenance-6: the version dimension is
+            # collapsed to musl — the marker is written by the same
+            # step that copies the binary, one /opt/zelynic apart.
+            printf '%s\n' 'musl' > "$DIR/rootfs/opt/zelynic/PAYLOAD-FLAVOR"
+            cp "$GITHUB_WORKSPACE/scripts/ci/supermassive-init.sh" "$DIR/rootfs/init"
+            chmod +x "$DIR/rootfs/init"
+            # NIGHT-approved-1: the virtio module pair a resolver step
+            # staged (the floor leg whose driver is =m — 160 KB) rides the cpio
+            # under the kernel's own module path; the =y heads staged
+            # nothing and the init's insmod pair simply finds no files
+            # (the built-in driver needs none). kmod in the apt line
+            # above owns the insmod. The copy respects the usr-merge:
+            # the ubuntu containers ship /lib as a SYMLINK to usr/lib
+            # (run 37518266382's lesson — `cp -a .../lib rootfs/` tried
+            # to overwrite the symlink itself and failed the
+            # assembly), so the modules land at the physical
+            # /usr/lib/modules while the init reads the canonical
+            # /lib/modules path through the link — both homes resolve
+            # to the same bytes either way, and a non-merged rootfs
+            # (a real /lib directory) takes the direct copy.
+            if [ -d "$DIR/virtio-mods" ]; then
+              if [ -L "$DIR/rootfs/lib" ]; then
+                mkdir -p "$DIR/rootfs/usr/lib"
+                cp -a "$DIR/virtio-mods/lib/modules" "$DIR/rootfs/usr/lib/"
+              else
+                mkdir -p "$DIR/rootfs/lib"
+                cp -a "$DIR/virtio-mods/lib/modules" "$DIR/rootfs/lib/"
+              fi
+              echo "virtio modules staged into the rootfs cpio"
+            fi
+            tar xzf "/tmp/stage/legacy-fetch/$LEGACY_ASSET" -C "$DIR/rootfs/opt/zelynic/legacy"
+            test -x "$DIR/rootfs/opt/zelynic/legacy/zelynic"
+            echo "legacy staged: $("$DIR/rootfs/opt/zelynic/legacy/zelynic" -V | head -1)"
+            # PID 1 needs a console to exec onto before devtmpfs lands
+            # (the kernel opens the initramfs's static /dev/console for
+            # it; the init's devtmpfs mount takes over from there). The
+            # docker export ships a /dev/console entry tar could not
+            # restore as a device (a non-root extract degrades it to a
+            # placeholder file) — remove whatever landed, mknod the real
+            # char device fresh.
+            sudo rm -f "$DIR/rootfs/dev/console"
+            sudo mknod -m 600 "$DIR/rootfs/dev/console" c 5 1
+            ( cd "$DIR/rootfs" && sudo find . -print0 | sudo cpio --null -o -H newc ) | gzip -1 > "$DIR/initrd.gz"
+            echo "initramfs: $(du -h "$DIR/initrd.gz" | cut -f1)"
+            # The sweep: the artifact carries the boot pair only.
+            rm -rf "$DIR/rootfs" "$DIR/pkg" "$DIR/mods" "$DIR"/*.deb
+          }
+          assemble /tmp/stage/low
+          assemble /tmp/stage/best
+
+      - name: Upload the low-specs micro-VM bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          name: supermassive-vm-low
+          path: /tmp/stage/low
+          retention-days: 3
+
+      - name: Upload the best-specs micro-VM bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          name: supermassive-vm-best
+          path: /tmp/stage/best
+          retention-days: 3
+
+  # ── the per-push battery shards ─────────────────────────────────────
+  # Every shard: download the staged bundle, boot it, run ONE battery
+  # set (the cmdline selector), grep the verdict. The wall clock is
+  # the slowest SINGLE battery — the owner's night-T-1 target, never
+  # the sum of the lane again.
+  supermassive:
+    name: ${{ matrix.title }}
+    needs: [stage]
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - title: supermassive engine test - low specs (the jammy 5.15.0 floor kernel, musl)
+            battery: engine
+            profile: low
+            vm_timeout: "600"
+          - title: supermassive legacy delta test - low specs (the jammy 5.15.0 floor kernel, musl)
+            battery: legacy
+            profile: low
+            vm_timeout: "600"
+          - title: supermassive survival test - low specs (the jammy 5.15.0 floor kernel, musl)
+            battery: survival
+            profile: low
+            vm_timeout: "720"
+          - title: supermassive rigs test - low specs (the jammy 5.15.0 floor kernel, musl)
+            battery: rigs
+            profile: low
+            vm_timeout: "720"
+          - title: supermassive engine test - best specs (musl)
+            battery: engine
+            profile: best
+            vm_timeout: "600"
+          - title: supermassive legacy delta test - best specs (musl)
+            battery: legacy
+            profile: best
+            vm_timeout: "600"
+          - title: supermassive survival test - best specs (musl)
+            battery: survival
+            profile: best
+            vm_timeout: "720"
+          - title: supermassive rigs test - best specs (musl)
+            battery: rigs
+            profile: best
+            vm_timeout: "720"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          # GITHUB_TOKEN hardening: never persists into .git/config.
+          persist-credentials: false
+
+      # The kernel can change; /dev/kvm is a GitHub runner guarantee
+      # (nested virt is enabled on every current Linux hosted image) —
+      # but the node ships 0660 root:kvm and the runner user is not in
+      # the kvm group, so the job opens it up itself. Failing LOUDLY
+      # here beats a confusing TCG fallback: the pro-native binary is
+      # native codegen and would SIGILL under TCG's -cpu qemu64 —
+      # KVM's -cpu host passthrough is what makes "native" honest
+      # inside the VM.
+      - name: Verify KVM
+        run: |
+          test -e /dev/kvm || {
+            echo "FAIL: /dev/kvm is absent — this runner image cannot boot the micro-VM"
+            echo "(nested virt is expected on every current GitHub Linux runner image)"
+            exit 1
+          }
+          test -w /dev/kvm || sudo chmod 666 /dev/kvm
+          test -w /dev/kvm || {
+            echo "FAIL: /dev/kvm is not usable by the runner user even after chmod"
+            ls -l /dev/kvm
+            exit 1
+          }
+          echo "OK: /dev/kvm present and usable"
+
+      # NIGHT-dinner-12: apt's own retry knob rides both halves of
+      # every apt traffic below (the install here, the update + download
+      # steps in the kernel resolvers) — a flaky archive mirror is the
+      # same GitHub-infra class as the curl 500s, and apt's default is
+      # zero retries.
+      - name: Install qemu
+        run: |-
+          sudo apt-get -o Acquire::Retries=5 update -qq
+          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends qemu-system-x86
+
+      # The staged bundle (kernel + initramfs, the stage job's own
+      # build for THIS run's HEAD): the shard downloads its envelope
+      # and boots it — no toolchain, no resolver, no assembly.
+      - name: Download the staged micro-VM bundle
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8, NIGHT-hunt-20 SHA pin
+        with:
+          name: supermassive-vm-${{ matrix.profile }}
+          path: /tmp/kfloor
 
       # Boot the micro-VM: direct kernel boot, KVM host-passthrough
       # CPU, no disk, serial console to stdout, panic=-1 + -no-reboot
-      # so a kernel panic ends qemu instead of hanging the job, an
-      # outer timeout (per profile budget: the low envelope's
-      # tight CPU slice serializes the battery — engines plus rigs —
-      # so its budget rides at 2100 s, hunt-35's +300 for the rig
-      # battery) so a wedged guest can never burn the 50-minute job
-      # budget, and the isa-debug-exit device — the guest ends the VM
+      # so a kernel panic ends qemu instead of hanging the job, the
+      # shard's outer timeout (a wedged guest can never burn the job
+      # budget) and the isa-debug-exit device — the guest ends the VM
       # deterministically by writing one byte to port 0xf4 (qemu exits
       # with status 1), the kernel-CI standard for initramfs guests
       # whose direct-boot path never reaches an ACPI S5 poweroff.
@@ -774,7 +859,12 @@ jobs:
       # qemu's own footprint and the host-side build tree). The pair
       # scales with GitHub's hardware instead of pinning one era's
       # runner shape.
-      - name: Boot the kernel-floor micro-VM and run the supermassive batteries
+      #
+      # zelynic-batteries=${{ matrix.battery }}: the shard's battery
+      # set, read by the init from /proc/cmdline
+      # (scripts/ci/supermassive-init.sh's night-T-1 relay) — ONE
+      # staged initramfs per envelope, the selector rides the boot.
+      - name: Boot the kernel-floor micro-VM and run the battery shard
         run: |
           set -euo pipefail
           cd /tmp/kfloor
@@ -789,11 +879,6 @@ jobs:
           fi
           echo "envelope: $SMP vCPU / $MEM MB (of $CORES cores / $TOTAL_MB MB on the runner)"
           set +e
-          # NIGHT-approved-1: the user-mode NIC (SLIRP) — the egress
-          # the realnet lane rides. Deterministic shape: guest
-          # 10.0.2.15/24, gateway 10.0.2.2, DNS 10.0.2.3 (the init
-          # configures it statically, no DHCP, no bridge — the
-          # runner's own egress NAT'd behind it).
           timeout ${{ matrix.vm_timeout }} qemu-system-x86_64 \
             -machine q35,accel=kvm -cpu host \
             -m "$MEM" -smp "$SMP" \
@@ -802,15 +887,15 @@ jobs:
             -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
             -kernel vmlinuz-floor \
             -initrd initrd.gz \
-            -append "console=ttyS0 panic=-1" \
+            -append "console=ttyS0 panic=-1 zelynic-batteries=${{ matrix.battery }}" \
             -nographic -no-reboot 2>&1 | tee vm.log
           QEMU_RC=${PIPESTATUS[0]}
           set -e
           # rc 0 = a natural poweroff; rc 1 = the guest's deliberate
-          # isa-debug-exit (the verdict itself rides the MASS-* sentinel
-          # lines, so the Verdict step below stays the authority).
-          # Anything else — the profile's timeout (124), a KVM init
-          # failure — fails HERE with the tail attached.
+          # isa-debug-exit (the verdict itself rides the MASS-*
+          # sentinel lines, so the Verdict step below stays the
+          # authority). Anything else — the shard's timeout (124), a
+          # KVM init failure — fails HERE with the tail attached.
           if test "$QEMU_RC" -ne 0 && test "$QEMU_RC" -ne 1; then
             echo "FAIL: qemu exited $QEMU_RC — log tail:"
             tail -40 vm.log
@@ -831,16 +916,131 @@ jobs:
           echo "OK: the kernel span proven on the ${{ matrix.title }} envelope"
 
       # NIGHT-approved-1: the busy-hour residual watch — every run
-      # (push and dispatch, since NIGHT-reject-1 retired the weekly
-      # clock) lands its leg's FAIL/SKIP inventory in the step
-      # summary, so the Actions history reads as the longitudinal
-      # dataset: the qualifying-push runs sample the shared-runner
-      # busy-hour residual the round-1 audit documented (band rows
-      # reading low under contention on a first attempt, clean on a
-      # fresh runner), and the reading rides each run's summary
-      # row — the run list itself is the record (this workflow
-      # keeps contents:read; no in-repo writes, no artifact
-      # expiry).
+      # lands its shard's FAIL/SKIP inventory in the step summary,
+      # so the Actions history reads as the longitudinal dataset
+      # (this workflow keeps contents:read; no in-repo writes, no
+      # artifact expiry).
+      - name: Watch summary (the busy-hour residual clock)
+        if: always()
+        run: |
+          cd /tmp/kfloor
+          {
+            echo "## Dragon Guard watch — ${{ matrix.title }}"
+            echo
+            echo "- trigger: ${{ github.event_name }}"
+            echo "- run: ${{ github.run_id }} (attempt ${{ github.run_attempt }})"
+            echo
+            echo "### battery verdicts (the init's sentinel rows)"
+            echo
+            echo '```'
+            grep -E '^MASS-(RESULT|VERDICT)' vm.log || true
+            echo '```'
+            echo
+            echo "### FAIL/SKIP inventory (the busy-hour residual's home)"
+            echo
+            echo '```'
+            grep -E '^  (X  |-- )' vm.log | head -40 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ── the night train: v1's desktop matrix, WHOLE ────────────────────
+  # run_heavy is ONE stateful sequence (the baseline threads through
+  # every stage, the realnet lane owns its own teardown, the quota
+  # pair rides the same policy window) — it is never sharded inside,
+  # only scheduled. Full depth at the small hours, nobody waiting;
+  # workflow_dispatch runs it too (a dispatch is the full sweep).
+  supermassive-desktop:
+    name: ${{ matrix.title }}
+    needs: [stage]
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - title: supermassive desktop matrix (night train) - low specs (the jammy 5.15.0 floor kernel, musl)
+            profile: low
+            vm_timeout: "1800"
+          - title: supermassive desktop matrix (night train) - best specs (musl)
+            profile: best
+            vm_timeout: "1800"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          # GITHUB_TOKEN hardening: never persists into .git/config.
+          persist-credentials: false
+
+      - name: Verify KVM
+        run: |
+          test -e /dev/kvm || {
+            echo "FAIL: /dev/kvm is absent — this runner image cannot boot the micro-VM"
+            echo "(nested virt is expected on every current GitHub Linux runner image)"
+            exit 1
+          }
+          test -w /dev/kvm || sudo chmod 666 /dev/kvm
+          test -w /dev/kvm || {
+            echo "FAIL: /dev/kvm is not usable by the runner user even after chmod"
+            ls -l /dev/kvm
+            exit 1
+          }
+          echo "OK: /dev/kvm present and usable"
+
+      - name: Install qemu
+        run: |-
+          sudo apt-get -o Acquire::Retries=5 update -qq
+          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends qemu-system-x86
+
+      - name: Download the staged micro-VM bundle
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8, NIGHT-hunt-20 SHA pin
+        with:
+          name: supermassive-vm-${{ matrix.profile }}
+          path: /tmp/kfloor
+
+      - name: Boot the kernel-floor micro-VM and run the desktop matrix
+        run: |
+          set -euo pipefail
+          cd /tmp/kfloor
+          CORES=$(nproc)
+          TOTAL_MB=$(free -m | awk '/^Mem:/{print $2}')
+          if [ "${{ matrix.profile }}" = "low" ]; then
+            SMP=$(( CORES / 4 )); [ "$SMP" -lt 1 ] && SMP=1
+            MEM=$(( TOTAL_MB / 8 )); [ "$MEM" -lt 1024 ] && MEM=1024
+          else
+            SMP=$CORES
+            MEM=$(( TOTAL_MB * 3 / 4 ))
+          fi
+          echo "envelope: $SMP vCPU / $MEM MB (of $CORES cores / $TOTAL_MB MB on the runner)"
+          set +e
+          timeout ${{ matrix.vm_timeout }} qemu-system-x86_64 \
+            -machine q35,accel=kvm -cpu host \
+            -m "$MEM" -smp "$SMP" \
+            -netdev user,id=net0 \
+            -device virtio-net-pci,netdev=net0 \
+            -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
+            -kernel vmlinuz-floor \
+            -initrd initrd.gz \
+            -append "console=ttyS0 panic=-1 zelynic-batteries=desktop" \
+            -nographic -no-reboot 2>&1 | tee vm.log
+          QEMU_RC=${PIPESTATUS[0]}
+          set -e
+          if test "$QEMU_RC" -ne 0 && test "$QEMU_RC" -ne 1; then
+            echo "FAIL: qemu exited $QEMU_RC — log tail:"
+            tail -40 vm.log
+            exit 1
+          fi
+          exit 0
+
+      - name: Verdict
+        run: |
+          set -euo pipefail
+          cd /tmp/kfloor
+          echo "── supermassive verdicts (${{ matrix.title }}) ──"
+          grep -E '^MASS-(RESULT|VERDICT)' vm.log || true
+          grep -q '^MASS-VERDICT: PASS' vm.log
+          echo "OK: the desktop matrix proven on the ${{ matrix.title }} envelope"
+
       - name: Watch summary (the busy-hour residual clock)
         if: always()
         run: |

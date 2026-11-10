@@ -11,38 +11,52 @@
 # zelynic's own physics).
 #
 # The contract: every surface, every guard, every error path,
-# exercised against the REAL compiled binary, on two KVM micro-VM
-# legs - the low-spec leg boots the documented floor kernel (jammy's
-# 5.15.0 LTS line — the floor since night-netrunner-1 raised it off
-# the retired impish 5.13 lane; night-dragon-maintenance-4 first
-# reinstated the 5.15 leg on the principle that a kernel "inside the
-# proven span" never actually BOOTS in the low-specs envelope, and
-# jammy is a live LTS whose 5.15.0-ABI point releases resolve
-# dynamically from the main archive), and the best-spec leg boots
-# the archive's dynamically resolved LATEST kernel (nothing pinned,
-# the resolver walks onto each new release by itself). All legs run
-# the IDENTICAL suite and the IDENTICAL check depth: the budget buys
-# headroom, never depth.
+# exercised against the REAL compiled binary, on the kernel span.
+# night-T-1 reshaped the LANE, never the depth: a stage job builds
+# the release-tier v3 payload and BOTH kernel envelopes' initramfs
+# ONCE (the jammy 5.15.0 floor + the archive's dynamically resolved
+# latest, nothing pinned), uploads them as artifacts, and every
+# per-push shard boots the SAME initramfs naming its slice on the
+# kernel cmdline (zelynic-suite=, scripts/ci/e2e-init.sh reads it
+# from /proc/cmdline). The shard map keeps every per-push job at a
+# ~5-minute target (the owner's night-T-1 ask: no single run may
+# hang the waiting game for half an hour):
+#   fast    = the USER-mode nonroot contract + the realtime limiter
+#             depth stresstest (the two depth suites that fit one
+#             boot's budget together)
+#   surface = the whole-CLI smoke battery + the quota saver A/B
+#             proof
+# and the ONE suite that is irreducible serial physics — the
+# endurance clocks, whose 300-cycle churn exists to walk ~300 fresh
+# group slots against the 256-entry map cap (the boundary crossing
+# IS the test, so it is never sharded and never shortened) — rides
+# its own shard on the NIGHTLY schedule, full depth, while nobody
+# waits. Depth is never cut anywhere: per-push still proves 4 of
+# the 5 suites on both kernel envelopes plus the arm64 host, the
+# nightly proves the fifth.
 #
-# The third leg is the arm64 variant (the owner's arm64 mandate): the
-# IDENTICAL suite and check depth, run HOST-NATIVE on the free arm64
-# runner (ubuntu-24.04-arm). The arm hosted fleet exposes no /dev/kvm
-# at any tier (actions/runner-images#14062, maintainer answer: the
-# Azure Arm SKU surfaces no nested KVM device), so the KVM micro-VM
-# contract is x86-only by platform law — and TCG emulation is no
-# variant at all for a realtime suite whose subject IS the pacer's
-# hrtimer fidelity. The arm64 leg rides the runner host itself
-# through scripts/ci/e2e-native.sh (e2e-init.sh's host-native twin:
+# The arm64 variant (the owner's arm64 mandate): the IDENTICAL
+# shard contract, run HOST-NATIVE on the free arm64 runner
+# (ubuntu-24.04-arm) — stage-arm64 builds the pro-native-arm64-musl
+# payload once, the arm shards stage it into /opt/zelynic-e2e and
+# drive scripts/ci/e2e-native.sh (e2e-init.sh's host-native twin:
 # the same five canonical invocations, verify-not-mount surfaces, a
-# real exit code added to the sentinel relay). One parallel leg, not
-# a matrix explosion: the lane's wall clock is set by the slowest
-# leg, never by a queue.
+# real exit code added to the sentinel relay) with the same --suite
+# selector. The arm hosted fleet exposes no /dev/kvm at any tier
+# (actions/runner-images#14062, maintainer answer: the Azure Arm
+# SKU surfaces no nested KVM device), so the KVM micro-VM contract
+# is x86-only by platform law — and TCG emulation is no variant at
+# all for a realtime suite whose subject IS the pacer's hrtimer
+# fidelity. The arm64 payload relay is within-run (stage job ->
+# artifact -> shards of the SAME run, one uniform runner SKU) — the
+# cross-generation SIGILL lottery class the cache rules guard
+# against is a cross-run reuse, not this relay.
 #
 # The suite lives in scripts/ci/e2e-init.sh (its header is the
 # contract's home); the arm64 leg's twin lives in
 # scripts/ci/e2e-native.sh (its header is its own contract's home).
 # This file only makes the legs run. Five
-# canonical invocations per leg, the modes the owner named:
+# canonical invocations per full sweep, the modes the owner named:
 # the unprivileged USER leg first (nonroot-depth-test.sh - the
 # honest refusal contract), then the ROOT legs (zelynic is a root
 # tool - README's "Linux kernel 5.15.0+, cgroup v2, root" - so the
@@ -58,26 +72,30 @@
 # owns the per-surface end-to-end depth - the five depth suites
 # no other CI lane executes (the depth audit's finding: all five
 # had ZERO CI wiring, owner-local only). Two contracts, two lanes
-# - neither reduces the other, and the existing lane's name and
-# matrix stay untouched.
+# - neither reduces the other.
 #
-# Build shape (the owner's from-source law): each leg builds the
-# pro-linux-amd64-v3-musl alias - the release page's amd64-v3 tier,
-# fully static musl (night-dragon-maintenance-6: musl is the ONLY
-# shipped shape; the gnu payload retired with the gnu packaging),
-# NEVER a bare `cargo build --release` (no release package ever
-# shipped that shape; the binary the depth suite exercises is the
-# binary the release ships). The RUSTFLAGS composition carries the
-# -D warnings lead plus the alias's target-cpu and crt-static tokens
-# verbatim (the workflow-level-shadowing incident's lesson, ci.yml's
-# pro block), and the artifact is verified through its embedded
-# build label before it ships into the guest.
+# Build shape (the owner's from-source law): the stage job builds
+# the pro-linux-amd64-v3-musl alias - the release page's amd64-v3
+# tier, fully static musl (night-dragon-maintenance-6: musl is the
+# ONLY shipped shape; the gnu payload retired with the gnu
+# packaging), NEVER a bare `cargo build --release` (no release
+# package ever shipped that shape; the binary the depth suite
+# exercises is the binary the release ships). The RUSTFLAGS
+# composition carries the -D warnings lead plus the alias's
+# target-cpu and crt-static tokens verbatim (the
+# workflow-level-shadowing incident's lesson, ci.yml's pro block),
+# and the artifact is verified through its embedded build label
+# before it ships into the guest.
 #
 # Trigger discipline (the owner's unfiltered-CI simplification):
 # every push (any branch, any tag) and every pull request (any
-# base) burns this lane - no path filter, no branch filter, the
-# same blind posture every push-triggered lane in the estate now
-# carries. workflow_dispatch stays as the manual recovery lane.
+# base) burns the per-push shards - no path filter, no branch
+# filter, the same blind posture every push-triggered lane in the
+# estate now carries. workflow_dispatch stays as the manual
+# recovery lane AND runs the nightly shards (a dispatch is the
+# full sweep). The schedule (20:00 UTC = the small hours in the
+# owner's Asia/Jakarta evening) runs the endurance shards only:
+# the night train nobody waits for.
 #
 # The jobs fail on any FAIL (every suite exits 1 on its own
 # failure, and the init's E2E-VERDICT relay aggregates the rows;
@@ -89,14 +107,25 @@ name: Dragon Guard - Supermassive E2E
 "on":
   push:
   pull_request:
+  schedule:
+    # 20:00 UTC = 03:00 WIB (the owner's Asia/Jakarta night): the
+    # endurance shards run while nobody waits. A push neither
+    # cancels nor is cancelled by this train (the concurrency
+    # group splits the two worlds below).
+    - cron: "0 20 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # The night train lives in its own group: a push never cancels a
+  # running schedule (and vice versa), while pushes keep cancelling
+  # each other exactly as before.
+  group: >-
+    ${{ github.workflow }}-${{ github.ref }}-
+    ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'night' || 'push' }}
+  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
 
 env:
   # The estate's JS-action runtime pin (every other workflow carries
@@ -104,99 +133,41 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
-  supermassive-e2e:
-    name: ${{ matrix.title }}
-    strategy:
-      fail-fast: false
-      matrix:
-        # The estate's envelope vocabulary (supermassive.yml's pair):
-        # low = the documented floor kernel — jammy's 5.15.0 LTS line,
-        # the floor since night-netrunner-1 retired the impish 5.13
-        # lane, best = the archive's dynamic latest. The vm_timeout is
-        # the wedge-guard outer bound (a wedged guest can never burn
-        # the job budget); every leg runs the identical suite at
-        # identical depth, so the low leg's larger bound is headroom
-        # for its quarter-core serialization, never less depth.
-        include:
-          - title: supermassive e2e - low specs (the jammy 5.15.0 LTS floor kernel)
-            profile: jammy
-            vm_timeout: 2400
-          - title: supermassive e2e - best specs (the archive's latest kernel)
-            profile: best
-            vm_timeout: 1800
-          # The arm64 variant (the owner's arm64 mandate): the
-          # IDENTICAL suite and depth, run natively on the free arm64
-          # runner host — the fleet exposes no /dev/kvm
-          # (runner-images#14062), so the guest contract cannot exist
-          # on arm and the honest variant is the host itself
-          # (scripts/ci/e2e-native.sh, the guest init's twin). One
-          # parallel leg: the wall clock is set by the slowest leg,
-          # never by a queue. The bound is the low leg's headroom
-          # value — the alias build (uncached target tree, the
-          # silicon-lottery rule) rides the same budget.
-          - title: supermassive e2e - arm64 (the native arm64 runner host)
-            profile: arm64
-            vm_timeout: 2400
-    # The arm64 leg rides the free arm64 runner (public-repo free,
-    # zero runner-minute cost); the two x86 legs keep the standard image.
-    runs-on: ${{ matrix.profile == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
-    timeout-minutes: 55
+  # ── the stage: build once, boot many ────────────────────────────────
+  # The x86 stage job is the lane's only build: the release-tier v3
+  # payload plus BOTH kernel envelopes (the jammy 5.15.0 floor deb
+  # and the archive's dynamically resolved latest), each packed with
+  # the SAME userland into its own initramfs (the rootfs draws from
+  # ubuntu:24.04, the guest tooling's ABI - python3, nft, bpftool -
+  # nothing the static musl payload depends on). The artifacts are
+  # the only thing the VM shards download; no shard pays for a
+  # toolchain, a cargo tree, or a kernel resolver again.
+  stage:
+    name: supermassive e2e - stage (payload + both kernel envelopes)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
         with:
           persist-credentials: false
 
-      # The kernel can change; /dev/kvm is a GitHub runner guarantee
-      # on this image family, but the node ships 0660 root:kvm and
-      # the runner user is not in the kvm group, so the job opens it
-      # up itself. Failing LOUDLY here beats a confusing TCG
-      # fallback: the payload is x86-64-v3 codegen and would SIGILL
-      # under TCG's -cpu qemu64.
-      - name: Verify KVM
-        if: matrix.profile != 'arm64'
-        run: |
-          test -e /dev/kvm || {
-            echo "FAIL: /dev/kvm is absent - this runner image cannot boot the micro-VM"
-            exit 1
-          }
-          test -w /dev/kvm || sudo chmod 666 /dev/kvm
-          test -w /dev/kvm || {
-            echo "FAIL: /dev/kvm is not usable by the runner user even after chmod"
-            ls -l /dev/kvm
-            exit 1
-          }
-          echo "OK: /dev/kvm present and usable"
-
-      - name: Install qemu + cpio
-        if: matrix.profile != 'arm64'
-        run: |
+      - name: Install cpio
+        run: |-
           sudo apt-get -o Acquire::Retries=5 update -qq
-          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends qemu-system-x86 cpio
+          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends cpio
 
       # The toolchain set mirrors ci.yml's musl job (the same three
-      # install steps): the pinned stable + musl target for the
-      # payload build, the dated nightly for the nested pure-Rust
-      # eBPF crate build the ebpf feature drives, and the pinned
-      # prebuilt bpf-linker.
+      # install steps): the pinned stable + musl target for the payload
+      # build, the dated nightly for the nested pure-Rust eBPF crate
+      # build the ebpf feature drives, and the pinned prebuilt
+      # bpf-linker.
       - name: Install Rust toolchain
-        if: matrix.profile != 'arm64'
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
         with:
           toolchain: "1.98.1"
           components: clippy, rustfmt
           targets: x86_64-unknown-linux-musl
-
-      # The arm64 twin (the same three-step set, the aarch64
-      # triple): the pinned stable + the musl std for the payload
-      # build on the arm host.
-      - name: Install Rust toolchain (arm64)
-        if: matrix.profile == 'arm64'
-        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
-        with:
-          toolchain: "1.98.1"
-          components: clippy, rustfmt
-          targets: aarch64-unknown-linux-musl
 
       - name: Install eBPF nightly toolchain (dated pin)
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
@@ -208,7 +179,6 @@ jobs:
         run: bash scripts/dev/install-bpf-linker.sh
 
       - name: Cache cargo registry
-        if: matrix.profile != 'arm64'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6, NIGHT-hunt-20 SHA pin
         with:
           path: |
@@ -219,24 +189,6 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
-
-      # The arm64 leg's cache: registry + git ONLY, under a distinct
-      # key (runner.os is "Linux" on every arch — an arch-less key
-      # would let legs cross-restore each other's trees; ci.yml's
-      # arm rung keeps the same rule). Deliberately NOT target/ nor
-      # ebpf/target: the payload is -C target-cpu=native and gets
-      # EXECUTED, so its codegen must come from this job's own
-      # silicon, never from a cache (the SIGILL lottery rule).
-      - name: Cache cargo registry (arm64, registry only)
-        if: matrix.profile == 'arm64'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6, NIGHT-hunt-20 SHA pin
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-e2e-arm64-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-e2e-arm64-cargo-
 
       # The owner's from-source law: the release-tier alias, never a
       # bare cargo build --release. The RUSTFLAGS lead is the
@@ -249,56 +201,11 @@ jobs:
       # everywhere (every x86_64 runner since Haswell), so the -V
       # gate runs live.
       - name: Build the release-tier v3 payload (pro-linux-amd64-v3-musl)
-        if: matrix.profile != 'arm64'
         run: |
           set -euo pipefail
           RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3 -C target-feature=+crt-static" \
             cargo pro-linux-amd64-v3-musl --locked
           ./target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic -V | grep -F "Build: local-pro-linux-amd64-v3-musl"
-
-      # The arm64 payload (the from-source law's arm shape): the
-      # pro-native-arm64-musl alias — the arm64 twin of the flagship
-      # local build (host-CPU native codegen, fully static musl, the
-      # full flagship feature set), the only arm64 shape the estate
-      # carries; the release-tier v3/v4 pair is amd64's jurisdiction.
-      # The RUSTFLAGS composition mirrors ci.yml's arm64 proof leg
-      # (the -D-warnings lead plus the alias's target-cpu and
-      # crt-static tokens verbatim — an env RUSTFLAGS shadows every
-      # config rustflags, so the alias invocation IS the contract
-      # under test), and the artifact is verified through its
-      # embedded build label. Built FRESH IN-JOB and executed here:
-      # -C target-cpu=native codegen from this job's own silicon is
-      # always safe to run — a cache-restored target tree would be
-      # the cross-generation SIGILL lottery ci.yml's arm rung
-      # documents (this leg's cache stops at the registry).
-      - name: Build the arm64 native payload (pro-native-arm64-musl)
-        if: matrix.profile == 'arm64'
-        run: |
-          set -euo pipefail
-          RUSTFLAGS="-D warnings -C target-cpu=native -C target-feature=+crt-static" \
-            cargo pro-native-arm64-musl --locked
-          ./target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic -V | grep -F "Build: local-pro-native-arm64-musl"
-
-      # The arm64 leg's host: the suite userland drawn from the
-      # runner's own apt (the guest legs assemble the identical set
-      # into the rootfs cpio — the userland held constant across
-      # legs), and the kernel surfaces ensured idempotently (cgroup
-      # v2 unified, bpffs, loopback). The HOST owns them here —
-      # scripts/ci/e2e-native.sh verify-fails-loudly on all of them
-      # before any suite runs, never silently shallow.
-      - name: Prepare the arm64 native leg (userland + kernel surfaces)
-        if: matrix.profile == 'arm64'
-        run: |
-          set -euo pipefail
-          sudo apt-get -o Acquire::Retries=5 update -qq
-          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
-            python3 iproute2 kmod curl nftables linux-tools-generic
-          sudo ip link set lo up
-          mountpoint -q /sys/fs/bpf || sudo mount -t bpf bpf /sys/fs/bpf
-          test "$(stat -fc %T /sys/fs/cgroup)" = "cgroup2fs" || {
-            echo "FAIL: /sys/fs/cgroup is $(stat -fc %T /sys/fs/cgroup), wanted cgroup2fs"
-            exit 1
-          }
 
       # The jammy 5.15.0 floor leg (night-dragon-maintenance-4 kept
       # the leg's own principle alive; night-netrunner-1 made it THE
@@ -313,10 +220,9 @@ jobs:
       # config-driven virtio staging walk stages whatever the deb's
       # own config names, =y or =m.
       - name: Fetch the jammy 5.15.0 LTS kernel (low specs)
-        if: matrix.profile == 'jammy'
         run: |
           set -euo pipefail
-          mkdir -p /tmp/kfloor && cd /tmp/kfloor
+          mkdir -p /tmp/stage/jammy && cd /tmp/stage/jammy
           {
             echo "deb http://archive.ubuntu.com/ubuntu/ jammy main"
             echo "deb http://archive.ubuntu.com/ubuntu/ jammy-updates main"
@@ -343,8 +249,8 @@ jobs:
             ls -la pkg/boot || true
             exit 1
           fi
-          cp "$VMLINUZ" /tmp/kfloor/vmlinuz-floor
-          echo "kernel: $(du -h /tmp/kfloor/vmlinuz-floor | cut -f1) at /tmp/kfloor/vmlinuz-floor"
+          cp "$VMLINUZ" /tmp/stage/jammy/vmlinuz-floor
+          echo "kernel: $(du -h /tmp/stage/jammy/vmlinuz-floor | cut -f1) at /tmp/stage/jammy/vmlinuz-floor"
           # The egress half: the config-driven staging walk (the
           # same walk supermassive.yml's floor lane runs -
           # failover.ko under net/core owns the symbols
@@ -353,7 +259,7 @@ jobs:
           KVER="${IMG#linux-image-unsigned-}"
           MODPKG="linux-modules-$KVER"
           apt-get -o Acquire::Retries=5 download "$MODPKG"
-          rm -rf mods /tmp/kfloor/virtio-mods
+          rm -rf mods /tmp/stage/jammy/virtio-mods
           dpkg-deb -x "${MODPKG}"*_amd64.deb mods
           CFG="mods/boot/config-$KVER"
           test -f "$CFG" || {
@@ -364,7 +270,7 @@ jobs:
           VNET=$(sed -n 's/^CONFIG_VIRTIO_NET=\(.*\)$/\1/p' "$CFG")
           case "$VNET" in
             y)  echo "virtio_net built-in (=y) - no modules to stage" ;;
-            m)  STG="/tmp/kfloor/virtio-mods/lib/modules/$KVER/kernel"
+            m)  STG="/tmp/stage/jammy/virtio-mods/lib/modules/$KVER/kernel"
                 mkdir -p "$STG/net/core" "$STG/drivers/net"
                 stage_mod() {
                   mod=$1; dir=$2; flag=$3
@@ -378,28 +284,27 @@ jobs:
                 stage_mod failover net/core FAILOVER
                 stage_mod net_failover drivers/net NET_FAILOVER
                 stage_mod virtio_net drivers/net VIRTIO_NET
-                echo "staged virtio modules: $(du -sh /tmp/kfloor/virtio-mods | cut -f1) at /tmp/kfloor/virtio-mods" ;;
+                echo "staged virtio modules: $(du -sh /tmp/stage/jammy/virtio-mods | cut -f1)"
+                echo "  at /tmp/stage/jammy/virtio-mods" ;;
             *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET - no usable virtio-net driver on this kernel"; exit 1 ;;
           esac
 
       # The latest kernel (NIGHT-improve-33's resolver, the best-specs
-      # twin, ported from supermassive.yml): resolved DYNAMICALLY at
-      # run time, nothing pinned. The dists index names every live
-      # base suite; each suite's Release carries Date + Codename; the
-      # two newest DISTINCT codenames (the dedupe is load-bearing -
-      # mid-cycle the index lists the devel alias AND its target
-      # codename pointing at the same content) become the apt
-      # sources, main + -updates pockets each (proposed deliberately
-      # excluded - pre-release is not "latest"), and the newest
-      # generic unsigned image wins via sort -V. When Ubuntu ships
-      # its next release, this resolver walks onto it without an
-      # edit; an archive restructure fails LOUDLY with the discovery
-      # evidence attached.
+      # twin): resolved DYNAMICALLY at run time, nothing pinned. The
+      # dists index names every live base suite; each suite's Release
+      # carries Date + Codename; the two newest DISTINCT codenames
+      # (the dedupe is load-bearing - mid-cycle the index lists the
+      # devel alias AND its target codename pointing at the same
+      # content) become the apt sources, main + -updates pockets each
+      # (proposed deliberately excluded - pre-release is not
+      # "latest"), and the newest generic unsigned image wins via
+      # sort -V. When Ubuntu ships its next release, this resolver
+      # walks onto it without an edit; an archive restructure fails
+      # LOUDLY with the discovery evidence attached.
       - name: Resolve the archive's latest kernel (best specs)
-        if: matrix.profile == 'best'
         run: |
           set -euo pipefail
-          mkdir -p /tmp/kfloor && cd /tmp/kfloor
+          mkdir -p /tmp/stage/best && cd /tmp/stage/best
           SUITES=$(curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 300 --connect-timeout 15 \
             http://archive.ubuntu.com/ubuntu/dists/ \
             | grep -oE 'href="[a-z0-9]+/"' | cut -d'"' -f2 | tr -d '/' \
@@ -453,8 +358,8 @@ jobs:
             ls -la pkg/boot || true
             exit 1
           fi
-          cp "$VMLINUZ" /tmp/kfloor/vmlinuz-floor
-          echo "kernel: $(du -h /tmp/kfloor/vmlinuz-floor | cut -f1) at /tmp/kfloor/vmlinuz-floor"
+          cp "$VMLINUZ" /tmp/stage/best/vmlinuz-floor
+          echo "kernel: $(du -h /tmp/stage/best/vmlinuz-floor | cut -f1) at /tmp/stage/best/vmlinuz-floor"
           # The egress half, the latest-kernel twin: the SAME
           # config-driven staging walk (the modern heads ship
           # CONFIG_VIRTIO_NET=y - the walk exists so the day a head
@@ -463,7 +368,7 @@ jobs:
           KVER="${IMG#linux-image-unsigned-}"
           MODPKG="linux-modules-$KVER"
           apt-get -o Acquire::Retries=5 download "$MODPKG"
-          rm -rf mods /tmp/kfloor/virtio-mods
+          rm -rf mods /tmp/stage/best/virtio-mods
           dpkg-deb -x "${MODPKG}"*_amd64.deb mods
           CFG="mods/boot/config-$KVER"
           test -f "$CFG" || {
@@ -474,7 +379,7 @@ jobs:
           VNET=$(sed -n 's/^CONFIG_VIRTIO_NET=\(.*\)$/\1/p' "$CFG")
           case "$VNET" in
             y)  echo "virtio_net built-in (=y) - no modules to stage" ;;
-            m)  STG="/tmp/kfloor/virtio-mods/lib/modules/$KVER/kernel"
+            m)  STG="/tmp/stage/best/virtio-mods/lib/modules/$KVER/kernel"
                 mkdir -p "$STG/net/core" "$STG/drivers/net"
                 stage_mod() {
                   mod=$1; dir=$2; flag=$3
@@ -488,35 +393,25 @@ jobs:
                 stage_mod failover net/core FAILOVER
                 stage_mod net_failover drivers/net NET_FAILOVER
                 stage_mod virtio_net drivers/net VIRTIO_NET
-                echo "staged virtio modules: $(du -sh /tmp/kfloor/virtio-mods | cut -f1) at /tmp/kfloor/virtio-mods" ;;
+                echo "staged virtio modules: $(du -sh /tmp/stage/best/virtio-mods | cut -f1)"
+                echo "  at /tmp/stage/best/virtio-mods" ;;
             *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET - no usable virtio-net driver on this kernel"; exit 1 ;;
           esac
 
-      # The userland, held CONSTANT across both legs on purpose (the
-      # leg's only variables are the kernel and the envelope): the
-      # rootfs draws from the ubuntu:24.04 CONTAINER — the guest
-      # tooling's ABI (python3, nft, bpftool), nothing the static
-      # musl payload depends on; 2.39's kernel floor is 3.2, so the
-      # 5.15.0 guest kernel is safe. python3 + iproute2 + kmod
-      # + curl + nftables ride the plain apt line (the suites' own
-      # needs: the engines' python, `ip link set lo up`, the insmod
-      # pair, the loopback transfers, the nft snapshot rows).
-      # bpftool is extracted from the linux-tools dependency chain
-      # (improve-48's walk - the VM's kernel never matches the
-      # rootfs's tools ABI) so the suites' bpftool surfaces run for
-      # real instead of SKIPping. The QUIC stack stays OFF this
-      # rootfs: none of the five suites drives HTTP/3 (that row is
-      # supermassive.yml's v1 contract), so the RAM-resident cpio
-      # stays lean. The checkout (tracked files only) and the
-      # payload land at /opt/zelynic, scripts/ci/e2e-init.sh becomes
-      # /init (PID 1), PAYLOAD-SHAPE names the alias for the init's
-      # identity row - then the whole tree packs into ONE newc cpio
-      # (the initramfs IS the rootfs; no disk).
-      - name: Assemble the micro-VM rootfs
-        if: matrix.profile != 'arm64'
+      # The userland, held CONSTANT across both envelopes on purpose
+      # (the leg's only variables are the kernel and the resource
+      # envelope): one assemble() walk per envelope directory, the
+      # docker-export userland staged with the checkout tree, the
+      # payload, and scripts/ci/e2e-init.sh as /init (PID 1). The
+      # QUIC stack stays OFF this rootfs: none of the five suites
+      # drives HTTP/3 (that row is supermassive.yml's v1 contract),
+      # so the RAM-resident cpio stays lean. The dir is swept back
+      # to the boot pair (kernel + initramfs) before the artifact
+      # upload - the shards download the bundle, never the build
+      # furniture.
+      - name: Assemble the micro-VM rootfs (both envelopes)
         run: |
           set -euo pipefail
-          cd /tmp/kfloor
           SUITE=ubuntu:24.04
           PAYLOAD="$GITHUB_WORKSPACE/target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic"
           echo "rootfs suite: $SUITE (payload: pro-linux-amd64-v3-musl, static)"
@@ -525,7 +420,7 @@ jobs:
           docker run --name e2e-rootfs -d "$SUITE" sleep infinity
           # NIGHT-dinner-12's knob rides the rootfs lane too (the
           # both-halves contract; run 579's mirror-sync red is the
-          # class — the sibling lane carries the full note).
+          # class - the sibling lane carries the full note).
           docker exec e2e-rootfs apt-get -o Acquire::Retries=5 update -qq
           docker exec e2e-rootfs apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
             python3 iproute2 kmod curl nftables ca-certificates
@@ -554,51 +449,243 @@ jobs:
             install -m 0755 "$src" /usr/bin/bpftool
             rm -rf /tmp/bpx /tmp/linux-tools-*.deb
           '
-          docker export e2e-rootfs -o rootfs.tar
-          mkdir -p rootfs
-          tar -xf rootfs.tar -C rootfs
-          mkdir -p rootfs/opt/zelynic
-          git -C "$GITHUB_WORKSPACE" archive HEAD | tar -x -C rootfs/opt/zelynic
-          cp "$PAYLOAD" rootfs/opt/zelynic/zelynic
-          printf '%s\n' 'pro-linux-amd64-v3-musl' > rootfs/opt/zelynic/PAYLOAD-SHAPE
-          cp "$GITHUB_WORKSPACE/scripts/ci/e2e-init.sh" rootfs/init
-          chmod +x rootfs/init
-          # The virtio module pair a resolver step staged (the floor
-          # legs whose driver is =m) rides the cpio under the kernel's own
-          # module path; the =y heads staged nothing and the init's
-          # insmod chain simply finds no files. The copy respects the
-          # usr-merge (run 37518266382's lesson: the ubuntu containers
-          # ship /lib as a SYMLINK to usr/lib).
-          if [ -d /tmp/kfloor/virtio-mods ]; then
-            if [ -L rootfs/lib ]; then
-              mkdir -p rootfs/usr/lib
-              cp -a /tmp/kfloor/virtio-mods/lib/modules rootfs/usr/lib/
-            else
-              mkdir -p rootfs/lib
-              cp -a /tmp/kfloor/virtio-mods/lib/modules rootfs/lib/
+          docker export e2e-rootfs -o /tmp/stage/rootfs.tar
+          assemble() {
+            DIR=$1
+            cd "$DIR"
+            mkdir -p rootfs
+            tar -xf /tmp/stage/rootfs.tar -C rootfs
+            mkdir -p rootfs/opt/zelynic
+            git -C "$GITHUB_WORKSPACE" archive HEAD | tar -x -C rootfs/opt/zelynic
+            cp "$PAYLOAD" rootfs/opt/zelynic/zelynic
+            printf '%s\n' 'pro-linux-amd64-v3-musl' > rootfs/opt/zelynic/PAYLOAD-SHAPE
+            cp "$GITHUB_WORKSPACE/scripts/ci/e2e-init.sh" rootfs/init
+            chmod +x rootfs/init
+            # The virtio module pair a resolver step staged (the floor
+            # envelopes whose driver is =m) rides the cpio under the
+            # kernel's own module path; the =y heads staged nothing and
+            # the init's insmod chain simply finds no files. The copy
+            # respects the usr-merge (run 37518266382's lesson: the
+            # ubuntu containers ship /lib as a SYMLINK to usr/lib).
+            if [ -d "$DIR/virtio-mods" ]; then
+              if [ -L rootfs/lib ]; then
+                mkdir -p rootfs/usr/lib
+                cp -a "$DIR/virtio-mods/lib/modules" rootfs/usr/lib/
+              else
+                mkdir -p rootfs/lib
+                cp -a "$DIR/virtio-mods/lib/modules" rootfs/lib/
+              fi
+              echo "virtio modules staged into the rootfs cpio"
             fi
-            echo "virtio modules staged into the rootfs cpio"
-          fi
-          # PID 1 needs a console to exec onto before devtmpfs lands
-          # (the kernel opens the initramfs's static /dev/console for
-          # it; the init's devtmpfs mount takes over from there). The
-          # docker export ships a /dev/console entry tar could not
-          # restore as a device - remove whatever landed, mknod the
-          # real char device fresh.
-          sudo rm -f rootfs/dev/console
-          sudo mknod -m 600 rootfs/dev/console c 5 1
-          ( cd rootfs && sudo find . -print0 | sudo cpio --null -o -H newc ) | gzip -1 > initrd.gz
-          echo "initramfs: $(du -h initrd.gz | cut -f1)"
+            # PID 1 needs a console to exec onto before devtmpfs lands
+            # (the kernel opens the initramfs's static /dev/console for
+            # it; the init's devtmpfs mount takes over from there). The
+            # docker export ships a /dev/console entry tar could not
+            # restore as a device - remove whatever landed, mknod the
+            # real char device fresh.
+            sudo rm -f rootfs/dev/console
+            sudo mknod -m 600 rootfs/dev/console c 5 1
+            ( cd rootfs && sudo find . -print0 | sudo cpio --null -o -H newc ) | gzip -1 > initrd.gz
+            echo "initramfs: $(du -h initrd.gz | cut -f1)"
+            # The sweep: the artifact carries the boot pair only.
+            rm -rf rootfs rootfs.tar pkg mods ./*.deb
+          }
+          assemble /tmp/stage/jammy
+          assemble /tmp/stage/best
+
+      - name: Upload the jammy floor micro-VM bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          name: e2e-vm-jammy
+          path: /tmp/stage/jammy
+          retention-days: 3
+
+      - name: Upload the latest-kernel micro-VM bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          name: e2e-vm-best
+          path: /tmp/stage/best
+          retention-days: 3
+
+  # ── the arm64 stage: the payload once, on the arm silicon ───────────
+  # stage-arm64 builds the pro-native-arm64-musl alias ONCE per run
+  # (the RUSTFLAGS composition mirrors ci.yml's arm64 proof leg: the
+  # -D-warnings lead plus the alias's target-cpu and crt-static
+  # tokens verbatim) and hands it to the arm shards as an artifact.
+  # The relay is within-run and the arm fleet is one uniform SKU —
+  # the cross-generation SIGILL lottery class the cache rules guard
+  # against is a cross-run reuse, not this relay.
+  stage-arm64:
+    name: supermassive e2e - stage arm64 (pro-native-arm64-musl)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          persist-credentials: false
+
+      - name: Install Rust toolchain (arm64)
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: "1.98.1"
+          components: clippy, rustfmt
+          targets: aarch64-unknown-linux-musl
+
+      - name: Install eBPF nightly toolchain (dated pin)
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: nightly-2026-09-18
+          components: rust-src
+
+      - name: Install bpf-linker 0.11.1 (prebuilt static musl)
+        run: bash scripts/dev/install-bpf-linker.sh
+
+      - name: Cache cargo registry (arm64, registry only)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6, NIGHT-hunt-20 SHA pin
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-e2e-arm64-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-e2e-arm64-cargo-
+
+      - name: Build the arm64 native payload (pro-native-arm64-musl)
+        run: |
+          set -euo pipefail
+          RUSTFLAGS="-D warnings -C target-cpu=native -C target-feature=+crt-static" \
+            cargo pro-native-arm64-musl --locked
+          ./target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic -V | grep -F "Build: local-pro-native-arm64-musl"
+
+      - name: Upload the arm64 native payload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          name: e2e-arm64-payload
+          path: target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic
+          retention-days: 3
+
+  # ── the per-push shards: fast + surface, three envelopes ───────────
+  # Every shard: download the staged bundle, boot (or stage natively),
+  # run ONE slice, grep the verdict. The wall clock is the slowest
+  # SINGLE shard — the owner's night-T-1 target, never the sum of the
+  # suite again.
+  supermassive-e2e:
+    name: ${{ matrix.title }}
+    needs: [stage, stage-arm64]
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - title: supermassive e2e - fast lane (nonroot + limiter depth, the jammy 5.15.0 LTS floor kernel)
+            profile: jammy
+            shard: fast
+            vm_timeout: 600
+          - title: supermassive e2e - surface lane (smoke + quota A/B, the jammy 5.15.0 LTS floor kernel)
+            profile: jammy
+            shard: surface
+            vm_timeout: 720
+          - title: supermassive e2e - fast lane (nonroot + limiter depth, the archive's latest kernel)
+            profile: best
+            shard: fast
+            vm_timeout: 600
+          - title: supermassive e2e - surface lane (smoke + quota A/B, the archive's latest kernel)
+            profile: best
+            shard: surface
+            vm_timeout: 720
+          - title: supermassive e2e - fast lane (nonroot + limiter depth, the native arm64 runner host)
+            profile: arm64
+            shard: fast
+            vm_timeout: 600
+          - title: supermassive e2e - surface lane (smoke + quota A/B, the native arm64 runner host)
+            profile: arm64
+            shard: surface
+            vm_timeout: 720
+    # The arm64 shards ride the free arm64 runner (public-repo free,
+    # zero runner-minute cost); the x86 shards keep the standard image.
+    runs-on: ${{ matrix.profile == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          persist-credentials: false
+
+      # The kernel can change; /dev/kvm is a GitHub runner guarantee
+      # on this image family, but the node ships 0660 root:kvm and
+      # the runner user is not in the kvm group, so the job opens it
+      # up itself. Failing LOUDLY here beats a confusing TCG
+      # fallback: the payload is x86-64-v3 codegen and would SIGILL
+      # under TCG's -cpu qemu64.
+      - name: Verify KVM
+        if: matrix.profile != 'arm64'
+        run: |
+          test -e /dev/kvm || {
+            echo "FAIL: /dev/kvm is absent - this runner image cannot boot the micro-VM"
+            exit 1
+          }
+          test -w /dev/kvm || sudo chmod 666 /dev/kvm
+          test -w /dev/kvm || {
+            echo "FAIL: /dev/kvm is not usable by the runner user even after chmod"
+            ls -l /dev/kvm
+            exit 1
+          }
+          echo "OK: /dev/kvm present and usable"
+
+      - name: Install qemu
+        if: matrix.profile != 'arm64'
+        run: |
+          sudo apt-get -o Acquire::Retries=5 update -qq
+          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends qemu-system-x86
+
+      # The staged bundle (kernel + initramfs, the stage job's own
+      # build for THIS run's HEAD): the shard downloads its envelope
+      # and boots it — no toolchain, no resolver, no assembly.
+      - name: Download the staged micro-VM bundle
+        if: matrix.profile != 'arm64'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8, NIGHT-hunt-20 SHA pin
+        with:
+          name: e2e-vm-${{ matrix.profile }}
+          path: /tmp/kfloor
+
+      # The arm64 shard's host: the suite userland drawn from the
+      # runner's own apt (the guest legs assemble the identical set
+      # into the rootfs cpio - the userland held constant across
+      # legs), and the kernel surfaces ensured idempotently (cgroup
+      # v2 unified, bpffs, loopback). The HOST owns them here -
+      # scripts/ci/e2e-native.sh verify-fails-loudly on all of them
+      # before any suite runs, never silently shallow.
+      - name: Prepare the arm64 native leg (userland + kernel surfaces)
+        if: matrix.profile == 'arm64'
+        run: |
+          set -euo pipefail
+          sudo apt-get -o Acquire::Retries=5 update -qq
+          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
+            python3 iproute2 kmod curl nftables linux-tools-generic
+          sudo ip link set lo up
+          mountpoint -q /sys/fs/bpf || sudo mount -t bpf bpf /sys/fs/bpf
+          test "$(stat -fc %T /sys/fs/cgroup)" = "cgroup2fs" || {
+            echo "FAIL: /sys/fs/cgroup is $(stat -fc %T /sys/fs/cgroup), wanted cgroup2fs"
+            exit 1
+          }
+
+      - name: Download the staged arm64 payload
+        if: matrix.profile == 'arm64'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8, NIGHT-hunt-20 SHA pin
+        with:
+          name: e2e-arm64-payload
+          path: target/aarch64-unknown-linux-musl/pro-native-arm64-musl
 
       # Boot the micro-VM: direct kernel boot, KVM host-passthrough
       # CPU, no disk, serial console to stdout, panic=-1 + -no-reboot
       # so a kernel panic ends qemu instead of hanging the job, the
-      # per-profile outer timeout (a wedged guest can never burn the
-      # 55-minute job budget), SLIRP user-mode networking (the
-      # deterministic 10.0.2.x shape the init configures), and the
-      # isa-debug-exit device - the guest ends the VM deterministically
-      # by writing one byte to port 0xf4 (qemu exits with status 1),
-      # the kernel-CI standard for initramfs guests whose direct-boot
+      # shard's outer timeout (a wedged guest can never burn the job
+      # budget), SLIRP user-mode networking (the deterministic
+      # 10.0.2.x shape the init configures), and the isa-debug-exit
+      # device - the guest ends the VM deterministically by writing
+      # one byte to port 0xf4 (qemu exits with status 1), the
+      # kernel-CI standard for initramfs guests whose direct-boot
       # path never reaches an ACPI S5 poweroff.
       #
       # The DYNAMIC envelope (the owner's "cpu core, ram, etc don't
@@ -608,7 +695,12 @@ jobs:
       # specs takes every core and three quarters of the RAM. The
       # pair scales with GitHub's hardware instead of pinning one
       # era's runner shape.
-      - name: Boot the micro-VM and run the E2E depth suite
+      #
+      # zelynic-suite=${{ matrix.shard }}: the shard's slice, read by
+      # the init from /proc/cmdline (scripts/ci/e2e-init.sh's
+      # night-T-1 relay) - ONE staged initramfs, the selector rides
+      # the boot.
+      - name: Boot the micro-VM and run the E2E depth shard
         if: matrix.profile != 'arm64'
         run: |
           set -euo pipefail
@@ -632,14 +724,14 @@ jobs:
             -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
             -kernel vmlinuz-floor \
             -initrd initrd.gz \
-            -append "console=ttyS0 panic=-1" \
+            -append "console=ttyS0 panic=-1 zelynic-suite=${{ matrix.shard }}" \
             -nographic -no-reboot 2>&1 | tee vm.log
           QEMU_RC=${PIPESTATUS[0]}
           set -e
           # rc 0 = a natural poweroff; rc 1 = the guest's deliberate
           # isa-debug-exit (the verdict itself rides the E2E-*
           # sentinel lines, so the Verdict step below stays the
-          # authority). Anything else - the profile's timeout (124),
+          # authority). Anything else - the shard's timeout (124),
           # a KVM init failure - fails HERE with the tail attached.
           if test "$QEMU_RC" -ne 0 && test "$QEMU_RC" -ne 1; then
             echo "FAIL: qemu exited $QEMU_RC - log tail:"
@@ -648,27 +740,28 @@ jobs:
           fi
           exit 0
 
-      # The arm64 leg's run: the host-native twin drives the
-      # identical five-suite depth contract on the runner itself
-      # (no guest to boot — the arm fleet's platform law), the same
-      # wedge-guard outer bound around the suite that the VM legs
-      # wrap around qemu, the log tee'd into the SAME vm.log file
-      # the shared Verdict and Watch steps grep, and the real exit
-      # code the guest cannot carry gating the step on top of the
-      # sentinel relay.
-      - name: Run the E2E depth suite natively on the arm64 host
+      # The arm64 shard's run: the host-native twin drives this
+      # shard's slice of the identical five-suite depth contract on
+      # the runner itself (no guest to boot - the arm fleet's
+      # platform law), the same wedge-guard outer bound around the
+      # suite that the VM legs wrap around qemu, the log tee'd into
+      # the SAME vm.log file the shared Verdict and Watch steps
+      # grep, and the real exit code the guest cannot carry gating
+      # the step on top of the sentinel relay.
+      - name: Run the E2E depth shard natively on the arm64 host
         if: matrix.profile == 'arm64'
         run: |
           set -euo pipefail
           mkdir -p /tmp/kfloor
           # The guest's own staging shape (tracked files only + the
           # payload, world-readable under /opt): run 42870927440's
-          # lesson — the runner's home tree is not nobody-traversable,
+          # lesson - the runner's home tree is not nobody-traversable,
           # so the USER-mode leg's setpriv exec and the smoke battery's
           # unprivileged rows hit Permission denied straight at the
           # path. The guest rootfs assembly ships /opt/zelynic; the
           # host twin stages /opt/zelynic-e2e the same way and the
-          # twin runs FROM it (its repo-root law resolves to the stage).
+          # twin runs FROM it (its repo-root law resolves to the
+          # stage).
           STAGE=/opt/zelynic-e2e
           sudo rm -rf "$STAGE"
           sudo mkdir -p "$STAGE/target/aarch64-unknown-linux-musl/pro-native-arm64-musl"
@@ -681,10 +774,13 @@ jobs:
           # rig's own comment carries the run 42870927440 evidence) —
           # more samples of the same honest max for the host whose
           # physics sit outside the guest envelope; the x86 legs keep
-          # the default 2 untouched.
+          # the default 2 untouched. --suite names the shard's slice
+          # (the twin's night-T-1 relay, the cmdline param's argv
+          # twin).
           sudo ZELYNIC_UPLOAD_WINDOWS=4 timeout ${{ matrix.vm_timeout }} \
             bash "$STAGE/scripts/ci/e2e-native.sh" \
             --binary "$STAGE/target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic" \
+            --suite "${{ matrix.shard }}" \
             2>&1 | tee /tmp/kfloor/vm.log
           RC=${PIPESTATUS[0]}
           set -e
@@ -705,12 +801,13 @@ jobs:
           echo "-- e2e depth verdicts (${{ matrix.title }}) --"
           grep -E '^E2E-(RESULT|VERDICT)' vm.log || true
           # The quota saver's A/B contract lines (night-netrunner-4):
-          # the guest prints them verbatim; the CI output carries them
-          # (the task's own requirement - the two lines in the final
-          # output), a missing pair on a green verdict impossible.
+          # the surface shard's guest prints them verbatim; the CI
+          # output carries them (the task's own requirement - the two
+          # lines in the final output), a missing pair on a green
+          # surface verdict impossible.
           grep -E '^test (download|upload) results the internet kuota save total is ' vm.log || true
           grep -q '^E2E-VERDICT: PASS' vm.log
-          echo "OK: the E2E depth suite proven on the ${{ matrix.title }} leg"
+          echo "OK: the E2E depth shard proven on the ${{ matrix.title }} leg"
 
       # The busy-hour residual watch (the estate's convention, the
       # same shape supermassive.yml carries): every run lands its
@@ -743,5 +840,182 @@ jobs:
             echo
             echo '```'
             grep -E '^test (download|upload) results the internet kuota save total is ' vm.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ── the night train: the endurance clocks, WHOLE ───────────────────
+  # The 300-cycle churn exists to walk ~300 fresh group slots against
+  # the 256-entry map cap - the boundary crossing IS the test, so it
+  # is never sharded (a fresh-map slice under 256 cycles would never
+  # cross the boundary it exists to cross) and never shortened (the
+  # budget buys headroom, never depth). It rides the schedule
+  # instead: full depth, on the same envelopes as the per-push
+  # shards, while the owner sleeps. workflow_dispatch runs it too -
+  # a dispatch is the full sweep, the manual recovery lane.
+  supermassive-e2e-endurance:
+    name: ${{ matrix.title }}
+    needs: [stage, stage-arm64]
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - title: supermassive e2e - endurance clocks (night train, the jammy 5.15.0 LTS floor kernel)
+            profile: jammy
+            vm_timeout: 2400
+          - title: supermassive e2e - endurance clocks (night train, the archive's latest kernel)
+            profile: best
+            vm_timeout: 1800
+          - title: supermassive e2e - endurance clocks (night train, the native arm64 runner host)
+            profile: arm64
+            vm_timeout: 2400
+    runs-on: ${{ matrix.profile == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          persist-credentials: false
+
+      - name: Verify KVM
+        if: matrix.profile != 'arm64'
+        run: |
+          test -e /dev/kvm || {
+            echo "FAIL: /dev/kvm is absent - this runner image cannot boot the micro-VM"
+            exit 1
+          }
+          test -w /dev/kvm || sudo chmod 666 /dev/kvm
+          test -w /dev/kvm || {
+            echo "FAIL: /dev/kvm is not usable by the runner user even after chmod"
+            ls -l /dev/kvm
+            exit 1
+          }
+          echo "OK: /dev/kvm present and usable"
+
+      - name: Install qemu
+        if: matrix.profile != 'arm64'
+        run: |
+          sudo apt-get -o Acquire::Retries=5 update -qq
+          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends qemu-system-x86
+
+      - name: Download the staged micro-VM bundle
+        if: matrix.profile != 'arm64'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8, NIGHT-hunt-20 SHA pin
+        with:
+          name: e2e-vm-${{ matrix.profile }}
+          path: /tmp/kfloor
+
+      - name: Prepare the arm64 native leg (userland + kernel surfaces)
+        if: matrix.profile == 'arm64'
+        run: |
+          set -euo pipefail
+          sudo apt-get -o Acquire::Retries=5 update -qq
+          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
+            python3 iproute2 kmod curl nftables linux-tools-generic
+          sudo ip link set lo up
+          mountpoint -q /sys/fs/bpf || sudo mount -t bpf bpf /sys/fs/bpf
+          test "$(stat -fc %T /sys/fs/cgroup)" = "cgroup2fs" || {
+            echo "FAIL: /sys/fs/cgroup is $(stat -fc %T /sys/fs/cgroup), wanted cgroup2fs"
+            exit 1
+          }
+
+      - name: Download the staged arm64 payload
+        if: matrix.profile == 'arm64'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8, NIGHT-hunt-20 SHA pin
+        with:
+          name: e2e-arm64-payload
+          path: target/aarch64-unknown-linux-musl/pro-native-arm64-musl
+
+      - name: Boot the micro-VM and run the endurance clocks
+        if: matrix.profile != 'arm64'
+        run: |
+          set -euo pipefail
+          cd /tmp/kfloor
+          CORES=$(nproc)
+          TOTAL_MB=$(free -m | awk '/^Mem:/{print $2}')
+          if [ "${{ matrix.profile }}" != "best" ]; then
+            SMP=$(( CORES / 4 )); [ "$SMP" -lt 1 ] && SMP=1
+            MEM=$(( TOTAL_MB / 8 )); [ "$MEM" -lt 1024 ] && MEM=1024
+          else
+            SMP=$CORES
+            MEM=$(( TOTAL_MB * 3 / 4 ))
+          fi
+          echo "envelope: $SMP vCPU / $MEM MB (of $CORES cores / $TOTAL_MB MB on the runner)"
+          set +e
+          timeout ${{ matrix.vm_timeout }} qemu-system-x86_64 \
+            -machine q35,accel=kvm -cpu host \
+            -m "$MEM" -smp "$SMP" \
+            -netdev user,id=net0 \
+            -device virtio-net-pci,netdev=net0 \
+            -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
+            -kernel vmlinuz-floor \
+            -initrd initrd.gz \
+            -append "console=ttyS0 panic=-1 zelynic-suite=endurance" \
+            -nographic -no-reboot 2>&1 | tee vm.log
+          QEMU_RC=${PIPESTATUS[0]}
+          set -e
+          if test "$QEMU_RC" -ne 0 && test "$QEMU_RC" -ne 1; then
+            echo "FAIL: qemu exited $QEMU_RC - log tail:"
+            tail -40 vm.log
+            exit 1
+          fi
+          exit 0
+
+      - name: Run the endurance clocks natively on the arm64 host
+        if: matrix.profile == 'arm64'
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/kfloor
+          STAGE=/opt/zelynic-e2e
+          sudo rm -rf "$STAGE"
+          sudo mkdir -p "$STAGE/target/aarch64-unknown-linux-musl/pro-native-arm64-musl"
+          git -C "$GITHUB_WORKSPACE" archive HEAD | sudo tar -x -C "$STAGE"
+          sudo cp "$GITHUB_WORKSPACE/target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic" \
+            "$STAGE/target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic"
+          cd "$GITHUB_WORKSPACE"
+          set +e
+          sudo ZELYNIC_UPLOAD_WINDOWS=4 timeout ${{ matrix.vm_timeout }} \
+            bash "$STAGE/scripts/ci/e2e-native.sh" \
+            --binary "$STAGE/target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic" \
+            --suite endurance \
+            2>&1 | tee /tmp/kfloor/vm.log
+          RC=${PIPESTATUS[0]}
+          set -e
+          if test "$RC" -ne 0; then
+            echo "FAIL: the native arm64 endurance clocks exited $RC - log tail:"
+            tail -40 /tmp/kfloor/vm.log
+            exit 1
+          fi
+          exit 0
+
+      - name: Verdict
+        run: |
+          set -euo pipefail
+          cd /tmp/kfloor
+          echo "-- e2e depth verdicts (${{ matrix.title }}) --"
+          grep -E '^E2E-(RESULT|VERDICT)' vm.log || true
+          grep -q '^E2E-VERDICT: PASS' vm.log
+          echo "OK: the endurance clocks proven on the ${{ matrix.title }} leg"
+
+      - name: Watch summary
+        if: always()
+        run: |
+          cd /tmp/kfloor 2>/dev/null || exit 0
+          {
+            echo "## Dragon Guard watch - ${{ matrix.title }}"
+            echo
+            echo "- trigger: ${{ github.event_name }}"
+            echo "- run: ${{ github.run_id }} (attempt ${{ github.run_attempt }})"
+            echo
+            echo "### suite verdicts (the init's sentinel rows)"
+            echo
+            echo '```'
+            grep -E '^E2E-(RESULT|VERDICT)' vm.log || true
+            echo '```'
+            echo
+            echo "### FAIL/SKIP inventory"
+            echo
+            echo '```'
+            grep -E '^(FAIL|SKIP|X  |X )' vm.log | head -40 || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
