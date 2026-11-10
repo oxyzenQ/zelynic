@@ -211,7 +211,12 @@ fi
 # and falls back to all — a selector typo can never silently shallow
 # a leg.
 SUITE="all"
-while read -r word; do
+# The `|| [ -n "$word" ]` tail is load-bearing (run 42889381702's
+# lesson): /proc/cmdline carries NO trailing newline, and a bare
+# `while read` drops its final (here: only) line on the EOF exit —
+# the selector never parsed, every VM shard silently ran "all", and
+# the fast shard died at its own timeout inside the endurance churn.
+while read -r word || [ -n "$word" ]; do
 	case "$word" in
 	zelynic-suite=*) SUITE=${word#zelynic-suite=} ;;
 	esac
