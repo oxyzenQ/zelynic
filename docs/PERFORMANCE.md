@@ -691,7 +691,7 @@ during_tests.rs, during_user_tests.rs):
    moves) pays nothing. An absent window entry is today's behavior
    exactly; an INACTIVE window answers ALLOW — the miss shape: no
    stats booking, no ring booking, no MMSPA belt.
-2. THE DRIFT CLAUSE: SPAN rows (the duration the flag writes,
+2. THE DRIFT CLAUSE: SPAN rows (the duration the option writes,
    and the restore lane's re-translated wall deadlines) store
    wall instants PRE-TRANSLATED into the monotonic clock at
    apply time — `bpf_ktime_get_ns` and the userspace

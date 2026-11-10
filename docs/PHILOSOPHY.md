@@ -75,9 +75,10 @@ does not get to guess.
 ## 4. The Frozen CLI Grammar
 
 The v11 verb surface is frozen: verbs are named once and never renamed
-(docs/RULES.md). Expansion arrives as planning, not as churn — a flag
-that changes meaning is a silent breaking change wearing a familiar
-name, which is worse than a new flag. Scripts written against a zelynic
+(docs/RULES.md). Expansion arrives as planning, not as churn — an
+option that changes meaning is a silent breaking change wearing a
+familiar name, which is worse than a new option. Scripts written
+against a zelynic
 release keep working across the line because the grammar holds still.
 When the surface must grow, it grows the way `--depth` did: one verb,
 one honest report, no aliases multiplying behind it.

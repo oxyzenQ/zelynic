@@ -22,7 +22,7 @@ the complete reference.
 1. [The 30-second version](#the-30-second-version)
 2. [How zelynic actually works](#how-zelynic-actually-works)
 3. [Command reference](#command-reference)
-4. [Global flags](#global-flags)
+4. [Global options](#global-options)
 5. [Workflows and recipes](#workflows-and-recipes)
 6. [Honest limitations — read this](#honest-limitations--read-this)
 7. [Troubleshooting](#troubleshooting)
@@ -117,7 +117,7 @@ the family verbs now (NIGHT-improve-54): `s --all`, `b --all`,
 `u --all` — the retired `-all` spellings (strict-all, block-all,
 unstrict-all, their sa/ba/ua short forms, and blade-2's limit-all/
 la before them) refuse with a redirect tip naming the runnable
-verb + flag spelling. The twelve retired masterclass spellings —
+verb + option spelling. The twelve retired masterclass spellings —
 strict-single, strict-multi, ss, sm, block-single, block-multi,
 bs, bm, unstrict-single, unstrict-multi, us, um — carry the same
 redirect contract, their tips naming the family verb — e.g.
@@ -128,7 +128,7 @@ redirect contract, their tips naming the family verb — e.g.
 ### strict — limit one app, or a group sharing one rate
 
 ```bash
-sudo zelynic strict <target> or <target::target::target> [rate] [-d <rate>] [-u <rate>] [flags — documented below]
+sudo zelynic strict <target> or <target::target::target> [rate] [-d <rate>] [-u <rate>] [options — documented below]
 sudo zelynic s brave::curl::pacman 1mb # the group lane: one shared rate
 ```
 
@@ -214,7 +214,7 @@ sudo zelynic s brave::curl::pacman 1mb # the group lane: one shared rate
   socket key, exactly the pre-v22 behavior: the lane refines
   attribution, never degrades it. The same keying restores the
   CAKE flow-isolation lane (the fair-shared budget below) for
-  HTTP/3 without any flag — it is automatic, and a browser's
+  HTTP/3 without any option — it is automatic, and a browser's
   concurrent QUIC downloads isolate per connection instead of
   sharing one flow bucket. One boundary to know: a
   SINGLE-direction policy (`-d` only, or `-u` only) does not parse
@@ -290,7 +290,7 @@ sudo zelynic s brave::curl::pacman 1mb # the group lane: one shared rate
   `--ceil 300kb` caps every subprocess at 300kb even when its
   siblings are idle and the pool is rich — and it binds a LONE
   subprocess too (a cap that folds when siblings appear is not a
-  cap). One flag sets BOTH directions' rows, the `--during`
+  cap). One option sets BOTH directions' rows, the `--during`
   shape; the bracket validates against every direction the apply
   sets (floor <= ceil <= rate, per direction — a side that could
   never bind is a mis-typed rate, refused before the root ask)
@@ -301,7 +301,7 @@ sudo zelynic s brave::curl::pacman 1mb # the group lane: one shared rate
   link: `--floor-download 100kb` guarantees the download side
   only, `--ceil-upload 200kb` caps the upload side only — one
   spelling per side (`--floor` beside `--floor-download` refuses:
-  the both-directions flag and its twin are one spelling apart,
+  the both-directions option and its twin are one spelling apart,
   not a wider guarantee), and a per-direction side whose direction
   the invocation removes (no `-d` rate, so no download row)
   refuses outright, the improve-29 removal law named in the
@@ -328,7 +328,7 @@ sudo zelynic s brave::curl::pacman 1mb # the group lane: one shared rate
   ceiling's cap, the pool law, and the per-direction split's
   ledger row, all measured on the running kernel.
 - A positional `rate` sets **both** download and upload. `-d`/`-u` set
-  them independently — and they take precedence: if either flag is
+  them independently — and they take precedence: if either option is
   present, the positional rate does not apply (no silent mixing), so
   `strict brave 100kb -d 1mb` limits download only.
   NIGHT-hunt-Z9 closed the shadow's two silent shapes: the positional
@@ -336,7 +336,7 @@ sudo zelynic s brave::curl::pacman 1mb # the group lane: one shared rate
   before the root ask — `s brave not-a-rate -d 100kb` used to sail
   past the input boundary unexamined) and a valid one prints one
   stderr note naming what was dropped (`positional rate '100kb'
-  ignored — -d/-u flags take priority`), the same
+  ignored — -d/-u options take priority`), the same
   ignored-input honesty `--print-json`, `--interval`, and `--focus`
   carry; stdout and exit codes are untouched. The
   unset direction is also REMOVED if a previous apply had enforced
@@ -410,7 +410,7 @@ over the separator change: the group lane shares ONE bucket
 across its members, and a container workload owns its own apply —
 see the container targets paragraph in the strict section above).
 
-The burst contract (no flag, by design): every policy banks a token
+The burst contract (no option, by design): every policy banks a token
 bucket of one second of traffic — rate bytes read straight — clamped
 between a 64 KiB floor and a 100 MB ceiling (`BURST_FLOOR_BYTES` /
 `BURST_CEIL_BYTES` in the layout contract; NIGHT-lts-8 raised the
@@ -1046,7 +1046,7 @@ exit code stays 0.
 ### eagle-eyes — the unified live monitor
 
 ```bash
-sudo zelynic eagle-eyes [targets] [flags — documented below]
+sudo zelynic eagle-eyes [targets] [options — documented below]
 sudo zelynic eagle-eyes <target> --depth [--print-json]
 ```
 
@@ -1165,9 +1165,9 @@ pin the past forever.
 
 ### eagle-eyes --depth — the one-shot deep inspection (NIGHT-master-1)
 
-The `--depth` flag turns the eagle into a report (the `--info`
+The `--depth` option turns the eagle into a report (the `--info`
 alias is retired in NIGHT-blade-4 — one spelling; typing the old
-flag lands on the `--depth` tip): `sudo zelynic ee cg:1234 --depth`
+option lands on the `--depth` tip): `sudo zelynic ee cg:1234 --depth`
 prints everything zelynic knows about one target and exits. No TUI
 and no interactive-stdio gate — piped stdout is legal here (that
 refusal belongs to the live view above), so
@@ -1350,7 +1350,7 @@ theater; the Full-tier footer spells the laws once when --deep is
 live. A TCP row whose read was refused renders the em-dash pair —
 a different absence from the tag, never conflated.
 
-The `--depth` report IS the deep surface (no flag needed): every
+The `--depth` report IS the deep surface (no option needed): every
 TCP endpoint row carries the bracketed
 `[rtt 19ms ±9ms | retrans 1/712 segs (0.14%)]` suffix, and a new
 `lanes:` row answers "RECWN/ECN/Pacing active?" in one glance —
@@ -1368,7 +1368,7 @@ the per-endpoint figures cover exactly the sockets the closing
 /proc walk resolved cookies for — their sum can sit below the
 totals, both numbers are true, they answer different questions.
 Sockets that moved nothing render no figures (never a fabricated
-zero), and the `--focus` flag on the LIVE monitor answers with one
+zero), and the `--focus` option on the LIVE monitor answers with one
 stderr note (`--focus ignored (the live monitor is already
 continuous — it owns --depth's traffic-window job)`) — the mirror
 image of the `--interval` note the one-shot mode owns.
@@ -1411,9 +1411,9 @@ path — verified against the io_uring source at implementation
 time, and stated here because the feature brief guessed otherwise).
 
 Two honesty contracts ride the mode. The live-only `--interval`
-flag answers with exactly one stderr note (`--interval ignored
+option answers with exactly one stderr note (`--interval ignored
 (--depth prints one report and exits; use --focus <SEC> to widen
-the measurement window)` — night-ux-1: the note names the flag
+the measurement window)` — night-ux-1: the note names the option
 that DOES control the window) — stdout and the exit code
 stay the report's own. And target resolution keeps the ladder,
 hardened at NIGHT-dinner-18: a target that resolves to no live
@@ -1891,16 +1891,16 @@ contract). `--print-json` mirrors the same six facts under the
 
 ---
 
-## Global flags
+## Global options
 
-| Flag | Effect |
+| Option | Effect |
 |------|--------|
-| `-h, --help` | The single end-to-end reference (commands, flags, formats, examples). No separate man page exists — this is it. |
+| `-h, --help` | The single end-to-end reference (commands, options, formats, examples). No separate man page exists — this is it. |
 | `-V, --version` | Version + build report (build label, hash, timestamp, lane-honest Signature). Parses at every level — after a subcommand's arguments too (NIGHT-boost-12). |
 | `--check-update` | Checks the latest GitHub release. **Refuses to run as root** — it is a plain network fetch and must not ride sudo. Swarm-bounded (NIGHT-critical-infra-1): at most one completed network exchange per hour per user — a per-user runtime stamp (`$XDG_RUNTIME_DIR/zelynic-update.stamp`, `/tmp/.zelynic-update-<uid>` fallback) arms after a real exchange (success or HTTP error, never a DNS/timeout failure); an invocation inside the window prints the disclosed throttle verdict (remaining minutes, exit 0) instead of fetching. Remove the stamp to force a check. |
 | `-v, --verbose` | stderr diagnostic trace: target resolution (pids per cgroup), every policy write (rate + burst), BPF lifecycle (pin reuse, schema, link mode), plus loader-level eBPF debug — object size, kernel release, load/attach timings, and the loaded map inventory (id, type, key/value size, max_entries, the `bpftool` facts). JSON output stays clean. |
-| `--print-json` | Machine-readable output — the surface set is `status`, `list-apps`, `eagle-eyes --depth`, `doctor`: one compact JSON line each, the stable v11 scripting API (see the JSON reference below). Every other surface renders text (enforcement verbs, the live `eagle-eyes` monitor, `-h`, `-V`, `--check-update`), and the flag never silently no-ops (NIGHT-boost-24, the depth report joined the set at NIGHT-master-1): on a surface that ignores it, exactly one stderr line notes `--print-json ignored (JSON surface: status, list-apps, eagle-eyes --depth, doctor)` — stdout and exit codes are untouched, so scripts stay clean. |
-| `--color-mode MODE` | Force the terminal color depth: `0` mono, `16` classic palette, `8`/`256` xterm cube, `24`/`32` truecolor (NIGHT-boost-23, the cosmostrix contract). Default is AUTO: the ladder falls back per terminal — truecolor where the environment reports it, the 256 cube, the 16 palette, mono under `NO_COLOR`/pipes. The flag is the escape hatch for the environment that LIES (COLORTERM inherited over SSH into a terminal that is not truecolor, tmux passthrough without Tc): forcing the depth the terminal actually honors makes every surface — errors, help, the monitor frame and its gradient rails — render correctly what truecolor escapes would garble. Invalid values exit 2 with the allowed grammar. |
+| `--print-json` | Machine-readable output — the surface set is `status`, `list-apps`, `eagle-eyes --depth`, `doctor`: one compact JSON line each, the stable v11 scripting API (see the JSON reference below). Every other surface renders text (enforcement verbs, the live `eagle-eyes` monitor, `-h`, `-V`, `--check-update`), and the option never silently no-ops (NIGHT-boost-24, the depth report joined the set at NIGHT-master-1): on a surface that ignores it, exactly one stderr line notes `--print-json ignored (JSON surface: status, list-apps, eagle-eyes --depth, doctor)` — stdout and exit codes are untouched, so scripts stay clean. |
+| `--color-mode MODE` | Force the terminal color depth: `0` mono, `16` classic palette, `8`/`256` xterm cube, `24`/`32` truecolor (NIGHT-boost-23, the cosmostrix contract). Default is AUTO: the ladder falls back per terminal — truecolor where the environment reports it, the 256 cube, the 16 palette, mono under `NO_COLOR`/pipes. The option is the escape hatch for the environment that LIES (COLORTERM inherited over SSH into a terminal that is not truecolor, tmux passthrough without Tc): forcing the depth the terminal actually honors makes every surface — errors, help, the monitor frame and its gradient rails — render correctly what truecolor escapes would garble. Invalid values exit 2 with the allowed grammar. |
 
 Privilege matrix in short: enforcement and monitoring commands
 (`strict*`, `block*`, `unstrict*`, `recover`, `status`, `eagle-eyes`)
@@ -2088,7 +2088,7 @@ duration that rounds to zero rejected because `0` means infinity).
 A positional rate sets **both** directions — `strict brave
 100kb` limits upload too, not just download. Minimum 1kb,
 maximum 1tb; both bounds overridable with `--force-this` — below
-1kb an app can stop working entirely (that is the dangerous the flag
+1kb an app can stop working entirely (that is the dangerous the option
 asks you to own).
 
 **6. Monitoring surfaces also need root.**
@@ -2120,7 +2120,7 @@ prove enforcement is biting, but they are not a live throughput
 meter. Use `eagle-eyes` for live rates.
 
 **10. The CLI surface is frozen (v11).**
-Commands, flags, and output formats are stable API from v11.0.0.
+Commands, options, and output formats are stable API from v11.0.0.
 Removed surfaces (`man`, `completions`, `unblock`, `-i`, `--live`,
 `--duration`, `--help-all`, and the NIGHT-boost-1 merge
 `observe`/`top` -> `eagle-eyes`) exit with a usage error on
@@ -2272,8 +2272,8 @@ one savings number.
 |---------|---------------|
 | `root required — eBPF operations need CAP_BPF` | Re-run with `sudo`. Only `list-apps`/`doctor`/`--help`/`-V` skip this. |
 | `--check-update` refuses to run as root | Re-run **without** sudo. It is a plain network fetch. |
-| `zelynic help` exits 2 with a tip | By design: help is the `--help` flag, not a subcommand (the single-tier reference). The tip names the spelling (NIGHT-boost-13). |
-| Unknown flag after a full command shows NO "use `--`" tip (e.g. `s brave 550kb -i`) | Honest silence: the escape-hatch tip prints only where following it actually parses (the NIGHT-boost-13 probe re-parses with the splice). No tip means the positional slots are full — the usage line under the error is the failing command's own grammar, and nothing more fits. |
+| `zelynic help` exits 2 with a tip | By design: help is the `--help` option, not a subcommand (the single-tier reference). The tip names the spelling (NIGHT-boost-13). |
+| Unknown option after a full command shows NO "use `--`" tip (e.g. `s brave 550kb -i`) | Honest silence: the escape-hatch tip prints only where following it actually parses (the NIGHT-boost-13 probe re-parses with the splice). No tip means the positional slots are full — the usage line under the error is the failing command's own grammar, and nothing more fits. |
 | `--json` (a habit from other tools) | The vocabulary rescue tips the zelynic spelling: `--print-json` (NIGHT-boost-13). |
 | `No cgroup found for '<name>'` | The app is not running (or the name is wrong). Start it, check `zelynic list-apps`, or target a cgroup ID. |
 | `Invalid rate '1MB'` (with a tip) | Units are lowercase. The tip suggests the fix (`1mb`; fractional twins like `5.5MB` -> `5.5mb` work the same way). |
@@ -2288,7 +2288,7 @@ one savings number.
 | `bootstrap-ebpf.sh` looks stuck on the bpf-linker download | It is the one big fetch (~100 MB) and can take minutes on slow links. On a terminal the script shows a live progress bar for exactly this step (NIGHT-hunt-24); piped/logged runs stay quiet. Killing it mid-download is safe — re-running skips whatever already finished. |
 | `error: missing manifest in toolchain 'nightly-...'` from rustup, or a build dying inside rustup commands | The dated nightly install is damaged — an interrupted `rustup toolchain install` (Ctrl-C, power loss, full disk) leaves the toolchain listed while its manifests are gone, so every component operation fails even though `rustc` itself still runs (which is why it slips past naive checks). Fix: run `./scripts/dev/bootstrap-ebpf.sh` again — it detects the damaged state, removes the toolchain, and reinstalls it from scratch, no manual rustup commands (NIGHT-hunt-27); the build.rs preflight names this exact state with the same one-command repair. |
 | Monitor won't exit | Press `q` — the only quit key (NIGHT-hunt-16). ESC and Ctrl+C are deliberately drained, never treated as quit. If a wedged terminal swallows the `q` byte: `pkill zelynic` from another shell — the violent-death guard (NIGHT-boost-33) restores the terminal itself (termios, main screen, cursor). Closing the terminal window is also a clean exit now: the monitor takes the SIGHUP through q's own chain (night-peak-lts FIX-5, the `hup tui` battery rows) — exit 0, terminal restored. |
-| Screen broken after `kill -9` / terminal garbled | `zelynic --reset-terminal` (NIGHT-hunt-31) — the in-place five-layer rescue: ANSI restore + clear, `stty sane` (the kernel-side raw mode no escape byte reaches), `reset`, `tput reset` (when run as root, the three externals resolve through the pinned system PATH, `/usr/sbin:/usr/bin:/sbin:/bin` — the NIGHT-lts-1 defense-in-depth belt; the common no-sudo rescue is unchanged). Works with or without sudo, blind-typed: type it and press Enter even if the screen shows nothing. Under sudo the rescue additionally targets the REAL terminal (NIGHT-improve-31, the post-exit half re-shaped in NIGHT-improve-34): sudo 1.9.14+ interposes a pty by default, so the rescue's own fds are a throwaway pseudo-terminal — it discovers the user's terminal through the sudo monitor (`SUDO_PID`), repairs it directly, and redirects `stty sane`/`reset` onto it. After sudo exits, a bounded orphan re-applies ONLY what is still broken, and only the output lane: sudo's own exit-restore skips when the flags were changed under it (which the direct repair does on purpose), so the healthy case gets zero post-exit touches, and the monitor-raw-residue case gets exactly OPOST|ONLCR back — never the input flags a live shell line editor owns (the blanket re-apply it replaces double-echoed typing and ate the first typed character after a rescue on a HEALTHY terminal). The guard (NIGHT-boost-33) restores the terminal automatically on violent deaths; the flag is the explicit recovery for the residual cases (guard could not arm, foreign app's stuck modes, SGR pen linger). |
+| Screen broken after `kill -9` / terminal garbled | `zelynic --reset-terminal` (NIGHT-hunt-31) — the in-place five-layer rescue: ANSI restore + clear, `stty sane` (the kernel-side raw mode no escape byte reaches), `reset`, `tput reset` (when run as root, the three externals resolve through the pinned system PATH, `/usr/sbin:/usr/bin:/sbin:/bin` — the NIGHT-lts-1 defense-in-depth belt; the common no-sudo rescue is unchanged). Works with or without sudo, blind-typed: type it and press Enter even if the screen shows nothing. Under sudo the rescue additionally targets the REAL terminal (NIGHT-improve-31, the post-exit half re-shaped in NIGHT-improve-34): sudo 1.9.14+ interposes a pty by default, so the rescue's own fds are a throwaway pseudo-terminal — it discovers the user's terminal through the sudo monitor (`SUDO_PID`), repairs it directly, and redirects `stty sane`/`reset` onto it. After sudo exits, a bounded orphan re-applies ONLY what is still broken, and only the output lane: sudo's own exit-restore skips when the flags were changed under it (which the direct repair does on purpose), so the healthy case gets zero post-exit touches, and the monitor-raw-residue case gets exactly OPOST|ONLCR back — never the input flags a live shell line editor owns (the blanket re-apply it replaces double-echoed typing and ate the first typed character after a rescue on a HEALTHY terminal). The guard (NIGHT-boost-33) restores the terminal automatically on violent deaths; the option is the explicit recovery for the residual cases (guard could not arm, foreign app's stuck modes, SGR pen linger). |
 | Limit seems not enforced | Check `sudo zelynic status` — is the cgroup listed? Verify the app's traffic is actually flowing through the limited cgroup (`eagle-eyes <id>`). If the app was restarted after the limit was set, re-apply (see limitation #1). |
 | Two zelynic commands interfered | The lock is deliberately non-blocking: the second command exited with "another zelynic operation is in progress". Wait for the first to finish, re-run it. If pins ended up inconsistent: `recover`. |
 
@@ -2307,10 +2307,10 @@ NDJSON-friendly; pretty-print on the consumer side with `| jq '.'`).
 
 The scope is the report surfaces (NIGHT-boost-24 honesty audit;
 NIGHT-master-1 added the fourth): `status`, `list-apps`, `doctor`,
-and the `eagle-eyes --depth` one-shot report. The flag parses
+and the `eagle-eyes --depth` one-shot report. The option parses
 anywhere (it is global), but the enforcement verbs, the live
 `eagle-eyes` monitor, and the early exits (`-h`, `-V`,
-`--check-update`) render text; when the flag rides one of those, a
+`--check-update`) render text; when the option rides one of those, a
 single stderr line names the honoring surfaces and the output itself
 is untouched. The featureless (dormant-mode) build answers with its
 honest smaller set (`doctor` only — the other three are eBPF
@@ -2655,7 +2655,7 @@ means exactly that: nothing is limited right now.
 |------|---------|
 | 0 | Success (including informational output like `--help`, `status`, and a subcommand's own local help — `-h`/`--help` typed after a subcommand renders THAT command's synopsis and options on stdout, night-netrunner-5). |
 | 1 | Runtime failure — root missing, BPF object absent, stale state, or a named target that resolved to nothing. The error carries a branded `error:` label and often a white `tip:` line. With `--print-json` on the argv, the error is the `{"error", "tip"}` object on stdout instead (the JSON error contract above) — still exit 1. |
-| 2 | Usage error — unknown command/flag, missing arguments, invalid values. clap renders it with did-you-mean suggestions for typos, the usage line is the FAILING command's own grammar (NIGHT-boost-13), and every escape-hatch tip is verified before printing: a "use `--`" tip that fails when followed is dropped. With `--print-json` on the argv, the same error renders as the JSON error contract object and exits 1 instead. |
+| 2 | Usage error — unknown command/option, missing arguments, invalid values. clap renders it with did-you-mean suggestions for typos, the usage line is the FAILING command's own grammar (NIGHT-boost-13), and every escape-hatch tip is verified before printing: a "use `--`" tip that fails when followed is dropped. With `--print-json` on the argv, the same error renders as the JSON error contract object and exits 1 instead. |
 
 The no-match contract (NIGHT-dinner-11 — the eBPF-verifier lineage
 applied to the CLI surface: reject, never a soft no-op): a command
@@ -2679,7 +2679,7 @@ nanosecond-scale work, no userspace involved. Benchmarks live in
 **Why does `strict brave 100kb` also slow my uploads?**
 A positional rate means both directions. Use `-d`/`-u` to split them
 (and if you pass both a positional and `-d`/`-u`, one stderr note
-names the positional that was ignored — the flags decide).
+names the positional that was ignored — the options decide).
 
 **Does capping an app to 100kb/s save my WiFi quota?**
 On upload, yes — egress drops happen before the packet reaches the
@@ -2704,7 +2704,7 @@ recovery is a reboot away (limits do not survive it) or
 `sudo zelynic u --all` from any working session.
 
 **Where is the config file?**
-There is none — CLI flags only, ever. State lives in pinned BPF maps,
+There is none — CLI options only, ever. State lives in pinned BPF maps,
 not in your home directory.
 
 **Does it work on macOS/BSD?**
@@ -2767,7 +2767,7 @@ Where things live when a command changes (update these together):
 
 | Change | Files to touch |
 |--------|----------------|
-| New/changed command or flag | `src/cli/mod.rs` (definition), `src/commands/mod.rs` (dispatch), handler in `src/commands/`, `src/commands/help.rs` (reference), `test/integration/help_pins.rs` (drift pins: `test_help_lists_every_command` + removal pins) + `test/integration/surface_pins.rs` (alias/removal wiring), README Commands block |
+| New/changed command or option | `src/cli/mod.rs` (definition), `src/commands/mod.rs` (dispatch), handler in `src/commands/`, `src/commands/help.rs` (reference), `test/integration/help_pins.rs` (drift pins: `test_help_lists_every_command` + removal pins) + `test/integration/surface_pins.rs` (alias/removal wiring), README Commands block |
 | Monitor rendering | `src/ebpf/render/` (`eagle.rs`, `focus.rs`, `detail.rs` — line builders), `src/terminal/mod.rs` (monitor loop), `src/terminal/diff.rs` (diff engine + quit keys live in mod.rs), `docs/BRANDING.md` |
 | Rate/interval parsing | `src/ebpf/limiter/format.rs`, `src/cli/ux.rs` (typo tips) |
 | CLI error tips and usage lines | `src/cli/ux.rs` (the bridge: typo/vocabulary/authority rescues, redirects, usage regeneration), `src/cli/argv.rs` (escape-hatch honesty probe, failing-command walk), `test/cli/` (ux + argv pins), `test/integration/cli_ux.rs` (binary-level pins) |

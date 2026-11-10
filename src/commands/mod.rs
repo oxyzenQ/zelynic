@@ -16,7 +16,7 @@ pub(crate) mod eagle;
 pub(crate) mod eagle_focus;
 pub(crate) mod guarantee;
 pub(crate) mod help;
-// NIGHT-hunt-39: the flag estate (Global flags, Rate formats, Pro
+// NIGHT-hunt-39: the flag estate (Global options, Rate formats, Pro
 // mode) split from help.rs at the 600-line no-mercy cap — every
 // spelling surface one module, the flag_row tier law included.
 // Pure reference rendering (no eBPF dependency), like help.

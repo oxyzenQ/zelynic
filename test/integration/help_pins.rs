@@ -55,7 +55,7 @@ fn test_help_lists_every_command() {
     for section in [
         "Commands:",
         "Short aliases:",
-        "Global flags:",
+        "Global options:",
         "Rate formats:",
         "Pro mode:",
         "Examples:",

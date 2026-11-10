@@ -285,7 +285,7 @@ scripts/
                 battery lives in the supermassive-container.yml E2E
                 legs, the self-test in ci.yml)
     supermassive-test-v4.sh — the CLI depth battery
-                (NIGHT-improve-35: every command, alias, flag, color
+                (NIGHT-improve-35: every command, alias, option, color
                 mode, typo, rate-explode shape, removed command, and
                 hidden subcommand; wraps supermassive-test-v4.py; the
                 full battery runs rootless in ci.yml's ebpf-host
@@ -342,7 +342,7 @@ scripts/
 --check, cargo clippy --all-targets --all-features -D warnings, cargo test,
 cargo audit + cargo deny (both skip with a warning when not installed),
 the repository policy check (check-policy.py), and the version-string
-anti-pattern check. The `-q` / `--quiet` flag cuts the output down to
+anti-pattern check. The `-q` / `--quiet` option cuts the output down to
 the essentials — per-check OK lines, warnings, failures, no banners — and is
 the exact shape the CI "build.sh check-all -q" job runs (NIGHT-boost-7;
 renamed from "Lint & Test" in NIGHT-boost-11): the gate

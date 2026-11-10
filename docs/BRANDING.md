@@ -33,7 +33,7 @@ The color is rendered in whatever depth the terminal actually supports
 | 16-color | `TERM` set but unrecognized | `ESC[35m` (magenta) |
 | Mono | `NO_COLOR`, `CLICOLOR=0`, or not a TTY (unless `CLICOLOR_FORCE=1`) | plain text |
 
-There is no `--no-color` CLI flag (NIGHT-hunt-5 owner mandate: purple
+There is no `--no-color` CLI option (NIGHT-hunt-5 owner mandate: purple
 is branding, branding has no opt-out) — color is always on for
 terminals, and the standard env vars above remain the only control
 surface, exactly like cosmostrix.
@@ -48,7 +48,7 @@ Usage surfaces:
   command group headings carry the same bold purple (NIGHT-improve-5:
   strict / limit / block / unstrict / monitor / system). The reference's
   GRAMMAR renders calm grey (NIGHT-hunt-35/39, the owner's tier law):
-  every command synopsis whole-line, every flag spelling token-wise
+  every command synopsis whole-line, every option spelling token-wise
   (table columns and inline prose, the flag_row law), and — the hunt-39
   peak extension, owner approved — every target-form token (the
   `<process_name>` / `<cgroup_id>` / `<a>::<b>::<c>` placeholder shapes,
@@ -81,7 +81,7 @@ NIGHT-hunt-5 — cosmostrix S-master-HUNT-5 lineage):
 | Error red | `#FF5A5A` | `error:` labels and error bodies |
 | Warning yellow | `#FFEB3C` | `!` warning labels, warnings, update-available |
 | Suggestion white | `#DCEBFF` | the status-frame contracts that wrap runnable commands directly (display.rs stale lines, recover.rs action lines) — content, not grammar |
-| Grammar grey | `#8B8B8B` | help synopses, flag spellings, and target-form tokens (flag_row / target_row); error-lane suggestion candidates, redirect successors, and the footer's `--help` (clap valid, hunt-39 peak law); passive `tip:` / `hint:` advice on the labeled error lane since NIGHT-improve-73 — one advisory tier on both the clap and ux error surfaces |
+| Grammar grey | `#8B8B8B` | help synopses, option spellings, and target-form tokens (flag_row / target_row); error-lane suggestion candidates, redirect successors, and the footer's `--help` (clap valid, hunt-39 peak law); passive `tip:` / `hint:` advice on the labeled error lane since NIGHT-improve-73 — one advisory tier on both the clap and ux error surfaces |
 
 All styled output degrades to plain text when piped so ANSI codes never
 leak into scripts, logs, or JSON consumers. Every user-facing print goes
