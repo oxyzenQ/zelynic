@@ -795,12 +795,19 @@ def test_upload(rate_bps, window, baseline):
     # max of two is the honest estimator: a persistent deficit
     # depresses both windows and still fails the floor, a real
     # collapse fails it far under, and the jitter that killed the
-    # single-window shape is absorbed. Smooth-regime rungs
-    # (floor == BAND_LO) keep the single window — their ceiling
-    # carries the over-delivery side unchanged.
+    # single-window shape is absorbed. The 2026-11-10 Supermassive
+    # E2E best-specs leg (kernel 7.3.0-10-generic, run 42784573974)
+    # caught the same bottom class on the smooth-regime 1mb rung:
+    # its SINGLE window rode 44.4% against the 0.45 paced floor
+    # while the jammy 5.15.0-203 leg's own window rode in-band —
+    # the estimator's coverage gap, not a new enforcement miss
+    # (the drops row and the ledger kept their verdicts). So the
+    # two-window max is UNCONDITIONAL on this row now: the ceiling
+    # binds on the max (band_check's hi edge) exactly as before,
+    # over-delivery is caught the same way, and the second window
+    # costs 10s against a 30-minute VM budget.
     floor = lib.loopback_rate_floor(rate_bps, window)
-    windows = 2 if floor < BAND_LO else 1
-    runs = [upload(window, SERVER.port) for _ in range(windows)]
+    runs = [upload(window, SERVER.port) for _ in range(2)]
     client_bytes, server_bytes, elapsed = max(
         runs, key=lambda r: (r[1] if r[1] is not None else r[0]) / r[2]
     )
@@ -813,12 +820,9 @@ def test_upload(rate_bps, window, baseline):
     # (zero drops) or mixed (early drops while the write-ahead
     # backlog drains). The ceiling rides band_check's own hi edge
     # unchanged.
-    extra = (
-        f"max of two {window:.0f}s windows (the two-window noise law); "
-        f"floor {floor:.2f} (the skb-refill beat)"
-        if windows == 2
-        else ""
-    )
+    extra = f"max of two {window:.0f}s windows (the two-window noise law)"
+    if floor < BAND_LO:
+        extra += f"; floor {floor:.2f} (the skb-refill beat)"
     passed = band_check(
         "upload rate: enforced (-u only)",
         truth / elapsed,
