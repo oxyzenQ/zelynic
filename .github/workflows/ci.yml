@@ -365,6 +365,112 @@ jobs:
           grep -aF "local-pro-linux-amd64-v4-musl" \
             ./target/x86_64-unknown-linux-musl/pro-linux-amd64-v4-musl/zelynic
 
+  # The arm64 proof leg (the owner's arm64 mandate): the alias estate's
+  # new pro-native-arm64-musl shape compiled, linted, and tested on the
+  # free arm64 runner (ubuntu-24.04-arm — public-repo free, zero
+  # runner-minute cost). The contract mirrors the musl twin above on the
+  # aarch64 triple, so the v11.0.0-alpha.1 E0308 lesson (a musl-only
+  # type error must surface on push, never first at tag time) now covers
+  # the arm64 musl graph too — libc struct layouts differ per arch, and
+  # only a real compile surfaces the deltas.
+  #
+  # The BPF half needs no new physics: the nested pure-Rust eBPF build
+  # emits the same host-arch-independent bpfel objects on an arm host,
+  # and the pinned bpf-linker ships a prebuilt aarch64 asset the
+  # installer's own case resolves (NIGHT-hunt-32).
+  #
+  # Execution contract (NIGHT-hunt-34's law, the arm rung): the tests
+  # and the debug -V run natively (baseline armv8-a codegen, portable by
+  # construction across the arm runner pool), but the
+  # target-cpu=native alias artifact is verified through its embedded
+  # build label with grep -aF, never executed — GitHub pools
+  # heterogeneous arm silicon generations, and the cache step restores
+  # target/ across runs, so executing a cached native artifact is the
+  # same SIGILL lottery the x86 native leg retired.
+  musl-arm64:
+    name: Musl Static ARM64 (native alias)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          # GITHUB_TOKEN hardening: the token never persists into the
+          # workspace's .git/config (night-dragon-maintenance-6, the
+          # reference's estate-wide rule).
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: clippy
+          targets: aarch64-unknown-linux-musl
+
+      # The ebpf-feature builds below drive the nested pure-Rust eBPF
+      # build in build.rs — the dated nightly pin (ebpf/rust-toolchain.toml)
+      # and bpf-linker must be present, the same contract as every
+      # compile job above.
+      - name: Install eBPF nightly toolchain (dated pin)
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: nightly-2026-09-18
+          components: rust-src
+
+      - name: Install bpf-linker 0.11.1 (prebuilt static musl)
+        run: bash scripts/dev/install-bpf-linker.sh
+
+      # The key is distinct from the musl twin's on purpose: runner.os
+      # is "Linux" on both arches, so an arch-less key would let the two
+      # jobs cross-restore each other's target trees (x86_64 artifacts
+      # into an aarch64 build and vice versa) — the same two-runners-
+      # never-cross rule the musl job's matrix-os key carries.
+      - name: Cache cargo registry
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6, NIGHT-hunt-20 SHA pin
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            ebpf/target
+          key: ${{ runner.os }}-musl-arm64-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-musl-arm64-cargo-
+
+      # Lint parity: the musl twin's clippy step, aimed at the aarch64
+      # musl target — target-conditional code paths (libc structs,
+      # cfg(target_env = "musl") branches) analyzed under the arm
+      # graph, not just compiled.
+      - name: Clippy (aarch64 musl target)
+        run: cargo clippy --all-targets --all-features --target aarch64-unknown-linux-musl -- -D warnings
+
+      # Test parity: the musl test binaries are static executables, so
+      # they run natively on the glibc arm runner — the suite executes
+      # inside the artifact shape the alias builds.
+      - name: Run tests (aarch64 musl target)
+        run: cargo test --locked --target aarch64-unknown-linux-musl
+
+      # Debug-build parity (the musl twin's debug contract): a debug
+      # shape that compiles but cannot even print -V is not a build, it
+      # is a liability. Baseline codegen, so it executes on any arm64
+      # runner.
+      - name: Verify debug build (aarch64 musl target)
+        run: |
+          cargo build --locked --target aarch64-unknown-linux-musl --features ebpf
+          ./target/aarch64-unknown-linux-musl/debug/zelynic -V
+
+      # The alias itself is the contract under test: profile, feature
+      # set, target, and the ZELYNIC_BUILD label all come from the alias
+      # definition in .cargo/config.toml. RUSTFLAGS leads with -D
+      # warnings and carries the native+static baseline verbatim (the
+      # set-env-shadows-config rule the musl twin documents). Label
+      # verify, never execute (the hunt-34 law above).
+      - name: Verify the pro-native-arm64-musl alias (label contract)
+        run: |
+          RUSTFLAGS="-D warnings -C target-cpu=native -C target-feature=+crt-static" \
+            cargo pro-native-arm64-musl --locked
+          grep -aF "local-pro-native-arm64-musl" \
+            ./target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic
+
   # NIGHT-boost-2, renamed again by night-dragon-maintenance-6 (the
   # musl-only estate): the surface this matrix compiles is the HOST
   # dev lane — the pure-Rust eBPF objects, then the host crate built
