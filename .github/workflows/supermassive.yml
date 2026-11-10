@@ -309,15 +309,36 @@ jobs:
       # toolchain build, and the envelope's point is the STRESSTEST,
       # not the compile): the canonical path from e2e.yml — bootstrap,
       # the payload build, and the rootless engine self-test. The
-      # payload IS the flagship (night-dragon-maintenance-6: musl is
-      # the only shape — setup.sh's flagship is the static
-      # pro-native-musl build, glibc-free, the exact binary the
-      # cross-distro instrument runs on foreign distros, executing
-      # under KVM's -cpu host on the SAME silicon that built it).
+      # flagship it builds (night-dragon-maintenance-6: musl is the
+      # only shape — setup.sh's static pro-native-musl, glibc-free)
+      # is the runner-side proof; the binary the GUEST carries is the
+      # release-tier v3 alias below (the stage-to-shard relay's
+      # portable shape — the flagship's -C target-cpu=native codegen
+      # is honest only on the machine that built it).
       - name: Bring-up (setup.sh --skip-heavy, static musl flagship)
         run: |
           rustup target add x86_64-unknown-linux-musl
           ./scripts/setup.sh --skip-heavy
+
+      # The guest payload (the from-source law's portable shape): the
+      # release-tier v3 alias - v3 executes on every x86_64 runner
+      # since Haswell, which is exactly the contract the stage-to-
+      # shard relay needs. The flagship pro-native-musl is -C
+      # target-cpu=native: honest on the machine that built it, a
+      # SIGILL lottery across the shard fleet - run 42894093792's
+      # lesson: the engine shard's node happened to be a superset of
+      # the stage node's silicon (its -V row passed and the server
+      # phase ran green), while the rigs/legacy/survival shards
+      # landed on nodes the stage codegen outran and the init's -V
+      # probe failed LOUDLY, exactly as the probe was designed to.
+      # The RUSTFLAGS composition mirrors the e2e stage's (the
+      # -D-warnings lead plus the alias's tokens verbatim).
+      - name: Build the release-tier v3 payload (pro-linux-amd64-v3-musl)
+        run: |
+          set -euo pipefail
+          RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3 -C target-feature=+crt-static" \
+            cargo pro-linux-amd64-v3-musl --locked
+          ./target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic -V | grep -F "Build: local-pro-linux-amd64-v3-musl"
 
       # The floor kernel (night-netrunner-1: the documented floor is
       # 5.15.0 — the impish 5.13 lane is retired with it): jammy's
@@ -560,10 +581,14 @@ jobs:
           # The frozen jammy userland, unchanged since NIGHT-improve-31
           # (a static binary owes no userland anything) — the version
           # dimension collapsed to musl with the gnu packaging
-          # (night-dragon-maintenance-6).
+          # (night-dragon-maintenance-6). The payload is the release-
+          # tier v3 alias: the portable shape the stage-to-shard relay
+          # needs (the native-codegen flagship is a cross-node SIGILL
+          # lottery — the stage step's comment carries the run
+          # 42894093792 evidence).
           SUITE=ubuntu:22.04
-          PAYLOAD="$GITHUB_WORKSPACE/target/x86_64-unknown-linux-musl/pro-native-musl/zelynic"
-          echo "rootfs suite: $SUITE (payload: musl static flagship)"
+          PAYLOAD="$GITHUB_WORKSPACE/target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic"
+          echo "rootfs suite: $SUITE (payload: pro-linux-amd64-v3-musl, static)"
           docker pull -q "$SUITE"
           docker rm -f floor-rootfs >/dev/null 2>&1 || true
           docker run --name floor-rootfs -d "$SUITE" sleep infinity
