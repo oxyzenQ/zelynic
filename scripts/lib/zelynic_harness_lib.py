@@ -400,6 +400,8 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 # truth for where each command lands):
 #   root copy          — ./zelynic (legacy dev convenience)
 #   pro-native-musl    — cargo pro-native-musl (the static flagship)
+#   pro-native-arm64-musl — cargo pro-native-arm64-musl (the arm64
+#                        flagship twin, the owner's arm64 mandate)
 #   pro-linux-amd64-v3-musl / pro-linux-amd64-v4-musl — the two
 #                        arch-baseline release tiers (the ONLY shapes
 #                        the musl-only estate builds and ships,
@@ -420,6 +422,9 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 REPO_BINARY_CANDIDATES = [
     os.path.join(REPO_ROOT, "zelynic"),
     os.path.join(REPO_ROOT, "target", "x86_64-unknown-linux-musl", "pro-native-musl", "zelynic"),
+    os.path.join(
+        REPO_ROOT, "target", "aarch64-unknown-linux-musl", "pro-native-arm64-musl", "zelynic"
+    ),
     os.path.join(
         REPO_ROOT, "target", "x86_64-unknown-linux-musl", "pro-linux-amd64-v3-musl", "zelynic"
     ),
