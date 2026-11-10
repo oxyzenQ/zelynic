@@ -258,7 +258,10 @@ pub fn run_doctor(json: bool) -> Result<()> {
 fn print_report(report: &CapabilityReport) {
     use crate::output::{brand_bold, error_bold, field, ok_bold, warn_bold};
 
-    println_safe!("{}", brand_bold("━━━ zelynic eBPF Capability Doctor ━━━"));
+    println_safe!(
+        "{}",
+        brand_bold("━━━ zelynic diagnostics report · doctor ━━━")
+    );
     println_safe!();
     // NIGHT-dinner-3: the build flavor leads the report — the binary's
     // own full-life/half-life verdict is the first question an owner

@@ -87,7 +87,7 @@ pub(crate) fn resolve_rates(
             // nowhere, so the 1kb floor is not its
             // question — a typo is (the tip ladder).
             crate::output::eprintln_warn_labeled(&format!(
-                "positional rate '{r}' ignored — -d/-u flags take priority \
+                "positional rate '{r}' ignored — -d/-u options take priority \
                  (pass -d and -u together for both directions)"
             ));
         }

@@ -120,7 +120,7 @@ fn handle_strict_single(
 
     if rates.download.is_none() && rates.upload.is_none() {
         return Err(anyhow::anyhow!(
-            "No rate specified. Use positional rate or -d/-u flags.\n\
+            "No rate specified. Use positional rate or -d/-u options.\n\
              Example: zelynic strict brave 100kb"
         ));
     }
@@ -338,7 +338,7 @@ fn handle_strict_multi(
 
     if rates.download.is_none() && rates.upload.is_none() {
         return Err(anyhow::anyhow!(
-            "No rate specified. Use positional rate or -d/-u flags.\n\
+            "No rate specified. Use positional rate or -d/-u options.\n\
              Example: zelynic strict brave::curl 1mb"
         ));
     }

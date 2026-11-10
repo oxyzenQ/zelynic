@@ -318,7 +318,7 @@ remove them.
 
 ### Usage
 
-Every command, once — flags live in `--help`, formats in
+Every command, once — options live in `--help`, formats in
 [Rate Formats](#rate-formats), the full workflows in
 [docs/USAGE.md](docs/USAGE.md):
 
@@ -399,9 +399,9 @@ NIGHT-improve-54 — `strict-all`/`sa`, `block-all`/`ba`,
 at NIGHT-master-1 and is retired again in NIGHT-blade-4 — `--depth`
 is the one spelling, and the short `-i` stays retired). Command
 semantics, quit keys, and recipes: [docs/USAGE.md](docs/USAGE.md);
-`--help` is the single flag reference.
+`--help` is the single option reference.
 
-Global flags work on every command: `-v/--verbose` (diagnostic trace),
+Global options work on every command: `-v/--verbose` (diagnostic trace),
 `--print-json`, `--help`, `-V/--version`, and `--check-update` — which
 **refuses to run as root** (a plain network fetch must not ride sudo;
 full privilege matrix: [docs/SAFETY_ANALYSIS.md](docs/SAFETY_ANALYSIS.md)).
@@ -540,7 +540,7 @@ slightly easier to maintain.
 
 - No Bloat TUI (minimal TUI only for focus monitoring)
 - No systemd service dependency
-- No `config.toml` (CLI flags only)
+- No `config.toml` (CLI options only)
 - No daemon mode
 - No REST API
 - No non-Linux support
@@ -563,7 +563,7 @@ asking. The garden is for everyone else.
 ### Stable API (from v80.0.0)
 
 The CLI surface is frozen. No breaking changes
-to commands, flags, or output format. Future releases focus on:
+to commands, options, or output format. Future releases focus on:
 
 - Bug fixes
 - Kernel compatibility updates
@@ -680,7 +680,7 @@ trails live in each row's doc, told once there:
 | [supermassive v1](docs/CROSS_DISTRO_RESULTS.md) | Every stage that measures a LIMIT: the 64-cgroup server fleet, then the full desktop matrix (6+ min) | `sudo ./scripts/supermassive/supermassive-test.sh` |
 | [supermassive v2](docs/CROSS_DISTRO_RESULTS.md) | The abuse family: the 106-case CLI stresstest, guards, SIGKILL batteries, crash teardown (4+ min) | `sudo ./scripts/supermassive/supermassive-test-v2.sh` |
 | [supermassive v3](docs/CROSS_DISTRO_RESULTS.md) | The container depth: docker:// and k8s:// target grammar, resolution errors, the resolve-only contract, docker E2E (self-skips with no daemon) | `sudo ./scripts/supermassive/supermassive-test-v3.sh` |
-| [supermassive v4](docs/CROSS_DISTRO_RESULTS.md) | The CLI depth: every command, alias, flag, color mode (zero to hero), typo tip, rate-explode category, removed/retired + hidden surface (rootless) | `./scripts/supermassive/supermassive-test-v4.sh` |
+| [supermassive v4](docs/CROSS_DISTRO_RESULTS.md) | The CLI depth: every command, alias, option, color mode (zero to hero), typo tip, rate-explode category, removed/retired + hidden surface (rootless) | `./scripts/supermassive/supermassive-test-v4.sh` |
 | [MMSPA vs legacy](docs/CROSS_DISTRO_RESULTS.md) | The subtree contract as a DELTA: this build vs the pre-MMSPA v11.0.0 stable, seven child leaves each, the >= 99% coverage proof (~3 min) | `sudo ./scripts/supermassive/mmspa-vs-legacy-test.sh` (the v11.0.0 side auto-downloads, sha512-verified) |
 | [claims proof](docs/CLAIMS_VERIFICATION.md) | The README's four headline claims plus the one-shot footprint, proven live (~1 min) | `sudo ./scripts/bench/proof-claims.sh` |
 | [sandbox](docs/SANDBOX.md) | No root on your box? The same micro-VM CI boots, locally — throwaway kernel, no docker, no host changes | `scripts/sandbox/zelynic-sandbox.sh --smoke` |

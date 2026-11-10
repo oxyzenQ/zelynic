@@ -4,7 +4,7 @@
 //! The flag estate of the --help reference (NIGHT-hunt-39: the
 //! split the 600-line no-mercy cap demanded, the cli/styles
 //! precedent -- one concern, one module). Every surface that
-//! documents a flag spelling lives here: Global flags, Rate
+//! documents a flag spelling lives here: Global options, Rate
 //! formats, Pro mode, and the [`flag_row`] tier-and-column law
 //! they all render through. The tier law (the owner's mandate):
 //! every spelling renders in the calm-grey grammar tier the
@@ -32,7 +32,7 @@
 use super::help::example;
 use crate::output::{brand_bold, grey};
 
-/// Print the flag estate: Global flags, Rate formats, and Pro
+/// Print the flag estate: Global options, Rate formats, and Pro
 /// mode -- the reference's three spelling surfaces, in the order
 /// print_help walks them (between the Short aliases table and
 /// the Target formats grammar; the sections sit contiguously
@@ -40,7 +40,7 @@ use crate::output::{brand_bold, grey};
 /// rides the grey grammar tier via flag_row; every runnable
 /// example pair rides the green tier via the shared helper.
 pub(crate) fn print_flag_tables() {
-    println_safe!("{}", brand_bold("Global flags:"));
+    println_safe!("{}", brand_bold("Global options:"));
     // NIGHT-hunt-39: every flag table row renders through flag_row
     // — the spelling column in the grey grammar tier, the
     // description in default prose, one computed description column
@@ -117,7 +117,7 @@ pub(crate) fn print_flag_tables() {
     // never silently thin back to hidden.
     println_safe!("{}", brand_bold("Pro mode:"));
     println_safe!(
-        "  The hidden and advanced flags, complete — grouped by the verbs that own them."
+        "  The hidden and advanced options, complete — grouped by the verbs that own them."
     );
     println_safe!();
     // NIGHT-improve-54 (the owner's ask): the fleet sweeps live
@@ -209,7 +209,7 @@ pub(crate) fn print_flag_tables() {
         grey("--floor-download, --floor-upload, --ceil-download, --ceil-upload")
     );
     println_safe!("                   per-direction spellings, one per side: the");
-    println_safe!("                   both-directions flag and its twin refuse together.");
+    println_safe!("                   both-directions option and its twin refuse together.");
     example(
         "guaranteed floor under the cap",
         "sudo zelynic s firefox 1mb --floor 100kb",
@@ -244,7 +244,7 @@ pub(crate) fn print_flag_tables() {
     flag_row(
         "    ",
         "--force-this",
-        "lift every guard in one flag: the min-rate floor and the",
+        "lift every guard in one option: the min-rate floor and the",
     );
     println_safe!("                   dangerous-target blocklist (system processes stay");
     println_safe!("                   behind it by default — lifting is a choice).");

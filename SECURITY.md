@@ -30,7 +30,7 @@ reach the maintainer privately.
 
 Please include:
 
-- the affected command/flag or code path (`zelynic -V` output helps),
+- the affected command/option or code path (`zelynic -V` output helps),
 - a minimal reproduction (commands, expected vs. observed),
 - impact assessment — who can trigger it and what it costs.
 

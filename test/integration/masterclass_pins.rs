@@ -9,7 +9,7 @@
 //! at the 600-line cap (one theme, one file — the usage_tests
 //! discipline). NIGHT-hunt-35 (the masterclass tidy) re-based the
 //! first two contracts on the synopsis law (both lanes + the
-//! `[flags — see Pro mode]` pointer on one line) and added the
+//! `[options — see Pro mode]` pointer on one line) and added the
 //! grey-tier pin here — the tidy's own contracts live together.
 //! NIGHT-hunt-39 (the flag tier) added its pin beside them: every
 //! flag spelling renders the grey grammar tier, span-exact, with
@@ -22,7 +22,7 @@ use crate::zelynic_cmd;
 /// (the synopsis law): `unstrict` IS the canonical verb now — and
 /// the synopsis carries the WHOLE grammar on one line: both lanes
 /// of the target (`<target> or <target::target::target>`) plus the
-/// ONE pointer token `[flags — see Pro mode]` (the owner's
+/// ONE pointer token `[options — see Pro mode]` (the owner's
 /// compactness mandate — the old in-synopsis flag enumeration was
 /// neither complete nor simple; Pro mode owns every spelling). The
 /// retired `unstrict-single`/`unstrict-multi` spellings appear
@@ -58,7 +58,7 @@ fn test_help_unstrict_synopsis_is_canonical() {
 /// hunt-35 synopsis law: the synopsis must not drift from the live
 /// parse surface — but the completeness contract moved one section
 /// down. The synopsis carries the ONE pointer token
-/// (`[flags — see Pro mode]`) instead of enumerating flags (the
+/// (`[options — see Pro mode]`) instead of enumerating flags (the
 /// owner's compactness mandate: the old `[--per-socket]`-only
 /// enumeration was neither complete nor simple); Pro mode owns
 /// every flag's spelling, and the help_pins ADVANCED_FLAGS fence
@@ -77,11 +77,11 @@ fn test_help_strict_flags_are_complete() {
     assert_eq!(output.status.code(), Some(0));
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("[flags — see Pro mode]"),
+        stdout.contains("[options — see Pro mode]"),
         "the strict synopsis must carry the Pro mode pointer token, got:\n{stdout}"
     );
     assert_eq!(
-        stdout.matches("[flags — see Pro mode]").count(),
+        stdout.matches("[options — see Pro mode]").count(),
         4,
         "exactly the four flag-owning verbs carry the pointer (strict, block, unstrict, eagle-eyes), got:\n{stdout}"
     );
@@ -218,7 +218,7 @@ fn test_help_flag_spellings_render_grey_across_tables_and_prose() {
     // sides of the span.
     let safety = lines
         .iter()
-        .find(|l| l.contains("One flag lifts every guard"))
+        .find(|l| l.contains("One option lifts every guard"))
         .expect("the safety guard bullet must exist");
     assert!(
         safety.contains(&format!("guard: {grey}--force-this{reset}")),

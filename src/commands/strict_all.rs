@@ -59,7 +59,7 @@ pub(crate) fn handle_strict_all(
 
     if rates.download.is_none() && rates.upload.is_none() {
         return Err(anyhow::anyhow!(
-            "No rate specified. Use positional rate or -d/-u flags.\n\
+            "No rate specified. Use positional rate or -d/-u options.\n\
              Example: zelynic s --all 500kb"
         ));
     }

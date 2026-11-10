@@ -31,12 +31,12 @@
 //! "grammar, not content", the same tier law the eagle-eyes footer
 //! rides). Each synopsis carries the WHOLE grammar on one line —
 //! both lanes of the target (`<target> or <target::target::target>`)
-//! plus the ONE pointer token `[flags — see Pro mode]` instead of an
+//! plus the ONE pointer token `[options — see Pro mode]` instead of an
 //! in-synopsis flag enumeration; Pro mode owns every flag's
 //! spelling, and the help_pins ADVANCED_FLAGS fence holds that
 //! completeness. Flag tables render ONE description column per
 //! section (continuations aligned to it), and since NIGHT-hunt-39
-//! the whole flag estate — Global flags, Rate formats, Pro mode,
+//! the whole flag estate — Global options, Rate formats, Pro mode,
 //! the flag_row tier-and-column law — lives in help_flags.rs (the
 //! 600-line no-mercy cap's split: every spelling surface, one
 //! module): every flag spelling renders in the same calm grey the
@@ -84,6 +84,14 @@ pub(crate) fn print_help() {
     println_safe!();
     println_safe!("Rate-limit and monitor any app's network speed. Pure eBPF, no daemon.");
     println_safe!();
+    println_safe!("{}", brand_bold("Usage:"));
+    println_safe!("  {}", grey("zelynic <command> [target] [value] [options]"));
+    println_safe!();
+    println_safe!("{}", brand_bold("Examples:"));
+    println_safe!("  {}", ok("sudo zelynic strict brave 100kb"));
+    println_safe!("  {}", ok("zelynic doctor"));
+    println_safe!("  {}", ok("zelynic -V"));
+    println_safe!();
     println_safe!("{}", brand_bold("Commands:"));
     println_safe!();
     // NIGHT-improve-5: commands grouped by verb (strict / block /
@@ -109,7 +117,7 @@ pub(crate) fn print_help() {
     // pinned home); the old --per-socket-only enumeration was neither
     // complete nor simple.
     synopsis(
-        "zelynic strict <target> or <target::target::target> [rate] [-d <rate>] [-u <rate>] [flags — see Pro mode]",
+        "zelynic strict <target> or <target::target::target> [rate] [-d <rate>] [-u <rate>] [options — see Pro mode]",
     );
     println_safe!("    Limit one app's network speed, or a '::'-separated list sharing");
     println_safe!("    ONE rate (group limit: if one member downloads at full rate,");
@@ -159,7 +167,7 @@ pub(crate) fn print_help() {
     println_safe!();
     println_safe!("  {}", brand_bold("block — cut internet access"));
     println_safe!();
-    synopsis("zelynic block <target> or <target::target::target> [flags — see Pro mode]");
+    synopsis("zelynic block <target> or <target::target::target> [options — see Pro mode]");
     println_safe!("    Block one app from the internet entirely, or a");
     println_safe!("    '::'-separated list. 'b' is the short alias.");
     example("cut one app off", "sudo zelynic block brave");
@@ -167,7 +175,7 @@ pub(crate) fn print_help() {
     println_safe!();
     println_safe!("  {}", brand_bold("unstrict — remove limits & recover"));
     println_safe!();
-    synopsis("zelynic unstrict <target> or <target::target::target> [flags — see Pro mode]");
+    synopsis("zelynic unstrict <target> or <target::target::target> [options — see Pro mode]");
     println_safe!("    Remove the rate limit from one app or a '::'-separated list.");
     println_safe!("    'u' is the short alias.");
     example("remove one app's limit", "sudo zelynic unstrict brave");
@@ -198,7 +206,7 @@ pub(crate) fn print_help() {
     synopsis("zelynic list-apps");
     println_safe!("    List apps with their cgroup IDs.");
     println_safe!();
-    synopsis("zelynic eagle-eyes [targets] [flags — see Pro mode]");
+    synopsis("zelynic eagle-eyes [targets] [options — see Pro mode]");
     // NIGHT-hunt-35 (compact): the same contracts, four lines
     // lighter — every pinned needle (the q-only quit key, --depth's
     // single spelling, the one-shot report inventory) rides tighter
@@ -278,7 +286,7 @@ pub(crate) fn print_help() {
     println_safe!("  u = unstrict");
     println_safe!("  ee = eagle-eyes");
     println_safe!();
-    // NIGHT-hunt-39: the flag estate (Global flags, Rate formats,
+    // NIGHT-hunt-39: the flag estate (Global options, Rate formats,
     // Pro mode) lives in help_flags.rs -- the 600-line no-mercy
     // cap's split: one concern, one module -- every spelling
     // surface together, the flag_row law included.
@@ -341,7 +349,7 @@ pub(crate) fn print_help() {
         crate::commands::safety::DANGEROUS_TARGETS.len()
     );
     println_safe!("  • Fail-safe: BPF returns allow on any error path");
-    println_safe!("  • One flag lifts every guard: {}", grey("--force-this"));
+    println_safe!("  • One option lifts every guard: {}", grey("--force-this"));
     println_safe!();
     println_safe!("{}", brand_bold("Examples:"));
     // NIGHT-hunt-15: the command blocks above each carry their own
@@ -380,7 +388,7 @@ pub(crate) fn example(note: &str, cmd: &str) {
 /// the owner's eye-strain call — the white usage lines strained;
 /// grammar is context, not content, the same tier law the eagle-eyes
 /// footer rides). One helper so every verb's synopsis carries the
-/// same indent and the same tier, and the `[flags — see Pro mode]`
+/// same indent and the same tier, and the `[options — see Pro mode]`
 /// pointer token rides the same law on every flag-owning verb —
 /// the synopsis teaches the grammar and points, Pro mode owns every
 /// flag's spelling.

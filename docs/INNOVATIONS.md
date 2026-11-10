@@ -101,7 +101,7 @@ bulk flow eats its own share.
 `--per-socket`). The cgroup is the unit, but sometimes the promise
 is per-CONNECTION: each socket gets its own bucket, keyed by
 `bpf_get_socket_cookie`, attributed with no tracepoint. A group
-policy remains the shared-budget answer; the flag opts a row into
+policy remains the shared-budget answer; the option opts a row into
 individual budgets when that is the honest shape.
 
 **5. QUIC-aware attribution** (`ebpf/src/quic.rs`, schema v22).

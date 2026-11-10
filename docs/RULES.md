@@ -301,7 +301,7 @@ If a future test genuinely needs the current package version, use
 `env!("CARGO_PKG_VERSION")` — never hardcode the literal string. The
 current package version is already verified by
 `test/integration/smoke.rs::test_version` (which uses the `--version` CLI
-flag), so per-module version assertions are redundant anyway.
+option), so per-module version assertions are redundant anyway.
 
 <!-- ZELYNIC-DISCLAIMER -->
 <!--

@@ -82,7 +82,7 @@ compounds into when the surface is small:
   ([PHILOSOPHY.md](PHILOSOPHY.md) §4). A stable interface is the
   one promise users can build decades on — it is also the
   discipline that stops complexity from sneaking in as "just one
-  more flag."
+  more option."
 - **local-first, zero telemetry.** There is no server side to keep
   alive, no account to suspend, no license-check call home. The
   tool keeps working on the day every web service of its birth era

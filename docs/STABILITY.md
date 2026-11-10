@@ -471,7 +471,7 @@ The from-source install script, for the record:
 `scripts/package/install-on-my-machine.sh` detects the CPU's
 x86-64-v3/v4 level, builds the release-tier musl binary the release
 matrix parity-gates against, and installs it to `/usr/bin` — the one
-install path, by law, no flags (night-dragon-maintenance-7, the
+install path, by law, no options (night-dragon-maintenance-7, the
 zejtron mature-infra shape). A stale `~/.local/bin/zelynic` is
 removed first so nothing shadows `/usr/bin`, the `-V` verdict is
 verified at the destination, and the script is the install twin of

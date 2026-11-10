@@ -11,7 +11,7 @@ earn their keep. Every claim here was verified against the source tree
 (`src/cli/surface.rs`, `src/commands/guarantee.rs`,
 `src/commands/strict.rs`, `src/ebpf/limiter/`); where the docs and the
 binary ever disagree, the source is the truth. The flagship reference
-with every flag and error remains [USAGE.md](USAGE.md).
+with every option and error remains [USAGE.md](USAGE.md).
 
 ---
 
@@ -147,7 +147,7 @@ Two consequences, both verified in the source:
 There are exactly two advanced lanes, and they answer different
 questions:
 
-| Lane | Flags | Question it answers | Bucket granularity |
+| Lane | Options | Question it answers | Bucket granularity |
 |---|---|---|---|
 | Fair-share | `--floor`, `--ceil` (+ per-direction spellings) | How do the app's **subprocesses** divide the shared bucket? | one bucket per **subprocess leaf** |
 | Per-socket | `--per-socket` | Should every **connection** get its own full rate? | one bucket per **socket** |
@@ -165,7 +165,7 @@ subprocess shape.
 ```
 
 `--per-socket` is also single-lane only: a `::` group shares one
-bucket by definition, so the flag is refused on lists.
+bucket by definition, so the option is refused on lists.
 
 ### `--floor` and `--ceil`, honestly
 
@@ -209,7 +209,7 @@ is refused for the mirror reason (it would never bind anyway).
 **The one-flag law:** `--floor` sets BOTH directions' rows. The
 per-direction spellings `--floor-download` / `--floor-upload` (and the
 `--ceil-` twins) set one row each, and refuse to combine with the
-both-directions flag — `--floor 100kb --floor-download 200kb` is a
+both-directions option — `--floor 100kb --floor-download 200kb` is a
 mis-typed rate, not a wider guarantee. A per-direction bracket also
 refuses if its direction has no rate in this invocation (a guarantee
 for a row that will not exist is a mistake, named before anything
@@ -290,7 +290,7 @@ instead.
 `sudo zelynic s nginx 500kb --per-socket`. One listening process,
 many clients; each connection gets its own 500 KB/s bucket. With ten
 concurrent clients the cgroup total is 5 MB/s — check that against
-your uplink. `--floor`/`--ceil` refuse beside this flag: with
+your uplink. `--floor`/`--ceil` refuse beside this option: with
 per-connection buckets there is no subprocess leaf left to bracket.
 
 **Scenario: the time-boxed block.**
@@ -321,7 +321,7 @@ unblock".
 
 ## Where to read next
 
-- [USAGE.md](USAGE.md) — the flagship reference: every flag, every
+- [USAGE.md](USAGE.md) — the flagship reference: every option, every
   error, JSON for scripting, exit codes, troubleshooting.
 - [FAQ.md](FAQ.md) — the questions that keep coming back.
 - [GLOSSARY.md](GLOSSARY.md) — the coined-term decoder.

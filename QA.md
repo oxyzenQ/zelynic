@@ -170,7 +170,7 @@ The shape that philosophy produced, concretely:
   objects are embedded in it. No clang, no cargo, no installer on the
   target machine; uninstall is `rm`.
 - **No config file, no daemon, no service.** Every setting is a
-  command-line flag, every command is immediate, nothing resident
+  command-line option, every command is immediate, nothing resident
   survives the process.
 - **Silent by default.** Enforcement does its job without noise; the
   monitor is the one interactive surface, and it is designed to be

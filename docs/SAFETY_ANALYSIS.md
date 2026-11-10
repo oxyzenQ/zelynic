@@ -70,7 +70,7 @@ The only network-related activity:
 
 1. **BPF programs**: hook network packets in kernel (count/enforce) — do NOT
    read packet content, do NOT connect to anything
-2. **`--check-update` flag**: opt-in GitHub API call to check latest release.
+2. **`--check-update` option**: opt-in GitHub API call to check latest release.
    Disabled by default. Only runs when user explicitly requests it — and
    **refuses to run as root** (exit with an error before any network I/O;
    re-run without sudo).
@@ -1620,13 +1620,13 @@ the contexts it renders).
 
 ### Finding 2 (fixed): the shadowed positional rate — silent drop, unparsed
 
-`resolve_rates`' documented priority (`-d`/`-u` flags over the
+`resolve_rates`' documented priority (`-d`/`-u` options over the
 positional rate) dropped the positional WITHOUT A WORD and WITHOUT
 PARSING it: `zelynic ss brave not-a-rate -d 100kb` sailed past the
 input boundary with its typo unexamined straight to the root ask —
 the parse-before-execute ladder every strict handler documents (a
 typo'd rate must surface its did-you-mean tip before privileges
-are requested) had a hole exactly one flag wide. And a VALID
+are requested) had a hole exactly one option wide. And a VALID
 shadowed positional (`ss brave 100kb -d 50kb`) vanished silently —
 the silent-no-op class this CLI refuses everywhere else
 (`--print-json`, `--interval`, and `--focus` each print an
@@ -1673,7 +1673,7 @@ redirects to `eagle-eyes`).
 - **Boundary validation:** `--interval` (1s..60s) and `--focus`
   (1s..30s) refuse both edges with the bounds spelled out; the
   fractional grammar, unicode digits, whitespace-trimmed rates,
-  and duplicate flags (clap refuses) all answer clean.
+  and duplicate options (clap refuses) all answer clean.
 - **The zero-rate lane:** `0` is the documented block verdict,
   accepted with and without `--force-this`, symmetric in the
   positional and `-d`/`-u` slots.
