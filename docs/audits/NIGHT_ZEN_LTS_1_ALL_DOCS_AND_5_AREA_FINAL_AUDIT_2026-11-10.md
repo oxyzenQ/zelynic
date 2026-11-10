@@ -227,6 +227,50 @@ no root, no KVM in this seat.
 zelynic is docs-consistent and 5-area peak after the v29/v30
 retirement, the peace reframe, and the price change. The book closes.
 
+## 12. The live confirmation and the residue it closed
+
+Minutes after this audit head landed (f190d82, 05:11 UTC), the
+owner ran `zelynic doctor --print-json` on the real machine
+(2026-11-10 12:14 UTC+7) and pasted the one-line JSON. It is the
+contract, live: the wire order matches `report_json` field for
+field (src/capabilities/mod.rs:200-241 — `kernel`, then
+`kernel_floor_met` in slot two, `cgroup_v2`, `cgroup2_mount_path`,
+`bpf_fs_mounted`, `is_root`, then `ebpf_supported`, `build_flavor`,
+`ebpf_lane`, the six build fields in declaration order per
+src/info/build.rs:142-158, and the warnings array carrying the
+mod.rs:145 literal verbatim), and `pins` is honestly ABSENT — the
+run is unprivileged (`is_root:false`, the warning carries the why),
+the exact absence rule the USAGE prose states. The binary itself is
+the audited code: fc0b018 (built 11/9/2026 19:07 UTC, seven minutes
+after the commit landed at 19:00:05Z), and every commit between the
+binary's sha and this audit's head is docs-only (fc0b018..f190d82:
+seven .md files, zero code).
+
+The live paste also exposed one residue in check H's fix, owned
+here plainly: the refresh corrected the sample's values but kept a
+stale field set — the sample and its prose list omitted
+`system.kernel_floor_met`, the one system field the code emits
+unconditionally. Three of the six build values were also unfounded
+for the release artifact the refresh claimed to model: `rustc
+1.99.1` contradicts the release pipeline's own pin (release.yml:35
+`RUST_VERSION: "1.98.1"`, kept in sync with rust-toolchain.toml and
+the Cargo.toml rust-version, both 1.98.1), and build_time
+11/9/2026 19:05 postdates the real v80.1.0 publication by three
+days (the GitHub release record: created 2026-11-06T09:41:43Z,
+published 09:47:30Z). The refresh was a chimera — the release
+variant label over the local build's own sha and a near-miss of its
+clock.
+
+The fix is one docs-only commit: the USAGE sample is now the
+owner's live output verbatim — every value traceable (Cargo.toml:6
+for the version, the 1.98.1 pin for the toolchain string, the paste
+for the rest) — the prose field list gains `system.kernel_floor_met`
+plus the `variant` label vocabulary (`pro-` for release-stamped
+artifacts, `local-` for locally stamped builds, per
+build.rs:107-113), and the `pins` shape stays documented in the
+prose while the sample now demonstrates the absence rule live. The
+book stays closed.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

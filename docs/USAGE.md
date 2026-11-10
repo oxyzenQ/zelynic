@@ -2602,11 +2602,12 @@ binary was replaced or removed after the process started. The
 report does (`4755` for a setuid binary).
 
 `doctor --print-json` reports the capability check fields — the
-system facts (`system.kernel`, `system.cgroup_v2`,
-`system.cgroup2_mount_path`, `system.bpf_fs_mounted`,
-`system.is_root`), the binary's own verdicts (`build_flavor`:
-`"full-life"` / `"half-life"`; `ebpf_lane`: `"source-built"` /
-`"registry-prebuilt"` / `"dormant (not compiled)"`), the
+system facts (`system.kernel`, `system.kernel_floor_met`,
+`system.cgroup_v2`, `system.cgroup2_mount_path`,
+`system.bpf_fs_mounted`, `system.is_root`), the binary's own
+verdicts (`build_flavor`: `"full-life"` / `"half-life"`;
+`ebpf_lane`: `"source-built"` / `"registry-prebuilt"` /
+`"dormant (not compiled)"`), the
 `warnings` array, and — night-improve-64, additive — the BPF pin
 lattice's verdict under `pins`: `{"state":"clean"|"active"|"stale","files":N}`
 (the same verdict the human report's "Pins:" line renders —
@@ -2618,7 +2619,9 @@ pins, and an unreadable directory is absent too — never a
 fabricated verdict. night-improve-66 adds the `build` object —
 the artifact identity the human report's BUILD block renders:
 `version` (raw semver, no `v`), `git_sha`, `variant` (the
-canonical build label), `build_time` (UTC), `rustc_version` (the
+canonical build label — `pro-` for release-stamped artifacts,
+`local-` for locally stamped builds), `build_time` (UTC),
+`rustc_version` (the
 toolchain that compiled the binary), and `profile` (the
 optimization verdict — `"release, opt-level=3, lto=fat,
 codegen-units=1, panic=unwind, strip=yes"` for shipping builds; a
@@ -2629,8 +2632,13 @@ document (no `build` key) still parses — the block is honestly
 absent, never fabricated:
 
 ```json
-{"system":{"kernel":"6.18.0","cgroup_v2":true,"cgroup2_mount_path":"/sys/fs/cgroup","bpf_fs_mounted":true,"is_root":true},"ebpf_supported":true,"build_flavor":"full-life","ebpf_lane":"source-built","build":{"version":"80.1.0","git_sha":"fc0b018","variant":"pro-linux-amd64-v3-musl","build_time":"11/9/2026 19:05 (UTC)","rustc_version":"rustc 1.99.1 (58cf8f9c3 2026-10-13)","profile":"release, opt-level=3, lto=fat, codegen-units=1, panic=unwind, strip=yes"},"warnings":[],"pins":{"state":"active","files":4}}
+{"system":{"kernel":"6.18.60-2-cachyos-lts","kernel_floor_met":true,"cgroup_v2":true,"cgroup2_mount_path":"/sys/fs/cgroup","bpf_fs_mounted":true,"is_root":false},"ebpf_supported":true,"build_flavor":"full-life","ebpf_lane":"source-built","build":{"version":"80.1.0","git_sha":"fc0b018","variant":"local-pro-linux-amd64-v3-musl","build_time":"11/9/2026 19:07 (UTC)","rustc_version":"rustc 1.98.1 (48a229cea 2026-09-01)","profile":"release, opt-level=3, lto=fat, codegen-units=1, panic=unwind, strip=yes"},"warnings":["Not running as root. eBPF operations require root."]}
 ```
+
+(The sample is a real unprivileged run on the maintainer's
+machine — a locally stamped build on the pinned 1.98.1 toolchain —
+so `pins` is honestly absent and the `warnings` array carries the
+why.)
 
 A missing limit list with `"active_limits": 0` and `watchdog: "enforcing"`
 means exactly that: nothing is limited right now.
