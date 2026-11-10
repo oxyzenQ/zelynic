@@ -175,7 +175,11 @@ echo
 echo "── informational surfaces ──"
 
 expect "bare invocation prints reference" 0 "Commands:" -- "$BINARY"
-expect "--help exits 0 with reference" 0 "Commands:" "Global flags:" -- "$BINARY" --help
+# The flag-estate heading is "Global options:" - help_flags.rs renders
+# it and test/integration/help_pins.rs pins it; this suite follows the
+# same law (the 2026-11-10 e2e legs red-graded the stale "Global flags"
+# expectation on both kernels).
+expect "--help exits 0 with reference" 0 "Commands:" "Global options:" -- "$BINARY" --help
 expect "-h short form matches --help" 0 "Commands:" -- "$BINARY" -h
 expect "--version report" 0 "Signature: Pure eBPF builtin" "License: AGPL-3.0-only" -- "$BINARY" --version
 expect "-V short form" 0 "Signature: Pure eBPF builtin" -- "$BINARY" -V
