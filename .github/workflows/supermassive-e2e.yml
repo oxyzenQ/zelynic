@@ -24,8 +24,24 @@
 # the IDENTICAL suite and the IDENTICAL check depth: the budget buys
 # headroom, never depth.
 #
+# The third leg is the arm64 variant (the owner's arm64 mandate): the
+# IDENTICAL suite and check depth, run HOST-NATIVE on the free arm64
+# runner (ubuntu-24.04-arm). The arm hosted fleet exposes no /dev/kvm
+# at any tier (actions/runner-images#14062, maintainer answer: the
+# Azure Arm SKU surfaces no nested KVM device), so the KVM micro-VM
+# contract is x86-only by platform law — and TCG emulation is no
+# variant at all for a realtime suite whose subject IS the pacer's
+# hrtimer fidelity. The arm64 leg rides the runner host itself
+# through scripts/ci/e2e-native.sh (e2e-init.sh's host-native twin:
+# the same five canonical invocations, verify-not-mount surfaces, a
+# real exit code added to the sentinel relay). One parallel leg, not
+# a matrix explosion: the lane's wall clock is set by the slowest
+# leg, never by a queue.
+#
 # The suite lives in scripts/ci/e2e-init.sh (its header is the
-# contract's home); this file only makes the legs run. Five
+# contract's home); the arm64 leg's twin lives in
+# scripts/ci/e2e-native.sh (its header is its own contract's home).
+# This file only makes the legs run. Five
 # canonical invocations per leg, the modes the owner named:
 # the unprivileged USER leg first (nonroot-depth-test.sh - the
 # honest refusal contract), then the ROOT legs (zelynic is a root
@@ -108,7 +124,22 @@ jobs:
           - title: supermassive e2e - best specs (the archive's latest kernel)
             profile: best
             vm_timeout: 1800
-    runs-on: ubuntu-24.04
+          # The arm64 variant (the owner's arm64 mandate): the
+          # IDENTICAL suite and depth, run natively on the free arm64
+          # runner host — the fleet exposes no /dev/kvm
+          # (runner-images#14062), so the guest contract cannot exist
+          # on arm and the honest variant is the host itself
+          # (scripts/ci/e2e-native.sh, the guest init's twin). One
+          # parallel leg: the wall clock is set by the slowest leg,
+          # never by a queue. The bound is the low leg's headroom
+          # value — the alias build (uncached target tree, the
+          # silicon-lottery rule) rides the same budget.
+          - title: supermassive e2e - arm64 (the native arm64 runner host)
+            profile: arm64
+            vm_timeout: 2400
+    # The arm64 leg rides the free arm64 runner (public-repo free,
+    # zero runner-minute cost); the two x86 legs keep the standard image.
+    runs-on: ${{ matrix.profile == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     timeout-minutes: 55
     steps:
       - name: Checkout
@@ -123,6 +154,7 @@ jobs:
       # fallback: the payload is x86-64-v3 codegen and would SIGILL
       # under TCG's -cpu qemu64.
       - name: Verify KVM
+        if: matrix.profile != 'arm64'
         run: |
           test -e /dev/kvm || {
             echo "FAIL: /dev/kvm is absent - this runner image cannot boot the micro-VM"
@@ -137,6 +169,7 @@ jobs:
           echo "OK: /dev/kvm present and usable"
 
       - name: Install qemu + cpio
+        if: matrix.profile != 'arm64'
         run: |
           sudo apt-get -o Acquire::Retries=5 update -qq
           sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends qemu-system-x86 cpio
@@ -147,11 +180,23 @@ jobs:
       # eBPF crate build the ebpf feature drives, and the pinned
       # prebuilt bpf-linker.
       - name: Install Rust toolchain
+        if: matrix.profile != 'arm64'
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
         with:
           toolchain: "1.98.1"
           components: clippy, rustfmt
           targets: x86_64-unknown-linux-musl
+
+      # The arm64 twin (the same three-step set, the aarch64
+      # triple): the pinned stable + the musl std for the payload
+      # build on the arm host.
+      - name: Install Rust toolchain (arm64)
+        if: matrix.profile == 'arm64'
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: "1.98.1"
+          components: clippy, rustfmt
+          targets: aarch64-unknown-linux-musl
 
       - name: Install eBPF nightly toolchain (dated pin)
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
@@ -163,6 +208,7 @@ jobs:
         run: bash scripts/dev/install-bpf-linker.sh
 
       - name: Cache cargo registry
+        if: matrix.profile != 'arm64'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6, NIGHT-hunt-20 SHA pin
         with:
           path: |
@@ -173,6 +219,24 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
+
+      # The arm64 leg's cache: registry + git ONLY, under a distinct
+      # key (runner.os is "Linux" on every arch — an arch-less key
+      # would let legs cross-restore each other's trees; ci.yml's
+      # arm rung keeps the same rule). Deliberately NOT target/ nor
+      # ebpf/target: the payload is -C target-cpu=native and gets
+      # EXECUTED, so its codegen must come from this job's own
+      # silicon, never from a cache (the SIGILL lottery rule).
+      - name: Cache cargo registry (arm64, registry only)
+        if: matrix.profile == 'arm64'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6, NIGHT-hunt-20 SHA pin
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-e2e-arm64-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-e2e-arm64-cargo-
 
       # The owner's from-source law: the release-tier alias, never a
       # bare cargo build --release. The RUSTFLAGS lead is the
@@ -185,11 +249,56 @@ jobs:
       # everywhere (every x86_64 runner since Haswell), so the -V
       # gate runs live.
       - name: Build the release-tier v3 payload (pro-linux-amd64-v3-musl)
+        if: matrix.profile != 'arm64'
         run: |
           set -euo pipefail
           RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3 -C target-feature=+crt-static" \
             cargo pro-linux-amd64-v3-musl --locked
           ./target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic -V | grep -F "Build: local-pro-linux-amd64-v3-musl"
+
+      # The arm64 payload (the from-source law's arm shape): the
+      # pro-native-arm64-musl alias — the arm64 twin of the flagship
+      # local build (host-CPU native codegen, fully static musl, the
+      # full flagship feature set), the only arm64 shape the estate
+      # carries; the release-tier v3/v4 pair is amd64's jurisdiction.
+      # The RUSTFLAGS composition mirrors ci.yml's arm64 proof leg
+      # (the -D-warnings lead plus the alias's target-cpu and
+      # crt-static tokens verbatim — an env RUSTFLAGS shadows every
+      # config rustflags, so the alias invocation IS the contract
+      # under test), and the artifact is verified through its
+      # embedded build label. Built FRESH IN-JOB and executed here:
+      # -C target-cpu=native codegen from this job's own silicon is
+      # always safe to run — a cache-restored target tree would be
+      # the cross-generation SIGILL lottery ci.yml's arm rung
+      # documents (this leg's cache stops at the registry).
+      - name: Build the arm64 native payload (pro-native-arm64-musl)
+        if: matrix.profile == 'arm64'
+        run: |
+          set -euo pipefail
+          RUSTFLAGS="-D warnings -C target-cpu=native -C target-feature=+crt-static" \
+            cargo pro-native-arm64-musl --locked
+          ./target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic -V | grep -F "Build: local-pro-native-arm64-musl"
+
+      # The arm64 leg's host: the suite userland drawn from the
+      # runner's own apt (the guest legs assemble the identical set
+      # into the rootfs cpio — the userland held constant across
+      # legs), and the kernel surfaces ensured idempotently (cgroup
+      # v2 unified, bpffs, loopback). The HOST owns them here —
+      # scripts/ci/e2e-native.sh verify-fails-loudly on all of them
+      # before any suite runs, never silently shallow.
+      - name: Prepare the arm64 native leg (userland + kernel surfaces)
+        if: matrix.profile == 'arm64'
+        run: |
+          set -euo pipefail
+          sudo apt-get -o Acquire::Retries=5 update -qq
+          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
+            python3 iproute2 kmod curl nftables linux-tools-generic
+          sudo ip link set lo up
+          mountpoint -q /sys/fs/bpf || sudo mount -t bpf bpf /sys/fs/bpf
+          test "$(stat -fc %T /sys/fs/cgroup)" = "cgroup2fs" || {
+            echo "FAIL: /sys/fs/cgroup is $(stat -fc %T /sys/fs/cgroup), wanted cgroup2fs"
+            exit 1
+          }
 
       # The jammy 5.15.0 floor leg (night-dragon-maintenance-4 kept
       # the leg's own principle alive; night-netrunner-1 made it THE
@@ -404,6 +513,7 @@ jobs:
       # identity row - then the whole tree packs into ONE newc cpio
       # (the initramfs IS the rootfs; no disk).
       - name: Assemble the micro-VM rootfs
+        if: matrix.profile != 'arm64'
         run: |
           set -euo pipefail
           cd /tmp/kfloor
@@ -499,6 +609,7 @@ jobs:
       # pair scales with GitHub's hardware instead of pinning one
       # era's runner shape.
       - name: Boot the micro-VM and run the E2E depth suite
+        if: matrix.profile != 'arm64'
         run: |
           set -euo pipefail
           cd /tmp/kfloor
@@ -533,6 +644,34 @@ jobs:
           if test "$QEMU_RC" -ne 0 && test "$QEMU_RC" -ne 1; then
             echo "FAIL: qemu exited $QEMU_RC - log tail:"
             tail -40 vm.log
+            exit 1
+          fi
+          exit 0
+
+      # The arm64 leg's run: the host-native twin drives the
+      # identical five-suite depth contract on the runner itself
+      # (no guest to boot — the arm fleet's platform law), the same
+      # wedge-guard outer bound around the suite that the VM legs
+      # wrap around qemu, the log tee'd into the SAME vm.log file
+      # the shared Verdict and Watch steps grep, and the real exit
+      # code the guest cannot carry gating the step on top of the
+      # sentinel relay.
+      - name: Run the E2E depth suite natively on the arm64 host
+        if: matrix.profile == 'arm64'
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/kfloor
+          cd "$GITHUB_WORKSPACE"
+          set +e
+          sudo timeout ${{ matrix.vm_timeout }} \
+            bash scripts/ci/e2e-native.sh \
+            --binary "$GITHUB_WORKSPACE/target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic" \
+            2>&1 | tee /tmp/kfloor/vm.log
+          RC=${PIPESTATUS[0]}
+          set -e
+          if test "$RC" -ne 0; then
+            echo "FAIL: the native arm64 suite exited $RC - log tail:"
+            tail -40 /tmp/kfloor/vm.log
             exit 1
           fi
           exit 0
