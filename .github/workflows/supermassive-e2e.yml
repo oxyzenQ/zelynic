@@ -766,7 +766,13 @@ jobs:
           sudo rm -rf "$STAGE"
           sudo mkdir -p "$STAGE/target/aarch64-unknown-linux-musl/pro-native-arm64-musl"
           git -C "$GITHUB_WORKSPACE" archive HEAD | sudo tar -x -C "$STAGE"
-          sudo cp "$GITHUB_WORKSPACE/target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic" \
+          # install(1) with the mode PINNED, never a bare cp: the stage
+          # relay is a zip round-trip and upload/download-artifact do
+          # not preserve the executable bit - the relayed payload
+          # lands 0644 and the twin's -x gate refuses it (run
+          # 42887939274's lesson).
+          sudo install -m 0755 \
+            "$GITHUB_WORKSPACE/target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic" \
             "$STAGE/target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic"
           cd "$GITHUB_WORKSPACE"
           set +e
@@ -970,7 +976,10 @@ jobs:
           sudo rm -rf "$STAGE"
           sudo mkdir -p "$STAGE/target/aarch64-unknown-linux-musl/pro-native-arm64-musl"
           git -C "$GITHUB_WORKSPACE" archive HEAD | sudo tar -x -C "$STAGE"
-          sudo cp "$GITHUB_WORKSPACE/target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic" \
+          # The same pinned-mode install (the artifact relay's zip
+          # round-trip drops the executable bit).
+          sudo install -m 0755 \
+            "$GITHUB_WORKSPACE/target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic" \
             "$STAGE/target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic"
           cd "$GITHUB_WORKSPACE"
           set +e
