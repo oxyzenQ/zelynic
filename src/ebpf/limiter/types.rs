@@ -346,10 +346,10 @@ impl BracketSpec {
 pub enum Target {
     CgroupId(u32),
     ProcessName(String),
-    /// A container reference (charger-core-2, TIER A #5):
-    /// `docker://<name>` / `k8s://<ns>/<pod>` — resolved to the
-    /// workload's cgroup id by identity::container; every
-    /// downstream surface is the single lane's machinery.
+    /// A workload URI (charger-core-2, TIER A #5):
+    /// `docker://<name>` / `k8s://<ns>/<pod>` / `netns://<name>` —
+    /// resolved to the workload's cgroup id by identity::container;
+    /// every downstream surface is the single lane's machinery.
     Container(ContainerRef),
 }
 

@@ -209,7 +209,7 @@ fn handle_strict_single(
             // — the grammar tip beats the list tip there.
             if target_str.contains("://") {
                 tips.push(
-                    "container target grammar: docker://<name> or k8s://<namespace>/<pod>"
+                    "container target grammar: docker://<name>, k8s://<namespace>/<pod> or netns://<name>"
                         .to_string(),
                 );
             } else if target_str.contains(':') && !target_str.starts_with("cg:") {

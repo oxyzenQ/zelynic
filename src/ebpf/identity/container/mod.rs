@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 //! Container-native target resolution (NIGHT-upgrade-
-//! charger-core-2, TIER A #5) — `docker://<name>` and
-//! `k8s://<namespace>/<pod>` resolve to the workload's cgroup id.
+//! charger-core-2, TIER A #5) — `docker://<name>`,
+//! `k8s://<namespace>/<pod>` and `netns://<name>` resolve to the
+//! workload's cgroup id.
 //!
 //! The contract is resolve-only, by design: a container reference
 //! becomes the same cgroup id `cg:<id>` targets, and every
@@ -16,7 +17,9 @@
 //! the sibling split), and the kubelet's /var/log/pods directory
 //! names (`<namespace>_<pod>_<uid>`) plus the same walk for the pod
 //! cgroup (`...pod<uid>.slice` for the systemd driver, `pod<uid>`
-//! for cgroupfs — here).
+//! for cgroupfs — here), and `netns://` rides the named-namespace
+//! handle's nsfs inode matched against its /proc member processes'
+//! ns links (netns.rs, the third sibling).
 //!
 //! The dangerous-target blocklist does not apply to container
 //! targets: it names HOST system processes (sshd, systemd) whose
@@ -32,6 +35,7 @@
 //! pins rootlessly in test/ebpf/identity/container_tests.rs.
 
 mod docker;
+mod netns;
 
 use std::path::{Path, PathBuf};
 
@@ -51,6 +55,10 @@ pub enum ContainerRef {
     Docker { name: String },
     /// `k8s://<namespace>/<pod>`
     K8s { namespace: String, pod: String },
+    /// `netns://<name>` — a named network namespace (the
+    /// `ip netns add <name>` family), resolved through its member
+    /// processes to the one workload cgroup living in it.
+    Netns { name: String },
 }
 
 impl ContainerRef {
@@ -62,6 +70,7 @@ impl ContainerRef {
         match self {
             ContainerRef::Docker { name } => format!("docker://{name}"),
             ContainerRef::K8s { namespace, pod } => format!("k8s://{namespace}/{pod}"),
+            ContainerRef::Netns { name } => format!("netns://{name}"),
         }
     }
 }
@@ -70,8 +79,10 @@ impl ContainerRef {
 /// so the caller keeps its name-target contract. Grammar (pure,
 /// pinned): `docker://<name>` with a non-empty name carrying no '/'
 /// or ':' (both break the target grammars that embed the string),
-/// and `k8s://<namespace>/<pod>` with exactly one '/' and both
-/// parts non-empty. Malformed shapes return None — they fall back
+/// `k8s://<namespace>/<pod>` with exactly one '/' and both
+/// parts non-empty, and `netns://<name>` carrying the docker
+/// lane's name law verbatim (non-empty, no '/', no ':'). Malformed
+/// shapes return None — they fall back
 /// to the process-name lane and surface as the graceful no-match,
 /// the same contract alnum-bearing garbage owns.
 pub fn parse_container(s: &str) -> Option<ContainerRef> {
@@ -98,6 +109,14 @@ pub fn parse_container(s: &str) -> Option<ContainerRef> {
             pod: pod.to_string(),
         });
     }
+    if let Some(rest) = s.strip_prefix("netns://") {
+        if rest.is_empty() || rest.contains('/') || rest.contains(':') {
+            return None;
+        }
+        return Some(ContainerRef::Netns {
+            name: rest.to_string(),
+        });
+    }
     None
 }
 
@@ -110,6 +129,7 @@ pub fn resolve(c: &ContainerRef) -> Result<Vec<u32>> {
     match c {
         ContainerRef::Docker { name } => docker::resolve_docker(name),
         ContainerRef::K8s { namespace, pod } => resolve_k8s(namespace, pod),
+        ContainerRef::Netns { name } => netns::resolve_netns(name),
     }
 }
 

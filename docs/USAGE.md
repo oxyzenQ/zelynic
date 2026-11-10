@@ -103,12 +103,14 @@ Names follow one grammar (NIGHT-improve-53, the masterclass
 unification): **strict** applies limits, **block** cuts access
 entirely, **unstrict** removes limits — ONE verb per family, and
 `-all` sweeps every user app. The target grammar picks the lane: a
-single target (`brave`, `cg:18571`, `docker://nginx`) rides the
+single target (`brave`, `cg:18571`, `docker://nginx`, `netns://sandbox`)
+rides the
 single lane, and a `::`-separated list
 (`brave::curl::pacman`) rides the group lane — one shared bucket
 for every member. The separator DOUBLED because container native
 grammar owns the single `:` (`docker://nginx`,
-`k8s://prod/web-abc`, and the `cg:` display prefix), so the list
+`k8s://prod/web-abc`, `netns://sandbox`, and the `cg:` display
+prefix), so the list
 byte sequence is one they can never contain. The short forms: `s`
 = strict, `b` = block, `u` = unstrict, `ee` = eagle-eyes (the
 `alias = canonical` pairing is the same one-glance form `--help`
@@ -541,6 +543,7 @@ Container targets (NIGHT-upgrade-charger-core-2, TIER A):
 ```bash
 sudo zelynic strict docker://nginx 100kb
 sudo zelynic s k8s://prod/web-abc 1mb
+sudo zelynic s netns://sandbox 500kb
 sudo zelynic unstrict docker://nginx
 ```
 
@@ -559,11 +562,27 @@ container in the pod plus the infra container shares the limit.
 A restarted pod leaves a stale log dir behind: only the live pod
 owns a `pod<uid>` cgroup, and that is the disambiguator; an
 unresolved tie names both uids and points at `list-apps`.
+`netns://<name>` targets a named network namespace (the
+`ip netns add <name>` family, the handle under `/run/netns/`):
+the namespace's member processes are walked through procfs (the
+handle's nsfs inode matched against every
+`/proc/<pid>/ns/net` link — the namespace is read, never
+entered) and resolve to the ONE workload cgroup living in it. A
+namespace spanning two or more cgroups refuses with them named —
+`ip netns exec` leaves the exec'd process in the caller's
+cgroup, and a URI target can starve the workload, never a
+host-side cgroup the operator shares; the direct `cg:<id>`
+route is the honest door for genuinely multi-cgroup shapes.
+Namespace names are host-local and their inodes churn across
+reboots: resolution reads live state at apply time, the same
+contract the process-name lane owns, and the resolved cgroup id
+is the durable handle.
 
 Every failure is specific, never the generic no-match — the input
 was a well-formed reference whose infrastructure answered: "docker
 socket not found", "no container named 'x'", "no pod 'y' in
-namespace 'z'", each with its discovery tip. A stopped container
+namespace 'z'", "no network namespace named 'n'", each with its
+discovery tip. A stopped container
 is named as such: the daemon's own status word rides the error,
 because a stopped container's cgroup is torn down at exit — there
 is no live workload to target. A policy left behind against a

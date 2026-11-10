@@ -28,7 +28,8 @@ use anyhow::Result;
 /// lane.
 ///
 /// Deliberately substring-plain: `cg:1234` and the container URIs
-/// (`docker://nginx`, `k8s://prod/web-abc`) carry single colons
+/// (`docker://nginx`, `k8s://prod/web-abc`, `netns://sandbox`) carry
+/// single colons
 /// only, so they can never trip it — a `::` in the wild is always
 /// an intentional list (or a typo the grammar rungs below name).
 pub(crate) fn target_is_list(target_str: &str) -> bool {
@@ -76,7 +77,7 @@ pub(crate) fn validate_multi_targets(targets_str: &str, example: &str) -> Result
     // letting the '/' check below complain about a URI fragment.
     if targets_str.contains("://") {
         return Err(anyhow::anyhow!(
-            "container targets (docker://<name>, k8s://<namespace>/<pod>) do not ride lists — \
+            "container targets (docker://<name>, k8s://<namespace>/<pod>, netns://<name>) do not ride lists — \
              the group lane shares one bucket\n  \
              tip: apply each container on its own: one target, no '::' separator"
         ));
