@@ -55,6 +55,15 @@ v80.0.0
 
 ### Added
 
+- **USAGE states the baseline panel's only-while-active law where
+  the demo hits it (night-docs-2).** The eagle-eyes baseline lane's
+  honest-absence contract was already in the docs; what the first
+  real user (the owner, mid-demo, right after `u --all`) actually
+  needed was the one line with the action in it: open `eagle-eyes`
+  before applying a limit and the section is absent — no panel,
+  not an empty one; apply one first and the verdicts fill within
+  the eight-second horizon.
+
 - **docs(readme): the quota saver's empirical math, on the front
   page (night-netrunner-1 phase 2).** README.md,
   docs/INNOVATIONS.md, and docs/COSMIC_DRAGON_ARC.md each carry a
