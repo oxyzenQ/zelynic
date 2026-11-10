@@ -761,8 +761,8 @@ row's upload sockets, so the kernel's own TCP pacer spaces the
 outgoing stream at the policy rate with no tc qdisc anywhere (the
 live proof in `scripts/bench/edt-probe.sh`: 800000 b/s bit-exact,
 zero drops). And its Layer 4 — the quota telemetry — landed as
-schema v28 and was corrected by night-quota-audit in schema v29 and
-night-recvn-audit in schema v30: the lanes' savings are BOOKED
+schema v28 and was corrected in schema v29 and schema v30 (the EDT
+and RECWN bookings retired): the lanes' savings are BOOKED
 (`bytes_saved_by_ecn` in the kernel ledger, the sole live booking)
 and `status --print-json` names it plus
 `bytes_saved_total` and the two retired words `bytes_saved_by_edt`
@@ -777,16 +777,16 @@ Saved` line rendering the total and the layer split.
 **The workload-conditional quota saver**: the three physics stack on
 the metered rates the lane exists for — the receive-window clamp
 holds a sender to the policy's bandwidth-delay product (the window
-counterfactual books ~85% at the 100 kb rung on the conservative
+counterfactual prices ~85% at the 100 kb rung on the conservative
 128 KiB default-window assumption, named in
 [docs/COSMIC_DRAGON_ARC.md](docs/COSMIC_DRAGON_ARC.md)'s math
-section), the CE mark converts would-be losses into backoffs
+section; the estimate is retired from the ledger since schema v30), the CE mark converts would-be losses into backoffs
 without a lost datagram, and the pacer spaces the egress so the
 drop verdict never speaks — so quota a sender WOULD have burned
 stays unbilled, workload permitting. The saving is conditional, and
 the condition is measured: on a bounded transfer (a 20 MB curl that
 ends because the file ended) the sender never attempts the overrun
-the counterfactual books, and the A/B ground truth came back at
+the counterfactual prices, and the A/B ground truth came back at
 ~0% — the enforced leg moved equal-or-slightly-more wire than the
 unenforced leg on both directions (2026-11-06: download +1.21 MB,
 upload +0.64 MB, against bookings of 82.58% / 75.85%). The
@@ -809,7 +809,8 @@ at ~1 MB/s): at a 100kb rate limit, zelynic's 30-second
 eager-session test shows 87.3% download wire savings and 93.4%
 upload wire savings against an unthrottled app. These are A/B wire
 deltas (zelynic limited vs bare) — not the ledger's counterfactual.
-The ledger's ~85% booking is kept for internal accounting.
+The ledger's ~85% window-law booking is retired (schema v30); the
+ledger books the ECN one-for-one alone.
 
 **The condition.** The savings is the rate limit itself. When
 `rate_limit < network_speed`, the limit binds, and the eager app
@@ -958,9 +959,10 @@ honest congestion signal can rescue; they do not un-send a datagram
 the wire already carried.
 
 The headline is workload-conditional, not a single number: the
-ledger's counterfactual books ~85% at the 100 kb rung under the
-conservative default-window assumption — the sender the clamp WOULD
-hold back — while the measured A/B ground truth on a bounded 20 MB
+ledger's counterfactual priced ~85% at the 100 kb rung under the
+conservative default-window assumption before its schema v30
+retirement — the sender the clamp WOULD hold back — while the
+measured A/B ground truth on a bounded 20 MB
 pair came back at ~0% (the enforced leg moved equal-or-more wire
 than the unenforced leg on both directions, night-netrunner-12's
 finding; `scripts/bench/quota-saver-ab.sh` prints the ground truth

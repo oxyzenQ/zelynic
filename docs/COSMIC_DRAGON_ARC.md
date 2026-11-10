@@ -522,9 +522,10 @@ honest congestion signal can rescue; they do not un-send a datagram
 the wire already carried.
 
 The headline is workload-conditional, not a single number: the
-ledger's counterfactual books ~85% at the 100 kb rung under the
-conservative default-window assumption — the sender the clamp WOULD
-hold back — while the measured A/B ground truth on a bounded 20 MB
+ledger's counterfactual priced ~85% at the 100 kb rung under the
+conservative default-window assumption before its schema v30
+retirement — the sender the clamp WOULD hold back — while the
+measured A/B ground truth on a bounded 20 MB
 pair came back at ~0% (night-netrunner-12's finding:
 `scripts/bench/quota-saver-ab.py` prints the ground truth beside
 every booking, and its overrunning leg measures the workloads where
