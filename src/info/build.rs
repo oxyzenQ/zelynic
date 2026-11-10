@@ -211,7 +211,9 @@ fn build_string() -> String {
 ///
 /// Source of truth: the `ZELYNIC_BUILD` env var forwarded at compile
 /// time by build.rs — set by the cargo alias `pro-native-musl` (label
-/// `local-pro-native-musl`, see .cargo/config.toml), the arch-baseline
+/// `local-pro-native-musl`, see .cargo/config.toml), its arm64 twin
+/// `pro-native-arm64-musl` (label `local-pro-native-arm64-musl`, the
+/// owner's arm64 mandate), the arch-baseline
 /// aliases `pro-linux-amd64-v3-musl` / `pro-linux-amd64-v4-musl`
 /// (labels `local-pro-linux-amd64-v3-musl` etc., the alias name under
 /// the `local-` marker, NIGHT-boost-30 plus the T1 `pro-` rung), or

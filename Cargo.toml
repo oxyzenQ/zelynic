@@ -283,6 +283,15 @@ incremental = false
 [profile.pro-native-musl]
 inherits = "release"
 
+# The arm64 twin of pro-native-musl (the owner's arm64 mandate; see
+# .cargo/config.toml [alias]): same contract, same inherits-release
+# optimization tier, separate name so the artifact lands in
+# target/aarch64-unknown-linux-musl/pro-native-arm64-musl/ and never
+# clobbers the x86 target tree or target/release/zelynic (the
+# cosmostrix pro-native contract, arm64 rung).
+[profile.pro-native-arm64-musl]
+inherits = "release"
+
 # Arch-baseline release profiles for the cargo aliases
 # pro-linux-amd64-v3-musl / pro-linux-amd64-v4-musl
 # (NIGHT-improve-22; NIGHT-boost-30 renamed both the aliases and the
