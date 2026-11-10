@@ -413,8 +413,11 @@ jobs:
           docker pull -q "$SUITE"
           docker rm -f e2e-rootfs >/dev/null 2>&1 || true
           docker run --name e2e-rootfs -d "$SUITE" sleep infinity
-          docker exec e2e-rootfs apt-get update -qq
-          docker exec e2e-rootfs apt-get install -y --no-install-recommends \
+          # NIGHT-dinner-12's knob rides the rootfs lane too (the
+          # both-halves contract; run 579's mirror-sync red is the
+          # class — the sibling lane carries the full note).
+          docker exec e2e-rootfs apt-get -o Acquire::Retries=5 update -qq
+          docker exec e2e-rootfs apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
             python3 iproute2 kmod curl nftables ca-certificates
           docker exec e2e-rootfs sh -ec '
             cd /tmp || exit 1
@@ -427,7 +430,7 @@ jobs:
             test -n "$pkg" || { echo "FAIL: no per-kernel linux-tools resolved"; exit 1; }
             src=""
             for _ in 1 2 3; do
-              apt-get download "$pkg" >/dev/null
+              apt-get -o Acquire::Retries=5 download "$pkg" >/dev/null
               rm -rf /tmp/bpx
               dpkg-deb -x "${pkg}"_*.deb /tmp/bpx
               src=$(find /tmp/bpx/usr/lib -type f -name bpftool | head -n1)

@@ -37,6 +37,13 @@ v80.0.0
 
 ### Changed
 
+- The two docker rootfs lanes carry apt's retry knob now —
+  night-dinner-12's own both-halves contract, which the micro-VM
+  assembly step had missed: a mirror edge caught mid-sync serves a
+  stale Packages.gz against the fresh Release and the index fetch
+  dies with exit 100 (run 579's rootfs leg); every apt fetch in
+  both lanes retries on its own first. (night-ci-2)
+
 - The final docs consistency audit (night-zen-lts-1) closed the
   drifts the v30 retirement left behind: the retired window-law
   counterfactual no longer reads as a live ledger booking in
