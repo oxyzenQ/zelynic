@@ -20,8 +20,8 @@ format so the check below is the whole protocol.
 
 | image | bytes | blake3 digest (b3sum) |
 |-------|------:|-----------------------|
-| assets/eagle-eyes-depth.png | 88,764 | `d1fbf606f0196565859221fdb5578a5006c8d70371c2d88e51ddf736fe0ddb23` |
-| assets/eagle-eyes.png | 107,306 | `c83dd5a551adf185dbaedaab00e39c8220860a6f951be50736f6137a070c19d6` |
+| assets/eagle-eyes-depth.png | 113,395 | `5f1f2a834ebfd65dbe8e8900180930ca8b23358c90cba8bbdaacdef01c708c81` |
+| assets/eagle-eyes.png | 106,092 | `4f0859d19ffbf5ca60f591a269f79c4038f9b2a59735ec4f91872ce89e038efa` |
 | assets/qr/bitcoin.png | 575 | `09ec09fcdc4815e23373cb266bb120aa4e1af140fb9d598e117d05478a791b47` |
 | assets/qr/ethereum.png | 591 | `4eb520de0fe258d2c82ba07ccba8d9e48bafc63904d022a83cc42b59d1ed2ac7` |
 | assets/qr/solana.png | 595 | `bca56b0a454daf06ff2d57fe401719553e28733e73479de2652a0740a9e87d1a` |
