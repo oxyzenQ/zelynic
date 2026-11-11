@@ -189,9 +189,14 @@ jobs:
           echo "--- zelynic status --print-json (leg A) ---"
           sudo zelynic status --print-json | jq '{recwn_limits, limits: [.limits[] | {label, bytes_saved_total}]}'
           echo "--- v33 assertion (leg A): the floor window holds, the ratchet below the cadence band ---"
-          sudo zelynic status --print-json | jq -e \
+          if sudo zelynic status --print-json | jq -e \
             '(.recwn_limits.measured_srtt_us // 0) < 200000 and .recwn_limits.window_bytes == 20000' \
-            >/dev/null && echo "LEG_A_ASSERT: PASS" || { echo "LEG_A_ASSERT: FAIL"; exit 1; }
+            >/dev/null; then
+            echo "LEG_A_ASSERT: PASS"
+          else
+            echo "LEG_A_ASSERT: FAIL"
+            exit 1
+          fi
           echo "--- end the leg A transfer (its server connection dies with this step) ---"
           sudo pkill -f 'curl -s --max-time 90' || true
 
@@ -224,9 +229,14 @@ jobs:
           echo "--- zelynic status --print-json (leg B) ---"
           sudo zelynic status --print-json | jq '{recwn_limits, limits: [.limits[] | {label, bytes_saved_total}]}'
           echo "--- v33 assertion (leg B): the measured srtt surfaced and the window extended ---"
-          sudo zelynic status --print-json | jq -e \
+          if sudo zelynic status --print-json | jq -e \
             '.recwn_limits.measured_srtt_us > 200000 and .recwn_limits.window_bytes > 20000' \
-            >/dev/null && echo "LEG_B_ASSERT: PASS" || { echo "LEG_B_ASSERT: FAIL"; exit 1; }
+            >/dev/null; then
+            echo "LEG_B_ASSERT: PASS"
+          else
+            echo "LEG_B_ASSERT: FAIL"
+            exit 1
+          fi
           echo "--- kill the transfer (socket death) and re-probe immediately ---"
           sudo pkill -f 'curl -s --max-time 40' || true
           sleep 1

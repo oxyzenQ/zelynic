@@ -18,11 +18,19 @@ pub mod display;
 #[cfg(feature = "ebpf")]
 pub mod display_json;
 #[cfg(feature = "ebpf")]
+mod display_json_recwn;
+#[cfg(feature = "ebpf")]
 mod display_json_ring;
 #[cfg(feature = "ebpf")]
 mod display_lines;
+// night-verify-final (schema v33): the RECWN lane's derivation and
+// line, split out of display.rs at the 600-LOC owner cap (the
+// display_lines discipline — display.rs re-exports the items, the
+// paths ride unchanged).
 #[cfg(feature = "ebpf")]
 pub(crate) mod display_order;
+#[cfg(feature = "ebpf")]
+mod display_recwn;
 #[cfg(feature = "ebpf")]
 pub mod embedded;
 pub mod host_caps;

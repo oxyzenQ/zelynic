@@ -249,6 +249,12 @@ fn window_json(win: &PolicyWindowRaw, wall_now: u64, mono_now: u64) -> WindowJso
 /// "Not::not"` becomes the false branch, `Option::is_none` the None
 /// branch; plain Options ride JSON null). Field names are the pinned
 /// scripting contract (docs/USAGE.md JSON reference).
+// night-verify-final (schema v33): the recwn_limits object's own
+// file (the display_lines discipline — the parent rode the 600-LOC
+// owner cap when the v33 field joined; the type is re-imported so
+// every existing path rides unchanged).
+use super::display_json_recwn::RecwnLimitsJson;
+
 impl StatusJson {
     fn write_json(&self, out: &mut String) {
         use crate::json::write::{write_array, write_number, write_string};
@@ -403,35 +409,6 @@ impl WindowJson {
     }
 }
 
-impl RecwnLimitsJson {
-    fn write_json(&self, out: &mut String) {
-        use crate::json::write::write_number;
-
-        out.push_str("{\"enabled\":");
-        out.push_str(if self.enabled { "true" } else { "false" });
-        // The additive-field rule: a window the lane is not shaping
-        // is absent, never a fabricated zero (the enabled:false
-        // shape — the lane rides the object but no download policy
-        // stands).
-        if let Some(window) = self.window_bytes {
-            out.push_str(",\"window_bytes\":");
-            write_number(out, window);
-        }
-        out.push_str(",\"rtt_estimate_us\":");
-        write_number(out, self.rtt_estimate_us);
-        // night-verify-final (schema v33): the binding policy's
-        // measured-srtt high-water, additive and honestly absent —
-        // an unmeasured lane omits the field exactly the way an
-        // unshaped window omits window_bytes (the pinned v32 wire
-        // shapes ride unchanged byte for byte).
-        if let Some(srtt) = self.measured_srtt_us {
-            out.push_str(",\"measured_srtt_us\":");
-            write_number(out, srtt);
-        }
-        out.push('}');
-    }
-}
-
 #[derive(Debug, Clone)]
 struct LimitEntry {
     cgroup_id: u32,
@@ -547,24 +524,6 @@ struct StatusJson {
     /// rule). Absent wholesale when the sock_ops program is not
     /// planted (clean state, stale pins).
     recwn_limits: Option<RecwnLimitsJson>,
-}
-
-/// The RECWN lane's JSON object (see [`StatusJson::recwn_limits`]).
-#[derive(Debug, Clone)]
-struct RecwnLimitsJson {
-    /// Whether a live download policy stands for the lane to shape.
-    enabled: bool,
-    /// The binding receive window in bytes (the minimum across
-    /// active download policies) — present only when enabled.
-    window_bytes: Option<u64>,
-    /// The Layer 1 RTT assumption the window derived from (us).
-    rtt_estimate_us: u32,
-    /// The binding policy's measured-srtt high-water (us;
-    /// night-verify-final, schema v33) — the measured half of the
-    /// window derivation when it stands. Absent while unmeasured:
-    /// the honest absence, never a fabricated zero (the pinned v32
-    /// wire shapes ride unchanged).
-    measured_srtt_us: Option<u64>,
 }
 
 // The status-JSON pins (the hunt-22 field/wording/count contracts
