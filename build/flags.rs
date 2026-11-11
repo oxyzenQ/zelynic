@@ -60,8 +60,19 @@ pub(crate) fn strip_host_poison_rustflags(cmd: &mut std::process::Command) {
 /// v3 bytecode is alu32 (kernel 5.1+), far inside the 5.15.0 verified
 /// floor; the flag changes nothing for code that uses no atomics
 /// (the observer object is byte-identical either way).
+///
+/// night-T-4 (schema v32) added the second member of the set: the
+/// sk-storage hint maps are BTF maps (the #[btf_map] .maps section),
+/// and aya-obj refuses to parse a .maps section out of an object
+/// with no BTF ("no BTF parsed for object") — the lean no-debuginfo
+/// default the phase-2 evaluation measured emitted none. The BTF
+/// pair (-C debuginfo=2 feeding bpf-linker's type data, the --btf
+/// link-arg emitting the section) joins the forced merge so both
+/// rustflags routes — config file and env shadow — deliver the same
+/// three flags; the aya-build parity shape the config comment
+/// carried since phase 2.
 pub(crate) fn force_bpf_v3_rustflags(cmd: &mut std::process::Command) {
-    const FLAG: &str = "-Ctarget-cpu=v3";
+    const FLAGS: [&str; 3] = ["-Ctarget-cpu=v3", "-Cdebuginfo=2", "-Clink-arg=--btf"];
     // Snapshot the two rustflags channels the poison strip may have
     // left on the command (explicit sets only — an inherited-but-
     // untouched variable is not in get_envs, and that case needs no
@@ -82,12 +93,16 @@ pub(crate) fn force_bpf_v3_rustflags(cmd: &mut std::process::Command) {
         // The encoded variable wins over RUSTFLAGS in cargo, so when
         // both survived the strip this is the one to amend
         // (separator: 0x1F).
-        value.push("\u{1f}");
-        value.push(FLAG);
+        for flag in FLAGS {
+            value.push("\u{1f}");
+            value.push(flag);
+        }
         cmd.env("CARGO_ENCODED_RUSTFLAGS", value);
     } else if let Some(mut value) = plain {
-        value.push(" ");
-        value.push(FLAG);
+        for flag in FLAGS {
+            value.push(" ");
+            value.push(flag);
+        }
         cmd.env("RUSTFLAGS", value);
     }
     // Neither variable set: the nested cargo reads the v3 flag from

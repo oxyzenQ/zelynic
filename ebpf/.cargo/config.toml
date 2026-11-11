@@ -26,12 +26,15 @@
 #     bpf-linker from PATH fails the build with
 #     "error: linker 'bpf-linker' not found" -- no silent fallback.
 #
-# BTF / debug info (aya-build parity flags) are NOT enabled by
-# default: both objects (observer, limiter) use legacy map
-# definitions and need no CO-RE introspection. Phase 2 kept this
-# lean default (the BTF variant is measured in the evaluation doc,
-# not shipped). To build it:
-#   RUSTFLAGS='-Cdebuginfo=2 -Clink-arg=--btf' cargo +nightly build
+# BTF / debug info (the aya-build parity flags) are ON since
+# night-T-4's schema v32: the sk-storage hint maps are BTF maps (the
+# #[btf_map] .maps section), and aya-obj refuses a .maps section out
+# of an object with no BTF ("no BTF parsed for object") — the lean
+# no-debuginfo default the phase-2 evaluation measured emitted none.
+# The pair rides BOTH rustflags routes: this config supplies it on a
+# clean build, and build.rs's force_bpf_v3_rustflags appends it when
+# an env RUSTFLAGS shadow is live (CI's -D warnings), so both routes
+# agree — the same two-delivery-routes law the v3 flag above owns.
 
 [build]
 target = "bpfel-unknown-none.json"
@@ -44,7 +47,7 @@ target = "bpfel-unknown-none.json"
 # build with an inherited RUSTFLAGS env (CI's "-D warnings"), env
 # shadows config — that path force-merges the same flag in
 # build.rs (force_bpf_v3_rustflags), so both routes agree.
-rustflags = ["-C", "target-cpu=v3"]
+rustflags = ["-C", "target-cpu=v3", "-C", "debuginfo=2", "-C", "link-arg=--btf"]
 
 [unstable]
 build-std = ["core"]
