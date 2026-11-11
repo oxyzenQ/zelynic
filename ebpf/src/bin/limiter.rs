@@ -392,6 +392,11 @@ mod enforce;
 mod enforce_helpers;
 #[path = "../schema.rs"]
 mod schema;
+// The schema ledger's history half (night-T-3's 600-line split): a
+// doc-only sibling declared beside its anchor in this crate's own
+// #[path] family — zero items, zero codegen, rustfmt-checked.
+#[path = "../schema_ledger.rs"]
+mod schema_ledger;
 
 use enforce::try_enforce;
 // socket_flow's ECN rescue call rides super:: — the fn now lives in

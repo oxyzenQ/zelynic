@@ -41,6 +41,12 @@ mod reclaim;
 mod recwn;
 mod resolve;
 mod schema;
+// The schema ledger's history half (night-T-3's 600-line split): a
+// doc-only sibling module of schema.rs, declared the standard way —
+// the test-tree discipline reserves src/ #[path] wirings for the
+// test/ tree, and a plain sibling mod is exactly how schema.rs
+// itself is declared.
+mod schema_ledger;
 mod stats;
 pub mod types;
 mod unstrict;

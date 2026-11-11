@@ -175,8 +175,9 @@ pub const fn layer1_window(rate_bps: u64) -> u64 {
 }
 
 /// The Layer 1 RUNTIME window for one policy rate and one socket's
-/// measured srtt (microseconds — the sock_ops context's srtt_us
-/// >> 3): the measured retune's law (night-T-3, schema v31). The
+/// measured srtt (microseconds — the sock_ops context's srtt_us,
+/// shifted right by the 3-bit store the uapi field carries): the
+/// measured retune's law (night-T-3, schema v31). The
 /// cadence floor is the law's honesty anchor — a measured RTT
 /// below it (every short link, every unmeasured socket) answers
 /// the exact layer1 derivation byte for byte, and a measured RTT
