@@ -106,7 +106,7 @@ fn walk_finds_the_depth_one_domain_only() {
     let hit = find_cgroup_dir(&root, &|p| iface_cgroup_matches(p, &root, "red"));
     assert_eq!(hit, Some(vrf));
 
-    let mut impostor_root = temp_tree("walk2");
+    let impostor_root = temp_tree("walk2");
     let impostor = impostor_root.join("system.slice").join("red");
     std::fs::create_dir_all(&impostor).unwrap();
     assert_eq!(
