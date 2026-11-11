@@ -44,6 +44,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Result, anyhow, bail};
 
+use super::{cgroup_id_of, find_cgroup_dir};
+
 /// Pure: is this directory the VRF domain's cgroup? iproute2's
 /// `ip vrf exec <name>` creates the cgroup DIRECTLY under the cgroup
 /// root, so the matcher is a depth-1 law: the parent must be the
