@@ -19,12 +19,14 @@ The two sides are the two REAL builds, nothing simulated:
     leaf-anchored lookups: a socket born in a child cgroup simply
     missed the policy map and ran UNLIMITED). The legacy side comes
     from --legacy-binary, $ZELYNIC_LEGACY_BINARY, the canonical
-    release tarball staged by CI (/opt/zelynic/legacy/zelynic), or
-    the canonical AUTO-DOWNLOAD (the owner's ask: the sha512-sidecar-
-    verified fetch into a TMPDIR cache, never the repo tree;
-    --no-download keeps resolution local). Without any of them the
-    pair verdict SKIPs loudly — never a silent pass, never a false
-    fail.
+    release tarball staged by CI (/opt/zelynic/legacy/zelynic), the
+    TREE'S OWN vendored pair (legacy/ — the exact v11.0.0 release
+    bytes, verified against both checksum sidecars before a single
+    byte is extracted, no network), or the canonical AUTO-DOWNLOAD
+    as the last lane (the sha512-sidecar-verified fetch into a
+    TMPDIR cache; --no-download keeps resolution local). Without any
+    of them the pair verdict SKIPs loudly — never a silent pass,
+    never a false fail.
 
 Both sides run the IDENTICAL battery under the same fleet, the same
 server, the same traffic workers, the same bands — the only variable
@@ -150,6 +152,14 @@ LEGACY_CACHE = os.path.join(
     os.environ.get("TMPDIR") or "/tmp", "zelynic-mmspa-legacy", LEGACY_VERSION.lstrip("v")
 )
 
+# The tree's OWN vendored pair (the legacy/ vendoring): the exact
+# v11.0.0 musl release bytes the checkout carries. The CI stage
+# verifies both sidecars and extracts the pair into the guest; this
+# harness verifies the same bytes rootlessly, so the legacy side
+# needs no network anywhere.
+LEGACY_TREE_DIR = os.path.normpath(os.path.join(_HERE, "..", "..", "legacy"))
+LEGACY_TREE_TARBALL = "zelynic-v11.0.0-linux-amd64-v3-musl.tar.gz"
+
 
 def verify_sha512(path, expected_hex):
     """Streaming sha512 over a file — the same arithmetic the CI rootfs
@@ -163,6 +173,28 @@ def verify_sha512(path, expected_hex):
         for block in iter(lambda: f.read(1 << 16), b""):
             digest.update(block)
     return digest.hexdigest() == expected_hex.lower()
+
+
+def verify_b3sum_cli(path, expected_hex):
+    """The .b3sum arm — the official b3sum CLI when the host carries
+    it (Ubuntu 24.04+ ships the package; VERIFY_RELEASE's fast lane).
+
+    Three-state on purpose: None when the TOOL is absent (the
+    sha512sum sidecar still binds the bytes — a missing verifier is a
+    note, never a false pass), False on a digest mismatch (a hard
+    finding — the vendored pair is refused), True on a match. Pure
+    rootless: one subprocess, no network, no writes.
+    """
+    b3 = shutil.which("b3sum")
+    if b3 is None:
+        return None
+    try:
+        p = subprocess.run([b3, path], capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    if p.returncode != 0 or not p.stdout:
+        return False
+    return p.stdout.split()[0].lower() == expected_hex.lower()
 
 
 def fetch_legacy():
@@ -214,6 +246,60 @@ def fetch_legacy():
             return None, f"canonical tarball extraction failed ({e})"
         os.chmod(inner, 0o755)
     return inner, f"{LEGACY_URL} — sha512 sidecar verified, cached at {inner}"
+
+
+def fetch_legacy_vendored():
+    """The tree's OWN pair first (the legacy/ vendoring): the exact
+    v11.0.0 release bytes the checkout carries, verified against BOTH
+    sidecars — the release's own .sha512sum verbatim (hashlib, the
+    same arithmetic verify_sha512 pins) and the vendored .b3sum when
+    the host has the b3sum CLI — before a single byte is extracted.
+    No network, no repo-tree writes: the extraction lands in the same
+    per-version TMPDIR cache the auto-download uses, so the -V gate
+    reads a checksummed extraction either way.
+
+    Returns (path, note) on success, or (None, reason) when the pair
+    is absent, incomplete, or fails a digest — the caller falls
+    through to the canonical auto-download with the reason attached.
+    """
+    os.makedirs(LEGACY_CACHE, exist_ok=True)
+    tarball = os.path.join(LEGACY_TREE_DIR, LEGACY_TREE_TARBALL)
+    if not os.path.isfile(tarball):
+        return None, f"the checkout carries no vendored legacy pair ({tarball} absent)"
+    sidecar = tarball + ".sha512sum"
+    b3sidecar = tarball + ".b3sum"
+    for candidate in (sidecar, b3sidecar):
+        if not os.path.isfile(candidate):
+            return None, "the vendored pair is missing a checksum sidecar"
+    with open(sidecar, encoding="ascii") as f:
+        line = f.read().strip()
+    expected = line.split()[0] if line else ""
+    if not verify_sha512(tarball, expected):
+        return None, "the vendored tarball failed its sha512sum sidecar"
+    with open(b3sidecar, encoding="ascii") as f:
+        b3line = f.read().strip()
+    b3_expected = b3line.split()[0] if b3line else ""
+    b3_state = verify_b3sum_cli(tarball, b3_expected)
+    if b3_state is False:
+        return None, "the vendored tarball failed its b3sum sidecar"
+    b3_note = (
+        "b3sum cross-checked"
+        if b3_state
+        else "b3sum absent on this host (the sha512sum sidecar binds the bytes)"
+    )
+    inner = os.path.join(LEGACY_CACHE, LEGACY_INNER)
+    try:
+        with tarfile.open(tarball) as tf:
+            # getmember by the literal inner name: the extraction
+            # cannot walk out of the cache dir by construction.
+            member = tf.getmember(LEGACY_INNER)
+            tf.extract(member, LEGACY_CACHE, filter="data")
+    except (tarfile.TarError, OSError) as e:
+        return None, f"vendored tarball extraction failed ({e})"
+    os.chmod(inner, 0o755)
+    return inner, (
+        f"the tree's vendored pair ({LEGACY_TREE_TARBALL}) — sha512 verified, {b3_note}"
+    )
 
 
 def classify(measured_bps, configured_bps):
@@ -307,8 +393,10 @@ def _legacy_banner(cand):
 def resolve_legacy(explicit, download=True):
     """The LEGACY side: --legacy-binary, then $ZELYNIC_LEGACY_BINARY,
     then the canonical release tarball staged by CI (/opt/zelynic/
-    legacy/zelynic — the rootfs assembly step fetches it), then the
-    canonical AUTO-DOWNLOAD as the last lane (the owner's ask: the
+    legacy/zelynic — the rootfs assembly extracts the tree's vendored
+    pair there), then the TREE'S OWN vendored pair (legacy/ — both
+    checksum sidecars verified before a byte is extracted, no
+    network), then the canonical AUTO-DOWNLOAD as the last lane (the
     sha512-verified fetch into a TMPDIR cache; --no-download keeps
     resolution local). A file that exists but does not execute is a
     hard FAIL, not a skip: a broken legacy binary would turn the
@@ -342,11 +430,20 @@ def resolve_legacy(explicit, download=True):
         if reason:
             return cand, reason, None
         return cand, None, first
-    # Nothing local — the auto-download is the last lane (CI never
-    # reaches it: the rootfs step stages the binary and the loop
-    # above already returned).
+    # Nothing local — the tree's own vendored pair next (no network:
+    # both sidecars verified before a byte is extracted), then the
+    # canonical auto-download as the last lane. CI never reaches
+    # either: the rootfs step stages the binary and the loop above
+    # already returned.
     fetch_note = "auto-download disabled (--no-download)"
     if download:
+        vendored, vendored_note = fetch_legacy_vendored()
+        if vendored:
+            first, reason = _legacy_banner(vendored)
+            if reason is None:
+                return vendored, None, first
+            # Vendored but broken — the same hard-FAIL marker: it exists.
+            return vendored, reason, None
         fetched, fetch_note = fetch_legacy()
         if fetched:
             first, reason = _legacy_banner(fetched)
@@ -354,11 +451,13 @@ def resolve_legacy(explicit, download=True):
                 return fetched, None, first
             # Fetched but broken — the same hard-FAIL marker: it exists.
             return fetched, reason, None
+        fetch_note = f"the vendored pair unusable ({vendored_note}); then {fetch_note}"
     hint = explicit or env or LEGACY_URL
     return (
         None,
         f"no legacy binary (tried --legacy-binary / $ZELYNIC_LEGACY_BINARY / "
-        f"/opt/zelynic/legacy/zelynic / the canonical auto-download ({fetch_note}); "
+        f"/opt/zelynic/legacy/zelynic / the tree's vendored pair / "
+        f"the canonical auto-download ({fetch_note}); "
         f"canonical source: {hint})",
         None,
     )

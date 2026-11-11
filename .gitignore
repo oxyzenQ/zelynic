@@ -45,7 +45,9 @@ __pycache__/
 *.pyc
 .ruff_cache
 
-# Legacy release binaries for the vs-legacy harness
-# (scripts/bench/quota-saver-ab-vs-legacy.sh auto-downloads the pinned
-# release tarball here; a test artifact, never tracked)
-/legacy/
+# The vs-legacy bench harness (scripts/bench/quota-saver-ab-vs-legacy.sh)
+# installs its auto-downloaded release binary here — a test artifact,
+# never tracked. The VENDORED pair beside it (the v11.0.0 tarball and
+# its checksum sidecars, the MMSPA A/B counterfactual) IS tracked —
+# see legacy/README.md.
+/legacy/zelynic
