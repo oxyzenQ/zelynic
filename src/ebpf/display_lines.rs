@@ -339,14 +339,18 @@ pub(crate) fn recwn_line(lane: &super::display::RecwnLane) -> Option<String> {
     }
     let window = lane.window_bytes?;
     let n = lane.binding_policies;
-    // night-verify-final (schema v33): the rtt clause names its
-    // source honestly — a binding policy whose sockets have sampled
-    // prints the MEASURED srtt high-water (the number the window
-    // derivation itself rode), an unmeasured one keeps the v25
-    // cadence estimate under its est. name.
+    // night-verify-final (schema v33): the rtt clause names the rtt
+    // the WINDOW derived from — a binding policy whose high-water
+    // tops the cadence floor prints the MEASURED srtt (the number
+    // the extension itself rode), every other shape keeps the v25
+    // cadence estimate under its est. name. The JSON reports the
+    // raw sample regardless — recwn_limits.measured_srtt_us is the
+    // measurement's own contract, this clause is the window's.
     let (rtt_label, rtt_ms) = match lane.measured_srtt_us {
-        Some(srtt) => ("measured RTT", srtt / 1000),
-        None => (
+        Some(srtt) if srtt > u64::from(super::display::RECWN_RTT_ESTIMATE_US) => {
+            ("measured RTT", srtt / 1000)
+        }
+        _ => (
             "est. RTT",
             u64::from(super::display::RECWN_RTT_ESTIMATE_US) / 1000,
         ),

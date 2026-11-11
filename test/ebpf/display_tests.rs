@@ -554,6 +554,20 @@ fn recwn_line_pins_the_owner_wording_and_stays_silent_when_unshaping() {
         "  RECWN window: 30.0 KB (binding across 1 download policy; measured RTT 300ms)",
         "the measured extension names its own rtt"
     );
+    // The sub-floor shapes keep the est. name — the window derived
+    // from the cadence floor, whatever the row's raw sample says
+    // (the JSON reports the sample; this clause is the window's).
+    assert_eq!(
+        recwn_line(&RecwnLane {
+            planted: true,
+            window_bytes: Some(20_000),
+            binding_policies: 1,
+            measured_srtt_us: Some(102),
+        })
+        .unwrap(),
+        "  RECWN window: 20.0 KB (binding across 1 download policy; est. RTT 200ms)",
+        "a sub-floor sample never renames the floor's own derivation"
+    );
     // The dormant shapes: not planted, or planted with no window to
     // shape — silence, never noise.
     assert!(
