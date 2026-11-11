@@ -132,6 +132,22 @@
 > the Summary row says what it proves, no more (no 17/17 or 13/13
 > numbers are claimed for it; the depth and leak batteries remain the
 > kernel-span lanes' own jurisdiction).
+>
+> Addendum 4 — the live runtime-verification lane (night-verify-final,
+> 2026-11-12): the Supermassive Verify lane
+> (.github/workflows/supermassive-verify.yml) joins the family as the
+> one lane that proves the four innovations' RUNTIME behavior on a
+> privileged host instead of their source shape: doctor FULL-LIFE on a
+> root-capable ubuntu-24.04 runner (kernel 6.x/7.x, cgroup v2 unified,
+> /sys/fs/bpf mounted — no KVM needed, the runner IS the micro-VM), the
+> v31 measured-RTT retune read off the limited socket itself
+> (`ss -tipm`'s skmem rcvbuf across a 30 ms and a 300 ms netem leg, plus
+> the status JSON's `measured_srtt_us` assertion), the quota-saver A/B
+> ground truth over the 30 s overrun legs, the v32 ghost-row and pin
+> hygiene checks, and the netns:// and iface:// resolvers' honest
+> refusals verbatim. Gated behind the family's night train (20:00 UTC,
+> the e2e lane's cadence) and the workflow_dispatch click — no push
+> trigger, per-push CI stays fast.
 
 ## Summary
 
