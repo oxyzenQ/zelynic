@@ -202,10 +202,11 @@ fn pace_apply(ctx: &SockOpsContext) -> u32 {
     // The generation belt (the sweep's replacement, night-T-4): a
     // row primed under a retired generation answers nothing. The
     // seq-lock read order: gen first, then the rate the accepted
-    // gen pairs with. SAFETY: plain field loads inside the
-    // returned storage value, the addr_of projection the house
-    // READ_ONCE discipline pins, valid for the invocation.
+    // gen pairs with.
     let row_ptr = row.cast::<PaceHint>();
+    // SAFETY: plain field loads inside the returned storage value,
+    // the addr_of projection the house READ_ONCE discipline pins,
+    // valid for the invocation.
     let row_gen = unsafe { core::ptr::addr_of!((*row_ptr).generation).read_volatile() };
     if row_gen != current_generation() {
         return 0;
@@ -307,12 +308,12 @@ pub(crate) fn pace_prime(sk: *mut bpf_sock, rate_bps: u64) {
     // order the recwn twin's header owns. The two volatile stores
     // are idempotent under the prime race (both CPUs resolve the
     // same policy, both write the same pair).
-    // SAFETY: the row pointer the helper returned — the same
-    // stable-memory value contract the read path rides; each
-    // addr_of projection touches one field, and the two stores
-    // never alias as borrows.
     let row_ptr = row.cast::<PaceHint>();
+    // SAFETY: the row pointer the helper returned — the same
+    // stable-memory value contract the read path rides, valid for
+    // the invocation.
     let cur_rate = unsafe { core::ptr::addr_of!((*row_ptr).rate).read_volatile() };
+    // SAFETY: the same row, the same invocation window.
     let cur_gen = unsafe { core::ptr::addr_of!((*row_ptr).generation).read_volatile() };
     if cur_rate != rate_bps || cur_gen != gen_now {
         // SAFETY: the same row, the rate store first.
