@@ -202,7 +202,7 @@ bills them — the one knob that answers README limitation #15's
 physics (a dropped download saves no quota; a slowed sender does).
 The lane rides the limiter object's first sock_ops program
 (`zelynic_recwn`, attached at the cgroup root beside the two
-enforcement hooks) and one pinned cookie-keyed LRU hint map. Two
+enforcement hooks) and one pinned socket-local hint map. Two
 kernel truths shaped the build, both verified against v5.15
 source: the `BPF_SOCK_OPS_RWND_INIT` return value is an MSS
 multiplier where 0 is the OS default (returning the sketched
@@ -212,9 +212,9 @@ machine to one segment — the program answers 0 and
 sock_ops on the 5.15 floor cannot resolve its own cgroup
 (`bpf_get_current_cgroup_id` is absent from `sock_ops_func_proto`)
 — so the ingress enforcement hook, which resolves every packet's
-socket cgroup exactly, primes the cookie hint on the policed path
-(one LRU lookup, steady state no write), and the program reads it
-back at the connection callbacks. Active connecters — the
+socket cgroup exactly, primes the socket-local hint on the policed
+path (one sk_storage lookup, steady state no write), and the
+program reads it back at the connection callbacks. Active connecters — the
 download-quota case — clamp at establishment; rate changes
 re-apply within one RTT on sockets whose establishment armed the
 RTT_CB flag; the unpoliced majority pays nothing. The status
@@ -240,16 +240,36 @@ delayed-ACK band at 145-160 ms, topping at 200 ms): every short
 link and every unmeasured socket answers the exact v25 window byte
 for byte, a link longer than the band — the satellite class the
 fixed floor under-admitted at `rate x 200 ms` — derives its true
-pipe, and the [2 x MSS, 1 MiB] band, the removal sweep, and the
-status schema stay exactly as they were. The sk_storage migration
-the cookie maps invite stays a documented deferral, not an
-oversight: sk_storage entries cannot be enumerated from userspace
-(no bpf_iter for them on the 5.13 floor), so the removal sweep —
-this lane's own invalidation contract — would regress without a
-per-socket epoch redesign, and the pinned aya-ebpf 0.2.1 map
-surface carries no sk_storage bindings to begin with; the LRU
-rows' cost is one lookup per packet and the false-eviction class
-is the hint map's documented best-effort shape.
+pipe, and the [2 x MSS, 1 MiB] band, the status schema stay exactly as
+they were. night-T-4 (schema v32) landed the migration that
+night-T-3 deferred — the sk-storage architectural deepening: the
+hint left the cookie-keyed LRU-4096 world for
+`BPF_MAP_TYPE_SK_STORAGE`, the row hanging off the kernel's own
+`struct sock` (`bpf_sk_storage_get`, the `#[btf_map]` .maps
+section, `BPF_F_NO_PREALLOC`). The row pairs the policy rate with
+the MMSPA GENERATION the prime ran under, and every callback
+compares it against the live generation — the generation belt
+REPLACES the removal sweep (the flush lanes retired; the sweep's
+enumeration problem dissolves because nothing needs enumerating
+anymore). The kernel floor carries it — `cg_skb_func_proto` and
+`sock_ops_func_proto` both list `bpf_sk_storage_get/delete` since
+v5.9 (verified v5.13 + v5.15 net/core/filter.c), the helper's own
+`sk_fullsock` guard answers NULL on request/timewait socks (the
+same miss posture the cookie-0 skip was) — and the gains are the
+brief's own: no hash to pay at the callback (one list walk on the
+socket's local-storage chain), no LRU cap to fake-evict a live
+connection under, no cookie-reuse ambiguity, rows die with the
+socket (kernel GC, no aging lane), and a policy removal heals on
+the very FIRST callback — the v25 removal blind spot is closed,
+not swept. What did NOT move and why: a sock_ops hint row is
+genuine socket-identity state (the setsockopt lands on THE socket
+the row hangs off), while the other cookie-keyed maps key finer
+or coarser identities — `quic_cid_hint` keys the per-CONVERSATION
+CID geometry (a QUIC connection migrates across sockets;
+sk_storage would break the multiplexing budget the v22 promise
+restored), the `ecn_debt` words key the per-BUDGET identity, the
+cake/drr flow maps key the scheduler's own flow identities — each
+stays a hash map with its own aging law.
 
 **15. Egress socket pacing** (schema v27, night-spark-5 — the
 quota saver's Layer 3). The egress twin of the receive-window
@@ -258,8 +278,9 @@ sockets as `SO_MAX_PACING_RATE` (SOL_SOCKET option 47, the rate
 in bytes per second) by the object's second sock_ops program
 (`zelynic_pace`, the loader's fourth program/link pair beside the
 two enforcement hooks and the RECWN twin) plus one pinned
-cookie-keyed LRU hint map (`pace_socket_hint`, the
-`recwn_socket_hint` posture). The kernel's own TCP pacer then
+socket-local hint map (`pace_socket_hint`, the
+`recwn_socket_hint` posture — sk-storage since night-T-4's
+schema v32, the recwn twin's migration verbatim). The kernel's own TCP pacer then
 spaces the outgoing stream at the policy's byte rate BEFORE the
 link bills the bytes — no tc, no fq, no nftables anywhere: the
 stack's internal pacer (net/ipv4/tcp_output.c's
@@ -273,8 +294,9 @@ floor), active connecters pace from establishment (the SYN's
 egress primes the cookie before ACTIVE_ESTABLISHED_CB dispatches
 — the un-paced exposure is the handshake itself), rate changes
 re-apply within one RTT on sockets whose establishment armed the
-RTT_CB flag, and every policy removal sweeps the hint map whole
-(limiter/pace.rs, the recwn sweep posture, best-effort). The
+RTT_CB flag, and a policy removal heals on the very first callback (the
+generation belt — the sweep night-T-3's doc carried retired with
+schema v32). The
 pure law (`ebpf/src/pace.rs pacing_decision`) is pinned
 rootlessly by `pace_tests.rs` — the simulated sock_ops call
 shapes and the exact rate the wiring hands `bpf_setsockopt`.

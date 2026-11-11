@@ -157,7 +157,7 @@ mod during;
 // night-spark-2 (RECWN, Receive Window Control — schema v25, Layer
 // 1 of the quota saver): the pure window law lives in ../recwn.rs
 // (the same pure-core discipline the family above pins), and the
-// sock_ops program + the cookie-keyed hint map live in
+// sock_ops program + the socket-local hint map live in
 // ../recwn_flow.rs — the aya-touching split, the socket_flow
 // precedent one feature over. The program attaches at the cgroup
 // root beside the two enforcement hooks (the loader's third lane)
@@ -171,7 +171,7 @@ mod recwn_flow;
 // night-spark-5 (Egress Socket Pacing — schema v27, Layer 3 of the
 // quota saver): the pure pacing law lives in ../pace.rs (the same
 // pure-core discipline the family above pins), and the sock_ops
-// program + the cookie-keyed hint map live in ../pace_flow.rs — the
+// program + the socket-local hint map live in ../pace_flow.rs — the
 // recwn_flow precedent one layer up. The program attaches at the
 // cgroup root beside the two enforcement hooks and the RECWN twin
 // (the loader's fourth lane) and reads the hint the EGRESS hook

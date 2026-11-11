@@ -268,7 +268,16 @@ fn test_schema_version_constant() {
     // required, not polite: a pinned v30 row holds WINDOW bytes,
     // which a v31 reader would misread as a RATE — the forced
     // reload wipes the stale rows.
-    assert_eq!(SCHEMA_VERSION_EXPECTED, 31);
+    // v32 (night-T-4, the sk-storage migration): recwn_socket_hint
+    // and pace_socket_hint leave the cookie-keyed LRU-4096 maps
+    // for BPF_MAP_TYPE_SK_STORAGE — the rows hang off the kernel's
+    // own struct sock, the value pairs the rate with the MMSPA
+    // generation (the belt that replaces the retired whole-map
+    // removal sweeps). The bump is required, not polite: the
+    // pinned v31 rows are LRU-map bytes a v32 loader would open as
+    // sk_storage, a different map TYPE entirely — the forced
+    // reload wipes the stale pins.
+    assert_eq!(SCHEMA_VERSION_EXPECTED, 32);
 }
 
 // ── night-spark-4, schema v26: the CE ledger's layout pins ─────────

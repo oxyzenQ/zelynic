@@ -47,7 +47,47 @@
 ///     RATE — the forced reload wipes the stale rows (active limits
 ///     are dropped once, re-apply after upgrade, the same one-time
 ///     contract as every bump before it).
-pub const SCHEMA_VERSION_EXPECTED: u32 = 31;
+/// v32 (night-T-4, the sk-storage migration — architectural
+///     deepening): recwn_socket_hint and pace_socket_hint leave the
+///     cookie-keyed LRU-4096 world for BPF_MAP_TYPE_SK_STORAGE —
+///     the row hangs off the kernel's own struct sock
+///     (bpf_sk_storage_get, BPF_F_NO_PREALLOC, max_entries 0; the
+///     BTF map rides the #[btf_map] .maps section). The value
+///     pairs the policy rate with the MMSPA GENERATION the prime
+///     ran under, and every callback compares it against the live
+///     generation (the mmspa_generation word every policy mutation
+///     already bumps) — the generation belt replaces the whole-map
+///     removal sweeps (limiter/recwn.rs and limiter/pace.rs's
+///     flush lanes RETIRED with this bump; userspace never opens
+///     either map again, the PIN_MAP_*_HINT constants are gone).
+///     The kernel floor carries it: cg_skb_func_proto and
+///     sock_ops_func_proto both list bpf_sk_storage_get/delete
+///     since v5.9 (verified v5.13 + v5.15 net/core/filter.c),
+///     arg2 is ARG_PTR_TO_BTF_ID_SOCK_COMMON, the helper's own
+///     sk_fullsock guard answers NULL on request/timewait socks —
+///     the same miss posture the cookie-0 skip was. What moved and
+///     why ONLY these two: a sock_ops hint row is genuine
+///     socket-identity state (the setsockopt lands on THE socket
+///     the row hangs off), while the other cookie-keyed maps key
+///     finer or coarser identities — quic_cid_hint keys the
+///     per-CONVERSATION CID geometry (a QUIC connection migrates
+///     across sockets; sk_storage would break the multiplexing
+///     budget the v22 promise restored), the ecn_debt words key
+///     the per-BUDGET generation-prefixed identity, and the
+///     cake/drr flow maps key the scheduler's own flow identities
+///     — each stays a hash map with its own aging law. The gains:
+///     no hash to pay at the callback (one list walk on the
+///     socket's local-storage chain), no LRU cap to fake-evict a
+///     live connection under, no cookie-reuse ambiguity, rows die
+///     with the socket (kernel GC), and a policy removal heals on
+///     the very first callback — the v25 removal blind spot is
+///     closed, not swept. The bump is REQUIRED, not polite: the
+///     pinned v31 rows are LRU-map bytes a v32 loader would open
+///     as sk_storage (a different map TYPE entirely) — the forced
+///     reload wipes the stale pins (active limits are dropped
+///     once, re-apply after upgrade, the same one-time contract
+///     as every bump before it).
+pub const SCHEMA_VERSION_EXPECTED: u32 = 32;
 
 #[cfg(test)]
 #[path = "../../../test/ebpf/limiter/schema_sync_pin_tests.rs"]

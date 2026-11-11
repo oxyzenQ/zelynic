@@ -106,18 +106,6 @@ impl super::Limiter {
                     // rollback verdict.
                     let rolled_back = self.rollback_mutations(&mutations, &window_mutations, cause);
                     self.mmspa_memo_invalidate_best_effort();
-                    // night-spark-2 (RECWN, schema v25): the hint-map
-                    // sweep rides the same mutation tail — removals and
-                    // unset-leg deletes leave stale receive-window hints
-                    // the ingress path no longer overwrites (additions and
-                    // rate changes self-heal through the upsert).
-                    self.recwn_hint_invalidate_best_effort();
-                    // The pacing hint's twin sweep (night-spark-5, schema v27): a
-                    // removed upload policy's stale pacing rate is the same
-                    // removal-blind-spot shape the recwn hint rides — the egress
-                    // path stops re-priming, so the row would linger until the LRU
-                    // ages it out.
-                    self.pace_hint_invalidate_best_effort();
                     return Err(rolled_back);
                 }
             }
@@ -152,18 +140,6 @@ impl super::Limiter {
         // stale — the walk sees only the live map, so the generation
         // bump makes the addition visible; once per invocation.
         self.mmspa_memo_invalidate_best_effort();
-        // night-spark-2 (RECWN, schema v25): the hint-map
-        // sweep rides the same mutation tail — removals and
-        // unset-leg deletes leave stale receive-window hints
-        // the ingress path no longer overwrites (additions and
-        // rate changes self-heal through the upsert).
-        self.recwn_hint_invalidate_best_effort();
-        // The pacing hint's twin sweep (night-spark-5, schema v27): a
-        // removed upload policy's stale pacing rate is the same
-        // removal-blind-spot shape the recwn hint rides — the egress
-        // path stops re-priming, so the row would linger until the LRU
-        // ages it out.
-        self.pace_hint_invalidate_best_effort();
 
         Ok(applied)
     }
@@ -350,18 +326,6 @@ impl super::Limiter {
                     // restorations.
                     let rolled_back = self.rollback_mutations(&mutations, &window_mutations, cause);
                     self.mmspa_memo_invalidate_best_effort();
-                    // night-spark-2 (RECWN, schema v25): the hint-map
-                    // sweep rides the same mutation tail — removals and
-                    // unset-leg deletes leave stale receive-window hints
-                    // the ingress path no longer overwrites (additions and
-                    // rate changes self-heal through the upsert).
-                    self.recwn_hint_invalidate_best_effort();
-                    // The pacing hint's twin sweep (night-spark-5, schema v27): a
-                    // removed upload policy's stale pacing rate is the same
-                    // removal-blind-spot shape the recwn hint rides — the egress
-                    // path stops re-priming, so the row would linger until the LRU
-                    // ages it out.
-                    self.pace_hint_invalidate_best_effort();
                     return Err(rolled_back);
                 }
             }
@@ -385,18 +349,6 @@ impl super::Limiter {
         // generation-stamped by NIGHT-perf-0) — same
         // once-per-invocation tail as apply_single's.
         self.mmspa_memo_invalidate_best_effort();
-        // night-spark-2 (RECWN, schema v25): the hint-map
-        // sweep rides the same mutation tail — removals and
-        // unset-leg deletes leave stale receive-window hints
-        // the ingress path no longer overwrites (additions and
-        // rate changes self-heal through the upsert).
-        self.recwn_hint_invalidate_best_effort();
-        // The pacing hint's twin sweep (night-spark-5, schema v27): a
-        // removed upload policy's stale pacing rate is the same
-        // removal-blind-spot shape the recwn hint rides — the egress
-        // path stops re-priming, so the row would linger until the LRU
-        // ages it out.
-        self.pace_hint_invalidate_best_effort();
 
         if crate::output::verbose::enabled() {
             for line in group_apply_lines(group_id, rates, all_cgroup_ids.len()) {

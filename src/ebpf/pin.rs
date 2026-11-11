@@ -30,12 +30,6 @@ pub const PIN_LINK_UL: &str = "/sys/fs/bpf/zelynic/enforce_ul_link";
 /// attachment at the cgroup root — the loader's third pair.
 pub const PIN_LINK_RECWN: &str = "/sys/fs/bpf/zelynic/zelynic_recwn_link";
 
-/// The RECWN socket-hint map pin (night-spark-2): the cookie-keyed
-/// LRU the ingress hook primes and the sock_ops program reads.
-/// Userspace never reads a row — it only sweeps the whole map on
-/// policy removals (limiter/recwn.rs), the MMSPA flush posture.
-pub const PIN_MAP_RECWN_HINT: &str = "/sys/fs/bpf/zelynic/recwn_socket_hint";
-
 /// The pacing program pin (night-spark-5, schema v27 — the sock_ops
 /// lane, the quota saver's Layer 3): the egress-pacing program that
 /// rides the limiter object beside the two enforcement hooks and
@@ -45,12 +39,6 @@ pub const PIN_PROG_PACE: &str = "/sys/fs/bpf/zelynic/zelynic_pace";
 /// The pacing link pin (night-spark-5): the BPF_CGROUP_SOCK_OPS
 /// attachment at the cgroup root — the loader's fourth pair.
 pub const PIN_LINK_PACE: &str = "/sys/fs/bpf/zelynic/zelynic_pace_link";
-
-/// The pacing socket-hint map pin (night-spark-5): the cookie-keyed
-/// LRU the egress hook primes and the sock_ops program reads.
-/// Userspace never reads a row — it only sweeps the whole map on
-/// policy removals (limiter/pace.rs), the recwn sweep posture.
-pub const PIN_MAP_PACE_HINT: &str = "/sys/fs/bpf/zelynic/pace_socket_hint";
 
 /// Map pins opened directly by userspace (policy + stats + watchdog +
 /// schema version) and the individual bucket maps the unstrict/recover
