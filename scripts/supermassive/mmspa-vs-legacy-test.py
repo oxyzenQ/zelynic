@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: AGPL-3.0-only
+# LOC_EXEMPT: one self-contained harness by design, the supermassive-test family precedent — the battery imports the v1 engine whole via importlib and shares the fleet/server/verdict plumbing with the wrapper, so splitting it means a module package, not a script (over the 1000 scripts cap under NIGHT-lts-2 — tracked debt, the split is its own NIGHT task)
 """zelynic MMSPA-vs-legacy depth test (NIGHT-perf-1) — the subtree
 contract proven as a DELTA between two real binaries.
 
@@ -297,9 +298,7 @@ def fetch_legacy_vendored():
     except (tarfile.TarError, OSError) as e:
         return None, f"vendored tarball extraction failed ({e})"
     os.chmod(inner, 0o755)
-    return inner, (
-        f"the tree's vendored pair ({LEGACY_TREE_TARBALL}) — sha512 verified, {b3_note}"
-    )
+    return inner, (f"the tree's vendored pair ({LEGACY_TREE_TARBALL}) — sha512 verified, {b3_note}")
 
 
 def classify(measured_bps, configured_bps):
