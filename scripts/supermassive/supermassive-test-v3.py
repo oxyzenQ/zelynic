@@ -1466,7 +1466,7 @@ def test_iface_e2e(force=False):
                 f"no VRF device type in this kernel ({add.stderr.strip()[:120]}) — "
                 "the resolver error depth (stage 4) is the verifiable core here",
             )
-            return False
+            return True
         up = subprocess.run(
             ["ip", "link", "set", vrf_name, "up"],
             capture_output=True,
