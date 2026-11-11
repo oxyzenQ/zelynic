@@ -1240,38 +1240,66 @@ def test_netns_e2e(force=False):
                 f"mkdir {wl_cgroup} failed: {exc}",
             )
             return False
+        # The workload joins its cgroup FIRST, in the caller's mount
+        # namespace (the write is deterministic there), and only then
+        # enters the network namespace. `ip netns exec` reshapes the
+        # whole mount namespace (bind mounts, make-rslave) — a shape
+        # some runner hosts refuse; nsenter --net is the minimal
+        # setns(2) on the handle, exactly the membership the resolver
+        # reads (/proc/<pid>/ns/net), so the E2E proves the resolver's
+        # own truth with the fewest moving parts.
         workload = subprocess.Popen(
             [
-                "ip",
-                "netns",
-                "exec",
-                ns_name,
                 "bash",
                 "-c",
-                f"echo $$ > {wl_cgroup}/cgroup.procs; exec sleep 300",
+                f"echo $$ > {wl_cgroup}/cgroup.procs; "
+                f"exec nsenter --net=/run/netns/{ns_name} sleep 300",
             ],
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
         )
-        # Bounded wait for the join: the resolver reads live /proc
-        # state, so a resolve racing the join would see the workload
-        # still in the caller's cgroup (the ambiguity guard's honest
-        # refusal). 5s is generous for a fork + echo + exec.
+        # Bounded wait for the resolver's exact precondition: the pid
+        # lives in the workload cgroup AND its ns/net link reports the
+        # namespace handle's own inode (the resolver's own match). A
+        # resolve before both hold would race the honest refusals.
+        try:
+            handle_ino = os.stat(f"/run/netns/{ns_name}").st_ino
+        except OSError as exc:
+            record(
+                "netns-e2e: spawn workload in its own cgroup",
+                "FAIL",
+                f"namespace handle vanished: {exc}",
+            )
+            return False
         joined = False
         for _ in range(50):
             if workload.poll() is not None:
                 break
             try:
                 with open(os.path.join(wl_cgroup, "cgroup.procs")) as fh:
-                    if fh.read().strip():
+                    pids = [int(p) for p in fh.read().split()]
+                for pid in pids:
+                    link = os.readlink(f"/proc/{pid}/ns/net")
+                    if link == f"net:[{handle_ino}]":
                         joined = True
                         break
-            except OSError:
+            except (OSError, ValueError):
                 pass
+            if joined:
+                break
             time.sleep(0.1)
         if not joined:
             early = workload.poll() is not None
-            reason = "workload bash exited early" if early else "workload never joined cgroup.procs"
+            reason = "workload exited early" if early else "workload never reached the namespace cgroup"
+            detail = ""
+            if workload.stderr is not None:
+                try:
+                    detail = (workload.stderr.read() or "").strip()[:200]
+                except OSError:
+                    detail = ""
+            if detail:
+                reason += f"; stderr: {detail}"
             record(
                 "netns-e2e: spawn workload in its own cgroup",
                 "FAIL",
@@ -1405,9 +1433,13 @@ def test_iface_e2e(force=False):
     vrf_cgroup = f"/sys/fs/cgroup/{vrf_name}"
     workload = None
     try:
-        # Stage the VRF device (an l3mdev + its routing table).
+        # Stage the VRF device: an l3mdev + its routing table. iproute2
+        # 6.x retired the `ip vrf add` wrapper (its help lists only
+        # show/exec/identify/pids now) — the generic link grammar is
+        # the supported spelling: `ip link add <name> type vrf table N`.
+        table_id = 4242
         add = subprocess.run(
-            ["ip", "vrf", "add", vrf_name],
+            ["ip", "link", "add", vrf_name, "type", "vrf", "table", str(table_id)],
             capture_output=True,
             text=True,
             timeout=30,
@@ -1416,13 +1448,26 @@ def test_iface_e2e(force=False):
             record(
                 "iface-e2e: create vrf device",
                 "FAIL",
-                f"ip vrf add failed: {add.stderr.strip()[:200]}",
+                f"ip link add type vrf failed: {add.stderr.strip()[:200]}",
+            )
+            return False
+        up = subprocess.run(
+            ["ip", "link", "set", vrf_name, "up"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if up.returncode != 0:
+            record(
+                "iface-e2e: bring vrf device up",
+                "FAIL",
+                f"ip link set up failed: {up.stderr.strip()[:200]}",
             )
             return False
         record(
             "iface-e2e: create vrf device",
             "PASS",
-            f"vrf {vrf_name} created (l3mdev device + table)",
+            f"vrf {vrf_name} created and up (l3mdev device, table {table_id})",
         )
         # Run the workload inside the domain. `ip vrf exec` creates the
         # cgroup <vrf> directly under the cgroup root and moves the
@@ -1522,7 +1567,7 @@ def test_iface_e2e(force=False):
                 except subprocess.TimeoutExpired:
                     pass
         subprocess.run(
-            ["ip", "vrf", "del", vrf_name],
+            ["ip", "link", "del", vrf_name],
             capture_output=True,
             text=True,
             timeout=30,
