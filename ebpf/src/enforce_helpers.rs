@@ -37,6 +37,7 @@ pub(crate) fn get_stats_ptr(cgroup_id: &u32) -> Option<*mut LimiterStats> {
                 ce_marked_bytes: 0,
                 bytes_saved_by_edt: 0,
                 bytes_saved_by_ecn: 0,
+                measured_srtt_us: 0,
             };
             let _ = cgroup_limiter_stats.insert(cgroup_id, init, BPF_NOEXIST);
             cgroup_limiter_stats.get_ptr_mut(cgroup_id)

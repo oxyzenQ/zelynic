@@ -116,26 +116,33 @@ use aya_ebpf::{
 use super::mmspa_resolve::current_generation;
 use crate::recwn::measured_window_bytes;
 
-/// The sk-storage hint row (night-T-4, schema v32): the policy's
+/// The sk-storage hint row (night-T-4, schema v32; the tail word
+/// repurposed by night-verify-final, schema v33): the policy's
 /// download RATE plus the MMSPA GENERATION the prime ran under —
 /// the pairing the generation belt reads (the header's staleness
-/// block). 16 bytes: the u64 rate, the u32 generation, four pad —
-/// repr(C), BTF-flat, the same posture every map value carries.
+/// block) — plus the MEASURED SRTT the RTT callback harvests. 16
+/// bytes: the u64 rate, the u32 generation, the u32 srtt — repr(C),
+/// BTF-flat, the same posture every map value carries.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub(crate) struct RecwnHint {
     pub rate: u64,
     pub generation: u32,
-    /// The repr(C) tail padding, carried as a REAL field the
-    /// initializer sets: the sk-storage helper's F_CREATE copies the
-    /// whole 16-byte value from the stack, and the 5.15 floor's
-    /// verifier refuses an indirect stack read over compiler padding
-    /// the field stores never initialized ("invalid indirect read
-    /// from stack R3 ... size 16" — the jammy floor lane's verdict
-    /// line). An explicit zeroed member keeps every byte of the read
-    /// initialized; the BTF value type grows the member, the byte
-    /// size holds.
-    pub pad: u32,
+    /// The repr(C) tail word — the padding carried as a REAL field
+    /// the initializer sets, ever since the 5.15 floor's verifier
+    /// refused an indirect stack read over compiler padding (the
+    /// jammy floor lane's "invalid indirect read from stack R3 ...
+    /// size 16" verdict line); an explicit member keeps every byte
+    /// of the F_CREATE copy initialized, the BTF value type grows
+    /// the member, the byte size holds. Since night-verify-final's
+    /// schema v33 the word carries the socket's LATEST measured srtt
+    /// in microseconds: written by the RTT_CB lane after the
+    /// generation belt accepts the row (zero = unmeasured — the
+    /// prime initializes it, and a stale pin's pad reads zero, the
+    /// honest posture), harvested by the ingress prime site
+    /// ([`recwn_prime`]'s return) and ratcheted into the policy's
+    /// stats row.
+    pub srtt_us: u32,
 }
 const _: () = assert!(core::mem::size_of::<RecwnHint>() == 16);
 
@@ -286,6 +293,18 @@ fn recwn_apply(ctx: &SockOpsContext) -> u32 {
     // pointer the is_fullsock read took; srtt_us is a plain u32
     // load the verifier proves.
     let measured_rtt_us: u32 = unsafe { (*ctx.ops).srtt_us } >> 3;
+    // The measured-srtt harvest (night-verify-final, schema v33):
+    // the socket's latest sample rides the row's tail word for the
+    // ingress prime site to ratchet into the policy's stats row —
+    // the one volatile store the observability lane costs, on a
+    // callback the policed socket already pays. Only a live sample
+    // writes (zero is the unmeasured sentinel the prime initialized;
+    // the harvest never fabricates one). SAFETY: the same row
+    // pointer the gen/rate reads above took, the same
+    // stable-storage-value contract, valid for the invocation.
+    if measured_rtt_us > 0 {
+        unsafe { core::ptr::addr_of_mut!((*row_ptr).srtt_us).write_volatile(measured_rtt_us) };
+    }
     let window = measured_window_bytes(rate, measured_rtt_us);
     // The clamp itself. The value passes through the kernel's
     // SO_RCVBUF shape: sock_setsockopt doubles it into sk_rcvbuf
@@ -346,12 +365,18 @@ fn recwn_apply(ctx: &SockOpsContext) -> u32 {
 /// prime: the hint is best-effort by law, a miss answers the
 /// default window, and the connection still rides the ingress
 /// policer's own drops — enforcement never depended on this lane.
-pub(crate) fn recwn_prime(sk: *mut bpf_sock, rate_bps: u64) {
+/// The RETURN (night-verify-final, schema v33): the row's measured
+/// srtt harvest word — the RTT callback's latest live sample for
+/// this socket, zero when the socket is unmeasured or the prime
+/// dropped — for the caller's stats-row ratchet; a value the caller
+/// never lowers, the binding-policy high-water the status surfaces
+/// report.
+pub(crate) fn recwn_prime(sk: *mut bpf_sock, rate_bps: u64) -> u32 {
     let gen_now = current_generation();
     let mut init = RecwnHint {
         rate: rate_bps,
         generation: gen_now,
-        pad: 0,
+        srtt_us: 0,
     };
     // SAFETY: sk is the caller's vetted socket pointer (the
     // enforce.rs prime site null-checks the __sk_buff.sk union
@@ -368,7 +393,7 @@ pub(crate) fn recwn_prime(sk: *mut bpf_sock, rate_bps: u64) {
         )
     };
     if row.is_null() {
-        return;
+        return 0;
     }
     // The refresh path: a row whose rate or generation moved gets
     // the pair rewritten — rate FIRST, generation LAST (the
@@ -392,4 +417,11 @@ pub(crate) fn recwn_prime(sk: *mut bpf_sock, rate_bps: u64) {
         // pairing order the belt reads.
         unsafe { core::ptr::addr_of_mut!((*row_ptr).generation).write_volatile(gen_now) };
     }
+    // The harvest read (night-verify-final, schema v33): whatever
+    // srtt the RTT lane last left on this row — zero when the socket
+    // is unmeasured (a fresh row, no RTT callback yet). The refresh
+    // above never touches the word: the samples belong to the
+    // socket, not to the policy write. SAFETY: the same row, the
+    // same invocation window.
+    unsafe { core::ptr::addr_of!((*row_ptr).srtt_us).read_volatile() }
 }

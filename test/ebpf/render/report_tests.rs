@@ -358,6 +358,7 @@ fn accounting_sentence_carries_the_ledger_math() {
         ce_marked_bytes: 0,
         bytes_saved_by_edt: 0,
         bytes_saved_by_ecn: 0,
+        measured_srtt_us: 0,
     };
     let sentence = accounting_sentence(&heavy);
     assert!(
@@ -378,6 +379,7 @@ fn accounting_sentence_carries_the_ledger_math() {
         ce_marked_bytes: 0,
         bytes_saved_by_edt: 0,
         bytes_saved_by_ecn: 0,
+        measured_srtt_us: 0,
     };
     assert_eq!(
         accounting_sentence(&quiet),
@@ -414,6 +416,7 @@ fn ledger_and_resource_rows_render_only_when_present() {
         ce_marked_bytes: 0,
         bytes_saved_by_edt: 0,
         bytes_saved_by_ecn: 0,
+        measured_srtt_us: 0,
     });
     report.depth.resources = CgroupResources {
         memory_current_bytes: Some(2_500_000),

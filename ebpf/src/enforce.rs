@@ -244,9 +244,16 @@ pub(crate) fn try_enforce(
     // a plain pointer load the verifier proves, null-checked before
     // any deref of it below.
     let sock_sk: *mut bpf_sock = unsafe { (*ctx.skb.skb).__bindgen_anon_2.sk };
-    if is_ingress && !sock_sk.is_null() {
-        recwn_flow::recwn_prime(sock_sk, pol.rate_bps);
-    }
+    // The prime's return (night-verify-final, schema v33): whatever
+    // measured srtt the RTT lane last left on this socket's hint row
+    // — zero when the socket is unmeasured, or on the egress path
+    // (the harvest is the receive-window lane's own) — for the
+    // stats-row ratchet below.
+    let recwn_srtt_us = if is_ingress && !sock_sk.is_null() {
+        recwn_flow::recwn_prime(sock_sk, pol.rate_bps)
+    } else {
+        0
+    };
 
     // night-spark-5 (Egress Socket Pacing, schema v27 — the quota
     // saver's Layer 3): on the EGRESS policed path only, stamp the
@@ -299,6 +306,37 @@ pub(crate) fn try_enforce(
     // the same entry the lane booked the drop into, one lookup,
     // no second map read.
     let stats_ptr = get_stats_ptr(&cgroup_id);
+
+    // The measured-srtt ratchet (night-verify-final, schema v33):
+    // the policy's stats row carries the high-water of its download
+    // sockets' own measured srtt — the number the status surfaces
+    // read as recwn_limits.measured_srtt_us, the measured half of
+    // the v31 window law (window = rate x max(measured srtt,
+    // 200 ms)) the datapath has been deriving all along. The
+    // check-then-store is a benign race by law: a sample lost to a
+    // concurrent store is re-taken at the socket's next RTT
+    // callback, and a stale high-water only ever OVERSTATES the
+    // pipe a live socket would derive (the honest direction for an
+    // observability word; the reclaim paths delete the row beside
+    // the counters, the next policed packet recreates it at zero).
+    if recwn_srtt_us > 0 {
+        // SAFETY: the same stats-map value contract the booking below
+        // rides — stable kernel memory, one invocation lifetime; the
+        // borrow ends before the Option's materialization below, the
+        // sequential-raw-pointer shape the rescue tail already books
+        // through.
+        let row = stats_ptr.map(|ptr| unsafe { &mut *ptr });
+        if let Some(s) = row {
+            // SAFETY: the row's tail word, the addr_of projections
+            // the house volatile discipline pins.
+            let cur = unsafe { core::ptr::addr_of!(s.measured_srtt_us).read_volatile() };
+            let sample = u64::from(recwn_srtt_us);
+            if sample > cur {
+                // SAFETY: the same row, the raising store.
+                unsafe { core::ptr::addr_of_mut!(s.measured_srtt_us).write_volatile(sample) };
+            }
+        }
+    }
 
     // night-quota-audit (2026-11-09): the Layer 4 saved-headroom
     // accrual that ran here on the egress policed path (night-spark-7's

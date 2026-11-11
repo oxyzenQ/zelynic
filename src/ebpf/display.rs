@@ -214,6 +214,16 @@ pub(crate) struct RecwnLane {
     /// its only consumer (the JSON twin stays the pinned scripting
     /// shape).
     pub(crate) binding_policies: usize,
+    /// night-verify-final (schema v33): the binding policy's
+    /// measured-srtt high-water (microseconds) — the value
+    /// `recwn_limits.measured_srtt_us` reports, the rtt half of the
+    /// window_bytes derivation when it stands. None = unmeasured
+    /// (no policed download socket has sampled since the stats
+    /// row's birth): the honest absence, never a fabricated zero.
+    /// The binding window's OWN rtt — the argmin policy's, not the
+    /// fleet's global max — so the (window_bytes, measured_srtt_us)
+    /// pair always derives from one policy.
+    pub(crate) measured_srtt_us: Option<u64>,
 }
 
 /// The Layer 1 RTT assumption, microseconds — the userspace twin
@@ -250,28 +260,85 @@ pub(crate) fn recwn_window_bytes(rate_bps: u64) -> u64 {
     raw.clamp(RECWN_WINDOW_MIN_BYTES, RECWN_WINDOW_MAX_BYTES)
 }
 
+/// The RECWN window one download rate derives from a MEASURED srtt
+/// (microseconds) — the userspace twin of the kernel core's
+/// measured_window_bytes (night-T-3's retune law): a sample above
+/// the 200 ms cadence floor extends the pipe to the measured BDP,
+/// every sub-floor sample — and every unmeasured socket, srtt zero
+/// — answers the exact floor derivation byte for byte. Parity-
+/// pinned against the core by test/ebpf/limiter/recwn_tests.rs
+/// across the (rate, srtt) matrix; night-verify-final's schema v33
+/// made the measured side readable (the stats row's ratchet).
+pub(crate) fn recwn_measured_window_bytes(rate_bps: u64, measured_srtt_us: u32) -> u64 {
+    if measured_srtt_us > RECWN_RTT_ESTIMATE_US {
+        let rate = rate_bps.min(RECWN_RATE_SANITIZE_CAP);
+        let raw = rate * u64::from(measured_srtt_us) / 1_000_000;
+        raw.clamp(RECWN_WINDOW_MIN_BYTES, RECWN_WINDOW_MAX_BYTES)
+    } else {
+        recwn_window_bytes(rate_bps)
+    }
+}
+
 /// Derive the RECWN lane's status row from the download policy
-/// census and the program pin's existence: the BINDING window is
-/// the minimum the active download rates derive (a block verdict —
-/// rate 0 — shapes no window: the lane that delivers nothing has
-/// no receive window to shape), and a lane that is not planted
-/// shapes nothing at all — the window rides the program, not the
-/// census (an unplanted tree with stale map rows reports no window,
-/// never a phantom clamp).
-pub(crate) fn recwn_lane(dl_policies: &[(u32, PolicyRaw)], planted: bool) -> RecwnLane {
-    // night-ux-1: the active set derives BOTH the binding window and
-    // the count that names it — one filter, one truth, no drift
-    // between the clamp and the "across N" the line prints.
-    let binding: Vec<u64> = dl_policies
+/// census, the per-cgroup stats rows, and the program pin's
+/// existence: the BINDING window is the minimum the active download
+/// rates derive (a block verdict — rate 0 — shapes no window: the
+/// lane that delivers nothing has no receive window to shape), and
+/// a lane that is not planted shapes nothing at all — the window
+/// rides the program, not the census (an unplanted tree with stale
+/// map rows reports no window, never a phantom clamp). Since
+/// night-verify-final's schema v33 each policy's window derives
+/// through the MEASURED twin (rate x max(ratcheted srtt, 200 ms)):
+/// a policy whose stats row carries a high-water above the cadence
+/// floor extends, an unmeasured one answers the exact floor
+/// derivation byte for byte — and the reported measured_srtt_us is
+/// the binding window's own rtt (the argmin policy's; the largest
+/// high-water among ties, the deterministic rule the map's row
+/// order cannot flap).
+pub(crate) fn recwn_lane(
+    dl_policies: &[(u32, PolicyRaw)],
+    stats: &[(u32, LimiterStatsRaw)],
+    planted: bool,
+) -> RecwnLane {
+    // The ratchet each policy's stats row carries (zero when the row
+    // is missing or unmeasured — the floor branch; the belt over an
+    // impossible above-u32 word keeps the twin's u32 input).
+    let srtt_of = |cg: u32| -> u32 {
+        stats.iter().find(|(k, _)| *k == cg).map_or(0, |(_, s)| {
+            s.measured_srtt_us.min(u64::from(u32::MAX)) as u32
+        })
+    };
+    // One pass derives every active policy's (window, srtt) pair —
+    // the measured twin's law, the same shape the datapath applies
+    // at the socket's own callbacks.
+    let derived: Vec<(u64, u32)> = dl_policies
         .iter()
         .filter(|(_, p)| p.rate_bps > 0)
-        .map(|(_, p)| recwn_window_bytes(p.rate_bps))
+        .map(|(cg, p)| {
+            let s = srtt_of(*cg);
+            (recwn_measured_window_bytes(p.rate_bps, s), s)
+        })
         .collect();
-    let window_bytes = planted.then(|| binding.iter().copied().min()).flatten();
+    let window_bytes = planted
+        .then(|| derived.iter().map(|(w, _)| *w).min())
+        .flatten();
+    // The binding window's own rtt: the largest high-water among the
+    // policies tying on the minimum (ties read the same window, so
+    // the highest srtt names the binding constraint), and honestly
+    // absent while every tying row is unmeasured.
+    let measured_srtt_us = window_bytes.and_then(|w| {
+        derived
+            .iter()
+            .filter(|(dw, _)| *dw == w)
+            .map(|(_, s)| u64::from(*s))
+            .max()
+            .filter(|s| *s > 0)
+    });
     RecwnLane {
         planted,
         window_bytes,
-        binding_policies: binding.len(),
+        binding_policies: derived.len(),
+        measured_srtt_us,
     }
 }
 

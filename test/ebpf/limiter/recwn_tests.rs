@@ -150,34 +150,36 @@ fn recwn_lane_reports_the_binding_window() {
 
     // Not planted: no window, no lane at all.
     assert_eq!(
-        recwn_lane(&[(7, pol(100_000))], false),
+        recwn_lane(&[(7, pol(100_000))], &[], false),
         RecwnLane {
             planted: false,
             window_bytes: None,
             binding_policies: 1,
+            measured_srtt_us: None,
         }
     );
 
     // The owner's single-policy scenario: 100 kb/s -> 20_000 B.
     assert_eq!(
-        recwn_lane(&[(7, pol(100_000))], true),
+        recwn_lane(&[(7, pol(100_000))], &[], true),
         RecwnLane {
             planted: true,
             window_bytes: Some(20_000),
             binding_policies: 1,
+            measured_srtt_us: None,
         }
     );
 
     // Multi-policy: the BINDING (minimum) window wins.
-    let multi = recwn_lane(&[(7, pol(1_000_000)), (9, pol(100_000))], true);
+    let multi = recwn_lane(&[(7, pol(1_000_000)), (9, pol(100_000))], &[], true);
     assert_eq!(multi.window_bytes, Some(20_000));
     // night-ux-1: the count names the unit the clamp binds — both
     // active policies, the human line's "across 2 download policies".
     assert_eq!(multi.binding_policies, 2);
 
     // Block-only (rate 0) and upload-only census: no window shaped.
-    assert_eq!(recwn_lane(&[(7, pol(0))], true).window_bytes, None);
-    assert_eq!(recwn_lane(&[], true).window_bytes, None);
+    assert_eq!(recwn_lane(&[(7, pol(0))], &[], true).window_bytes, None);
+    assert_eq!(recwn_lane(&[], &[], true).window_bytes, None);
 }
 
 /// The measured-RTT retune (night-T-3, schema v31): the runtime law
@@ -243,4 +245,110 @@ fn measured_rtt_retune_only_extends_above_the_cadence_floor() {
         measured_window_bytes(100_000, u32::MAX >> 3),
         RECWN_WINDOW_MAX_BYTES
     );
+}
+
+/// The measured twin's parity contract (night-verify-final, schema
+/// v33): the userspace status derivation (src/ebpf/display.rs
+/// recwn_measured_window_bytes — the number the status surfaces fold
+/// into window_bytes) must agree with the kernel core's
+/// measured_window_bytes at EVERY (rate, srtt) pair in the matrix —
+/// the same twin discipline the floor derivation pins one test up. A
+/// drift here means the reported window lies about the one the
+/// datapath derives from the socket's own samples.
+#[test]
+fn userspace_measured_twin_agrees_with_the_kernel_core() {
+    let rates = [0u64, 1_000, 14_599, 100_000, 1_000_000, 5_242_880, u64::MAX];
+    let srtts = [
+        0u32,
+        1,
+        50_000,
+        199_999,
+        200_000,
+        200_001,
+        300_104,
+        600_000,
+        u32::MAX >> 3,
+    ];
+    for rate in rates {
+        for srtt in srtts {
+            assert_eq!(
+                crate::ebpf::display::recwn_measured_window_bytes(rate, srtt),
+                measured_window_bytes(rate, srtt),
+                "the measured twin drifted from the kernel core at rate {rate} B/s, srtt {srtt} us"
+            );
+        }
+    }
+}
+
+/// The stats-row ratchet the status reads (night-verify-final,
+/// schema v33): a policy whose row carries a high-water above the
+/// cadence floor derives the measured extension — the binding window
+/// AND its own rtt reported together, one policy's pair; an
+/// unmeasured row (zero, the birth state) or a missing one answers
+/// the exact floor derivation with the field honestly absent; a
+/// sub-floor sample is real data, not absence — the floor still
+/// binds and the sample still reports.
+#[test]
+fn recwn_lane_folds_the_measured_ratchet_into_the_binding_window() {
+    use crate::ebpf::display::recwn_lane;
+    use crate::ebpf::limiter::types::{LimiterStatsRaw, PolicyRaw};
+
+    let pol = |rate: u64| PolicyRaw {
+        rate_bps: rate,
+        burst_bytes: 65_536,
+        floor_bps: 0,
+        ceil_bps: 0,
+        group_id: 0,
+        flags: 0,
+    };
+    let stats_row = |srtt: u64| LimiterStatsRaw {
+        packets_allowed: 0,
+        packets_dropped: 0,
+        bytes_allowed: 0,
+        bytes_dropped: 0,
+        ce_marked_packets: 0,
+        ce_marked_bytes: 0,
+        bytes_saved_by_edt: 0,
+        bytes_saved_by_ecn: 0,
+        measured_srtt_us: srtt,
+    };
+
+    // The measured extension: 100 kb/s at the verify workflow's leg-B
+    // srtt (300_104 us) derives 30_010 B — the pipe the floor
+    // under-admitted — and reports the rtt beside it.
+    let measured = recwn_lane(&[(7, pol(100_000))], &[(7, stats_row(300_104))], true);
+    assert_eq!(measured.window_bytes, Some(30_010));
+    assert_eq!(measured.measured_srtt_us, Some(300_104));
+
+    // An unmeasured row (the birth state) rides the floor exactly.
+    let floor = recwn_lane(&[(7, pol(100_000))], &[(7, stats_row(0))], true);
+    assert_eq!(floor.window_bytes, Some(20_000));
+    assert_eq!(floor.measured_srtt_us, None);
+
+    // A stats row missing entirely (no policed packet yet) — the
+    // same honest floor shape.
+    let absent = recwn_lane(&[(7, pol(100_000))], &[], true);
+    assert_eq!(absent.window_bytes, Some(20_000));
+    assert_eq!(absent.measured_srtt_us, None);
+
+    // A sub-floor sample is real data, not absence: 100 kb/s at the
+    // leg-A srtt (56_398 us) keeps the 20_000 B floor window and
+    // reports the sample beside it — the floor still binds, the
+    // measurement is still true.
+    let sub = recwn_lane(&[(7, pol(100_000))], &[(7, stats_row(56_398))], true);
+    assert_eq!(sub.window_bytes, Some(20_000));
+    assert_eq!(sub.measured_srtt_us, Some(56_398));
+
+    // The binding window's own rtt wins the report: two policies,
+    // the 1 mb/s one measured long (extending to 400_000 B) and the
+    // 100 kb/s one unmeasured (the 20_000 B floor) — the 100 kb/s
+    // floor binds the minimum, and the reported srtt is ITS absence,
+    // never the other policy's measurement.
+    let mixed = recwn_lane(
+        &[(7, pol(1_000_000)), (9, pol(100_000))],
+        &[(7, stats_row(400_000))],
+        true,
+    );
+    assert_eq!(mixed.window_bytes, Some(20_000));
+    assert_eq!(mixed.measured_srtt_us, None);
 }

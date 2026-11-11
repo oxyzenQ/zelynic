@@ -87,7 +87,28 @@
 ///     reload wipes the stale pins (active limits are dropped
 ///     once, re-apply after upgrade, the same one-time contract
 ///     as every bump before it).
-pub const SCHEMA_VERSION_EXPECTED: u32 = 32;
+/// v33 (night-verify-final, the measured-srtt telemetry — the v31
+///     retune made readable): LimiterStatsRaw grows one u64 tail
+///     word, measured_srtt_us (offset 64) — the per-policy
+///     high-water of the download sockets' own measured srtt,
+///     kernel-written (the ingress prime site ratchets the recwn
+///     hint row's harvest word — the RTT callback's latest live
+///     sample stored in the hint row's repurposed tail pad, the
+///     16-byte row size holding) and read here: the status surfaces
+///     report it as recwn_limits.measured_srtt_us and fold it into
+///     the binding-window derivation the v31 law computes
+///     kernel-side (window = rate x max(measured srtt, 200 ms) —
+///     the status now reports the measured extension instead of the
+///     bare floor; the JSON field is additive and honestly absent
+///     while no policed socket has sampled). The policy rows are
+///     untouched — the config family stays userspace-written; the
+///     ratchet rides the stats row the kernel already owns and
+///     read_stats already opens. The bump is REQUIRED, not polite:
+///     a pinned v32 stats row is 64 bytes, a v33 reader would map
+///     the 72-byte tail onto nothing — the forced reload wipes the
+///     stale pins (active limits are dropped once, re-apply after
+///     upgrade, the same one-time contract as every bump before it).
+pub const SCHEMA_VERSION_EXPECTED: u32 = 33;
 
 #[cfg(test)]
 #[path = "../../../test/ebpf/limiter/schema_sync_pin_tests.rs"]

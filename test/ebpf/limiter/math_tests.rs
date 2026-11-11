@@ -59,6 +59,7 @@ fn fresh_stats() -> LimiterStats {
         ce_marked_bytes: 0,
         bytes_saved_by_edt: 0,
         bytes_saved_by_ecn: 0,
+        measured_srtt_us: 0,
     }
 }
 

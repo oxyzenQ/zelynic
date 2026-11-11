@@ -257,9 +257,19 @@ pub struct LimiterStatsRaw {
     /// is a byte that never becomes a retransmission. Layout twin of
     /// the v28 LimiterStats tail.
     pub bytes_saved_by_ecn: u64,
+    /// The measured-srtt ratchet, microseconds (night-verify-final,
+    /// schema v33): the high-water of the DOWNLOAD sockets' own
+    /// measured srtt this row's policy has seen — kernel-written by
+    /// the ingress prime site (the recwn hint harvest ratchet),
+    /// read by the status surfaces as recwn_limits
+    /// .measured_srtt_us. Zero = unmeasured (the row births at
+    /// zero; the reclaim paths delete it beside the counters). The
+    /// layout twin of math.rs's LimiterStats tail (offset 64); the
+    /// map read copies it whole.
+    pub measured_srtt_us: u64,
 }
 
-/// SAFETY: LimiterStatsRaw is a plain eight-u64 `repr(align(8))`
+/// SAFETY: LimiterStatsRaw is a plain nine-u64 `repr(align(8))`
 /// aggregate (Copy, no references) — the same aya::Pod value
 /// contract; the BPF twin is math.rs's LimiterStats (the layout
 /// contract, size-pinned both sides).

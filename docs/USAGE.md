@@ -1002,21 +1002,38 @@ receive window, not saved bytes, night-ux-1):
 - `recwn_limits.window_bytes` — the binding receive window in
   bytes: the smallest window across the active download policies
   (the single-policy case reads exactly that policy's window —
-  the status reports the cadence-floor derivation `rate x 200ms`
-  (the delivery-cadence estimate the live E2E evidence set —
-  raised from the briefed 50 ms after the legs measured 29-37%
-  under-delivery on all three CI kernels; ebpf/src/recwn.rs owns
-  the record), clamped to [2 x MSS, 1 MiB]; a 100kb/s policy
-  reports 20000 — the floor shape: the runtime window derives
-  `rate x max(measured srtt, 200 ms)` since v31 and can only
-  extend above this reported value, on links longer than the
-  200 ms cadence). Present only when
+  each policy's window derives `rate x max(measured srtt, 200 ms)`
+  since v31, clamped to [2 x MSS, 1 MiB]; the status folds the
+  policy's own ratchet in since v33). A policy whose stats row
+  carries no measurement yet reports the cadence-floor derivation
+  `rate x 200ms` (the delivery-cadence estimate the live E2E
+  evidence set — raised from the briefed 50 ms after the legs
+  measured 29-37% under-delivery on all three CI kernels;
+  ebpf/src/recwn.rs owns the record): a 100kb/s policy reports
+  20000 — the floor shape. A policy whose row carries a measured
+  srtt above the floor reports the extension: a 100kb/s policy at
+  a measured 300 ms reports 30010 (the number the datapath's
+  `bpf_setsockopt(SO_RCVBUF)` actually passes — the Supermassive
+  Verify lane's 300 ms netem leg reads it live). Present only when
   `enabled` is true — absent,
   never a fabricated zero, otherwise.
 - `recwn_limits.rtt_estimate_us` — the Layer 1 RTT assumption the
   status window derived from (200000 — 200 ms, the lane's own
-  constant; the measured-RTT retune of v31 rides kernel-side and
-  never changes this reported floor).
+  constant; the floor every measured extension computes against).
+- `recwn_limits.measured_srtt_us` — the binding policy's
+  measured-srtt high-water in microseconds (night-verify-final,
+  schema v33): the ratchet the download sockets' own RTT samples
+  leave in the policy's stats ledger — the largest srtt the
+  policy's policed sockets have sampled since the row's birth
+  (the reclaim paths delete the row, the next policed packet
+  recreates it empty). Absent while unmeasured — no policed
+  download socket has sampled yet — never a fabricated zero; the
+  pinned pre-v33 wire shapes ride unchanged byte for byte. A
+  sub-floor sample reports as-is (a real 56 ms reading stands in
+  the JSON even where the 200 ms floor still binds the window);
+  the human table's RECWN line names its source accordingly
+  (`measured RTT 300ms` where the extension binds, `est. RTT
+  200ms` where the floor does).
 
 The object as a whole is honestly absent on the clean state (no
 pins), on stale-pin error objects, and on pre-v25 pinned objects —

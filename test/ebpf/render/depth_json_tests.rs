@@ -445,6 +445,7 @@ fn json_carries_the_ledger_and_controller_resources() {
         ce_marked_bytes: 10_500,
         bytes_saved_by_edt: 0,
         bytes_saved_by_ecn: 0,
+        measured_srtt_us: 0,
     });
     report.depth.resources = CgroupResources {
         memory_current_bytes: Some(2_500_000),

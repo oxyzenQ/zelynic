@@ -176,6 +176,7 @@ fn book_rescue_moves_the_booking_exactly() {
         ce_marked_bytes: 0,
         bytes_saved_by_edt: 0,
         bytes_saved_by_ecn: 0,
+        measured_srtt_us: 0,
     };
     book(&mut stats, false, 1500);
     assert_eq!((stats.packets_dropped, stats.bytes_dropped), (8, 8_500));
@@ -203,6 +204,7 @@ fn book_rescue_books_the_ce_ledger_exactly() {
         ce_marked_bytes: 9_000,
         bytes_saved_by_edt: 0,
         bytes_saved_by_ecn: 0,
+        measured_srtt_us: 0,
     };
     book(&mut stats, false, 1500);
     // A plain drop (a refused mark, a debt at its cap) touches NO ce
