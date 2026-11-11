@@ -260,7 +260,15 @@ fn test_schema_version_constant() {
     // one-for-one alone. The version bump follows the v29 shape:
     // one forced reload so an upgraded host's pin, docs, and
     // rendered totals describe the same schema generation.
-    assert_eq!(SCHEMA_VERSION_EXPECTED, 30);
+    // v31 (night-T-3, the measured-RTT RECWN retune): the
+    // recwn_socket_hint row's VALUE semantics change — the row
+    // carries the policy's download rate now (the window derives
+    // per callback from the socket's own srtt with the 200 ms
+    // cadence floor beneath). No struct layout change; the bump is
+    // required, not polite: a pinned v30 row holds WINDOW bytes,
+    // which a v31 reader would misread as a RATE — the forced
+    // reload wipes the stale rows.
+    assert_eq!(SCHEMA_VERSION_EXPECTED, 31);
 }
 
 // ── night-spark-4, schema v26: the CE ledger's layout pins ─────────
