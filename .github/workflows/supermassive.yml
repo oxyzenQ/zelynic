@@ -682,7 +682,7 @@ jobs:
           # measured on the same lane either way). The v11.0.0
           # release — the last leaf-anchored datapath, the exact
           # counterfactual the subtree contract is measured against —
-          # rides the TREE since the legacy/ vendoring: the release's
+          # rides the TREE since the legacy-for-test/ vendoring: the release's
           # own .sha512sum sidecar verbatim plus a .b3sum over the
           # same bytes, so no CI run ever fetches the counterfactual
           # from the network. The pair is verified HERE on the runner
@@ -697,10 +697,10 @@ jobs:
           LEGACY_ASSET="zelynic-v11.0.0-linux-amd64-v3-musl.tar.gz"
           sudo apt-get -o Acquire::Retries=5 update -qq
           sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends b3sum
-          ( cd "$GITHUB_WORKSPACE/legacy" \
+          ( cd "$GITHUB_WORKSPACE/legacy-for-test" \
             && sha512sum -c "$LEGACY_ASSET.sha512sum" \
             && b3sum -c "$LEGACY_ASSET.b3sum" )
-          echo "legacy vendored pair verified: $GITHUB_WORKSPACE/legacy/$LEGACY_ASSET"
+          echo "legacy vendored pair verified: $GITHUB_WORKSPACE/legacy-for-test/$LEGACY_ASSET"
           assemble() {
             DIR=$1
             mkdir -p "$DIR/rootfs/opt/zelynic/legacy"
@@ -737,7 +737,7 @@ jobs:
               fi
               echo "virtio modules staged into the rootfs cpio"
             fi
-            tar xzf "$GITHUB_WORKSPACE/legacy/$LEGACY_ASSET" -C "$DIR/rootfs/opt/zelynic/legacy"
+            tar xzf "$GITHUB_WORKSPACE/legacy-for-test/$LEGACY_ASSET" -C "$DIR/rootfs/opt/zelynic/legacy"
             test -x "$DIR/rootfs/opt/zelynic/legacy/zelynic"
             echo "legacy staged: $("$DIR/rootfs/opt/zelynic/legacy/zelynic" -V | head -1)"
             # PID 1 needs a console to exec onto before devtmpfs lands
