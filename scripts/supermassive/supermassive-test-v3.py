@@ -94,10 +94,9 @@ Design:
   * The iface E2E lane (root + ip vrf, self-skip, night-T-2): when
     iproute2 is present, v3 creates a VRF device, runs a sleep
     workload inside the domain through `ip vrf exec` (which groups it
-    into the domain's own cgroup, depth-1 under /sys/fs/cgroup),
+    into the domain's own vrf/<name> cgroup under the cgroup2 root),
     resolves iface://<name> to that cgroup's id, writes a strict
-    policy, and tears down — the VRF-native round trip. The same
-    self-skip shape when no ip tool is present.
+PLACEHOLDER
 
 Usage:
   sudo ./scripts/supermassive/supermassive-test-v3.sh               # full container depth (root)
@@ -344,8 +343,8 @@ def _has_k8s():
 def _has_vrf():
     """True when iproute2 can manage VRF domains.
 
-    The iface resolver reads the cgroup `ip vrf exec` groups its
-    processes into (depth-1 under /sys/fs/cgroup); the E2E lane needs
+    The iface resolver reads the vrf/<name> cgroup `ip vrf exec`
+    groups its processes into; the E2E lane needs
     the `ip` tool itself to stage a real VRF device and run a workload
     inside the domain. The same reachability shape _has_netns carries
     for the namespace lane.
@@ -1291,7 +1290,9 @@ def test_netns_e2e(force=False):
             time.sleep(0.1)
         if not joined:
             early = workload.poll() is not None
-            reason = "workload exited early" if early else "workload never reached the namespace cgroup"
+            reason = (
+                "workload exited early" if early else "workload never reached the namespace cgroup"
+            )
             detail = ""
             if workload.stderr is not None:
                 try:
@@ -1386,12 +1387,13 @@ def test_netns_e2e(force=False):
 #
 # The iface twin of stage 7 (night-T-2): when iproute2 is present, v3
 # creates a VRF device, runs a sleep workload inside the domain through
-# `ip vrf exec` — which creates the cgroup <vrf> directly under the
-# cgroup root and moves the exec'd pid into it, iproute2's own
-# grouping — resolves iface://<vrf> to that cgroup's id, and tears
-# down. The workload placement needs no harness cgroup write here:
-# the VRF domain's cgroup IS iproute2's own, exactly the shape the
-# resolver's depth-1 matcher owns.
+# `ip vrf exec` — which moves the exec'd pid into the cgroup
+# <caller-path>/vrf/<name> under the cgroup2 root, iproute2's own
+# grouping (the shape `ip vrf identify` reads back from
+# /proc/<pid>/cgroup) — resolves iface://<vrf> to that cgroup's id,
+# and tears down. The workload placement needs no harness cgroup
+# write here: the VRF domain's cgroup IS iproute2's own, exactly the
+# parent-vrf shape the resolver's matcher owns.
 
 
 def test_iface_e2e(force=False):
@@ -1430,7 +1432,7 @@ def test_iface_e2e(force=False):
         )
         return True
     vrf_name = "zelynic-v3-vrf"
-    vrf_cgroup = f"/sys/fs/cgroup/{vrf_name}"
+    domain_cgroup = None
     workload = None
     try:
         # Stage the VRF device: an l3mdev + its routing table. iproute2
@@ -1469,44 +1471,59 @@ def test_iface_e2e(force=False):
             "PASS",
             f"vrf {vrf_name} created and up (l3mdev device, table {table_id})",
         )
-        # Run the workload inside the domain. `ip vrf exec` creates the
-        # cgroup <vrf> directly under the cgroup root and moves the
-        # exec'd pid into it — iproute2's own VRF grouping, the exact
-        # contract the resolver's depth-1 matcher pins.
+        # Run the workload inside the domain. `ip vrf exec` moves the
+        # exec'd pid into the cgroup <caller-path>/vrf/<name> —
+        # iproute2's own VRF grouping (the shape its own `ip vrf
+        # identify` reads back from /proc/<pid>/cgroup), and the exact
+        # parent-vrf contract the resolver's matcher pins. The poll
+        # reads the workload's own cgroup line, so the lane never
+        # guesses where the caller's path placed the vrf/ subtree.
         workload = subprocess.Popen(
             ["ip", "vrf", "exec", vrf_name, "sleep", "300"],
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
         )
-        # Bounded wait for the domain cgroup to own its first member
-        # (the resolver reads live cgroup.procs; a resolve before the
-        # move would race the dead-domain refusal).
         joined = False
         for _ in range(50):
             if workload.poll() is not None:
                 break
             try:
-                with open(os.path.join(vrf_cgroup, "cgroup.procs")) as fh:
-                    if fh.read().strip():
-                        joined = True
-                        break
+                with open(f"/proc/{workload.pid}/cgroup") as fh:
+                    for line in fh:
+                        # the controller-less line carries the path
+                        if line.startswith("0::") and f"/vrf/{vrf_name}" in line:
+                            rel = line[3:].strip()
+                            domain_cgroup = f"/sys/fs/cgroup{rel}"
+                            joined = True
+                            break
             except OSError:
                 pass
+            if joined:
+                break
             time.sleep(0.1)
         if not joined:
             early = workload.poll() is not None
             shape = "exited early" if early else "never joined the domain cgroup"
+            detail = ""
+            if workload.stderr is not None:
+                try:
+                    detail = (workload.stderr.read() or "").strip()[:200]
+                except OSError:
+                    detail = ""
+            if detail:
+                shape += f"; stderr: {detail}"
             record(
                 "iface-e2e: spawn workload in the domain cgroup",
                 "FAIL",
-                f"ip vrf exec {shape} ({vrf_cgroup} unpopulated — no cgroup2 VRF "
-                "grouping on this host?)",
+                f"ip vrf exec {shape} — no /vrf/{vrf_name} segment in the workload's "
+                "cgroup line (no cgroup2 VRF grouping on this host?)",
             )
             return False
         record(
             "iface-e2e: spawn workload in the domain cgroup",
             "PASS",
-            f"sleep workload live inside the {vrf_name} domain (cgroup {vrf_cgroup})",
+            f"sleep workload live inside the {vrf_name} domain (cgroup {domain_cgroup})",
         )
         # The binary resolves iface://<vrf> against the REAL live
         # domain. The honest E2E contract (NIGHT-improve-37), the
@@ -1572,10 +1589,14 @@ def test_iface_e2e(force=False):
             text=True,
             timeout=30,
         )
-        try:
-            os.rmdir(vrf_cgroup)
-        except OSError:
-            pass
+        if domain_cgroup is not None:
+            # the now-empty domain dir and (if it empties too) its vrf
+            # parent — an iproute2 leftover never fails the lane
+            try:
+                os.rmdir(domain_cgroup)
+                os.rmdir(os.path.dirname(domain_cgroup))
+            except OSError:
+                pass
 
 
 # ── the orchestrator ─────────────────────────────────────────────────────────

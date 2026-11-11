@@ -40,10 +40,10 @@
 #   iface-e2e:   VRF domains, native on the runner (night-T-2).
 #                Creates a real VRF device with iproute2, runs a sleep
 #                workload inside the domain through `ip vrf exec` —
-#                which groups it into the domain's own cgroup,
-#                depth-1 under /sys/fs/cgroup (the iproute2 contract
-#                the resolver's matcher pins) — resolves
-#                iface://<name>, enforces, tears down.
+#                which groups it into the domain's own vrf/<name>
+#                cgroup under the cgroup2 root (the iproute2
+#                contract the resolver's parent-vrf matcher pins) —
+#                resolves iface://<name>, enforces, tears down.
 #
 # Every leg builds zelynic from source through the release-tier
 # pro-linux-amd64-v3-musl alias (fully static musl — the only shipped

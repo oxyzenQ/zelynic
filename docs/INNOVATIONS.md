@@ -292,14 +292,15 @@ live proof: `sudo zelynic -v s netns://sandbox 500kb` (the
 verbose trace names the handle, the member count, the cgroup).
 The fourth URI (`src/ebpf/identity/container/iface.rs`,
 `iface://red`) targets a VRF domain: `ip vrf exec` groups its
-processes into the cgroup `<name>` directly under the cgroup root
-(the iproute2 contract, pinned by the depth-1 matcher — a
-same-named directory deeper in the tree is a slice, not a domain),
-and the resolver reads that cgroup's own `cgroup.procs` for
-liveness. The physics is stated, not hidden: a VRF owns a cgroup,
+processes into the `vrf/<name>` cgroup under the cgroup2 root
+(the iproute2 contract, verified against ipvrf.c's vrf_switch path
+construction — and the exact `/vrf/<name>` segment its own
+`ip vrf identify` reads back; the matcher pins the parent-vrf law,
+refusing same-named impostors under slices or at the root), and the
+resolver reads that cgroup's own `cgroup.procs` for liveness. The physics is stated, not hidden: a VRF owns a cgroup,
 a plain interface does not — the plain-interface shape refuses
 with `netns://` and `cg:<id>` named as the honest doors. Rootless
-pins: `iface_tests.rs` (the grammar arm, the depth-1 law); live
+pins: `iface_tests.rs` (the grammar arm, the parent-vrf law); live
 proof: `sudo zelynic -v s iface://red 2mb`; CI proof: the
 Supermassive Container E2E netns/iface legs (a real namespace and
 a real VRF domain resolving and enforcing on a real runner
