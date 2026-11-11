@@ -20,7 +20,7 @@ counterfactual from the network.
 ## Verification
 
 ```sh
-cd legacy
+cd legacy-for-test
 sha512sum -c zelynic-v11.0.0-linux-amd64-v3-musl.tar.gz.sha512sum
 b3sum -c zelynic-v11.0.0-linux-amd64-v3-musl.tar.gz.b3sum
 ```

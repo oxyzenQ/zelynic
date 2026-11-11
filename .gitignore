@@ -47,7 +47,7 @@ __pycache__/
 
 # The vs-legacy bench harness (scripts/bench/quota-saver-ab-vs-legacy.sh)
 # installs its auto-downloaded release binary here — a test artifact,
-# never tracked. The VENDORED pair beside it (the v11.0.0 tarball and
-# its checksum sidecars, the MMSPA A/B counterfactual) IS tracked —
-# see legacy/README.md.
+# never tracked. The VENDORED pair (the v11.0.0 tarball and its
+# checksum sidecars, the MMSPA A/B counterfactual) is tracked at
+# legacy-for-test/ — see legacy-for-test/README.md.
 /legacy/zelynic

@@ -21,7 +21,7 @@ The two sides are the two REAL builds, nothing simulated:
     missed the policy map and ran UNLIMITED). The legacy side comes
     from --legacy-binary, $ZELYNIC_LEGACY_BINARY, the canonical
     release tarball staged by CI (/opt/zelynic/legacy/zelynic), the
-    TREE'S OWN vendored pair (legacy/ — the exact v11.0.0 release
+    TREE'S OWN vendored pair (legacy-for-test/ — the exact v11.0.0 release
     bytes, verified against both checksum sidecars before a single
     byte is extracted, no network), or the canonical AUTO-DOWNLOAD
     as the last lane (the sha512-sidecar-verified fetch into a
@@ -153,12 +153,12 @@ LEGACY_CACHE = os.path.join(
     os.environ.get("TMPDIR") or "/tmp", "zelynic-mmspa-legacy", LEGACY_VERSION.lstrip("v")
 )
 
-# The tree's OWN vendored pair (the legacy/ vendoring): the exact
+# The tree's OWN vendored pair (the legacy-for-test/ vendoring): the exact
 # v11.0.0 musl release bytes the checkout carries. The CI stage
 # verifies both sidecars and extracts the pair into the guest; this
 # harness verifies the same bytes rootlessly, so the legacy side
 # needs no network anywhere.
-LEGACY_TREE_DIR = os.path.normpath(os.path.join(_HERE, "..", "..", "legacy"))
+LEGACY_TREE_DIR = os.path.normpath(os.path.join(_HERE, "..", "..", "legacy-for-test"))
 LEGACY_TREE_TARBALL = "zelynic-v11.0.0-linux-amd64-v3-musl.tar.gz"
 
 
@@ -250,7 +250,7 @@ def fetch_legacy():
 
 
 def fetch_legacy_vendored():
-    """The tree's OWN pair first (the legacy/ vendoring): the exact
+    """The tree's OWN pair first (the legacy-for-test/ vendoring): the exact
     v11.0.0 release bytes the checkout carries, verified against BOTH
     sidecars — the release's own .sha512sum verbatim (hashlib, the
     same arithmetic verify_sha512 pins) and the vendored .b3sum when
@@ -393,7 +393,7 @@ def resolve_legacy(explicit, download=True):
     """The LEGACY side: --legacy-binary, then $ZELYNIC_LEGACY_BINARY,
     then the canonical release tarball staged by CI (/opt/zelynic/
     legacy/zelynic — the rootfs assembly extracts the tree's vendored
-    pair there), then the TREE'S OWN vendored pair (legacy/ — both
+    pair there), then the TREE'S OWN vendored pair (legacy-for-test/ — both
     checksum sidecars verified before a byte is extracted, no
     network), then the canonical AUTO-DOWNLOAD as the last lane (the
     sha512-verified fetch into a TMPDIR cache; --no-download keeps

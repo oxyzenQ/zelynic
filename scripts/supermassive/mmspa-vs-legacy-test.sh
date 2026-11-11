@@ -15,7 +15,7 @@
 #   sudo ./scripts/supermassive/mmspa-vs-legacy-test.sh
 #        (the legacy v11.0.0 side resolves without the network while
 #         one exists: the CI-staged binary, then the TREE'S OWN
-#         vendored pair — legacy/, both checksum sidecars verified
+#         vendored pair — legacy-for-test/, both checksum sidecars verified
 #         before a byte is extracted — then the canonical
 #         auto-download, sha512-sidecar-verified, cached under TMPDIR,
 #         as the last lane; --legacy-binary overrides everything)
@@ -25,7 +25,7 @@
 #
 # The legacy side resolves from --legacy-binary, $ZELYNIC_LEGACY_BINARY,
 # /opt/zelynic/legacy/zelynic (the path the supermassive CI legs
-# stage it at), the tree's vendored pair (legacy/ — the exact v11.0.0
+# stage it at), the tree's vendored pair (legacy-for-test/ — the exact v11.0.0
 # release bytes, sha512+b3 verified before extraction), or the
 # canonical auto-download — in that order. Without any of them the
 # pair verdict SKIPs loudly — the proof never runs one-sided. The
