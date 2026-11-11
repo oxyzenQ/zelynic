@@ -231,8 +231,14 @@ fn measured_rtt_retune_only_extends_above_the_cadence_floor() {
     // ceiling (the bufferbloat guard); and the u32-saturated srtt
     // (u32::MAX >> 3 = 536_870_911 us, ~9 min of pathological RTT)
     // collapses into the ceiling too — never a wrap.
-    assert_eq!(measured_window_bytes(1_000, 600_000), RECWN_WINDOW_MIN_BYTES);
-    assert_eq!(measured_window_bytes(8_000_000, 600_000), RECWN_WINDOW_MAX_BYTES);
+    assert_eq!(
+        measured_window_bytes(1_000, 600_000),
+        RECWN_WINDOW_MIN_BYTES
+    );
+    assert_eq!(
+        measured_window_bytes(8_000_000, 600_000),
+        RECWN_WINDOW_MAX_BYTES
+    );
     assert_eq!(
         measured_window_bytes(100_000, u32::MAX >> 3),
         RECWN_WINDOW_MAX_BYTES
