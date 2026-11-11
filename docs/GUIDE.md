@@ -101,10 +101,10 @@ Reading the grammar: `s` = strict (limit), `b` = block (cut off),
 `u` = unstrict (undo), `ee` = eagle-eyes (watch). The target is a
 process name (`brave`), a cgroup ID (`73386` or `cg:73386` — the
 display prefix round-trips), or a workload URI
-(`docker://nginx`, `netns://sandbox`). A `::`-separated list is the
+(`docker://nginx`, `netns://sandbox`, `iface://red`). A `::`-separated list is the
 group lane — the
 separator is doubled because a single `:` already lives inside targets
-(`cg:`, `docker://`, `netns://`).
+(`cg:`, `docker://`, `netns://`, `iface://`).
 
 ### The numbers, honestly
 
