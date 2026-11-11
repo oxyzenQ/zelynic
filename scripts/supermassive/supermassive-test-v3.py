@@ -1393,7 +1393,13 @@ def test_netns_e2e(force=False):
 # /proc/<pid>/cgroup) — resolves iface://<vrf> to that cgroup's id,
 # and tears down. The workload placement needs no harness cgroup
 # write here: the VRF domain's cgroup IS iproute2's own, exactly the
-# parent-vrf shape the resolver's matcher owns.
+# parent-vrf shape the resolver's matcher owns. The resolve case
+# rides --no-test (resolve + policy write): the vrf cgroup carries
+# iproute2's own socket-create BPF program, which would bind the
+# self-probe's sockets into the unrouted domain — the full probe
+# round trip rides the netns/docker lanes on the same machinery. On
+# a kernel without the VRF device type (the micro-VM guest pair),
+# the lane self-skips non-forced — the docker/k8s lanes' shape.
 
 
 def test_iface_e2e(force=False):
@@ -1447,10 +1453,18 @@ def test_iface_e2e(force=False):
             timeout=30,
         )
         if add.returncode != 0:
+            if force:
+                record(
+                    "iface-e2e: create vrf device",
+                    "FAIL",
+                    f"ip link add type vrf failed: {add.stderr.strip()[:200]}",
+                )
+                return False
             record(
-                "iface-e2e: create vrf device",
-                "FAIL",
-                f"ip link add type vrf failed: {add.stderr.strip()[:200]}",
+                "iface-e2e: vrf domain round trip",
+                "SKIP",
+                f"no VRF device type in this kernel ({add.stderr.strip()[:120]}) — "
+                "the resolver error depth (stage 4) is the verifiable core here",
             )
             return False
         up = subprocess.run(
@@ -1526,15 +1540,24 @@ def test_iface_e2e(force=False):
             f"sleep workload live inside the {vrf_name} domain (cgroup {domain_cgroup})",
         )
         # The binary resolves iface://<vrf> against the REAL live
-        # domain. The honest E2E contract (NIGHT-improve-37), the
-        # docker lane's own: rc=0 is the full round trip (resolve +
-        # enforce); rc=non-zero WITHOUT a resolver error marker means
-        # the resolver found the domain's cgroup and the failure is
-        # downstream (enforcement on the runner kernel) — honest,
-        # recorded as a PASS-with-note; rc=non-zero WITH a resolver
-        # error marker is a real bug, FAIL. No panic and no hang are
-        # hard invariants.
-        rc, output = _run_cli_case([STRICT_SINGLE, f"iface://{vrf_name}", VALID_RATE])
+        # domain. The case rides --no-test BY DESIGN: the vrf cgroup
+        # carries iproute2's own cgroup/sock-create BPF program (the
+        # thing that binds every socket it spawns to the VRF device),
+        # so the self-probe's sockets would be bound into an unrouted
+        # domain on this runner — the probe would hang, not because
+        # the policy is broken but because the domain has no peer. The
+        # resolve + policy write are the iface lane's own proof; the
+        # full probe round trip (resolve + enforce + measure) rides
+        # the netns and docker lanes on the same runner and the same
+        # machinery, where the probed cgroups carry no such program.
+        # The honest E2E contract (NIGHT-improve-37), the docker
+        # lane's own: rc=0 is the round trip (resolve + write);
+        # rc=non-zero WITHOUT a resolver error marker means the
+        # resolver found the domain's cgroup and the failure is
+        # downstream — honest, recorded as a PASS-with-note;
+        # rc=non-zero WITH a resolver error marker is a real bug,
+        # FAIL. No panic and no hang are hard invariants.
+        rc, output = _run_cli_case([STRICT_SINGLE, f"iface://{vrf_name}", VALID_RATE, "--no-test"])
         if rc is None:
             record(
                 "iface-e2e: resolve iface://<name>",
@@ -1553,7 +1576,9 @@ def test_iface_e2e(force=False):
             record(
                 "iface-e2e: resolve iface://<name>",
                 "PASS",
-                "rc=0 — full round trip (resolve + enforce) on a real vrf domain",
+                "rc=0 — resolve + policy write on a real vrf domain (--no-test: the probe "
+                "rides the netns/docker lanes; the vrf cgroup's iproute2 socket-create BPF "
+                "binds probe sockets to the unrouted domain)",
             )
             return True
         if _resolution_failed(output):
@@ -1566,7 +1591,7 @@ def test_iface_e2e(force=False):
         record(
             "iface-e2e: resolve iface://<name>",
             "PASS",
-            f"rc={rc} — resolver found the domain, enforcement downstream (resolve-only contract's E2E half holds)",
+            f"rc={rc} — resolver found the domain, write downstream (resolve-only contract's E2E half holds)",
         )
         return True
     finally:
