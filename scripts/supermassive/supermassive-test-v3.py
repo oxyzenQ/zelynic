@@ -82,11 +82,21 @@ Design:
     than a micro-VM carries): the /var/log/pods absence is the depth
     the CI leg proves.
 
+  * The netns E2E lane (root + ip netns, self-skip, night-T-2): when
+    iproute2 is present, v3 creates a named network namespace, places
+    a sleep workload inside it in its own cgroup (the network-engineer
+    shape — netns for isolation, cgroup for the policy domain),
+    resolves netns://<name> to the workload's cgroup id, writes a
+    strict policy, and tears down. When no ip tool is present, the
+    lane self-skips with a note — the resolver error depth (stage 4)
+    is the no-runtime proof, this lane is the WITH-runtime proof.
+
 Usage:
   sudo ./scripts/supermassive/supermassive-test-v3.sh               # full container depth (root)
   ./scripts/supermassive/supermassive-test-v3.sh --self-test        # engine smoke, no root
   sudo ./scripts/supermassive/supermassive-test-v3.sh --json         # machine-readable
   sudo ./scripts/supermassive/supermassive-test-v3.sh --docker-e2e   # force the docker E2E lane
+  sudo ./scripts/supermassive/supermassive-test-v3.sh --netns-e2e   # force the netns E2E lane
 
 Exit code: 0 if every stage that ran passed (SKIP does not fail); 1 if
 any stage failed or the binary panicked on any case.
@@ -96,8 +106,10 @@ import argparse
 import importlib.util
 import os
 import re
+import shutil
 import subprocess
 import sys
+import time
 
 # The shared engine lib lives one directory up in scripts/lib/
 # (NIGHT-refactor-1); v1's engine lives one dash-named file over. Both
@@ -170,6 +182,7 @@ WELL_FORMED_URIS = [
     ("docker://a1b2c3d4", "docker", "id-prefix"),
     ("k8s://prod/web-abc", "k8s", "namespace/pod"),
     ("k8s://kube-system/coredns-xyz", "k8s", "nested-namespace"),
+    ("netns://zelynic-v3-probe", "netns", "named-namespace"),
 ]
 
 # The malformed container URI shapes parse_container rejects (every
@@ -185,6 +198,9 @@ MALFORMED_URIS = [
     ("k8s://prod/", "empty pod"),
     ("k8s:///pod", "empty namespace"),
     ("k8s://a/b/c", "too many slashes"),
+    ("netns://", "empty name"),
+    ("netns://a/b", "slash in name"),
+    ("netns://a:b", "colon in name"),
 ]
 
 # A valid rate for the strict invocations (the resolver is
@@ -216,6 +232,10 @@ RESOLUTION_FAILURE_MARKERS = (
     "poddir",
     "no pod log directory",
     "unrecognized container",
+    "no network namespace",
+    "no /run/netns",
+    "no process lives in it",
+    "spans",
 )
 
 
@@ -304,6 +324,19 @@ def _has_k8s():
         return len(os.listdir(poddir)) > 0
     except OSError:
         return False
+
+
+def _has_netns():
+    """True when iproute2 can manage named network namespaces.
+
+    The netns resolver reads /run/netns/<name> handles (created by
+    `ip netns add`) and walks /proc for the member processes. The E2E
+    lane needs the `ip` tool itself to stage a real namespace; a host
+    without iproute2 (rare, but the micro-VM shapes vary) self-skips
+    the lane — the same reachability shape _has_docker carries for
+    the socket and _has_k8s for the pod-log dir.
+    """
+    return shutil.which("ip") is not None
 
 
 def _resolve_kubeconfig():
@@ -1094,17 +1127,223 @@ def self_test():
     return ok
 
 
+# ── stage 7: the netns E2E lane (root + ip netns, self-skip) ────────────────
+#
+# The netns twin of stage 5 (night-T-2): when iproute2 is present, v3
+# creates a named network namespace, places a sleep workload inside it
+# in its OWN cgroup, resolves netns://<name> to the workload's cgroup
+# id, and tears down — the full namespace-native round trip. The
+# dedicated cgroup is not a harness trick: `ip netns exec` leaves the
+# exec'd process in the CALLER's cgroup, so a namespace shared with the
+# harness's own processes would trip the resolver's ambiguity guard by
+# design — the network-engineer shape is netns for isolation plus a
+# cgroup for the policy domain (the same fork/join-cgroup.procs/execv
+# posture the bench probes carry).
+
+
+def test_netns_e2e(force=False):
+    """The real netns E2E lane (self-skip when no ip tool).
+
+    When root + ip are present: create a named namespace, spawn one
+    sleep workload inside it in its own cgroup, resolve netns://<name>,
+    verify the binary accepts the target, tear down. When absent:
+    self-skip with a note (the CI shape — the resolver error depth in
+    stage 4 is the CI-verifiable core). The `force` flag runs the lane
+    even when ip is absent (for local manual probes that want the
+    failure surfaced rather than skipped).
+    """
+    out()
+    out("── stage 7: netns E2E lane (root + ip netns, self-skip) ──")
+    if not _is_root():
+        record(
+            "netns-e2e: namespace round trip",
+            "SKIP",
+            "non-root — the E2E lane needs root + ip netns",
+        )
+        return True
+    if not _has_netns():
+        if force:
+            record(
+                "netns-e2e: ip tool present",
+                "FAIL",
+                "--netns-e2e forced but no ip (iproute2) on PATH",
+            )
+            return False
+        record(
+            "netns-e2e: namespace round trip",
+            "SKIP",
+            "no ip tool — the resolver error depth (stage 4) is the CI-verifiable core",
+        )
+        return True
+    ns_name = "zelynic-v3-netns"
+    wl_cgroup = "/sys/fs/cgroup/zelynic-v3-netns-wl"
+    workload = None
+    try:
+        # Stage the namespace. `ip netns add` creates /run/netns and
+        # bind-mounts the handle itself — no explicit mount prep.
+        add = subprocess.run(
+            ["ip", "netns", "add", ns_name],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if add.returncode != 0:
+            record(
+                "netns-e2e: create namespace",
+                "FAIL",
+                f"ip netns add failed: {add.stderr.strip()[:200]}",
+            )
+            return False
+        record(
+            "netns-e2e: create namespace",
+            "PASS",
+            f"namespace {ns_name} created (handle /run/netns/{ns_name})",
+        )
+        # Place the workload: one sleep process inside the namespace,
+        # joined into its own cgroup before exec. The cgroup write rides
+        # a bash -c so the pid that joins the cgroup is the pid that
+        # execs sleep — one member process in one cgroup, exactly the
+        # shape the resolver's verdict owns.
+        try:
+            os.makedirs(wl_cgroup, exist_ok=True)
+        except OSError as exc:
+            record(
+                "netns-e2e: create workload cgroup",
+                "FAIL",
+                f"mkdir {wl_cgroup} failed: {exc}",
+            )
+            return False
+        workload = subprocess.Popen(
+            [
+                "ip",
+                "netns",
+                "exec",
+                ns_name,
+                "bash",
+                "-c",
+                f"echo $$ > {wl_cgroup}/cgroup.procs; exec sleep 300",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        # Bounded wait for the join: the resolver reads live /proc
+        # state, so a resolve racing the join would see the workload
+        # still in the caller's cgroup (the ambiguity guard's honest
+        # refusal). 5s is generous for a fork + echo + exec.
+        joined = False
+        for _ in range(50):
+            if workload.poll() is not None:
+                break
+            try:
+                with open(os.path.join(wl_cgroup, "cgroup.procs")) as fh:
+                    if fh.read().strip():
+                        joined = True
+                        break
+            except OSError:
+                pass
+            time.sleep(0.1)
+        if not joined:
+            early = workload.poll() is not None
+            reason = "workload bash exited early" if early else "workload never joined cgroup.procs"
+            record(
+                "netns-e2e: spawn workload in its own cgroup",
+                "FAIL",
+                f"{reason} ({wl_cgroup})",
+            )
+            return False
+        record(
+            "netns-e2e: spawn workload in its own cgroup",
+            "PASS",
+            f"sleep workload live inside {ns_name} (cgroup {wl_cgroup})",
+        )
+        # The binary resolves netns://<name> against the REAL live
+        # namespace. The honest E2E contract (NIGHT-improve-37), the
+        # docker lane's own: rc=0 is the full round trip (resolve +
+        # enforce); rc=non-zero WITHOUT a resolver error marker means
+        # the resolver found the workload's cgroup and the failure is
+        # downstream (enforcement on the runner kernel) — honest,
+        # recorded as a PASS-with-note; rc=non-zero WITH a resolver
+        # error marker is a real bug, FAIL. No panic and no hang are
+        # hard invariants.
+        rc, output = _run_cli_case([STRICT_SINGLE, f"netns://{ns_name}", VALID_RATE])
+        if rc is None:
+            record(
+                "netns-e2e: resolve netns://<name>",
+                "FAIL",
+                "timed out (hang)",
+            )
+            return False
+        if _case_panicked(output):
+            record(
+                "netns-e2e: resolve no panic",
+                "FAIL",
+                "panic leaked on a real namespace target",
+            )
+            return False
+        if rc == 0:
+            record(
+                "netns-e2e: resolve netns://<name>",
+                "PASS",
+                "rc=0 — full round trip (resolve + enforce) on a real namespace",
+            )
+            return True
+        if _resolution_failed(output):
+            record(
+                "netns-e2e: resolve netns://<name>",
+                "FAIL",
+                f"rc={rc} — resolver failed to find the live namespace workload: {output.strip()[:200]}",
+            )
+            return False
+        record(
+            "netns-e2e: resolve netns://<name>",
+            "PASS",
+            f"rc={rc} — resolver found the workload, enforcement downstream (resolve-only contract's E2E half holds)",
+        )
+        return True
+    finally:
+        # Best-effort teardown: the workload is reaped, the namespace
+        # deleted, and the cgroup dir removed (an empty cgroup rmdir()s;
+        # a wedged one stays for the runner's own cleanup — never a
+        # lane failure on the way out).
+        if workload is not None:
+            workload.terminate()
+            try:
+                workload.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                workload.kill()
+                try:
+                    workload.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    pass
+        subprocess.run(
+            ["ip", "netns", "del", ns_name],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        try:
+            os.rmdir(wl_cgroup)
+        except OSError:
+            pass
+
+
 # ── the orchestrator ────────────────────────────────────────────────────────
 
 
-def run_container_depth(phases, force_docker_e2e=False, force_k8s_e2e=False):
+def run_container_depth(
+    phases,
+    force_docker_e2e=False,
+    force_k8s_e2e=False,
+    force_netns_e2e=False,
+):
     """Run the container depth battery, stage by stage.
 
     phases: the list of stage names to run (None = all). The stages
     self-skip when the environment cannot support them (non-root skips
     the grammar/resolution depth; no-docker skips the docker E2E lane;
-    no-kubelet skips the k8s E2E lane), so the battery is green on every
-    host — the depth it CAN prove is the depth it runs.
+    no-kubelet skips the k8s E2E lane; no-ip skips the netns E2E
+    lane), so the battery is green on every host — the depth it CAN
+    prove is the depth it runs.
     """
     all_stages = {
         "help": test_container_help_surface,
@@ -1113,6 +1352,7 @@ def run_container_depth(phases, force_docker_e2e=False, force_k8s_e2e=False):
         "resolution": test_container_resolution_errors,
         "docker-e2e": lambda: test_docker_e2e(force=force_docker_e2e),
         "k8s-e2e": lambda: test_k8s_e2e(force=force_k8s_e2e),
+        "netns-e2e": lambda: test_netns_e2e(force=force_netns_e2e),
     }
     if phases:
         stages = [(name, all_stages[name]) for name in phases]
@@ -1135,6 +1375,7 @@ def run_container_depth(phases, force_docker_e2e=False, force_k8s_e2e=False):
         )
     out(f"  docker: {'yes' if _has_docker() else 'no'}")
     out(f"  k8s:    {'yes' if _has_k8s() else 'no'}")
+    out(f"  netns:  {'yes' if _has_netns() else 'no'}")
     out(f"  stages: {', '.join(name for name, _ in stages)}")
     out("================================================================")
     out()
@@ -1185,6 +1426,11 @@ def main():
         action="store_true",
         help="force the k8s E2E lane (fail if no kubelet, do not skip)",
     )
+    parser.add_argument(
+        "--netns-e2e",
+        action="store_true",
+        help="force the netns E2E lane (fail if no ip tool, do not skip)",
+    )
     args = parser.parse_args()
 
     # Bind the binary: the --binary flag wins, then the CI init's
@@ -1218,6 +1464,7 @@ def main():
         phases,
         force_docker_e2e=args.docker_e2e,
         force_k8s_e2e=args.k8s_e2e,
+        force_netns_e2e=args.netns_e2e,
     )
 
     # The verdict: count PASS/FAIL/SKIP across every record.
