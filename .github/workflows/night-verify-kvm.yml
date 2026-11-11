@@ -159,13 +159,20 @@ jobs:
           echo "===== PHASE 1 LEG A: RTT 30ms (floor expected: window 20000, sk_rcvbuf 40000) ====="
           sudo ip netns exec rtt tc qdisc add dev veth-rtt-ns root netem delay 30ms
           sudo ip netns exec rtt tc qdisc show dev veth-rtt-ns
+          echo "--- ensure the payload server (a step's process tree dies with the step) ---"
+          curl -s -o /dev/null -m 3 http://10.200.0.1:8000/payload.bin || \
+            { nohup python3 -m http.server 8000 --bind 10.200.0.1 --directory /tmp/www >/tmp/http.log 2>&1 & sleep 1; }
+          curl -s -o /dev/null -w 'http server answers: %{http_code}\n' -m 5 http://10.200.0.1:8000/payload.bin
           echo "--- start a download that outlives both captures ---"
           nohup sudo ip netns exec rtt bash -c \
             'echo $$ > /sys/fs/cgroup/zverify/cgroup.procs; \
              exec curl -s --max-time 90 -o /dev/null http://10.200.0.1:8000/payload.bin' \
             >/tmp/curl-a.log 2>&1 &
-          sleep 4
-          echo "--- ss -tipm inside the netns DURING the transfer (leg A) ---"
+          sleep 3
+          echo "--- ss -tipm inside the netns DURING the transfer (leg A, first pass) ---"
+          sudo ip netns exec rtt ss -tipm
+          sleep 2
+          echo "--- ss -tipm (leg A, second pass) ---"
           sudo ip netns exec rtt ss -tipm
           echo "--- zelynic status --print-json (leg A) ---"
           sudo zelynic status --print-json | jq '{recwn_limits, limits: [.limits[] | {label, bytes_saved_total}]}'
@@ -176,6 +183,9 @@ jobs:
           echo "===== PHASE 1 LEG B: RTT 300ms (measured srtt retune expected: window 30000, sk_rcvbuf 60000) ====="
           sudo ip netns exec rtt tc qdisc change dev veth-rtt-ns root netem delay 300ms
           sudo ip netns exec rtt tc qdisc show dev veth-rtt-ns
+          echo "--- ensure the payload server again (each step may have lost it) ---"
+          curl -s -o /dev/null -m 3 http://10.200.0.1:8000/payload.bin || \
+            { nohup python3 -m http.server 8000 --bind 10.200.0.1 --directory /tmp/www >/tmp/http.log 2>&1 & sleep 1; }
           echo "--- ride a few RTTs so srtt converges and the RTT_CB re-apply lifts the window ---"
           sleep 10
           echo "--- ss -tipm inside the netns DURING the transfer (leg B) ---"
@@ -184,7 +194,13 @@ jobs:
           sudo ip netns exec rtt ping -c 3 -q 10.200.0.1 || true
           echo "--- zelynic status --print-json (leg B) ---"
           sudo zelynic status --print-json | jq '{recwn_limits, limits: [.limits[] | {label, bytes_saved_total}]}'
+          echo "--- kill the transfer (socket death) and re-probe immediately ---"
           sudo pkill -f 'curl -s --max-time 90' || true
+          sleep 1
+          echo "--- ss -tipm AFTER the kill (the socket must be gone) ---"
+          sudo ip netns exec rtt ss -tipm
+          echo "--- curl diagnostics ---"
+          cat /tmp/curl-a.log || true
 
       - name: "Phase 1 — quota-saver A/B (ground truth wire savings)"
         run: |
@@ -199,6 +215,12 @@ jobs:
           echo "===== PHASE 2: SK_STORAGE GC + PIN HYGIENE ====="
           sudo pkill -f 'curl -s --max-time 90' || true
           CGID=$(stat -c '%i' /sys/fs/cgroup/zverify)
+          echo "--- ensure the payload server and the keepalive member ---"
+          curl -s -o /dev/null -m 3 http://10.200.0.1:8000/payload.bin || \
+            { nohup python3 -m http.server 8000 --bind 10.200.0.1 --directory /tmp/www >/tmp/http.log 2>&1 & sleep 1; }
+          pgrep -f 'exec sleep 900' >/dev/null || \
+            { nohup sudo bash -c 'exec sleep 900' >/dev/null 2>&1 & sleep 1; \
+              pgrep -f 'exec sleep 900' | head -1 | sudo tee /sys/fs/cgroup/zverify/cgroup.procs; }
           echo "--- re-apply the limit (fresh generation) ---"
           sudo zelynic s "cg:${CGID}" 100kb
           echo "--- generate traffic (RTT 10ms for speed) ---"
@@ -219,8 +241,8 @@ jobs:
           echo "RECOVER_EXIT=$?"
           echo "--- u --all ---"
           sudo zelynic u --all
-          echo "--- /sys/fs/bpf/zelynic/ (must be empty — no pin leaks) ---"
-          sudo ls -la /sys/fs/bpf/zelynic/ 2>&1
+          echo "--- /sys/fs/bpf/zelynic/ (empty or absent = no pin leaks) ---"
+          sudo ls -la /sys/fs/bpf/zelynic/ 2>&1 || echo "(the pin dir is absent — zero residue)"
           echo "--- re-apply + traffic + counters still book ---"
           sudo zelynic s "cg:${CGID}" 100kb
           sudo ip netns exec rtt bash -c \
@@ -229,8 +251,8 @@ jobs:
           sudo zelynic status --print-json | jq '{recwn_limits, limits: [.limits[] | {label, bytes_saved_total}]}'
           sudo zelynic status
           sudo zelynic u --all
-          echo "--- final pin dir listing (must be empty) ---"
-          sudo ls -la /sys/fs/bpf/zelynic/ 2>&1
+          echo "--- final pin dir listing (empty or absent) ---"
+          sudo ls -la /sys/fs/bpf/zelynic/ 2>&1 || echo "(the pin dir is absent — zero residue)"
 
       - name: "Phase 3 — netns:// resolver (success + empty failure)"
         run: |
