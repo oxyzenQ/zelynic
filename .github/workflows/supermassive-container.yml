@@ -37,12 +37,20 @@
 #                resolver's ambiguity guard refuses that by design),
 #                resolves netns://<name>, enforces, tears down.
 #
+#   iface-e2e:   VRF domains, native on the runner (night-T-2).
+#                Creates a real VRF device with iproute2, runs a sleep
+#                workload inside the domain through `ip vrf exec` —
+#                which groups it into the domain's own cgroup,
+#                depth-1 under /sys/fs/cgroup (the iproute2 contract
+#                the resolver's matcher pins) — resolves
+#                iface://<name>, enforces, tears down.
+#
 # Every leg builds zelynic from source through the release-tier
 # pro-linux-amd64-v3-musl alias (fully static musl — the only shipped
 # shape, night-dragon-maintenance-6; the same payload shape the e2e
 # lane drives), install it to
 # /opt/zelynic/zelynic (v3's default binary path), and drive v3 with
-# the --docker-e2e / --k8s-e2e / --netns-e2e force flag (the lane FAILS honestly if
+# the --docker-e2e / --k8s-e2e / --netns-e2e / --iface-e2e force flag (the lane FAILS honestly if
 # the runtime is absent — never a silent skip on a leg that exists to
 # prove the runtime). The honest E2E contract (NIGHT-improve-37): rc=0
 # is the full round trip (resolve + enforce); rc=non-zero without a
@@ -388,3 +396,88 @@ jobs:
         run: |
           sudo python3 scripts/supermassive/supermassive-test-v3.py \
             --stages help,privilege,grammar,resolution,netns-e2e --netns-e2e
+
+  # ── iface E2E: VRF domains native on the runner ─────────────────────────
+  iface-e2e:
+    name: Container E2E - iface (native)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          # GITHUB_TOKEN hardening: never persists into .git/config.
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: clippy, rustfmt
+          targets: x86_64-unknown-linux-musl
+
+      - name: Install eBPF nightly toolchain (dated pin)
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: nightly-2026-09-18
+          components: rust-src
+
+      - name: Install bpf-linker 0.11.1 (prebuilt static musl)
+        run: bash scripts/dev/install-bpf-linker.sh
+
+      - name: Cache cargo registry
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6, NIGHT-hunt-20 SHA pin
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            ebpf/target
+          key: ${{ runner.os }}-container-iface-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-container-iface-cargo-
+            ${{ runner.os }}-cargo-
+
+      # The v3 codegen flag, composed inline (the same env-beats-config
+      # rule ci.yml's gnu-dynamic job documents — RUSTFLAGS shadows
+      # ebpf/.cargo/config.toml without it, and the BPF backend cannot
+      # select BPF_ATOMIC).
+      - name: Build pure-Rust eBPF objects (direct crate build)
+        run: RUSTFLAGS="-D warnings -C target-cpu=v3" cargo build --release --locked
+        working-directory: ebpf
+
+      # The owner's from-source law (night-dragon-maintenance-3): the
+      # payload this E2E leg drives is the release-tier pro-linux-
+      # amd64-v3-musl alias build (fully static musl), verified through
+      # its embedded build label — the same shape every other leg here
+      # drives.
+      - name: Build the release-tier v3 payload (pro-linux-amd64-v3-musl)
+        run: |
+          RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3 -C target-feature=+crt-static" \
+            cargo pro-linux-amd64-v3-musl --locked
+          ./target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic -V | grep -F "Build: local-pro-linux-amd64-v3-musl"
+
+      - name: Install zelynic to /opt/zelynic (v3 default path)
+        run: |
+          sudo mkdir -p /opt/zelynic
+          sudo cp target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic /opt/zelynic/zelynic
+          sudo chmod 755 /opt/zelynic/zelynic
+          /opt/zelynic/zelynic -V
+
+      - name: zelynic doctor (eBPF on the runner kernel)
+        run: sudo /opt/zelynic/zelynic doctor
+
+      - name: v3 engine self-test
+        run: python3 scripts/supermassive/supermassive-test-v3.py --self-test
+
+      # The v3 battery with --iface-e2e forced, scoped to the stages
+      # every root shape shares (help, privilege, grammar, resolution)
+      # plus the iface lane itself — the docker, k8s and netns lanes
+      # have their own legs above; this leg proves the VRF round trip:
+      # a real VRF device, a real domain cgroup populated by ip vrf
+      # exec itself, a real resolve + enforce on the runner kernel. A
+      # green row here is the honest "iface resolve + enforce against
+      # a live VRF domain" verdict.
+      - name: v3 battery (iface E2E forced)
+        run: |
+          sudo python3 scripts/supermassive/supermassive-test-v3.py \
+            --stages help,privilege,grammar,resolution,iface-e2e --iface-e2e
