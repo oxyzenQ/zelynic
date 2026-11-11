@@ -61,13 +61,16 @@ first-time reader, and this page pays it once, up front.
 - **RECWN — Receive Window Control**: the owner's coined name for
   the receive-window lane (deliberately NOT "RWND" — brand identity
   over the standard acronym): a policed cgroup's own sockets
-  advertise a rate-shaped window (rate x 200 ms — the
-  delivery-cadence estimate the live E2E evidence set — clamped to
-  [2 x MSS, 1 MiB]) via the sock_ops program clamping SO_RCVBUF,
-  so remote TCP senders hold their in-flight bytes down before the
-  ingress link bills them — the quota saver's Layer 1. The cookie
-  hint the ingress hook primes carries the attribution the sock_ops
-  floor cannot resolve on its own. (schema v25, INNOVATIONS.md #14)
+  advertise a rate-shaped window (rate x max(measured srtt,
+  200 ms) — the 200 ms delivery-cadence floor the live E2E
+  evidence set, extended by the socket's own measured RTT since
+  v31 — clamped to [2 x MSS, 1 MiB]) via the sock_ops program
+  clamping SO_RCVBUF, so remote TCP senders hold their in-flight
+  bytes down before the ingress link bills them — the quota
+  saver's Layer 1. The socket-local sk_storage hint the ingress
+  hook primes carries the attribution the sock_ops floor cannot
+  resolve on its own. (schema v25; the measured-RTT retune v31
+  and the sk-storage migration v32 — INNOVATIONS.md #14)
 - **The quota saver**: the umbrella name for the landed layer stack
   that turns policing into savings — RECWN, ECN-CE, EDT, and the
   Layer 4 books, one budget story per lane (INNOVATIONS.md, the
