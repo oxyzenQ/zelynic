@@ -151,14 +151,14 @@ jobs:
           echo "--- status (human) ---"
           sudo zelynic status
           echo "--- status --print-json (the recwn_limits object) ---"
-          sudo zelynic status --print-json | jq '.limits[] | {label, recwn_limits, bytes_saved_total}'
+          sudo zelynic status --print-json | jq '{recwn_limits, limits: [.limits[] | {label, bytes_saved_total}]}'
 
       - name: "Phase 1 — v31 leg A: floor window at RTT ~30ms (below the 200ms cadence floor)"
         run: |
           set -euo pipefail
           echo "===== PHASE 1 LEG A: RTT 30ms (floor expected: window 20000, sk_rcvbuf 40000) ====="
-          sudo tc qdisc add dev veth-rtt-ns root netem delay 30ms
-          sudo tc qdisc show dev veth-rtt-ns
+          sudo ip netns exec rtt tc qdisc add dev veth-rtt-ns root netem delay 30ms
+          sudo ip netns exec rtt tc qdisc show dev veth-rtt-ns
           echo "--- start a download that outlives both captures ---"
           nohup sudo ip netns exec rtt bash -c \
             'echo $$ > /sys/fs/cgroup/zverify/cgroup.procs; \
@@ -168,14 +168,14 @@ jobs:
           echo "--- ss -tipm inside the netns DURING the transfer (leg A) ---"
           sudo ip netns exec rtt ss -tipm
           echo "--- zelynic status --print-json (leg A) ---"
-          sudo zelynic status --print-json | jq '.limits[] | {label, recwn_limits, bytes_saved_total}'
+          sudo zelynic status --print-json | jq '{recwn_limits, limits: [.limits[] | {label, bytes_saved_total}]}'
 
       - name: "Phase 1 — v31 leg B: measured window at RTT 300ms (above the floor: window 30000, sk_rcvbuf 60000)"
         run: |
           set -euo pipefail
           echo "===== PHASE 1 LEG B: RTT 300ms (measured srtt retune expected: window 30000, sk_rcvbuf 60000) ====="
-          sudo tc qdisc change dev veth-rtt-ns root netem delay 300ms
-          sudo tc qdisc show dev veth-rtt-ns
+          sudo ip netns exec rtt tc qdisc change dev veth-rtt-ns root netem delay 300ms
+          sudo ip netns exec rtt tc qdisc show dev veth-rtt-ns
           echo "--- ride a few RTTs so srtt converges and the RTT_CB re-apply lifts the window ---"
           sleep 10
           echo "--- ss -tipm inside the netns DURING the transfer (leg B) ---"
@@ -183,7 +183,7 @@ jobs:
           echo "--- rtt probe: the ns socket's own view (ping across the veth) ---"
           sudo ip netns exec rtt ping -c 3 -q 10.200.0.1 || true
           echo "--- zelynic status --print-json (leg B) ---"
-          sudo zelynic status --print-json | jq '.limits[] | {label, recwn_limits, bytes_saved_total}'
+          sudo zelynic status --print-json | jq '{recwn_limits, limits: [.limits[] | {label, bytes_saved_total}]}'
           sudo pkill -f 'curl -s --max-time 90' || true
 
       - name: "Phase 1 — quota-saver A/B (ground truth wire savings)"
@@ -202,7 +202,7 @@ jobs:
           echo "--- re-apply the limit (fresh generation) ---"
           sudo zelynic s "cg:${CGID}" 100kb
           echo "--- generate traffic (RTT 10ms for speed) ---"
-          sudo tc qdisc change dev veth-rtt-ns root netem delay 10ms
+          sudo ip netns exec rtt tc qdisc change dev veth-rtt-ns root netem delay 10ms
           nohup sudo ip netns exec rtt bash -c \
             'echo $$ > /sys/fs/cgroup/zverify/cgroup.procs; \
              exec curl -s --max-time 15 -o /dev/null http://10.200.0.1:8000/payload.bin' \
@@ -226,7 +226,7 @@ jobs:
           sudo ip netns exec rtt bash -c \
             'echo $$ > /sys/fs/cgroup/zverify/cgroup.procs; \
              exec curl -s --max-time 12 -o /dev/null http://10.200.0.1:8000/payload.bin' || true
-          sudo zelynic status --print-json | jq '.limits[] | {label, recwn_limits, bytes_saved_total}'
+          sudo zelynic status --print-json | jq '{recwn_limits, limits: [.limits[] | {label, bytes_saved_total}]}'
           sudo zelynic status
           sudo zelynic u --all
           echo "--- final pin dir listing (must be empty) ---"
