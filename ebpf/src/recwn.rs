@@ -43,6 +43,30 @@
 //    connection callbacks. The sender-side clamp lands at
 //    establishment for active connecters — the download-quota
 //    case, the whole point of Layer 1.
+//
+// 3. THE MEASURED RETUNE (night-T-3, schema v31): the sock_ops
+//    context carries the socket's own smoothed RTT — uapi
+//    bpf_sock_ops.srtt_us (microseconds << 3, populated from
+//    tcp_sk(sk)->srtt_us whenever is_fullsock holds, v4.16+, so
+//    the 5.13 floor carries it; the same ctx-field class the
+//    is_fullsock guard rides). The runtime law is therefore
+//    window = rate x max(measured srtt, 200 ms), and the 200 ms
+//    constant STOPS being an RTT guess: it is the receiver's
+//    window-update CADENCE floor — delivery rides that cadence
+//    (the delayed-ACK band the legs measured at 145-160 ms with
+//    the band topping at 200 ms), so a window below the cadence
+//    under-delivers whatever the link's true RTT says (the briefed
+//    50 ms shape measured 29-37% of budget). The measured srtt
+//    extends the window ABOVE the floor when the link is longer
+//    than the band (the satellite class the fixed floor
+//    under-admitted at rate x 200 ms — the same window/cadence
+//    law predicts ~1/3 of budget there), and the [2 x MSS, 1 MiB]
+//    band bounds both directions. Sub-floor srtt — every short
+//    link, and every unmeasured socket (srtt_us reads zero before
+//    its first sample) — answers the exact v25 derivation, byte
+//    for byte: the retune can only extend the pipe, never shrink
+//    it (measured_window_bytes owns the law, recwn_flow.rs the
+//    wiring).
 
 /// The Layer 1 RTT assumption, microseconds: 200 ms — the
 /// delivery-cadence estimate, raised from the briefed 50 ms by the
@@ -64,6 +88,16 @@
 /// link the window now admits 4x that link's BDP — more in-flight
 /// than the briefed shape would hold; a measured-RTT re-tune (the
 /// RTT_CB lane) is the documented Layer-1+ close.
+///
+/// night-T-3 LANDED that close (schema v31), and in landing it
+/// re-framed the constant: 200 ms is no longer the RTT the lane
+/// GUESSES — it is the cadence floor the lane MEASURED, the
+/// minimum window budget that delivers on any delayed-ACK-bound
+/// receiver. The runtime clamp rides rate x max(measured srtt,
+/// THIS); the constant keeps the name it started with (the
+/// default RTT the derivation assumes below the band) because the
+/// status derivation and its userspace twin pin exactly that
+/// shape.
 pub const RECWN_DEFAULT_RTT_US: u32 = 200_000;
 
 /// The canonical MSS the clamps are phrased against: 1460 bytes
@@ -138,4 +172,31 @@ pub const fn target_window_bytes(rate_bps: u64, rtt_us: u32) -> u64 {
 #[inline(always)]
 pub const fn layer1_window(rate_bps: u64) -> u64 {
     target_window_bytes(rate_bps, RECWN_DEFAULT_RTT_US)
+}
+
+/// The Layer 1 RUNTIME window for one policy rate and one socket's
+/// measured srtt (microseconds — the sock_ops context's srtt_us
+/// >> 3): the measured retune's law (night-T-3, schema v31). The
+/// cadence floor is the law's honesty anchor — a measured RTT
+/// below it (every short link, every unmeasured socket) answers
+/// the exact layer1 derivation byte for byte, and a measured RTT
+/// above it (the link longer than the delayed-ACK band) extends
+/// the window to the pipe the floor under-admitted. The band
+/// clamp and the plain-multiply sanitize cap carry unchanged:
+/// rate is bounded at 2^32 and srtt_us at u32, so the raw product
+/// stays under 2^64 by construction — the same overflow-impossible
+/// posture target_window_bytes owns. Const so the pins can hold
+/// exact values and the datapath pays nothing for the arithmetic.
+#[inline(always)]
+pub const fn measured_window_bytes(rate_bps: u64, measured_rtt_us: u32) -> u64 {
+    // The sub-floor branch IS the layer1 shorthand verbatim — the
+    // retune's contract that a short link answers the exact v25
+    // window — so the call is the contract, not convenience: the
+    // law stays one shape per branch and the shorthand stays
+    // load-bearing in the datapath.
+    if measured_rtt_us > RECWN_DEFAULT_RTT_US {
+        target_window_bytes(rate_bps, measured_rtt_us)
+    } else {
+        layer1_window(rate_bps)
+    }
 }

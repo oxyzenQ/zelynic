@@ -38,6 +38,23 @@ v80.0.0
 
 ### Changed
 
+- The RECWN clamp rides the socket's own measured RTT now
+  (schema v31, night-T-3): the hint row carries the policy's
+  download rate, and the sock_ops program derives the window per
+  callback as rate x max(measured srtt, 200 ms) straight from the
+  sock_ops context (uapi `bpf_sock_ops.srtt_us`, v4.16+ — no new
+  helper, no new map, no userspace involvement). The 200 ms
+  constant re-frames from RTT guess to the receiver's window-update
+  cadence floor the v25 evidence measured (the 145-160 ms
+  delayed-ACK band topping at 200 ms), so every short link and
+  every unmeasured socket answers the exact v25 window byte for
+  byte while a link longer than the band — the satellite class the
+  fixed floor under-admitted at rate x 200 ms — now derives its
+  true pipe; the [2 x MSS, 1 MiB] band and the status surfaces
+  stay exactly as they were, and the required schema bump forces
+  one reload so a pinned v30 row (a WINDOW, which a v31 reader
+  would misread as a RATE) cannot survive the upgrade. (night-T-3)
+
 - The two docker rootfs lanes carry apt's retry knob now —
   night-dinner-12's own both-halves contract, which the micro-VM
   assembly step had missed: a mirror edge caught mid-sync serves a
