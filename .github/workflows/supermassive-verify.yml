@@ -1,0 +1,363 @@
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# supermassive-verify — the Supermassive family's LIVE runtime
+# verification lane (night-verify-final). Born as night-verify-kvm.yml,
+# retired at its green verdict (run 7, 19/19 steps, commit 5da6056),
+# and rejoined here as a permanent family member: the four innovations
+# the estate sells — v31 adaptive BDP, v32 sk_storage, the netns:// and
+# iface:// resolvers, the quota-saver A/B ground truth — deserve a lane
+# that proves their RUNTIME behavior on a real privileged host, not
+# only their source shape. A GitHub ubuntu-24.04 runner is already
+# root-capable, kernel 6.x/7.x, cgroup v2 unified, /sys/fs/bpf
+# mounted — no KVM needed, the runner IS the micro-VM.
+#
+# The build recipe mirrors ci.yml's proven-green steps: the pinned
+# stable toolchain (rust-toolchain.toml) for the userspace tree, the
+# dated nightly pin for the nested eBPF build, the prebuilt bpf-linker,
+# then install-on-my-machine.sh (the owner's own install path: v3/v4
+# tier built as the non-root runner user, sudo escalated for /usr/bin
+# only).
+#
+# Isolation law for this runner: the job's own shell cgroup also holds
+# the runner agent — a policy must never target it. Every verified
+# limit targets either the dedicated /sys/fs/cgroup/zverify cgroup or
+# a systemd-run scope cgroup; netns members are exec'd through
+# systemd-run so the netns:// resolver's single-cgroup verdict lands
+# on the scope, never the session.
+#
+# Every step prints verbatim outputs; nothing is summarized away. The
+# expected-failure probes (empty netns, empty VRF) print their exit
+# codes explicitly — a failing probe must not fail the step.
+#
+# Gating (the owner's night-verify-final constraint): the lane spends
+# a dedicated runner's worth of privileged minutes, so it never rides
+# per-push CI — the trigger surface is the family's night train
+# (20:00 UTC, the e2e lane's own cadence) plus the workflow_dispatch
+# click as the pre-qualification run.
+
+name: Dragon Guard - Supermassive Verify
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 20:00 UTC = 03:00 WIB (the owner's Asia/Jakarta night): the
+    # family's night train slot, the e2e lane's own cadence.
+    - cron: "0 20 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  # The night train's own group: the scheduled run and a manual
+  # dispatch serialize instead of racing two privileged verifications.
+  group: Dragon-Guard-Supermassive-Verify-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  verify:
+    name: live runtime verification (root, kernel 6.x, cgroup v2)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: "Phase 0 — environment proof"
+        run: |
+          set -euo pipefail
+          echo "===== PHASE 0: ENVIRONMENT PROOF ====="
+          echo "--- uname ---"
+          uname -a
+          echo "--- root ---"
+          sudo -n whoami
+          echo "--- cgroup v2 unified (cgroup2fs expected) ---"
+          stat -fc '%T' /sys/fs/cgroup/
+          echo "--- /sys/fs/bpf mount ---"
+          mount | grep -E ' /sys/fs/bpf ' || \
+            { echo 'bpf fs not mounted — mounting'; sudo mount -t bpf bpf /sys/fs/bpf; }
+          sudo ls -la /sys/fs/bpf/
+          echo "--- kernel modules this run needs ---"
+          sudo modprobe sch_netem
+          sudo modprobe vrf
+          lsmod | grep -E 'sch_netem|vrf' || true
+          echo "--- iproute2 vrf support ---"
+          ip -V
+          echo "--- jq ---"
+          jq --version
+
+      - name: "Phase 0 — toolchain (the ci.yml recipe)"
+        run: |
+          set -euo pipefail
+          echo "===== PHASE 0: TOOLCHAIN ====="
+          rustc --version || true
+          rustup --version || true
+
+      - name: Install stable toolchain (rust-toolchain.toml pin)
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+
+      - name: Install eBPF nightly toolchain (dated pin)
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: nightly-2026-09-18
+          components: rust-src
+
+      - name: Add the musl rust-std target
+        run: rustup target add x86_64-unknown-linux-musl
+
+      - name: Install bpf-linker (prebuilt static musl)
+        run: bash scripts/dev/install-bpf-linker.sh
+
+      - name: "Phase 0 — build + install (install-on-my-machine.sh)"
+        run: |
+          set -euo pipefail
+          echo "===== PHASE 0: BUILD + INSTALL ====="
+          ./scripts/package/install-on-my-machine.sh
+          echo "--- installed version (the -V contract) ---"
+          zelynic -V
+
+      - name: "Phase 0 — doctor (the environment verdict)"
+        run: |
+          set -euo pipefail
+          echo "===== PHASE 0: DOCTOR ====="
+          sudo zelynic doctor
+
+      - name: "Phase 1 — v31 adaptive BDP: lab setup (netns + veth + dedicated cgroup)"
+        run: |
+          set -euo pipefail
+          echo "===== PHASE 1: LAB SETUP ====="
+          sudo ip netns add rtt
+          sudo ip link add veth-rtt-host type veth peer name veth-rtt-ns
+          sudo ip link set veth-rtt-ns netns rtt
+          sudo ip addr add 10.200.0.1/24 dev veth-rtt-host
+          sudo ip link set veth-rtt-host up
+          sudo ip netns exec rtt ip link set lo up
+          sudo ip netns exec rtt ip addr add 10.200.0.2/24 dev veth-rtt-ns
+          sudo ip netns exec rtt ip link set veth-rtt-ns up
+          echo "--- lab link state ---"
+          sudo ip netns exec rtt ip -br addr
+          mkdir -p /tmp/www
+          dd if=/dev/urandom of=/tmp/www/payload.bin bs=1M count=32 status=none
+          nohup python3 -m http.server 8000 --bind 10.200.0.1 --directory /tmp/www >/tmp/http.log 2>&1 &
+          sleep 1
+          curl -s -o /dev/null -w 'http server answers: %{http_code}\n' http://10.200.0.1:8000/payload.bin
+          echo "--- dedicated target cgroup zverify ---"
+          sudo mkdir -p /sys/fs/cgroup/zverify
+          nohup sudo bash -c 'exec sleep 900' >/dev/null 2>&1 &
+          sleep 1
+          KEEPALIVE=$(pgrep -f 'exec sleep 900' | head -1)
+          echo "keepalive pid: ${KEEPALIVE}"
+          echo "${KEEPALIVE}" | sudo tee /sys/fs/cgroup/zverify/cgroup.procs
+          CGID=$(stat -c '%i' /sys/fs/cgroup/zverify)
+          echo "ZVERIFY_CGID=${CGID}" | tee /tmp/zverify_cgid
+          echo "--- apply the v31 limit: cg:${CGID} at 100kb ---"
+          sudo zelynic s "cg:${CGID}" 100kb
+          echo "APPLY_EXIT=$?"
+          echo "--- status (human) ---"
+          sudo zelynic status
+          echo "--- status --print-json (the recwn_limits object) ---"
+          sudo zelynic status --print-json | jq '{recwn_limits, limits: [.limits[] | {label, bytes_saved_total}]}'
+
+      - name: "Phase 1 — v31 leg A: floor window at RTT ~30ms (below the 200ms cadence floor)"
+        run: |
+          set -euo pipefail
+          echo "===== PHASE 1 LEG A: RTT 30ms (floor expected: window 20000, sk_rcvbuf 40000) ====="
+          sudo ip netns exec rtt tc qdisc add dev veth-rtt-ns root netem delay 30ms
+          sudo ip netns exec rtt tc qdisc show dev veth-rtt-ns
+          echo "--- ensure the payload server (a step's process tree dies with the step) ---"
+          curl -s -o /dev/null -m 3 http://10.200.0.1:8000/payload.bin || \
+            { nohup python3 -m http.server 8000 --bind 10.200.0.1 --directory /tmp/www >/tmp/http.log 2>&1 & sleep 1; }
+          curl -s -o /dev/null -w 'http server answers: %{http_code}\n' -m 5 http://10.200.0.1:8000/payload.bin
+          echo "--- start a download that outlives both captures ---"
+          nohup sudo bash -c \
+            'echo $$ > /sys/fs/cgroup/zverify/cgroup.procs; \
+             exec ip netns exec rtt curl -s --max-time 90 -o /dev/null http://10.200.0.1:8000/payload.bin' \
+            >/tmp/curl-a.log 2>&1 &
+          sleep 3
+          echo "--- ss -tipm inside the netns DURING the transfer (leg A, first pass) ---"
+          sudo ip netns exec rtt ss -tipm
+          sleep 2
+          echo "--- ss -tipm (leg A, second pass) ---"
+          sudo ip netns exec rtt ss -tipm
+          echo "--- zelynic status --print-json (leg A) ---"
+          sudo zelynic status --print-json | jq '{recwn_limits, limits: [.limits[] | {label, bytes_saved_total}]}'
+          echo "--- end the leg A transfer (its server connection dies with this step) ---"
+          sudo pkill -f 'curl -s --max-time 90' || true
+
+      - name: "Phase 1 — v31 leg B: measured window at RTT 300ms (above the floor: window 30000, sk_rcvbuf 60000)"
+        run: |
+          set -euo pipefail
+          echo "===== PHASE 1 LEG B: RTT 300ms (measured srtt retune expected: window 30000, sk_rcvbuf 60000) ====="
+          sudo ip netns exec rtt tc qdisc change dev veth-rtt-ns root netem delay 300ms
+          sudo ip netns exec rtt tc qdisc show dev veth-rtt-ns
+          echo "--- ensure the payload server again (each step may have lost it) ---"
+          curl -s -o /dev/null -m 3 http://10.200.0.1:8000/payload.bin || \
+            { nohup python3 -m http.server 8000 --bind 10.200.0.1 --directory /tmp/www >/tmp/http.log 2>&1 & sleep 1; }
+          echo "--- kill any stale leg A transfer first ---"
+          sudo pkill -f 'curl -s --max-time 90' || true
+          sleep 1
+          echo "--- start a FRESH transfer: its TCP connection forms at RTT 300ms ---"
+          nohup sudo bash -c \
+            'echo $$ > /sys/fs/cgroup/zverify/cgroup.procs; \
+             exec ip netns exec rtt curl -s --max-time 40 -o /dev/null http://10.200.0.1:8000/payload.bin' \
+            >/tmp/curl-b.log 2>&1 &
+          echo "--- ride a few RTTs so srtt converges and the RTT_CB re-apply lifts the window ---"
+          sleep 10
+          echo "--- ss -tipm inside the netns DURING the transfer (leg B, first pass) ---"
+          sudo ip netns exec rtt ss -tipm
+          sleep 6
+          echo "--- ss -tipm (leg B, second pass) ---"
+          sudo ip netns exec rtt ss -tipm
+          echo "--- rtt probe: the ns socket's own view (ping across the veth) ---"
+          sudo ip netns exec rtt ping -c 3 -q 10.200.0.1 || true
+          echo "--- zelynic status --print-json (leg B) ---"
+          sudo zelynic status --print-json | jq '{recwn_limits, limits: [.limits[] | {label, bytes_saved_total}]}'
+          echo "--- kill the transfer (socket death) and re-probe immediately ---"
+          sudo pkill -f 'curl -s --max-time 40' || true
+          sleep 1
+          echo "--- ss -tipm AFTER the kill (the socket must be gone) ---"
+          sudo ip netns exec rtt ss -tipm
+          echo "--- curl diagnostics ---"
+          cat /tmp/curl-b.log || true
+
+      - name: "Phase 1 — quota-saver A/B (ground truth wire savings)"
+        run: |
+          set -euo pipefail
+          echo "===== PHASE 1: QUOTA-SAVER A/B (--overrun-seconds 30) ====="
+          sudo ./scripts/bench/quota-saver-ab.sh --overrun-seconds 30
+          echo "AB_EXIT=$?"
+
+      - name: "Phase 2 — v32 sk_storage: socket death, ghost rows, pin leaks"
+        run: |
+          set -euo pipefail
+          echo "===== PHASE 2: SK_STORAGE GC + PIN HYGIENE ====="
+          sudo pkill -f 'curl -s --max-time 90' || true
+          CGID=$(stat -c '%i' /sys/fs/cgroup/zverify)
+          echo "--- ensure the payload server and the keepalive member ---"
+          curl -s -o /dev/null -m 3 http://10.200.0.1:8000/payload.bin || \
+            { nohup python3 -m http.server 8000 --bind 10.200.0.1 --directory /tmp/www >/tmp/http.log 2>&1 & sleep 1; }
+          pgrep -f 'exec sleep 900' >/dev/null || \
+            { nohup sudo bash -c 'exec sleep 900' >/dev/null 2>&1 & sleep 1; \
+              pgrep -f 'exec sleep 900' | head -1 | sudo tee /sys/fs/cgroup/zverify/cgroup.procs; }
+          echo "--- re-apply the limit (fresh generation) ---"
+          sudo zelynic s "cg:${CGID}" 100kb
+          echo "--- generate traffic (RTT 10ms for speed) ---"
+          sudo ip netns exec rtt tc qdisc change dev veth-rtt-ns root netem delay 10ms
+          nohup sudo bash -c \
+            'echo $$ > /sys/fs/cgroup/zverify/cgroup.procs; \
+             exec ip netns exec rtt curl -s --max-time 15 -o /dev/null http://10.200.0.1:8000/payload.bin' \
+            >/tmp/curl-p2.log 2>&1 &
+          sleep 5
+          echo "--- kill the traffic mid-flight (socket death) ---"
+          sudo pkill -f 'curl -s --max-time 15' || true
+          echo "--- wait 5 seconds ---"
+          sleep 5
+          echo "--- status (ghost-row check: the live row must be the zverify cgroup only) ---"
+          sudo zelynic status
+          echo "--- recover ---"
+          sudo zelynic recover
+          echo "RECOVER_EXIT=$?"
+          echo "--- u --all ---"
+          sudo zelynic u --all
+          echo "--- /sys/fs/bpf/zelynic/ (empty or absent = no pin leaks) ---"
+          sudo ls -la /sys/fs/bpf/zelynic/ 2>&1 || echo "(the pin dir is absent — zero residue)"
+          echo "--- re-apply + traffic + counters still book ---"
+          sudo zelynic s "cg:${CGID}" 100kb
+          sudo bash -c \
+            'echo $$ > /sys/fs/cgroup/zverify/cgroup.procs; \
+             exec ip netns exec rtt curl -s --max-time 12 -o /dev/null http://10.200.0.1:8000/payload.bin' || true
+          sudo zelynic status --print-json | jq '{recwn_limits, limits: [.limits[] | {label, bytes_saved_total}]}'
+          sudo zelynic status
+          sudo zelynic u --all
+          echo "--- final pin dir listing (empty or absent) ---"
+          sudo ls -la /sys/fs/bpf/zelynic/ 2>&1 || echo "(the pin dir is absent — zero residue)"
+
+      - name: "Phase 3 — netns:// resolver (success + empty failure)"
+        run: |
+          set -euo pipefail
+          echo "===== PHASE 3A: netns:// ====="
+          sudo ip netns add test-ns
+          echo "--- member via systemd-run scope (never the session cgroup) ---"
+          sudo systemd-run --unit=zv-ns-test --scope ip netns exec test-ns sleep 300 >/dev/null 2>&1 &
+          sleep 2
+          echo "--- apply netns://test-ns (must resolve) ---"
+          sudo zelynic s netns://test-ns 100kb
+          echo "APPLY_EXIT=$?"
+          echo "--- verbose trace of the resolution (re-apply, idempotent) ---"
+          sudo zelynic -v s netns://test-ns 100kb || sudo zelynic s netns://test-ns 100kb
+          echo "--- status (the resolved scope cgroup row) ---"
+          sudo zelynic status
+          echo "--- the empty-ns failure (must fail honestly) ---"
+          sudo ip netns add empty-ns
+          if sudo zelynic s netns://empty-ns 100kb; then \
+            echo "EMPTY_NETNS_EXIT=0 (UNEXPECTED: the empty netns apply must refuse)"; \
+          else \
+            echo "EMPTY_NETNS_EXIT=$? (non-zero = the honest refusal, as designed)"; \
+          fi
+          sudo zelynic u --all
+
+      - name: "Phase 3 — iface:// resolver (VRF success + both honest failures)"
+        run: |
+          set -euo pipefail
+          echo "===== PHASE 3B: iface:// ====="
+          sudo ip link add red type vrf table 4242
+          sudo ip link set red up
+          echo "--- vrf exec member via systemd-run scope ---"
+          sudo systemd-run --unit=zv-vrf-red --scope ip vrf exec red sleep 300 >/dev/null 2>&1 &
+          sleep 2
+          echo "--- the vrf cgroup iproute2 created (the caller-path contract) ---"
+          sudo systemd-run --unit=zv-vrf-probe --scope bash -c \
+            'grep -H . /proc/self/cgroup; ip vrf identify $$ || true' || true
+          echo "--- apply iface://red (must resolve) ---"
+          sudo zelynic s iface://red 100kb
+          echo "APPLY_EXIT=$?"
+          echo "--- verbose trace (skip-probe / walk trace) ---"
+          sudo zelynic -v s iface://red 100kb || sudo zelynic s iface://red 100kb
+          echo "--- status (the vrf/red cgroup row) ---"
+          sudo zelynic status
+          echo "--- failure shape 1: vrf device, no cgroup ever exec'd ---"
+          sudo ip link add blue type vrf table 4243
+          sudo ip link set blue up
+          if sudo zelynic s iface://blue 100kb; then \
+            echo "BLUE_NO_CGROUP_EXIT=0 (UNEXPECTED: a plain VRF device must refuse)"; \
+          else \
+            echo "BLUE_NO_CGROUP_EXIT=$? (non-zero = the honest refusal, as designed)"; \
+          fi
+          echo "--- failure shape 2: the vrf/blue cgroup exists but is empty ---"
+          sudo ip vrf exec blue true
+          if sudo zelynic s iface://blue 100kb; then \
+            echo "BLUE_EMPTY_EXIT=0 (UNEXPECTED: the empty vrf cgroup must refuse)"; \
+          else \
+            echo "BLUE_EMPTY_EXIT=$? (non-zero = the honest refusal, as designed)"; \
+          fi
+          sudo zelynic u --all
+
+      - name: "Phase 4 — cleanup"
+        run: |
+          set -euo pipefail
+          echo "===== PHASE 4: CLEANUP ====="
+          sudo zelynic u --all
+          sudo pkill -f 'sleep 300' || true
+          sudo pkill -f 'sleep 900' || true
+          sudo ip netns delete test-ns || true
+          sudo ip netns delete empty-ns || true
+          sudo ip netns delete rtt || true
+          sudo ip link del red || true
+          sudo ip link del blue || true
+          sudo ip link del veth-rtt-host || true
+          sudo rmdir /sys/fs/cgroup/zverify || true
+          echo "--- post-cleanup pin dir (must be empty or absent) ---"
+          sudo ls -la /sys/fs/bpf/zelynic/ 2>&1 || true
+          echo "--- post-cleanup status ---"
+          sudo zelynic status
+
+      - name: "Verdict"
+        if: always()
+        run: echo "night-verify-kvm run finished — read every capture above verbatim."
