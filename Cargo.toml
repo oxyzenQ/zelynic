@@ -191,6 +191,24 @@ libc = "0.2"
 
 # eBPF support (optional)
 [dependencies.aya]
+# night-enhance-1 (the aya 0.16 wave, 2026-11-12): the loader rides
+# the 0.15+0.16 release pair (2026-10-27/28). Pre-bump surface audit:
+# EbpfLoader::default_map_pin_directory and the per-map map_pin_path
+# verified live on docs.rs 0.16.0 — the 0.14 pin API survived the
+# wave unchanged. The whole tree needed exactly ONE mechanical move:
+# the map writes went by-value -> by-reference (HashMap::insert and
+# Array::set now borrow their values; seven call sites across the
+# limiter, zero semantic delta — every written value is a Copy Pod
+# row). MSRV 1.98.0 matches this manifest's rust-version byte for
+# byte (no toolchain, no gate-10 move). The kernel side stays on
+# aya-ebpf 0.2.1 — the ebpf/ comment edit staled the prebuilt tree
+# pin, so the lane regenerated the objects from the same 0.2.1
+# pairing and the same nightly pin (semantics identical, parity
+# gate green; upstream shipped aya-ebpf 0.3.0 in the same wave —
+# the programs-side bump is its own owner call); the parse lane
+# proves the freshly staged bytes still parse under the new
+# parser, and cargo tree pins the dev-dep parity:
+# aya 0.16.0 -> aya-obj 0.6.0, mirrored below.
 # NIGHT-depthtest (the aya 0.14 wave, 2026-06-24): the userspace
 # loader joins the generation its own programs side already rides
 # (ebpf/Cargo.toml pinned aya-ebpf 0.2.1 first — the upstream
@@ -200,7 +218,7 @@ libc = "0.2"
 # default_map_pin_directory(path) — the LIBBPF_PIN_BY_NAME
 # auto-pin contract is unchanged, limiter/mod.rs carries the
 # renamed call.
-version = "0.14"
+version = "0.16"
 optional = true
 
 # chrono dropped (Hinnant-style, NIGHT-hunt-6 2026-09-18; cosmostrix
@@ -246,17 +264,19 @@ path = "test/integration/main.rs"
 
 # Test-tree parse lane (NIGHT-dinner-6's E1 rider, 2026-09-28):
 # aya-obj is the parse-only BPF ELF reader — the exact parser crate
-# compiled into aya 0.14.0 (NIGHT-depthtest: the pairing moved with
-# the aya bump — 0.3.0 shipped in the same 2026-06-24 wave, and the
-# parity contract stays: the dev-dep mirrors aya's own internal pin
-# so the tests parse with the same parser the loader loads with).
+# compiled into aya 0.16.0 (night-enhance-1: the pairing moved with
+# the aya bump — 0.6.0 in the same 2026-10 wave, cargo tree verified
+# the internal pin; NIGHT-depthtest's 0.14.0/0.3.0 move on
+# 2026-06-24 was the same contract, and the parity stays: the
+# dev-dep mirrors aya's own internal pin so the tests parse with
+# the same parser the loader loads with).
 # Dev-only: the embedded
 # object pins (test/ebpf/embedded_object_tests.rs) parse the shipped
 # bytes without a single syscall — the lane
 # docs/PURE_RUST_EVALUATION.md's phase-2 harness established. Nothing
 # ships in any binary; a --no-default-features build never compiles it.
 [dev-dependencies]
-aya-obj = "0.3"
+aya-obj = "0.6"
 
 [profile.release]
 # Maximum optimization for production binary

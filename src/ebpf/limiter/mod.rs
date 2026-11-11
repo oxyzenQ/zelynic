@@ -274,7 +274,7 @@ impl Limiter {
             )
             .context("Failed to access schema_version map")?;
             schema_map
-                .set(0, SCHEMA_VERSION_EXPECTED, 0)
+                .set(0, &SCHEMA_VERSION_EXPECTED, 0)
                 .map_err(|e| anyhow!("Failed to write schema version: {e}"))?;
         }
 

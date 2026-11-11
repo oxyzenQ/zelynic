@@ -259,7 +259,7 @@ impl super::Limiter {
             flags,
         };
         self.with_policy_map(direction, |map| {
-            map.insert(cgroup_id, raw, 0)
+            map.insert(&cgroup_id, &raw, 0)
                 .map_err(|e| anyhow!("Failed to write policy: {e}"))
         })
     }
