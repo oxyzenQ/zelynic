@@ -8,19 +8,21 @@
 //! The physics, stated honestly: zelynic policies cgroups, and a
 //! plain interface (wg0, eth1) owns no cgroup — but a VRF DOES.
 //! iproute2's `ip vrf exec <name> <cmd>` creates the cgroup
-//! `<name>` directly under the cgroup root (`/sys/fs/cgroup/<name>`)
-//! and moves the exec'd pid into it, so every process a network
-//! engineer runs inside the VRF domain shares one named cgroup —
-//! exactly the workload-shape the strict single lane targets. The
-//! iface:// lane resolves that cgroup; every downstream surface is
-//! the single lane's machinery unchanged, and no eBPF changed (the
-//! resolver reads the cgroup tree, nothing else).
+//! `<caller-path>/vrf/<name>` under the cgroup2 root (keyed by the
+//! caller's cgroup path and network namespace — the exact contract
+//! its own `ip vrf identify` reads back from `/proc/<pid>/cgroup`'s
+//! `/vrf/<name>` segment) and moves the exec'd pid into it, so every
+//! process a network engineer runs inside the VRF domain shares one
+//! named cgroup — exactly the workload-shape the strict single lane
+//! targets. The iface:// lane resolves that cgroup; every downstream
+//! surface is the single lane's machinery unchanged, and no eBPF
+//! changed (the resolver reads the cgroup tree, nothing else).
 //!
-//! The depth-1 law is the iproute2 contract: a same-named directory
-//! DEEPER in the tree (a systemd slice, a docker scope) is not a VRF
-//! domain, and the matcher refuses it — precision over tolerance,
-//! the same law the docker matcher's parent-check carries for the
-//! cgroupfs driver's `docker/<id>` shape.
+//! The parent law is the iproute2 contract: the domain's cgroup is
+//! the directory `<name>` whose PARENT is named `vrf` (at any depth —
+//! the caller's path prefixes it). A directory named `<name>` without
+//! a `vrf` parent (a slice, a scope, a depth-1 impostor) is not a VRF
+//! domain, and the matcher refuses it — precision over tolerance.
 //!
 //! A cgroup whose `cgroup.procs` is empty is refused as dead (the
 //! VRF exists but nothing runs in it — the netns lane's empty
@@ -36,7 +38,7 @@
 //! process-name lane owns; the resolved cgroup id is the durable
 //! handle, the URI is the speller.
 //!
-//! Pure cores (the depth-1 matcher) are separated from the IO
+//! Pure cores (the vrf-parent matcher) are separated from the IO
 //! wrappers (the walk, the cgroup.procs read) so every decision pins
 //! rootlessly in test/ebpf/identity/iface_tests.rs.
 
@@ -47,12 +49,18 @@ use anyhow::{Result, anyhow, bail};
 use super::{cgroup_id_of, find_cgroup_dir};
 
 /// Pure: is this directory the VRF domain's cgroup? iproute2's
-/// `ip vrf exec <name>` creates the cgroup DIRECTLY under the cgroup
-/// root, so the matcher is a depth-1 law: the parent must be the
-/// root and the name must match exactly. A same-named directory
-/// deeper in the tree is a slice or a scope, not a VRF domain.
-pub(super) fn iface_cgroup_matches(path: &Path, root: &Path, name: &str) -> bool {
-    path.parent() == Some(root) && path.file_name().and_then(|n| n.to_str()) == Some(name)
+/// `ip vrf exec <name>` creates the domain cgroup as `<name>` under
+/// a parent directory named `vrf` — the shape `ip vrf identify`
+/// reads back from `/proc/<pid>/cgroup` (the `/vrf/<name>` segment).
+/// The parent check is the contract; a same-named directory under a
+/// slice or at the root is an impostor the matcher refuses.
+pub(super) fn iface_cgroup_matches(path: &Path, name: &str) -> bool {
+    path.file_name().and_then(|n| n.to_str()) == Some(name)
+        && path
+            .parent()
+            .and_then(|p| p.file_name())
+            .and_then(|n| n.to_str())
+            == Some("vrf")
 }
 
 /// Resolve `iface://<name>` to the VRF domain's cgroup id. Every
@@ -61,22 +69,22 @@ pub(super) fn iface_cgroup_matches(path: &Path, root: &Path, name: &str) -> bool
 /// INFRASTRUCTURE answered.
 pub(super) fn resolve_iface(name: &str) -> Result<Vec<u32>> {
     let root = PathBuf::from("/sys/fs/cgroup");
-    let dir = find_cgroup_dir(&root, &|p| iface_cgroup_matches(p, &root, name));
+    let dir = find_cgroup_dir(&root, &|p| iface_cgroup_matches(p, name));
     let Some(dir) = dir else {
-        // No depth-1 cgroup carries the name. Name the physics and
+        // No vrf/<name> cgroup carries the name. Name the physics and
         // the honest doors — the interface check only sharpens the
         // error (a VRF's device usually shares the domain's name).
         if !Path::new("/sys/class/net").join(name).exists() {
             bail!(
-                "no interface '{name}' and no cgroup '{name}' on this host — the iface:// \
-                 lane resolves VRF domains ('ip vrf exec' groups its processes under \
-                 /sys/fs/cgroup/<vrf>)\n  \
+                "no interface '{name}' and no vrf domain '{name}' on this host — the iface:// \
+                 lane resolves VRF domains ('ip vrf exec' groups its processes into the \
+                 vrf/{name} cgroup)\n  \
                  tip: ip -d link lists this host's VRF devices"
             );
         }
         bail!(
             "interface '{name}' owns no cgroup — the iface:// lane resolves VRF domains \
-             ('ip vrf exec' groups its processes under /sys/fs/cgroup/<vrf>); a plain \
+             ('ip vrf exec' groups its processes into the vrf/{name} cgroup); a plain \
              interface carries no cgroup\n  \
              tip: target the namespace's workloads with netns://<name>, or the cgroup \
              directly: zelynic list-apps, then cg:<id>"

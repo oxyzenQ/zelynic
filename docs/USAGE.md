@@ -579,9 +579,9 @@ reboots: resolution reads live state at apply time, the same
 contract the process-name lane owns, and the resolved cgroup id
 is the durable handle.
 `iface://<name>` targets a VRF domain: `ip vrf exec <name> <cmd>`
-groups every process it runs into the cgroup `<name>` directly under
-`/sys/fs/cgroup/` (the iproute2 contract), and the URI resolves that
-cgroup — the physics is honest: a VRF owns a cgroup, a plain
+groups every process it runs into the `vrf/<name>` cgroup (the
+iproute2 contract — the same `/vrf/<name>` segment `ip vrf identify`
+reads back), and the URI resolves that cgroup — the physics is honest: a VRF owns a cgroup, a plain
 interface (wg0, eth1) does not, so the plain-interface shape refuses
 with the alternatives named (`netns://` for the namespace, `cg:<id>`
 for the cgroup directly). A domain whose cgroup holds no live process

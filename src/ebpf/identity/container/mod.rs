@@ -20,9 +20,8 @@
 //! for cgroupfs — here), and `netns://` rides the named-namespace
 //! handle's nsfs inode matched against its /proc member processes'
 //! ns links (netns.rs, the third sibling), and `iface://` resolves
-//! the VRF domain's own cgroup — the one `ip vrf exec` groups its
-//! processes into, depth-1 under the cgroup root (iface.rs, the
-//! fourth sibling).
+//! the VRF domain's own cgroup — the `vrf/<name>` subtree `ip vrf
+//! exec` groups its processes into (iface.rs, the fourth sibling).
 //!
 //! The dangerous-target blocklist does not apply to container
 //! targets: it names HOST system processes (sshd, systemd) whose
@@ -64,8 +63,8 @@ pub enum ContainerRef {
     /// processes to the one workload cgroup living in it.
     Netns { name: String },
     /// `iface://<name>` — a VRF domain (the `ip vrf exec <name>`
-    /// family), resolved to the cgroup iproute2 groups the domain's
-    /// processes into.
+    /// family), resolved to the vrf/<name> cgroup iproute2 groups
+    /// the domain's processes into.
     Iface { name: String },
 }
 

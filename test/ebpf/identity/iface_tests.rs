@@ -3,7 +3,7 @@
 
 //! Pins for the iface:// lane (night-T-2) — the pure cores: the URI
 //! grammar arm (shared with the container lanes' parse, and its
-//! round-trip through Target::parse) and the depth-1 cgroup matcher
+//! round-trip through Target::parse) and the vrf-parent cgroup matcher
 //! (the iproute2 `ip vrf exec` contract). The IO wrappers (the
 //! cgroup walk, the cgroup.procs liveness read) stay the root-machine
 //! lane — every decision they make is one of these pinned cores.
@@ -61,7 +61,7 @@ fn target_parse_rides_iface() {
     assert_eq!(name, "red");
 }
 
-// ── the depth-1 matcher ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ── the vrf-parent matcher ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 fn temp_tree(tag: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("zelynic-if-{tag}-{}", std::process::id()));
@@ -70,53 +70,59 @@ fn temp_tree(tag: &str) -> PathBuf {
     dir
 }
 
-/// The matcher accepts the cgroup DIRECTLY under the root — the
-/// iproute2 `ip vrf exec` shape — and nothing else: a same-named
-/// directory deeper in the tree is a slice or a scope, not a VRF
-/// domain (precision over tolerance).
+/// The matcher accepts `<name>` under a parent named `vrf` — the
+/// iproute2 `ip vrf exec` contract, the shape `ip vrf identify` reads
+/// back from /proc/<pid>/cgroup — at ANY depth (the caller's cgroup
+/// path prefixes the vrf/ subtree). Anything else is an impostor.
 #[test]
-fn matcher_is_depth_one_only() {
-    let root = temp_tree("depth");
-    let vrf = root.join("red");
-    std::fs::create_dir_all(&vrf).unwrap();
-    let deeper = root.join("system.slice").join("red");
-    std::fs::create_dir_all(&deeper).unwrap();
+fn matcher_requires_the_vrf_parent() {
+    let root = temp_tree("parent");
+    let domain = root.join("vrf").join("red");
+    std::fs::create_dir_all(&domain).unwrap();
+    let nested = root.join("system.slice").join("work.scope").join("vrf").join("red");
+    std::fs::create_dir_all(&nested).unwrap();
+    let impostor = root.join("red");
+    std::fs::create_dir_all(&impostor).unwrap();
+    let wrong_parent = root.join("slices").join("red");
+    std::fs::create_dir_all(&wrong_parent).unwrap();
 
-    assert!(iface_cgroup_matches(&vrf, &root, "red"));
+    assert!(iface_cgroup_matches(&domain, "red"));
+    assert!(iface_cgroup_matches(&nested, "red"));
     assert!(
-        !iface_cgroup_matches(&deeper, &root, "red"),
-        "a same-named directory under a slice is not the VRF domain"
+        !iface_cgroup_matches(&impostor, "red"),
+        "a depth-1 directory with no vrf parent is an impostor"
     );
     assert!(
-        !iface_cgroup_matches(&root.join("blue"), &root, "red"),
+        !iface_cgroup_matches(&wrong_parent, "red"),
+        "a same-named directory under a non-vrf parent is an impostor"
+    );
+    assert!(
+        !iface_cgroup_matches(&root.join("vrf").join("blue"), "red"),
         "a different name is a clean miss"
     );
     let _ = std::fs::remove_dir_all(&root);
 }
 
-/// The walk over a tempdir tree finds the depth-1 domain and misses
-/// cleanly when only the deeper impostor exists — the bounded walk
-/// and the matcher compose into the resolver's find.
+/// The walk over a tempdir tree finds the domain (the vrf/<name>
+/// shape, nested or not) and misses cleanly when only the impostor
+/// exists — the bounded walk and the matcher compose into the
+/// resolver's find.
 #[test]
-fn walk_finds_the_depth_one_domain_only() {
+fn walk_finds_the_vrf_domain_only() {
     let root = temp_tree("walk");
-    let vrf = root.join("red");
-    std::fs::create_dir_all(&vrf).unwrap();
+    let domain = root.join("vrf").join("red");
+    std::fs::create_dir_all(&domain).unwrap();
 
-    let hit = find_cgroup_dir(&root, &|p| iface_cgroup_matches(p, &root, "red"));
-    assert_eq!(hit, Some(vrf));
+    let hit = find_cgroup_dir(&root, &|p| iface_cgroup_matches(p, "red"));
+    assert_eq!(hit, Some(domain));
 
     let impostor_root = temp_tree("walk2");
     let impostor = impostor_root.join("system.slice").join("red");
     std::fs::create_dir_all(&impostor).unwrap();
     assert_eq!(
-        find_cgroup_dir(&impostor_root, &|p| iface_cgroup_matches(
-            p,
-            &impostor_root,
-            "red"
-        )),
+        find_cgroup_dir(&impostor_root, &|p| iface_cgroup_matches(p, "red")),
         None,
-        "an impostor deeper in the tree must be a clean miss"
+        "an impostor without the vrf parent must be a clean miss"
     );
     let _ = std::fs::remove_dir_all(&impostor_root);
     let _ = std::fs::remove_dir_all(&root);
