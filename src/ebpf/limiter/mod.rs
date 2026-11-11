@@ -13,11 +13,10 @@
 //! - `policy_lines.rs` — the policy surface's pure line formatters
 //! - `policy_write.rs` — the per-cgroup leg writer (improve-40 split)
 //! - `reclaim.rs` — the remove path (unstrict) + state reclamation
-//! - `recwn.rs`   — the RECWN userspace half: the hint-map sweep
-//!   every policy removal runs (night-spark-2, schema v25)
-//! - `pace.rs`    — the pacing userspace half: the hint-map sweep
-//!   every policy removal runs + the loader's fourth attach lane
-//!   (night-spark-5, schema v27)
+//! - `pace.rs`    — the pacing userspace half: the loader's fourth
+//!   attach lane (night-spark-5, schema v27; the hint sweeps are
+//!   gone since night-T-4's schema v32 — the sk-storage generation
+//!   belt does the invalidating, ebpf/src/pace_flow.rs's header)
 //! - `stats.rs`   — status printing + map readers + identity
 //! - `mmspa.rs`   — the MMSPA userspace half: the leaf-cache flush
 //!   every policy mutation runs (private-research-2)
@@ -38,7 +37,6 @@ mod policy_lines;
 mod policy_write;
 pub mod rate_ring;
 mod reclaim;
-mod recwn;
 mod resolve;
 mod schema;
 // The schema ledger's history half (night-T-3's 600-line split): a
@@ -344,7 +342,7 @@ impl Limiter {
             // one attach type over (BPF_CGROUP_SOCK_OPS). The
             // program plants with the object on every strict-family
             // attach, exactly when a rate limit is applied; its
-            // cookie-keyed hint map is pinned by name with every
+            // socket-local hint map is pinned by name with every
             // other map, and the unstrict teardown unlinks the whole
             // pin directory as ever (unpin_all sweeps the third
             // pair with the rest — the link pin's removal detaches
@@ -379,7 +377,7 @@ impl Limiter {
         // night-netrunner-1 floor, the legacy twin is gone). The
         // program plants with the object on every strict-family
         // attach, exactly when a rate limit is applied; its
-        // cookie-keyed hint map is pinned by name with every other
+        // socket-local hint map is pinned by name with every other
         // map, and the unstrict teardown unlinks the whole pin
         // directory as ever (unpin_all sweeps the fourth pair with
         // the rest — the link pin's removal detaches it in-kernel,

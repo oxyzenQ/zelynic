@@ -38,6 +38,35 @@ v80.0.0
 
 ### Changed
 
+- The sock_ops hint lanes moved to Socket Local Storage
+  (schema v32, night-T-4 — the sk-storage architectural
+  deepening): `recwn_socket_hint` and `pace_socket_hint` left the
+  cookie-keyed LRU-4096 maps for `BPF_MAP_TYPE_SK_STORAGE` — the
+  rows hang off the kernel's own `struct sock`
+  (`bpf_sk_storage_get`, the `#[btf_map]` .maps BTF section,
+  `BPF_F_NO_PREALLOC`), so the callback pays no hash (one list
+  walk on the socket's local-storage chain), a live connection
+  can never be fake-evicted under (no LRU cap), the cookie-reuse
+  ambiguity is structurally gone, and the kernel GCs each row at
+  sock destruction. The row value pairs the policy rate with the
+  MMSPA generation the prime ran under, and every callback
+  compares it against the live `mmspa_generation` word — the
+  generation belt REPLACES the whole-map removal sweeps (the
+  recwn/pace flush lanes and their `PIN_MAP_*_HINT` constants
+  retired; a policy removal now heals on the very first
+  callback — the v25 removal blind spot closed, not swept). The
+  kernel floor carries it: `cg_skb_func_proto` and
+  `sock_ops_func_proto` both list `bpf_sk_storage_get/delete`
+  since v5.9 (verified v5.13 + v5.15 net/core/filter.c). Only the
+  two sock_ops hint maps moved — their rows are genuine
+  socket-identity state; the other cookie-keyed maps key finer or
+  coarser identities (the QUIC conversation geometry, the ECN
+  budget words, the cake/drr flow identities) and keep their own
+  hash-map aging laws. The required schema bump forces one reload
+  so a pinned v31 LRU map (a different map TYPE a v32 loader
+  would open as sk_storage) cannot survive the upgrade.
+  (night-T-4)
+
 - The RECWN clamp rides the socket's own measured RTT now
   (schema v31, night-T-3): the hint row carries the policy's
   download rate, and the sock_ops program derives the window per

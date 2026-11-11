@@ -21,6 +21,7 @@
 /// the egress hook the upload one — the two programs share both
 /// maps by object construction.
 use aya_ebpf::{
+    bindings::bpf_sock,
     helpers::{bpf_get_socket_cookie, bpf_ktime_get_ns, bpf_skb_cgroup_id},
     maps::{HashMap, LruHashMap},
     programs::SkBuffContext,
@@ -229,27 +230,43 @@ pub(crate) fn try_enforce(
     // same cast the prime sites and the lanes rode); the return is
     // a plain u64 cookie, no pointer crosses back.
     let sock_cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
-    if is_ingress && sock_cookie != 0 {
-        recwn_flow::recwn_prime(sock_cookie, pol.rate_bps);
+    // The socket's own pointer, the same fetch's source: the __sk_buff
+    // union's sk field (PTR_TO_SOCK_COMMON_OR_NULL in verifier terms,
+    // v5.12+ — the 5.13 floor carries it; verified v5.13 and v5.15
+    // net/core/filter.c bpf_skb_is_valid_access). The hint prime
+    // sites key their sk_storage rows by it (night-T-4's schema v32
+    // migration — the state hangs off the kernel's own struct sock;
+    // the cookie stays the flow lanes' identity, the socket-identity
+    // state rides the socket). The helper's own fullsock guard is
+    // the second belt: a request/timewait sock answers NULL and the
+    // prime drops, the same miss posture the cookie-0 skip was.
+    // SAFETY: the program's own context pointer; the union read is
+    // a plain pointer load the verifier proves, null-checked before
+    // any deref of it below.
+    let sock_sk: *mut bpf_sock = unsafe { (*ctx.skb.skb).__bindgen_anon_2.sk };
+    if is_ingress && !sock_sk.is_null() {
+        recwn_flow::recwn_prime(sock_sk, pol.rate_bps);
     }
 
     // night-spark-5 (Egress Socket Pacing, schema v27 — the quota
     // saver's Layer 3): on the EGRESS policed path only, stamp the
-    // socket's cookie with the upload rate the resolved policy
-    // carries (the rate is this row's own; the burst never enters
-    // the law). The sock_ops program reads the hint back at the
-    // connection callbacks and pins SO_MAX_PACING_RATE — the
-    // kernel's own TCP pacer spaces the outgoing stream at the
-    // policy rate BEFORE the egress link bills the bytes: no
-    // over-budget burst, no drop, no CE mark, no loss event, and no
-    // tc qdisc anywhere (the pure-ebpf claim). The ingress twin
-    // never primes this hint: pacing is the upload spine. Steady
-    // state is one LRU lookup with no write (pace_flow::pace_prime's
-    // own contract) — the same cost class the RECWN prime above
-    // rode. The rate-0 block verdict returned above: a blocked lane
+    // socket's LOCAL hint row (night-T-4's schema v32 migration —
+    // the sk-storage twin of the RECWN prime above) with the upload
+    // rate the resolved policy carries under the live generation
+    // (the rate is this row's own; the burst never enters the law).
+    // The sock_ops program reads the hint back at the connection
+    // callbacks and pins SO_MAX_PACING_RATE — the kernel's own TCP
+    // pacer spaces the outgoing stream at the policy rate BEFORE
+    // the egress link bills the bytes: no over-budget burst, no
+    // drop, no CE mark, no loss event, and no tc qdisc anywhere
+    // (the pure-ebpf claim). The ingress twin never primes this
+    // hint: pacing is the upload spine. Steady state is one
+    // sk_storage lookup with no write (pace_flow::pace_prime's own
+    // contract) — the same cost class the RECWN prime above rode.
+    // The rate-0 block verdict returned above: a blocked lane
     // delivers nothing, so no pacing rate can help it.
-    if !is_ingress && sock_cookie != 0 {
-        pace_flow::pace_prime(sock_cookie, pol.rate_bps);
+    if !is_ingress && !sock_sk.is_null() {
+        pace_flow::pace_prime(sock_sk, pol.rate_bps);
     }
 
     // security-3 trust boundary: clamp the stored burst before ANY

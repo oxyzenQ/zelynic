@@ -15,9 +15,13 @@
 //     (bpf_get_current_cgroup_id is absent from sock_ops_func_proto
 //     on the 5.15 floor), so the EGRESS enforcement hook — which
 //     resolves every packet's socket cgroup exactly, per packet —
-//     PRIMES a cookie-keyed hint (pace_socket_hint: socket cookie
-//     u64 -> upload rate in bytes per second, LRU 4096, pinned, the
-//     recwn_socket_hint posture) on the policed path.
+//     PRIMES a socket-local hint (pace_socket_hint:
+//     BPF_MAP_TYPE_SK_STORAGE, the row hanging off the kernel's own
+//     struct sock, value = upload rate in bytes per second plus
+//     the MMSPA generation, night-T-4's schema v32 — the recwn
+//     twin's migration, one layer up: no hash, no LRU cap, the row
+//     dies with the socket, the generation belt replaces the
+//     removal sweep; the recwn header carries the full record).
 //
 //   * The connection callbacks' return values are ignored by the
 //     pacing dispatch (only RWND_INIT's return means anything, and
@@ -43,37 +47,63 @@
 //     PASSIVE_ESTABLISHED_CB has already fired and found nothing —
 //     so server-side sockets under an upload-only policing cgroup
 //     ride the default pacing for their first window's worth (the
-//     recwn lane's own residue, one layer up); connections that
-//     outlived their policy's removal keep their last rate until
-//     they close (the sweep removes the hint; connection churn
-//     heals); and UDP/QUIC sockets never reach this program — QUIC
-//     paces itself (RFC 9000), the upload lane's UDP story stays
-//     the policer's.
+//     recwn lane's own residue, one layer up); the post-removal
+//     residue the v27 doc carried is GONE with the sweep (the
+//     generation belt answers the OS default on the very first
+//     callback after a removal); and UDP/QUIC sockets never reach
+//     this program — QUIC paces itself (RFC 9000), the upload
+//     lane's UDP story stays the policer's.
 
 use aya_ebpf::{
     EbpfContext,
-    bindings::bpf_sock,
-    helpers::{bpf_get_socket_cookie, bpf_setsockopt},
-    macros::{map, sock_ops},
-    maps::LruHashMap,
+    btf_maps::SkStorage,
+    bindings::{BPF_SK_STORAGE_GET_F_CREATE, bpf_sock},
+    helpers::{bpf_setsockopt, generated::bpf_sk_storage_get},
+    macros::{btf_map, sock_ops},
     programs::SockOpsContext,
 };
 
+use super::mmspa_resolve::current_generation;
+
 use crate::pace::pacing_decision;
 
-/// The socket cookie -> upload pacing rate hint, primed by the
-/// egress enforcement hook on the policed path (enforce.rs's pace
-/// site) and read back here at the connection callbacks. LRU 4096
-/// so dead sockets age out — the recwn_socket_hint posture, one
-/// layer over. Pinned (survives process exit, shared with the
-/// prime site by object construction) but datapath-internal in
-/// SPIRIT: userspace only ever sweeps it whole on policy removals
-/// (limiter/pace.rs, the recwn sweep's posture), it never reads a
-/// row. A hint miss is today's behavior exactly — the default
+/// The sk-storage hint row (night-T-4, schema v32): the upload
+/// RATE plus the MMSPA GENERATION the prime ran under — the same
+/// pairing the recwn twin carries (the seq-lock write order: rate
+/// first, generation LAST). 16 bytes, repr(C), BTF-flat.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub(crate) struct PaceHint {
+    pub rate: u64,
+    pub generation: u32,
+}
+const _: () = assert!(core::mem::size_of::<PaceHint>() == 16);
+
+/// The socket-local pacing hint (night-T-4, schema v32): primed by
+/// the egress enforcement hook on the policed path (enforce.rs's
+/// pace site) and read back here at the connection callbacks.
+/// BPF_MAP_TYPE_SK_STORAGE — the row hangs off the kernel's own
+/// struct sock: no hash to pay, no LRU cap to evict under, no row
+/// to age (the kernel GCs it at sock destruction; the recwn twin's
+/// header carries the full migration record). BTF map (the
+/// #[btf_map] attribute's .maps section). Datapath-internal in
+/// SPIRIT: userspace never reads a row and never sweeps one — the
+/// generation belt invalidates, the sockets' own deaths garbage
+/// collect. A hint miss is today's behavior exactly — the default
 /// pacing, untouched.
 #[allow(non_upper_case_globals)]
-#[map]
-pub(crate) static pace_socket_hint: LruHashMap<u64, u64> = LruHashMap::pinned(4096, 0);
+#[btf_map]
+pub(crate) static pace_socket_hint: SkStorage<PaceHint> = SkStorage::new();
+
+/// The map pointer the raw sk_storage helpers take — the recwn
+/// twin's hint_map_ptr note verbatim (aya-ebpf 0.2.1 keeps
+/// SkStorage::as_ptr crate-private; the pointer is the static's
+/// symbol address, relocated to the map by name exactly the same
+/// way).
+#[inline(always)]
+fn pace_map_ptr() -> *mut core::ffi::c_void {
+    core::ptr::from_ref(&pace_socket_hint).cast_mut().cast()
+}
 
 // The kernel uapi constants this file rides (include/uapi/linux/bpf.h
 // and include/uapi/asm-generic/socket.h — aya-ebpf 0.2.1 does not
@@ -148,27 +178,43 @@ fn pace_apply(ctx: &SockOpsContext) -> u32 {
     if unsafe { (*sk).protocol } != IPPROTO_TCP {
         return 0;
     }
-    // The socket's cookie: the same identity the egress prime
-    // keyed on. ARG_PTR_TO_CTX — the sock_ops variant of the
-    // helper takes the context itself (net/core/filter.c
-    // bpf_get_socket_cookie_sock_ops_proto), not the sk.
-    // SAFETY: the ctx pointer is the program's own; the return is
-    // a plain u64 cookie, no pointer crosses back.
-    let cookie = unsafe { bpf_get_socket_cookie(ctx.as_ptr()) };
-    if cookie == 0 {
+    // The socket-local hint row (night-T-4, schema v32): the
+    // storage hangs off the kernel's own struct sock — no cookie
+    // fetch, no hash: the sk pointer the fullsock guard already
+    // vetted IS the identity. A miss is the default pacing, exactly
+    // the pre-migration behavior. SAFETY: sk is the non-null socket
+    // pointer the union carries (the same pointer the protocol
+    // field read above took); the helper returns either NULL or
+    // the kernel's own sk_storage value for this map — stable
+    // kernel memory for the invocation, the contract every map
+    // read in this object rides.
+    let row = unsafe {
+        bpf_sk_storage_get(
+            pace_map_ptr(),
+            sk.cast(),
+            core::ptr::null_mut(),
+            0,
+        )
+    };
+    if row.is_null() {
         return 0;
     }
-    // The primed rate: a miss is the default pacing, exactly
-    // today's behavior — never a fabricated zero (a hint row is
-    // only ever written with the policy's own rate).
-    // SAFETY: the hint map read shares the contract every map read
-    // in this object rides — the kernel holds the map value in
-    // stable memory for the invocation, and the shared borrow ends
-    // before any write lane below runs.
-    let hinted = match unsafe { pace_socket_hint.get(cookie) } {
-        Some(r) => *r,
-        None => return 0,
-    };
+    // The generation belt (the sweep's replacement, night-T-4): a
+    // row primed under a retired generation answers nothing. The
+    // seq-lock read order: gen first, then the rate the accepted
+    // gen pairs with. SAFETY: plain field loads inside the
+    // returned storage value, the addr_of projection the house
+    // READ_ONCE discipline pins, valid for the invocation.
+    let row_ptr = row.cast::<PaceHint>();
+    let row_gen = unsafe { core::ptr::addr_of!((*row_ptr).generation).read_volatile() };
+    if row_gen != current_generation() {
+        return 0;
+    }
+    // SAFETY: the same storage value, the same invocation window.
+    let hinted = unsafe { core::ptr::addr_of!((*row_ptr).rate).read_volatile() };
+    if hinted == 0 {
+        return 0;
+    }
     // The decision (the pure law, ../pace.rs): the owned op on a
     // full TCP socket with a primed, nonzero rate paces; every
     // other shape answers None and the socket rides untouched. The
@@ -223,31 +269,57 @@ fn pace_apply(ctx: &SockOpsContext) -> u32 {
 }
 
 /// The egress prime (called from enforce.rs's policed path, upload
-/// direction only): stamp the socket's cookie with the rate the
-/// current policy carries, so the next connection callback on this
-/// socket paces at it. Steady state is one LRU lookup with no
-/// write — the value only moves when the policy's rate does. A full
-/// LRU (4096 live cookies) drops the prime: the hint is
-/// best-effort by law, a miss answers the default pacing, and the
-/// connection still rides the egress policer's own verdicts —
-/// enforcement never depended on this lane.
-pub(crate) fn pace_prime(cookie: u64, rate_bps: u64) {
-    match pace_socket_hint.get_ptr_mut(cookie) {
-        Some(ptr) => {
-            // SAFETY: the hint map's value pointer lives in stable
-            // kernel memory for this invocation; the borrow is the
-            // only one this lane takes, and the store is a plain
-            // u64 write the verifier proves.
-            if unsafe { *ptr } != rate_bps {
-                // SAFETY: the same stable-memory value pointer the
-                // read above took — the plain u64 store the
-                // verifier proves, this invocation's only writer.
-                unsafe { *ptr = rate_bps };
-            }
-        }
-        None => {
-            let _ = pace_socket_hint.insert(cookie, rate_bps, 0);
-        }
+/// direction only): stamp the SOCKET-LOCAL hint row (night-T-4,
+/// schema v32 — the storage hangs off the kernel's own struct sock)
+/// with the upload rate the current policy carries under the live
+/// MMSPA generation, so the next connection callback on this socket
+/// paces at it. Steady state is one sk_storage lookup with no
+/// write. The helper's F_CREATE carries the create-or-get race
+/// atomically (the recwn twin's note verbatim). A NULL return
+/// (non-fullsock sock, storage alloc failure) drops the prime: the
+/// hint is best-effort by law, a miss answers the default pacing,
+/// and the connection still rides the egress policer's own
+/// verdicts — enforcement never depended on this lane.
+pub(crate) fn pace_prime(sk: *mut bpf_sock, rate_bps: u64) {
+    let gen_now = current_generation();
+    let mut init = PaceHint {
+        rate: rate_bps,
+        generation: gen_now,
+    };
+    // SAFETY: sk is the caller's vetted socket pointer (the
+    // enforce.rs pace site null-checks the __sk_buff.sk union read
+    // before this call); the helper either finds the socket's row
+    // or creates it from the stack init pair (F_CREATE), and the
+    // return is NULL or the row's value pointer — stable kernel
+    // memory for this invocation.
+    let row = unsafe {
+        bpf_sk_storage_get(
+            pace_map_ptr(),
+            sk.cast(),
+            core::ptr::addr_of_mut!(init).cast(),
+            BPF_SK_STORAGE_GET_F_CREATE.into(),
+        )
+    };
+    if row.is_null() {
+        return;
+    }
+    // The refresh path: rate FIRST, generation LAST — the seq-lock
+    // order the recwn twin's header owns. The two volatile stores
+    // are idempotent under the prime race (both CPUs resolve the
+    // same policy, both write the same pair).
+    // SAFETY: the row pointer the helper returned — the same
+    // stable-memory value contract the read path rides; each
+    // addr_of projection touches one field, and the two stores
+    // never alias as borrows.
+    let row_ptr = row.cast::<PaceHint>();
+    let cur_rate = unsafe { core::ptr::addr_of!((*row_ptr).rate).read_volatile() };
+    let cur_gen = unsafe { core::ptr::addr_of!((*row_ptr).generation).read_volatile() };
+    if cur_rate != rate_bps || cur_gen != gen_now {
+        // SAFETY: the same row, the rate store first.
+        unsafe { core::ptr::addr_of_mut!((*row_ptr).rate).write_volatile(rate_bps) };
+        // SAFETY: the same row, the generation store LAST — the
+        // pairing order the belt reads.
+        unsafe { core::ptr::addr_of_mut!((*row_ptr).generation).write_volatile(gen_now) };
     }
 }
 
