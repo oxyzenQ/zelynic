@@ -1688,6 +1688,13 @@ def run_container_depth(
             out(f"  STAGE {name} CRASHED: {exc}")
             record(f"stage: {name} (no crash)", "FAIL", str(exc))
             stage_ok = False
+        # The per-stage verdict line: a stage's return value is the one
+        # truth the battery's exit code rides, and a mismatch between
+        # the records and the return (a return-False without its FAIL
+        # record) is the loudest bug a battery can carry — name it in
+        # the log instead of letting the exit code disagree with the
+        # printed verdict silently.
+        out(f"  stage {name}: {'ok' if stage_ok else 'FAILED'}")
         overall = overall and stage_ok
     return overall
 
@@ -1778,6 +1785,7 @@ def main():
     out()
     out("================================================================")
     out(f"  v3 verdict: {counts['PASS']} passed, {counts['FAIL']} failed, {counts['SKIP']} skipped")
+    out(f"  battery: {'PASS' if ok else 'FAIL'}")
     out("================================================================")
 
     if args.json:
