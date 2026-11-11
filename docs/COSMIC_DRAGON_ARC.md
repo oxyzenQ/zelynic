@@ -220,7 +220,9 @@ the owner's build order says so.
   (schema v25, night-spark-2). The owner's coined name for the
   receive-window lane: a policed cgroup's own sockets advertise a
   window shaped like the policy's bandwidth-delay product (rate x
-  200 ms delivery-cadence estimate, clamped to [2 x MSS, 1 MiB]),
+  the 200 ms delivery-cadence floor — extended upward by each
+  socket's own measured RTT where the link runs longer than the
+  band, night-T-3's schema v31 retune — clamped to [2 x MSS, 1 MiB]),
   so remote TCP senders hold
   their in-flight bytes down before the link bills them — the
   mechanism that actually saves download quota. Two kernel truths
@@ -236,7 +238,10 @@ the owner's build order says so.
   download-quota case — clamp at establishment (the SYN-ACK
   primes the socket's own cookie before the callback fires);
   rate changes re-apply within one RTT on sockets whose
-  establishment armed the RTT_CB flag. The honest residues: the
+  establishment armed the RTT_CB flag; every callback derives the
+  window from the socket's own srtt with the cadence floor beneath
+  (the v31 retune — short links answer the exact v25 window).
+  The honest residues: the
   initial window itself rides the default (~10 MSS once per
   connection), a passive child's first window's worth rides the
   default (its cookie is primed by its first DATA packet, after

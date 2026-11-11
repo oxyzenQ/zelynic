@@ -227,7 +227,29 @@ prints the lane's subordinate line. Rootless pins:
 parity); live proof: `scripts/bench/recwn-probe.sh` (the owner's
 verification recipe — 100 kb/s apply, a curl child in the cgroup,
 `ss -ti` clamp evidence, the throughput band, retransmits near
-zero).
+zero). night-T-3 (schema v31) closed the section's documented
+Layer-1+ trade — the honest clamp: the hint row carries the
+policy's download rate now, and the sock_ops program derives the
+window per callback as `rate x max(measured srtt, 200 ms)` — the
+srtt read straight from the sock_ops context
+(`bpf_sock_ops.srtt_us`, microseconds << 3, v4.16+), no new
+helper, no new map, no userspace involvement. In landing, the 200
+ms constant re-framed from RTT guess to the receiver's
+window-update CADENCE floor the live evidence had measured (the
+delayed-ACK band at 145-160 ms, topping at 200 ms): every short
+link and every unmeasured socket answers the exact v25 window byte
+for byte, a link longer than the band — the satellite class the
+fixed floor under-admitted at `rate x 200 ms` — derives its true
+pipe, and the [2 x MSS, 1 MiB] band, the removal sweep, and the
+status schema stay exactly as they were. The sk_storage migration
+the cookie maps invite stays a documented deferral, not an
+oversight: sk_storage entries cannot be enumerated from userspace
+(no bpf_iter for them on the 5.13 floor), so the removal sweep —
+this lane's own invalidation contract — would regress without a
+per-socket epoch redesign, and the pinned aya-ebpf 0.2.1 map
+surface carries no sk_storage bindings to begin with; the LRU
+rows' cost is one lookup per packet and the false-eviction class
+is the hint map's documented best-effort shape.
 
 **15. Egress socket pacing** (schema v27, night-spark-5 — the
 quota saver's Layer 3). The egress twin of the receive-window

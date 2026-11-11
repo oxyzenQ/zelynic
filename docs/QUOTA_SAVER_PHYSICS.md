@@ -70,13 +70,16 @@ workload: the clock-bounded eager session, the harness's own leg.
 The saver is four layers, each landed as its own schema version, each
 owning one physics.
 
-**Layer 1 — RECWN, receive-window control (schema v25).** A policed
-cgroup's own sockets advertise a rate-shaped receive window — the
-rate times a 200 ms delivery-cadence estimate, clamped to
-[2 x MSS, 1 MiB] — so remote TCP senders hold their in-flight bytes
-down before the link bills them. The sender throttles itself; the
-download side of the quota saver stands on TCP's own flow control
-(the owner's coined name, deliberately not "RWND").
+**Layer 1 — RECWN, receive-window control (schema v25; the v31
+measured retune).** A policed cgroup's own sockets advertise a rate-shaped
+receive window — the rate times the 200 ms delivery-cadence floor,
+extended upward by each socket's own measured RTT where the link
+runs longer than the band (the v31 retune reads the srtt straight
+from the sock_ops context), clamped to [2 x MSS, 1 MiB] — so
+remote TCP senders hold their in-flight bytes down before the link
+bills them. The sender throttles itself; the download side of the
+quota saver stands on TCP's own flow control (the owner's coined
+name, deliberately not "RWND").
 
 **Layer 2 — ECN, mark instead of drop (schema v26).** An over-budget
 packet that an ECT-capable sender can read is delivered CE-marked

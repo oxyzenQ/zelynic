@@ -34,7 +34,7 @@ pub(super) mod ebpf_recwn;
 
 use self::ebpf_recwn::{
     RECWN_DEFAULT_RTT_US, RECWN_MSS_ASSUME_BYTES, RECWN_WINDOW_MAX_BYTES, RECWN_WINDOW_MIN_BYTES,
-    layer1_window, target_window_bytes,
+    layer1_window, measured_window_bytes, target_window_bytes,
 };
 
 /// The owner's own matrix, the task brief's arithmetic verbatim:
@@ -178,4 +178,63 @@ fn recwn_lane_reports_the_binding_window() {
     // Block-only (rate 0) and upload-only census: no window shaped.
     assert_eq!(recwn_lane(&[(7, pol(0))], true).window_bytes, None);
     assert_eq!(recwn_lane(&[], true).window_bytes, None);
+}
+
+/// The measured-RTT retune (night-T-3, schema v31): the runtime law
+/// extends the window above the cadence floor ONLY where the
+/// socket's own srtt runs longer than the band. Every sub-floor
+/// measurement — every short link, and every unmeasured socket
+/// (the sock_ops srtt_us field reads zero before the first sample)
+/// — answers the exact v25 derivation byte for byte: the retune
+/// can only extend the pipe, never shrink it (the 50 ms brief's
+/// own under-delivery regression, held off by law).
+#[test]
+fn measured_rtt_retune_only_extends_above_the_cadence_floor() {
+    // The floor identity: at and below the cadence floor — a zero
+    // srtt (the unmeasured socket), a 50 ms srtt (the briefed
+    // guess), and the floor itself — the law IS layer1_window at
+    // every rate in the matrix.
+    let rates = [0u64, 1_000, 14_599, 100_000, 1_000_000, 5_242_880, u64::MAX];
+    for rate in rates {
+        assert_eq!(
+            measured_window_bytes(rate, 0),
+            layer1_window(rate),
+            "an unmeasured socket must answer the exact v25 window at rate {rate}"
+        );
+        assert_eq!(
+            measured_window_bytes(rate, 50_000),
+            layer1_window(rate),
+            "a sub-floor srtt must answer the exact v25 window at rate {rate}"
+        );
+        assert_eq!(
+            measured_window_bytes(rate, RECWN_DEFAULT_RTT_US),
+            layer1_window(rate),
+            "the floor boundary is the identity at rate {rate}"
+        );
+    }
+
+    // The brief's own regression, held off by law: 100 kb/s at a
+    // measured 20 ms answers the 20_000 B floor derivation, never
+    // the 2_000 B pure-BDP shape the E2E legs measured delivering
+    // 29-37% of budget.
+    assert_eq!(measured_window_bytes(100_000, 20_000), 20_000);
+
+    // A link longer than the band derives its true pipe: a 600 ms
+    // satellite path on 100 kb/s = 60_000 B — 3x the floor window,
+    // in-band; 1 mb/s at 600 ms = 600 KB, in-band.
+    assert_eq!(measured_window_bytes(100_000, 600_000), 60_000);
+    assert_eq!(measured_window_bytes(1_000_000, 600_000), 600_000);
+
+    // The band still binds both edges at long RTT: 1 kb/s at 600 ms
+    // = 600 B -> the 2 x MSS floor (a 1 kb/s policy must not stall
+    // the handshake); 8 mb/s at 600 ms = 4.8 MB -> the 1 MiB
+    // ceiling (the bufferbloat guard); and the u32-saturated srtt
+    // (u32::MAX >> 3 = 536_870_911 us, ~9 min of pathological RTT)
+    // collapses into the ceiling too — never a wrap.
+    assert_eq!(measured_window_bytes(1_000, 600_000), RECWN_WINDOW_MIN_BYTES);
+    assert_eq!(measured_window_bytes(8_000_000, 600_000), RECWN_WINDOW_MAX_BYTES);
+    assert_eq!(
+        measured_window_bytes(100_000, u32::MAX >> 3),
+        RECWN_WINDOW_MAX_BYTES
+    );
 }

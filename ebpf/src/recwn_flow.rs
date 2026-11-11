@@ -16,9 +16,13 @@
 //     on the 5.15 floor), so the ingress enforcement hook — which
 //     resolves every packet's socket cgroup exactly, per packet —
 //     PRIMES a cookie-keyed hint (recwn_socket_hint: socket cookie
-//     u64 -> target window bytes, LRU 4096, pinned, the
-//     quic_cid_hint posture) on the policed path. The egress twin
-//     never primes: RECWN is the download-quota spine.
+//     u64 -> the policy's download rate in bytes per second,
+//     night-T-3's schema v31 — the row stopped carrying the window
+//     because the window became a per-socket derivation at the
+//     callback, rate x max(measured srtt, the 200 ms cadence
+//     floor), see ../recwn.rs's measured-retune block; LRU 4096,
+//     pinned, the quic_cid_hint posture) on the policed path. The
+//     egress twin never primes: RECWN is the download-quota spine.
 //
 //   * The RWND_INIT callback's return value is an MSS multiplier
 //     where 0 means "OS default" (include/net/tcp.h
@@ -43,6 +47,14 @@
 //     the RTT_CB flag armed at establishment re-applies the buffer
 //     within one RTT — the "dynamic updates" bullet of the owner's
 //     brief, on flagged (policed) sockets only.
+//   * The measured retune (night-T-3, schema v31): every owned op
+//     derives the window from the socket's OWN srtt (the sock_ops
+//     context field, v4.16+) with the 200 ms cadence floor beneath
+//     it — establishment clamps to the handshake's own RTT where
+//     the link runs longer than the band, the armed RTT_CB
+//     re-derives per sample, and every short link plus every
+//     unmeasured socket answers the exact v25 window, byte for
+//     byte (../recwn.rs's measured-retune block owns the record).
 //   * The documented residue: a PASSIVE child's cookie is primed by
 //     its first DATA packet, which arrives after
 //     PASSIVE_ESTABLISHED_CB has already fired and found nothing —
@@ -63,9 +75,9 @@ use aya_ebpf::{
     programs::SockOpsContext,
 };
 
-use crate::recwn::layer1_window;
+use crate::recwn::measured_window_bytes;
 
-/// The socket cookie -> RECWN target window hint, primed by the
+/// The socket cookie -> policy download rate hint, primed by the
 /// ingress enforcement hook on the policed path (enforce.rs's prime
 /// site) and read back here at the connection callbacks. LRU 4096
 /// so dead sockets age out — the quic_cid_hint posture, one lane
@@ -73,8 +85,13 @@ use crate::recwn::layer1_window;
 /// by object construction) but datapath-internal in SPIRIT:
 /// userspace only ever sweeps it whole on policy removals (the
 /// limiter's recwn_hint_invalidate, the MMSPA flush's posture), it
-/// never reads a row. A hint miss is today's behavior exactly —
-/// the default receive window, untouched.
+/// never reads a row. The row carries the RATE since night-T-3's
+/// schema v31 — the window is a per-socket derivation at the
+/// callback (rate x max(measured srtt, the 200 ms cadence floor),
+/// ../recwn.rs's measured_window_bytes), so a rate change re-primes
+/// and every callback answers the rate's CURRENT law without the
+/// row ever going stale mid-window. A hint miss is today's behavior
+/// exactly — the default receive window, untouched.
 #[allow(non_upper_case_globals)]
 #[map]
 pub(crate) static recwn_socket_hint: LruHashMap<u64, u64> = LruHashMap::pinned(4096, 0);
@@ -160,20 +177,33 @@ fn recwn_apply(ctx: &SockOpsContext) -> u32 {
     if cookie == 0 {
         return 0;
     }
-    // The primed window: a miss is the default receive window,
+    // The primed RATE: a miss is the default receive window,
     // exactly today's behavior — never a fabricated zero (a hint
-    // row is only ever written with the clamped law's output).
+    // row is only ever written with the policy's own download
+    // rate; the block verdict returns before the prime site). The
+    // window derives HERE, per callback, from the rate and this
+    // socket's own measured srtt (night-T-3's measured retune,
+    // schema v31): the 200 ms cadence floor beneath, the measured
+    // RTT extending above, the band clamp on top.
     // SAFETY: the hint map read shares the contract every map read
     // in this object rides — the kernel holds the map value in
     // stable memory for the invocation, and the shared borrow ends
     // before any write lane below runs.
-    let window = match unsafe { recwn_socket_hint.get(cookie) } {
-        Some(w) => *w,
+    let rate = match unsafe { recwn_socket_hint.get(cookie) } {
+        Some(r) => *r,
         None => return 0,
     };
-    if window == 0 {
+    if rate == 0 {
         return 0;
     }
+    // The socket's own smoothed RTT — uapi bpf_sock_ops.srtt_us
+    // (microseconds << 3, populated from tcp_sk(sk)->srtt_us
+    // whenever is_fullsock holds — the guard above — v4.16+, so
+    // the 5.13 floor carries it). SAFETY: the same fullsock ops
+    // pointer the is_fullsock read took; srtt_us is a plain u32
+    // load the verifier proves.
+    let measured_rtt_us: u32 = unsafe { (*ctx.ops).srtt_us } >> 3;
+    let window = measured_window_bytes(rate, measured_rtt_us);
     // The clamp itself. The value passes through the kernel's
     // SO_RCVBUF shape: sock_setsockopt doubles it into sk_rcvbuf
     // (max(val * 2, SOCK_MIN_RCVBUF), capped at rmem_max — the
@@ -219,7 +249,9 @@ fn recwn_apply(ctx: &SockOpsContext) -> u32 {
 
 /// The ingress prime (called from enforce.rs's policed path,
 /// download direction only): stamp the socket's cookie with the
-/// window the current policy derives, so the next connection
+/// policy's download RATE (night-T-3's schema v31 — the window is
+/// a per-socket derivation at the callback, rate x max(measured
+/// srtt, the 200 ms cadence floor)), so the next connection
 /// callback on this socket clamps to it. Steady state is one LRU
 /// lookup with no write — the value only moves when the policy's
 /// rate does. A full LRU (4096 live cookies) drops the prime: the
@@ -227,22 +259,21 @@ fn recwn_apply(ctx: &SockOpsContext) -> u32 {
 /// and the connection still rides the ingress policer's own drops
 /// — enforcement never depended on this lane.
 pub(crate) fn recwn_prime(cookie: u64, rate_bps: u64) {
-    let window = layer1_window(rate_bps);
     match recwn_socket_hint.get_ptr_mut(cookie) {
         Some(ptr) => {
             // SAFETY: the hint map's value pointer lives in stable
             // kernel memory for this invocation; the borrow is the
             // only one this lane takes, and the store is a plain
             // u64 write the verifier proves.
-            if unsafe { *ptr } != window {
+            if unsafe { *ptr } != rate_bps {
                 // SAFETY: the same stable-memory value pointer the
                 // read above took — the plain u64 store the
                 // verifier proves, this invocation's only writer.
-                unsafe { *ptr = window };
+                unsafe { *ptr = rate_bps };
             }
         }
         None => {
-            let _ = recwn_socket_hint.insert(cookie, window, 0);
+            let _ = recwn_socket_hint.insert(cookie, rate_bps, 0);
         }
     }
 }

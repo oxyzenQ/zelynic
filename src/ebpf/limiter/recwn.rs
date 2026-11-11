@@ -6,8 +6,10 @@
 //! invalidation on policy removal.
 //!
 //! The kernel half (ebpf/src/recwn_flow.rs) primes a cookie-keyed
-//! LRU hint on the ingress policed path — socket cookie -> the
-//! receive window the live policy derives — and the sock_ops
+//! LRU hint on the ingress policed path — socket cookie -> the live
+//! policy's download RATE (night-T-3's schema v31: the window is a
+//! per-socket derivation at the callback, rate x max(measured srtt,
+//! the 200 ms cadence floor)) — and the sock_ops
 //! program reads it back at the connection callbacks to clamp
 //! SO_RCVBUF. The hint's one blind spot is removal: once a policy
 //! is gone the ingress path stops re-priming (the policy miss

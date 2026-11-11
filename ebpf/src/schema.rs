@@ -567,8 +567,33 @@
 ///     and rendered totals all describe the same schema generation;
 ///     active limits are dropped once, re-apply after upgrade, the
 ///     same one-time contract as every bump before it.
+/// v31 (night-T-3, the measured-RTT RECWN retune — the honest
+///     clamp): the recwn_socket_hint row's VALUE semantics change —
+///     socket cookie -> the policy's DOWNLOAD RATE in bytes per
+///     second (was: the derived receive window). The sock_ops
+///     program derives the window at every owned callback as
+///     window = rate x max(measured srtt, 200 ms), the srtt read
+///     straight from the sock_ops context (uapi bpf_sock_ops
+///     .srtt_us, microseconds << 3, populated whenever is_fullsock
+///     holds — v4.16+, so the 5.13 floor carries it; no new helper,
+///     no new map, no userspace involvement). The 200 ms constant
+///     re-frames from RTT guess to the receiver's window-update
+///     CADENCE floor (the band the v25 evidence measured at
+///     145-160 ms topping at 200 ms): every short link and every
+///     unmeasured socket answers the exact v25 window byte for
+///     byte, a link LONGER than the band derives the pipe the
+///     fixed floor under-admitted, and the [2 x MSS, 1 MiB] band
+///     plus the plain-multiply sanitize cap carry unchanged (the
+///     product bound holds: rate <= 2^32, srtt <= u32). The status
+///     derivation stays the v25 shape exactly (the cadence-floor
+///     FLOOR shape — the number the runtime can only extend above).
+///     The bump is REQUIRED, not polite: a pinned v30 hint row
+///     holds WINDOW bytes, which a v31 reader would misread as a
+///     RATE — the forced reload wipes the stale rows (active limits
+///     are dropped once, re-apply after upgrade, the same one-time
+///     contract as every bump before it).
 #[allow(dead_code)]
-pub(crate) const SCHEMA_VERSION: u32 = 30;
+pub(crate) const SCHEMA_VERSION: u32 = 31;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs
