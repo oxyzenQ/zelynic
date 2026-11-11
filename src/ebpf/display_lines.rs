@@ -316,52 +316,6 @@ pub(crate) fn active_limits_line(dl: usize, ul: usize) -> String {
     grey(&format!("  active limits: {dl} dl, {ul} ul"))
 }
 
-/// The RECWN lane's subordinate line (pure, night-spark-2, schema
-/// v25 — Receive Window Control, the quota saver's Layer 1): the
-/// binding receive window the lane derives and the RTT estimate it
-/// derived it from, in the watchdog's grey family. night-ux-1 (the
-/// owner's 200kb-on-Brave session): the line now says WHAT the
-/// number IS — the receive WINDOW the lane clamps sockets to, not
-/// saved bytes — and HOW MANY download policies it binds (the
-/// count the derivation itself produced; singular for one, the
-/// owner's own scenario). RECWN keeps its brand capitals — the
-/// owner's coined vocabulary, the BLOCKED verdict-value family
-/// (furniture stays lowercase, the brand is the message). None
-/// when the lane shapes no window (not planted, or no download
-/// policy with a live rate) — the dormant-watchdog honesty: an
-/// unenforcing lane prints nothing.
-pub(crate) fn recwn_line(lane: &super::display::RecwnLane) -> Option<String> {
-    // The belt the derivation already owns: an unplanted lane shapes
-    // nothing, whatever a stale census might claim — silence, never
-    // a phantom clamp printed as state.
-    if !lane.planted {
-        return None;
-    }
-    let window = lane.window_bytes?;
-    let n = lane.binding_policies;
-    // night-verify-final (schema v33): the rtt clause names the rtt
-    // the WINDOW derived from — a binding policy whose high-water
-    // tops the cadence floor prints the MEASURED srtt (the number
-    // the extension itself rode), every other shape keeps the v25
-    // cadence estimate under its est. name. The JSON reports the
-    // raw sample regardless — recwn_limits.measured_srtt_us is the
-    // measurement's own contract, this clause is the window's.
-    let (rtt_label, rtt_ms) = match lane.measured_srtt_us {
-        Some(srtt) if srtt > u64::from(super::display::RECWN_RTT_ESTIMATE_US) => {
-            ("measured RTT", srtt / 1000)
-        }
-        _ => (
-            "est. RTT",
-            u64::from(super::display::RECWN_RTT_ESTIMATE_US) / 1000,
-        ),
-    };
-    Some(grey(&format!(
-        "  RECWN window: {} (binding across {n} download {}; {rtt_label} {rtt_ms}ms)",
-        format_bytes(window),
-        if n == 1 { "policy" } else { "policies" },
-    )))
-}
-
 /// A compact human duration for the "(N left)" suffix (pure,
 /// night-during): one unit, CEILED — 45s, 47m, 3h, 20d, 5y; the
 /// sub-minute shapes print seconds so a short trial reads its own

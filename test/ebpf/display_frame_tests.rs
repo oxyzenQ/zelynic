@@ -16,10 +16,9 @@
 //! real terminal.
 
 use super::{
-    StatusLineKind, counters_footer_lines, frame_status_output, recwn_line, status_header_line,
-    status_row_line,
+    StatusLineKind, counters_footer_lines, frame_status_output, status_header_line, status_row_line,
 };
-use crate::ebpf::display::RecwnLane;
+use crate::ebpf::display::{RecwnLane, recwn_line};
 use crate::output::colored_display_width;
 
 /// The frame law's input shape: the grid's two flanks, kind-tagged.
