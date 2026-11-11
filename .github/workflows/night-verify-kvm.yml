@@ -71,7 +71,7 @@ jobs:
           echo "--- /sys/fs/bpf mount ---"
           mount | grep -E ' /sys/fs/bpf ' || \
             { echo 'bpf fs not mounted — mounting'; sudo mount -t bpf bpf /sys/fs/bpf; }
-          ls -la /sys/fs/bpf/
+          sudo ls -la /sys/fs/bpf/
           echo "--- kernel modules this run needs ---"
           sudo modprobe sch_netem
           sudo modprobe vrf
@@ -219,7 +219,7 @@ jobs:
           echo "--- u --all ---"
           sudo zelynic u --all
           echo "--- /sys/fs/bpf/zelynic/ (must be empty — no pin leaks) ---"
-          ls -la /sys/fs/bpf/zelynic/ 2>&1
+          sudo ls -la /sys/fs/bpf/zelynic/ 2>&1
           echo "--- re-apply + traffic + counters still book ---"
           sudo zelynic s "cg:${CGID}" 100kb
           sudo ip netns exec rtt bash -c \
@@ -229,7 +229,7 @@ jobs:
           sudo zelynic status
           sudo zelynic u --all
           echo "--- final pin dir listing (must be empty) ---"
-          ls -la /sys/fs/bpf/zelynic/ 2>&1
+          sudo ls -la /sys/fs/bpf/zelynic/ 2>&1
 
       - name: "Phase 3 — netns:// resolver (success + empty failure)"
         run: |
@@ -297,7 +297,7 @@ jobs:
           sudo ip link del veth-rtt-host || true
           sudo rmdir /sys/fs/cgroup/zverify || true
           echo "--- post-cleanup pin dir (must be empty or absent) ---"
-          ls -la /sys/fs/bpf/zelynic/ 2>&1 || true
+          sudo ls -la /sys/fs/bpf/zelynic/ 2>&1 || true
           echo "--- post-cleanup status ---"
           sudo zelynic status
 
