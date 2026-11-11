@@ -176,6 +176,8 @@ jobs:
           sudo ip netns exec rtt ss -tipm
           echo "--- zelynic status --print-json (leg A) ---"
           sudo zelynic status --print-json | jq '{recwn_limits, limits: [.limits[] | {label, bytes_saved_total}]}'
+          echo "--- end the leg A transfer (its server connection dies with this step) ---"
+          sudo pkill -f 'curl -s --max-time 90' || true
 
       - name: "Phase 1 — v31 leg B: measured window at RTT 300ms (above the floor: window 30000, sk_rcvbuf 60000)"
         run: |
@@ -186,21 +188,32 @@ jobs:
           echo "--- ensure the payload server again (each step may have lost it) ---"
           curl -s -o /dev/null -m 3 http://10.200.0.1:8000/payload.bin || \
             { nohup python3 -m http.server 8000 --bind 10.200.0.1 --directory /tmp/www >/tmp/http.log 2>&1 & sleep 1; }
+          echo "--- kill any stale leg A transfer first ---"
+          sudo pkill -f 'curl -s --max-time 90' || true
+          sleep 1
+          echo "--- start a FRESH transfer: its TCP connection forms at RTT 300ms ---"
+          nohup sudo bash -c \
+            'echo $$ > /sys/fs/cgroup/zverify/cgroup.procs; \
+             exec ip netns exec rtt curl -s --max-time 40 -o /dev/null http://10.200.0.1:8000/payload.bin' \
+            >/tmp/curl-b.log 2>&1 &
           echo "--- ride a few RTTs so srtt converges and the RTT_CB re-apply lifts the window ---"
           sleep 10
-          echo "--- ss -tipm inside the netns DURING the transfer (leg B) ---"
+          echo "--- ss -tipm inside the netns DURING the transfer (leg B, first pass) ---"
+          sudo ip netns exec rtt ss -tipm
+          sleep 6
+          echo "--- ss -tipm (leg B, second pass) ---"
           sudo ip netns exec rtt ss -tipm
           echo "--- rtt probe: the ns socket's own view (ping across the veth) ---"
           sudo ip netns exec rtt ping -c 3 -q 10.200.0.1 || true
           echo "--- zelynic status --print-json (leg B) ---"
           sudo zelynic status --print-json | jq '{recwn_limits, limits: [.limits[] | {label, bytes_saved_total}]}'
           echo "--- kill the transfer (socket death) and re-probe immediately ---"
-          sudo pkill -f 'curl -s --max-time 90' || true
+          sudo pkill -f 'curl -s --max-time 40' || true
           sleep 1
           echo "--- ss -tipm AFTER the kill (the socket must be gone) ---"
           sudo ip netns exec rtt ss -tipm
           echo "--- curl diagnostics ---"
-          cat /tmp/curl-a.log || true
+          cat /tmp/curl-b.log || true
 
       - name: "Phase 1 — quota-saver A/B (ground truth wire savings)"
         run: |
