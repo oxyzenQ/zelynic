@@ -79,7 +79,11 @@ fn matcher_requires_the_vrf_parent() {
     let root = temp_tree("parent");
     let domain = root.join("vrf").join("red");
     std::fs::create_dir_all(&domain).unwrap();
-    let nested = root.join("system.slice").join("work.scope").join("vrf").join("red");
+    let nested = root
+        .join("system.slice")
+        .join("work.scope")
+        .join("vrf")
+        .join("red");
     std::fs::create_dir_all(&nested).unwrap();
     let impostor = root.join("red");
     std::fs::create_dir_all(&impostor).unwrap();
