@@ -522,6 +522,7 @@ fn recwn_line_pins_the_owner_wording_and_stays_silent_when_unshaping() {
             planted: true,
             window_bytes: Some(20_000),
             binding_policies: 1,
+            measured_srtt_us: None,
         })
         .unwrap(),
         "  RECWN window: 20.0 KB (binding across 1 download policy; est. RTT 200ms)",
@@ -532,10 +533,26 @@ fn recwn_line_pins_the_owner_wording_and_stays_silent_when_unshaping() {
             planted: true,
             window_bytes: Some(1_048_576),
             binding_policies: 3,
+            measured_srtt_us: None,
         })
         .unwrap(),
         "  RECWN window: 1.0 MB (binding across 3 download policies; est. RTT 200ms)",
         "the ceiling's own tier, the multi-policy plural"
+    );
+    // night-verify-final (schema v33): a binding policy whose stats
+    // row carries a high-water above the cadence floor names its
+    // source honestly — the MEASURED srtt the window derivation
+    // itself rode (the verify workflow's leg-B shape).
+    assert_eq!(
+        recwn_line(&RecwnLane {
+            planted: true,
+            window_bytes: Some(30_010),
+            binding_policies: 1,
+            measured_srtt_us: Some(300_104),
+        })
+        .unwrap(),
+        "  RECWN window: 30.0 KB (binding across 1 download policy; measured RTT 300ms)",
+        "the measured extension names its own rtt"
     );
     // The dormant shapes: not planted, or planted with no window to
     // shape — silence, never noise.
@@ -544,6 +561,7 @@ fn recwn_line_pins_the_owner_wording_and_stays_silent_when_unshaping() {
             planted: false,
             window_bytes: Some(20_000),
             binding_policies: 1,
+            measured_srtt_us: None,
         })
         .is_none()
     );
@@ -552,6 +570,7 @@ fn recwn_line_pins_the_owner_wording_and_stays_silent_when_unshaping() {
             planted: true,
             window_bytes: None,
             binding_policies: 0,
+            measured_srtt_us: None,
         })
         .is_none()
     );

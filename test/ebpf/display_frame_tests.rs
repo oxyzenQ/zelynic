@@ -59,6 +59,7 @@ fn owner_run_lines() -> Flanks {
                 planted: true,
                 window_bytes: Some(40_000),
                 binding_policies: 1,
+                measured_srtt_us: None,
             })
             .unwrap(),
         ),

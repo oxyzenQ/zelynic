@@ -153,6 +153,12 @@ pub struct EnforcementStatsJson {
     /// quota saver's Layer 2 made readable on the depth document.
     pub ce_marked_packets: u64,
     pub ce_marked_bytes: u64,
+    /// The measured-srtt ratchet, microseconds (night-verify-final,
+    /// schema v33): the download-policy high-water the ledger row
+    /// carries when its sockets have sampled; null = unmeasured —
+    /// the honest absence, additive (scripts predating the field
+    /// ignore it).
+    pub measured_srtt_us: Option<u64>,
 }
 
 /// One resolved target's JSON object.
@@ -299,6 +305,7 @@ fn stats_json(stats: &Option<LimiterStatsRaw>) -> Option<EnforcementStatsJson> {
         bytes_dropped: s.bytes_dropped,
         ce_marked_packets: s.ce_marked_packets,
         ce_marked_bytes: s.ce_marked_bytes,
+        measured_srtt_us: (s.measured_srtt_us != 0).then_some(s.measured_srtt_us),
     })
 }
 

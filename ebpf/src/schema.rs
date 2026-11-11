@@ -88,8 +88,32 @@
 ///     reload wipes the stale pins (active limits are dropped
 ///     once, re-apply after upgrade, the same one-time contract
 ///     as every bump before it).
+/// v33 (night-verify-final, the measured-srtt telemetry — the v31
+///     retune made readable): LimiterStats grows one u64 tail word,
+///     measured_srtt_us (offset 64) — the per-policy high-water of
+///     the download sockets' own measured srtt, written by the
+///     ingress prime site from the recwn hint row's harvest (the
+///     RTT callback stores the socket's latest live sample into the
+///     hint row's tail word — the repr(C) pad the 5.15 verifier
+///     lesson made a real field, repurposed; the 16-byte hint row
+///     size holds), read by the status surfaces as recwn_limits
+///     .measured_srtt_us and folded into the binding-window
+///     derivation the v31 law computes kernel-side (window = rate x
+///     max(measured srtt, 200 ms) — the status now reports the
+///     measured extension instead of the bare floor; the JSON field
+///     is additive and honestly absent while no policed socket has
+///     sampled). The policy rows are untouched — the config family
+///     stays userspace-written; the ratchet rides the stats row the
+///     kernel already owns and the status readers already open, so
+///     the hot path pays one volatile store at the RTT callback and
+///     one check-then-store at the prime site, no new map, no new
+///     lookup. The bump is REQUIRED, not polite: a pinned v32 stats
+///     row is 64 bytes, a v33 reader would map the 72-byte tail
+///     onto nothing — the forced reload wipes the stale pins (active
+///     limits are dropped once, re-apply after upgrade, the same
+///     one-time contract as every bump before it).
 #[allow(dead_code)]
-pub(crate) const SCHEMA_VERSION: u32 = 32;
+pub(crate) const SCHEMA_VERSION: u32 = 33;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs

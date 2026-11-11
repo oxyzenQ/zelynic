@@ -206,6 +206,7 @@ fn status_json(
             enabled: recwn.window_bytes.is_some(),
             window_bytes: recwn.window_bytes,
             rtt_estimate_us: RECWN_RTT_ESTIMATE_US,
+            measured_srtt_us: recwn.measured_srtt_us,
         }),
     }
 }
@@ -418,6 +419,15 @@ impl RecwnLimitsJson {
         }
         out.push_str(",\"rtt_estimate_us\":");
         write_number(out, self.rtt_estimate_us);
+        // night-verify-final (schema v33): the binding policy's
+        // measured-srtt high-water, additive and honestly absent —
+        // an unmeasured lane omits the field exactly the way an
+        // unshaped window omits window_bytes (the pinned v32 wire
+        // shapes ride unchanged byte for byte).
+        if let Some(srtt) = self.measured_srtt_us {
+            out.push_str(",\"measured_srtt_us\":");
+            write_number(out, srtt);
+        }
         out.push('}');
     }
 }
@@ -531,8 +541,11 @@ struct StatusJson {
     /// The RECWN lane's top-level object (night-spark-2, schema
     /// v25 — the owner-defined schema): `enabled`, `window_bytes`
     /// (absent when the lane shapes no window — the additive-field
-    /// rule), `rtt_estimate_us`. Absent wholesale when the sock_ops
-    /// program is not planted (clean state, stale pins).
+    /// rule), `rtt_estimate_us`, and since night-verify-final's
+    /// schema v33 `measured_srtt_us` (the binding policy's
+    /// high-water, absent while unmeasured — the same additive
+    /// rule). Absent wholesale when the sock_ops program is not
+    /// planted (clean state, stale pins).
     recwn_limits: Option<RecwnLimitsJson>,
 }
 
@@ -546,6 +559,12 @@ struct RecwnLimitsJson {
     window_bytes: Option<u64>,
     /// The Layer 1 RTT assumption the window derived from (us).
     rtt_estimate_us: u32,
+    /// The binding policy's measured-srtt high-water (us;
+    /// night-verify-final, schema v33) — the measured half of the
+    /// window derivation when it stands. Absent while unmeasured:
+    /// the honest absence, never a fabricated zero (the pinned v32
+    /// wire shapes ride unchanged).
+    measured_srtt_us: Option<u64>,
 }
 
 // The status-JSON pins (the hunt-22 field/wording/count contracts

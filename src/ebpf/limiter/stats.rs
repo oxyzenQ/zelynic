@@ -36,7 +36,11 @@ impl super::Limiter {
         // rides the same read pass — planted is the sock_ops
         // program pin's existence (is_pinned's own lane check), and
         // the window comes from the download census already in hand.
-        let recwn = recwn_lane(&dl, std::path::PathBuf::from(PIN_PROG_RECWN).exists());
+        let recwn = recwn_lane(
+            &dl,
+            &stats,
+            std::path::PathBuf::from(PIN_PROG_RECWN).exists(),
+        );
         // night-ux-2: the -v read summary — the counts the read pass
         // just produced, traced before the table (the identity walk's
         // size, the policy census and the cgroups it spans, the
@@ -95,7 +99,11 @@ impl super::Limiter {
         let windows = self.read_policy_windows_all().unwrap_or_default();
         // night-spark-2 (RECWN): the lane derivation, print_status's
         // own read pass — one census, both surfaces.
-        let recwn = recwn_lane(&dl, std::path::PathBuf::from(PIN_PROG_RECWN).exists());
+        let recwn = recwn_lane(
+            &dl,
+            &stats,
+            std::path::PathBuf::from(PIN_PROG_RECWN).exists(),
+        );
         crate::ebpf::display_json::print_status_json(
             &dl,
             &ul,

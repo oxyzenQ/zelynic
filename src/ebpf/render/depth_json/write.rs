@@ -231,6 +231,14 @@ impl EnforcementStatsJson {
         write_number(out, self.ce_marked_packets);
         out.push_str(",\"ce_marked_bytes\":");
         write_number(out, self.ce_marked_bytes);
+        // night-verify-final (schema v33): the measured-srtt ratchet,
+        // null when the row's sockets never sampled — the honest
+        // absence the status JSON's additive rule rides too.
+        out.push_str(",\"measured_srtt_us\":");
+        match self.measured_srtt_us {
+            Some(srtt) => write_number(out, srtt),
+            None => out.push_str("null"),
+        }
         out.push('}');
     }
 }

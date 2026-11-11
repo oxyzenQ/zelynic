@@ -44,6 +44,7 @@ fn stats_saved(bytes_allowed: u64, edt_saved: u64, ecn_saved: u64) -> LimiterSta
         ce_marked_bytes: ecn_saved,
         bytes_saved_by_edt: edt_saved,
         bytes_saved_by_ecn: ecn_saved,
+        measured_srtt_us: 0,
     }
 }
 
@@ -96,6 +97,7 @@ fn the_recwn_saved_word_is_retired_on_a_planted_lane() {
         planted: true,
         window_bytes: Some(20_000),
         binding_policies: 1,
+        measured_srtt_us: None,
     };
     let json = status_json(
         &dl,
@@ -130,6 +132,7 @@ fn the_saved_total_is_the_ecn_one_for_one_alone() {
         planted: true,
         window_bytes: Some(20_000),
         binding_policies: 1,
+        measured_srtt_us: None,
     };
     let json = status_json(
         &dl,

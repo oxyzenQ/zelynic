@@ -269,11 +269,25 @@ pub struct LimiterStats {
     /// ce_marked_bytes — every delivered mark is a byte that never
     /// becomes a retransmission.
     pub bytes_saved_by_ecn: u64,
+    /// The measured-srtt ratchet, microseconds (night-verify-final,
+    /// schema v33): the high-water of the DOWNLOAD sockets' own
+    /// measured srtt this row's policy has seen — written by the
+    /// ingress prime site from the recwn hint row's harvest word
+    /// (the RTT callback's samples), read by the status surfaces as
+    /// recwn_limits.measured_srtt_us and folded into the
+    /// binding-window derivation the v31 law computes kernel-side
+    /// (window = rate x max(measured srtt, 200 ms)). Zero =
+    /// unmeasured: the row births at zero (the get_stats
+    /// initializer), the reclaim paths delete it beside the
+    /// counters. The check-then-store ratchet never lowers — a
+    /// stale high-water only overstates the pipe a live socket
+    /// derives, the honest direction for an observability word.
+    pub measured_srtt_us: u64,
 }
 
 const _: () = assert!(core::mem::size_of::<Policy>() == 40);
 const _: () = assert!(core::mem::size_of::<Bucket>() == 24);
-const _: () = assert!(core::mem::size_of::<LimiterStats>() == 64);
+const _: () = assert!(core::mem::size_of::<LimiterStats>() == 72);
 
 /// Refill rate math: nanoseconds per second.
 pub const NS_PER_SEC: u64 = 1_000_000_000;
