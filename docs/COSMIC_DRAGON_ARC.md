@@ -232,9 +232,12 @@ the owner's build order says so.
   1 would clamp every unpoliced socket to one segment — the
   program answers 0 and `bpf_setsockopt(SO_RCVBUF)` carries the
   clamp), and sock_ops on the 5.15 floor has no cgroup-id helper
-  (the attribution rides a cookie-keyed hint the ingress
-  enforcement hook primes on the policed path, one LRU lookup,
-  steady state no write). Convergence: active connecters — the
+  (the attribution rides a socket-local sk_storage hint the
+  ingress enforcement hook primes on the policed path, one
+  storage lookup, steady state no write — schema v32's
+  sk-storage migration; the v31 retune derives the window
+  `rate x max(measured srtt, 200 ms)` at the callback).
+  Convergence: active connecters — the
   download-quota case — clamp at establishment (the SYN-ACK
   primes the socket's own cookie before the callback fires);
   rate changes re-apply within one RTT on sockets whose
@@ -291,12 +294,13 @@ the owner's build order says so.
   claims the socket). Egress already saved quota when dropped;
   paced it saves without the loss event at all: no over-budget
   burst, no drop, no CE mark. The attribution rides the lane the
-  house already trusts — the egress hook primes a cookie-keyed
+  house already trusts — the egress hook primes a socket-local
   hint (`pace_socket_hint`, the `recwn_socket_hint` posture, one
   layer up; sock_ops still cannot resolve its own cgroup on the
-  5.15 floor), active connecters pace from establishment, rate
-  changes re-apply within one RTT, and every policy removal
-  sweeps the hint (the recwn sweep posture). The pure law
+  5.15 floor; sk_storage since schema v32 — the generation belt
+  retires the removal sweep, a policy removal heals on the very
+  first callback), active connecters pace from establishment, and
+  rate changes re-apply within one RTT. The pure law
   (`ebpf/src/pace.rs pacing_decision`) is pinned rootlessly by
   `pace_tests.rs` (the simulated sock_ops call shapes and the
   exact rate the wiring hands `bpf_setsockopt`); the status

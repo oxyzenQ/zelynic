@@ -1002,15 +1002,21 @@ receive window, not saved bytes, night-ux-1):
 - `recwn_limits.window_bytes` — the binding receive window in
   bytes: the smallest window across the active download policies
   (the single-policy case reads exactly that policy's window —
-  `rate x 200ms` (the delivery-cadence estimate the live E2E
-  evidence set — raised from the briefed 50 ms after the legs
-  measured 29-37% under-delivery on all three CI kernels;
-  ebpf/src/recwn.rs owns the record), clamped to [2 x MSS,
-  1 MiB]; a 100kb/s policy reports 20000). Present only when
+  the status reports the cadence-floor derivation `rate x 200ms`
+  (the delivery-cadence estimate the live E2E evidence set —
+  raised from the briefed 50 ms after the legs measured 29-37%
+  under-delivery on all three CI kernels; ebpf/src/recwn.rs owns
+  the record), clamped to [2 x MSS, 1 MiB]; a 100kb/s policy
+  reports 20000 — the floor shape: the runtime window derives
+  `rate x max(measured srtt, 200 ms)` since v31 and can only
+  extend above this reported value, on links longer than the
+  200 ms cadence). Present only when
   `enabled` is true — absent,
   never a fabricated zero, otherwise.
 - `recwn_limits.rtt_estimate_us` — the Layer 1 RTT assumption the
-  window derived from (200000 — 200 ms, the lane's own constant).
+  status window derived from (200000 — 200 ms, the lane's own
+  constant; the measured-RTT retune of v31 rides kernel-side and
+  never changes this reported floor).
 
 The object as a whole is honestly absent on the clean state (no
 pins), on stale-pin error objects, and on pre-v25 pinned objects —
