@@ -299,10 +299,11 @@ fn recwn_apply(ctx: &SockOpsContext) -> u32 {
     // the one volatile store the observability lane costs, on a
     // callback the policed socket already pays. Only a live sample
     // writes (zero is the unmeasured sentinel the prime initialized;
-    // the harvest never fabricates one). SAFETY: the same row
-    // pointer the gen/rate reads above took, the same
-    // stable-storage-value contract, valid for the invocation.
+    // the harvest never fabricates one).
     if measured_rtt_us > 0 {
+        // SAFETY: the same row pointer the gen/rate reads above
+        // took, the same stable-storage-value contract, valid for
+        // the invocation.
         unsafe { core::ptr::addr_of_mut!((*row_ptr).srtt_us).write_volatile(measured_rtt_us) };
     }
     let window = measured_window_bytes(rate, measured_rtt_us);
