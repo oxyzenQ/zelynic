@@ -347,7 +347,7 @@ pub enum Target {
     CgroupId(u32),
     ProcessName(String),
     /// A workload URI (charger-core-2, TIER A #5):
-    /// `docker://<name>` / `k8s://<ns>/<pod>` / `netns://<name>` —
+    /// `docker://<name>` / `k8s://<ns>/<pod>` / `netns://<name>` / `iface://<name>` —
     /// resolved to the workload's cgroup id by identity::container;
     /// every downstream surface is the single lane's machinery.
     Container(ContainerRef),

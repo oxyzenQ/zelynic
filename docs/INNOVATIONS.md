@@ -269,9 +269,10 @@ construction (every `tcp_call_bpf` call site lives in TCP code)
 — QUIC paces itself (RFC 9000) and the policer remains UDP's
 enforcement lane.
 
-**16. netns:// namespace targeting** (night-netns-1 — the
-five-frontier review's netns half; its iface:// twin was ruled
-out). The third workload URI (`src/ebpf/identity/container/netns.rs`,
+**16. netns:// and iface:// native targeting** (night-netns-1 +
+night-T-2 — the five-frontier review's #4, both halves landed: the
+netns lane first, its iface twin once the VRF physics was pinned).
+The third workload URI (`src/ebpf/identity/container/netns.rs`,
 `netns://sandbox`): a named network namespace (the
 `ip netns add <name>` family) resolves through its member
 processes to the ONE workload cgroup living in it. The handle's
@@ -289,6 +290,20 @@ cgroup id is the durable handle. Rootless pins: `netns_tests.rs`
 (the grammar arm, the ns-link parser, the verdict reduction);
 live proof: `sudo zelynic -v s netns://sandbox 500kb` (the
 verbose trace names the handle, the member count, the cgroup).
+The fourth URI (`src/ebpf/identity/container/iface.rs`,
+`iface://red`) targets a VRF domain: `ip vrf exec` groups its
+processes into the cgroup `<name>` directly under the cgroup root
+(the iproute2 contract, pinned by the depth-1 matcher — a
+same-named directory deeper in the tree is a slice, not a domain),
+and the resolver reads that cgroup's own `cgroup.procs` for
+liveness. The physics is stated, not hidden: a VRF owns a cgroup,
+a plain interface does not — the plain-interface shape refuses
+with `netns://` and `cg:<id>` named as the honest doors. Rootless
+pins: `iface_tests.rs` (the grammar arm, the depth-1 law); live
+proof: `sudo zelynic -v s iface://red 2mb`; CI proof: the
+Supermassive Container E2E netns/iface legs (a real namespace and
+a real VRF domain resolving and enforcing on a real runner
+kernel).
 
 ## The Quota Saver — the Workload-Conditional Claim
 

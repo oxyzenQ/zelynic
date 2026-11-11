@@ -103,13 +103,13 @@ Names follow one grammar (NIGHT-improve-53, the masterclass
 unification): **strict** applies limits, **block** cuts access
 entirely, **unstrict** removes limits — ONE verb per family, and
 `-all` sweeps every user app. The target grammar picks the lane: a
-single target (`brave`, `cg:18571`, `docker://nginx`, `netns://sandbox`)
-rides the
+single target (`brave`, `cg:18571`, `docker://nginx`, `netns://sandbox`,
+`iface://red`) rides the
 single lane, and a `::`-separated list
 (`brave::curl::pacman`) rides the group lane — one shared bucket
 for every member. The separator DOUBLED because container native
 grammar owns the single `:` (`docker://nginx`,
-`k8s://prod/web-abc`, `netns://sandbox`, and the `cg:` display
+`k8s://prod/web-abc`, `netns://sandbox`, `iface://red`, and the `cg:` display
 prefix), so the list
 byte sequence is one they can never contain. The short forms: `s`
 = strict, `b` = block, `u` = unstrict, `ee` = eagle-eyes (the
@@ -544,6 +544,7 @@ Container targets (NIGHT-upgrade-charger-core-2, TIER A):
 sudo zelynic strict docker://nginx 100kb
 sudo zelynic s k8s://prod/web-abc 1mb
 sudo zelynic s netns://sandbox 500kb
+sudo zelynic s iface://red 2mb
 sudo zelynic unstrict docker://nginx
 ```
 
@@ -577,12 +578,20 @@ Namespace names are host-local and their inodes churn across
 reboots: resolution reads live state at apply time, the same
 contract the process-name lane owns, and the resolved cgroup id
 is the durable handle.
+`iface://<name>` targets a VRF domain: `ip vrf exec <name> <cmd>`
+groups every process it runs into the cgroup `<name>` directly under
+`/sys/fs/cgroup/` (the iproute2 contract), and the URI resolves that
+cgroup — the physics is honest: a VRF owns a cgroup, a plain
+interface (wg0, eth1) does not, so the plain-interface shape refuses
+with the alternatives named (`netns://` for the namespace, `cg:<id>`
+for the cgroup directly). A domain whose cgroup holds no live process
+is refused as dead, the netns lane's empty verdict, the same law.
 
 Every failure is specific, never the generic no-match — the input
 was a well-formed reference whose infrastructure answered: "docker
 socket not found", "no container named 'x'", "no pod 'y' in
-namespace 'z'", "no network namespace named 'n'", each with its
-discovery tip. A stopped container
+namespace 'z'", "no network namespace named 'n'", "interface 'w' owns no
+cgroup", each with its discovery tip. A stopped container
 is named as such: the daemon's own status word rides the error,
 because a stopped container's cgroup is torn down at exit — there
 is no live workload to target. A policy left behind against a

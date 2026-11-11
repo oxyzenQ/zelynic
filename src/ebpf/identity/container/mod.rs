@@ -3,8 +3,8 @@
 
 //! Container-native target resolution (NIGHT-upgrade-
 //! charger-core-2, TIER A #5) — `docker://<name>`,
-//! `k8s://<namespace>/<pod>` and `netns://<name>` resolve to the
-//! workload's cgroup id.
+//! `k8s://<namespace>/<pod>`, `netns://<name>` and `iface://<name>`
+//! resolve to the workload's cgroup id.
 //!
 //! The contract is resolve-only, by design: a container reference
 //! becomes the same cgroup id `cg:<id>` targets, and every
@@ -19,7 +19,10 @@
 //! cgroup (`...pod<uid>.slice` for the systemd driver, `pod<uid>`
 //! for cgroupfs — here), and `netns://` rides the named-namespace
 //! handle's nsfs inode matched against its /proc member processes'
-//! ns links (netns.rs, the third sibling).
+//! ns links (netns.rs, the third sibling), and `iface://` resolves
+//! the VRF domain's own cgroup — the one `ip vrf exec` groups its
+//! processes into, depth-1 under the cgroup root (iface.rs, the
+//! fourth sibling).
 //!
 //! The dangerous-target blocklist does not apply to container
 //! targets: it names HOST system processes (sshd, systemd) whose
@@ -35,6 +38,7 @@
 //! pins rootlessly in test/ebpf/identity/container_tests.rs.
 
 mod docker;
+mod iface;
 mod netns;
 
 use std::path::{Path, PathBuf};
@@ -59,6 +63,10 @@ pub enum ContainerRef {
     /// `ip netns add <name>` family), resolved through its member
     /// processes to the one workload cgroup living in it.
     Netns { name: String },
+    /// `iface://<name>` — a VRF domain (the `ip vrf exec <name>`
+    /// family), resolved to the cgroup iproute2 groups the domain's
+    /// processes into.
+    Iface { name: String },
 }
 
 impl ContainerRef {
@@ -71,6 +79,7 @@ impl ContainerRef {
             ContainerRef::Docker { name } => format!("docker://{name}"),
             ContainerRef::K8s { namespace, pod } => format!("k8s://{namespace}/{pod}"),
             ContainerRef::Netns { name } => format!("netns://{name}"),
+            ContainerRef::Iface { name } => format!("iface://{name}"),
         }
     }
 }
@@ -81,8 +90,9 @@ impl ContainerRef {
 /// or ':' (both break the target grammars that embed the string),
 /// `k8s://<namespace>/<pod>` with exactly one '/' and both
 /// parts non-empty, and `netns://<name>` carrying the docker
-/// lane's name law verbatim (non-empty, no '/', no ':'). Malformed
-/// shapes return None — they fall back
+/// lane's name law verbatim (non-empty, no '/', no ':'), and
+/// `iface://<name>` the same name law (the VRF domain's name).
+/// Malformed shapes return None — they fall back
 /// to the process-name lane and surface as the graceful no-match,
 /// the same contract alnum-bearing garbage owns.
 pub fn parse_container(s: &str) -> Option<ContainerRef> {
@@ -117,6 +127,14 @@ pub fn parse_container(s: &str) -> Option<ContainerRef> {
             name: rest.to_string(),
         });
     }
+    if let Some(rest) = s.strip_prefix("iface://") {
+        if rest.is_empty() || rest.contains('/') || rest.contains(':') {
+            return None;
+        }
+        return Some(ContainerRef::Iface {
+            name: rest.to_string(),
+        });
+    }
     None
 }
 
@@ -130,6 +148,7 @@ pub fn resolve(c: &ContainerRef) -> Result<Vec<u32>> {
         ContainerRef::Docker { name } => docker::resolve_docker(name),
         ContainerRef::K8s { namespace, pod } => resolve_k8s(namespace, pod),
         ContainerRef::Netns { name } => netns::resolve_netns(name),
+        ContainerRef::Iface { name } => iface::resolve_iface(name),
     }
 }
 
