@@ -87,7 +87,7 @@ impl super::Limiter {
         raw: PolicyWindowRaw,
     ) -> Result<()> {
         self.with_u32_map::<PolicyWindowRaw, ()>("policy_window", PIN_MAP_POLICY_WINDOW, |map| {
-            map.insert(cgroup_id, raw, 0)
+            map.insert(&cgroup_id, &raw, 0)
                 .map_err(|e| anyhow!("failed to write cg:{cgroup_id} policy window: {e}"))
         })
     }
@@ -209,7 +209,7 @@ impl super::Limiter {
     pub(super) fn stamp_wall_clock_offset(&mut self) -> Result<()> {
         let offset = wall_minus_mono(wall_now_ns(), monotonic_ns());
         self.with_array_u64_map("wall_clock_offset", PIN_MAP_WALL_CLOCK_OFFSET, |map| {
-            map.set(0, offset, 0)
+            map.set(0, &offset, 0)
                 .map_err(|e| anyhow!("failed to stamp wall_clock_offset: {e}"))
         })
     }
@@ -233,7 +233,7 @@ pub(super) fn stamp_offset_on_pinned() {
             BpfArray::<&mut aya::maps::MapData, u64>::try_from(&mut obj)
                 .map_err(|e| anyhow!("failed to open: {e}"))
                 .and_then(|mut map| {
-                    map.set(0, offset, 0)
+                    map.set(0, &offset, 0)
                         .map_err(|e| anyhow!("failed to stamp: {e}"))
                 })
         });

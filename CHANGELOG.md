@@ -38,6 +38,27 @@ v80.0.0
 
 ### Changed
 
+- The userspace loader rides aya 0.16 with its parser twin aya-obj
+  0.6 (night-enhance-1, the 2026-10-27/28 upstream wave): the whole
+  tree needed exactly one mechanical move — the map writes went
+  by-value to by-reference (`HashMap::insert` and `Array::set` now
+  borrow their values; seven call sites across the limiter, zero
+  semantic delta, every written value a Copy Pod row) — while the
+  pin API (`default_map_pin_directory` plus the per-map
+  `map_pin_path`), the read shapes and the program surface compiled
+  untouched. MSRV 1.98.0 matches the manifest byte for byte (no
+  toolchain, no gate-10 move), the kernel side stays on aya-ebpf
+  0.2.1 (the ebpf/ comment edit staled the prebuilt tree pin, so
+  the lane regenerated the objects from the same 0.2.1 pairing and
+  the same nightly pin — semantics identical, the parity gate
+  green; upstream's aya-ebpf 0.3.0 is same-wave, held back on
+  purpose — the programs-side bump is its own owner call), and the
+  executable proof rides the tree: the embedded-object pins parse
+  the freshly staged bytes under the 0.6 parser (7/7), the dev-dep
+  parity is cargo-tree-verified (aya 0.16.0 -> aya-obj 0.6.0), and
+  the full bin unit tree plus both clippy lanes and rustfmt are
+  green on 1.98.1.
+
 - The sock_ops hint lanes moved to Socket Local Storage
   (schema v32, night-T-4 — the sk-storage architectural
   deepening): `recwn_socket_hint` and `pace_socket_hint` left the

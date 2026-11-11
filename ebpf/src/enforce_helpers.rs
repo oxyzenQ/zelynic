@@ -170,7 +170,8 @@ const BPF_NOEXIST: u64 = 1;
 /// aya-ebpf-bindings crates generate (the helper ID transmuted into
 /// the call immediate — no extern symbol, no relocation): ID 97,
 /// pinned against include/uapi/linux/bpf.h's FN(skb_ecn_set_ce, 97)
-/// and aya-obj 0.3's own BPF_FUNC_skb_ecn_set_ce = 97. Exposed to
+/// and aya-obj 0.6's own BPF_FUNC_skb_ecn_set_ce = 97 (0.3 agreed;
+/// re-verified at the aya 0.16 wave, night-enhance-1). Exposed to
 /// cgroup_skb programs by cg_skb_func_proto under CONFIG_INET
 /// (present in the 5.13 verified floor and every kernel above it,
 /// gpl_only = false — net/core/filter.c). aya-ebpf 0.2.1 does not

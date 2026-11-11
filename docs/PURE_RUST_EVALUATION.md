@@ -64,9 +64,9 @@ hold-the-dated-pin recommendation live in
 
 | Crate | Version | Notes |
 |---|---|---|
-| `aya` (userspace) | 0.14.0 (2026-06-24) | zelynic pins 0.14 since NIGHT-depthtest — see compatibility section |
-| `aya-ebpf` (BPF side) | 0.2.1 (2026-06-30) | edition 2024, MSRV 1.87 |
-| `aya-obj` (ELF parser) | 0.3.0 | the parser inside aya 0.14.0 (zelynic's dev-dep mirrors it) |
+| `aya` (userspace) | 0.16.0 (2026-10-28) | zelynic pins 0.16 since night-enhance-1 (NIGHT-depthtest rode the 0.14 wave) — see compatibility section |
+| `aya-ebpf` (BPF side) | 0.2.1 (2026-06-30) | edition 2024, MSRV 1.87; upstream's 0.3.0 (2026-10-31) held back on purpose — the programs-side bump is its own owner call |
+| `aya-obj` (ELF parser) | 0.6.0 | the parser inside aya 0.16.0 (zelynic's dev-dep mirrors it) |
 | `aya-build` | 0.2.0 | build.rs helper driving the nightly cross-build |
 | `bpf-linker` | 0.11.1 (2026-09-07) | static musl prebuilts on GitHub releases |
 

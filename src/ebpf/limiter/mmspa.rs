@@ -53,7 +53,7 @@ use crate::ebpf::pin::{self, PIN_MAP_MMSPA_GEN};
 fn bump_generation_word(map: &mut BpfArray<&mut MapData, u32>) -> Result<(u32, u32)> {
     let old = map.get(&0, 0).context("read mmspa_generation[0]")?;
     let new = old.wrapping_add(1);
-    map.set(0, new, 0).context("write mmspa_generation[0]")?;
+    map.set(0, &new, 0).context("write mmspa_generation[0]")?;
     Ok((old, new))
 }
 
