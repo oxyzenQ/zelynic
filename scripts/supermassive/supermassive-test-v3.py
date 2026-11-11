@@ -91,12 +91,21 @@ Design:
     lane self-skips with a note — the resolver error depth (stage 4)
     is the no-runtime proof, this lane is the WITH-runtime proof.
 
+  * The iface E2E lane (root + ip vrf, self-skip, night-T-2): when
+    iproute2 is present, v3 creates a VRF device, runs a sleep
+    workload inside the domain through `ip vrf exec` (which groups it
+    into the domain's own cgroup, depth-1 under /sys/fs/cgroup),
+    resolves iface://<name> to that cgroup's id, writes a strict
+    policy, and tears down — the VRF-native round trip. The same
+    self-skip shape when no ip tool is present.
+
 Usage:
   sudo ./scripts/supermassive/supermassive-test-v3.sh               # full container depth (root)
   ./scripts/supermassive/supermassive-test-v3.sh --self-test        # engine smoke, no root
   sudo ./scripts/supermassive/supermassive-test-v3.sh --json         # machine-readable
   sudo ./scripts/supermassive/supermassive-test-v3.sh --docker-e2e   # force the docker E2E lane
   sudo ./scripts/supermassive/supermassive-test-v3.sh --netns-e2e   # force the netns E2E lane
+  sudo ./scripts/supermassive/supermassive-test-v3.sh --iface-e2e   # force the iface E2E lane
 
 Exit code: 0 if every stage that ran passed (SKIP does not fail); 1 if
 any stage failed or the binary panicked on any case.
@@ -183,6 +192,7 @@ WELL_FORMED_URIS = [
     ("k8s://prod/web-abc", "k8s", "namespace/pod"),
     ("k8s://kube-system/coredns-xyz", "k8s", "nested-namespace"),
     ("netns://zelynic-v3-probe", "netns", "named-namespace"),
+    ("iface://zelynic-v3-probe", "iface", "vrf-domain"),
 ]
 
 # The malformed container URI shapes parse_container rejects (every
@@ -201,6 +211,9 @@ MALFORMED_URIS = [
     ("netns://", "empty name"),
     ("netns://a/b", "slash in name"),
     ("netns://a:b", "colon in name"),
+    ("iface://", "empty name"),
+    ("iface://a/b", "slash in name"),
+    ("iface://a:b", "colon in name"),
 ]
 
 # A valid rate for the strict invocations (the resolver is
@@ -236,6 +249,8 @@ RESOLUTION_FAILURE_MARKERS = (
     "no /run/netns",
     "no process lives in it",
     "spans",
+    "no interface",
+    "owns no cgroup",
 )
 
 
@@ -324,6 +339,18 @@ def _has_k8s():
         return len(os.listdir(poddir)) > 0
     except OSError:
         return False
+
+
+def _has_vrf():
+    """True when iproute2 can manage VRF domains.
+
+    The iface resolver reads the cgroup `ip vrf exec` groups its
+    processes into (depth-1 under /sys/fs/cgroup); the E2E lane needs
+    the `ip` tool itself to stage a real VRF device and run a workload
+    inside the domain. The same reachability shape _has_netns carries
+    for the namespace lane.
+    """
+    return shutil.which("ip") is not None
 
 
 def _has_netns():
@@ -1327,7 +1354,186 @@ def test_netns_e2e(force=False):
             pass
 
 
-# ── the orchestrator ────────────────────────────────────────────────────────
+# ── stage 8: the iface E2E lane (root + ip vrf, self-skip) ──────────────────
+#
+# The iface twin of stage 7 (night-T-2): when iproute2 is present, v3
+# creates a VRF device, runs a sleep workload inside the domain through
+# `ip vrf exec` — which creates the cgroup <vrf> directly under the
+# cgroup root and moves the exec'd pid into it, iproute2's own
+# grouping — resolves iface://<vrf> to that cgroup's id, and tears
+# down. The workload placement needs no harness cgroup write here:
+# the VRF domain's cgroup IS iproute2's own, exactly the shape the
+# resolver's depth-1 matcher owns.
+
+
+def test_iface_e2e(force=False):
+    """The real iface E2E lane (self-skip when no ip tool).
+
+    When root + ip are present: create a VRF device, spawn one sleep
+    workload inside the domain (ip vrf exec groups it into the domain
+    cgroup itself), resolve iface://<name>, verify the binary accepts
+    the target, tear down. When absent: self-skip with a note (the CI
+    shape — the resolver error depth in stage 4 is the CI-verifiable
+    core). The `force` flag runs the lane even when ip is absent (for
+    local manual probes that want the failure surfaced rather than
+    skipped).
+    """
+    out()
+    out("── stage 8: iface E2E lane (root + ip vrf, self-skip) ──")
+    if not _is_root():
+        record(
+            "iface-e2e: vrf domain round trip",
+            "SKIP",
+            "non-root — the E2E lane needs root + ip vrf",
+        )
+        return True
+    if not _has_vrf():
+        if force:
+            record(
+                "iface-e2e: ip tool present",
+                "FAIL",
+                "--iface-e2e forced but no ip (iproute2) on PATH",
+            )
+            return False
+        record(
+            "iface-e2e: vrf domain round trip",
+            "SKIP",
+            "no ip tool — the resolver error depth (stage 4) is the CI-verifiable core",
+        )
+        return True
+    vrf_name = "zelynic-v3-vrf"
+    vrf_cgroup = f"/sys/fs/cgroup/{vrf_name}"
+    workload = None
+    try:
+        # Stage the VRF device (an l3mdev + its routing table).
+        add = subprocess.run(
+            ["ip", "vrf", "add", vrf_name],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if add.returncode != 0:
+            record(
+                "iface-e2e: create vrf device",
+                "FAIL",
+                f"ip vrf add failed: {add.stderr.strip()[:200]}",
+            )
+            return False
+        record(
+            "iface-e2e: create vrf device",
+            "PASS",
+            f"vrf {vrf_name} created (l3mdev device + table)",
+        )
+        # Run the workload inside the domain. `ip vrf exec` creates the
+        # cgroup <vrf> directly under the cgroup root and moves the
+        # exec'd pid into it — iproute2's own VRF grouping, the exact
+        # contract the resolver's depth-1 matcher pins.
+        workload = subprocess.Popen(
+            ["ip", "vrf", "exec", vrf_name, "sleep", "300"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        # Bounded wait for the domain cgroup to own its first member
+        # (the resolver reads live cgroup.procs; a resolve before the
+        # move would race the dead-domain refusal).
+        joined = False
+        for _ in range(50):
+            if workload.poll() is not None:
+                break
+            try:
+                with open(os.path.join(vrf_cgroup, "cgroup.procs")) as fh:
+                    if fh.read().strip():
+                        joined = True
+                        break
+            except OSError:
+                pass
+            time.sleep(0.1)
+        if not joined:
+            early = workload.poll() is not None
+            shape = "exited early" if early else "never joined the domain cgroup"
+            record(
+                "iface-e2e: spawn workload in the domain cgroup",
+                "FAIL",
+                f"ip vrf exec {shape} ({vrf_cgroup} unpopulated — no cgroup2 VRF "
+                "grouping on this host?)",
+            )
+            return False
+        record(
+            "iface-e2e: spawn workload in the domain cgroup",
+            "PASS",
+            f"sleep workload live inside the {vrf_name} domain (cgroup {vrf_cgroup})",
+        )
+        # The binary resolves iface://<vrf> against the REAL live
+        # domain. The honest E2E contract (NIGHT-improve-37), the
+        # docker lane's own: rc=0 is the full round trip (resolve +
+        # enforce); rc=non-zero WITHOUT a resolver error marker means
+        # the resolver found the domain's cgroup and the failure is
+        # downstream (enforcement on the runner kernel) — honest,
+        # recorded as a PASS-with-note; rc=non-zero WITH a resolver
+        # error marker is a real bug, FAIL. No panic and no hang are
+        # hard invariants.
+        rc, output = _run_cli_case([STRICT_SINGLE, f"iface://{vrf_name}", VALID_RATE])
+        if rc is None:
+            record(
+                "iface-e2e: resolve iface://<name>",
+                "FAIL",
+                "timed out (hang)",
+            )
+            return False
+        if _case_panicked(output):
+            record(
+                "iface-e2e: resolve no panic",
+                "FAIL",
+                "panic leaked on a real vrf domain target",
+            )
+            return False
+        if rc == 0:
+            record(
+                "iface-e2e: resolve iface://<name>",
+                "PASS",
+                "rc=0 — full round trip (resolve + enforce) on a real vrf domain",
+            )
+            return True
+        if _resolution_failed(output):
+            record(
+                "iface-e2e: resolve iface://<name>",
+                "FAIL",
+                f"rc={rc} — resolver failed to find the live vrf domain: {output.strip()[:200]}",
+            )
+            return False
+        record(
+            "iface-e2e: resolve iface://<name>",
+            "PASS",
+            f"rc={rc} — resolver found the domain, enforcement downstream (resolve-only contract's E2E half holds)",
+        )
+        return True
+    finally:
+        # Best-effort teardown: the workload is reaped, the VRF device
+        # deleted, and the (now empty) domain cgroup removed — an
+        # iproute2 leftover dir never fails the lane on the way out.
+        if workload is not None:
+            workload.terminate()
+            try:
+                workload.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                workload.kill()
+                try:
+                    workload.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    pass
+        subprocess.run(
+            ["ip", "vrf", "del", vrf_name],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        try:
+            os.rmdir(vrf_cgroup)
+        except OSError:
+            pass
+
+
+# ── the orchestrator ─────────────────────────────────────────────────────────
 
 
 def run_container_depth(
@@ -1335,14 +1541,15 @@ def run_container_depth(
     force_docker_e2e=False,
     force_k8s_e2e=False,
     force_netns_e2e=False,
+    force_iface_e2e=False,
 ):
     """Run the container depth battery, stage by stage.
 
     phases: the list of stage names to run (None = all). The stages
     self-skip when the environment cannot support them (non-root skips
     the grammar/resolution depth; no-docker skips the docker E2E lane;
-    no-kubelet skips the k8s E2E lane; no-ip skips the netns E2E
-    lane), so the battery is green on every host — the depth it CAN
+    no-kubelet skips the k8s E2E lane; no-ip skips the netns and
+    iface E2E lanes), so the battery is green on every host — the depth it CAN
     prove is the depth it runs.
     """
     all_stages = {
@@ -1353,6 +1560,7 @@ def run_container_depth(
         "docker-e2e": lambda: test_docker_e2e(force=force_docker_e2e),
         "k8s-e2e": lambda: test_k8s_e2e(force=force_k8s_e2e),
         "netns-e2e": lambda: test_netns_e2e(force=force_netns_e2e),
+        "iface-e2e": lambda: test_iface_e2e(force=force_iface_e2e),
     }
     if phases:
         stages = [(name, all_stages[name]) for name in phases]
@@ -1376,6 +1584,7 @@ def run_container_depth(
     out(f"  docker: {'yes' if _has_docker() else 'no'}")
     out(f"  k8s:    {'yes' if _has_k8s() else 'no'}")
     out(f"  netns:  {'yes' if _has_netns() else 'no'}")
+    out(f"  iface:  {'yes' if _has_vrf() else 'no'}")
     out(f"  stages: {', '.join(name for name, _ in stages)}")
     out("================================================================")
     out()
@@ -1431,6 +1640,11 @@ def main():
         action="store_true",
         help="force the netns E2E lane (fail if no ip tool, do not skip)",
     )
+    parser.add_argument(
+        "--iface-e2e",
+        action="store_true",
+        help="force the iface E2E lane (fail if no ip tool, do not skip)",
+    )
     args = parser.parse_args()
 
     # Bind the binary: the --binary flag wins, then the CI init's
@@ -1465,6 +1679,7 @@ def main():
         force_docker_e2e=args.docker_e2e,
         force_k8s_e2e=args.k8s_e2e,
         force_netns_e2e=args.netns_e2e,
+        force_iface_e2e=args.iface_e2e,
     )
 
     # The verdict: count PASS/FAIL/SKIP across every record.
