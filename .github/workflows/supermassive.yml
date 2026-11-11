@@ -682,22 +682,25 @@ jobs:
           # measured on the same lane either way). The v11.0.0
           # release — the last leaf-anchored datapath, the exact
           # counterfactual the subtree contract is measured against —
-          # is fetched ONCE with its own sha512sum sidecar so the
-          # legacy binary is checksum-verified exactly like the
-          # release's other consumers (VERIFY_RELEASE contract). A
-          # fetch failure FAILS the leg here on the runner, where
-          # retries are cheap — the in-VM stage must never silently
-          # skip the proof.
-          LEGACY_VER="v11.0.0"
+          # rides the TREE since the legacy/ vendoring: the release's
+          # own .sha512sum sidecar verbatim plus a .b3sum over the
+          # same bytes, so no CI run ever fetches the counterfactual
+          # from the network. The pair is verified HERE on the runner
+          # (sha512sum -c against the release sidecar, b3sum -c
+          # against the vendored digest — the VERIFY_RELEASE fast
+          # lane, the tool ubuntu-24.04 ships as the b3sum package,
+          # the dinner-12 retries knob on both apt fetches), and a
+          # missing file or a digest mismatch FAILS the leg before
+          # any VM boots — the fetch-failure doctrine, now a checksum
+          # doctrine, still not soft. assemble() below extracts only
+          # the verified bytes into /opt/zelynic/legacy.
           LEGACY_ASSET="zelynic-v11.0.0-linux-amd64-v3-musl.tar.gz"
-          mkdir -p /tmp/stage/legacy-fetch
-          curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 \
-            -o "/tmp/stage/legacy-fetch/$LEGACY_ASSET" \
-            "https://github.com/oxyzenQ/zelynic/releases/download/$LEGACY_VER/$LEGACY_ASSET"
-          curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 \
-            -o "/tmp/stage/legacy-fetch/$LEGACY_ASSET.sha512sum" \
-            "https://github.com/oxyzenQ/zelynic/releases/download/$LEGACY_VER/$LEGACY_ASSET.sha512sum"
-          ( cd /tmp/stage/legacy-fetch && sha512sum -c "$LEGACY_ASSET.sha512sum" )
+          sudo apt-get -o Acquire::Retries=5 update -qq
+          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends b3sum
+          ( cd "$GITHUB_WORKSPACE/legacy" \
+            && sha512sum -c "$LEGACY_ASSET.sha512sum" \
+            && b3sum -c "$LEGACY_ASSET.b3sum" )
+          echo "legacy vendored pair verified: $GITHUB_WORKSPACE/legacy/$LEGACY_ASSET"
           assemble() {
             DIR=$1
             mkdir -p "$DIR/rootfs/opt/zelynic/legacy"
@@ -734,7 +737,7 @@ jobs:
               fi
               echo "virtio modules staged into the rootfs cpio"
             fi
-            tar xzf "/tmp/stage/legacy-fetch/$LEGACY_ASSET" -C "$DIR/rootfs/opt/zelynic/legacy"
+            tar xzf "$GITHUB_WORKSPACE/legacy/$LEGACY_ASSET" -C "$DIR/rootfs/opt/zelynic/legacy"
             test -x "$DIR/rootfs/opt/zelynic/legacy/zelynic"
             echo "legacy staged: $("$DIR/rootfs/opt/zelynic/legacy/zelynic" -V | head -1)"
             # PID 1 needs a console to exec onto before devtmpfs lands

@@ -1,0 +1,5 @@
+# The vendored legacy pair never rides git archive trees: the
+# micro-VM rootfs assembly extracts the verified tarball explicitly
+# (see legacy/README.md), so the guests keep seeing only the
+# extracted binary at /opt/zelynic/legacy/zelynic.
+legacy/ export-ignore
