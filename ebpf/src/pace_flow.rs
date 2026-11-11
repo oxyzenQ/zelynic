@@ -56,8 +56,8 @@
 
 use aya_ebpf::{
     EbpfContext,
-    btf_maps::SkStorage,
     bindings::{BPF_SK_STORAGE_GET_F_CREATE, bpf_sock},
+    btf_maps::SkStorage,
     helpers::{bpf_setsockopt, generated::bpf_sk_storage_get},
     macros::{btf_map, sock_ops},
     programs::SockOpsContext,
@@ -76,6 +76,16 @@ use crate::pace::pacing_decision;
 pub(crate) struct PaceHint {
     pub rate: u64,
     pub generation: u32,
+    /// The repr(C) tail padding, carried as a REAL field the
+    /// initializer sets: the sk-storage helper's F_CREATE copies the
+    /// whole 16-byte value from the stack, and the 5.15 floor's
+    /// verifier refuses an indirect stack read over compiler padding
+    /// the field stores never initialized ("invalid indirect read
+    /// from stack R3 ... size 16" — the jammy floor lane's verdict
+    /// line). An explicit zeroed member keeps every byte of the read
+    /// initialized; the BTF value type grows the member, the byte
+    /// size holds.
+    pub pad: u32,
 }
 const _: () = assert!(core::mem::size_of::<PaceHint>() == 16);
 
@@ -188,14 +198,7 @@ fn pace_apply(ctx: &SockOpsContext) -> u32 {
     // the kernel's own sk_storage value for this map — stable
     // kernel memory for the invocation, the contract every map
     // read in this object rides.
-    let row = unsafe {
-        bpf_sk_storage_get(
-            pace_map_ptr(),
-            sk.cast(),
-            core::ptr::null_mut(),
-            0,
-        )
-    };
+    let row = unsafe { bpf_sk_storage_get(pace_map_ptr(), sk.cast(), core::ptr::null_mut(), 0) };
     if row.is_null() {
         return 0;
     }
@@ -286,6 +289,7 @@ pub(crate) fn pace_prime(sk: *mut bpf_sock, rate_bps: u64) {
     let mut init = PaceHint {
         rate: rate_bps,
         generation: gen_now,
+        pad: 0,
     };
     // SAFETY: sk is the caller's vetted socket pointer (the
     // enforce.rs pace site null-checks the __sk_buff.sk union read
