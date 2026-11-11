@@ -61,10 +61,3 @@ pub(crate) const SCHEMA_VERSION: u32 = 31;
 // ---------------------------------------------------------------------------
 
 // ─ Download (ingress) maps ─
-
-// The ledger half above is a doc-only sibling module, wired here so
-// the tree owns the text: it compiles (empty items, zero cost),
-// rustfmt checks it, and a reader of either tree finds the history
-// one hop from the anchor (the v13 drift lesson's own posture).
-#[path = "schema_ledger.rs"]
-mod schema_ledger;
