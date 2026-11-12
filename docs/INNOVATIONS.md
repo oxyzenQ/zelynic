@@ -387,7 +387,7 @@ frontend recomputes what it wants. Rootless pins: the kernel's own
 and `hist_raw_tests.rs`, the render pins in `depth_json_tests.rs`);
 CI proof: the supermassive server phase's histogram leg
 (night-verify-1) — bulk loopback traffic through cgroup A, then
-`ee --depth --json` asserted: `sample_shift` pinned at 10, the
+`ee --depth --print-json` asserted: `sample_shift` pinned at 10, the
 download size half non-null with samples == sum(buckets) > 0 and
 non-null quantiles. The leg needs no policy write — the sampler
 records pre-policy (enforce.rs ticks every packet the cgroup-root

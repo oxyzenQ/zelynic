@@ -2640,7 +2640,7 @@ def stage_server_histogram():
          unlimited GSO path is the maximum-packet lane; samples are
          ~= skbs/1024, and twelve seconds of loopback bulk is tens
          of thousands of skbs on every profile this harness runs)
-      2. read `ee <A> --depth --json` headless — the report row's
+      2. read `ee <A> --depth --print-json` headless — the report row's
          histogram block answers under the schema version gate
       3. assert: the block non-null (null here is the honest
          absence, which would mean the sampler never fired),
@@ -2668,7 +2668,7 @@ def stage_server_histogram():
         )
         return False
     rc, stdout, stderr = run_zel_headless(
-        ["eagle-eyes", str(a_id), "--depth", "--json"], timeout=60
+        ["eagle-eyes", f"cg:{a_id}", "--depth", "--print-json"], timeout=60
     )
     if rc != 0:
         record(

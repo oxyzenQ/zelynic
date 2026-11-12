@@ -91,7 +91,7 @@ the leg:
 
 The leg's shape: drive 12 s of bulk loopback download through
 cgroup A (`py_download`'s worker lane), then read
-`ee <A> --depth --json` headless and assert, on the row the traffic
+`ee <A> --depth --print-json` headless and assert, on the row the traffic
 filled: `histogram` non-null; `sample_shift == 10`; the download
 size half non-null with `samples == sum(buckets) > 0` and non-null
 p50/p95 (samples is computed as the bucket sum in
