@@ -106,7 +106,7 @@ const _: () = assert!(core::mem::size_of::<PaceHint>() == 16);
 pub(crate) static pace_socket_hint: SkStorage<PaceHint> = SkStorage::new();
 
 /// The map pointer the raw sk_storage helpers take — the recwn
-/// twin's hint_map_ptr note verbatim (aya-ebpf 0.2.1 keeps
+/// twin's hint_map_ptr note verbatim (aya-ebpf 0.3.0 keeps
 /// SkStorage::as_ptr crate-private; the pointer is the static's
 /// symbol address, relocated to the map by name exactly the same
 /// way).

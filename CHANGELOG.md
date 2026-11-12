@@ -48,17 +48,41 @@ v80.0.0
   pin API (`default_map_pin_directory` plus the per-map
   `map_pin_path`), the read shapes and the program surface compiled
   untouched. MSRV 1.98.0 matches the manifest byte for byte (no
-  toolchain, no gate-10 move), the kernel side stays on aya-ebpf
-  0.2.1 (the ebpf/ comment edit staled the prebuilt tree pin, so
-  the lane regenerated the objects from the same 0.2.1 pairing and
-  the same nightly pin — semantics identical, the parity gate
-  green; upstream's aya-ebpf 0.3.0 is same-wave, held back on
-  purpose — the programs-side bump is its own owner call), and the
+  toolchain, no gate-10 move), and the
   executable proof rides the tree: the embedded-object pins parse
   the freshly staged bytes under the 0.6 parser (7/7), the dev-dep
   parity is cargo-tree-verified (aya 0.16.0 -> aya-obj 0.6.0), and
   the full bin unit tree plus both clippy lanes and rustfmt are
   green on 1.98.1.
+
+- The kernel side joined the same wave (night-enhance-1's kernel
+  half, 2026-11-12 — the owner call the userspace entry above held
+  open): aya-ebpf 0.2.1 -> 0.3.0, the pairing complete aya 0.16.0
+  <-> aya-ebpf 0.3.0, the satellite family riding upstream's own
+  requirements (`aya-ebpf-bindings` 0.3.0, `aya-ebpf-cty` 0.4.0,
+  `aya-ebpf-macros` 0.4.0; `aya-build` already 0.2.1) — and
+  `syn`, `proc-macro2-diagnostics`, `version_check` left the ebpf
+  lockfile (31 -> 28 crates, a leaner build-time chain). Two API
+  moves, both mechanical, zero semantic delta: the map API went
+  by-value to by-reference kernel-side (`get_ptr`/`get_ptr_mut`
+  keys and `insert` values now borrow — 28 call sites; every
+  written value a Copy Pod row, every borrow ends at the call, the
+  BPF_NOEXIST init-race contracts untouched), and the skb raw
+  pointer sealed behind `EbpfContext::as_ptr()` (`SkBuff.skb` went
+  private — 13 sites; the generated helpers keep their raw
+  signatures, the `__sk_buff` union read re-anchored on the same
+  pointer it always dereferenced). No toolchain and no bpf-linker
+  move: the dated nightly-2026-09-18 + bpf-linker 0.11.1 pins
+  stand (aya-ebpf's MSRV 1.98.0 sits under the nightly). The
+  prebuilt lane regenerated through the validated pipeline: both
+  objects ELF-law-checked with a closed relocation surface, the
+  manifest tree pin moved with the sources, the parity gate green;
+  the embedded-object pins parse the fresh 0.3.0-built bytes under
+  aya-obj 0.6 (1048 bin tests + 72 integration green, both clippy
+  lanes -D warnings, rustfmt clean, cargo-deny 0.20.2
+  advisories/bans/licenses/sources ok over the all-features tree,
+  cargo audit exit 0 on both lockfiles — 1471 RustSec advisories
+  loaded).
 
 - The sock_ops hint lanes moved to Socket Local Storage
   (schema v32, night-T-4 — the sk-storage architectural

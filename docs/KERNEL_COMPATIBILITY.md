@@ -102,7 +102,7 @@ the first read's parse located (night-audit-1's two-read split;
 the combined 96 bytes per call site match the v22 single window's
 stack budget, and the rebase is what makes every pure-core read a
 compile-time-constant stack offset). The pure core
-(ebpf/src/quic.rs) parses both windows. aya-ebpf 0.2.1 wraps the
+(ebpf/src/quic.rs) parses both windows. aya-ebpf 0.3.0 wraps the
 helper as `SkBuffContext::load_bytes` (helper 26, the
 bpf_skb_load_bytes proto every skb program family has carried
 since v4.1 — long before the verified floor). Both reads are

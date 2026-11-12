@@ -10,7 +10,8 @@
 //   enforce_dl — attached to cgroup_skb/ingress (download)
 //   enforce_ul — attached to cgroup_skb/egress (upload)
 //
-// Line-for-line translation of the C twin onto aya-ebpf 0.2.1. The
+// Line-for-line translation of the C twin onto aya-ebpf (0.2.1 at the
+// 2026-06 port; 0.3.0 since night-enhance-1, 2026-11-12). The
 // ELF contract with src/ebpf/limiter/mod.rs is identical (names,
 // sections, map types, struct layouts, pinning, GPL license): the
 // userspace loader opens every map through EbpfLoader::map_pin_path,

@@ -5,7 +5,8 @@
 // stage 3 port of the former bpf/observer.bpf.c; phase 3 deleted
 // the C side — the port is now the production source).
 //
-// Line-for-line translation of the C twin onto aya-ebpf 0.2.1. The
+// Line-for-line translation of the C twin onto aya-ebpf (0.2.1 at the
+// 2026-06 port; 0.3.0 since night-enhance-1, 2026-11-12). The
 // ELF contract with src/ebpf/loader.rs is identical (names, sections,
 // map types, struct layouts, GPL license) -- the verification
 // harness output and the full contract table live in
@@ -86,8 +87,8 @@
 #![no_main]
 
 use aya_ebpf::{
-    helpers::bpf_get_socket_cookie, helpers::bpf_skb_cgroup_id, macros::cgroup_skb, macros::map,
-    maps::LruHashMap, programs::SkBuffContext,
+    EbpfContext as _, helpers::bpf_get_socket_cookie, helpers::bpf_skb_cgroup_id,
+    macros::cgroup_skb, macros::map, maps::LruHashMap, programs::SkBuffContext,
 };
 
 // The observer's pure stats core (NIGHT-improve-29): the layout +
@@ -239,7 +240,7 @@ fn bump_socket_counter(map: &LruHashMap<u64, u64>, cookie: u64, pkt_len: u64) {
     if cookie == 0 {
         return;
     }
-    match map.get_ptr_mut(cookie) {
+    match map.get_ptr_mut(&cookie) {
         Some(ptr) => bump_socket_bytes(ptr, pkt_len),
         None => {
             // First packet for this socket: NOEXIST so a concurrent
@@ -253,8 +254,8 @@ fn bump_socket_counter(map: &LruHashMap<u64, u64>, cookie: u64, pkt_len: u64) {
             // loses this one packet's ATTRIBUTION, never the packet —
             // the same allow-and-skip contract the cgroup counter
             // maps carry.
-            if map.insert(cookie, pkt_len, BPF_NOEXIST).is_err()
-                && let Some(ptr) = map.get_ptr_mut(cookie)
+            if map.insert(&cookie, &pkt_len, BPF_NOEXIST).is_err()
+                && let Some(ptr) = map.get_ptr_mut(&cookie)
             {
                 bump_socket_bytes(ptr, pkt_len);
             }
@@ -267,7 +268,7 @@ fn observe_egress(ctx: SkBuffContext) -> i32 {
     // SAFETY: the helper call hands the program's own skb context
     // pointer to the kernel; the return is a plain u64 cgroup id,
     // no pointer crosses back into the program.
-    let cgroup_id = unsafe { bpf_skb_cgroup_id(ctx.skb.skb) } as u32;
+    let cgroup_id = unsafe { bpf_skb_cgroup_id(ctx.as_ptr().cast()) } as u32;
     let pkt_len = ctx.len();
 
     // Per-socket attribution (NIGHT-boost-26): the cookie of the
@@ -276,7 +277,7 @@ fn observe_egress(ctx: SkBuffContext) -> i32 {
     // SAFETY: the same helper contract — the skb cast matches the
     // helper's void-pointer signature, the return a plain u64
     // cookie.
-    let cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
+    let cookie = unsafe { bpf_get_socket_cookie(ctx.as_ptr()) };
     bump_socket_counter(&socket_counters, cookie, u64::from(pkt_len));
 
     // Counter update: atomic in-place booking on an existing entry
@@ -287,7 +288,7 @@ fn observe_egress(ctx: SkBuffContext) -> i32 {
     // winner's entry (one packet counted exactly once on every
     // interleaving; a full-map miss loses this one packet's COUNT,
     // never the packet itself).
-    match cgroup_counters.get_ptr_mut(cgroup_id) {
+    match cgroup_counters.get_ptr_mut(&cgroup_id) {
         Some(ptr) => book_packet(ptr, u64::from(pkt_len)),
         None => {
             let init = CgroupStats {
@@ -295,9 +296,9 @@ fn observe_egress(ctx: SkBuffContext) -> i32 {
                 bytes: pkt_len as u64,
             };
             if cgroup_counters
-                .insert(cgroup_id, init, BPF_NOEXIST)
+                .insert(&cgroup_id, &init, BPF_NOEXIST)
                 .is_err()
-                && let Some(ptr) = cgroup_counters.get_ptr_mut(cgroup_id)
+                && let Some(ptr) = cgroup_counters.get_ptr_mut(&cgroup_id)
             {
                 book_packet(ptr, u64::from(pkt_len));
             }
@@ -316,7 +317,7 @@ fn observe_ingress(ctx: SkBuffContext) -> i32 {
     // SAFETY: the helper call hands the program's own skb context
     // pointer to the kernel; the return is a plain u64 cgroup id,
     // no pointer crosses back into the program.
-    let cgroup_id = unsafe { bpf_skb_cgroup_id(ctx.skb.skb) } as u32;
+    let cgroup_id = unsafe { bpf_skb_cgroup_id(ctx.as_ptr().cast()) } as u32;
     let pkt_len = ctx.len() as u64;
 
     // Per-socket attribution (NIGHT-boost-26): the cookie of the
@@ -326,10 +327,10 @@ fn observe_ingress(ctx: SkBuffContext) -> i32 {
     // SAFETY: the same helper contract — the skb cast matches the
     // helper's void-pointer signature, the return a plain u64
     // cookie.
-    let cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
+    let cookie = unsafe { bpf_get_socket_cookie(ctx.as_ptr()) };
     bump_socket_counter(&socket_counters_ingress, cookie, pkt_len);
 
-    match cgroup_counters_ingress.get_ptr_mut(cgroup_id) {
+    match cgroup_counters_ingress.get_ptr_mut(&cgroup_id) {
         Some(ptr) => book_packet(ptr, pkt_len),
         None => {
             let init = CgroupStats {
@@ -343,9 +344,9 @@ fn observe_ingress(ctx: SkBuffContext) -> i32 {
             // (full map) loses this one packet's count, never the
             // packet itself — the C twin's allow-and-skip contract.
             if cgroup_counters_ingress
-                .insert(cgroup_id, init, BPF_NOEXIST)
+                .insert(&cgroup_id, &init, BPF_NOEXIST)
                 .is_err()
-                && let Some(ptr) = cgroup_counters_ingress.get_ptr_mut(cgroup_id)
+                && let Some(ptr) = cgroup_counters_ingress.get_ptr_mut(&cgroup_id)
             {
                 book_packet(ptr, pkt_len);
             }

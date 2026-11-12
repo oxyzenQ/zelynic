@@ -200,14 +200,17 @@ libc = "0.2"
 # Array::set now borrow their values; seven call sites across the
 # limiter, zero semantic delta — every written value is a Copy Pod
 # row). MSRV 1.98.0 matches this manifest's rust-version byte for
-# byte (no toolchain, no gate-10 move). The kernel side stays on
-# aya-ebpf 0.2.1 — the ebpf/ comment edit staled the prebuilt tree
-# pin, so the lane regenerated the objects from the same 0.2.1
-# pairing and the same nightly pin (semantics identical, parity
-# gate green; upstream shipped aya-ebpf 0.3.0 in the same wave —
-# the programs-side bump is its own owner call); the parse lane
-# proves the freshly staged bytes still parse under the new
-# parser, and cargo tree pins the dev-dep parity:
+# byte (no toolchain, no gate-10 move). The kernel side joined the
+# same wave the same day — the owner call taken: aya-ebpf 0.2.1 ->
+# 0.3.0 (night-enhance-1's kernel half), the satellite family riding
+# upstream's own requirements (bindings 0.3.0, cty 0.4.0, macros
+# 0.4.0) with no toolchain and no bpf-linker move (the dated pins
+# stand; aya-ebpf's MSRV 1.98.0 sits under the nightly). The map
+# write/key API went by-value to by-reference kernel-side too, the
+# SkBuff raw pointer sealed behind EbpfContext::as_ptr(), the lane
+# regenerated through the validated pipeline (parity gate green),
+# and the parse lane proves the fresh 0.3.0-built bytes still parse
+# under the new parser, cargo tree pinning the dev-dep parity:
 # aya 0.16.0 -> aya-obj 0.6.0, mirrored below.
 # NIGHT-depthtest (the aya 0.14 wave, 2026-06-24): the userspace
 # loader joins the generation its own programs side already rides

@@ -138,7 +138,7 @@ fn get_socket_ptr(map: &LruHashMap<u64, SocketBucket>, cookie: &u64) -> Option<*
                 gen_stamp: 0,
                 ecn_debt: 0,
             };
-            if map.insert(cookie, init, BPF_NOEXIST).is_err() {
+            if map.insert(cookie, &init, BPF_NOEXIST).is_err() {
                 // Lost the init race (the v11 discipline) or the LRU
                 // is full under 4096+ concurrent sockets: re-look-up
                 // and ride the winner; a re-lookup that still misses

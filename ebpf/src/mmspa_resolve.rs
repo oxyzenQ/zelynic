@@ -24,6 +24,7 @@
 // pinned by test/ebpf/limiter/mmspa_tests.rs.
 
 use aya_ebpf::{
+    EbpfContext as _,
     helpers::bpf_skb_ancestor_cgroup_id,
     macros::map,
     maps::{Array, HashMap, LruHashMap},
@@ -165,14 +166,14 @@ pub(super) fn mmspa_resolve_root(
     // SAFETY: the memo Array's map value read — the stable-memory
     // contract every get_ptr caller in the object rides; a plain
     // u32 copy out, no borrow leaves the closure.
-    let cached = memo_map.get_ptr(leaf).map(|p| unsafe { *p });
+    let cached = memo_map.get_ptr(&leaf).map(|p| unsafe { *p });
     // The stale-detect's policy lookup runs only when it can change
     // the verdict: a generation-current memo with a nonzero root.
     // (A mismatched stamp never consults the policy map — the memo
     // is untrusted wholesale, which is the whole point of the row.)
     let root_policy_alive = match cached {
         Some(v) if memo_gen(v) == generation && memo_root(v) != 0 => {
-            policy_map.get_ptr(memo_root(v)).is_some()
+            policy_map.get_ptr(&memo_root(v)).is_some()
         }
         _ => false,
     };
@@ -184,7 +185,7 @@ pub(super) fn mmspa_resolve_root(
             // gone): drop it so the rewrite below lands on a clean
             // slot. Best-effort — an LRU remove cannot fail loudly,
             // and the rewrite makes the entry correct either way.
-            let _ = memo_map.remove(leaf);
+            let _ = memo_map.remove(&leaf);
         }
     }
 
@@ -194,14 +195,14 @@ pub(super) fn mmspa_resolve_root(
         // context (the same helper contract every bpf_* call in
         // this object rides); the return is a plain u64 cgroup id,
         // no pointer crosses back.
-        let id = unsafe { bpf_skb_ancestor_cgroup_id(ctx.skb.skb, level as i32) } as u32;
+        let id = unsafe { bpf_skb_ancestor_cgroup_id(ctx.as_ptr().cast(), level as i32) } as u32;
         if id == 0 {
             // Past the socket's own depth: the chain is exhausted
             // (cgroup_ancestor returns NULL above the leaf's level,
             // and kernfs ids never truncate to 0 — see mmspa.rs).
             break;
         }
-        walk.note(id, policy_map.get_ptr(id).is_some());
+        walk.note(id, policy_map.get_ptr(&id).is_some());
     }
     let root = walk.root();
     // Memoize both outcomes under the generation this walk read —
@@ -211,6 +212,6 @@ pub(super) fn mmspa_resolve_root(
     // verdict: the walk result is used this packet regardless.
     // memo_value names the stored shape: the packed stamp-and-root
     // word, root 0 when nothing matched.
-    let _ = memo_map.insert(leaf, memo_value(generation, root), 0);
+    let _ = memo_map.insert(&leaf, &memo_value(generation, root), 0);
     root
 }
