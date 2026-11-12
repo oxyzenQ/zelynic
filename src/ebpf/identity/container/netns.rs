@@ -22,9 +22,12 @@
 //!   2. the handle's nsfs inode IS the namespace's identity — the
 //!      same number every member's `readlink /proc/<pid>/ns/net`
 //!      reports as `net:[<ino>]`;
-//!   3. one /proc walk collects the member pids (inode match) and
+//!   3. the settle walk collects the member pids (inode match) and
 //!      each member's cgroup id through the identity walk's own
-//!      `pid_cgroup_id` boundary;
+//!      `pid_cgroup_id` boundary — a bounded re-walk, because a
+//!      just-started `ip netns exec <name> <cmd> &` races the first
+//!      pass (setns + exec takes milliseconds; the owner's own demo
+//!      hit the Empty bail for a namespace whose member was mid-entry).
 //!   4. the verdict ([`netns_verdict`], pure): no member — the
 //!      namespace exists but nothing lives in it; one distinct
 //!      member cgroup — the target; two or more — the honest
@@ -52,6 +55,7 @@
 //! test/ebpf/identity/netns_tests.rs.
 
 use std::path::PathBuf;
+use std::time::Duration;
 
 use anyhow::{Result, anyhow, bail};
 
@@ -88,6 +92,42 @@ pub(super) fn netns_verdict(member_cgroups: &[u32]) -> NetnsVerdict {
         1 => NetnsVerdict::One(ids[0]),
         _ => NetnsVerdict::Ambiguous(ids),
     }
+}
+
+/// One /proc walk for the named namespace's members: pids whose
+/// ns/net link carries the handle's inode, each mapped to its
+/// cgroup id through the identity walk's own boundary. Returns
+/// (member count, member cgroup ids) — the count includes members
+/// whose cgroup read raced away, the verdict needs the process
+/// truth, not just the mapped ids. None when procfs itself is
+/// absent (the caller's specific no-/proc error).
+fn walk_netns_members(ns_ino: u64) -> Option<(usize, Vec<u32>)> {
+    let mut member_cgroups: Vec<u32> = Vec::new();
+    let mut members = 0usize;
+    let entries = std::fs::read_dir("/proc").ok()?;
+    for entry in entries.flatten() {
+        let Some(pid) = entry
+            .file_name()
+            .to_str()
+            .and_then(|s| s.parse::<u32>().ok())
+        else {
+            continue;
+        };
+        let Ok(link) = std::fs::read_link(format!("/proc/{pid}/ns/net")) else {
+            continue; // raced exit, or a view without the perm — not a member
+        };
+        let Some(link_ino) = link.to_str().and_then(parse_ns_ino) else {
+            continue;
+        };
+        if link_ino != ns_ino {
+            continue;
+        }
+        members += 1;
+        if let Some(cid) = crate::ebpf::identity::pid_cgroup_id(pid) {
+            member_cgroups.push(cid);
+        }
+    }
+    Some((members, member_cgroups))
 }
 
 /// The named namespace's handle paths, probed in order — the
@@ -142,37 +182,45 @@ pub(super) fn resolve_netns(name: &str) -> Result<Vec<u32>> {
         handle.display()
     );
 
-    // One /proc walk: member pids by ns-link inode match, each
-    // member's cgroup id through the identity walk's own boundary.
-    let mut member_cgroups: Vec<u32> = Vec::new();
+    // The settle walk (night-frontier hardening): the first pass is
+    // immediate (the happy path pays nothing), and only an EMPTY
+    // verdict pays the re-walk pauses — a namespace whose member is
+    // mid-`ip netns exec` gets a bounded settle window, a genuinely
+    // empty one gets its honest bail ~1s later with the settle named.
+    const SETTLE_PASSES: usize = 4;
+    let settle_pauses = [
+        Duration::ZERO,
+        Duration::from_millis(150),
+        Duration::from_millis(300),
+        Duration::from_millis(500),
+    ];
     let mut members = 0usize;
-    let Ok(entries) = std::fs::read_dir("/proc") else {
-        bail!(
-            "no /proc — netns:// resolves member processes through procfs, \
-             and this view has none"
+    let mut member_cgroups: Vec<u32> = Vec::new();
+    for (pass, pause) in settle_pauses.iter().take(SETTLE_PASSES).enumerate() {
+        std::thread::sleep(*pause);
+        let Some((count, cgroups)) = walk_netns_members(ns_ino) else {
+            bail!(
+                "no /proc — netns:// resolves member processes through procfs, \
+                 and this view has none"
+            );
+        };
+        members = count;
+        member_cgroups = cgroups;
+        if !matches!(netns_verdict(&member_cgroups), NetnsVerdict::Empty) {
+            if pass > 0 {
+                crate::output::verbose::vlog!(
+                    "netns",
+                    "members appeared on settle pass {}",
+                    pass + 1
+                );
+            }
+            break;
+        }
+        crate::output::verbose::vlog!(
+            "netns",
+            "no members yet (settle pass {} of {SETTLE_PASSES})",
+            pass + 1
         );
-    };
-    for entry in entries.flatten() {
-        let Some(pid) = entry
-            .file_name()
-            .to_str()
-            .and_then(|s| s.parse::<u32>().ok())
-        else {
-            continue;
-        };
-        let Ok(link) = std::fs::read_link(format!("/proc/{pid}/ns/net")) else {
-            continue; // raced exit, or a view without the perm — not a member
-        };
-        let Some(link_ino) = link.to_str().and_then(parse_ns_ino) else {
-            continue;
-        };
-        if link_ino != ns_ino {
-            continue;
-        }
-        members += 1;
-        if let Some(cid) = crate::ebpf::identity::pid_cgroup_id(pid) {
-            member_cgroups.push(cid);
-        }
     }
 
     match netns_verdict(&member_cgroups) {
@@ -185,7 +233,8 @@ pub(super) fn resolve_netns(name: &str) -> Result<Vec<u32>> {
         }
         NetnsVerdict::Empty => bail!(
             "namespace '{name}' exists but no process lives in it — nothing to limit \
-             (empty, or the handle is a stale unmounted leftover)\n  \
+             (empty, or the handle is a stale unmounted leftover; the resolver \
+             already settled ~1s for a late member and found none)\n  \
              tip: recreate it if stale: ip netns del {name} && ip netns add {name}, \
              or start a workload: ip netns exec {name} <cmd>"
         ),
