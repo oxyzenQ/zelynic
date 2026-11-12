@@ -95,7 +95,7 @@ use aya::{
 };
 use std::fs::File;
 use std::os::fd::{AsFd, AsRawFd};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::ebpf::bpf_syscall::{
     BPF_CGROUP_INET_EGRESS, BPF_CGROUP_INET_INGRESS, BPF_CGROUP_SOCK_OPS, create_and_pin_link,
@@ -240,8 +240,8 @@ impl Limiter {
         let load_started = std::time::Instant::now();
         let mut bpf = EbpfLoader::new()
             .default_map_pin_directory(PIN_DIR)
-            .map_pin_path("pace_socket_hint", PIN_MAP_PACE_SOCKET_HINT)
-            .map_pin_path("recwn_socket_hint", PIN_MAP_RECWN_SOCKET_HINT)
+            .map_pin_path("pace_socket_hint", Path::new(PIN_MAP_PACE_SOCKET_HINT))
+            .map_pin_path("recwn_socket_hint", Path::new(PIN_MAP_RECWN_SOCKET_HINT))
             .load(obj_data)
             .context("Failed to load BPF object")?;
 
