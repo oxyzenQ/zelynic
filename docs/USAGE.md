@@ -812,7 +812,14 @@ sudo zelynic status [--print-json]
 Reads the pinned maps and prints the active limits: how many dl/ul
 policies, and a table of cgroup / download / upload / allowed /
 dropped per cgroup, with labels resolved by majority vote over the
-live processes inside each cgroup.
+live processes inside each cgroup. A policy row whose cgroup
+carries no live member — the ghost-row shape a policy wears while
+the death-proof sweep still holds it — is labeled `cg:14696 (no
+live member)`, in the table and the JSON `label` field alike
+(night-frontier hardening); the marker names what the walk knows,
+never "gone": the cgroup directory can outlive its members (systemd
+scope cleanup is async), and `zelynic recover` owns the manual
+sweep.
 
 Status is a daemon visit (NIGHT-hunt-30, the hunt-30 session's core
 find): before the table renders, the visit sweep collects every
@@ -1032,8 +1039,12 @@ receive window, not saved bytes, night-ux-1):
   sub-floor sample reports as-is (a real 56 ms reading stands in
   the JSON even where the 200 ms floor still binds the window);
   the human table's RECWN line names its source accordingly
-  (`measured RTT 300ms` where the extension binds, `est. RTT
-  200ms` where the floor does).
+  (`measured RTT 300ms` where the extension binds, `measured RTT
+  24ms (window at the 200ms floor)` where a real sample sits
+  below the floor law — the measurement is named, not hidden
+  under an estimate, night-frontier hardening — and `est. RTT
+  200ms` where nothing is measured yet; the apply-time armed
+  message keeps the estimate name for the same reason).
 
 The object as a whole is honestly absent on the clean state (no
 pins), on stale-pin error objects, and on pre-v25 pinned objects —
@@ -1264,10 +1275,14 @@ of the metric's own unit — bytes or microseconds; the ≥ prefix
 admits the bound). The srtt half renders only when the RTT lane's
 sockets recorded; an absent direction, an absent half, and a
 pre-v34 pin all read the honest absence (no line, `null` in the
-JSON's `histogram` block) — never a zero dressed as data. Sub-second
-srtt bounds render as `0s` (the uptime formatter's granularity) —
-the buckets, not the line, are the precision, and the JSON block
-below carries the full arrays.
+JSON's `histogram` block) — never a zero dressed as data. srtt
+bounds render sub-second honest: raw microseconds under 1 ms
+(`≥512 µs`), whole floored milliseconds under a second (`≥16ms`),
+the uptime ladder at or beyond (`≥1s`) — every tier floors, so the
+≥ prefix stays a true lower bound and a real 16 ms bucket bound
+renders `≥16ms`, never the old seconds-only truncation's `≥0s`
+(night-frontier hardening; the buckets and the JSON block below
+still carry the full arrays).
 
 The package name is the identity ladder (majority-vote comm, else
 the cgroup path's basename — a systemd scope names itself — else
@@ -2662,7 +2677,11 @@ multiplies bucket counts by to estimate rates. Every absent piece
 is null — a direction with no row, a half whose sockets never
 sampled, a pre-v34 pin: the honest absence, never a fabricated
 zero row. The human report's `histogram:` lines are this block's
-own projection (one line per direction with samples).
+own projection (one line per direction with samples). The block
+lives on the TARGET — a sibling of `traffic`, never a child of it:
+the scripting read is `.targets[].histogram` (a
+`.targets[].traffic.histogram` path evaluates to null — the block
+was never there; the live session's own jq miss names the trap).
 
 `bypass_audit` (NIGHT-upgrade-charger-core-1-a) is the focus
 window's interface-vs-hooks shadow verdict, machine-scope:
