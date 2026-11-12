@@ -108,7 +108,32 @@
 ///     the 72-byte tail onto nothing — the forced reload wipes the
 ///     stale pins (active limits are dropped once, re-apply after
 ///     upgrade, the same one-time contract as every bump before it).
-pub const SCHEMA_VERSION_EXPECTED: u32 = 33;
+/// v34 (night-frontier-2B, the depth histogram — the contained
+///     innovation): TWO additive LRU maps, depth_hist_dl/ul, one
+///     row per cgroup per direction keyed at the LEAF (the ee
+///     --depth target's identity, not the policy root the stats/
+///     ring family keys), each row hist::HistRow — 512 bytes, two
+///     32-bucket log2 halves (size in bytes, srtt in microseconds).
+///     Recording rides a per-CPU sampler (hist::HIST_SAMPLE_SHIFT,
+///     1-in-1024 per CPU: the unlimited majority pays one per-CPU
+///     tick, the sampled packet the row — the NIGHT-lts-2 law's
+///     measured frontier-2B amendment), and the srtt half only
+///     fills from the RTT lane's own harvest (recwn_peek_srtt, the
+///     read-only sk-storage peek — no new helper, no CO-RE, the
+///     sock_ops uapi chain the v31/v33 entries already pin). The
+///     userspace mirror (src/ebpf/limiter/hist.rs HistRowRaw) and
+///     the pure core (ebpf/src/hist.rs, rootless-pinned) carry the
+///     layout contract; ee --depth's new histogram section is
+///     additive and honestly absent while the maps hold no row for
+///     the focused cgroup (or no limiter session ever pinned them).
+///     The existing rows are untouched — policy/stats/ring layouts
+///     are byte-identical to v33 — but the bump is REQUIRED, not
+///     polite: a pinned v33 object lacks the hist maps entirely,
+///     and the version is the one gate that tells a v34 reader the
+///     difference between "no samples yet" and "no such lane" —
+///     the forced reload (once, re-apply after upgrade) re-pins the
+///     full v34 map set.
+pub const SCHEMA_VERSION_EXPECTED: u32 = 34;
 
 #[cfg(test)]
 #[path = "../../../test/ebpf/limiter/schema_sync_pin_tests.rs"]

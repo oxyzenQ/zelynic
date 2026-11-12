@@ -112,8 +112,22 @@
 ///     onto nothing — the forced reload wipes the stale pins (active
 ///     limits are dropped once, re-apply after upgrade, the same
 ///     one-time contract as every bump before it).
+/// v34 (night-frontier-2B, the depth histogram): two additive LRU
+///     rows, depth_hist_dl/ul (LruHashMap<u32, HistRow>, keyed at
+///     the leaf, 512-byte rows of two 32-bucket log2 halves — size
+///     in bytes, srtt in microseconds), plus the per-CPU sampler
+///     tick and the zero-row staging entry the first insert copies
+///     from (a 512-byte init can never touch the BPF stack). The
+///     recording rides the 1-in-1024 per-CPU sampler and the srtt
+///     half fills from the RTT lane's own harvest (the read-only
+///     sk-storage peek). The existing rows are byte-identical to
+///     v33 — the bump is REQUIRED, not polite: a pinned v33 object
+///     lacks the hist maps entirely, and the version is the one
+///     gate distinguishing "no samples yet" from "no such lane";
+///     the forced reload (once, re-apply after upgrade) re-pins the
+///     full v34 map set.
 #[allow(dead_code)]
-pub(crate) const SCHEMA_VERSION: u32 = 33;
+pub(crate) const SCHEMA_VERSION: u32 = 34;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs

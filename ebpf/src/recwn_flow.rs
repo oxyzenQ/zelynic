@@ -426,3 +426,27 @@ pub(crate) fn recwn_prime(sk: *mut bpf_sock, rate_bps: u64) -> u32 {
     // same invocation window.
     unsafe { core::ptr::addr_of!((*row_ptr).srtt_us).read_volatile() }
 }
+
+/// The read-only srtt peek (night-frontier-2B): the depth
+/// histogram's latency half reads the RTT lane's measurement WITHOUT
+/// the prime's create/refresh semantics — flags 0 (no F_CREATE), so
+/// a socket the lane never owned answers 0 and stays rowless. The
+/// word is MICROSECONDS (the RTT callback stored it >> 3 — see the
+/// harvest write above). SAFETY: the same vetted socket pointer
+/// contract the prime site rides (the __sk_buff.sk union read,
+/// null-checked by the caller); the return is the row's own srtt
+/// word read volatile, 0 when the row is absent or unmeasured —
+/// the honest absence, never a fabricated sample.
+pub(crate) fn recwn_peek_srtt(sk: *mut bpf_sock) -> u32 {
+    // SAFETY: the same vetted socket pointer contract the prime site
+    // rides (the __sk_buff.sk union read, null-checked by the
+    // caller); flags 0 means lookup-only — the helper either finds
+    // the socket's existing row or answers NULL, never a create.
+    let row = unsafe { bpf_sk_storage_get(hint_map_ptr(), sk.cast(), core::ptr::null_mut(), 0) };
+    if row.is_null() {
+        return 0;
+    }
+    // SAFETY: the helper returned the row's value pointer — the
+    // stable-memory contract the read path rides.
+    unsafe { core::ptr::addr_of!((*row.cast::<RecwnHint>()).srtt_us).read_volatile() }
+}
