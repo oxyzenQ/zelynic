@@ -55,6 +55,23 @@ impl super::Limiter {
         bracket: &BracketSpec,
         during: Option<&DuringSpec>,
     ) -> Result<usize> {
+        // night-total-hardening-1: the apply-side liveness gate for a
+        // DIRECT cgroup-id target — an id the cgroupfs census proves
+        // absent can never match a socket (the zombie sweep's own
+        // two-signal law), so the old path's "OK." answered for a
+        // policy that was dead on arrival, and the next sweep visit
+        // reaped the very "success" the epilogue printed. Ok(0)
+        // rides the caller's no-match error — the same exit 1 and
+        // tips an unknown process name owns.
+        if let Target::CgroupId(id) = target
+            && !super::resolve::dead_direct_ids(std::slice::from_ref(id)).is_empty()
+        {
+            crate::output::verbose::vlog!(
+                "limiter",
+                "cg:{id} names no live cgroup (the cgroupfs census) — refusing the direct target"
+            );
+            return Ok(0);
+        }
         let cgroup_ids = self.resolve_target(target)?;
         if cgroup_ids.is_empty() {
             return Ok(0);
@@ -144,32 +161,6 @@ impl super::Limiter {
         Ok(applied)
     }
 
-    /// Apply the group lane: all cgroups share one group token bucket
-    /// (a random group_id; every policy points at it). `during` is
-    /// the row's window (night-during, schema v23) — every member
-    /// root carries the same window row. `bracket` is the guarantee
-    /// pair per direction's rows (improve-40; the per-direction
-    /// shape improve-40-b).
-    ///
-    /// NIGHT-hunt-27: resolution + dedup extracted into
-    /// [`Self::resolve_group_ids`] and the write loop into
-    /// [`Self::write_group_legs`] so the sweep twin
-    /// ([`Self::apply_group_sweep`]) can share the exact write
-    /// discipline while owning its own admission policy.
-    pub fn apply_group(
-        &mut self,
-        targets: &[Target],
-        rates: &RateSpec,
-        bracket: &BracketSpec,
-        during: Option<&DuringSpec>,
-    ) -> Result<usize> {
-        let all_cgroup_ids = self.resolve_group_ids(targets)?;
-        if all_cgroup_ids.is_empty() {
-            return Ok(0);
-        }
-        self.write_group_legs(&all_cgroup_ids, rates, bracket, during)
-    }
-
     /// The SWEEP twin (NIGHT-hunt-27, born strict-all / block-all): the
     /// best-effort apply with capacity admission. The sweeps' own
     /// design contract — "an app that exits between snapshot and
@@ -210,10 +201,12 @@ impl super::Limiter {
     }
 
     /// Resolve the multi target list to deduped cgroup ids,
-    /// first-seen order (the shared front half of the apply twins).
+    /// first-seen order (the shared front half of the sweep lane).
     /// Unresolved targets print their own trace and contribute
-    /// nothing — the best-effort resolution shape apply_group has
-    /// owned since its birth.
+    /// nothing — the best-effort resolution shape the sweep's
+    /// snapshot semantics own (an app exiting between snapshot
+    /// and write must not abort the fleet's limits; the EXPLICIT
+    /// lists answer to atomic.rs's pre-flight instead).
     fn resolve_group_ids(&mut self, targets: &[Target]) -> Result<Vec<u32>> {
         // Resolve all targets to cgroup IDs in ONE /proc walk
         // (NIGHT-hunt-28: the per-target resolve_target loop was
@@ -264,7 +257,7 @@ impl super::Limiter {
     /// window, the ledgered write loop (rollback on any leg
     /// failure), the superseded-group reclaim, the window sweep,
     /// the memo invalidation, the verbose tail (NIGHT-hunt-27
-    /// extraction — byte-identical to the loop apply_group owned).
+    /// extraction — byte-identical to the loop the sweep lane owned).
     fn write_group_legs(
         &mut self,
         all_cgroup_ids: &[u32],

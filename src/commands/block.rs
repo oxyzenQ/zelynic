@@ -171,7 +171,18 @@ fn handle_block_multi(targets_str: &str, force_this: bool, during: Option<&str>)
         download: Some(0),
         upload: Some(0),
     };
-    let applied = limiter.apply_group(
+    // night-total-hardening-1: the block family joins the strict
+    // family's atomic contract. The old best-effort `apply_group`
+    // silently SKIPPED an unresolved member and still printed OK —
+    // the owner's fatal find (`b zylaxion::...::noexist` blocked the
+    // resolvable half, reported nothing about the misses, and `b
+    // 1011::11` answered OK for cgroup ids that never existed at
+    // all): a script had no way to see it had just configured half
+    // the fleet. The atomic pre-flight resolves every member FIRST
+    // — a name that matches nothing, or a direct cgroup id the
+    // cgroupfs census proves dead, aborts the whole list with
+    // nothing blocked (atomic.rs's refusal names the misses).
+    let applied = limiter.apply_group_atomic(
         &targets,
         &rates,
         // improve-40 (schema v24): the block family's permanent
@@ -179,6 +190,7 @@ fn handle_block_multi(targets_str: &str, force_this: bool, during: Option<&str>)
         // improve-40-b: the unset is the per-direction default.
         &BracketSpec::UNSET,
         during_spec.as_ref(),
+        "blocked",
     )?;
     if applied == 0 {
         // NIGHT-dinner-11: the no-match hard error (the block

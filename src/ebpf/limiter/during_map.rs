@@ -27,7 +27,7 @@ use crate::ebpf::pin::{PIN_MAP_POLICY_WINDOW, PIN_MAP_WALL_CLOCK_OFFSET};
 
 /// Translate one spec at the apply instant, the monotonic clock
 /// read fresh: the one-shot form every apply-family caller shares
-/// (policy.rs apply_single/apply_group, atomic.rs apply_multi) —
+/// (policy.rs apply_single and the sweep lane, atomic.rs apply_group_atomic) —
 /// one place owns the read, so every caller sees the same
 /// discipline. The duration-only grammar needs no wall read
 /// here anymore (the span/daily translations that did are retired

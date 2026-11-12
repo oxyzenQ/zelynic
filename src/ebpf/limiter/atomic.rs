@@ -21,15 +21,22 @@
 //!   era's `sm brave:curl 1mb`) failing mid-flight left brave
 //!   unlimited instead of at its old rate).
 //!
-//! The `--all` sweep deliberately keeps the best-effort apply
-//! (`apply_group`): its target list is a snapshot of list-apps, and
-//! an app exiting between snapshot and write must not abort the
-//! fleet's limits. The atomic contract belongs to the explicit
-//! `::` list, where every segment is the operator's own claim.
+//! The `--all` sweep deliberately keeps the best-effort admission
+//! (`apply_group_sweep`): its target list is a snapshot of
+//! list-apps, and an app exiting between snapshot and write must
+//! not abort the fleet's limits. The atomic contract belongs to
+//! the explicit `::` list, where every segment is the operator's
+//! own claim.
+//!
+//! night-total-hardening-1: the liveness gate joins the pre-flight
+//! — a DIRECT cgroup-id segment the cgroupfs census proves absent
+//! is a miss exactly like an unknown name (the policy could never
+//! match a socket; the pre-gate path answered OK for it and the
+//! next sweep reaped the row).
 //!
 //! The mutation ledger's restore half lives here; the capture half
 //! (the both-directions snapshot) rides `write_policies_for_cgroup`
-//! in policy.rs, shared by apply_single and apply_group so the
+//! in policy.rs, shared by apply_single and the sweep twins so the
 //! rollback upgrade is uniform across the apply family.
 
 use anyhow::{Result, anyhow};
@@ -110,10 +117,13 @@ pub(super) fn preflight(resolutions: &[SegmentResolution]) -> Result<Vec<u32>, V
 
 /// The abort error's head line (unit-pinned): names the missed
 /// segments, states the atomic contract, and reports the untouched
-/// resolvable remainder — a "nothing was limited" verdict that also
+/// resolvable remainder — a "nothing was <verb>" verdict that also
 /// says how much WOULD have been configured, so a script's error
-/// review sees the whole transaction at a glance.
-pub(super) fn multi_no_match_line(failed: &[String], resolvable: usize) -> String {
+/// review sees the whole transaction at a glance. The verb carries
+/// the caller's family ("limited" for strict, "blocked" for block)
+/// so the refusal never claims the wrong action (night-total-
+/// hardening-1, the block family joining the atomic contract).
+pub(super) fn multi_no_match_line(failed: &[String], resolvable: usize, verb: &str) -> String {
     let subject = if failed.len() == 1 {
         format!("target '{}'", failed[0])
     } else {
@@ -121,7 +131,7 @@ pub(super) fn multi_no_match_line(failed: &[String], resolvable: usize) -> Strin
         format!("targets {}", quoted.join(", "))
     };
     format!(
-        "{subject} resolved to no cgroup — the list apply is atomic, nothing was limited \
+        "{subject} resolved to no cgroup — the list apply is atomic, nothing was {verb} \
          ({resolvable} of {} targets were resolvable, 0 applied)\n  \
          tip: try 'zelynic list-apps' to see live targets",
         failed.len() + resolvable
@@ -132,19 +142,20 @@ impl super::Limiter {
     /// Apply the group lane atomically (charger-core-2, TIER A #6):
     /// pre-flight resolution, then the group write with the
     /// snapshot/restore mutation ledger. Returns the number of
-    /// policies written, exactly like `apply_group`. `during` is
+    /// policies written, exactly like the single lane. `during` is
     /// the row's window (night-during, schema v23) — every member
-    /// root carries the same window row, the apply_group contract.
+    /// root carries the same window row, the sweep lane's contract.
     /// `bracket` (NIGHT-improve-40, schema v24; improve-40-b the
     /// per-direction shape) is the guarantee bracket's per-direction
     /// pairs, every member row carrying its own direction's pair —
-    /// the apply_group contract one family over.
+    /// the sweep lane's contract one family over.
     pub fn apply_group_atomic(
         &mut self,
         targets: &[Target],
         rates: &RateSpec,
         bracket: &super::types::BracketSpec,
         during: Option<&super::during_parse::DuringSpec>,
+        verb: &str,
     ) -> Result<usize> {
         // Phase 1 — resolve EVERY segment before the first map
         // write. resolve_target prints its own verbose trace per
@@ -156,8 +167,30 @@ impl super::Limiter {
         // hunt-27 named (a thousand-name multi walked /proc a
         // thousand times before the first map write).
         let ids_per_target = self.resolve_target_list(targets)?;
+        // night-total-hardening-1: the liveness gate — a DIRECT
+        // cgroup-id segment the cgroupfs census proves absent is a
+        // MISS exactly like an unknown name (its policy could never
+        // match a socket; the pre-gate path answered OK for it, and
+        // the next sweep visit reaped the row the epilogue claimed).
+        // ONE census walk proves the whole list; the dead segment
+        // keeps its own label so the atomic refusal below names it
+        // beside the resolvable remainder. An inconclusive census
+        // (None) changes nothing — the fail-open posture the sweep
+        // family owns.
+        let direct_ids: Vec<u32> = targets
+            .iter()
+            .filter_map(|t| match t {
+                Target::CgroupId(id) => Some(*id),
+                _ => None,
+            })
+            .collect();
+        let dead = super::resolve::dead_direct_ids(&direct_ids);
         let mut resolutions: Vec<SegmentResolution> = Vec::with_capacity(targets.len());
         for (target, ids) in targets.iter().zip(ids_per_target) {
+            let ids = match target {
+                Target::CgroupId(id) if dead.contains(id) => Vec::new(),
+                _ => ids,
+            };
             resolutions.push(SegmentResolution {
                 label: target.label(),
                 ids,
@@ -167,7 +200,7 @@ impl super::Limiter {
         let all_ids = preflight(&resolutions).map_err(|misses| {
             anyhow!(
                 "{}",
-                multi_no_match_line(&misses, resolutions.len() - misses.len())
+                multi_no_match_line(&misses, resolutions.len() - misses.len(), verb)
             )
         })?;
         if all_ids.is_empty() {
@@ -178,7 +211,7 @@ impl super::Limiter {
         }
 
         // Dedup across targets, first-seen order (the depthbore-1
-        // contract apply_group owns — one cgroup, one write, one
+        // contract the family owns — one cgroup, one write, one
         // count).
         let mut seen_cgroups = std::collections::HashSet::new();
         let all_cgroup_ids: Vec<u32> = all_ids
@@ -187,7 +220,7 @@ impl super::Limiter {
             .collect();
 
         // Group id: the NIGHT-master-3 mixer, shared with
-        // apply_group.
+        // the sweep lane.
         let group_id = group_id_from(
             std::process::id(),
             std::time::SystemTime::now()
@@ -200,7 +233,7 @@ impl super::Limiter {
         // each leg's pre-apply state (write_policies_for_cgroup
         // snapshots both directions before the first mutation).
         // night-during (schema v23): the bridge stamp and the
-        // per-invocation window translation, the apply_group shape.
+        // per-invocation window translation, the sweep lane's shape.
         self.stamp_wall_clock_offset()?;
         let window: Option<super::types::PolicyWindowRaw> = during.map(translate_now);
         let mut mutations: Vec<PolicyMutation> = Vec::new();

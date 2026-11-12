@@ -420,8 +420,13 @@ fn handle_strict_multi(
         // exact trap for scripted fleet automation, which now sees the
         // transaction fail whole or land whole. night-during (schema
         // v23): the window rides the same atomic contract.
-        let applied =
-            limiter.apply_group_atomic(&targets, &rates, &bracket, during_spec.as_ref())?;
+        let applied = limiter.apply_group_atomic(
+            &targets,
+            &rates,
+            &bracket,
+            during_spec.as_ref(),
+            "limited",
+        )?;
         if applied == 0 {
             // NIGHT-dinner-11: the no-match hard error (the single lane's
             // contract, the multi's plural wording).

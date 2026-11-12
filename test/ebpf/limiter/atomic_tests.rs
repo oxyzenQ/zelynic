@@ -68,7 +68,7 @@ fn preflight_direct_id_segments_are_never_misses() {
 /// The abort error names one miss with singular grammar.
 #[test]
 fn multi_no_match_line_single_miss() {
-    let line = multi_no_match_line(&["curlx".to_string()], 2);
+    let line = multi_no_match_line(&["curlx".to_string()], 2, "limited");
     assert!(
         line.starts_with("target 'curlx' resolved to no cgroup"),
         "single-miss head must name the target, got: {line}"
@@ -91,7 +91,7 @@ fn multi_no_match_line_single_miss() {
 /// exact per-target quoting.
 #[test]
 fn multi_no_match_line_many_misses() {
-    let line = multi_no_match_line(&["a".to_string(), "b".to_string()], 1);
+    let line = multi_no_match_line(&["a".to_string(), "b".to_string()], 1, "limited");
     assert!(
         line.starts_with("targets 'a', 'b' resolved to no cgroup"),
         "multi-miss head must name every target, got: {line}"
@@ -105,10 +105,26 @@ fn multi_no_match_line_many_misses() {
 /// An entirely dead list still states the zero-applied verdict.
 #[test]
 fn multi_no_match_line_zero_resolvable() {
-    let line = multi_no_match_line(&["a".to_string()], 0);
+    let line = multi_no_match_line(&["a".to_string()], 0, "limited");
     assert!(
         line.contains("(0 of 1 targets were resolvable, 0 applied)"),
         "the all-dead count must stay honest, got: {line}"
+    );
+}
+
+/// night-total-hardening-1: the verb carries the caller's family —
+/// the block lane's refusal says "blocked", never "limited", so
+/// the atomic contract never claims the wrong action.
+#[test]
+fn multi_no_match_line_carries_the_family_verb() {
+    let line = multi_no_match_line(&["noexist".to_string()], 1, "blocked");
+    assert!(
+        line.contains("the list apply is atomic, nothing was blocked"),
+        "the block family's refusal must say blocked, got: {line}"
+    );
+    assert!(
+        !line.contains("nothing was limited"),
+        "the wrong family's verb must never ride, got: {line}"
     );
 }
 
