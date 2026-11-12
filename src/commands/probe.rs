@@ -64,9 +64,10 @@ use super::probe_report::{
     starved_notes,
 };
 use super::probe_role::{
-    LeafDelta, enter_cgroup, kill_and_reap, ledger_snapshots, mkdir_quiet, our_chain_is_clean,
-    policy_still_stands, probe_cgroup_name, read_metric_line, read_metric_line_from,
-    root_cgroup_is_clean, wait_resident, wait_with_deadline, window_dormancy_note,
+    LeafDelta, drain_child_stderr, enter_cgroup, kill_and_reap, ledger_snapshots, mkdir_quiet,
+    our_chain_is_clean, policy_still_stands, probe_cgroup_name, read_metric_line,
+    read_metric_line_from, root_cgroup_is_clean, wait_resident, wait_with_deadline,
+    window_dormancy_note,
 };
 
 /// The measured window (seconds): long enough that the refill term
@@ -124,6 +125,30 @@ pub(crate) fn run_enforcement_probe(
         Direction::Download => rates.upload,
         Direction::Upload => rates.download,
     };
+    // The late stand-downs (night-frontier hardening): after the
+    // direction and rate are established, an UNVERIFIED outcome keeps
+    // the policy shape it was probing — the old closure reset them to
+    // the Download/0 default, so a failed 2 MB/s probe rendered
+    // "download (limit BLOCKED)", a BLOCKED sentinel on a limit the
+    // policy never carried (the same fabrication class NIGHT-hunt-Z7
+    // retired from the measured figures). The early lanes above still
+    // ride `unverified` — before the derivation there IS no measured
+    // shape to carry.
+    let unverified_measured = |note: String| ProbeOutcome {
+        verdict: ProbeVerdict::Unverified,
+        direction,
+        rate_bps,
+        burst_bytes: burst,
+        window_secs: PROBE_SECS,
+        client_bytes: 0,
+        ledger_bytes: 0,
+        dropped_bytes: 0,
+        counter_rate_bps,
+        proof: ProofBasis::Flow,
+        notes: vec![note],
+        per_socket,
+        teardown: false,
+    };
 
     // The target: first resolved cgroup id + its path (the probe
     // child nests under it; members first, the cgroupfs walk for a
@@ -134,17 +159,17 @@ pub(crate) fn run_enforcement_probe(
         Target::Container(c) => crate::ebpf::identity::container::resolve(c).unwrap_or_default(),
     };
     let Some(&target_id) = ids.first() else {
-        return unverified("target resolved to nothing at probe time".to_string());
+        return unverified_measured("target resolved to nothing at probe time".to_string());
     };
 
     // night-during (schema v23): the window gate — a dormant window
     // stands the probe down instead of measuring an unlimited path.
     if let Some(note) = window_dormancy_note(limiter, target_id) {
-        return unverified(note);
+        return unverified_measured(note);
     }
 
     let Some(rel_path) = pathwalk::rel_path_by_id(target_id) else {
-        return unverified("target cgroup path unresolvable (no live member, no cgroupfs directory — the cgroup is gone?)".to_string());
+        return unverified_measured("target cgroup path unresolvable (no live member, no cgroupfs directory — the cgroup is gone?)".to_string());
     };
 
     // The server's home: a transient root-level cgroup, outside
@@ -152,7 +177,7 @@ pub(crate) fn run_enforcement_probe(
     let srv_dir = PathBuf::from("/sys/fs/cgroup").join(probe_cgroup_name("srv"));
     let srv_placed = mkdir_quiet(&srv_dir);
     if !srv_placed && !our_chain_is_clean(limiter) {
-        return unverified(
+        return unverified_measured(
             "probe server placement unavailable (no clean cgroup for the \
              unpoliced endpoint)"
                 .to_string(),
@@ -176,7 +201,7 @@ pub(crate) fn run_enforcement_probe(
     // carries for the occupied homes).
     if srv_placed && !root_cgroup_is_clean(limiter) {
         let _ = std::fs::remove_dir(&srv_dir);
-        return unverified(
+        return unverified_measured(
             "the root cgroup itself is policed — no unpoliced lane exists for \
              the probe server (the blast would measure the root's rate, not \
              the target's)"
@@ -192,7 +217,7 @@ pub(crate) fn run_enforcement_probe(
     // the one the window actually had).
     let baseline = match ledger_snapshots(limiter, &ids) {
         Ok(b) => b,
-        Err(e) => return unverified(format!("ledger baseline read failed: {e}")),
+        Err(e) => return unverified_measured(format!("ledger baseline read failed: {e}")),
     };
     let pool_tokens = limiter
         .read_pool_tokens(target_id, direction)
@@ -204,16 +229,16 @@ pub(crate) fn run_enforcement_probe(
     // the pipe that carried PROBE-PORT must survive until then.
     let mut server = match spawn_role(&["__probe-server", "0", mode]) {
         Ok(child) => child,
-        Err(e) => return unverified(format!("probe server spawn failed: {e}")),
+        Err(e) => return unverified_measured(format!("probe server spawn failed: {e}")),
     };
     let mut server_stdout = server.stdout.take().map(BufReader::new);
     if srv_placed && !enter_cgroup(&srv_dir, server.id()) {
         kill_and_reap(&mut server, srv_placed.then_some(srv_dir.as_path()));
-        return unverified("probe server could not enter its cgroup".to_string());
+        return unverified_measured("probe server could not enter its cgroup".to_string());
     }
     if srv_placed && !wait_resident(&mut server, &srv_dir) {
         kill_and_reap(&mut server, srv_placed.then_some(srv_dir.as_path()));
-        return unverified("probe server residency unconfirmed".to_string());
+        return unverified_measured("probe server residency unconfirmed".to_string());
     }
     let port = match server_stdout
         .as_mut()
@@ -222,8 +247,9 @@ pub(crate) fn run_enforcement_probe(
     {
         Ok(p) => p,
         Err(e) => {
+            let stderr_tail = drain_child_stderr(&mut server);
             kill_and_reap(&mut server, srv_placed.then_some(srv_dir.as_path()));
-            return unverified(format!("probe server did not announce: {e}"));
+            return unverified_measured(format!("probe server did not announce: {e}{stderr_tail}"));
         }
     };
 
@@ -234,7 +260,7 @@ pub(crate) fn run_enforcement_probe(
         .join(probe_cgroup_name("cl"));
     if !mkdir_quiet(&client_dir) {
         kill_and_reap(&mut server, srv_placed.then_some(srv_dir.as_path()));
-        return unverified("probe cgroup under the target refused (mkdir)".to_string());
+        return unverified_measured("probe cgroup under the target refused (mkdir)".to_string());
     }
     let mut client = match spawn_role(&[
         "__probe-client",
@@ -246,13 +272,13 @@ pub(crate) fn run_enforcement_probe(
         Err(e) => {
             let _ = std::fs::remove_dir(&client_dir);
             kill_and_reap(&mut server, srv_placed.then_some(srv_dir.as_path()));
-            return unverified(format!("probe client spawn failed: {e}"));
+            return unverified_measured(format!("probe client spawn failed: {e}"));
         }
     };
     if !enter_cgroup(&client_dir, client.id()) || !wait_resident(&mut client, &client_dir) {
         kill_and_reap(&mut client, Some(client_dir.as_path()));
         kill_and_reap(&mut server, srv_placed.then_some(srv_dir.as_path()));
-        return unverified(
+        return unverified_measured(
             "probe client could not enter the target subtree — unverified, \
              not failed (an unentered probe measures an unlimited path)"
                 .to_string(),
@@ -280,11 +306,14 @@ pub(crate) fn run_enforcement_probe(
                 (status, metric) => {
                     kill_and_reap(&mut client, Some(client_dir.as_path()));
                     kill_and_reap(&mut server, srv_placed.then_some(srv_dir.as_path()));
+                    let stderr_tail = drain_child_stderr(&mut client);
                     let detail = match metric {
                         Ok(n) => format!("metric {n} but a bad exit ({status:?})"),
                         Err(e) => e.to_string(),
                     };
-                    return unverified(format!("probe client did not measure: {detail}"));
+                    return unverified_measured(format!(
+                        "probe client did not measure: {detail}{stderr_tail}"
+                    ));
                 }
             }
         }
@@ -294,7 +323,10 @@ pub(crate) fn run_enforcement_probe(
             if let Err(e) = wait_with_deadline(&mut client, PROBE_SECS + 15) {
                 kill_and_reap(&mut client, Some(client_dir.as_path()));
                 kill_and_reap(&mut server, srv_placed.then_some(srv_dir.as_path()));
-                return unverified(format!("probe client did not finish its window: {e}"));
+                let stderr_tail = drain_child_stderr(&mut client);
+                return unverified_measured(format!(
+                    "probe client did not finish its window: {e}{stderr_tail}"
+                ));
             }
             match server_stdout
                 .as_mut()
@@ -304,9 +336,10 @@ pub(crate) fn run_enforcement_probe(
                 _ => {
                     kill_and_reap(&mut client, Some(client_dir.as_path()));
                     kill_and_reap(&mut server, srv_placed.then_some(srv_dir.as_path()));
-                    return unverified(
-                        "probe server did not report the delivered count".to_string(),
-                    );
+                    let stderr_tail = drain_child_stderr(&mut server);
+                    return unverified_measured(format!(
+                        "probe server did not report the delivered count{stderr_tail}"
+                    ));
                 }
             }
         }
@@ -517,7 +550,11 @@ fn spawn_role(args: &[&str]) -> Result<Child> {
     Command::new(exe)
         .args(args)
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        // night-frontier hardening: the roles' stderr is captured, not
+        // discarded — a probe that dies before its protocol line now
+        // hands the orchestrator its dying words (drain_child_stderr),
+        // never an empty "malformed protocol line:" with no cause.
+        .stderr(Stdio::piped())
         .spawn()
         .context("spawn the probe role")
 }

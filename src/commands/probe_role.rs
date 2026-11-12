@@ -252,14 +252,23 @@ pub(crate) fn read_metric_line(child: &mut Child, prefix: &str) -> Result<u64> {
 /// server's stdout: PROBE-PORT at spawn, PROBE-BYTES after an upload
 /// window — NIGHT-hunt-Z1's receiver-side count). The handle stays
 /// readable across calls; each line is consumed exactly once.
-pub(crate) fn read_metric_line_from(
-    stdout: &mut BufReader<std::process::ChildStdout>,
-    prefix: &str,
-) -> Result<u64> {
+/// Generic over the reader so the rootless pins can drive it with an
+/// in-memory cursor.
+pub(crate) fn read_metric_line_from<R: BufRead>(stdout: &mut R, prefix: &str) -> Result<u64> {
     let mut line = String::new();
-    stdout
+    let read = stdout
         .read_line(&mut line)
         .with_context(|| format!("read the {prefix} line"))?;
+    // The EOF shape (night-frontier hardening, the live session's
+    // empty "malformed protocol line:" note): a dead child delivers
+    // zero bytes, and the old parse fell through to the malformed
+    // branch with an empty payload — a parse verdict on a line that
+    // never existed. EOF is its own honest failure: the role died
+    // before its protocol line, and the captured stderr (the
+    // orchestrator drains it beside this error) carries the why.
+    if read == 0 {
+        bail!("the probe role exited before printing its {prefix} line (EOF — nothing to parse)");
+    }
     let value = line
         .trim()
         .strip_prefix(prefix)
@@ -268,6 +277,31 @@ pub(crate) fn read_metric_line_from(
         Some(v) => Ok(v),
         None => Err(anyhow!("malformed protocol line: {}", line.trim())),
     }
+}
+
+/// Drain one probe child's captured stderr (best effort, bounded) —
+/// the diagnosis the old Stdio::null() discarded. Call AFTER the
+/// child is dead (kill_and_reap): the pipe sits at EOF, so the read
+/// cannot block on a live writer. Empty on absence — the note only
+/// grows when there is something to say.
+pub(crate) fn drain_child_stderr(child: &mut Child) -> String {
+    let Some(stderr) = child.stderr.take() else {
+        return String::new();
+    };
+    let mut buf = String::new();
+    let _ = BufReader::new(stderr).read_to_string(&mut buf);
+    let trimmed = buf.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    const CAP_CHARS: usize = 400;
+    let tail: String = if trimmed.chars().count() > CAP_CHARS {
+        let skip = trimmed.chars().count() - CAP_CHARS;
+        format!("…{}", trimmed.chars().skip(skip).collect::<String>())
+    } else {
+        trimmed.to_string()
+    };
+    format!("; role stderr: {tail}")
 }
 
 // ── The orchestrator's cgroup mechanics (moved from probe.rs at
