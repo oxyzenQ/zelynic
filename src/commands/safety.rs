@@ -19,6 +19,7 @@ use crate::output::eprintln_warn_labeled;
 // re-export keeps every caller path (crate::commands::safety::*,
 // the pins' `use super::*`) resolving identically: a pure move,
 // gates green in between.
+#[cfg(feature = "ebpf")]
 pub(crate) use super::safety_id::{
     cgroupfs_root_id, check_dangerous_cgroup_id, check_dangerous_targets_multi,
     check_root_catch_all_resolved, parse_target_id,
