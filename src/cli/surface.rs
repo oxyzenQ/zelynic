@@ -242,73 +242,34 @@ pub enum Commands {
     #[command(name = "list-apps")]
     ListApps,
 
-    /// The unified live monitor (NIGHT-boost-1: observe + top merged)
+    /// The unified live monitor — every app ranked, one app in
+    /// focus, or a filtered set. Always live; q to quit.
     ///
-    /// One surface, three depths — the former `observe` and `top`
-    /// pair was two views of the same observer; eagle-eyes is both,
-    /// chosen automatically:
-    /// - no targets: every app RANKED by session accumulation
-    ///   highest first. The row count follows the terminal height
-    ///   (no --limit): a short window shows the top few, a tall one
-    ///   spans the list low to high.
-    /// - one target: the deep focus view — per-direction deltas,
-    ///   rate, lifetime, and every socket endpoint inside the
-    ///   cgroup.
-    /// - slash-separated targets: the ranked table filtered to that
-    ///   set of apps/cgroups.
+    /// One surface, three depths, chosen by the targets: with no
+    /// targets every app is ranked by session traffic, highest
+    /// first (the row count follows the terminal height); a single
+    /// target opens the deep focus view — per-direction rates,
+    /// lifetime, and every socket endpoint inside the cgroup;
+    /// several slash-separated targets filter the ranked table to
+    /// that set.
     ///
-    /// Each target is autodetected (same rule as strict/block):
-    /// all digits = cgroup ID (find one with list-apps), the
-    /// display prefix cg:73386 round-trips, anything
-    /// else = process name — `eagle-eyes 12345/brave/firefox`
-    /// watches all three at once.
+    /// Targets autodetect like strict/block: all digits (or the
+    /// cg:<id> display prefix) are a cgroup ID, anything else a
+    /// process name — `eagle-eyes 12345/brave/firefox` watches all
+    /// three at once.
     ///
-    /// Always live (NIGHT-hunt-12): the box refreshes until you
-    /// quit. Exit with q (the only quit key, NIGHT-hunt-16).
-    /// `--interval` (NIGHT-hunt-7) is the refresh cadence, 1s..60s,
-    /// default 1s — realtime precision.
+    /// --depth switches to the one-shot deep inspection: the full
+    /// report (package, user, cgroup path, enforcement accounting,
+    /// the per-process census, the live sockets, the traffic
+    /// window) prints once and exits — pipe-friendly, --print-json
+    /// for the machine-readable document.
     ///
-    /// 'ee' is the short alias (NIGHT-improve-25). The former
-    /// singular 'eagle-eye' alias is REMOVED — one canonical name,
-    /// one short form — and typing it lands on the redirect tip
-    /// pointing here (same contract observe/top got when they
-    /// merged in).
-    ///
-    /// NIGHT-master-1 — `--depth`: the one-shot deep inspection
-    /// (the `--info` alias is retired in NIGHT-blade-4 — one
-    /// spelling; typing the old flag lands on the vocabulary tip
-    /// pointing here). `zelynic ee cg:1234 --depth` prints the full
-    /// report — package id and name, the user it runs as, the cgroup
-    /// path, the enforcement verdict, the per-process census (type,
-    /// permissions, threads, memory, exe path, start time), and the
-    /// live sockets — then exits. No TUI, no interactive-stdio gate:
-    /// pipe-friendly, and `--print-json` emits the machine-readable
-    /// document.
-    ///
-    /// NIGHT-blade-5 (the depth peak upgrade): a limited target
-    /// carries its enforcement ACCOUNTING — what the kernel let
-    /// through and dropped, with the drop share; the cgroup
-    /// controller's own resource view (resident memory, accumulated
-    /// CPU time) rides the summary; the census shows per-process
-    /// thread counts and resident memory; and every block ends with
-    /// the act-on-this tail — copy-paste limit/block/watch commands
-    /// keyed to the exact cgroup the report just dissected.
-    ///
-    /// Examples:
-    ///   zelynic eagle-eyes                        # all apps, ranked, q to quit
-    ///   zelynic eagle-eyes brave                  # watch one app (deep view)
-    ///   zelynic eagle-eyes 12345/brave/firefox    # watch specific targets
-    ///   zelynic eagle-eyes --interval 3s          # calmer cadence
-    ///   zelynic eagle-eyes --deep                 # ranked + the deep figure family
-    ///   zelynic ee brave --interval 1s            # short alias form
-    ///   zelynic ee cg:1234 --depth                # one-shot deep report
-    ///   zelynic ee cg:1234 --depth --focus 5s     # deep report, 5s traffic window
-    ///   zelynic ee 12345 --depth --print-json     # the report as JSON
+    /// Keys: q quits (the only quit key), t cycles the theme, the
+    /// arrows scroll. Full contract: docs/USAGE.md, "eagle-eyes".
     #[command(name = "eagle-eyes", alias = "ee")]
     EagleEyes {
-        /// Targets: process names or cgroup IDs, slash-separated
-        /// (e.g., brave, 73386, cg:73386, 12345/brave/firefox).
-        /// Omit to watch all.
+        /// Targets: app names or cgroup IDs, slash-separated
+        /// (brave, 73386, cg:73386, 12345/brave/firefox)
         #[arg(value_name = "TARGETS")]
         targets: Option<String>,
 
@@ -316,36 +277,27 @@ pub enum Commands {
         #[arg(long)]
         interval: Option<String>,
 
-        /// The network-traffic focus window for --depth
-        /// (NIGHT-private-research-3): 1s to 30s, default 3s — the
-        /// report measures what moved per endpoint for this many
-        /// seconds. Ignored (one stderr note) on the live monitor.
-        /// Full contract: docs/USAGE.md, eagle-eyes --depth.
+        /// The traffic window for --depth: 1s to 30s (default: 3s)
+        ///
+        /// Ignored on the live monitor (one stderr note). Full
+        /// contract: docs/USAGE.md, "eagle-eyes --depth".
         #[arg(long = "focus", value_name = "SECONDS")]
         focus: Option<String>,
 
-        /// One-shot deep inspection (NIGHT-master-1): print the full
-        /// report — package id/name, user, cgroup path, enforcement
-        /// state and its accounting ledger, the cgroup controller's
-        /// resource view, the per-process census (type, permissions
-        /// with the special bits, state, threads, memory, exe path
-        /// with the deleted-on-disk marker), the network-traffic
-        /// focus section (NIGHT-private-research-3), and the
-        /// act-on-this tail — then exit. No TUI: pipe-friendly,
-        /// JSON-capable via --print-json.
-        /// NIGHT-blade-4: the '--info' alias is retired — '--depth'
-        /// is the only spelling (the vocabulary rescue redirects it here).
+        /// One-shot deep inspection: print the full report, then
+        /// exit
+        ///
+        /// No TUI, no interactive gate: pipe-friendly, JSON-capable
+        /// via --print-json. Full contract: docs/USAGE.md,
+        /// "eagle-eyes --depth".
         #[arg(long = "depth")]
         depth: bool,
 
-        /// The deep figure family on the live monitor
-        /// (night-netrunner-4, the netrunner-3 design's section 4.3):
-        /// one grey deep line under every ranked row (the hungriest
-        /// endpoint's rtt ± jitter and the window's retransmit
-        /// share), the deep suffixes on the focus view's endpoint
-        /// lines, and the one-line legend at the Full-tier footer.
-        /// The figures refresh on the walk (the 3s TTL) — snapshot
-        /// truth at the cadence it is honest at; UDP renders
+        /// Deep figures on the live monitor: per-row rtt ± jitter
+        /// and the retransmit share
+        ///
+        /// The figures refresh on the walk's 3s TTL — snapshot truth
+        /// at the cadence it is honest at; UDP renders
         /// [encrypted/quic], raw [no l4 truth], never a fabricated
         /// zero. Orthogonal to --depth (the one-shot report) and
         /// --focus (the depth window).

@@ -221,9 +221,23 @@ pub fn handle_eagle_eyes(targets: Option<&str>, interval: Option<&str>, deep: bo
         identity.refresh();
         let (_, misses) = super::eagle::resolve_live_targets(&tokens, &identity);
         if misses.len() == tokens.len() {
+            // night-total-hardening-1 (the owner's live-run find): a
+            // '::'-shaped spec is the unified verbs' separator muscle
+            // memory half-migrated — eagle-eyes lists ride '/' — and
+            // the no-match error used to leave the user to guess
+            // that from the grammar docs alone. The tip names the
+            // separator exactly when the spec smells like the wrong
+            // one; a plain typo'd name keeps the discovery tip only.
+            let mut tips = vec![super::TIP_LIST_APPS.to_string()];
+            if spec.contains("::") {
+                tips.push(
+                    "eagle-eyes targets separate with '/' — e.g. 'zelynic ee brave/electron'"
+                        .to_string(),
+                );
+            }
             return Err(super::target_no_match_error(
                 format!("No live cgroup matches '{spec}' — nothing to watch"),
-                &[super::TIP_LIST_APPS.to_string()],
+                &tips,
             ));
         }
     }
