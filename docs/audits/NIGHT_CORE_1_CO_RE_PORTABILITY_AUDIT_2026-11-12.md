@@ -6,7 +6,7 @@
 The owner's question, after the sibling audits landed the same shape
 for zylaxion (function ABI contract, zero struct field derefs) and
 zejtron (a hand-written runtime BTF parser, `core_relo len=0`
-measured on its object): does ZELYNIC need CO-RE? The method is the
+measured on its object): does zelynic need CO-RE? The method is the
 same one that answered the siblings: measure what the datapath
 actually derefs, then measure what the compiled object actually
 carries. No assumption rides from any other project — every number
@@ -14,7 +14,7 @@ below was taken from this tree today.
 
 ## Verdict (one breath)
 
-**No.** Zelynic's two shipped objects carry ZERO CO-RE relocations
+**No.** zelynic's two shipped objects carry ZERO CO-RE relocations
 (`core_relo_len = 0`, measured on both) because the datapath makes
 exactly ONE category of kernel-internal field access —
 `bpf_sock.protocol`, twice — and that field sits at a frozen
@@ -67,7 +67,7 @@ That is the WHOLE list. No `tcp_sock` deref, no `task_struct` deref,
 no `sk_buff` field deref (the skb's bytes ride the helper above), no
 kernel-config-dependent member anywhere.
 
-Zelynic-owned structs (`RecwnHint`, `HistRow`, the stats/debt/ring
+zelynic-owned structs (`RecwnHint`, `HistRow`, the stats/debt/ring
 rows) are map values this repo defines — their layout is a contract
 between the object and the loader (`SCHEMA_VERSION_EXPECTED = 34`
 pins it), not a kernel dependency.
