@@ -12,6 +12,7 @@
 //! code).
 
 use super::*;
+use crate::ebpf::render::sentences::{enforcement_word, pluralize};
 
 // The blade-5 fixture family: the controller's resource view and
 // the kernel's enforcement ledger, the two layers the depth upgrade
@@ -70,6 +71,7 @@ fn report_fixture(enforcement: Enforcement) -> DepthReport {
         conns: None,
         traffic: None,
         traffic_note: None,
+        histogram: None,
         lanes: None,
     }
 }

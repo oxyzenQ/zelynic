@@ -12,7 +12,7 @@
 
 use super::{
     BypassAuditJson, DepthDocJson, DepthEntryJson, DepthMissJson, DepthTargetJson, EndpointJson,
-    EnforcementStatsJson, ProcJson, TrafficJson,
+    EnforcementStatsJson, HistHalfJson, HistJson, HistStatsJson, ProcJson, TrafficJson,
 };
 
 impl DepthDocJson {
@@ -99,6 +99,15 @@ impl DepthTargetJson {
         out.push_str(",\"traffic\":");
         match &self.traffic {
             Some(traffic) => traffic.write_json(out),
+            None => out.push_str("null"),
+        }
+        // night-frontier-2B (schema v34): the sampled distribution —
+        // null when the honest absence holds (no samples yet, a
+        // pre-v34 pin, or no limiter session), the additive rule the
+        // traffic block above rode.
+        out.push_str(",\"histogram\":");
+        match &self.histogram {
+            Some(histogram) => histogram.write_json(out),
             None => out.push_str("null"),
         }
         out.push_str(",\"procs\":");
@@ -210,6 +219,71 @@ impl TrafficJson {
         write_array(out, self.endpoints.len(), |out, i| {
             self.endpoints[i].write_json(out);
         });
+        out.push('}');
+    }
+}
+
+impl HistStatsJson {
+    fn write_json(&self, out: &mut String) {
+        use crate::json::write::{write_array, write_number};
+
+        out.push_str("{\"samples\":");
+        write_number(out, self.samples);
+        out.push_str(",\"buckets\":");
+        write_array(out, self.buckets.len(), |out, i| {
+            write_number(out, self.buckets[i]);
+        });
+        out.push_str(",\"p50\":");
+        match self.p50 {
+            Some(v) => write_number(out, v),
+            None => out.push_str("null"),
+        }
+        out.push_str(",\"p95\":");
+        match self.p95 {
+            Some(v) => write_number(out, v),
+            None => out.push_str("null"),
+        }
+        out.push_str(",\"p99\":");
+        match self.p99 {
+            Some(v) => write_number(out, v),
+            None => out.push_str("null"),
+        }
+        out.push('}');
+    }
+}
+
+impl HistHalfJson {
+    fn write_json(&self, out: &mut String) {
+        out.push_str("{\"size\":");
+        match &self.size {
+            Some(half) => half.write_json(out),
+            None => out.push_str("null"),
+        }
+        out.push_str(",\"srtt\":");
+        match &self.srtt {
+            Some(half) => half.write_json(out),
+            None => out.push_str("null"),
+        }
+        out.push('}');
+    }
+}
+
+impl HistJson {
+    fn write_json(&self, out: &mut String) {
+        use crate::json::write::write_number;
+
+        out.push_str("{\"sample_shift\":");
+        write_number(out, self.sample_shift);
+        out.push_str(",\"download\":");
+        match &self.download {
+            Some(half) => half.write_json(out),
+            None => out.push_str("null"),
+        }
+        out.push_str(",\"upload\":");
+        match &self.upload {
+            Some(half) => half.write_json(out),
+            None => out.push_str("null"),
+        }
         out.push('}');
     }
 }

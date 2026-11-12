@@ -77,6 +77,11 @@ pub const PIN_MAP_WALL_CLOCK_OFFSET: &str = "/sys/fs/bpf/zelynic/wall_clock_offs
 // pin is None, not an error).
 pub const PIN_MAP_RATE_RING_DL: &str = "/sys/fs/bpf/zelynic/rate_ring_dl";
 pub const PIN_MAP_RATE_RING_UL: &str = "/sys/fs/bpf/zelynic/rate_ring_ul";
+/// The depth histogram rows (night-frontier-2B, schema v34) — the
+/// ee --depth distribution read opens these when the pinned schema
+/// version gates them in (a pre-v34 pin has no such maps at all).
+pub const PIN_MAP_DEPTH_HIST_DL: &str = "/sys/fs/bpf/zelynic/depth_hist_dl";
+pub const PIN_MAP_DEPTH_HIST_UL: &str = "/sys/fs/bpf/zelynic/depth_hist_ul";
 
 /// The MMSPA leaf caches (NIGHT-private-research-2; direction-scoped
 /// since NIGHT-hunt-Z1, schema v18): leaf cgroup id -> the packed u64

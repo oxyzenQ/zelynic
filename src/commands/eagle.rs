@@ -32,17 +32,42 @@ use anyhow::Result;
 
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
+use crate::ebpf::limiter::types::SCHEMA_VERSION_EXPECTED;
 use crate::ebpf::limiter::{
     Direction, Limiter, LimiterStatsRaw, PolicyRaw, Target, parse_focus_window, pin_dir_has_files,
-    terminal_width,
+    read_pinned_schema_version, terminal_width,
 };
 use crate::ebpf::render::{
-    DepthReport, Enforcement, bypass_section, depth_doc_json, depth_report_lines, package_name,
-    traffic_focus,
+    DepthReport, Enforcement, HistSection, bypass_section, depth_doc_json, depth_report_lines,
+    package_name, traffic_focus,
 };
 use crate::output::{grey, print_json};
 
 use std::collections::HashMap;
+
+/// The depth histogram section read (night-frontier-2B, schema
+/// v34): the focused cgroup's two direction rows, opened only under
+/// the version gate — the pinned schema version EQUALS this
+/// binary's expected (the rate_ring gate's one-epoch law: a mixed
+/// object reads as absent wholesale, never half-read). No limiter
+/// session, a pre-v34 pin, or two empty rows all answer None — the
+/// honest absence, never zero-as-fact. Read failures propagate
+/// (the stats reader's contract: a broken pin is an anomaly, not
+/// a silent zero).
+fn histogram_section(limiter: &Option<Limiter>, id: u32) -> Result<Option<HistSection>> {
+    let Some(l) = limiter else {
+        return Ok(None);
+    };
+    if read_pinned_schema_version() != Some(SCHEMA_VERSION_EXPECTED) {
+        return Ok(None);
+    }
+    let download = l.read_hist_public(id, Direction::Download)?;
+    let upload = l.read_hist_public(id, Direction::Upload)?;
+    if download.is_none() && upload.is_none() {
+        return Ok(None);
+    }
+    Ok(Some(HistSection { download, upload }))
+}
 
 /// Parse the '/'-separated TARGETS spec (the grammar both eagle-eyes
 /// modes share, NIGHT-boost-1): each token autodetects per
@@ -429,6 +454,14 @@ pub(crate) fn handle_eagle_eyes_depth(
                     &m.deep_windows,
                 )
             });
+            // The depth histogram rows (night-frontier-2B, schema
+            // v34): read only under the version gate — the pinned
+            // schema version distinguishing "no samples yet" from
+            // "no such lane" (a pre-v34 pin has no hist maps at
+            // all). Both directions read independently; a section
+            // with zero rows on both sides stays None — the honest
+            // absence, never a zero row dressed as data.
+            let histogram = histogram_section(&limiter, id)?;
             reports.push(DepthReport {
                 target,
                 cgroup_id: id,
@@ -440,6 +473,7 @@ pub(crate) fn handle_eagle_eyes_depth(
                 traffic,
                 traffic_note: traffic_note.clone(),
                 lanes,
+                histogram,
             });
         }
     }

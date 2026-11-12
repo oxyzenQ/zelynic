@@ -7,8 +7,11 @@
 // in the bin root; these reach them through crate:: (descendant
 // visibility), same #[inline(always] discipline as before.
 //
+use aya_ebpf::EbpfContext as _;
+use aya_ebpf::bindings::{__sk_buff, bpf_sock};
 use aya_ebpf::maps::HashMap;
 use aya_ebpf::maps::LruHashMap;
+use aya_ebpf::programs::SkBuffContext;
 
 use crate::cgroup_limiter_stats;
 use crate::during;
@@ -303,4 +306,112 @@ pub(crate) fn window_gate(cgroup_id: &u32, now_mono_ns: u64) -> bool {
             }
         }
     }
+}
+
+// ── The depth histogram's sampled write (night-frontier-2B) ───────
+// The 600-line law's split from enforce.rs: the sampler's tick, the
+// row write, and the wire-shape contract live here beside the other
+// get-or-create helpers; the call site keeps the two-line shape.
+
+use core::sync::atomic::{AtomicU64, Ordering};
+
+use crate::hist;
+use crate::hist_sample_tick;
+use crate::recwn_flow;
+
+/// The sampler's tick (night-frontier-2B): one per-CPU increment per
+/// packet — no atomics, no hash, per-CPU isolation is the whole
+/// trick — and every 2^10-th packet per CPU answers true. The
+/// NIGHT-lts-2 law's frontier-2B amendment: the unlimited majority's
+/// two lookups grow a third op that is the cheapest the kernel
+/// offers (the A/B harness measures the result — the quota-saver leg
+/// rides the live sampler).
+#[inline(always)]
+pub(crate) fn hist_sample_due() -> bool {
+    match hist_sample_tick.get_ptr_mut(0) {
+        Some(tick) => {
+            // SAFETY: the per-CPU array's own slot — per-CPU
+            // isolation makes this CPU the slot's only writer, no
+            // atomics owed.
+            let tick_v = unsafe {
+                *tick = (*tick).wrapping_add(1);
+                *tick
+            };
+            tick_v & hist::HIST_SAMPLE_MASK == 0
+        }
+        None => false,
+    }
+}
+
+/// The sampled row write (night-frontier-2B): get-or-create the
+/// leaf's row (the v11 BPF_NOEXIST one-birth discipline — a
+/// concurrent first sample on another CPU is never clobbered, the
+/// loser re-looks-up and adds onto the winner's row), then one
+/// atomic add per recorded half. The size half always records; the
+/// srtt half only when the socket's recwn row carries the RTT lane's
+/// measurement — the READ-ONLY peek (flags 0, never a create), so a
+/// socket the lane never owned stays rowless and unmeasured. A full
+/// LRU (2048 leaf cgroups under observation) drops the sample, the
+/// honest miss every bookkeeping lane here takes — never a wrong
+/// count, just an uncounted packet. Keyed at the LEAF (the ee
+/// --depth target's identity), taken BEFORE the policy verdict so
+/// the unlimited majority's distribution exists — a sampled packet a
+/// concurrent verdict later drops stays counted: the contamination
+/// is the drop ratio itself, far under the sampling resolution (the
+/// ring's delivered-only law is a rate law; this is a wire-shape
+/// law).
+pub(crate) fn hist_record(
+    hist_map: &LruHashMap<u32, hist::HistRow>,
+    leaf: u32,
+    pkt_len: u64,
+    ctx: &SkBuffContext,
+) {
+    let row: *mut hist::HistRow = match hist_map.get_ptr_mut(&leaf) {
+        // SAFETY: the map value behind get_ptr_mut lives in stable
+        // kernel memory for this invocation; the row is written only
+        // through the atomic RMW views below, never aliased with a
+        // &mut and never copied out of the map.
+        Some(ptr) => ptr,
+        None => {
+            // The first sample for this leaf: the init row COPIES
+            // from the kernel-pre-zeroed staging entry — a 512-byte
+            // value can never touch the BPF stack (the linker's own
+            // verdict on the first build), so the zero source lives
+            // in map memory and the insert reads it from there.
+            if let Some(zero) = crate::hist_zero_row.get_ptr(0) {
+                // SAFETY: the staging entry's map memory — the same
+                // stable-memory contract; the insert copies out of
+                // it, the pointer never escapes this call.
+                let _ = hist_map.insert(&leaf, unsafe { &*zero }, BPF_NOEXIST.into());
+            }
+            match hist_map.get_ptr_mut(&leaf) {
+                // SAFETY: the same stable-memory contract as above.
+                Some(ptr) => ptr,
+                None => return,
+            }
+        }
+    };
+    let sb = hist::size_bucket(pkt_len);
+    // SAFETY: the row pointer above; the fetch_add is the share
+    // word's RMW discipline — cross-CPU adds on one row are the
+    // design (the depth distribution is machine-wide for the
+    // cgroup), Relaxed because a count has no ordering to keep.
+    unsafe { AtomicU64::from_ptr(core::ptr::addr_of_mut!((*row).size[sb])) }
+        .fetch_add(1, Ordering::Relaxed);
+    // The srtt half: the socket's own pointer, the same union read
+    // the prime site rides (a plain pointer load the verifier
+    // proves, null-checked before any use below).
+    // SAFETY: the program's own context pointer.
+    let sk: *mut bpf_sock = unsafe { (*ctx.as_ptr().cast::<__sk_buff>()).__bindgen_anon_2.sk };
+    if sk.is_null() {
+        return;
+    }
+    let srtt_us = recwn_flow::recwn_peek_srtt(sk);
+    if srtt_us == 0 {
+        return;
+    }
+    let rb = hist::srtt_bucket(u64::from(srtt_us));
+    // SAFETY: the same row, the same RMW view as the size half.
+    unsafe { AtomicU64::from_ptr(core::ptr::addr_of_mut!((*row).srtt[rb])) }
+        .fetch_add(1, Ordering::Relaxed);
 }
