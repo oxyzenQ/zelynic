@@ -278,6 +278,27 @@ impl IdentityMap {
         }
     }
 
+    /// The status surfaces' label (night-frontier hardening): the
+    /// plain label, plus the no-live-member marker when the walk
+    /// (pid-based — a live member would appear) cannot vouch for any
+    /// member of this cgroup. The ghost-row shape the live session
+    /// caught: a policy row that outlived its chromium printed as a
+    /// bare `cg:` id and read like a healthy limit. The marker names
+    /// ONLY what the walk owns — no live member. The cgroup directory
+    /// can outlive its members (systemd scope cleanup is async), so
+    /// the table never claims "gone": the death-proof zombie belt
+    /// owns that verdict, `recover` owns the manual sweep. Shared by
+    /// the human table and the JSON document — one truth, both
+    /// surfaces, the consistency law the divergence pass enforces.
+    pub fn status_label(&self, cgroup_id: u32) -> String {
+        let base = self.label(cgroup_id);
+        if self.get(cgroup_id).is_none() {
+            format!("{base} (no live member)")
+        } else {
+            base
+        }
+    }
+
     /// Number of cached identities.
     pub fn len(&self) -> usize {
         self.cache.len()

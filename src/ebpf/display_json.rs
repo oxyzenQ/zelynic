@@ -136,7 +136,7 @@ fn status_json(
             let split = (d.download != d.upload).then_some((d.download, d.upload));
             LimitEntry {
                 cgroup_id: d.cgroup_id,
-                label: identity.label(d.cgroup_id),
+                label: identity.status_label(d.cgroup_id),
                 download_bytes_per_sec: d.dl_bps,
                 upload_bytes_per_sec: d.ul_bps,
                 download_per_socket: d.dl_per_socket,

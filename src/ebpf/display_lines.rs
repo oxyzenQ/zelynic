@@ -52,7 +52,12 @@ pub(crate) fn status_cells(
     d: &DisplayData,
     identity: &IdentityMap,
 ) -> (String, String, String, String, String) {
-    let label = identity.label(d.cgroup_id);
+    // night-frontier hardening: a policy row whose cgroup carries no
+    // live member is MARKED, never printed as a bare cg: id that
+    // reads as a healthy limit (the ghost-row shape the live session
+    // caught). One helper, both surfaces — the JSON document rides
+    // the same status_label.
+    let label = identity.status_label(d.cgroup_id);
     // charger-core-3b: a per-socket policy's rate cell names its own
     // unit — "500.0 KB/s /socket" — because the number IS per socket
     // (the cgroup total is rate x concurrent sockets); an unmarked
