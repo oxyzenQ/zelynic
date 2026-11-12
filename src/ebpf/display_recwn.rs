@@ -197,16 +197,36 @@ pub(crate) fn recwn_line(lane: &RecwnLane) -> Option<String> {
     // night-verify-final (schema v33): the rtt clause names the rtt
     // the WINDOW derived from — a binding policy whose high-water
     // tops the cadence floor prints the MEASURED srtt (the number
-    // the extension itself rode), every other shape keeps the v25
-    // cadence estimate under its est. name. The JSON reports the
-    // raw sample regardless — recwn_limits.measured_srtt_us is the
-    // measurement's own contract, this clause is the window's.
-    let (rtt_label, rtt_ms) = match lane.measured_srtt_us {
-        Some(srtt) if srtt > u64::from(RECWN_RTT_ESTIMATE_US) => ("measured RTT", srtt / 1000),
-        _ => ("est. RTT", u64::from(RECWN_RTT_ESTIMATE_US) / 1000),
+    // the extension itself rode). night-frontier hardening (the
+    // live session's honesty pass): a measured sample the floor
+    // outshouted is no longer hidden under the est. name — the line
+    // names the measurement AND the floor law the window rode
+    // ("measured RTT 24ms (window at the 200ms floor)"), because
+    // the JSON already reports the raw sample
+    // (recwn_limits.measured_srtt_us) and a human "est." beside an
+    // existing measurement is the divergence the tool never prints.
+    // A sub-millisecond sample renders <1ms, never a fabricated 0.
+    // An unmeasured lane keeps the honest estimate name.
+    let floor_ms = u64::from(RECWN_RTT_ESTIMATE_US) / 1000;
+    let (rtt_label, rtt_words) = match lane.measured_srtt_us {
+        Some(srtt) if srtt > u64::from(RECWN_RTT_ESTIMATE_US) => {
+            ("measured RTT", format!("{}ms", srtt / 1000))
+        }
+        Some(srtt) => {
+            let value = if srtt / 1000 == 0 {
+                "<1ms".to_string()
+            } else {
+                format!("{}ms", srtt / 1000)
+            };
+            (
+                "measured RTT",
+                format!("{value} (window at the {floor_ms}ms floor)"),
+            )
+        }
+        None => ("est. RTT", format!("{floor_ms}ms")),
     };
     Some(grey(&format!(
-        "  RECWN window: {} (binding across {n} download {}; {rtt_label} {rtt_ms}ms)",
+        "  RECWN window: {} (binding across {n} download {}; {rtt_label} {rtt_words})",
         format_bytes(window),
         if n == 1 { "policy" } else { "policies" },
     )))

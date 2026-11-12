@@ -53,9 +53,24 @@ fn recwn_line_pins_the_owner_wording_and_stays_silent_when_unshaping() {
         "  RECWN window: 30.0 KB (binding across 1 download policy; measured RTT 300ms)",
         "the measured extension names its own rtt"
     );
-    // The sub-floor shapes keep the est. name — the window derived
-    // from the cadence floor, whatever the row's raw sample says
-    // (the JSON reports the sample; this clause is the window's).
+    // night-frontier hardening (the live session's honesty pass):
+    // a measured sub-floor sample no longer hides under the est.
+    // name — the line names the measurement AND the floor law the
+    // window rode (the JSON reports the raw sample
+    // recwn_limits.measured_srtt_us; the human line now says the
+    // same truth instead of an "est." beside an existing
+    // measurement).
+    assert_eq!(
+        recwn_line(&RecwnLane {
+            planted: true,
+            window_bytes: Some(20_000),
+            binding_policies: 1,
+            measured_srtt_us: Some(24_000),
+        })
+        .unwrap(),
+        "  RECWN window: 20.0 KB (binding across 1 download policy; measured RTT 24ms (window at the 200ms floor))",
+        "the live-session shape: a real 24 ms sample the floor outshouted, named"
+    );
     assert_eq!(
         recwn_line(&RecwnLane {
             planted: true,
@@ -64,8 +79,8 @@ fn recwn_line_pins_the_owner_wording_and_stays_silent_when_unshaping() {
             measured_srtt_us: Some(102),
         })
         .unwrap(),
-        "  RECWN window: 20.0 KB (binding across 1 download policy; est. RTT 200ms)",
-        "a sub-floor sample never renames the floor's own derivation"
+        "  RECWN window: 20.0 KB (binding across 1 download policy; measured RTT <1ms (window at the 200ms floor))",
+        "a sub-millisecond sample renders <1ms, never a fabricated 0"
     );
     // The dormant shapes: not planted, or planted with no window to
     // shape — silence, never noise.
