@@ -1,0 +1,68 @@
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# The zejtron doctrine, transplanted — the night the azure resolver
+# went rotten in three layers at once and the cure was three-pronged.
+#
+# The disease: an Azure-hosted runner's resolver periodically poisons
+# SINGLE zones. The documented night only the ubuntu.com zones died
+# (docker.io, github.com and rust-lang.org answered from the same
+# runner; from outside azure everything returned 200). Every fetch
+# that resolves through the poisoned zone dies with it — apt on the
+# host, the kernel packer probes, the kernel-fetch floor lane, docker
+# image pulls — and no retry count cures it, because the failure is
+# the resolution itself, not the transfer.
+#
+# The cure, layer by layer:
+#   L1 — clean public resolvers IN FRONT of /etc/resolv.conf (the
+#        platform chain stays as the fallback tail). One step heals
+#        apt, every curl probe and the docker pull path on the host.
+#   L2 — the docker daemon captured the poisoned resolver at boot and
+#        does NOT re-read a hardened host file (the zejtron evidence:
+#        the host fetched qemu fine while its rootfs container could
+#        not resolve archive.ubuntu.com). Restart the daemon so it
+#        re-captures the hardened file. The docker run calls pin
+#        --dns explicitly too — that half rides
+#        scripts/supermassive/supermassive-test-v3.py.
+#   L3 — the archive probes already ride the LIVE archive.ubuntu.com
+#        (Fastly) with curl --retry and apt Acquire::Retries; with L1
+#        in front, those retries resolve through the clean path too.
+#
+# The probe row at the end is evidence, not a gate: a dead probe
+# echoes loudly and lets the lane fail at the fetch with this row as
+# its diagnosis — the repo's fails-LOUDLY contract, no new hard gate.
+
+name: 'Harden DNS (the poisoned-resolver defense)'
+description: >-
+  Prepend clean public resolvers (1.1.1.1, 8.8.8.8) in front of the
+  runner's /etc/resolv.conf and restart the docker daemon onto the
+  hardened file — the zejtron doctrine against Azure's single-zone
+  resolver poisoning.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        # L1: clean resolvers in front, the platform chain as the tail.
+        if test -f /etc/resolv.conf; then
+          { printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n'
+            cat /etc/resolv.conf
+          } | sudo tee /etc/resolv.conf > /dev/null
+          echo "harden-dns: 1.1.1.1 + 8.8.8.8 prepended to /etc/resolv.conf"
+        fi
+        # L2: the daemon read the poisoned file at boot and never
+        # looks again — restart it onto the hardened one. Jobs without
+        # docker (or without the unit) ride through untouched.
+        if command -v docker > /dev/null 2>&1 \
+          && sudo systemctl is-active --quiet docker 2> /dev/null; then
+          sudo systemctl restart docker
+          echo "harden-dns: docker daemon restarted on the hardened resolver"
+        fi
+        # Evidence row (not a gate): the hardened path must answer.
+        if getent hosts archive.ubuntu.com > /dev/null 2>&1; then
+          echo "harden-dns: probe OK — archive.ubuntu.com resolves"
+        else
+          echo "harden-dns: probe DEAD — archive.ubuntu.com unresolved;"
+          echo "harden-dns: the lane fails loudly at its fetch — this row is the diagnosis"
+        fi

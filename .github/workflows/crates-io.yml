@@ -107,6 +107,8 @@ jobs:
           # GITHUB_TOKEN hardening: never persists into .git/config.
           persist-credentials: false
 
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
       - name: Wait for the branch CI on the tagged commit
         shell: bash
         env:
@@ -141,6 +143,8 @@ jobs:
           # GITHUB_TOKEN hardening: never persists into .git/config.
           persist-credentials: false
 
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
         with:

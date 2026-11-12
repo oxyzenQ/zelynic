@@ -104,6 +104,8 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
       - name: Install nightly Rust
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87  # NIGHT-hunt-20 SHA pin
         with:

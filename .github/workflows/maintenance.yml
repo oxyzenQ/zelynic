@@ -147,6 +147,8 @@ jobs:
           persist-credentials: false
           fetch-depth: 1
 
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
         with:
@@ -299,6 +301,8 @@ jobs:
           # call first.
           persist-credentials: true
 
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
       - name: Download validated Cargo.lock
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8, NIGHT-hunt-20 SHA pin
         with:

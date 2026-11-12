@@ -754,6 +754,15 @@ def test_docker_e2e(force=False):
     try:
         # Spawn the pause container (best-effort; if the image is
         # absent, docker pulls it — the lane's first cost).
+        # The zejtron doctrine's docker half: explicit --dns on the
+        # run. The daemon captured the runner's resolver at boot — a
+        # poisoned one rides into every container it spawns, and the
+        # container does NOT inherit a hardened host /etc/resolv.conf
+        # (the evidence: the host fetched qemu fine while its rootfs
+        # container could not resolve archive.ubuntu.com). The flags
+        # pin this container's own resolv.conf to the clean public
+        # resolvers; the host half of the cure rides the harden-dns
+        # composite action (.github/actions/harden-dns).
         spawn = subprocess.run(
             [
                 "docker",
@@ -762,6 +771,10 @@ def test_docker_e2e(force=False):
                 "--name",
                 container_name,
                 "--restart=no",
+                "--dns",
+                "1.1.1.1",
+                "--dns",
+                "8.8.8.8",
                 "busybox",
                 "sleep",
                 "300",
