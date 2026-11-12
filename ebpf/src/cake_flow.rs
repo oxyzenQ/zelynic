@@ -157,7 +157,7 @@ pub(super) fn get_flow_ptr(
                 last_refill_ns: 0,
                 frac_rem: 0,
             };
-            if flow_map.insert(cookie, init, BPF_NOEXIST).is_err() {
+            if flow_map.insert(cookie, &init, BPF_NOEXIST).is_err() {
                 // Lost the init race (the v11 discipline) or the LRU
                 // is full under 4096+ concurrent sockets in one leaf:
                 // re-look-up and ride the winner; a genuinely full
@@ -238,7 +238,7 @@ pub(super) fn try_flow_draw(
     //    leaf's budget, the flow allowance.
     let pool_share_key = (generation << 32) | u64::from(*root);
     let leaf_peak = pool_share_map
-        .get_ptr(pool_share_key)
+        .get_ptr(&pool_share_key)
         .map(|p| drr::pool_share_peak(word_read(p)))
         .unwrap_or(0);
     let leaf_budget = drr::flow_leaf_budget(pol.rate_bps, leaf_peak);

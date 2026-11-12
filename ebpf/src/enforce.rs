@@ -21,7 +21,8 @@
 /// the egress hook the upload one — the two programs share both
 /// maps by object construction.
 use aya_ebpf::{
-    bindings::bpf_sock,
+    EbpfContext as _,
+    bindings::{__sk_buff, bpf_sock},
     helpers::{bpf_get_socket_cookie, bpf_ktime_get_ns, bpf_skb_cgroup_id},
     maps::{HashMap, LruHashMap},
     programs::SkBuffContext,
@@ -88,7 +89,7 @@ pub(crate) fn try_enforce(
     // pointer to the kernel (the helper contract every bpf_* call
     // in this file rides); the return value is a plain u64, no
     // pointer crosses back into the program.
-    let leaf = unsafe { bpf_skb_cgroup_id(ctx.skb.skb) } as u32;
+    let leaf = unsafe { bpf_skb_cgroup_id(ctx.as_ptr().cast()) } as u32;
     let pkt_len = ctx.len();
 
     // Look up the direction's policy at the socket's own cgroup
@@ -96,7 +97,7 @@ pub(crate) fn try_enforce(
     // itself is unpoliced, but MMSPA must still ask whether an
     // ANCESTOR of it is: a strict on cgroup A covers every socket
     // born under A/** (the subtree contract), resolved per packet.
-    let (cgroup_id, pol) = match policy_map.get_ptr(leaf) {
+    let (cgroup_id, pol) = match policy_map.get_ptr(&leaf) {
         // SAFETY: aya's get_ptr hands a pointer into stable kernel
         // map memory, valid for this program invocation's lifetime;
         // the shared read borrow never outlives the invocation and
@@ -107,7 +108,7 @@ pub(crate) fn try_enforce(
             if root == 0 {
                 return 1;
             }
-            match policy_map.get_ptr(root) {
+            match policy_map.get_ptr(&root) {
                 // SAFETY: same map-value contract as the leaf lookup
                 // above — stable kernel memory, one invocation
                 // lifetime, the walk's root is a live map key.
@@ -229,7 +230,7 @@ pub(crate) fn try_enforce(
     // SAFETY: helper call with the program's own skb context (the
     // same cast the prime sites and the lanes rode); the return is
     // a plain u64 cookie, no pointer crosses back.
-    let sock_cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
+    let sock_cookie = unsafe { bpf_get_socket_cookie(ctx.as_ptr()) };
     // The socket's own pointer, the same fetch's source: the __sk_buff
     // union's sk field (PTR_TO_SOCK_COMMON_OR_NULL in verifier terms,
     // v5.12+ — the 5.13 floor carries it; verified v5.13 and v5.15
@@ -243,7 +244,7 @@ pub(crate) fn try_enforce(
     // SAFETY: the program's own context pointer; the union read is
     // a plain pointer load the verifier proves, null-checked before
     // any deref of it below.
-    let sock_sk: *mut bpf_sock = unsafe { (*ctx.skb.skb).__bindgen_anon_2.sk };
+    let sock_sk: *mut bpf_sock = unsafe { (*ctx.as_ptr().cast::<__sk_buff>()).__bindgen_anon_2.sk };
     // The prime's return (night-verify-final, schema v33): whatever
     // measured srtt the RTT lane last left on this socket's hint row
     // — zero when the socket is unmeasured, or on the egress path
@@ -406,7 +407,7 @@ pub(crate) fn try_enforce(
                 now,
                 pkt_len,
                 stats,
-                ctx.skb.skb.cast(),
+                ctx.as_ptr(),
             );
             return ring_verdict(verdict, rate_ring_map, &cgroup_id, now, pkt_len);
         }
@@ -479,7 +480,7 @@ pub(crate) fn try_enforce(
         // The ECN-first rescue: a drop verdict asks the kernel for a
         // CE mark first; only a refusal (or a debt at its cap, or a
         // debt-map miss) lets the drop stand (private-research-4).
-        if verdict == 0 && ecn_rescue(ctx.skb.skb.cast(), debt_map, &debt_key, pkt_len, stats_ptr) {
+        if verdict == 0 && ecn_rescue(ctx.as_ptr(), debt_map, &debt_key, pkt_len, stats_ptr) {
             return ring_verdict(1, rate_ring_map, &cgroup_id, now, pkt_len);
         }
         return ring_verdict(verdict, rate_ring_map, &cgroup_id, now, pkt_len);
@@ -561,7 +562,7 @@ pub(crate) fn try_enforce(
     // miss) lets the drop stand (private-research-4). The leaf-level
     // fairness shape is untouched — a marked packet never carries
     // leaf tokens, so the greedy-leaf bound rides exactly as before.
-    if verdict == 0 && ecn_rescue(ctx.skb.skb.cast(), debt_map, &debt_key, pkt_len, stats_ptr) {
+    if verdict == 0 && ecn_rescue(ctx.as_ptr(), debt_map, &debt_key, pkt_len, stats_ptr) {
         return ring_verdict(1, rate_ring_map, &cgroup_id, now, pkt_len);
     }
     ring_verdict(verdict, rate_ring_map, &cgroup_id, now, pkt_len)

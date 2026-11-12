@@ -65,9 +65,9 @@ hold-the-dated-pin recommendation live in
 | Crate | Version | Notes |
 |---|---|---|
 | `aya` (userspace) | 0.16.0 (2026-10-28) | zelynic pins 0.16 since night-enhance-1 (NIGHT-depthtest rode the 0.14 wave) — see compatibility section |
-| `aya-ebpf` (BPF side) | 0.2.1 (2026-06-30) | edition 2024, MSRV 1.87; upstream's 0.3.0 (2026-10-31) held back on purpose — the programs-side bump is its own owner call |
+| `aya-ebpf` (BPF side) | 0.3.0 (2026-10-31) | edition 2024, MSRV 1.98.0; night-enhance-1's kernel half (2026-11-12) completed the 0.16 pairing (the port landed on 0.2.1, whose MSRV was 1.87) |
 | `aya-obj` (ELF parser) | 0.6.0 | the parser inside aya 0.16.0 (zelynic's dev-dep mirrors it) |
-| `aya-build` | 0.2.0 | build.rs helper driving the nightly cross-build |
+| `aya-build` | 0.2.1 | build.rs helper driving the nightly cross-build (the table said 0.2.0; the lockfile has ridden 0.2.1 since the night-zen-1 maintenance wave — drift corrected at the kernel half) |
 | `bpf-linker` | 0.11.1 (2026-09-07) | static musl prebuilts on GitHub releases |
 
 Key upstream facts, verified against sources (not from memory):
@@ -117,7 +117,8 @@ Key upstream facts, verified against sources (not from memory):
    the sections `cgroup_skb/egress` / `cgroup_skb/ingress`** —
    byte-for-byte the section names the C twin uses. Verified by
    reading the macro expansion in aya-ebpf-macros 0.2.0 and by
-   parsing the built object.
+   parsing the built object (the parse re-proves on every lane
+   refresh, the 0.3.0 wave included).
 
 ## Compatibility with zelynic's pinned userspace (the critical question)
 
@@ -481,7 +482,7 @@ measurements say:
 |---|---|---|---|
 | LOC ratio (total) | > 2x | 1.56x | pass |
 | LOC ratio (code-only) | > 2x | 1.27x | pass |
-| Nightly required for BPF builds | unavoidable blocker | still true (aya-ebpf 0.2.1, bpf-linker 0.11.1) | cost, not blocker |
+| Nightly required for BPF builds | unavoidable blocker | still true (aya-ebpf 0.3.0, bpf-linker 0.11.1) | cost, not blocker |
 
 The conjunction is false, so by the plan's own letter stage 1
 **passes**. But the honest decision is broader than one criterion,

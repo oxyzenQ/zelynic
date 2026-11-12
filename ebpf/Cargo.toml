@@ -30,8 +30,9 @@
 #
 #   cd ebpf && cargo build --release
 #
-# Edition 2024 matches the aya-ebpf 0.2.1 upstream pairing (the
-# 2026-09 aya-template workspace). The crate is nightly-only by
+# Edition 2024 matches the aya-ebpf upstream pairing (0.2.1 rode the
+# 2026-09 aya-template workspace; the 0.3.0 wave — night-enhance-1's
+# kernel half — kept the edition). The crate is nightly-only by
 # design and must never enter the root crate's rust-version-sync
 # contract (gate 10 reads the ROOT manifest only).
 #
@@ -63,7 +64,13 @@ repository = "https://github.com/oxyzenQ/zelynic"
 description = "Pure-Rust eBPF programs (observer, limiter) for zelynic, cross-compiled with aya-ebpf and embedded by the userspace loader."
 
 [dependencies]
-aya-ebpf = "0.2.1"
+# night-enhance-1 (the kernel half of the aya 0.16 wave, 2026-11-12):
+# 0.2.1 -> 0.3.0, the owner call the userspace wave (fa63167a) held
+# open. Upstream's own satellite requirements ride along (bindings
+# ^0.3, cty ^0.4, macros ^0.4, aya-build ^0.2.1 — already current);
+# MSRV 1.98.0 sits under the dated nightly pin with room to spare,
+# so no toolchain and no bpf-linker move accompanies this bump.
+aya-ebpf = "0.3"
 
 [[bin]]
 name = "zelynic-observer"

@@ -39,7 +39,7 @@ pub(crate) fn get_stats_ptr(cgroup_id: &u32) -> Option<*mut LimiterStats> {
                 bytes_saved_by_ecn: 0,
                 measured_srtt_us: 0,
             };
-            let _ = cgroup_limiter_stats.insert(cgroup_id, init, BPF_NOEXIST);
+            let _ = cgroup_limiter_stats.insert(cgroup_id, &init, BPF_NOEXIST);
             cgroup_limiter_stats.get_ptr_mut(cgroup_id)
         }
     }
@@ -76,7 +76,7 @@ pub(crate) fn get_bucket_ptr(
                 last_refill_ns: now,
                 frac_rem: 0,
             };
-            let _ = map.insert(key, init, BPF_NOEXIST);
+            let _ = map.insert(key, &init, BPF_NOEXIST);
             map.get_ptr_mut(key)
         }
     }
@@ -105,7 +105,7 @@ pub(crate) fn get_ring_ptr(map: &HashMap<u32, RateRing>, key: &u32) -> Option<*m
                     bytes: 0,
                 }; rate_ring::RING_SLOTS as usize],
             };
-            let _ = map.insert(key, init, BPF_NOEXIST);
+            let _ = map.insert(key, &init, BPF_NOEXIST);
             map.get_ptr_mut(key)
         }
     }
@@ -174,8 +174,8 @@ const BPF_NOEXIST: u64 = 1;
 /// re-verified at the aya 0.16 wave, night-enhance-1). Exposed to
 /// cgroup_skb programs by cg_skb_func_proto under CONFIG_INET
 /// (present in the 5.13 verified floor and every kernel above it,
-/// gpl_only = false — net/core/filter.c). aya-ebpf 0.2.1 does not
-/// wrap this helper in its safe helpers module, so the object
+/// gpl_only = false — net/core/filter.c). aya-ebpf 0.3.0 still does
+/// not wrap this helper in its safe helpers module, so the object
 /// declares the binding itself.
 ///
 /// SAFETY: the skb pointer must be the program's own context
@@ -219,7 +219,7 @@ pub(crate) fn get_debt_ptr(debt_map: &LruHashMap<u64, u64>, key: &u64) -> Option
         Some(ptr) => Some(ptr),
         None => {
             let init: u64 = 0;
-            let _ = debt_map.insert(key, init, BPF_NOEXIST);
+            let _ = debt_map.insert(key, &init, BPF_NOEXIST);
             debt_map.get_ptr_mut(key)
         }
     }

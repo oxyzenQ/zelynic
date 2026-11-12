@@ -97,7 +97,8 @@
 // thing standing between an empty tail and the refused syscall.
 
 use aya_ebpf::{
-    helpers::generated::bpf_skb_load_bytes, macros::map, maps::LruHashMap, programs::SkBuffContext,
+    EbpfContext as _, helpers::generated::bpf_skb_load_bytes, macros::map, maps::LruHashMap,
+    programs::SkBuffContext,
 };
 use core::sync::atomic::{AtomicU64, Ordering};
 
@@ -173,7 +174,7 @@ fn learn_hint(map: &LruHashMap<u64, u64>, key: &u64, len: u8) {
             // cookie, the honest miss every internal lane here
             // documents.
             let init = quic::hint_word(len);
-            let _ = map.insert(key, init, BPF_NOEXIST);
+            let _ = map.insert(key, &init, BPF_NOEXIST);
             return;
         }
     };
@@ -221,14 +222,8 @@ pub(super) fn quic_flow_key(ctx: &SkBuffContext, cookie: u64, is_ingress: bool) 
     // the helper's own contract (a short read fails the call, the
     // ret check below owns it); the buffer is a fixed local array
     // and want_ip is clamped to it, no pointer escapes.
-    let ret = unsafe {
-        bpf_skb_load_bytes(
-            ctx.skb.skb.cast(),
-            0,
-            ip.as_mut_ptr().cast(),
-            want_ip as u32,
-        )
-    };
+    let ret =
+        unsafe { bpf_skb_load_bytes(ctx.as_ptr(), 0, ip.as_mut_ptr().cast(), want_ip as u32) };
     if ret != 0 {
         return cookie;
     }
@@ -254,7 +249,7 @@ pub(super) fn quic_flow_key(ctx: &SkBuffContext, cookie: u64, is_ingress: bool) 
     // and the ret check below owns it.
     let ret = unsafe {
         bpf_skb_load_bytes(
-            ctx.skb.skb.cast(),
+            ctx.as_ptr(),
             shape.l4_off as u32,
             l4.as_mut_ptr().cast(),
             want_l4 as u32,
@@ -272,7 +267,7 @@ pub(super) fn quic_flow_key(ctx: &SkBuffContext, cookie: u64, is_ingress: bool) 
     // This direction's current hint word at the conversation's key
     // (an absent entry reads 0 — the packed "no hint" verdict).
     let hint_this = this_dir_map(is_ingress)
-        .get_ptr(conv.hkey)
+        .get_ptr(&conv.hkey)
         .map(word_read)
         .unwrap_or(0);
     // Step two (pure): the QUIC decision.
