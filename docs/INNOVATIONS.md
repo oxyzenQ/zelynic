@@ -350,6 +350,28 @@ Supermassive Container E2E netns/iface legs (a real namespace and
 a real VRF domain resolving and enforcing on a real runner
 kernel).
 
+**17. The depth histogram — the sampled distribution** (`ebpf/src/hist.rs`,
+schema v34, night-frontier-2B). The observability hole: `--depth`
+answered WHAT a cgroup is and WHAT moved its window, but not the SHAPE
+of the traffic — a limiter that smooths bursts shows its subjects only
+as totals. Two LRU maps (`depth_hist_dl`/`depth_hist_ul`), one 512-byte
+row per cgroup per direction keyed at the leaf, each a pair of 32-bucket
+log2 halves: packet size in bytes, TCP srtt in microseconds. Recording
+never taxes the hot path — a per-CPU sampler answers 1-in-1024 (the
+unlimited majority pays one per-CPU counter tick, the sampled packet
+the LRU write — the NIGHT-lts-2 law's measured frontier-2B amendment),
+and the srtt half fills only from the RTT lane's own harvest (the
+read-only sk-storage peek — no new helper, no CO-RE). The userspace
+reads the buckets, not raw samples: bucket-bounded quantiles (the
+lower bound of the first bucket whose cumulative count reaches the
+quantile — a value in [2^b, 2^(b+1))) render one line per direction
+in `ee --depth`, and the JSON block carries the full arrays so a
+frontend recomputes what it wants. Rootless pins: the kernel's own
+`hist.rs` compiles into the test tree (`test/ebpf/limiter/hist_tests.rs`
+and `hist_raw_tests.rs`, the render pins in `depth_json_tests.rs`);
+CI proof: the supermassive lane's Phase 1.5 leg (limit, traffic,
+assert non-zero buckets).
+
 ## The Quota Saver — the Workload-Conditional Claim
 
 The fourteenth, fifteenth, and sixteenth entries above (RECWN, ECN,
