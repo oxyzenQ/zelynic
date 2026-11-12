@@ -13,7 +13,7 @@ The digests were computed with `b3sum` 1.8.7 (the BLAKE3 reference
 tool — the same digest family gate 18's prebuilt-parity check pins)
 over the tracked bytes at night-dragon-maintenance-X1 time, 2026-11-02.
 The machine-readable sidecar is
-[signature-assets.b3sum](signature-assets.b3sum), kept in `b3sum -c`
+[signature.b3sum](signature.b3sum), kept in `b3sum -c`
 format so the check below is the whole protocol.
 
 ## signed images
@@ -35,7 +35,7 @@ outside the signed set.
 From the repository root, with b3sum on PATH (Ubuntu 24.04 ships the
 package; otherwise `cargo install b3sum --locked`):
 
-    b3sum -c assets/signature-assets.b3sum
+    b3sum -c assets/signature.b3sum
 
 Every line prints OK, or the command exits non-zero naming the file
 that failed or went missing — treat either verdict as a fake or

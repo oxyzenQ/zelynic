@@ -317,7 +317,7 @@ zelynic arms against the class where zejtron patched it, at the
 same three layers:
 
 1. the artifact lands OUTSIDE the work tree
-   (`${{ runner.temp }}/validated-cargo-lock`), so no staging copy
+   (`${{ runner.temp }}/validated-dependency-lane`), so no staging copy
    can ever exist at a tracked path;
 2. the commit job stages the EXACT lockfile set derived from the
    manifest walk (each `Cargo.toml` path rewritten to its sibling

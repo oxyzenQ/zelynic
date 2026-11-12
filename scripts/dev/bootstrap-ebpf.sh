@@ -134,7 +134,11 @@ EBPF_TOOLCHAIN="$(sed -n 's/^[[:space:]]*channel[[:space:]]*=[[:space:]]*"\([^"]
 # writer-side implementation, and refresh-prebuilt.sh plus the parity
 # gate refuse to answer without it — so the bootstrap installs it
 # beside the build pair, the one-command fix their error messages name.
-B3SUM_VERSION="1.8.7"
+# The pin reads from the ONE WRITER's own constant — the NIGHT-hunt-21
+# twin-constant law (one home per pin, no drift), the same discipline
+# the toolchain channel read above applies.
+B3SUM_VERSION="$(sed -n 's/^B3SUM_VERSION="\(.*\)"$/\1/p' "${REPO_ROOT}/scripts/release/refresh-prebuilt.sh")"
+[[ -n "${B3SUM_VERSION}" ]] || die "could not read the b3sum pin from scripts/release/refresh-prebuilt.sh."
 
 # ── Status probes (no side effects) ────────────────────────────────────────
 # TOOLCHAIN_OK: the pin appears in `rustup toolchain list`. rustup prints
