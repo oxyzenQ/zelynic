@@ -271,6 +271,22 @@ restored), the `ecn_debt` words key the per-BUDGET identity, the
 cake/drr flow maps key the scheduler's own flow identities — each
 stays a hash map with its own aging law.
 
+Scope the "rows die with the socket" gain honestly (night-frontier
+hardening, the live session's ghost-row find): it names the HINT
+rows — the RECWN and pacing sk_storage rows the kernel frees at sock
+destruction. The POLICY rows (the cgroup-keyed limit rows the status
+table prints) are a different class: they have no kernel-side GC,
+and their retirement is deliberately fail-closed — the zombie belt
+reclaims a row only when the cgroupfs census PROVES the directory
+gone (a systemd scope can outlive its members for seconds, and a
+held row still enforces, the "enforcement preserved over
+bookkeeping" law). A row that outlived its members renders marked —
+`cg:14696 (no live member)` in the table and the JSON label alike,
+never a bare cg: id that reads like a healthy limit — and `zelynic
+recover` owns the manual sweep. The claim was always true for the
+rows it described; this note names the boundary so a reader cannot
+stretch it over the rows it never described.
+
 **15. Egress socket pacing** (schema v27, night-spark-5 — the
 quota saver's Layer 3). The egress twin of the receive-window
 lane: a policed cgroup's UPLOAD policy is pinned onto its TCP
