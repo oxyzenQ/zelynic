@@ -145,9 +145,11 @@
 > the status JSON's `measured_srtt_us` assertion), the quota-saver A/B
 > ground truth over the 30 s overrun legs, the v32 ghost-row and pin
 > hygiene checks, and the netns:// and iface:// resolvers' honest
-> refusals verbatim. Gated behind the family's night train (20:00 UTC,
-> the e2e lane's cadence) and the workflow_dispatch click — no push
-> trigger, per-push CI stays fast.
+> refusals verbatim. Gated behind the verify lane's own nightly
+> schedule (20:00 UTC) and the workflow_dispatch click — no push
+> trigger, per-push CI stays fast. (night-verify-1 retired the
+> supermassive and e2e lanes' own night trains: those shards ride
+> every push now, so no check on a push ever answers Skipped.)
 
 ## Summary
 

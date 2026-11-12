@@ -32,24 +32,28 @@
 #
 # Gating (the owner's night-verify-final constraint): the lane spends
 # a dedicated runner's worth of privileged minutes, so it never rides
-# per-push CI — the trigger surface is the family's night train
-# (20:00 UTC, the e2e lane's own cadence) plus the workflow_dispatch
-# click as the pre-qualification run.
+# per-push CI — the trigger surface is its own nightly schedule
+# (20:00 UTC) plus the workflow_dispatch click as the
+# pre-qualification run. (night-verify-1 retired the supermassive
+# and e2e lanes' night trains: those shards ride every push now;
+# this lane keeps its nightly clock — it never produced a Skipped
+# row on a push.)
 
 name: Dragon Guard - Supermassive Verify
 
 on:
   workflow_dispatch:
   schedule:
-    # 20:00 UTC = 03:00 WIB (the owner's Asia/Jakarta night): the
-    # family's night train slot, the e2e lane's own cadence.
+    # 20:00 UTC = 03:00 WIB (the owner's Asia/Jakarta night): this
+    # lane's own nightly slot (night-verify-1 renamed the family
+    # reference — the e2e lane's cadence retired with its schedule).
     - cron: "0 20 * * *"
 
 permissions:
   contents: read
 
 concurrency:
-  # The night train's own group: the scheduled run and a manual
+  # This lane's own group: the scheduled run and a manual
   # dispatch serialize instead of racing two privileged verifications.
   group: Dragon-Guard-Supermassive-Verify-${{ github.ref }}
   cancel-in-progress: false

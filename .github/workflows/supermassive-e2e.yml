@@ -30,10 +30,11 @@
 # endurance clocks, whose 300-cycle churn exists to walk ~300 fresh
 # group slots against the 256-entry map cap (the boundary crossing
 # IS the test, so it is never sharded and never shortened) — rides
-# its own shard on the NIGHTLY schedule, full depth, while nobody
-# waits. Depth is never cut anywhere: per-push still proves 4 of
-# the 5 suites on both kernel envelopes plus the arm64 host, the
-# nightly proves the fifth.
+# its own shards on EVERY push (night-verify-1, the owner's call: a
+# schedule-only lane was a Skipped row on every push — the schedule
+# trigger retired whole), full depth, in the same union as the
+# rest. Depth is never cut anywhere: every push proves all 5 suites
+# on both kernel envelopes plus the arm64 host.
 #
 # The arm64 variant (the owner's arm64 mandate): the IDENTICAL
 # shard contract, run HOST-NATIVE on the free arm64 runner
@@ -92,10 +93,10 @@
 # base) burns the per-push shards - no path filter, no branch
 # filter, the same blind posture every push-triggered lane in the
 # estate now carries. workflow_dispatch stays as the manual
-# recovery lane AND runs the nightly shards (a dispatch is the
-# full sweep). The schedule (20:00 UTC = the small hours in the
-# owner's Asia/Jakarta evening) runs the endurance shards only:
-# the night train nobody waits for.
+# recovery lane (a dispatch is the full sweep). night-verify-1
+# retired the schedule (20:00 UTC, the small hours in the owner's
+# Asia/Jakarta evening): the endurance shards ride every push like
+# the rest.
 #
 # The jobs fail on any FAIL (every suite exits 1 on its own
 # failure, and the init's E2E-VERDICT relay aggregates the rows;
@@ -107,25 +108,20 @@ name: Dragon Guard - Supermassive E2E
 "on":
   push:
   pull_request:
-  schedule:
-    # 20:00 UTC = 03:00 WIB (the owner's Asia/Jakarta night): the
-    # endurance shards run while nobody waits. A push neither
-    # cancels nor is cancelled by this train (the concurrency
-    # group splits the two worlds below).
-    - cron: "0 20 * * *"
+  # night-verify-1 (the owner's call): the schedule trigger is
+  # retired whole — the endurance shards ride every push like the
+  # per-push shards, so no check on a push ever answers Skipped.
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  # The night train lives in its own group: a push never cancels a
-  # running schedule (and vice versa), while pushes keep cancelling
-  # each other exactly as before.
-  group: >-
-    ${{ github.workflow }}-${{ github.ref }}-
-    ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'night' || 'push' }}
-  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
+  # The one-group law ci.yml carries (night-verify-1: with the
+  # schedule retired, the night/push group split had nothing left
+  # to split): a superseded run cancels its in-flight shards.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   # The estate's JS-action runtime pin (every other workflow carries
@@ -855,30 +851,28 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # ── the night train: the endurance clocks, WHOLE ───────────────────
+  # ── the endurance shard: the endurance clocks, WHOLE ───────────────────
   # The 300-cycle churn exists to walk ~300 fresh group slots against
   # the 256-entry map cap - the boundary crossing IS the test, so it
   # is never sharded (a fresh-map slice under 256 cycles would never
   # cross the boundary it exists to cross) and never shortened (the
-  # budget buys headroom, never depth). It rides the schedule
-  # instead: full depth, on the same envelopes as the per-push
-  # shards, while the owner sleeps. workflow_dispatch runs it too -
-  # a dispatch is the full sweep, the manual recovery lane.
+  # budget buys headroom, never depth). Since night-verify-1 it
+  # rides every push like the per-push shards: full depth, on the
+  # same envelopes, no schedule left.
   supermassive-e2e-endurance:
     name: ${{ matrix.title }}
     needs: [stage, stage-arm64]
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
         include:
-          - title: supermassive e2e - endurance clocks (night train, the jammy 5.15.0 LTS floor kernel)
+          - title: supermassive e2e - endurance clocks (the jammy 5.15.0 LTS floor kernel)
             profile: jammy
             vm_timeout: 2400
-          - title: supermassive e2e - endurance clocks (night train, the archive's latest kernel)
+          - title: supermassive e2e - endurance clocks (the archive's latest kernel)
             profile: best
             vm_timeout: 1800
-          - title: supermassive e2e - endurance clocks (night train, the native arm64 runner host)
+          - title: supermassive e2e - endurance clocks (the native arm64 runner host)
             profile: arm64
             vm_timeout: 2400
     runs-on: ${{ matrix.profile == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
