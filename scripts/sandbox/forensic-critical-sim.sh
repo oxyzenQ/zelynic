@@ -485,8 +485,7 @@ TRAFFIC_PID=$!
 
 # The one-target focus view (the exact shape the owner's blank-exit
 # find used: a NAME target with live traffic).
-DRIVER_OUT="$(tui_driver 4 "$BIN" eagle-eyes "cg:${CG}" --interval 1 2>&1)"
-if [ $? -eq 0 ]; then
+if DRIVER_OUT="$(tui_driver 4 "$BIN" eagle-eyes "cg:${CG}" --interval 1 2>&1)"; then
 	row "monitor: the focus view lives on a real PTY until q (the blank-exit pin)" 0
 else
 	row "monitor: the focus view lives on a real PTY until q (the blank-exit pin)" 1 "driver said: ${DRIVER_OUT:-<no verdict>}"
@@ -494,15 +493,13 @@ fi
 # The NAME-target focus view — the exact shape of the owner's
 # blank-exit find (`ee brave`: a name resolving through the /proc
 # walk, not a direct id).
-DRIVER_OUT="$(tui_driver 4 "$BIN" eagle-eyes sleep --interval 1 2>&1)"
-if [ $? -eq 0 ]; then
+if DRIVER_OUT="$(tui_driver 4 "$BIN" eagle-eyes sleep --interval 1 2>&1)"; then
 	row "monitor: the name-target view lives on a real PTY until q (the ee <name> pin)" 0
 else
 	row "monitor: the name-target view lives on a real PTY until q (the ee <name> pin)" 1 "driver said: ${DRIVER_OUT:-<no verdict>}"
 fi
 # The no-target leaderboard.
-DRIVER_OUT="$(tui_driver 4 "$BIN" eagle-eyes --interval 1 2>&1)"
-if [ $? -eq 0 ]; then
+if DRIVER_OUT="$(tui_driver 4 "$BIN" eagle-eyes --interval 1 2>&1)"; then
 	row "monitor: the leaderboard lives on a real PTY until q" 0
 else
 	row "monitor: the leaderboard lives on a real PTY until q" 1 "driver said: ${DRIVER_OUT:-<no verdict>}"
