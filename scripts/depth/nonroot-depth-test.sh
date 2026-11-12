@@ -365,7 +365,13 @@ run_case "empty target name" "$BINARY" strict "" 100kb
 # pre-dinner-16 "root required" shape and failed on pristine main.
 expect "empty target refused at the input boundary (dinner-16 wording)" 1 "target is empty" -- "$BINARY" strict "" 100kb
 run_case "u64-overflow numeric target" "$BINARY" strict 99999999999999999999 100kb
-expect "overflow numeric target treated as name" 1 "root required" -- "$BINARY" strict 99999999999999999999 100kb
+# night-total-hardening-1 (the owner's safety call): an all-digit
+# target past the 32-bit id space used to flow as a ProcessName
+# (this row pinned the shape: parse passes, "root required" fires
+# first); the input boundary refuses it NOW with the bound named,
+# one rung before the privilege ask — the same ladder move
+# dinner-16 made for the empty target above.
+expect "overflow numeric target refused at the input boundary (the 32-bit bound)" 1 "too large for a cgroup id" -- "$BINARY" strict 99999999999999999999 100kb
 run_case "path-shaped target" "$BINARY" strict "../../etc" 100kb
 expect "path-shaped target refused as root-first" 1 "root required" -- "$BINARY" strict "../../etc" 100kb
 run_case "space target" "$BINARY" strict "two words" 100kb
