@@ -2712,7 +2712,9 @@ def stage_server_histogram():
     dl = hist.get("download")
     dl_size = (dl or {}).get("size")
     if dl_size is None:
-        failures.append("download.size answered null — the bulk download's own direction recorded nothing")
+        failures.append(
+            "download.size answered null — the bulk download's own direction recorded nothing"
+        )
     else:
         total = dl_size.get("samples", 0)
         buckets = dl_size.get("buckets") or []
