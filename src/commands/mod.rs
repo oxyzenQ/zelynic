@@ -38,6 +38,7 @@ pub(crate) mod rates;
 #[cfg(feature = "ebpf")]
 pub(crate) mod recover;
 pub(crate) mod safety;
+pub(crate) mod safety_id;
 // NIGHT-improve-53: the masterclass '::' list grammar — the
 // routing law (target_is_list) and the list validation the unified
 // verbs (strict / block / unstrict) share. Split from safety.rs at

@@ -9,6 +9,7 @@
 //! missed daemon costs the system).
 
 use super::*;
+use crate::commands::safety_id::first_dangerous_member;
 
 /// The exact spellings stay blocked — the rule is a superset of the
 /// old exact match, so nothing that was guarded before can slip now.
@@ -556,4 +557,31 @@ fn the_skip_note_names_the_skipped_comms() {
         "Skipped 8 system cgroups across 7 names — first six: NetworkManager, dbus-broker-launch, kwin_wayland_wrapper, napi/phy0-0, pipewire, systemd-journald — re-run with --force-this to include.",
         "the wide roster is explicitly a sample, both counts still labeled"
     );
+}
+
+/// night-total-hardening-1 (the owner's safety call, the numeric
+/// class): the single-target input boundary refuses an all-digit
+/// target beyond the 32-bit id space with the bound named — both
+/// spellings — while the legal ids and the ordinary names pass.
+#[test]
+fn single_target_past_u32_is_refused_with_the_bound() {
+    for bad in ["100000000000000000", "cg:99999999999"] {
+        let err = validate_single_target(bad, "zelynic strict brave 100kb")
+            .expect_err("an all-digit target past u32 must be refused");
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("too large for a cgroup id"),
+            "the refusal names the bound, got: {msg}"
+        );
+        assert!(
+            msg.contains("32 bits"),
+            "the bound is spelled out, got: {msg}"
+        );
+    }
+    // The legal shapes stay legal: a real u32 id (bare and prefixed),
+    // an ordinary name, and a name that merely carries digits.
+    assert!(validate_single_target("48181", "ex").is_ok());
+    assert!(validate_single_target("cg:48181", "ex").is_ok());
+    assert!(validate_single_target("brave", "ex").is_ok());
+    assert!(validate_single_target("python3", "ex").is_ok());
 }
