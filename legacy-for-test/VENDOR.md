@@ -49,6 +49,19 @@ carry it. The stage step extracts the verified tarball explicitly,
 so the guest sees only `/opt/zelynic/legacy/zelynic`, exactly the
 shape it saw when the pair rode a per-run release fetch.
 
+## Local extraction hygiene
+
+A manual verify-then-run session extracts the tarball in place —
+`tar xzf *.gz` lays down the release's own `README.md`, `LICENSE`
+and the 2.2M `zelynic` binary next to the vendored pair. All three
+are disposable products and ride `.gitignore`, so `git status`
+stays clean after every test session (`git clean -fdx` sweeps them
+when the next session wants a pristine floor). This directory's
+own doc carries the `VENDOR.md` name for exactly that reason: the
+tarball's README would clobber a tracked `README.md` on every
+extraction, and a doc that fights its own test fixture is a doc
+that loses.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
