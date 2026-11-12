@@ -307,25 +307,71 @@ print(0 if (base > 400000 and capped < base * 0.5 and capped < cap * 2.5) else 1
 row "critical: the 200kb cap holds ($(python3 -c "print(f'${CAPPED:-0:.0f}/s')" 2>/dev/null || echo '?') B/s vs baseline)" "$VERDICT"
 
 # 3b-second. The depth report's eBPF histogram lane, read
-# MID-TRAFFIC (night-verify-1's lesson: the histogram books samples
-# only while packets move under the policy). The capped download
-# drives the traffic; the depth read rides it.
-run_in_cgroup "$FLEET" bash -c \
-	"curl -s -o /dev/null --max-time 6 http://127.0.0.1:${PORT}/payload.bin" &
-HIST_TRAFFIC_PID=$!
-sleep 2
+# MID-TRAFFIC — and driven the way the sampling law demands: the
+# histogram records 1 sample per 2^10 packets per CPU (the schema
+# v34 constant), so the traffic must be thousands of REAL packets.
+# A 4 MB loopback download folds into ~64 GSO segments and books
+# nothing (the first run's honest absence); this leg streams
+# 24000 x 100B chunks over TCP_NODELAY — 24k wire packets through
+# the capped cgroup, the small-packet shape supermassive-verify's
+# proven phase drives across a veth pair. The depth read rides the
+# stream (night-verify-1's mid-traffic lesson), and the assertions
+# carry that phase's full depth: samples > 0, non-zero buckets,
+# the p50/p95/p99 quantiles.
+HIST_PORT=$((PORT + 1))
+python3 - "$HIST_PORT" <<'PYEOF' &
+import socket, sys
+srv = socket.socket()
+srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+srv.bind(("127.0.0.1", int(sys.argv[1])))
+srv.listen(1)
+conn, _ = srv.accept()
+conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+chunk = b"x" * 100
+for _ in range(24000):
+    conn.sendall(chunk)
+conn.close()
+srv.close()
+PYEOF
+HIST_SRV_PID=$!
+sleep 1
+run_in_cgroup "$FLEET" python3 - "$HIST_PORT" <<'PYEOF' &
+import socket, sys
+s = socket.create_connection(("127.0.0.1", int(sys.argv[1])), timeout=30)
+s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+got = 0
+while True:
+    data = s.recv(4096)
+    if not data:
+        break
+    got += len(data)
+s.close()
+PYEOF
+HIST_CLIENT_PID=$!
+sleep 3
 run bash -c "\"$BIN\" eagle-eyes cg:${CG} --depth --focus 2 --print-json"
-if [ "$RC" -eq 0 ]; then
-	HIST=$(json_field "int(any(e.get('histogram') is not None for e in doc.get('targets', [])))" <<<"$OUT" 2>/dev/null || echo 0)
-	if [ "$HIST" = "1" ]; then
-		row "json: the depth report carries the eBPF histogram lane, read mid-traffic (night-verify-1)" 0
-	else
-		row "json: the depth report carries the eBPF histogram lane, read mid-traffic (night-verify-1)" 1 "histogram absent under live enforcement traffic"
-	fi
+if [ "$RC" -eq 0 ] && python3 -c '
+import json, sys
+doc = json.loads(sys.stdin.read())
+targets = doc.get("targets", [])
+assert targets, "the depth report resolved the target"
+h = targets[0].get("histogram")
+assert h, f"the histogram block is absent: {doc}"
+assert h.get("sample_shift") == 10, h
+dl = h.get("download") or {}
+size = dl.get("size")
+assert size and size["samples"] > 0, f"no size samples recorded: {h}"
+nonzero = [c for c in size["buckets"] if c > 0]
+assert nonzero, f"the buckets are all zero: {size}"
+for q in ("p50", "p95", "p99"):
+    assert size.get(q), f"{q} missing from the size half: {size}"
+' <<<"$OUT"; then
+	row "json: the depth report carries the eBPF histogram lane, read mid-traffic (night-verify-1)" 0
 else
-	row "json: the depth report carries the eBPF histogram lane, read mid-traffic (night-verify-1)" 1 "rc=${RC}: $(head -c 120 <<<"$OUT")"
+	row "json: the depth report carries the eBPF histogram lane, read mid-traffic (night-verify-1)" 1 \
+		"rc=${RC}: $(head -c 200 <<<"$OUT")"
 fi
-kill "$HIST_TRAFFIC_PID" 2>/dev/null || true
+kill "$HIST_CLIENT_PID" "$HIST_SRV_PID" 2>/dev/null || true
 
 # 3c. The block: the flow dies.
 "$BIN" b "cg:${CG}" >/dev/null 2>&1
@@ -360,7 +406,8 @@ fi
 if [ "$DURING_SEEN" -eq 1 ] && [ "$AFTER" = "0" ]; then
 	row "critical: the --during window expires on its own clock" 0
 else
-	row "critical: the --during window expires on its own clock" 1 "window_seen=${DURING_SEEN} after=${AFTER}"
+	row "critical: the --during window expires on its own clock" 1 \
+		"window_seen=${DURING_SEEN} after=${AFTER} rc=${RC}: $(head -c 200 <<<"$OUT")"
 fi
 "$BIN" u --all >/dev/null 2>&1 || true
 
