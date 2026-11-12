@@ -145,6 +145,14 @@ binaries).
 - `Cargo.lock` moves with every dependency change, `--locked`
   everywhere; `deny.toml` is policy, not documentation — a denied
   advisory needs either a patch or an explicit policy amendment.
+- The **weekly dependency sweep walks every committed manifest**
+  (night-zen-1): the maintenance lane's refresh step runs
+  `cargo update` in every directory that carries a `Cargo.toml`
+  (root, `ebpf/`, `fuzz/` today; a new workspace joins the walk
+  without touching the workflow), the diff gate accepts any
+  repo-relative `Cargo.lock` path, and the commit job stages the
+  exact lockfile set the walk produced — the root-only sweep left
+  two of the three committed lockfiles out of every weekly refresh.
 - The pinned light tools that gate the repo locally (shellcheck,
   shfmt, yamllint, codespell, actionlint, ruff) re-pin via
   `scripts/gate-keepers.sh` — the wholesale run prints the pinned
@@ -221,8 +229,8 @@ a claim without a ledger entry is a bug in the docs.
 
 ## 7. Workspace hygiene
 
-Two incident classes that live in the workspace rather than the
-source — both recorded here with their fix so the next maintainer
+Three incident classes that live in the workspace rather than the
+source — each recorded here with its fix so the next maintainer
 recognizes them on sight instead of rediscovering them.
 
 ### The root-owned `__pycache__` class (fixed, night-dragon-maintenance-T1)
@@ -279,6 +287,48 @@ the tagged commit — the `crates-io.yml` workflow does, and the
 manual procedure in VERIFY_RELEASE.md does — never `cargo publish`
 from a plain source export, and never from a tree whose HEAD is not
 the tagged commit.
+
+### The in-tree artifact staging class (armed, night-zen-1)
+
+The field report is the sister project's, not this tree's
+(2026-11-12, the zejtron bot commit `9708883`): the weekly
+maintenance lane's commit job downloaded its validated lockfile
+artifact into an IN-TREE staging directory (`.auto-update/`), and
+the `git add ':(glob)**/Cargo.lock'` sweep matched the staged
+copies too — the bot commit landed three lockfiles at their
+staging paths (`.auto-update/Cargo.lock`,
+`.auto-update/ebpf/Cargo.lock`, `.auto-update/fuzz/Cargo.lock`) on
+top of the real ones, a 724-line diff of pure staging debris
+riding an otherwise-valid dependency sweep. The guard never saw it
+coming: `git diff --name-only` reads tracked paths only, and
+untracked staging files are invisible to it — the glob was the
+only thing that could reach them, and the glob reached everything.
+
+zelynic arms against the class where zejtron patched it, at the
+same three layers:
+
+1. the artifact lands OUTSIDE the work tree
+   (`${{ runner.temp }}/validated-cargo-lock`), so no staging copy
+   can ever exist at a tracked path;
+2. the commit job stages the EXACT lockfile set derived from the
+   manifest walk (each `Cargo.toml` path rewritten to its sibling
+   `Cargo.lock`) — never a glob, so nothing outside the walked set
+   can match;
+3. `.gitignore` ignores `.auto-update/`, so even a future edit
+   that moves the download back in-tree cannot track the staging
+   tree.
+
+The recovery for a checkout already carrying the leak is one
+command:
+
+```
+git rm -rq .auto-update
+```
+
+The rule going forward: a workflow that downloads an artifact
+before committing lands it under `RUNNER_TEMP`, never in-tree; and
+a `git add` in a bot lane stages an explicit path list, never a
+glob.
 
 ## 8. Cadence summary
 
