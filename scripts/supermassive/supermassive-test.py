@@ -2625,6 +2625,137 @@ def stage_server_zombie_sweep():
     return ok == "PASS"
 
 
+def stage_server_histogram():
+    """night-verify-1: the depth histogram's live proof — the leg
+    INNOVATIONS #17 claimed but never shipped (the hunt found zero
+    histogram references in any harness; the doc's "Phase 1.5 leg"
+    had no leg under it). This stage IS that leg, and the physics it
+    proves is the sampler's own law: enforce.rs ticks every packet
+    the cgroup-root hooks see and records every 1024th against the
+    socket's OWN cgroup BEFORE the policy lookup — recording is
+    policy-independent, so the leg needs no policy write at all.
+
+    The shape:
+      1. drive bulk loopback download through cgroup A (the
+         unlimited GSO path is the maximum-packet lane; samples are
+         ~= skbs/1024, and twelve seconds of loopback bulk is tens
+         of thousands of skbs on every profile this harness runs)
+      2. read `ee <A> --depth --json` headless — the report row's
+         histogram block answers under the schema version gate
+      3. assert: the block non-null (null here is the honest
+         absence, which would mean the sampler never fired),
+         sample_shift == 10 (HIST_SAMPLE_SHIFT, the wire contract),
+         the download size half non-null with samples ==
+         sum(buckets) > 0 and non-null quantiles — the userspace
+         mirror's own arithmetic, checked end to end on the row the
+         traffic filled
+
+    The upload and srtt halves ride loopback's request direction and
+    the RTT lane's harvest — physics the bulk stream does not
+    guarantee — so the verdict note names their sample counts instead
+    of asserting them. No teardown: no policy was applied and the LRU
+    row retires with the session."""
+    out()
+    out("━━━ server depth: histogram live proof (bulk traffic + depth JSON) ━━━")
+    a_id = CG.ids["a"]
+    got = py_download(12.0, name="a")
+    if got <= 0:
+        record(
+            "server: histogram live proof (bulk traffic + depth JSON)",
+            "FAIL",
+            "0 bytes moved — the sampler had no traffic to sample, so "
+            "every histogram verdict below would be garbage",
+        )
+        return False
+    rc, stdout, stderr = run_zel_headless(
+        ["eagle-eyes", str(a_id), "--depth", "--json"], timeout=60
+    )
+    if rc != 0:
+        record(
+            "server: histogram live proof (bulk traffic + depth JSON)",
+            "FAIL",
+            f"depth JSON exit {rc}: {(stderr or stdout).strip()[:200]}",
+        )
+        return False
+    try:
+        doc = json.loads(stdout or "")
+    except json.JSONDecodeError as exc:
+        record(
+            "server: histogram live proof (bulk traffic + depth JSON)",
+            "FAIL",
+            f"depth stdout is not one JSON doc ({exc}): {(stdout or '').strip()[:200]}",
+        )
+        return False
+    rows = [t for t in doc.get("targets", []) if t.get("cgroup_id") == a_id]
+    if not rows:
+        record(
+            "server: histogram live proof (bulk traffic + depth JSON)",
+            "FAIL",
+            f"the depth doc answered no row for cgroup {a_id} "
+            f"({len(doc.get('targets', []))} targets)",
+        )
+        return False
+    hist = rows[0].get("histogram")
+    if hist is None:
+        record(
+            "server: histogram live proof (bulk traffic + depth JSON)",
+            "FAIL",
+            f"histogram answered null after {got} bytes of bulk loopback "
+            "traffic (the honest absence held — the sampler never "
+            "recorded the traffic)",
+        )
+        return False
+    failures = []
+    shift = hist.get("sample_shift")
+    if shift != 10:
+        failures.append(f"sample_shift {shift!r} != 10 (HIST_SAMPLE_SHIFT)")
+    dl = hist.get("download")
+    dl_size = (dl or {}).get("size")
+    if dl_size is None:
+        failures.append(
+            "download.size answered null — the bulk download's own "
+            "direction recorded nothing"
+        )
+    else:
+        total = dl_size.get("samples", 0)
+        buckets = dl_size.get("buckets") or []
+        bucket_sum = sum(buckets)
+        if total <= 0 or bucket_sum <= 0:
+            failures.append(
+                f"download.size samples {total}, bucket sum {bucket_sum}"
+            )
+        elif total != bucket_sum:
+            failures.append(
+                f"samples {total} != bucket sum {bucket_sum} "
+                "(the mirror's arithmetic broke)"
+            )
+        elif dl_size.get("p50") is None or dl_size.get("p95") is None:
+            failures.append("quantiles answered null on a non-empty half")
+    dl_note = dl_size or {}
+    ul_size = ((hist.get("upload") or {}).get("size") or {})
+    dl_srtt = ((dl or {}).get("srtt") or {})
+    note = (
+        f"traffic {got} bytes; download size samples "
+        f"{dl_note.get('samples', 0)}, p95 {dl_note.get('p95')}; "
+        f"download srtt samples {dl_srtt.get('samples', 0)}; "
+        f"upload size samples {ul_size.get('samples', 0)} "
+        "(named, not asserted — loopback physics)"
+    )
+    if failures:
+        record(
+            "server: histogram live proof (bulk traffic + depth JSON)",
+            "FAIL",
+            "; ".join(failures) + f" — {note}",
+        )
+        return False
+    record(
+        "server: histogram live proof (bulk traffic + depth JSON)",
+        "PASS",
+        note,
+    )
+    return True
+
+
 def run_server_phase():
     """NIGHT-blade-4: the server depth phase — headless env, dense
     population, daemonized traffic, concurrent readers, orderly
@@ -2665,6 +2796,11 @@ def run_server_phase():
     # and the sweep under proof retires its own policy before this
     # stage's own teardown runs.
     stage_server_zombie_sweep()
+    # night-verify-1: the histogram leg rides LAST — the zombie
+    # sweep's `u --all` teardown leaves the clean slate the depth
+    # read wants, and the leg itself applies no policy (the sampler
+    # records pre-policy; see the stage's doc).
+    stage_server_histogram()
     failed = [r for r in RESULTS if r["test"].startswith("server:") and r["verdict"] == "FAIL"]
     if failed:
         out()

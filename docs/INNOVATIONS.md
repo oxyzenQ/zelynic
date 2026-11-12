@@ -385,8 +385,15 @@ in `ee --depth`, and the JSON block carries the full arrays so a
 frontend recomputes what it wants. Rootless pins: the kernel's own
 `hist.rs` compiles into the test tree (`test/ebpf/limiter/hist_tests.rs`
 and `hist_raw_tests.rs`, the render pins in `depth_json_tests.rs`);
-CI proof: the supermassive lane's Phase 1.5 leg (limit, traffic,
-assert non-zero buckets).
+CI proof: the supermassive server phase's histogram leg
+(night-verify-1) — bulk loopback traffic through cgroup A, then
+`ee --depth --json` asserted: `sample_shift` pinned at 10, the
+download size half non-null with samples == sum(buckets) > 0 and
+non-null quantiles. The leg needs no policy write — the sampler
+records pre-policy (enforce.rs ticks every packet the cgroup-root
+hooks see and keys the socket's own cgroup), so the unlimited
+stream records; the upload and srtt halves stay named-not-asserted
+(loopback does not guarantee them).
 
 ## The Quota Saver — the Workload-Conditional Claim
 
