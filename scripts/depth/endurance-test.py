@@ -193,9 +193,9 @@ PIN_FAMILY = {
     # histogram): the two per-cgroup distribution LRU rows keyed at
     # the leaf, the per-CPU sampler tick, and the zero-row template
     # the sampled write clones. Names verified against pin.rs
-    # (PIN_MAP_DEPTH_HIST_DL/UL) and the loader's pinned statics
-    # (limiter.rs: depth_hist_dl, depth_hist_ul, hist_sample_tick,
-    # hist_zero_row).
+    # (PIN_MAP_DEPTH_HIST_DL/UL) and the loader's pinned object
+    # declarations (limiter.rs: depth_hist_dl, depth_hist_ul,
+    # hist_sample_tick, hist_zero_row).
     "depth_hist_dl",
     "depth_hist_ul",
     "hist_sample_tick",

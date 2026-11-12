@@ -2712,28 +2712,22 @@ def stage_server_histogram():
     dl = hist.get("download")
     dl_size = (dl or {}).get("size")
     if dl_size is None:
-        failures.append(
-            "download.size answered null — the bulk download's own "
-            "direction recorded nothing"
-        )
+        failures.append("download.size answered null — the bulk download's own direction recorded nothing")
     else:
         total = dl_size.get("samples", 0)
         buckets = dl_size.get("buckets") or []
         bucket_sum = sum(buckets)
         if total <= 0 or bucket_sum <= 0:
-            failures.append(
-                f"download.size samples {total}, bucket sum {bucket_sum}"
-            )
+            failures.append(f"download.size samples {total}, bucket sum {bucket_sum}")
         elif total != bucket_sum:
             failures.append(
-                f"samples {total} != bucket sum {bucket_sum} "
-                "(the mirror's arithmetic broke)"
+                f"samples {total} != bucket sum {bucket_sum} (the mirror's arithmetic broke)"
             )
         elif dl_size.get("p50") is None or dl_size.get("p95") is None:
             failures.append("quantiles answered null on a non-empty half")
     dl_note = dl_size or {}
-    ul_size = ((hist.get("upload") or {}).get("size") or {})
-    dl_srtt = ((dl or {}).get("srtt") or {})
+    ul_size = (hist.get("upload") or {}).get("size") or {}
+    dl_srtt = (dl or {}).get("srtt") or {}
     note = (
         f"traffic {got} bytes; download size samples "
         f"{dl_note.get('samples', 0)}, p95 {dl_note.get('p95')}; "
