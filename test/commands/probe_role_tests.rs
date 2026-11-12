@@ -118,3 +118,27 @@ fn a_root_row_in_either_direction_marks_the_id_policed() {
     // Empty maps are clean, not "unknown".
     assert!(!cgroup_id_is_policed(root, &[], &[]));
 }
+
+/// night-frontier hardening: the metric line's EOF shape is its own
+/// honest failure — a dead role never parses as a malformed line with
+/// an empty payload (the live session's bare "malformed protocol
+/// line:" note); real garbage keeps the malformed verdict with its
+/// payload, so a parse verdict only ever names a line that existed.
+#[test]
+fn metric_line_eof_is_its_own_failure_not_a_parse_verdict() {
+    let mut dead = std::io::Cursor::new("");
+    let err = read_metric_line_from(&mut dead, "PROBE-BYTES").unwrap_err();
+    let text = err.to_string();
+    assert!(
+        text.contains("exited before printing its PROBE-BYTES line") && text.contains("EOF"),
+        "the EOF lane must name the dead role, got: {text}"
+    );
+    let mut garbage = std::io::Cursor::new("junk line\n");
+    let err = read_metric_line_from(&mut garbage, "PROBE-BYTES").unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("malformed protocol line: junk line"),
+        "real garbage keeps the malformed verdict with its payload, got: {}",
+        err.to_string()
+    );
+}
