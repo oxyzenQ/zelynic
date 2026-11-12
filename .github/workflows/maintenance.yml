@@ -228,6 +228,18 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          # The parity verdict digests with the PINNED b3sum — the
+          # writer's own constant is the one source (read here, never
+          # duplicated), and a matching binary skips the build
+          # (idempotent, the bootstrap's exact install line). The
+          # writer's gate refuses to answer without it, and the first
+          # dispatched no-op run proved the refusal real.
+          B3SUM_PIN="$(sed -n 's/^B3SUM_VERSION="\(.*\)"$/\1/p' \
+            scripts/release/refresh-prebuilt.sh)"
+          if ! b3sum --version 2> /dev/null | grep -q "$B3SUM_PIN"; then
+            echo "installing the pinned digest tool (b3sum ${B3SUM_PIN})..."
+            cargo install b3sum --version "$B3SUM_PIN" --locked
+          fi
           if ! bash scripts/release/refresh-prebuilt.sh --check; then
             echo "the ebpf/ tree moved — the one writer refreshes the prebuilt lane"
             bash scripts/release/refresh-prebuilt.sh
