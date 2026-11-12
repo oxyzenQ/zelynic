@@ -2635,23 +2635,27 @@ def stage_server_histogram():
     socket's OWN cgroup BEFORE the policy lookup — recording is
     policy-independent, so the leg needs no policy write at all.
 
-    The shape (the first CI run taught the order: the leg runs after
-    the zombie sweep's `u --all`, and NIGHT-hunt-20's
-    unpin-if-no-policies law leaves the pin skeleton REMOVED there —
-    a depth read in that state answers without a session to read, so
-    the leg builds its own session FIRST and tears it down after):
+    The shape (three live CI iterations taught the order):
       1. apply `strict <A> 1tb` — a ceiling loopback physics cannot
          touch, so the traffic below stays the unlimited
          maximum-packet lane, but the full pin skeleton (programs,
          links, maps) is alive for BOTH the traffic and the read
-      2. drive bulk loopback download through cgroup A (samples are
-         ~= skbs/1024, and twelve seconds of loopback bulk is tens
-         of thousands of skbs on every profile this harness runs)
-      3. read `ee <A> --depth --print-json` headless — the report
-         row's histogram block answers under the schema version gate
-      4. tear the leg's own policy down (`u <A>`, best-effort) BEFORE
-         the verdict records — the slate ends as the leg found it
-      5. assert: the block non-null (null here is the honest
+         (iteration 2: after the zombie sweep's `u --all`,
+         NIGHT-hunt-20's unpin-if-no-policies law leaves no session
+         to read)
+      2. drive bulk loopback download through cgroup A on a WORKER
+         THREAD and read the depth report MID-TRAFFIC (iteration 3:
+         the depth command's liveness gate refuses a cgroup whose
+         members are gone — "No live cgroup matches" — and a
+         finished worker leaves cgroup A empty; the worker thread is
+         the subject's live member, and the report's 3s focus window
+         measures the real moving traffic). Samples are
+         ~= skbs/1024, and seconds of loopback bulk are tens of
+         thousands of skbs on every profile this harness runs
+      3. join the worker, then tear the leg's own policy down
+         (`u <A>`, best-effort) BEFORE the verdict records — the
+         slate ends as the leg found it
+      4. assert: the block non-null (null here is the honest
          absence, which would mean the sampler never fired),
          sample_shift == 10 (HIST_SAMPLE_SHIFT, the wire contract),
          the download size half non-null with samples ==
@@ -2680,16 +2684,29 @@ def stage_server_histogram():
             f"session apply (strict 1tb) failed: exit {rc}, {(se or so).strip()[:200]}",
         )
         return False
-    # Step 2: the traffic.
-    got = py_download(12.0, name="a")
-    # Step 3: the read (the session is alive; stdout carries the JSON
-    # document — and, in print-json mode, the error verdict too).
+    # Step 2: the traffic on a worker thread — the worker IS cgroup
+    # A's live member while the depth read runs (the liveness gate:
+    # a finished worker leaves the cgroup empty and the report
+    # refuses it — iteration 3's lesson).
+    traffic = {"bytes": 0}
+
+    def _drive_bulk():
+        traffic["bytes"] = py_download(12.0, name="a")
+
+    worker = threading.Thread(target=_drive_bulk, daemon=True)
+    worker.start()
+    time.sleep(2.0)  # the worker settles inside A; the sampler accrues
+    # Step 3: the read, MID-TRAFFIC (the session is alive; stdout
+    # carries the JSON document — and, in print-json mode, the error
+    # verdict too).
     rc, stdout, stderr = run_zel_headless(
         ["eagle-eyes", f"cg:{a_id}", "--depth", "--print-json"], timeout=60
     )
+    worker.join(timeout=30)
     # Step 4: the leg's own teardown, best-effort, before the
     # verdict — the slate ends as the leg found it.
     run_zel(["u", str(a_id)], timeout=30)
+    got = traffic["bytes"]
     if got <= 0:
         record(
             "server: histogram live proof (bulk traffic + depth JSON)",
