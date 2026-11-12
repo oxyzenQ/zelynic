@@ -81,3 +81,49 @@ fn chain_parts_without_a_tip_stay_empty() {
     assert_eq!(error, "cgroup v2 not found at /sys/fs/cgroup");
     assert_eq!(tip, "");
 }
+
+/// night-total-hardening-1 (the owner's "leaks bug"): a value-taking
+/// flag with NO value renders the SAME sentence the prose lane
+/// renders — "a value is required ... but none was supplied" — never
+/// the machine-facing lie "invalid value ''" (the user omitted the
+/// value; they did not pass an empty string). Both eagle-eyes flags
+/// the live run leaked are pinned.
+#[test]
+fn valueless_flag_says_value_required_not_invalid_empty() {
+    let (message, _tip) = parts_of(&[
+        "zelynic",
+        "eagle-eyes",
+        "cg:8891",
+        "--print-json",
+        "--focus",
+    ]);
+    assert_eq!(
+        message, "a value is required for '--focus <SECONDS>' but none was supplied",
+        "the empty-value shape must match clap's prose verdict, got: '{message}'"
+    );
+    let (message, _tip) = parts_of(&[
+        "zelynic",
+        "eagle-eyes",
+        "cg:8891",
+        "--print-json",
+        "--interval",
+    ]);
+    assert_eq!(
+        message, "a value is required for '--interval <INTERVAL>' but none was supplied",
+        "the interval twin must match too, got: '{message}'"
+    );
+}
+
+/// A REAL invalid value keeps its own verdict — the empty-value
+/// special case must never swallow genuine value errors. The hidden
+/// probe-server's `port: u16` is the CLI's one typed positional: a
+/// number past u16 is a genuine clap value error with a non-empty
+/// value context.
+#[test]
+fn a_real_invalid_value_keeps_its_verdict() {
+    let (message, _tip) = parts_of(&["zelynic", "__probe-server", "99999999", "dl"]);
+    assert!(
+        message.starts_with("invalid value '99999999' for"),
+        "a genuine bad value keeps the invalid-value verdict, got: '{message}'"
+    );
+}

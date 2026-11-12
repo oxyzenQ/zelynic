@@ -161,6 +161,18 @@ fn message_for_kind(e: &clap::Error) -> String {
                 _ => None,
             };
             match (invalid_arg(), value) {
+                // night-total-hardening-1 (the owner's "leaks bug"):
+                // a value-taking flag with NO value is clap's empty-
+                // value shape — the prose render says "a value is
+                // required ... but none was supplied", and the JSON
+                // surface said "invalid value ''" instead (a
+                // machine-facing lie about what the user typed: they
+                // omitted the value, they did not pass an empty
+                // string). The contract renders the same verdict the
+                // prose lane renders, byte-for-clap.
+                (Some(arg), Some(val)) if val.is_empty() => {
+                    format!("a value is required for '{arg}' but none was supplied")
+                }
                 (Some(arg), Some(val)) => format!("invalid value '{val}' for '{arg}'"),
                 _ => e.kind().as_str().unwrap_or("invalid value").to_string(),
             }
