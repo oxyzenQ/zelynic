@@ -427,7 +427,7 @@ jobs:
         run: |
           set -euo pipefail
           cd /tmp/kfloor
-          if ! grep -q $'^FORENSIC-VERDICT: PASS\r?$' vm.log; then
+          if ! grep -qE $'^FORENSIC-VERDICT: PASS\r?$' vm.log; then
             echo "FAIL: the FORENSIC-VERDICT: PASS sentinel is absent - the simulation did not complete green."
             echo "Full verdict rows:"
             grep -E '^FORENSIC-(RESULT|VERDICT)' vm.log || echo "(no FORENSIC rows at all - boot or payload failure)"
