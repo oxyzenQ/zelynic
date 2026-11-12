@@ -37,6 +37,32 @@ v80.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The depth histogram: the distribution surfaces in `ee --depth`
+  (night-frontier-2B, schema v34).** Two additive LRU maps
+  (`depth_hist_dl`/`depth_hist_ul`), one row per cgroup per
+  direction keyed at the LEAF (the target the report names), each a
+  512-byte pair of 32-bucket log2 halves — packet size in bytes,
+  TCP srtt in microseconds. Recording rides a per-CPU sampler
+  (1-in-1024 per CPU: the unlimited majority pays one per-CPU tick,
+  the sampled packet the row — the NIGHT-lts-2 law's measured
+  frontier-2B amendment, the A/B harness's live leg) and the srtt
+  half fills only from the RTT lane's own harvest (the read-only
+  sk-storage peek — no new helper, no CO-RE, the sock_ops uapi
+  chain the v31/v33 entries pin). `ee --depth` renders one
+  histogram line per direction with samples — bucket-bounded
+  p50/p95/p99 (the lower bound of the first bucket whose cumulative
+  count reaches the quantile; the value lives in [2^b, 2^(b+1)),
+  the log2 resolution the ≥ prefix admits) — and the JSON document
+  carries the block (null while absent): sample_shift, the full
+  bucket arrays, the quantiles. The quantile math and the bucket
+  law carry rootless pins both sides (the kernel's own hist.rs
+  compiles into the test tree); the supermassive-verify lane gains
+  the live leg (limit, traffic, assert non-zero buckets). Schema
+  v33 -> v34: the existing rows are byte-identical, the reload is
+  the standard once-per-upgrade contract.
+
 ### Changed
 
 - The userspace loader rides aya 0.16 with its parser twin aya-obj
