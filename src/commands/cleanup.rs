@@ -98,7 +98,10 @@ fn handle_unstrict_single(target_str: &str) -> Result<()> {
     }
 
     let mut limiter = crate::ebpf::limiter::Limiter::open_pinned()?;
-    let removed = remove_limits(&mut limiter, &[target_str])?;
+    // night-total-hardening-1: the single lane keeps its usize — the
+    // no-limits accounting is the multi lane's tail (a single target
+    // that removes nothing already owns its own hard error below).
+    let (removed, _) = remove_limits(&mut limiter, &[target_str])?;
 
     if removed > 0 {
         eprintln_safe!(
@@ -185,19 +188,37 @@ fn handle_unstrict_multi(targets_str: &str) -> Result<()> {
     }
 
     let mut limiter = crate::ebpf::limiter::Limiter::open_pinned()?;
-    let removed = remove_limits(&mut limiter, &targets)?;
+    let (removed, no_limits) = remove_limits(&mut limiter, &targets)?;
 
+    // night-total-hardening-1: the honest tail. The old success
+    // line claimed the WHOLE list ("across 7 targets") while the
+    // members with nothing to remove were silently skipped inside
+    // it — the owner's `u zylaxion::...::noexist` find. Two fixes
+    // ride together: the "across N" count now names the targets
+    // that actually had limits removed, and a grey tail names every
+    // member that had none, so a typo can never hide inside a green
+    // removal (removal stays safe-direction: what matched is
+    // removed, what did not is NAMED, never silently dropped).
+    let matched = targets.len() - no_limits.len();
     if removed > 0 {
         eprintln_safe!(
             "{}",
             crate::output::ok(&format!(
-                "Removed {removed} {} across {} target{} from '{}'",
+                "Removed {removed} {} across {matched} target{} from '{targets_str}'",
                 if removed == 1 { "policy" } else { "policies" },
-                targets.len(),
-                if targets.len() == 1 { "" } else { "s" },
-                targets_str
+                if matched == 1 { "" } else { "s" },
             ))
         );
+        if !no_limits.is_empty() {
+            let names: Vec<String> = no_limits.iter().map(|l| format!("'{l}'")).collect();
+            eprintln_safe!(
+                "{}",
+                crate::output::grey(&format!(
+                    "no active limits for {} — a typo, or already removed ('zelynic status' lists what is)",
+                    names.join(", ")
+                ))
+            );
+        }
     }
 
     // Same honesty tip as handle_unstrict (hunt-10/20): leftovers
@@ -238,11 +259,12 @@ fn handle_unstrict_multi(targets_str: &str) -> Result<()> {
 
 /// Shared removal core for the unstrict family: resolve the target
 /// list and delete its policies. Returns the number of POLICIES
-/// removed (dl + ul counted separately) — the same unit the
-/// strict single lane reports in "(N policies, active in background)", so apply and remove
-/// sides of the CLI now count identically (NIGHT-hunt-10: the old
-/// per-cgroup counting here printed "Removed 1 limit" while strict
-/// had said "4 policies" for the same state).
+/// removed (dl + ul counted separately) plus the labels of targets
+/// whose removal found nothing — the same unit the strict single
+/// lane reports in "(N policies, active in background)", so apply
+/// and remove sides of the CLI now count identically (NIGHT-hunt-10:
+/// the old per-cgroup counting here printed "Removed 1 limit" while
+/// strict had said "4 policies" for the same state).
 ///
 /// NIGHT-hunt-29: the whole list resolves in ONE /proc walk and
 /// removes per target (`Limiter::unstrict_multi`, the walker
@@ -252,7 +274,10 @@ fn handle_unstrict_multi(targets_str: &str) -> Result<()> {
 /// semantics, per-target removal cadence, and every output line
 /// are the loop's own, verbatim.
 #[cfg(feature = "ebpf")]
-fn remove_limits(limiter: &mut crate::ebpf::limiter::Limiter, targets: &[&str]) -> Result<usize> {
+fn remove_limits(
+    limiter: &mut crate::ebpf::limiter::Limiter,
+    targets: &[&str],
+) -> Result<(usize, Vec<String>)> {
     use crate::ebpf::limiter::Target;
 
     let parsed: Vec<Target> = targets.iter().map(|s| Target::parse(s)).collect();
