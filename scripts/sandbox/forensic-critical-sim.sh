@@ -217,9 +217,14 @@ else
 fi
 
 # The root catch-all warns ONCE (the owner's duplicate-warning find)
-# and the verbose [host-caps] trace renders INTACT behind it (the
-# 'ost-caps]' byte find) — forced color so the captured bytes carry
-# every escape the terminal would see.
+# and the verbose [host-caps] trace renders INTACT behind it —
+# forced color so the captured stderr bytes carry every escape the
+# terminal would see, and the count check is byte-level, not
+# display-level. (Forensic note, night-total-hardening-1: the
+# session's "ost-caps]" scare was an agent-side display artifact —
+# a tool layer eating the literal two bytes "[h" from grep/sed/cat
+# views; od -c proved every file, test, and log byte-correct. The
+# lesson rides here so the next audit checks bytes, not views.)
 ERRCAP="${TMP}/root-warn-stderr.bin"
 "$BIN" s 1 1mb --no-test -v --force-this --color-mode 24 2>"$ERRCAP" >/dev/null
 ROOT_RC=$?
@@ -254,41 +259,42 @@ row "json: doctor parses" "$RC"
 run bash -c "\"$BIN\" eagle-eyes cg:${CG} --depth --focus 2 --print-json | python3 -m json.tool >/dev/null"
 row "json: eagle-eyes --depth parses (live workload target)" "$RC"
 
-# The depth document carries the histogram lane (night-verify-1's
-# eBPF histogram, schema v34) when enforcement is live and sampled.
-"$BIN" s "cg:${CG}" 200kb --no-test >/dev/null 2>&1
-# generate traffic so the histogram books samples
-speed_of "$FLEET" >/dev/null 2>&1 || true
-run bash -c "\"$BIN\" eagle-eyes cg:${CG} --depth --focus 2 --print-json"
-if [ "$RC" -eq 0 ]; then
-	HIST=$(json_field "int(any(e.get('histogram') is not None for e in doc.get('targets', [])))" <<<"$OUT" 2>/dev/null || echo 0)
-	if [ "$HIST" = "1" ]; then
-		row "json: the depth report carries the eBPF histogram lane (night-verify-1)" 0
-	else
-		row "json: the depth report carries the eBPF histogram lane (night-verify-1)" 1 "histogram absent under enforcement"
-	fi
-else
-	row "json: the depth report carries the eBPF histogram lane (night-verify-1)" 1 "rc=${RC}"
-fi
-"$BIN" u "cg:${CG}" >/dev/null 2>&1 || true
+# (The histogram lane check moved into section 3: it rides
+# MID-TRAFFIC reads, night-verify-1's lesson — a read against a
+# quiet cgroup is the honest absence, not a bug.)
 
 # ── section 3: the critical-usage simulation, measured ─────────────────
 
 # The workload server: an unlimited loopback origin.
 mkdir -p "${TMP}/srv"
-dd if=/dev/zero of="${TMP}/srv/payload.bin" bs=1M count=64 status=none
+dd if=/dev/zero of="${TMP}/srv/payload.bin" bs=1M count=4 status=none
 (cd "${TMP}/srv" && python3 -m http.server "$PORT" --bind 127.0.0.1 >/dev/null 2>&1) &
 HTTP_PID=$!
 sleep 1
 
 # 3a. The unlimited baseline (the honest denominator).
+# Wait for the workload server to ANSWER before measuring anything
+# (the TCG boot's python http.server can take seconds to bind; a
+# baseline measured against a dead port is 0/s and every later
+# ratio lies).
+SRV_READY=1
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+	if run_in_cgroup "$FLEET" curl -s -o /dev/null --max-time 4 \
+		"http://127.0.0.1:${PORT}/payload.bin"; then
+		SRV_READY=0
+		break
+	fi
+	sleep 1
+done
+row "critical: the workload server answers (the honest denominator)" "$SRV_READY"
+
 BASE="$(speed_of "$FLEET")"
-BASE_OK=$(python3 -c "print(1 if ${BASE:-0} > 400000 else 0)" 2>/dev/null || echo 0)
+BASE_OK=$(python3 -c "print(0 if ${BASE:-0} > 400000 else 1)" 2>/dev/null || echo 1)
 row "critical: unlimited baseline measured ($(python3 -c "print(f'${BASE:-0:.0f}/s')" 2>/dev/null || echo '?') B/s)" "$BASE_OK"
 
 # 3b. The cap: apply 200kb, then measure the SAME download.
 "$BIN" s "cg:${CG}" 200kb --no-test >/dev/null 2>&1
-CAPPED="$(speed_of "$FLEET")"
+CAPPED="$(run_in_cgroup "$FLEET" curl -s -o /dev/null -w '%{speed_download}' --max-time 8 "http://127.0.0.1:${PORT}/payload.bin")"
 VERDICT=$(python3 -c "
 base = ${BASE:-0}
 capped = ${CAPPED:-0}
@@ -296,10 +302,30 @@ cap = 200000
 # The honest bounds: the capped run must sit well under the baseline
 # (enforcement, not noise) and inside a generous band around the cap
 # (the token bucket's burst tolerance plus measurement slack).
-ok = 1 if (base > 0 and capped < base * 0.5 and capped < cap * 2.5) else 0
-print(ok)
-" 2>/dev/null || echo 0)
+print(0 if (base > 400000 and capped < base * 0.5 and capped < cap * 2.5) else 1)
+" 2>/dev/null || echo 1)
 row "critical: the 200kb cap holds ($(python3 -c "print(f'${CAPPED:-0:.0f}/s')" 2>/dev/null || echo '?') B/s vs baseline)" "$VERDICT"
+
+# 3b-second. The depth report's eBPF histogram lane, read
+# MID-TRAFFIC (night-verify-1's lesson: the histogram books samples
+# only while packets move under the policy). The capped download
+# drives the traffic; the depth read rides it.
+run_in_cgroup "$FLEET" bash -c \
+	"curl -s -o /dev/null --max-time 6 http://127.0.0.1:${PORT}/payload.bin" &
+HIST_TRAFFIC_PID=$!
+sleep 2
+run bash -c "\"$BIN\" eagle-eyes cg:${CG} --depth --focus 2 --print-json"
+if [ "$RC" -eq 0 ]; then
+	HIST=$(json_field "int(any(e.get('histogram') is not None for e in doc.get('targets', [])))" <<<"$OUT" 2>/dev/null || echo 0)
+	if [ "$HIST" = "1" ]; then
+		row "json: the depth report carries the eBPF histogram lane, read mid-traffic (night-verify-1)" 0
+	else
+		row "json: the depth report carries the eBPF histogram lane, read mid-traffic (night-verify-1)" 1 "histogram absent under live enforcement traffic"
+	fi
+else
+	row "json: the depth report carries the eBPF histogram lane, read mid-traffic (night-verify-1)" 1 "rc=${RC}: $(head -c 120 <<<"$OUT")"
+fi
+kill "$HIST_TRAFFIC_PID" 2>/dev/null || true
 
 # 3c. The block: the flow dies.
 "$BIN" b "cg:${CG}" >/dev/null 2>&1
@@ -309,14 +335,14 @@ BLOCKED="$(run_in_cgroup "$FLEET" \
 BLOCK_OK=$(python3 -c "
 out = '''${BLOCKED}'''.strip()
 size = out.split()[-1] if out else '0'
-print(1 if out in ('000', '') or size == '0' else 0)
-" 2>/dev/null || echo 0)
+print(0 if out in ('000', '') or size == '0' else 1)
+" 2>/dev/null || echo 1)
 row "critical: the block kills the flow (curl verdict: '${BLOCKED:-none}')" "$BLOCK_OK"
 
 # 3d. The recovery: unstrict, then the flow returns.
 "$BIN" u "cg:${CG}" >/dev/null 2>&1
-RECOVERED="$(speed_of "$FLEET")"
-RECOVER_OK=$(python3 -c "print(1 if ${RECOVERED:-0} > ${BASE:-1} * 0.5 else 0)" 2>/dev/null || echo 0)
+RECOVERED="$(run_in_cgroup "$FLEET" curl -s -o /dev/null -w '%{speed_download}' --max-time 12 "http://127.0.0.1:${PORT}/payload.bin")"
+RECOVER_OK=$(python3 -c "print(0 if ${RECOVERED:-0} > ${BASE:-1} * 0.5 else 1)" 2>/dev/null || echo 1)
 row "critical: unstrict restores the flow ($(python3 -c "print(f'${RECOVERED:-0:.0f}/s')" 2>/dev/null || echo '?') B/s)" "$RECOVER_OK"
 
 # 3e. The --during window: applies, reports its clock, expires on it.
@@ -415,6 +441,15 @@ if [ $? -eq 0 ]; then
 else
 	row "monitor: the focus view lives on a real PTY until q (the blank-exit pin)" 1 "driver said: ${DRIVER_OUT:-<no verdict>}"
 fi
+# The NAME-target focus view — the exact shape of the owner's
+# blank-exit find (`ee brave`: a name resolving through the /proc
+# walk, not a direct id).
+DRIVER_OUT="$(tui_driver 4 "$BIN" eagle-eyes sleep --interval 1 2>&1)"
+if [ $? -eq 0 ]; then
+	row "monitor: the name-target view lives on a real PTY until q (the ee <name> pin)" 0
+else
+	row "monitor: the name-target view lives on a real PTY until q (the ee <name> pin)" 1 "driver said: ${DRIVER_OUT:-<no verdict>}"
+fi
 # The no-target leaderboard.
 DRIVER_OUT="$(tui_driver 4 "$BIN" eagle-eyes --interval 1 2>&1)"
 if [ $? -eq 0 ]; then
@@ -426,11 +461,13 @@ kill "$TRAFFIC_PID" 2>/dev/null || true
 
 # The interactive-stdio gate: a piped stdout must refuse loudly
 # (never the silent pipe session).
-run bash -c "\"$BIN\" eagle-eyes cg:${CG} --interval 1 | cat"
-if [ "$RC" -ne 0 ] && grep -qi "interactive\|pipe\|tty" <<<"$OUT" && ! grep -q "panicked" <<<"$OUT"; then
-	row "monitor: a piped stdout refuses loudly (the interactive gate)" 0
+GATE_OUT="${TMP}/gate-out.txt"
+"$BIN" eagle-eyes "cg:${CG}" --interval 1 >"$GATE_OUT" 2>"${TMP}/gate-err.txt"
+GATE_RC=$?
+if [ "$GATE_RC" -ne 0 ] && grep -qi "interactive\|pipe\|tty" "$GATE_OUT" "${TMP}/gate-err.txt" && ! grep -q "panicked" "$GATE_OUT" "${TMP}/gate-err.txt"; then
+	row "monitor: a redirected stdout refuses loudly (the interactive gate)" 0
 else
-	row "monitor: a piped stdout refuses loudly (the interactive gate)" 1 "rc=${RC}: $(head -c 160 <<<"$OUT")"
+	row "monitor: a redirected stdout refuses loudly (the interactive gate)" 1 "rc=${GATE_RC}: $(head -c 160 "$GATE_OUT" 2>/dev/null)$(head -c 80 "${TMP}/gate-err.txt" 2>/dev/null)"
 fi
 
 # ── section 5: the non-root lane (the unprivileged contract) ────────────
@@ -447,12 +484,12 @@ if [ "$NONROOT_FAIL" -eq 0 ]; then
 else
 	row "nonroot: every mutation verb refuses uid 65534 cleanly" 1 "a verb exited 0 unprivileged"
 fi
-# shellcheck disable=SC2086
-run_unprivileged "$BIN" s sleep 100kb --no-test
-if [ "$RC" -ne 0 ] && grep -q "root required" <<<"$OUT"; then
+OUT_UNPRIV="$(run_unprivileged "$BIN" s sleep 100kb --no-test 2>&1)"
+RC_UNPRIV=$?
+if [ "$RC_UNPRIV" -ne 0 ] && grep -q "root required" <<<"$OUT_UNPRIV"; then
 	row "nonroot: the refusal names the privilege ask" 0
 else
-	row "nonroot: the refusal names the privilege ask" 1 "rc=${RC}: $(head -c 160 <<<"$OUT")"
+	row "nonroot: the refusal names the privilege ask" 1 "rc=${RC_UNPRIV}: $(head -c 160 <<<"$OUT_UNPRIV")"
 fi
 
 # ── teardown and verdict ────────────────────────────────────────────────
