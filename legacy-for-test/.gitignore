@@ -1,0 +1,14 @@
+# The vendored tarball's own payload, laid down by a manual
+# verify-then-run session in this directory:
+#
+#   sha512sum -c *.sha512sum && b3sum -c *.b3sum && tar xzf *.gz
+#
+# The extracted release README, the release LICENSE and the 2.2M
+# static binary are disposable products — never commit them. The
+# tracked pair is only the tarball plus its two sidecars; this
+# directory's own doc rides the VENDOR.md name for exactly that
+# reason (the tarball's README would clobber a tracked README.md on
+# every extraction).
+/README.md
+/LICENSE
+/zelynic
