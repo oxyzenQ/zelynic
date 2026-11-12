@@ -135,10 +135,9 @@ fn metric_line_eof_is_its_own_failure_not_a_parse_verdict() {
     );
     let mut garbage = std::io::Cursor::new("junk line\n");
     let err = read_metric_line_from(&mut garbage, "PROBE-BYTES").unwrap_err();
+    let text = err.to_string();
     assert!(
-        err.to_string()
-            .contains("malformed protocol line: junk line"),
-        "real garbage keeps the malformed verdict with its payload, got: {}",
-        err.to_string()
+        text.contains("malformed protocol line: junk line"),
+        "real garbage keeps the malformed verdict with its payload, got: {text}"
     );
 }
