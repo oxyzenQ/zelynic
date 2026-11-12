@@ -708,14 +708,33 @@ jobs:
       # deterministic. blade-11 added the depth-1 sparse checkout
       # below — a cone over scripts/release only, for the one generator
       # script the body render calls; still zero bytes of history.
+      #
+      # The v80.2.0 frontier SEAT (the sparse-cone incident): the DNS
+      # hardening sweep (c4b274e) wired the harden-dns composite into
+      # this job, but the runner resolves a local
+      # `uses: ./.github/actions/...` against the checked-out
+      # WORKSPACE, not the repository — and the scripts/release-only
+      # cone never materialized .github/actions/harden-dns, so
+      # "Create GitHub Release" died at step resolution in 5s with
+      # "Can't find 'action.yml' ... Did you forget to run
+      # actions/checkout" (the tag's own tree HAS the file; the cone
+      # hid it). The cone now carries the composite's directory beside
+      # the generator — still depth 1, still zero bytes of history.
+      # The class has exactly one member: a whole-estate audit found
+      # this cone as the only sparse-checkout in all fourteen
+      # workflows, and every other harden-dns consumer rides a full
+      # checkout. Main-push CI could never catch it — the release lane
+      # only runs on tag push.
       - name: Checkout release tooling (sparse, depth 1)
         # The checkout must precede Download artifacts — see the
         # NIGHT-dinner-3 step-order note above. Same action pin as the
-        # build job; cone over the one directory this job reads.
+        # build job; cone over the only paths this job reads (the body
+        # generator, the harden-dns composite).
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
         with:
           fetch-depth: 1
           sparse-checkout: |
+            .github/actions/harden-dns
             scripts/release
           # GITHUB_TOKEN hardening: never persists into .git/config.
           persist-credentials: false
