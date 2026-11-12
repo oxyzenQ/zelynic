@@ -212,6 +212,26 @@ pub(crate) fn validate_single_target(target_str: &str, example: &str) -> Result<
              Example: {example}"
         ));
     }
+    // night-total-hardening-1 (the owner's safety call, the numeric
+    // class): an all-digit target beyond the 32-bit id space can
+    // never name a cgroup — the maps key on the kernel's u32 kernfs
+    // inode numbers — and the old path let it flow as a ProcessName
+    // into a guaranteed no-match whose only answer was the /proc
+    // walk's silence. The refusal names the bound instead, for both
+    // spellings (the bare digits and the cg: display prefix).
+    // Tradeoff, named: a pathological comm that is ALL digits and
+    // longer than u32 would refuse here too — no real-world comm
+    // has that shape, and the bound it teaches is worth the edge.
+    let id_part = target_str.strip_prefix("cg:").unwrap_or(target_str);
+    if !id_part.is_empty()
+        && id_part.bytes().all(|b| b.is_ascii_digit())
+        && id_part.parse::<u32>().is_err()
+    {
+        return Err(anyhow::anyhow!(
+            "'{target_str}' is too large for a cgroup id — the kernel numbers them inside 32 bits\n  \
+             tip: 'zelynic list-apps' prints live ids as cg:<number>"
+        ));
+    }
     Ok(())
 }
 
@@ -300,9 +320,25 @@ pub(crate) fn cgroupfs_root_id() -> Option<u32> {
 /// other guard arm teaches. Pure message pair so the wording is
 /// unit-pinnable (the warn side prints via the labeled channel the
 /// force path already uses).
+///
+/// night-total-hardening-1: the forced warning prints ONCE per
+/// process. `s 1 --force-this` runs BOTH guards that answer the
+/// root — the blocklist's id arm (pre-privilege) and the
+/// resolved-position check (post-privilege) — and each printed the
+/// identical warning, the owner's "duplicate warning" find. The
+/// once-per-process gate is correct at any spelling: the root id is
+/// one cgroup, its blast radius one sentence, and a second print
+/// of the same sentence is noise, not warning. The error arm needs
+/// no gate — an unforced verdict exits the command, so a duplicate
+/// can never reach the terminal.
 #[cfg(feature = "ebpf")]
 fn root_catch_all_verdict(spelling: &str, id: u32, force_this: bool) -> Result<()> {
+    /// The once-per-process warn gate (see the doc comment above).
+    static ROOT_WARNED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     if force_this {
+        if ROOT_WARNED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+            return Ok(());
+        }
         eprintln_warn_labeled(&format!(
             "'{spelling}' is the root cgroup (cg:{id}), a system process home — the policy catches EVERY socket on the machine, not one app's traffic. Forcing with --force-this."
         ));
