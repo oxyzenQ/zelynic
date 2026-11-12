@@ -439,13 +439,14 @@ DERIVED from the runner at boot time (NIGHT-improve-33, the owner's
 "cpu core, ram, etc don't set fixed let dynamic"; the small
 envelope is renamed low — NIGHT-blade-3) — low specs (a quarter of
 the cores floored at 1 + an eighth of the RAM floored at 1024 MB,
-booting the TRUE documented floor kernel: impish indri 5.13 from
-the frozen old-releases archive) and best specs (every core +
+booting the TRUE documented floor kernel: jammy's 5.15.0-ABI LTS
+line, fetched live from the main archive (no frozen mirror)) and
+best specs (every core +
 three quarters of the RAM, booting the archive's LATEST kernel,
 resolved dynamically at run time — the dists index, each Release's
 Date+Codename, the two newest distinct codenames, and the newest
 generic unsigned image across their main + -updates pockets wins
-via sort -V) — so the kernel span (5.13 floor to latest head) and
+via sort -V) — so the kernel span (the 5.15.0 floor to latest head) and
 the machine span are proven per push. The payload is the static
 musl flagship on the frozen ubuntu:22.04 userland (NIGHT-blade-12
 once crossed the envelopes with the payload's libc, {low, best} x
