@@ -65,12 +65,17 @@ Dated research and comparison records — questions answered with live
 evidence rather than opinion. The naming convention is
 `docs/research/<TASK>_<SUBJECT>.md`.
 
+Complete but unscheduled designs live on the shelf in
+`docs/research-future/` — full evidence preserved, explicitly not
+scheduled for implementation.
+
 | Research | Covers |
 |----------|--------|
 | [research/NIGHT_DINNER_5_V10_V11_ERA_COMPARISON.md](research/NIGHT_DINNER_5_V10_V11_ERA_COMPARISON.md) | The v10 vs v11 era comparison, answered live in the sandbox micro-VM: engine, limiter, monitoring, distribution — with the enforced-rate numbers from both eras |
 | [research/NIGHT_PRIVATE_RESEARCH_2_MMSPA_DESIGN.md](research/NIGHT_PRIVATE_RESEARCH_2_MMSPA_DESIGN.md) | The MMSPA design brief: the owner's subtree-coverage directive, the verified root cause (a child cgroup escapes the limit entirely — not separately bucketed), the four candidate designs with the fentry plan's rejection record, the chosen ancestor-walk + LRU memo, the risk register, and the 32-level bound stated plainly |
 | [research/NIGHT_DINNER_14_PRICING_RESEARCH.md](research/NIGHT_DINNER_14_PRICING_RESEARCH.md) | The tier-pricing decision brief: consumer and commercial comparables with sourced prices, analysis against the Individual/Business/Company tiers, and the owner's option matrix — with section 7 recording the executed decision (Business $1,990/yr, Company $14,990/yr, Individual holds), superseded 2026-09-30 by NIGHT-dinner-25's owner calibration: Business $2,199/yr, Company $20,199/yr, then again 2026-10-10 by NIGHT-dinner-31: Business $5,199/yr, Company $110,199/yr, the price ladder climbing year by year — current list in COMMERCIAL_LICENSE.md |
 | [research/NIGHT_PRIVATE_RESEARCH_4_TIME_WINDOWED_POLICIES_DESIGN.md](research/NIGHT_PRIVATE_RESEARCH_4_TIME_WINDOWED_POLICIES_DESIGN.md) | The time-windowed policies design brief (the owner's `--time 10:10` question answered): the three grammar candidates with the single-instant flag rejected on the record (a future actor is a daemon; deferred start is a window), the wall-clock wall of BPF and the offset bridge that crosses it daemonlessly, the side-map placement with the rate_ring sketch's correction, the honest LOC, and the `--until` then `--during` sequencing recommendation — research only, no implementation |
+| [research-future/PER_TENANT_DESIGN.md](research-future/PER_TENANT_DESIGN.md) | The per-tenant hierarchical fair-share design brief (night-frontier-3C Phase 1): the premise audit, the host-wide envelope grammar, the map family and the Policy row growing 40 -> 48 bytes at schema v35, the failure modes, the bounds, and the §8 reversal triggers — shelved 2026-11-13 under the banner on the file itself: complete and measured, explicitly not scheduled while maintenance mode holds |
 
 ## Release & Distribution
 

@@ -1,6 +1,45 @@
 <!-- Copyright (C) 2026 rezky_nightky -->
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
+# The per-tenant design — SHELVED
+
+> **Status: shelved, not rejected.** This design is technically
+> complete and measured (night-frontier-3C Phase 1, 2026-11-12).
+> It is NOT scheduled for implementation.
+>
+> **Why shelved:**
+> - zelynic entered maintenance mode at v80.0.0. New policy
+>   primitives (a host-wide envelope, a tenant registry, a new
+>   grammar verb) are out of scope for maintenance mode's
+>   "stability, compatibility, performance, bug fixes" contract.
+> - The origin use case (per-app rate limiting on a desktop) does
+>   not need it. The buyer personas exercised in the 2026-11
+>   simulation (SRE limiting a runaway service, sysadmin forensic
+>   work) do not need it.
+> - The market that DOES need hierarchical fair-share (managed
+>   hosting, SaaS platforms) has better tools at their layer
+>   (systemd slices + tc HTB at the qdisc, cloud provider egress
+>   controls, Kubernetes bandwidth managers). A per-app eBPF
+>   limiter is not the right tool for fleet bandwidth arbitration.
+> - The implementation cost (new map family, Policy row growth,
+>   schema v35, 8 failure modes, 3-5 day sprint) is disproportionate
+>   to a use case the owner does not personally have.
+>
+> **When this design gets unshelved:**
+> 1. A user with a real workload asks for it (not a hypothetical).
+> 2. The kernel ships a BPF-native hierarchical scheduling
+>    primitive (§8 reversal trigger 1).
+> 3. The project exits maintenance mode for any reason.
+>
+> Until then: the design exists, the math is proven, the harness
+> is spec'd, and the implementation is one "design approved" away.
+> The dragon knows how. The dragon chooses not to.
+>
+> The Phase 1 evidence (premise audit, math, failure modes,
+> reversal triggers) is preserved below for the future maintainer.
+
+---
+
 # The per-tenant design — hierarchical fair-share across cgroup roots
 
 > night-frontier-3C. The design document the owner reads before any
