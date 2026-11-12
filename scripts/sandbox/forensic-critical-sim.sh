@@ -349,7 +349,9 @@ s.close()
 PYEOF
 HIST_CLIENT_PID=$!
 sleep 3
-run bash -c "\"$BIN\" eagle-eyes cg:${CG} --depth --focus 2 --print-json"
+# (stderr stays separate: the focus-window note and the sweep traces
+# ride stderr by the pipe law — a JSON row parses stdout only.)
+run bash -c "\"$BIN\" eagle-eyes cg:${CG} --depth --focus 2 --print-json 2>/dev/null"
 if [ "$RC" -eq 0 ] && python3 -c '
 import json, sys
 doc = json.loads(sys.stdin.read())
@@ -397,7 +399,8 @@ run "$BIN" status
 DURING_SEEN=1
 grep -q "window" <<<"$OUT" || DURING_SEEN=0
 sleep 10
-run "$BIN" status --print-json
+OUT="$( "$BIN" status --print-json 2>"${TMP}/during-sweep-trace.txt" )"
+RC=$?
 if [ "$RC" -eq 0 ]; then
 	AFTER=$(json_field "doc['active_limits']" <<<"$OUT" 2>/dev/null || echo x)
 else
