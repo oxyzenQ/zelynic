@@ -55,7 +55,7 @@ jobs:
   gpg-key-check:
     name: GPG Signing Key Expiry Check
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     env:
       # Master key fingerprint (40 hex chars, no spaces).
       GPG_KEY_FINGERPRINT: "F5324E0967F104D58CE025F347A50AEF4B65AAC2"
