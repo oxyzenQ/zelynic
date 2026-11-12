@@ -399,7 +399,7 @@ run "$BIN" status
 DURING_SEEN=1
 grep -q "window" <<<"$OUT" || DURING_SEEN=0
 sleep 10
-OUT="$( "$BIN" status --print-json 2>"${TMP}/during-sweep-trace.txt" )"
+OUT="$("$BIN" status --print-json 2>"${TMP}/during-sweep-trace.txt")"
 RC=$?
 if [ "$RC" -eq 0 ]; then
 	AFTER=$(json_field "doc['active_limits']" <<<"$OUT" 2>/dev/null || echo x)
@@ -478,7 +478,7 @@ PYEOF
 }
 
 # Keep the traffic alive so the monitor has live endpoints to show.
-(curl -s -o /dev/null --max-time 25 "http://127.0.0.1:${PORT}/payload.bin" >/dev/null 2>&1 &) 
+(curl -s -o /dev/null --max-time 25 "http://127.0.0.1:${PORT}/payload.bin" >/dev/null 2>&1 &)
 run_in_cgroup "$FLEET" bash -c \
 	"curl -s -o /dev/null --max-time 25 http://127.0.0.1:${PORT}/payload.bin" &
 TRAFFIC_PID=$!
