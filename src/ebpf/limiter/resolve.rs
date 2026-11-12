@@ -33,6 +33,36 @@ fn name_pairs(name: &str) -> Vec<(u32, u32)> {
         .unwrap_or_default()
 }
 
+/// night-total-hardening-1 (the owner's fatal find, the apply side):
+/// which of these DIRECT cgroup-id targets name no cgroup the mount
+/// actually holds. `zelynic s 889111` used to answer OK. for an id
+/// no live cgroup ever carried — the policy could never match a
+/// socket (the zombie sweep's own two-signal law retires exactly
+/// these rows), yet the success epilogue suggested an unstrict
+/// round-trip for it while the next visit's sweep quietly reaped
+/// the "success". The proof is ONE cgroupfs census walk
+/// (pathwalk's complete-tree contract: `Some(set)` means an absent
+/// id names no cgroup anywhere under the mount — kernel-proven
+/// death, the same evidence the zombie sweep reclaims by);
+/// `None` is inconclusive (a tree past the walk bounds, an
+/// unreadable directory) and the gate keeps the pre-gate behavior
+/// there — the same fail-open posture the sweep owns for its
+/// reclamation decisions. Sorted and deduped so a refusal names
+/// each dead id once.
+pub(super) fn dead_direct_ids(ids: &[u32]) -> Vec<u32> {
+    let Some(census) = crate::ebpf::identity::pathwalk::cgroupfs_id_census() else {
+        return Vec::new();
+    };
+    let mut dead: Vec<u32> = ids
+        .iter()
+        .copied()
+        .filter(|id| !census.contains(id))
+        .collect();
+    dead.sort_unstable();
+    dead.dedup();
+    dead
+}
+
 impl super::Limiter {
     /// Resolve a target to cgroup IDs. Process names do a DIRECT
     /// /proc walk (not the identity cache) to find all PIDs matching
