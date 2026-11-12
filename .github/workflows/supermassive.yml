@@ -182,12 +182,14 @@
 # lane design that waited for this day — the harness itself
 # changes not at all.
 #
-# Cost: four standard hosted runners for ~15-35 min per qualifying
+# Cost: six standard hosted runners for ~15-40 min per qualifying
 # push (public-repo standard runners are free; the blade-12 version
-# dimension doubled the pair 2 -> 4 legs, each its own job and VM,
-# and hunt-35's rig battery adds its minutes inside the budgets
-# above); the push pipeline stays decoupled from ci.yml's own
-# failure modes — this workflow can only redden itself.
+# dimension doubled the pair 2 -> 4 legs, night-verify-1 added the
+# desktop matrix's pair — each its own job and VM, the 40-minute
+# cap the union's wall clock — and hunt-35's rig battery adds its
+# minutes inside the budgets above); the push pipeline stays
+# decoupled from ci.yml's own failure modes — this workflow can
+# only redden itself.
 #
 # =============================================================================
 #
@@ -219,15 +221,16 @@
 #   desktop matrix (run_heavy is ONE stateful sequence: the baseline
 #   threads through every stage, the realnet lane owns its own
 #   teardown, the quota pair rides the same policy window) — rides
-#   its own shard on the NIGHTLY schedule (20:00 UTC, the small
-#   hours in the owner's Asia/Jakarta night), full depth, while
-#   nobody waits. Nothing is cut: the per-push union still proves
-#   every other battery on both kernel envelopes, the night train
-#   proves the desktop matrix whole. NIGHT-reject-1 retired the
-#   weekly FULL-matrix clock in an era when one run WAS the whole
-#   battery; this schedule is the different thing the new shape
-#   needs — one 12-minute shard nobody waits on — and the owner's
-#   night-T-1 ask is its mandate.
+#   its own shards on EVERY push (night-verify-1, the owner's call:
+#   a lane that answered only to the schedule was a Skipped row on
+#   every push and a hole in the push verdict — the schedule trigger
+#   is retired whole). Nothing is cut: the per-push union now proves
+#   every battery on both kernel envelopes, the desktop matrix
+#   included. NIGHT-reject-1 retired the weekly FULL-matrix clock in
+#   an era when one run WAS the whole battery; night-T-1's reshape
+#   (the ~5-minute shard target) still holds — the desktop shard is
+#   one irreducible serial stage inside the union — and
+#   night-verify-1 is the new mandate.
 #
 # Depth is never cut anywhere; the budget still buys headroom,
 # never depth.
@@ -245,13 +248,11 @@ on:
   # posture every push-triggered lane carries.
   push:
   pull_request:
-  # The night train (night-T-1): the v1 desktop matrix runs WHOLE
-  # on the schedule — full depth at the small hours, nobody
-  # waiting. workflow_dispatch runs BOTH the per-push shards and
-  # the night shards: a dispatch is the full sweep, the manual
-  # recovery lane (and the pre-release click).
-  schedule:
-    - cron: "30 19 * * *" # 19:30 UTC = 02:30 WIB (Asia/Jakarta), staggered off the e2e train
+  # night-verify-1 (the owner's call): the schedule trigger is
+  # retired whole — the desktop shard rides every push like the
+  # other shards, so no check on a push ever answers Skipped.
+  # workflow_dispatch stays the full sweep: the manual recovery
+  # lane (and the pre-release click).
   workflow_dispatch: {}
 
 # Least privilege (cosmostrix contract): this workflow only reads
@@ -261,18 +262,13 @@ permissions:
   contents: read
 
 # The most expensive workflow in the estate (the e2e.yml
-# inheritance): a superseded push cancels its in-flight
-# supermassive shards instead of queueing duplicates (the
-# cosmostrix stability pattern; a tag push lands in a different
-# group by construction and never interacts — the
-# NIGHT-improve-32 combined-push contract). The night train lives
-# in its own group: a push neither cancels nor is cancelled by the
-# scheduled desktop-matrix runs.
+# inheritance): a superseded run cancels its in-flight
+# supermassive shards instead of queueing duplicates — the same
+# one-group law ci.yml carries (night-verify-1: with the schedule
+# retired, the night/push group split had nothing left to split).
 concurrency:
-  group: >-
-    ${{ github.workflow }}-${{ github.ref }}-
-    ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'night' || 'push' }}
-  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -975,24 +971,23 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # ── the night train: v1's desktop matrix, WHOLE ────────────────────
+  # ── the desktop shard: v1's desktop matrix, WHOLE ────────────────────
   # run_heavy is ONE stateful sequence (the baseline threads through
   # every stage, the realnet lane owns its own teardown, the quota
   # pair rides the same policy window) — it is never sharded inside,
-  # only scheduled. Full depth at the small hours, nobody waiting;
-  # workflow_dispatch runs it too (a dispatch is the full sweep).
+  # and since night-verify-1 it rides every push like the other
+  # shards (the schedule-only gating retired; full depth every run).
   supermassive-desktop:
     name: ${{ matrix.title }}
     needs: [stage]
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
         include:
-          - title: supermassive desktop matrix (night train) - low specs (the jammy 5.15.0 floor kernel, musl)
+          - title: supermassive desktop matrix - low specs (the jammy 5.15.0 floor kernel, musl)
             profile: low
             vm_timeout: "1800"
-          - title: supermassive desktop matrix (night train) - best specs (musl)
+          - title: supermassive desktop matrix - best specs (musl)
             profile: best
             vm_timeout: "1800"
     runs-on: ubuntu-24.04
