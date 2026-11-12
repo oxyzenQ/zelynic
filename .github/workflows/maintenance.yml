@@ -216,6 +216,23 @@ jobs:
             (cd "$(dirname "$manifest")" && cargo update --verbose)
           done < <(find . -name Cargo.toml -not -path '*/target/*' | sort)
 
+      # night-zen-1: the walk can move the ebpf/ tree (its own
+      # Cargo.lock rides the sweep), and the prebuilt lane pins that
+      # tree's blake3 — an unhealed pin would redden the wholesale
+      # gate for the whole week. The ONE WRITER heals here, where the
+      # full toolchain (the dated nightly + rust-src + bpf-linker
+      # 0.11.1) is already installed: parity verdict first, the
+      # writer only when the pin lags, and a writer failure fails
+      # the job — a sweep never ships a lane it cannot prove.
+      - name: Keep the prebuilt lane in parity (the one writer)
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if ! bash scripts/release/refresh-prebuilt.sh --check; then
+            echo "the ebpf/ tree moved — the one writer refreshes the prebuilt lane"
+            bash scripts/release/refresh-prebuilt.sh
+          fi
+
       - name: Enforce dependency-only diff
         id: changes
         shell: bash
@@ -228,11 +245,10 @@ jobs:
           fi
 
           git diff --name-only | tee /tmp/changed-files.txt
-          # night-zen-1: every workspace lockfile is in scope, so the
-          # gate accepts any repo-relative Cargo.lock path, not just
-          # the root's.
-          if grep -vE '(^|/)Cargo\.lock$' /tmp/changed-files.txt; then
-            echo "::error::Auto-update may only modify Cargo.lock files"
+          # night-zen-1: the sweep owns the lockfiles AND the prebuilt
+          # lane its writer refreshed to match the swept ebpf/ tree.
+          if grep -vE '(^|/)Cargo\.lock$|^ebpf-prebuilt/' /tmp/changed-files.txt; then
+            echo "::error::Auto-update may only modify Cargo.lock files and the prebuilt lane"
             exit 1
           fi
 
@@ -284,19 +300,23 @@ jobs:
             cargo pro-linux-amd64-v3-musl --locked
           ./target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic -V
 
-      - name: Upload validated Cargo.lock
+      - name: Upload validated dependency lane
         if: steps.changes.outputs.changed == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7, NIGHT-hunt-20 SHA pin
         with:
-          name: validated-cargo-lock
+          name: validated-dependency-lane
           # night-zen-1: the artifact carries every workspace lockfile
           # (the ! target negation keeps cache-restored build output
-          # out); the glob picks up future workspaces without touching
-          # this file. The download lands OUTSIDE the work tree — see
-          # the commit job's staging wall.
+          # out) PLUS the prebuilt lane the one-writer step refreshed
+          # to match the swept ebpf/ tree — the commit job cannot
+          # rebuild it (no toolchain there), so the validated lane
+          # rides the artifact. Future workspaces join without
+          # touching this file. The download lands OUTSIDE the work
+          # tree — see the commit job's staging wall.
           path: |
             **/Cargo.lock
             !**/target/**
+            ebpf-prebuilt/**
           if-no-files-found: error
 
   commit:
@@ -332,11 +352,11 @@ jobs:
       # repo's commit job sweep a .auto-update/ lockfile tree straight
       # into the repo (the bot commit 9708883 incident, recorded in
       # docs/MAINTENANCE.md §7).
-      - name: Download validated Cargo.lock
+      - name: Download validated dependency lane
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8, NIGHT-hunt-20 SHA pin
         with:
-          name: validated-cargo-lock
-          path: ${{ runner.temp }}/validated-cargo-lock
+          name: validated-dependency-lane
+          path: ${{ runner.temp }}/validated-dependency-lane
 
       - name: Commit and push
         shell: bash
@@ -345,22 +365,30 @@ jobs:
           # night-zen-1: restore every workspace lockfile from the
           # out-of-tree artifact (the artifact keeps the repo-relative
           # layout, so each copy lands at its own workspace root).
-          locks_dir="${RUNNER_TEMP}/validated-cargo-lock"
-          find "$locks_dir" -name Cargo.lock -type f | while IFS= read -r artifact_lock; do
-            rel="${artifact_lock#"$locks_dir"/}"
+          lane_dir="${RUNNER_TEMP}/validated-dependency-lane"
+          find "$lane_dir" -name Cargo.lock -type f | while IFS= read -r artifact_lock; do
+            rel="${artifact_lock#"$lane_dir"/}"
             cp "$artifact_lock" "$rel"
           done
+          # night-zen-1: the prebuilt lane rides the same artifact
+          # (the validate job's one-writer refresh) — mirrored over
+          # the checkout, so an unchanged lane diffs as nothing and
+          # the commit carries only what actually moved. --delete
+          # keeps the mirror honest (a retired object cannot linger).
+          if test -d "$lane_dir/ebpf-prebuilt"; then
+            rsync -a --delete "$lane_dir/ebpf-prebuilt/" ebpf-prebuilt/
+          fi
 
           if git diff --quiet; then
-            echo "Validated lockfile is already current"
+            echo "The validated dependency lane is already current"
             exit 0
           fi
 
           git diff --name-only | tee /tmp/changed-files.txt
-          # night-zen-1: the gate widened with the refresh walk — any
-          # repo-relative Cargo.lock path is a legitimate sweep result.
-          if grep -vE '(^|/)Cargo\.lock$' /tmp/changed-files.txt; then
-            echo "::error::Commit job may only modify Cargo.lock files"
+          # night-zen-1: the sweep owns the lockfiles AND the prebuilt
+          # lane its writer refreshed — nothing else may ever appear.
+          if grep -vE '(^|/)Cargo\.lock$|^ebpf-prebuilt/' /tmp/changed-files.txt; then
+            echo "::error::Commit job may only modify Cargo.lock files and the prebuilt lane"
             exit 1
           fi
 
@@ -377,5 +405,9 @@ jobs:
           find . -name Cargo.toml -not -path '*/target/*' \
             | sed 's|Cargo\.toml$|Cargo.lock|' \
             | xargs -r git add --
+          # the parity rider: the healed prebuilt lane stages with the
+          # locks it matches (the commit gate's pairing rule, explicit
+          # path — never a glob); an unchanged lane adds as a no-op.
+          git add ebpf-prebuilt
           git commit -m "chore(deps): maintenance deps weekly"
           git push origin main

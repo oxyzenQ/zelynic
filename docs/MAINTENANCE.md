@@ -153,6 +153,15 @@ binaries).
   repo-relative `Cargo.lock` path, and the commit job stages the
   exact lockfile set the walk produced — the root-only sweep left
   two of the three committed lockfiles out of every weekly refresh.
+  The walk can move the `ebpf/` tree, and the prebuilt lane pins
+  that tree's blake3, so the sweep carries the **parity rider**:
+  the validate job heals the lane through the one writer
+  (`refresh-prebuilt.sh`) where the toolchain lives, the healed
+  lane rides the artifact to the commit job, and the bot commit
+  stages the locks together with the lane that matches them —
+  without the rider, the sweep's first `ebpf/Cargo.lock` bump
+  (bot commit `40f1859`) left the wholesale gate red on the stale
+  pin for a week.
 - The pinned light tools that gate the repo locally (shellcheck,
   shfmt, yamllint, codespell, actionlint, ruff) re-pin via
   `scripts/gate-keepers.sh` — the wholesale run prints the pinned
