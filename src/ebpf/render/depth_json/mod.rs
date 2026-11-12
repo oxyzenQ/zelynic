@@ -28,11 +28,13 @@
 
 use crate::ebpf::bypass::{ShadowAudit, ShadowVerdict, shadow_percent};
 use crate::ebpf::identity::depth::ProcessFacts;
+use crate::ebpf::limiter::hist::{HIST_SAMPLE_SHIFT, HistRowRaw, quantile_permille, samples};
 use crate::ebpf::limiter::types::POLICY_FLAG_PER_SOCKET;
 use crate::ebpf::limiter::{LimiterStatsRaw, PolicyRaw};
 use crate::ebpf::render::depth_traffic::TrafficFocus;
 use crate::ebpf::render::report::{cgroup_abs_path, oldest_started_secs, representative};
 
+use super::hist_section::HistSection;
 use super::report::{DepthReport, Enforcement};
 
 /// One process row of the JSON document.
@@ -203,6 +205,11 @@ pub struct DepthTargetJson {
     /// failed, the honest absence a script can distinguish from a
     /// zero-traffic window).
     pub traffic: Option<TrafficJson>,
+    /// The depth histogram block (night-frontier-2B, schema v34;
+    /// null = the honest absence — no samples yet, a pre-v34 pin, or
+    /// no limiter session pinned the maps). Additive: scripts
+    /// predating the field ignore it.
+    pub histogram: Option<HistJson>,
     pub procs: Vec<ProcJson>,
     pub endpoints: Vec<EndpointJson>,
 }
@@ -340,6 +347,70 @@ fn traffic_json(focus: &Option<TrafficFocus>) -> Option<TrafficJson> {
     })
 }
 
+/// One half's stats as JSON (night-frontier-2B): the 32 log2 bucket
+/// counts (index b covers [2^b, 2^(b+1)) of the half's unit — bytes
+/// for size, microseconds for srtt) and the bucket-bounded quantiles
+/// (the LOWER bound of the first bucket whose cumulative count
+/// reaches the quantile — the log2 resolution the values carry;
+/// null while the half holds no samples).
+#[derive(Debug, Clone)]
+pub struct HistStatsJson {
+    pub samples: u64,
+    pub buckets: Vec<u64>,
+    pub p50: Option<u64>,
+    pub p95: Option<u64>,
+    pub p99: Option<u64>,
+}
+
+/// One direction's histogram row as JSON: the size half plus the
+/// srtt half, each independently null (the srtt half of a cgroup the
+/// RTT lane never owned is absence, not zero).
+#[derive(Debug, Clone)]
+pub struct HistHalfJson {
+    pub size: Option<HistStatsJson>,
+    pub srtt: Option<HistStatsJson>,
+}
+
+/// The depth histogram block as JSON (night-frontier-2B, schema
+/// v34; None stays null — the honest absence, the additive rule
+/// every block above rode).
+#[derive(Debug, Clone)]
+pub struct HistJson {
+    /// The kernel's sampling cadence: one sample per 2^shift packets
+    /// per CPU — the divisor a script multiplies bucket counts by
+    /// to estimate rates.
+    pub sample_shift: u32,
+    pub download: Option<HistHalfJson>,
+    pub upload: Option<HistHalfJson>,
+}
+
+fn hist_stats_json(buckets: &[u64; 32]) -> HistStatsJson {
+    HistStatsJson {
+        samples: samples(buckets),
+        buckets: buckets.to_vec(),
+        p50: quantile_permille(buckets, 500),
+        p95: quantile_permille(buckets, 950),
+        p99: quantile_permille(buckets, 990),
+    }
+}
+
+fn hist_half_json(row: &Option<HistRowRaw>) -> Option<HistHalfJson> {
+    row.as_ref().map(|r| HistHalfJson {
+        size: (samples(&r.size) > 0).then(|| hist_stats_json(&r.size)),
+        srtt: (samples(&r.srtt) > 0).then(|| hist_stats_json(&r.srtt)),
+    })
+}
+
+/// The depth histogram block as JSON (None stays null — the honest
+/// absence, never a zero row dressed as data).
+fn histogram_json(section: &Option<HistSection>) -> Option<HistJson> {
+    section.as_ref().map(|h| HistJson {
+        sample_shift: HIST_SAMPLE_SHIFT,
+        download: hist_half_json(&h.download),
+        upload: hist_half_json(&h.upload),
+    })
+}
+
 /// Build the typed JSON document from assembled reports plus the
 /// misses and the bypass audit (pure — struct assembly only, no io).
 #[must_use]
@@ -376,7 +447,7 @@ pub fn depth_doc_json(
             cgroup_path: cgroup_abs_path(report.depth.rel_path.as_deref()),
             uid: rep.map(|p| p.uid),
             user: rep.and_then(|p| p.user.clone()),
-            enforcement: super::report::enforcement_word(&report.enforcement),
+            enforcement: super::sentences::enforcement_word(&report.enforcement),
             download_bytes_per_sec: download,
             upload_bytes_per_sec: upload,
             download_per_socket: dl_ps,
@@ -390,6 +461,7 @@ pub fn depth_doc_json(
             socket_holders: holders,
             sockets,
             traffic: traffic_json(&report.traffic),
+            histogram: histogram_json(&report.histogram),
             procs: report
                 .depth
                 .procs

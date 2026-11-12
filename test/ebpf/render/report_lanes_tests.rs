@@ -12,6 +12,7 @@
 //! #[path] (cosmostrix Pattern C), the LOC-cap split discipline.
 
 use super::*;
+use crate::ebpf::render::sentences::lanes_sentence;
 
 /// The LANES verdict (night-netrunner-4, pure): the quota saver's
 /// three lanes as the policy arms them, one glance — and None for an

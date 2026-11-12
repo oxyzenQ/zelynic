@@ -7,10 +7,12 @@
 use anyhow::{Context, Result, anyhow};
 use aya::maps::{Array as BpfArray, HashMap as BpfHashMap};
 
+use super::hist::HistRowRaw;
 use super::types::{BucketRaw, Direction, LimiterStatsRaw, PolicyRaw};
 use crate::ebpf::display::recwn_lane;
 use crate::ebpf::pin::{
-    self, PIN_MAP_BUCKET_DL, PIN_MAP_BUCKET_UL, PIN_MAP_STATS, PIN_MAP_WATCHDOG, PIN_PROG_RECWN,
+    self, PIN_MAP_BUCKET_DL, PIN_MAP_BUCKET_UL, PIN_MAP_DEPTH_HIST_DL, PIN_MAP_DEPTH_HIST_UL,
+    PIN_MAP_STATS, PIN_MAP_WATCHDOG, PIN_PROG_RECWN,
 };
 
 impl super::Limiter {
@@ -225,6 +227,37 @@ impl super::Limiter {
             BpfHashMap::try_from(map_ref).context(format!("Failed to access {map_name}"))?;
         match map.get(&root, 0) {
             Ok(bucket) => Ok(Some(bucket.tokens)),
+            Err(e) if super::lanes::map_error_means_absent(&e) => Ok(None),
+            Err(e) => Err(anyhow!("{map_name} read: {e}")),
+        }
+    }
+
+    /// Read one cgroup's depth-histogram row (night-frontier-2B,
+    /// schema v34) — the ee --depth distribution read. `Ok(None)` is
+    /// the honest absence (no row yet — a fresh pin, idle traffic,
+    /// or a cgroup under the 1/1024 sampling resolution; the same
+    /// posture read_pool_tokens rides); `Err` means unreadable. The
+    /// CALLER gates on the pinned schema version first: a pre-v34
+    /// pin has no hist maps at all, and the version is the one
+    /// gate distinguishing "no samples yet" from "no such lane" —
+    /// this read must never be asked the un-gated question.
+    pub fn read_hist_public(&self, id: u32, direction: Direction) -> Result<Option<HistRowRaw>> {
+        let (map_name, pin_path) = match direction {
+            Direction::Download => ("depth_hist_dl", PIN_MAP_DEPTH_HIST_DL),
+            Direction::Upload => ("depth_hist_ul", PIN_MAP_DEPTH_HIST_UL),
+        };
+        let pinned;
+        let map_ref: &aya::maps::Map = match self.bpf.as_ref() {
+            Some(bpf) => bpf.map(map_name).context(format!("{map_name} not found"))?,
+            None => {
+                pinned = pin::open_pinned_hash_map(pin_path)?;
+                &pinned
+            }
+        };
+        let map: BpfHashMap<_, u32, HistRowRaw> =
+            BpfHashMap::try_from(map_ref).context(format!("Failed to access {map_name}"))?;
+        match map.get(&id, 0) {
+            Ok(row) => Ok(Some(row)),
             Err(e) if super::lanes::map_error_means_absent(&e) => Ok(None),
             Err(e) => Err(anyhow!("{map_name} read: {e}")),
         }

@@ -28,6 +28,7 @@ mod during;
 mod during_map;
 mod during_parse;
 mod format;
+pub mod hist;
 mod lanes;
 mod mmspa;
 mod pace;
