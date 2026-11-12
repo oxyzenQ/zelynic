@@ -37,7 +37,7 @@ hist_sample_tick array, the hist_zero_row template), and the lane
 that owns the check rode the schedule only, so every scheduled run
 had failed invisibly. The fix grows the set to the 48-object family
 (40 maps + 4 programs + 4 links, names verified against pin.rs and
-the loader's pinned statics) with the growth-history comment
+the loader's pinned object declarations) with the growth-history comment
 carried forward. The Supermassive dispatch run was still in flight
 at conversion time; its next scheduled-equivalent verdicts land on
 the push runs below.
@@ -121,3 +121,21 @@ assertions.
 - The live verdicts land on the next push's engine shards (both
   kernel envelopes) — CI-owned, as every micro-VM leg in this
   estate is.
+
+<!-- ZELYNIC-DISCLAIMER -->
+<!--
+  Documentation Disclaimer — read before relying on any data point.
+
+  This document may contain stale data, hardcoded counts, or outdated
+  file paths and symbol names. Maintainers update source code but may
+  forget to sync every doc — perfect sync across every .md file is a
+  known maintenance burden with diminishing returns.
+
+  Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
+  truth. Always cross-check against the actual source files before
+  relying on any specific number (target count, LOC, rate bound),
+  file path, function name, or config key.
+
+  If you find a discrepancy, please open a PR — the doc is wrong, not
+  the source.
+-->
