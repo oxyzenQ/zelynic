@@ -538,3 +538,25 @@ fn report_ends_with_the_act_tail() {
         );
     }
 }
+
+/// The histogram's srtt quantiles stay sub-second honest (the "0s"
+/// lie healed): a populated srtt half renders `≥16ms`-class words —
+/// the bucket lower bound in milliseconds — and never the old
+/// seconds-only truncation's `≥0s` for a real sub-second RTT. The
+/// ≥ prefix is a true lower bound at every tier of the ladder.
+#[test]
+fn hist_sentence_srtt_quantiles_stay_sub_second_honest() {
+    use crate::ebpf::limiter::hist::HistRowRaw;
+    let mut row = HistRowRaw::default();
+    row.size[10] = 5;
+    row.srtt[14] = 3;
+    let line = crate::ebpf::render::hist_section::hist_half_sentence("download", &row);
+    assert!(
+        line.contains("srtt p50 ≥16ms"),
+        "the srtt p50 must render its millisecond lower bound, got: {line}"
+    );
+    assert!(
+        !line.contains("≥0s"),
+        "no srtt quantile may truncate to 0s, got: {line}"
+    );
+}

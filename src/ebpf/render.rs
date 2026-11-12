@@ -403,6 +403,27 @@ pub(crate) fn format_uptime(elapsed: std::time::Duration) -> String {
     }
 }
 
+/// The srtt-quantile duration format (the depth histogram's honest
+/// read, the sub-second "0s" lie healed): the histogram's quantiles
+/// are bucket LOWER bounds, so every tier floors — a floored render
+/// stays a valid lower bound, a rounded one could overshoot the
+/// truth. Ladder: under 1 ms the raw microseconds (`512 µs`); under
+/// a second whole milliseconds (`16ms`, `512ms`); at or beyond one
+/// second the format_uptime ladder (`1s`, `1m:5s`). The old
+/// seconds-only truncation printed `≥0s` for every sub-second RTT —
+/// a real 16 ms measurement rendered as zero, zero dressed as a
+/// measurement, the exact shape the histogram's contract forbids.
+#[must_use]
+pub(crate) fn format_srtt_lower_bound(micros: u64) -> String {
+    if micros < 1_000 {
+        format!("{micros} µs")
+    } else if micros < 1_000_000 {
+        format!("{}ms", micros / 1_000)
+    } else {
+        format_uptime(std::time::Duration::from_micros(micros))
+    }
+}
+
 // NON_LATIN_FIXTURE: the CJK literal in the truncation pin below is
 // runtime width-measurement coverage, not prose (the same exemption
 // sanitize.rs carries for its passthrough pin).
@@ -471,5 +492,20 @@ mod tests {
         // Sub-second precision truncates to whole seconds (the
         // monitor's own wake granularity is 50ms).
         assert_eq!(format_uptime(Duration::from_millis(1_250)), "1s");
+    }
+
+    /// The srtt-quantile ladder: every tier floors, so the ≥ prefix
+    /// stays a true lower bound — the sub-second truth the old
+    /// seconds-only truncation printed as `≥0s`.
+    #[test]
+    fn srtt_lower_bound_ladder_pins() {
+        assert_eq!(format_srtt_lower_bound(999), "999 µs");
+        assert_eq!(format_srtt_lower_bound(1_000), "1ms");
+        assert_eq!(format_srtt_lower_bound(16_384), "16ms");
+        assert_eq!(format_srtt_lower_bound(32_768), "32ms");
+        assert_eq!(format_srtt_lower_bound(999_999), "999ms");
+        assert_eq!(format_srtt_lower_bound(1_000_000), "1s");
+        assert_eq!(format_srtt_lower_bound(1_048_576), "1s");
+        assert_eq!(format_srtt_lower_bound(65_000_000), "1m:5s");
     }
 }

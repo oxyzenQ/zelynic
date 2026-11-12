@@ -6,12 +6,10 @@
 //! sibling-split lineage): the section's struct, its one-line read,
 //! and the render push live here; report.rs composes them.
 
-use std::time::Duration;
-
 use crate::ebpf::limiter::hist::{HIST_BUCKETS, HistRowRaw, quantile_permille, samples};
 use crate::ebpf::limiter::{format_bytes, format_count};
 
-use super::format_uptime;
+use super::format_srtt_lower_bound;
 use super::report::kv;
 
 /// One depth report's histogram rows (night-frontier-2B): the raw
@@ -26,8 +24,10 @@ pub struct HistSection {
 
 /// The histogram half's one-line read (night-frontier-2B): the
 /// sample count plus the bucket-bounded p50/p95/p99 for both metric
-/// halves. Bytes ride format_bytes, microseconds ride format_uptime
-/// (the same clock words the resources line prints). The srtt half
+/// halves. Bytes ride format_bytes, srtt microseconds ride
+/// format_srtt_lower_bound (the sub-second-honest ladder — the ≥
+/// prefix stays a true lower bound at every tier, the "0s" lie
+/// healed). The srtt half
 /// renders only when the RTT lane's sockets recorded — a half with
 /// zero samples is the honest absence, never a "0" dressed as a
 /// measurement. The quantile is the bucket's LOWER bound: the true
@@ -48,7 +48,7 @@ pub(crate) fn hist_half_sentence(label: &str, row: &HistRowRaw) -> String {
     }
     let srtt: Vec<String> = [500, 950, 990]
         .iter()
-        .filter_map(|&p| fmt_q(&row.srtt, p, |v| format_uptime(Duration::from_micros(v))))
+        .filter_map(|&p| fmt_q(&row.srtt, p, format_srtt_lower_bound))
         .collect();
     if !srtt.is_empty() {
         bits.push(format!("srtt {}", srtt.join(" ")));
