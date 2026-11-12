@@ -105,7 +105,18 @@ QUICK_SOAK_S = 10.0
 # Schema v28 grew the family by one (the pace_saved_stamp map,
 # the Layer 4 accrual's time base); schema v29 (night-quota-audit,
 # 2026-11-09) retired that accrual with the law it served, and the
-# family is back to 44 objects. The *_counters maps
+# family is back to 44 objects. Grown once more with schema v34
+# (night-frontier-2B, the depth histogram): the depth_hist_dl/ul
+# LRU pair (one 512-byte distribution row per cgroup per
+# direction), the hist_sample_tick per-CPU array (the 1-in-1024
+# cadence's tick), and the hist_zero_row template the sampled write
+# clones — 40 maps + 4 programs + 4 links, the 48-object family.
+# The set was NOT grown at v34, and the endurance lane rode the
+# schedule only, so every scheduled run failed pin-family
+# invisibly; night-verify-1 dispatched the lane by hand, read the
+# diff ("48 pins ... extra: depth_hist_dl, depth_hist_ul,
+# hist_sample_tick, hist_zero_row"), and grew the set (the
+# night-verify-1 audit, 2026-11-13). The *_counters maps
 # stay off the rig on purpose: telemetry, never loader state.
 PIN_FAMILY = {
     # the 22 pinned maps the base loader pins (schema v18 and before)
@@ -178,6 +189,17 @@ PIN_FAMILY = {
     "pace_socket_hint",
     "zelynic_pace",
     "zelynic_pace_link",
+    # the schema v34 additions (night-frontier-2B, the depth
+    # histogram): the two per-cgroup distribution LRU rows keyed at
+    # the leaf, the per-CPU sampler tick, and the zero-row template
+    # the sampled write clones. Names verified against pin.rs
+    # (PIN_MAP_DEPTH_HIST_DL/UL) and the loader's pinned statics
+    # (limiter.rs: depth_hist_dl, depth_hist_ul, hist_sample_tick,
+    # hist_zero_row).
+    "depth_hist_dl",
+    "depth_hist_ul",
+    "hist_sample_tick",
+    "hist_zero_row",
 }
 RSS_BUDGET_MB = 12.0  # post-warmup growth allowance for the TUI process
 FD_DRIFT = 3  # max open-fd drift across the soak window
