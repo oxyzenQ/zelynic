@@ -8,6 +8,7 @@
 > It is NOT scheduled for implementation.
 >
 > **Why shelved:**
+>
 > - zelynic entered maintenance mode at v80.0.0. New policy
 >   primitives (a host-wide envelope, a tenant registry, a new
 >   grammar verb) are out of scope for maintenance mode's
@@ -26,6 +27,7 @@
 >   to a use case the owner does not personally have.
 >
 > **When this design gets unshelved:**
+>
 > 1. A user with a real workload asks for it (not a hypothetical).
 > 2. The kernel ships a BPF-native hierarchical scheduling
 >    primitive (§8 reversal trigger 1).
@@ -40,7 +42,7 @@
 
 ---
 
-# The per-tenant design — hierarchical fair-share across cgroup roots
+## The per-tenant design — hierarchical fair-share across cgroup roots
 
 > night-frontier-3C. The design document the owner reads before any
 > code exists — Phase 1 of a sprint whose only Phase 1 deliverable
