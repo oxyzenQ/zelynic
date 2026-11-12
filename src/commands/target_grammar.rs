@@ -139,6 +139,23 @@ pub(crate) fn validate_multi_targets(targets_str: &str, example: &str) -> Result
         if !seg.chars().any(|c| c.is_alphanumeric()) {
             return Err(anyhow::anyhow!("target '{seg}' is not a valid app name"));
         }
+        // night-total-hardening-1 (the owner's safety call, the
+        // numeric class): an all-digit member beyond the 32-bit id
+        // space can never name a cgroup — the maps key on the
+        // kernel's u32 kernfs inode numbers — and the old path let
+        // it flow as a ProcessName into the apply's late no-match.
+        // The refusal names the bound at the grammar rung, for both
+        // spellings (bare digits and the cg: display prefix).
+        let id_part = seg.strip_prefix("cg:").unwrap_or(seg);
+        if !id_part.is_empty()
+            && id_part.bytes().all(|b| b.is_ascii_digit())
+            && id_part.parse::<u32>().is_err()
+        {
+            return Err(anyhow::anyhow!(
+                "list member '{seg}' is too large for a cgroup id — the kernel numbers \
+                 them inside 32 bits"
+            ));
+        }
     }
 
     Ok(segments)
