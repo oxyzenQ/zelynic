@@ -84,7 +84,10 @@ fn status_json_counts_cgroups_not_direction_policies() {
 
     let row = &json.limits[0];
     assert_eq!(row.cgroup_id, 73386);
-    assert_eq!(row.label, "cg:73386");
+    // night-frontier hardening: the JSON label rides the same
+    // status_label the human table rides — the fixture row carries
+    // no identity, so both surfaces mark the identity miss.
+    assert_eq!(row.label, "cg:73386 (no live member)");
     assert_eq!(row.download_bytes_per_sec, Some(100_000));
     assert_eq!(row.upload_bytes_per_sec, Some(50_000));
 }
