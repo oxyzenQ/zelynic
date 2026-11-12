@@ -226,3 +226,34 @@ fn multi_list_single_target_needs_no_separator() {
     assert!(validate_multi_targets("x::1", ex).is_ok());
     assert!(validate_multi_targets("cg:48181::x", ex).is_ok());
 }
+
+/// night-total-hardening-1 (the owner's safety call, the numeric
+/// class): an all-digit member beyond the 32-bit id space can never
+/// name a cgroup — the refusal names the bound at the grammar rung,
+/// for both spellings (bare digits and the cg: display prefix),
+/// instead of letting the apply die as a late no-match.
+#[test]
+fn numeric_member_past_u32_is_refused_with_the_bound() {
+    let ex = "zelynic strict brave::curl::pacman 1mb";
+    for bad in [
+        "brave::100000000000000000",
+        "brave::cg:99999999999",
+        "100000000000000000::brave",
+    ] {
+        let msg = validate_multi_targets(bad, ex)
+            .expect_err("an all-digit member past u32 must be refused")
+            .to_string();
+        assert!(
+            msg.contains("too large for a cgroup id"),
+            "the refusal names the bound, got: {msg}"
+        );
+        assert!(
+            msg.contains("32 bits"),
+            "the bound is spelled out, got: {msg}"
+        );
+    }
+    // The legal numeric shapes stay legal: a real u32 id, bare or
+    // cg:-prefixed.
+    assert!(validate_multi_targets("brave::48181", ex).is_ok());
+    assert!(validate_multi_targets("brave::cg:48181", ex).is_ok());
+}
