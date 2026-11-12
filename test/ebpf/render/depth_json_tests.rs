@@ -512,7 +512,7 @@ fn json_histogram_block_is_null_while_absent() {
     let text = doc.to_json();
     assert!(
         text.contains("\"histogram\":null"),
-        "the absent block serializes as the honest null: {text}"
+        "the absent block serializes as the honest null"
     );
 }
 
@@ -529,21 +529,42 @@ fn json_histogram_block_carries_buckets_and_quantiles() {
     });
     let text = depth_doc_json(&[report], &[], None).to_json();
     // The cadence field rides so a script can scale counts to rates.
-    assert!(text.contains("\"sample_shift\":10"), "{text}");
+    assert!(
+        text.contains("\"sample_shift\":10"),
+        "the sample_shift cadence field rides"
+    );
     // The size half: 1000 samples, p50 in the 1 KiB bucket, p95/p99
     // in the 8 KiB bucket (the cumulative 40% there completes them).
-    assert!(text.contains("\"samples\":1000"), "{text}");
-    assert!(text.contains("\"p50\":1024"), "{text}");
-    assert!(text.contains("\"p95\":8192"), "{text}");
-    assert!(text.contains("\"p99\":8192"), "{text}");
+    assert!(
+        text.contains("\"samples\":1000"),
+        "the size half counts 1000 samples"
+    );
+    assert!(
+        text.contains("\"p50\":1024"),
+        "p50 lands in the 1 KiB class"
+    );
+    assert!(
+        text.contains("\"p95\":8192"),
+        "p95 lands in the 8 KiB class"
+    );
+    assert!(
+        text.contains("\"p99\":8192"),
+        "p99 lands in the 8 KiB class"
+    );
     // The srtt half rides its own shape (3 samples, all 1 s class).
     assert!(
         text.contains("\"srtt\":{\"samples\":3,\"buckets\""),
-        "{text}"
+        "the srtt half rides its own shape"
     );
-    assert!(text.contains("\"p50\":524288"), "{text}");
+    assert!(
+        text.contains("\"p50\":524288"),
+        "the srtt p50 lands in the 1 s class"
+    );
     // The absent upload row renders as the whole-half null —
     // absence, never zeros (an inner-half null pair is the shape a
     // PRESENT row with zero samples would take).
-    assert!(text.contains("\"upload\":null"), "{text}");
+    assert!(
+        text.contains("\"upload\":null"),
+        "the absent upload row renders as the whole-half null"
+    );
 }
