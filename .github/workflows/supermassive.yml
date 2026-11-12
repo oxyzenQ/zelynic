@@ -299,6 +299,8 @@ jobs:
           # GITHUB_TOKEN hardening: never persists into .git/config.
           persist-credentials: false
 
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
       - name: Install cpio
         run: |-
           sudo apt-get -o Acquire::Retries=5 update -qq
@@ -825,6 +827,8 @@ jobs:
           # GITHUB_TOKEN hardening: never persists into .git/config.
           persist-credentials: false
 
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
       # The kernel can change; /dev/kvm is a GitHub runner guarantee
       # (nested virt is enabled on every current Linux hosted image) —
       # but the node ships 0660 root:kvm and the runner user is not in
@@ -1000,6 +1004,8 @@ jobs:
           # GITHUB_TOKEN hardening: never persists into .git/config.
           persist-credentials: false
 
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
       - name: Verify KVM
         run: |
           test -e /dev/kvm || {

@@ -98,6 +98,8 @@ jobs:
           # GITHUB_TOKEN hardening: never persists into .git/config.
           persist-credentials: false
 
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
       # The runner guarantee (the supermassive pair's law, same shape):
       # /dev/kvm exists on every current Linux hosted image, the node
       # ships it 0660 root:kvm, and the job opens it up itself. Failing

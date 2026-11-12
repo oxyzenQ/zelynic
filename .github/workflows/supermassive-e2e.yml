@@ -152,6 +152,8 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
       - name: Install cpio
         run: |-
           sudo apt-get -o Acquire::Retries=5 update -qq
@@ -525,6 +527,8 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
       - name: Install Rust toolchain (arm64)
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
         with:
@@ -612,6 +616,8 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
       # The kernel can change; /dev/kvm is a GitHub runner guarantee
       # on this image family, but the node ships 0660 root:kvm and
       # the runner user is not in the kvm group, so the job opens it
@@ -883,6 +889,8 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
       - name: Verify KVM
         if: matrix.profile != 'arm64'
         run: |

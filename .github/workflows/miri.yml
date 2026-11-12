@@ -106,6 +106,8 @@ jobs:
           # GITHUB_TOKEN hardening: never persists into .git/config.
           persist-credentials: false
 
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
       # The runner's own toolchain: the moving `nightly` tag with the
       # miri component — exactly what `./scripts/build.sh miri` would
       # auto-install locally. The +nightly override in the runner wins

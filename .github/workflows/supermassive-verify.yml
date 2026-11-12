@@ -70,6 +70,8 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
       - name: "Phase 0 — environment proof"
         run: |
           set -euo pipefail
