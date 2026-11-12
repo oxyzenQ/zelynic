@@ -4,6 +4,11 @@
 # Kernel Compatibility
 
 > Requirements for running zelynic (the cosmic dragon architecture).
+> CO-RE portability: the objects need none — the measured audit (night-core-1, 2026-11-12:
+> docs/audits/NIGHT_CORE_1_CO_RE_PORTABILITY_AUDIT_2026-11-12.md) counted ONE kernel-internal field
+> read (`bpf_sock.protocol` @ frozen UAPI offset 12, two guard sites) and parsed both shipped
+> objects to `core_relo_len = 0`. One object, every kernel in the verified matrix.
+
 
 ## Minimum Requirements
 
