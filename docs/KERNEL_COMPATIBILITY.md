@@ -9,7 +9,6 @@
 > read (`bpf_sock.protocol` @ frozen UAPI offset 12, two guard sites) and parsed both shipped
 > objects to `core_relo_len = 0`. One object, every kernel in the verified matrix.
 
-
 ## Minimum Requirements
 
 | Component | Minimum | Recommended | Why |
