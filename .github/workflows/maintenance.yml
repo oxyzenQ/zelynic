@@ -200,8 +200,21 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-maintenance-
 
+      # night-zen-1: the refresh walks every committed Cargo.toml and
+      # runs cargo update in each workspace, so ebpf/ and fuzz/ ride
+      # the same weekly lane as the root crate (the root-only cargo
+      # update left two of the three committed lockfiles permanently
+      # stale). New workspaces join the lane without touching this
+      # file; target trees are excluded so cache-restored build
+      # output can never join the walk.
       - name: Update dependencies
-        run: cargo update --verbose
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          while IFS= read -r manifest; do
+            echo "Refreshing $(dirname "$manifest")"
+            (cd "$(dirname "$manifest")" && cargo update --verbose)
+          done < <(find . -name Cargo.toml -not -path '*/target/*' | sort)
 
       - name: Enforce dependency-only diff
         id: changes
@@ -215,8 +228,11 @@ jobs:
           fi
 
           git diff --name-only | tee /tmp/changed-files.txt
-          if grep -vE '^Cargo\.lock$' /tmp/changed-files.txt; then
-            echo "::error::Auto-update may only modify Cargo.lock"
+          # night-zen-1: every workspace lockfile is in scope, so the
+          # gate accepts any repo-relative Cargo.lock path, not just
+          # the root's.
+          if grep -vE '(^|/)Cargo\.lock$' /tmp/changed-files.txt; then
+            echo "::error::Auto-update may only modify Cargo.lock files"
             exit 1
           fi
 
@@ -273,7 +289,14 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7, NIGHT-hunt-20 SHA pin
         with:
           name: validated-cargo-lock
-          path: Cargo.lock
+          # night-zen-1: the artifact carries every workspace lockfile
+          # (the ! target negation keeps cache-restored build output
+          # out); the glob picks up future workspaces without touching
+          # this file. The download lands OUTSIDE the work tree — see
+          # the commit job's staging wall.
+          path: |
+            **/Cargo.lock
+            !**/target/**
           if-no-files-found: error
 
   commit:
@@ -303,17 +326,30 @@ jobs:
 
       - name: Harden DNS (the poisoned-resolver defense)
         uses: ./.github/actions/harden-dns
+      # night-zen-1 (the staging wall, layer 1): the artifact lands
+      # OUTSIDE the work tree (RUNNER_TEMP), never in an in-tree
+      # staging directory — an in-tree download once let the sister
+      # repo's commit job sweep a .auto-update/ lockfile tree straight
+      # into the repo (the bot commit 9708883 incident, recorded in
+      # docs/MAINTENANCE.md §7).
       - name: Download validated Cargo.lock
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8, NIGHT-hunt-20 SHA pin
         with:
           name: validated-cargo-lock
-          path: .auto-update
+          path: ${{ runner.temp }}/validated-cargo-lock
 
       - name: Commit and push
         shell: bash
         run: |
           set -euo pipefail
-          cp .auto-update/Cargo.lock Cargo.lock
+          # night-zen-1: restore every workspace lockfile from the
+          # out-of-tree artifact (the artifact keeps the repo-relative
+          # layout, so each copy lands at its own workspace root).
+          locks_dir="${RUNNER_TEMP}/validated-cargo-lock"
+          find "$locks_dir" -name Cargo.lock -type f | while IFS= read -r artifact_lock; do
+            rel="${artifact_lock#"$locks_dir"/}"
+            cp "$artifact_lock" "$rel"
+          done
 
           if git diff --quiet; then
             echo "Validated lockfile is already current"
@@ -321,13 +357,22 @@ jobs:
           fi
 
           git diff --name-only | tee /tmp/changed-files.txt
-          if grep -vE '^Cargo\.lock$' /tmp/changed-files.txt; then
-            echo "::error::Commit job may only modify Cargo.lock"
+          # night-zen-1: the gate widened with the refresh walk — any
+          # repo-relative Cargo.lock path is a legitimate sweep result.
+          if grep -vE '(^|/)Cargo\.lock$' /tmp/changed-files.txt; then
+            echo "::error::Commit job may only modify Cargo.lock files"
             exit 1
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Cargo.lock
+          # night-zen-1 (the staging wall, layer 2): the exact
+          # lockfile paths from the manifest walk — the same set the
+          # refresh step updated, never a glob, so no staging
+          # directory can ever ride the commit (the zejtron 9708883
+          # leak class: a ':(glob)**/Cargo.lock' add matched the
+          # in-tree staging copies too; docs/MAINTENANCE.md §7).
+          git add -- $(find . -name Cargo.toml -not -path '*/target/*' \
+            | sed 's|Cargo\.toml$|Cargo.lock|')
           git commit -m "chore(deps): maintenance deps weekly"
           git push origin main

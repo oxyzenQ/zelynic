@@ -24,6 +24,17 @@ Thumbs.db
 # builds dist/ locally when the flow runs outside CI; never tracked)
 dist/
 
+# CI artifact staging (night-zen-1, the in-tree staging class — the
+# sister repo's bot commit 9708883 leaked a .auto-update/ lockfile
+# tree into its repo; the class is armed here before it can fire):
+# the maintenance workflow's download-artifact step lands its staging
+# directory outside the work tree (RUNNER_TEMP), and this ignore
+# line is the second wall — an in-tree staging directory named
+# .auto-update can never ride a commit even if a future edit moves
+# the download back in-tree. docs/MAINTENANCE.md §7 carries the
+# record.
+.auto-update/
+
 # AI workdirs
 worklog.md
 codex/
@@ -49,5 +60,5 @@ __pycache__/
 # installs its auto-downloaded release binary here — a test artifact,
 # never tracked. The VENDORED pair (the v11.0.0 tarball and its
 # checksum sidecars, the MMSPA A/B counterfactual) is tracked at
-# legacy-for-test/ — see legacy-for-test/README.md.
+# legacy-for-test/ — see legacy-for-test/VENDOR.md.
 /legacy/zelynic
