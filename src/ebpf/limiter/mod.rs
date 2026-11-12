@@ -83,6 +83,9 @@ pub use crate::ebpf::pin::{
     PIN_DIR, PIN_LINK_DL, PIN_LINK_UL, PIN_PROG_DL, PIN_PROG_UL, pin_dir_has_files,
     read_pinned_schema_version, unpin_all,
 };
+// The sk-storage twins pin by explicit path (the loader's per-map
+// arm, not the default directory) — the 0.16 wave's story in pin.rs.
+use crate::ebpf::pin::{PIN_MAP_PACE_SOCKET_HINT, PIN_MAP_RECWN_SOCKET_HINT};
 
 use anyhow::{Context, Result, anyhow, bail};
 use aya::{
@@ -225,9 +228,20 @@ impl Limiter {
         // Ebpf object drops and open_pinned() hits ENOENT; the bytes are
         // the embedded pure-Rust aya-ebpf build, improve-1). NIGHT-depthtest:
         // aya 0.14 renamed map_pin_path(path) to default_map_pin_directory.
+        // night-enhance-1's follow-up (the night train caught it): aya
+        // 0.16 honors the pinning flag strictly — the default directory
+        // serves PinningType::ByName maps only, and the two sk-storage
+        // twins (pace_socket_hint, recwn_socket_hint — the BTF `.maps`
+        // defs, pinning=LIBBPF_NONE) stopped pinning, the 44-object
+        // family down to 42. Their pins ride the explicit per-map arm
+        // instead (create_pinned_by_name — reuse an existing pin via
+        // the compatibility check before it ever creates — the same
+        // persistence contract the ByName family rides).
         let load_started = std::time::Instant::now();
         let mut bpf = EbpfLoader::new()
             .default_map_pin_directory(PIN_DIR)
+            .map_pin_path("pace_socket_hint", PIN_MAP_PACE_SOCKET_HINT)
+            .map_pin_path("recwn_socket_hint", PIN_MAP_RECWN_SOCKET_HINT)
             .load(obj_data)
             .context("Failed to load BPF object")?;
 
