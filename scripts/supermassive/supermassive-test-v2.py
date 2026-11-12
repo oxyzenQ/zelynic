@@ -603,11 +603,16 @@ CLI_DEPTH_CASES = [
         "nonzero",
         "no cgroup found",
     ),
+    # night-total-hardening-1: the numeric-boundary refusal — an
+    # all-digit target past the 32-bit id space answers at the INPUT
+    # boundary now with the bound named (the same ladder move the
+    # empty target owns), one rung before the no-match path this row
+    # used to pin.
     (
-        "cgroup id beyond u32 range is a graceful refusal",
+        "cgroup id beyond u32 range is refused at the input boundary",
         ["strict", "99999999999999999999", "1mb"],
         "nonzero",
-        "no cgroup found",
+        "too large for a cgroup id",
     ),
     # ── fatal usage shapes (exit 2: clap) ─────────────────────────────
     ("strict with no target is a usage error", ["strict"], "nonzero", "error"),
