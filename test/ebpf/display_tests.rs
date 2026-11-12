@@ -39,7 +39,10 @@ fn status_cells_one_metric_per_cell() {
         bytes_saved_by_ecn: 0,
     };
     let (label, dl, ul, allowed, dropped) = status_cells(&d, &IdentityMap::new());
-    assert_eq!(label, "cg:73386");
+    // night-frontier hardening: the fixture row carries no identity,
+    // so the table marks it — a bare cg: id reads like a healthy
+    // limit, the ghost-row lie the live session caught.
+    assert_eq!(label, "cg:73386 (no live member)");
     assert_eq!(dl, "100.0 KB/s");
     assert_eq!(ul, "BLOCKED");
     assert_eq!(allowed, "1.4 MB");
@@ -527,5 +530,48 @@ fn counters_footer_names_the_window_the_residual_and_the_direction() {
     assert_eq!(
         lines[1],
         "  small dropped = saver lanes working; ingress burns quota, egress saves it."
+    );
+}
+
+/// night-frontier hardening: the no-live-member marker is shared by
+/// the human table and the JSON document (one truth, both surfaces).
+/// A row the walk can vouch for keeps its plain label — the marker
+/// rides identity-miss only, never a healthy limit.
+#[test]
+fn status_label_marks_identity_missed_rows_on_both_surfaces() {
+    let d = DisplayData {
+        window: None,
+        download: BracketPair::UNSET,
+        upload: BracketPair::UNSET,
+        cgroup_id: 8891,
+        dl_bps: Some(300_000),
+        ul_bps: Some(300_000),
+        dl_per_socket: false,
+        ul_per_socket: false,
+        packets_allowed: 0,
+        packets_dropped: 0,
+        bytes_allowed: 0,
+        bytes_dropped: 0,
+        ce_marked_packets: 0,
+        ce_marked_bytes: 0,
+        bytes_saved_by_edt: 0,
+        bytes_saved_by_recwn: 0,
+        bytes_saved_by_ecn: 0,
+    };
+    let mut identity = IdentityMap::new();
+    identity.insert(crate::ebpf::identity::ProcessIdentity {
+        cgroup_id: 8891,
+        uid: 1000,
+        comm: "brave".to_string(),
+    });
+    let (label, _, _, _, _) = status_cells(&d, &identity);
+    assert_eq!(
+        label, "cg:8891 (brave)",
+        "a vouched-for row keeps the plain label, never a marker"
+    );
+    assert_eq!(
+        identity.status_label(14696),
+        "cg:14696 (no live member)",
+        "the JSON document's own label rides the same helper"
     );
 }
