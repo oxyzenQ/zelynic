@@ -38,6 +38,12 @@ pub(crate) mod rates;
 #[cfg(feature = "ebpf")]
 pub(crate) mod recover;
 pub(crate) mod safety;
+// night-total-hardening-1: the id-door split rides the ebpf gate
+// with its parent family — its fns are all cfg(ebpf), so the
+// module declaration and safety.rs's re-export must gate too, or
+// the dormant flavor (Miri's, check-all's no-default-features
+// leg) fails E0432 on names that do not exist there.
+#[cfg(feature = "ebpf")]
 pub(crate) mod safety_id;
 // NIGHT-improve-53: the masterclass '::' list grammar — the
 // routing law (target_is_list) and the list validation the unified
