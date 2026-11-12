@@ -254,6 +254,44 @@ jobs:
           sudo ./scripts/bench/quota-saver-ab.sh --overrun-seconds 30
           echo "AB_EXIT=$?"
 
+      - name: "Phase 1.5 — night-frontier-2B histogram: the sampled distribution reads back"
+        run: |
+          set -euo pipefail
+          echo "===== PHASE 1.5: DEPTH HISTOGRAM (sampled, log2 buckets) ====="
+          CGID=$(stat -c '%i' /sys/fs/cgroup/zverify)
+          echo "--- apply the limit (the v34 enforce hooks record) ---"
+          sudo zelynic s "cg:${CGID}" 100kb
+          echo "--- generate traffic (thousands of packets; several 1/1024 samples) ---"
+          sudo bash -c \
+            'echo $$ > /sys/fs/cgroup/zverify/cgroup.procs; \
+             exec ip netns exec rtt curl -s --max-time 15 -o /dev/null http://10.200.0.1:8000/payload.bin' || true
+          echo "--- the depth report's histogram block ---"
+          sudo zelynic ee --depth "cg:${CGID}" --print-json > /tmp/hist.json
+          python3 - <<'PY'
+          import json
+
+          doc = json.load(open("/tmp/hist.json"))
+          targets = doc.get("targets", [])
+          assert targets, "the depth report resolved the target"
+          h = targets[0].get("histogram")
+          assert h, f"the histogram block is absent: {doc}"
+          assert h.get("sample_shift") == 10, h
+          dl = h.get("download") or {}
+          size = dl.get("size")
+          assert size and size["samples"] > 0, f"no size samples recorded: {h}"
+          nonzero = [c for c in size["buckets"] if c > 0]
+          assert nonzero, f"the buckets are all zero: {size}"
+          for q in ("p50", "p95", "p99"):
+              assert size.get(q), f"{q} missing from the size half: {size}"
+          print(
+              f"histogram OK: dl size samples={size['samples']}, "
+              f"p50={size['p50']} p95={size['p95']} p99={size['p99']}, "
+              f"non-zero buckets={len(nonzero)}"
+          )
+          PY
+          echo "--- cleanup (the pin hygiene the sibling legs share) ---"
+          sudo zelynic u --all
+
       - name: "Phase 2 — v32 sk_storage: socket death, ghost rows, pin leaks"
         run: |
           set -euo pipefail
