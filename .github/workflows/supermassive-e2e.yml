@@ -1006,6 +1006,20 @@ jobs:
           grep -q '^E2E-VERDICT: PASS' vm.log
           echo "OK: the endurance clocks proven on the ${{ matrix.title }} leg"
 
+      # The red-leg evidence rider (the night-train autopsy): a red
+      # endurance leg carries its own vm.log off the runner. The
+      # sentinel rows live only in that log - both shapes stage it at
+      # the same path (the qemu legs tee it, the native arm64 leg
+      # tees it) - so one step serves the whole matrix, and the next
+      # red night reads as a diagnosis, not a shrug.
+      - name: Red-leg evidence (vm.log)
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          name: endurance-vm-log-${{ matrix.profile }}
+          path: /tmp/kfloor/vm.log
+          if-no-files-found: warn
+
       - name: Watch summary
         if: always()
         run: |
