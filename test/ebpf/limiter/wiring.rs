@@ -94,3 +94,11 @@ mod recwn_tests;
 #[cfg(test)]
 #[path = "pace_tests.rs"]
 mod pace_tests;
+
+// night-frontier-2B (schema v34): the depth histogram's pure core
+// compiles from ebpf/src/hist.rs the same way, pinned rootlessly by
+// hist_tests.rs — the log2 bucket law both halves ride, the sampler
+// cadence, and the 512-byte row shape the userspace mirror copies.
+#[cfg(test)]
+#[path = "hist_tests.rs"]
+mod hist_tests;

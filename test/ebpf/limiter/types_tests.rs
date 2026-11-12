@@ -286,7 +286,14 @@ fn test_schema_version_constant() {
     // pinned v32 stats row is 64 bytes, a v33 reader would map the
     // 72-byte tail onto nothing — the forced reload wipes the
     // stale pins.
-    assert_eq!(SCHEMA_VERSION_EXPECTED, 33);
+    // v34 (night-frontier-2B, the depth histogram): two additive LRU
+    // rows (depth_hist_dl/ul, keyed at the leaf, 512-byte
+    // two-half log2 rows) plus the sampler tick and the zero-row
+    // staging entry. The existing rows are byte-identical to v33 —
+    // the bump is required, not polite: a pinned v33 object lacks
+    // the hist maps entirely, and the version is the one gate
+    // distinguishing "no samples yet" from "no such lane".
+    assert_eq!(SCHEMA_VERSION_EXPECTED, 34);
 }
 
 // ── night-spark-4, schema v26: the CE ledger's layout pins ─────────

@@ -45,7 +45,7 @@
 
 use aya_ebpf::{
     macros::{cgroup_skb, map},
-    maps::{Array, HashMap, LruHashMap},
+    maps::{Array, HashMap, LruHashMap, PerCpuArray},
     programs::SkBuffContext,
 };
 
@@ -59,6 +59,14 @@ use aya_ebpf::{
 // frac_rem sanitization).
 #[path = "../math.rs"]
 mod math;
+
+// night-frontier-2B (schema v34): the depth histogram's pure core
+// lives in ../hist.rs — the log2 bucket law, the sampling cadence,
+// and the row shape, zero aya dependencies, the same #[path] AND
+// userspace-test-tree wiring as math.rs (the rootless pins in
+// test/ebpf/limiter/hist_tests.rs compile this exact file).
+#[path = "../hist.rs"]
+mod hist;
 
 // NIGHT-private-research-2 (MMSPA): the resolution core lives in
 // ../mmspa.rs — same discipline as math.rs: pure `core`, zero aya
@@ -303,6 +311,53 @@ static ecn_debt_dl: LruHashMap<u64, u64> = LruHashMap::pinned(4096, 0);
 #[map]
 static ecn_debt_ul: LruHashMap<u64, u64> = LruHashMap::pinned(4096, 0);
 
+// ── The depth histogram rows (night-frontier-2B, schema v34) ── one
+// row per cgroup per direction, keyed at the LEAF (the socket's own
+// cgroup — the identity the ee --depth target names, NOT the
+// resolved policy root the stats/ring family keys: the histogram is
+// a per-app distribution, and an unpolicED app deserves its shape
+// too). Two metric halves per row (hist::HistRow, 512 bytes): size
+// (bytes) records on every sampled packet; srtt (microseconds)
+// records only when the socket's recwn hint row carries the RTT
+// lane's measurement (the no-CO-RE source — the sock_ops uapi
+// harvest the v33 ratchet already rides). Recording rides the
+// sampler: 1-in-1024 packets per CPU pay the row, the other 1023
+// pay one per-CPU tick. LRU, not HashMap, because the leaf keying
+// is unbounded by the policy census (every cgroup on the host is a
+// candidate row). Userspace reads the rows through the pinned-map
+// lane (the stats.rs reader twin) for the ee --depth distribution
+// section; the row shape is schema-pinned end to end.
+
+#[allow(non_upper_case_globals)]
+#[map]
+static depth_hist_dl: LruHashMap<u32, hist::HistRow> = LruHashMap::pinned(2048, 0);
+
+#[allow(non_upper_case_globals)]
+#[map]
+static depth_hist_ul: LruHashMap<u32, hist::HistRow> = LruHashMap::pinned(2048, 0);
+
+/// The per-CPU sampler tick (night-frontier-2B): one increment per
+/// packet — per-CPU isolation, no atomics, no hash — the unlimited
+/// majority's entire histogram cost (the NIGHT-lts-2 law's
+/// frontier-2B amendment, the A/B harness's measured cost). The
+/// sampled packet does the map work. Datapath-internal (userspace
+/// never opens it — the leaf_bucket family's contract).
+#[allow(non_upper_case_globals)]
+#[map]
+static hist_sample_tick: PerCpuArray<u64> = PerCpuArray::pinned(1, 0);
+
+/// The zero-row source (night-frontier-2B): one kernel-pre-zeroed
+/// entry the first-sample insert COPIES from — a 512-byte HistRow
+/// can never touch the BPF stack (the linker's own verdict on the
+/// first build: "the BPF stack limit is exceeded"), so the init
+/// value lives in map memory and the insert reads it from there.
+/// Userspace never writes it — the watchdog_deadline contract's
+/// write-surface discipline (kernel zero-fill at map creation is
+/// the guarantee; an Array entry pre-created zeroed stays zeroed).
+#[allow(non_upper_case_globals)]
+#[map]
+static hist_zero_row: Array<hist::HistRow> = Array::pinned(1, 0);
+
 // ---------------------------------------------------------------------------
 // Enforcement program flow. The refill math (fill-detect, fractional
 // carry, cap, drop) lives in math.rs (NIGHT-depthbore-1); everything
@@ -340,6 +395,7 @@ fn enforce_dl(ctx: SkBuffContext) -> i32 {
         &cake_flow::flow_bucket_dl,
         &cake_flow::flow_share_dl,
         &cake_flow::flow_ledger_dl,
+        &depth_hist_dl,
     )
 }
 
@@ -362,6 +418,7 @@ fn enforce_ul(ctx: SkBuffContext) -> i32 {
         &cake_flow::flow_bucket_ul,
         &cake_flow::flow_share_ul,
         &cake_flow::flow_ledger_ul,
+        &depth_hist_ul,
     )
 }
 
