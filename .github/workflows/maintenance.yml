@@ -371,8 +371,11 @@ jobs:
           # refresh step updated, never a glob, so no staging
           # directory can ever ride the commit (the zejtron 9708883
           # leak class: a ':(glob)**/Cargo.lock' add matched the
-          # in-tree staging copies too; docs/MAINTENANCE.md §7).
-          git add -- $(find . -name Cargo.toml -not -path '*/target/*' \
-            | sed 's|Cargo\.toml$|Cargo.lock|')
+          # in-tree staging copies too; docs/MAINTENANCE.md §7). The
+          # paths ride xargs — no command substitution in argument
+          # position, so the SC2046 word-splitting seat stays silent.
+          find . -name Cargo.toml -not -path '*/target/*' \
+            | sed 's|Cargo\.toml$|Cargo.lock|' \
+            | xargs -r git add --
           git commit -m "chore(deps): maintenance deps weekly"
           git push origin main
