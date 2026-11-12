@@ -52,42 +52,214 @@ const _: () = assert!(core::mem::size_of::<HistRow>() == 512);
 /// bucket 0 — a zero-length skb is not traffic, but a count there
 /// beats a clz panic on 0.
 ///
-/// The cap rides an AND on the RAW log2, not a clamp on the
-/// post-comparison value — the server sentinel's off=2040 lesson:
-/// the first build's clamp (and the call-site mask after it) was
-/// PROVABLY DEAD to LLVM for the u32 skb length the hooks see, the
-/// compiler deleted it, and the verifier — which cannot see LLVM's
-/// reasoning — read the unbounded ilog2 and rejected the load. The
-/// AND on a value LLVM knows spans 0..=63 (63 & 31 is not a no-op
-/// it may fold) survives every optimization pass, and the
-/// verifier's own AND tracking caps the index at 31 by
-/// construction. Inputs at or above 2^32 — no skb the kernel hands
-/// a cgroup_skb hook — wrap through the mask instead of clamping;
-/// the reachable contract (every real skb, the pinned points) is
-/// unchanged.
+/// The ladder IS the verifier's own proof, and the third form this
+/// fn took: the clamp (build one) and the AND mask (build two) were
+/// both PROVABLY DEAD to LLVM — the hooks hand a u32 skb length, so
+/// the compiler knows ilog2(bytes) <= 31 before any cap runs, and it
+/// deleted each cap while the verifier (which cannot see LLVM's
+/// reasoning) modeled leading_zeros as an opaque scalar and rejected
+/// the load at off=2040. Direct comparisons on the raw value are the
+/// one shape nothing can optimize away: each bound is a branch the
+/// verifier merges natively, and the straight-line sequence has no
+/// merge to miss. Only sampled packets (1 in 1024) pay the ladder.
 #[inline]
 pub fn size_bucket(bytes: u64) -> usize {
-    if bytes == 0 {
-        return 0;
+    if bytes >= 1 << 31 {
+        return 31;
     }
-    let raw = 63 - bytes.leading_zeros() as usize;
-    raw & (HIST_BUCKETS - 1)
+    if bytes >= 1 << 30 {
+        return 30;
+    }
+    if bytes >= 1 << 29 {
+        return 29;
+    }
+    if bytes >= 1 << 28 {
+        return 28;
+    }
+    if bytes >= 1 << 27 {
+        return 27;
+    }
+    if bytes >= 1 << 26 {
+        return 26;
+    }
+    if bytes >= 1 << 25 {
+        return 25;
+    }
+    if bytes >= 1 << 24 {
+        return 24;
+    }
+    if bytes >= 1 << 23 {
+        return 23;
+    }
+    if bytes >= 1 << 22 {
+        return 22;
+    }
+    if bytes >= 1 << 21 {
+        return 21;
+    }
+    if bytes >= 1 << 20 {
+        return 20;
+    }
+    if bytes >= 1 << 19 {
+        return 19;
+    }
+    if bytes >= 1 << 18 {
+        return 18;
+    }
+    if bytes >= 1 << 17 {
+        return 17;
+    }
+    if bytes >= 1 << 16 {
+        return 16;
+    }
+    if bytes >= 1 << 15 {
+        return 15;
+    }
+    if bytes >= 1 << 14 {
+        return 14;
+    }
+    if bytes >= 1 << 13 {
+        return 13;
+    }
+    if bytes >= 1 << 12 {
+        return 12;
+    }
+    if bytes >= 1 << 11 {
+        return 11;
+    }
+    if bytes >= 1 << 10 {
+        return 10;
+    }
+    if bytes >= 1 << 9 {
+        return 9;
+    }
+    if bytes >= 1 << 8 {
+        return 8;
+    }
+    if bytes >= 1 << 7 {
+        return 7;
+    }
+    if bytes >= 1 << 6 {
+        return 6;
+    }
+    if bytes >= 1 << 5 {
+        return 5;
+    }
+    if bytes >= 1 << 4 {
+        return 4;
+    }
+    if bytes >= 1 << 3 {
+        return 3;
+    }
+    if bytes >= 1 << 2 {
+        return 2;
+    }
+    if bytes >= 1 << 1 {
+        return 1;
+    }
+    0
 }
 
 /// The log2 bucket of an srtt sample in MICROSECONDS — the recwn
 /// row's stored form (the RTT callback already shifted the uapi
-/// sock_ops `srtt_us` >> 3 before writing the word, so the peek
-/// hands this fn plain microseconds; the v31 ledger's <<3 note
-/// describes the UAPI read, not the stored word). Zero (the
+/// sock_ops `srtt_us` >> 3 before writing the word). Zero (the
 /// unmeasured sentinel) answers bucket 0; callers only record when
-/// the word is nonzero.
+/// the word is nonzero. The ladder is the verifier's own proof, the
+/// same lesson size_bucket's doc carries.
 #[inline]
 pub fn srtt_bucket(srtt_us: u64) -> usize {
-    if srtt_us == 0 {
-        return 0;
+    if srtt_us >= 1 << 31 {
+        return 31;
     }
-    // The same AND-not-clamp law as size_bucket — the verifier's
-    // proof must survive LLVM, and it does here for the same reason.
-    let raw = 63 - srtt_us.leading_zeros() as usize;
-    raw & (HIST_BUCKETS - 1)
+    if srtt_us >= 1 << 30 {
+        return 30;
+    }
+    if srtt_us >= 1 << 29 {
+        return 29;
+    }
+    if srtt_us >= 1 << 28 {
+        return 28;
+    }
+    if srtt_us >= 1 << 27 {
+        return 27;
+    }
+    if srtt_us >= 1 << 26 {
+        return 26;
+    }
+    if srtt_us >= 1 << 25 {
+        return 25;
+    }
+    if srtt_us >= 1 << 24 {
+        return 24;
+    }
+    if srtt_us >= 1 << 23 {
+        return 23;
+    }
+    if srtt_us >= 1 << 22 {
+        return 22;
+    }
+    if srtt_us >= 1 << 21 {
+        return 21;
+    }
+    if srtt_us >= 1 << 20 {
+        return 20;
+    }
+    if srtt_us >= 1 << 19 {
+        return 19;
+    }
+    if srtt_us >= 1 << 18 {
+        return 18;
+    }
+    if srtt_us >= 1 << 17 {
+        return 17;
+    }
+    if srtt_us >= 1 << 16 {
+        return 16;
+    }
+    if srtt_us >= 1 << 15 {
+        return 15;
+    }
+    if srtt_us >= 1 << 14 {
+        return 14;
+    }
+    if srtt_us >= 1 << 13 {
+        return 13;
+    }
+    if srtt_us >= 1 << 12 {
+        return 12;
+    }
+    if srtt_us >= 1 << 11 {
+        return 11;
+    }
+    if srtt_us >= 1 << 10 {
+        return 10;
+    }
+    if srtt_us >= 1 << 9 {
+        return 9;
+    }
+    if srtt_us >= 1 << 8 {
+        return 8;
+    }
+    if srtt_us >= 1 << 7 {
+        return 7;
+    }
+    if srtt_us >= 1 << 6 {
+        return 6;
+    }
+    if srtt_us >= 1 << 5 {
+        return 5;
+    }
+    if srtt_us >= 1 << 4 {
+        return 4;
+    }
+    if srtt_us >= 1 << 3 {
+        return 3;
+    }
+    if srtt_us >= 1 << 2 {
+        return 2;
+    }
+    if srtt_us >= 1 << 1 {
+        return 1;
+    }
+    0
 }
