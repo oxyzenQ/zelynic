@@ -85,21 +85,40 @@ the leg:
   policy lookup and unconditionally: every packet the cgroup-root
   hooks see ticks the per-CPU counter, every 1024th is recorded
   against `bpf_skb_cgroup_id` (the socket's OWN cgroup). Recording
-  is policy-independent — the leg needs no policy write.
+  is policy-independent — the 1tb clamp the leg applies below
+  exists for the session, never for the recording.
 - `ebpf/src/hist.rs` — the cadence constants (HIST_SAMPLE_SHIFT 10,
   the mask), the 32-bucket log2 law, the 512-byte row.
 
-The leg's shape: drive 12 s of bulk loopback download through
-cgroup A (`py_download`'s worker lane), then read
-`ee <A> --depth --print-json` headless and assert, on the row the traffic
-filled: `histogram` non-null; `sample_shift == 10`; the download
-size half non-null with `samples == sum(buckets) > 0` and non-null
-p50/p95 (samples is computed as the bucket sum in
-`depth_json/mod.rs::hist_stats_json`, so the equality is the
-userspace mirror's own arithmetic, checked end to end). Twelve
-seconds of unlimited loopback bulk is tens of thousands of GSO skbs
-on every profile the harness runs — samples ~= skbs/1024, far past
-the stochastic floor for a >0 assert.
+The leg's shape (after two live CI iterations taught the order): the
+leg builds its OWN session first — `strict <A> 1tb`, a ceiling
+loopback physics cannot touch, so the clamp never engages and the
+traffic stays the unlimited maximum-packet lane while the full pin
+skeleton (programs, links, maps) is alive for BOTH the traffic and
+the read — then drives 12 s of bulk loopback download through
+cgroup A (`py_download`'s worker lane), reads
+`ee <A> --depth --print-json` headless, tears its own policy down
+(`u <A>`, best-effort, before the verdict records), and asserts, on
+the row the traffic filled: `histogram` non-null; `sample_shift ==
+10`; the download size half non-null with
+`samples == sum(buckets) > 0` and non-null p50/p95 (samples is
+computed as the bucket sum in `depth_json/mod.rs::hist_stats_json`,
+so the equality is the userspace mirror's own arithmetic, checked
+end to end). Twelve seconds of unlimited loopback bulk is tens of
+thousands of GSO skbs on every profile the harness runs — samples
+~= skbs/1024, far past the stochastic floor for a >0 assert.
+
+The two live iterations, named: (1) the first run read
+`--depth --json` — no such flag (the depth JSON flag is
+`--print-json`, the server phase's own headless probe has used it
+all along); (2) the second run exited 1 on the depth read — the leg
+had run AFTER the zombie sweep's `u --all`, and NIGHT-hunt-20's
+unpin-if-no-policies law had removed the pin skeleton whole, so the
+read answered without a session (the hq probe never hits this — it
+runs mid-phase with policies live). The redesign gives the leg its
+own session-first shape and tears it down after; a read failure now
+surfaces BOTH streams in the verdict note (in print-json mode the
+error verdict rides stdout).
 
 Honesty boundaries named, not hidden: the upload and srtt halves
 ride loopback's request direction and the RTT lane's harvest —
