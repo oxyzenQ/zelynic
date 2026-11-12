@@ -106,6 +106,7 @@ name for zelynic's entire architectural stack, indexed in
 | **Refresh control** | `--interval 1s..60s` on `eagle-eyes`, live DOWNLOAD/UPLOAD rate columns plus a session TOTAL, and the footer's session speed pair — `peak arrival dl | ul` / `avg arrival dl | ul` per direction (NIGHT-engrave-6, arrival-labeled by NIGHT-private-research-7). |
 | **Eagle-eyes detail** | Monitor rows name the processes and endpoints INSIDE a cgroup — `curl (4012) -> 142.250.191.78:443` (NIGHT-hunt-8). |
 | **Depth traffic focus** | `ee <target> --depth` MEASURES a focus window (default 3s, `--focus 1s-30s`) and prints what moved per endpoint with the kernel's own window totals — movers ranked first (NIGHT-private-research-3). |
+| **Depth histogram** | `ee <target> --depth` also surfaces the SAMPLED distribution — packet size and TCP srtt in 32 log2 buckets per direction, recorded by a 1-in-1024 per-CPU sampler (the hot path pays one per-CPU tick, the sampled packet the LRU row) — bucket-bounded p50/p95/p99 per half (the lower bound of the first bucket whose cumulative count reaches the quantile), the JSON `histogram` block for frontends, the honest null while absent (night-frontier-2B, schema v34; pins: test/ebpf/limiter/hist_tests.rs). |
 | **Strict dependency diet** | 7 direct deps, 54 lockfile crates, every one justified in [docs/DEPENDENCY_AUDIT.md](docs/DEPENDENCY_AUDIT.md). |
 
 ### Dependency policy (supply chain)
