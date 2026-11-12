@@ -2635,14 +2635,23 @@ def stage_server_histogram():
     socket's OWN cgroup BEFORE the policy lookup — recording is
     policy-independent, so the leg needs no policy write at all.
 
-    The shape:
-      1. drive bulk loopback download through cgroup A (the
-         unlimited GSO path is the maximum-packet lane; samples are
+    The shape (the first CI run taught the order: the leg runs after
+    the zombie sweep's `u --all`, and NIGHT-hunt-20's
+    unpin-if-no-policies law leaves the pin skeleton REMOVED there —
+    a depth read in that state answers without a session to read, so
+    the leg builds its own session FIRST and tears it down after):
+      1. apply `strict <A> 1tb` — a ceiling loopback physics cannot
+         touch, so the traffic below stays the unlimited
+         maximum-packet lane, but the full pin skeleton (programs,
+         links, maps) is alive for BOTH the traffic and the read
+      2. drive bulk loopback download through cgroup A (samples are
          ~= skbs/1024, and twelve seconds of loopback bulk is tens
          of thousands of skbs on every profile this harness runs)
-      2. read `ee <A> --depth --print-json` headless — the report row's
-         histogram block answers under the schema version gate
-      3. assert: the block non-null (null here is the honest
+      3. read `ee <A> --depth --print-json` headless — the report
+         row's histogram block answers under the schema version gate
+      4. tear the leg's own policy down (`u <A>`, best-effort) BEFORE
+         the verdict records — the slate ends as the leg found it
+      5. assert: the block non-null (null here is the honest
          absence, which would mean the sampler never fired),
          sample_shift == 10 (HIST_SAMPLE_SHIFT, the wire contract),
          the download size half non-null with samples ==
@@ -2653,12 +2662,34 @@ def stage_server_histogram():
     The upload and srtt halves ride loopback's request direction and
     the RTT lane's harvest — physics the bulk stream does not
     guarantee — so the verdict note names their sample counts instead
-    of asserting them. No teardown: no policy was applied and the LRU
-    row retires with the session."""
+    of asserting them."""
     out()
     out("━━━ server depth: histogram live proof (bulk traffic + depth JSON) ━━━")
     a_id = CG.ids["a"]
+    # Step 1: the leg's own session — 1tb is a ceiling loopback
+    # physics cannot reach, so the clamp never engages and the
+    # traffic below stays the unlimited maximum-packet lane, while
+    # the full pin skeleton answers the depth read afterwards (the
+    # first CI run's lesson: a depth read with no session to read is
+    # a read of nothing).
+    rc, so, se = run_zel(["strict", str(a_id), "1tb"], timeout=30)
+    if rc != 0:
+        record(
+            "server: histogram live proof (bulk traffic + depth JSON)",
+            "FAIL",
+            f"session apply (strict 1tb) failed: exit {rc}, {(se or so).strip()[:200]}",
+        )
+        return False
+    # Step 2: the traffic.
     got = py_download(12.0, name="a")
+    # Step 3: the read (the session is alive; stdout carries the JSON
+    # document — and, in print-json mode, the error verdict too).
+    rc, stdout, stderr = run_zel_headless(
+        ["eagle-eyes", f"cg:{a_id}", "--depth", "--print-json"], timeout=60
+    )
+    # Step 4: the leg's own teardown, best-effort, before the
+    # verdict — the slate ends as the leg found it.
+    run_zel(["u", str(a_id)], timeout=30)
     if got <= 0:
         record(
             "server: histogram live proof (bulk traffic + depth JSON)",
@@ -2667,14 +2698,12 @@ def stage_server_histogram():
             "every histogram verdict below would be garbage",
         )
         return False
-    rc, stdout, stderr = run_zel_headless(
-        ["eagle-eyes", f"cg:{a_id}", "--depth", "--print-json"], timeout=60
-    )
     if rc != 0:
         record(
             "server: histogram live proof (bulk traffic + depth JSON)",
             "FAIL",
-            f"depth JSON exit {rc}: {(stderr or stdout).strip()[:200]}",
+            f"depth read exit {rc}; stderr: {(stderr or '').strip()[:200]}; "
+            f"stdout: {(stdout or '').strip()[:200]}",
         )
         return False
     try:

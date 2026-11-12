@@ -386,14 +386,17 @@ frontend recomputes what it wants. Rootless pins: the kernel's own
 `hist.rs` compiles into the test tree (`test/ebpf/limiter/hist_tests.rs`
 and `hist_raw_tests.rs`, the render pins in `depth_json_tests.rs`);
 CI proof: the supermassive server phase's histogram leg
-(night-verify-1) — bulk loopback traffic through cgroup A, then
+(night-verify-1) — a 1tb clamp (a ceiling loopback physics cannot
+touch, held purely so the pin session survives the zombie sweep's
+skeleton-unpinning teardown) over twelve seconds of bulk loopback
+traffic through cgroup A, then
 `ee --depth --print-json` asserted: `sample_shift` pinned at 10, the
 download size half non-null with samples == sum(buckets) > 0 and
-non-null quantiles. The leg needs no policy write — the sampler
-records pre-policy (enforce.rs ticks every packet the cgroup-root
-hooks see and keys the socket's own cgroup), so the unlimited
-stream records; the upload and srtt halves stay named-not-asserted
-(loopback does not guarantee them).
+non-null quantiles. The clamp never engages — the sampler records
+the unlimited-rate stream (enforce.rs ticks every packet the
+cgroup-root hooks see and keys the socket's own cgroup); the upload
+and srtt halves stay named-not-asserted (loopback does not
+guarantee them).
 
 ## The Quota Saver — the Workload-Conditional Claim
 
