@@ -388,9 +388,11 @@ and `hist_raw_tests.rs`, the render pins in `depth_json_tests.rs`);
 CI proof: the supermassive server phase's histogram leg
 (night-verify-1) — a 1tb clamp (a ceiling loopback physics cannot
 touch, held purely so the pin session survives the zombie sweep's
-skeleton-unpinning teardown) over twelve seconds of bulk loopback
-traffic through cgroup A, then
-`ee --depth --print-json` asserted: `sample_shift` pinned at 10, the
+skeleton-unpinning teardown) over bulk loopback traffic driven on a
+worker thread through cgroup A, the `ee --depth --print-json` read
+taken MID-TRAFFIC (the depth command's liveness gate refuses a
+cgroup whose members are gone — the worker is the subject's live
+member) — asserted: `sample_shift` pinned at 10, the
 download size half non-null with samples == sum(buckets) > 0 and
 non-null quantiles. The clamp never engages — the sampler records
 the unlimited-rate stream (enforce.rs ticks every packet the
