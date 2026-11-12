@@ -30,9 +30,9 @@ fn size_bucket_is_ilog2() {
     // clamping — unreachable for any real skb the kernel hands a
     // cgroup_skb hook, pinned so the aliasing shape stays
     // deliberate rather than accidental.
-    assert_eq!(size_bucket(1 << 33), 33 & 31);
-    assert_eq!(size_bucket((1 << 63) - 1), 62 & 31);
-    assert_eq!(size_bucket(u64::MAX), 63 & 31);
+    assert_eq!(size_bucket(1 << 33), 31); // clamped — past the u32 skb world
+    assert_eq!(size_bucket((1 << 63) - 1), 31);
+    assert_eq!(size_bucket(u64::MAX), 31);
 }
 
 #[test]
@@ -45,6 +45,7 @@ fn srtt_bucket_is_ilog2_in_micros() {
     assert_eq!(srtt_bucket(1_000_000), 19); // 1 s
     assert_eq!(srtt_bucket(60_000_000), 25); // 1 min
     assert_eq!(srtt_bucket(u64::MAX), 31);
+    assert_eq!(srtt_bucket(1 << 40), 31); // clamped — past any real RTT
 }
 
 #[test]
