@@ -266,11 +266,10 @@ jobs:
             'echo $$ > /sys/fs/cgroup/zverify/cgroup.procs; \
              exec ip netns exec rtt curl -s --max-time 15 -o /dev/null http://10.200.0.1:8000/payload.bin' || true
           echo "--- the depth report's histogram block ---"
-          sudo zelynic ee --depth "cg:${CGID}" --print-json > /tmp/hist.json
-          python3 - <<'PY'
-          import json
+          sudo zelynic ee --depth "cg:${CGID}" --print-json | python3 -c '
+          import json, sys
 
-          doc = json.load(open("/tmp/hist.json"))
+          doc = json.load(sys.stdin)
           targets = doc.get("targets", [])
           assert targets, "the depth report resolved the target"
           h = targets[0].get("histogram")
@@ -283,12 +282,16 @@ jobs:
           assert nonzero, f"the buckets are all zero: {size}"
           for q in ("p50", "p95", "p99"):
               assert size.get(q), f"{q} missing from the size half: {size}"
+          samples = size["samples"]
+          p50 = size["p50"]
+          p95 = size["p95"]
+          p99 = size["p99"]
           print(
-              f"histogram OK: dl size samples={size['samples']}, "
-              f"p50={size['p50']} p95={size['p95']} p99={size['p99']}, "
-              f"non-zero buckets={len(nonzero)}"
+              "histogram OK: dl size samples=%s p50=%s p95=%s p99=%s"
+              " non-zero buckets=%s" % (samples, p50, p95, p99, len(nonzero))
           )
-          PY
+          '
+
           echo "--- cleanup (the pin hygiene the sibling legs share) ---"
           sudo zelynic u --all
 

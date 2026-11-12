@@ -382,7 +382,7 @@ pub(crate) fn hist_record(
                 // SAFETY: the staging entry's map memory — the same
                 // stable-memory contract; the insert copies out of
                 // it, the pointer never escapes this call.
-                let _ = hist_map.insert(&leaf, unsafe { &*zero }, BPF_NOEXIST.into());
+                let _ = hist_map.insert(&leaf, unsafe { &*zero }, BPF_NOEXIST);
             }
             match hist_map.get_ptr_mut(&leaf) {
                 // SAFETY: the same stable-memory contract as above.
@@ -391,7 +391,14 @@ pub(crate) fn hist_record(
             }
         }
     };
-    let sb = hist::size_bucket(pkt_len);
+    // The bucket index rides an AND mask, not the clamp alone: the
+    // 5.15 verifier's range tracking could not see through the
+    // clamp's branch (the server sentinel's "invalid access to map
+    // value, value_size=512 off=2040" — index 255!), while an AND
+    // with the power-of-two bucket count is a proof it always sees
+    // (the rate ring's `w % 8` pattern). Semantically a no-op —
+    // size_bucket already answers 0..=31.
+    let sb = hist::size_bucket(pkt_len) & (hist::HIST_BUCKETS - 1);
     // SAFETY: the row pointer above; the fetch_add is the share
     // word's RMW discipline — cross-CPU adds on one row are the
     // design (the depth distribution is machine-wide for the
@@ -410,7 +417,7 @@ pub(crate) fn hist_record(
     if srtt_us == 0 {
         return;
     }
-    let rb = hist::srtt_bucket(u64::from(srtt_us));
+    let rb = hist::srtt_bucket(u64::from(srtt_us)) & (hist::HIST_BUCKETS - 1);
     // SAFETY: the same row, the same RMW view as the size half.
     unsafe { AtomicU64::from_ptr(core::ptr::addr_of_mut!((*row).srtt[rb])) }
         .fetch_add(1, Ordering::Relaxed);
