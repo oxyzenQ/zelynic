@@ -1,0 +1,462 @@
+---
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: AGPL-3.0-only
+# OS: Linux only — zelynic is a Linux eBPF tool; no other OS is supported.
+# =============================================================================
+#
+# zelynic - NETRUNNER NIGHT C77 (night-total-hardening-1, the owner's
+# ask: "after all passed create a CI for special critical simulate
+# same as above. with name netrunner-night-C77").
+#
+# The lane this file runs is the critical-usage forensic simulation
+# the session verified live in the local micro-VM before this
+# workflow existed: scripts/sandbox/forensic-critical-sim.sh, one
+# FORENSIC-RESULT row per claim, nothing printed that was not
+# measured. Five sections, the owner's own mandate list:
+#
+#   1. THE REGRESSION PINS — this session's fatal finds, each refused
+#      the honest way: dead direct cgroup ids (s 889111, b 1011::11),
+#      partial lists (b live::noexist — atomic refusal, status proves
+#      nothing landed), numeric targets past the 32-bit id space, the
+#      valueless-flag JSON verdict, the once-only root catch-all
+#      warning with its byte-level host-caps render check, and the
+#      unstrict list's no-limits accounting tail.
+#   2. THE JSON CONTRACT — status, list-apps, doctor, eagle-eyes
+#      --depth: every --print-json document parses and carries its
+#      contract fields.
+#   3. THE CRITICAL SIMULATION, measured — a real loopback workload:
+#      the unlimited baseline, a 200kb cap ENFORCED (measured against
+#      both the baseline and the cap), the block that kills the flow,
+#      the unstrict recovery, and a --during window that expires on
+#      its own clock. Plus the depth report's eBPF histogram lane
+#      (night-verify-1's innovation) read MID-TRAFFIC over 24k real
+#      small packets — the 1/1024 sampling law respected.
+#   4. THE LIVE MONITOR on a real PTY — the focus view, the
+#      name-target view (the owner's blank-exit find's exact shape),
+#      and the leaderboard: frames must render and the session must
+#      live until q. The interactive-stdio gate refuses a redirected
+#      stdout loudly.
+#   5. THE NON-ROOT LANE — uid 65534: every mutation verb refused
+#      cleanly, the refusal naming the privilege ask.
+#
+# Why a lane of its own and not another shard in supermassive-e2e:
+# that lane owns the five depth suites (the shared-contract suites);
+# this lane owns the FORENSIC simulation — the regression pins for
+# this session's finds and the measured critical-usage scenario, a
+# contract no other lane executes. Two contracts, two lanes - the
+# estate's standing law.
+#
+# Build shape (the from-source law, the sibling lanes' own): the
+# stage job builds the pro-linux-amd64-v3-musl alias — the release
+# page's amd64-v3 tier, fully static musl, NEVER a bare
+# `cargo build --release` — verified through its embedded build
+# label. One kernel envelope (the archive's dynamically resolved
+# latest - the simulation is a userspace contract, the kernel-span
+# proof belongs to the e2e lane), one rootfs with
+# scripts/sandbox/sandbox-init.sh as PID 1 and the forensic
+# simulation packed as its payload (the local instrument's own
+# payload contract: SANDBOX-RESULT/SANDBOX-VERDICT sentinel relay,
+# the isa-debug-exit VM end).
+#
+# Trigger discipline (the estate's unfiltered-CI posture): every
+# push and every pull request burns the lane - no path filter, no
+# branch filter, no schedule (night-verify-1's law: a schedule-only
+# lane is a Skipped row on every push). workflow_dispatch stays as
+# the manual recovery lane.
+
+name: netrunner-night-C77
+
+"on":
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # The one-group law every push-triggered lane carries: a
+  # superseded run cancels this run's boots.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The estate's JS-action runtime pin (every workflow carries it).
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  # ── the stage: build once, boot once ────────────────────────────────
+  stage:
+    name: C77 - stage (payload + the latest kernel envelope)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          persist-credentials: false
+
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
+      - name: Install cpio
+        run: |-
+          sudo apt-get -o Acquire::Retries=5 update -qq
+          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends cpio
+
+      # The toolchain set mirrors the sibling lanes' stage jobs: the
+      # pinned stable + musl target for the payload build, the dated
+      # nightly for the nested pure-Rust eBPF crate build the ebpf
+      # feature drives, and the pinned prebuilt bpf-linker.
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: "1.98.1"
+          components: clippy, rustfmt
+          targets: x86_64-unknown-linux-musl
+
+      - name: Install eBPF nightly toolchain (dated pin)
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: nightly-2026-09-18
+          components: rust-src
+
+      - name: Install bpf-linker 0.11.1 (prebuilt static musl)
+        run: bash scripts/dev/install-bpf-linker.sh
+
+      - name: Cache cargo registry
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6, NIGHT-hunt-20 SHA pin
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            ebpf/target
+          key: ${{ runner.os }}-cargo-c77-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-c77-
+
+      # The owner's from-source law: the release-tier alias, never a
+      # bare cargo build --release. The artifact is verified through
+      # its embedded build label before it ships into the guest.
+      - name: Build the release-tier v3 payload (pro-linux-amd64-v3-musl)
+        run: |
+          set -euo pipefail
+          RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3 -C target-feature=+crt-static" \
+            cargo pro-linux-amd64-v3-musl --locked
+          ./target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic -V \
+            | grep -F "Build: local-pro-linux-amd64-v3-musl"
+
+      # The latest-kernel envelope (the e2e lane's own resolver,
+      # verbatim): dynamically resolved from the archive's newest
+      # suites - no URL rot, no pinned ABI - plus the config-driven
+      # virtio staging walk (the day a head flips VIRTIO_NET back to
+      # =m, the walk stages the trio instead of reddening the boot).
+      - name: Resolve the archive's latest kernel
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/stage/best && cd /tmp/stage/best
+          SUITES=$(curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 300 --connect-timeout 15 \
+            http://archive.ubuntu.com/ubuntu/dists/ \
+            | grep -oE 'href="[a-z0-9]+/"' | cut -d'"' -f2 | tr -d '/' \
+            | grep -v -- '-' | sort -u)
+          if test -z "$SUITES"; then
+            echo "FAIL: the dists index resolved no base suites - archive restructure?"
+            exit 1
+          fi
+          echo "base suites: $(echo "$SUITES" | tr '\n' ' ')"
+          RELEASES=$(for s in $SUITES; do
+            rel=$(curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 300 --connect-timeout 15 \
+              "http://archive.ubuntu.com/ubuntu/dists/$s/Release")
+            d=$(echo "$rel" | sed -n 's/^Date: //p' | head -1)
+            c=$(echo "$rel" | sed -n 's/^Codename: //p' | head -1)
+            if test -n "$d" && test -n "$c"; then
+              echo "$(date -d "$d" +%s 2>/dev/null || echo 0) $c"
+            fi
+          done | sort -rn -k1,1 | awk '!seen[$2]++')
+          DATED=$(echo "$RELEASES" | head -2 | awk '{print $2}')
+          if test -z "$DATED"; then
+            echo "FAIL: no suite Release carried Date+Codename - resolver evidence above"
+            exit 1
+          fi
+          echo "newest distinct codenames: $(echo "$DATED" | tr '\n' ' ')"
+          {
+            for s in $DATED; do
+              echo "deb http://archive.ubuntu.com/ubuntu/ $s main"
+              echo "deb http://archive.ubuntu.com/ubuntu/ $s-updates main"
+            done
+          } | sudo tee /etc/apt/sources.list.d/latest-head.list >/dev/null
+          sudo apt-get -o Acquire::Retries=5 update \
+            -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/latest-head.list \
+            -o Dir::Etc::sourceparts=/dev/null \
+            -o APT::Get::List-Cleanup=0
+          IMG=$(apt-cache search --names-only 'linux-image-unsigned' 2>/dev/null \
+            | awk '{print $1}' \
+            | grep -E '^linux-image-unsigned-[0-9]+\.[0-9]+\.0-[0-9]+-generic$' \
+            | sort -V | tail -1 || true)
+          if test -z "$IMG"; then
+            echo "FAIL: no generic unsigned kernel image resolved across the newest suites - index evidence:"
+            apt-cache search --names-only 'linux-image-unsigned' | head -20 || true
+            exit 1
+          fi
+          echo "resolved: $IMG"
+          apt-get -o Acquire::Retries=5 download "$IMG"
+          dpkg -x "${IMG}"*_amd64.deb pkg
+          VMLINUZ=$(find pkg/boot -type f -name 'vmlinuz-*' | head -1)
+          if test -z "$VMLINUZ"; then
+            echo "FAIL: no vmlinuz inside the deb - pkg/boot contents:"
+            ls -la pkg/boot || true
+            exit 1
+          fi
+          cp "$VMLINUZ" /tmp/stage/best/vmlinuz-floor
+          echo "kernel: $(du -h /tmp/stage/best/vmlinuz-floor | cut -f1) at /tmp/stage/best/vmlinuz-floor"
+          KVER="${IMG#linux-image-unsigned-}"
+          MODPKG="linux-modules-$KVER"
+          apt-get -o Acquire::Retries=5 download "$MODPKG"
+          rm -rf mods /tmp/stage/best/virtio-mods
+          dpkg-deb -x "${MODPKG}"*_amd64.deb mods
+          CFG="mods/boot/config-$KVER"
+          test -f "$CFG" || {
+            echo "FAIL: no config-$KVER inside $MODPKG - deb contents:"
+            ls mods/boot || true
+            exit 1
+          }
+          VNET=$(sed -n 's/^CONFIG_VIRTIO_NET=\(.*\)$/\1/p' "$CFG")
+          case "$VNET" in
+            y)  echo "virtio_net built-in (=y) - no modules to stage" ;;
+            m)  STG="/tmp/stage/best/virtio-mods/lib/modules/$KVER/kernel"
+                mkdir -p "$STG/net/core" "$STG/drivers/net"
+                stage_mod() {
+                  mod=$1; dir=$2; flag=$3
+                  WANT=$(sed -n "s/^CONFIG_$flag=\(.*\)$/\1/p" "$CFG")
+                  if [ "$WANT" = "m" ]; then
+                    SRC="mods/lib/modules/$KVER/kernel/$dir/$mod.ko"
+                    test -f "$SRC" || { echo "FAIL: $mod.ko absent from $MODPKG (config says =m)"; exit 1; }
+                    cp "$SRC" "$STG/$dir/"
+                  fi
+                }
+                stage_mod failover net/core FAILOVER
+                stage_mod net_failover drivers/net NET_FAILOVER
+                stage_mod virtio_net drivers/net VIRTIO_NET
+                echo "staged virtio modules: $(du -sh /tmp/stage/best/virtio-mods | cut -f1)"
+                echo "  at /tmp/stage/best/virtio-mods" ;;
+            *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET - no usable virtio-net driver on this kernel"; exit 1 ;;
+          esac
+
+      # The rootfs (the e2e lane's userland, held constant): the
+      # docker-export ubuntu:24.04 base + the guest tooling the
+      # simulation needs (python3, iproute2, kmod, curl), the repo
+      # checkout (git archive HEAD), the payload, and - the one
+      # deliberate difference from the e2e lane - scripts/sandbox/
+      # sandbox-init.sh as PID 1 with the forensic simulation packed
+      # as its .sandbox/payload.sh (the local instrument's payload
+      # contract: bring-up probes, the SANDBOX-VERDICT sentinel
+      # relay, the isa-debug-exit VM end).
+      - name: Assemble the micro-VM rootfs
+        run: |
+          set -euo pipefail
+          SUITE=ubuntu:24.04
+          PAYLOAD="$GITHUB_WORKSPACE/target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic"
+          echo "rootfs suite: $SUITE (payload: pro-linux-amd64-v3-musl, static)"
+          docker pull -q "$SUITE"
+          docker rm -f c77-rootfs >/dev/null 2>&1 || true
+          docker run --name c77-rootfs -d "$SUITE" sleep infinity
+          docker exec c77-rootfs apt-get -o Acquire::Retries=5 update -qq
+          docker exec c77-rootfs apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
+            python3 iproute2 kmod curl ca-certificates
+          docker exec c77-rootfs sh -ec '
+            cd /tmp || exit 1
+            resolve() {
+              apt-cache depends "$1" \
+                | sed -n "s/^ *Depends: \(linux-tools-[0-9][^ ]*\) *$/\1/p" \
+                | head -n1
+            }
+            pkg=$(resolve linux-tools-generic)
+            test -n "$pkg" || { echo "FAIL: no per-kernel linux-tools resolved"; exit 1; }
+            src=""
+            for _ in 1 2 3; do
+              apt-get -o Acquire::Retries=5 download "$pkg" >/dev/null
+              rm -rf /tmp/bpx
+              dpkg-deb -x "${pkg}"_*.deb /tmp/bpx
+              src=$(find /tmp/bpx/usr/lib -type f -name bpftool | head -n1)
+              test -n "$src" && break
+              next=$(resolve "$pkg")
+              test -n "$next" || break
+              test "$next" != "$pkg" || break
+              pkg="$next"
+            done
+            test -n "$src" || { echo "FAIL: no bpftool inside the linux-tools chain ($pkg)"; exit 1; }
+            install -m 0755 "$src" /usr/bin/bpftool
+            rm -rf /tmp/bpx /tmp/linux-tools-*.deb
+          '
+          docker export c77-rootfs -o /tmp/stage/rootfs.tar
+          cd /tmp/stage/best
+          mkdir -p rootfs
+          tar -xf /tmp/stage/rootfs.tar -C rootfs
+          mkdir -p rootfs/opt/zelynic
+          git -C "$GITHUB_WORKSPACE" archive HEAD | tar -x -C rootfs/opt/zelynic
+          cp "$PAYLOAD" rootfs/opt/zelynic/zelynic
+          printf '%s\n' 'pro-linux-amd64-v3-musl' > rootfs/opt/zelynic/PAYLOAD-SHAPE
+          cp "$GITHUB_WORKSPACE/scripts/sandbox/sandbox-init.sh" rootfs/init
+          chmod +x rootfs/init
+          mkdir -p rootfs/opt/zelynic/.sandbox
+          cat > rootfs/opt/zelynic/.sandbox/payload.sh <<'PAYLOAD_EOF'
+          #!/usr/bin/env bash
+          # night-total-hardening-1: the critical-usage forensic
+          # simulation as the C77 payload (the session's verified rig,
+          # the same script the local micro-VM ran green).
+          set -u
+          cd /opt/zelynic
+          bash scripts/sandbox/forensic-critical-sim.sh --binary /opt/zelynic/zelynic
+          PAYLOAD_EOF
+          chmod +x rootfs/opt/zelynic/.sandbox/payload.sh
+          if [ -d virtio-mods ]; then
+            if [ -L rootfs/lib ]; then
+              mkdir -p rootfs/usr/lib
+              cp -a virtio-mods/lib/modules rootfs/usr/lib/
+            else
+              mkdir -p rootfs/lib
+              cp -a virtio-mods/lib/modules rootfs/lib/
+            fi
+            echo "virtio modules staged into the rootfs cpio"
+          fi
+          # PID 1 needs a console before devtmpfs lands (the e2e
+          # lane's own lesson: the docker-export /dev/console entry
+          # cannot be restored by tar - mknod the real char device).
+          sudo rm -f rootfs/dev/console
+          sudo mknod -m 600 rootfs/dev/console c 5 1
+          ( cd rootfs && sudo find . -print0 | sudo cpio --null -o -H newc ) | gzip -1 > initrd.gz
+          echo "initramfs: $(du -h initrd.gz | cut -f1)"
+          rm -rf rootfs rootfs.tar pkg mods ./*.deb
+
+      - name: Upload the C77 micro-VM bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          name: c77-vm
+          path: |
+            /tmp/stage/best/vmlinuz-floor
+            /tmp/stage/best/initrd.gz
+          if-no-files-found: error
+          retention-days: 3
+
+  # ── the critical simulation: boot the VM, grep the verdict ─────────
+  critical-simulation:
+    name: C77 - critical simulation (root lane + nonroot lane, the forensic rig)
+    needs: [stage]
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          persist-credentials: false
+
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
+      # The KVM contract (the e2e lane's own wording): the node ships
+      # /dev/kvm 0660 root:kvm and the runner user is not in the kvm
+      # group, so the job opens it up itself. Failing LOUDLY here
+      # beats a confusing TCG fallback: the payload is x86-64-v3
+      # codegen and would SIGILL under TCG's -cpu qemu64.
+      - name: Verify KVM
+        run: |
+          test -e /dev/kvm || {
+            echo "FAIL: /dev/kvm is absent - this runner image cannot boot the micro-VM"
+            exit 1
+          }
+          test -w /dev/kvm || sudo chmod 666 /dev/kvm
+          test -w /dev/kvm || {
+            echo "FAIL: /dev/kvm is not usable by the runner user even after chmod"
+            ls -l /dev/kvm
+            exit 1
+          }
+          echo "OK: /dev/kvm present and usable"
+
+      - name: Install qemu
+        run: |
+          sudo apt-get -o Acquire::Retries=5 update -qq
+          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends qemu-system-x86
+
+      - name: Download the staged micro-VM bundle
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8, NIGHT-hunt-20 SHA pin
+        with:
+          name: c77-vm
+          path: /tmp/kfloor
+
+      # Boot the micro-VM: direct kernel boot, KVM host-passthrough
+      # CPU, no disk, serial console to stdout, panic=-1 + -no-reboot,
+      # the isa-debug-exit device (the guest ends the VM by writing
+      # one byte to port 0xf4 - rc 1 is the DELIBERATE exit, the
+      # verdict rides the sentinel lines), and the DYNAMIC envelope
+      # (the owner's law): every core, three quarters of the RAM -
+      # the simulation is measurement, headroom is the budget.
+      - name: Boot the micro-VM and run the critical simulation
+        run: |
+          set -euo pipefail
+          cd /tmp/kfloor
+          CORES=$(nproc)
+          TOTAL_MB=$(free -m | awk '/^Mem:/{print $2}')
+          SMP=$CORES
+          MEM=$(( TOTAL_MB * 3 / 4 ))
+          echo "envelope: $SMP vCPU / $MEM MB (of $CORES cores / $TOTAL_MB MB on the runner)"
+          set +e
+          timeout 900 qemu-system-x86_64 \
+            -machine q35,accel=kvm -cpu host \
+            -m "$MEM" -smp "$SMP" \
+            -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
+            -kernel vmlinuz-floor \
+            -initrd initrd.gz \
+            -append "console=ttyS0 panic=-1" \
+            -nographic -no-reboot 2>&1 | tee vm.log
+          QEMU_RC=${PIPESTATUS[0]}
+          set -e
+          # rc 0 = a natural poweroff; rc 1 = the guest's deliberate
+          # isa-debug-exit. Anything else fails HERE with the tail.
+          if test "$QEMU_RC" -ne 0 && test "$QEMU_RC" -ne 1; then
+            echo "FAIL: qemu exited $QEMU_RC - log tail:"
+            tail -40 vm.log
+            exit 1
+          fi
+          exit 0
+
+      # The verdict: the FORENSIC-VERDICT sentinel IS the authority
+      # (the VM cannot relay exit codes through qemu). A log without
+      # the sentinel is a wedge or a boot failure - FAIL, never a
+      # silent green. Every FAIL row reprints in the step summary.
+      - name: Verdict
+        run: |
+          set -euo pipefail
+          cd /tmp/kfloor
+          if ! grep -q '^FORENSIC-VERDICT: PASS$' vm.log; then
+            echo "FAIL: the FORENSIC-VERDICT: PASS sentinel is absent - the simulation did not complete green."
+            echo "Full verdict rows:"
+            grep -E '^FORENSIC-(RESULT|VERDICT)' vm.log || echo "(no FORENSIC rows at all - boot or payload failure)"
+            exit 1
+          fi
+          echo "OK: FORENSIC-VERDICT: PASS - the critical simulation is green:"
+          grep -E '^FORENSIC-(RESULT|VERDICT)' vm.log
+
+      # The busy-hour residual watch (the estate's convention): every
+      # run lands its row inventory in the step summary.
+      - name: Watch summary
+        if: always()
+        run: |
+          cd /tmp/kfloor 2>/dev/null || exit 0
+          {
+            echo "## netrunner-night-C77 watch - critical simulation"
+            echo
+            echo "- trigger: ${{ github.event_name }}"
+            echo "- run: ${{ github.run_id }} (attempt ${{ github.run_attempt }})"
+            echo
+            echo "### the forensic rows"
+            echo
+            echo '```'
+            grep -E '^FORENSIC-(RESULT|VERDICT)' vm.log || true
+            echo '```'
+            echo
+            echo "### FAIL inventory"
+            echo
+            echo '```'
+            grep -E 'FORENSIC-RESULT.*FAIL' vm.log | head -40 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
