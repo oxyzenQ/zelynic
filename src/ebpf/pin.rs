@@ -107,6 +107,21 @@ pub const PIN_MAP_MMSPA_CACHE_UL: &str = "/sys/fs/bpf/zelynic/mmspa_leaf_cache_u
 /// contract every other map here follows.
 pub const PIN_MAP_MMSPA_GEN: &str = "/sys/fs/bpf/zelynic/mmspa_generation";
 
+/// The sk-storage hint twins (night-T-4's schema v31/v32 migrations:
+/// pace_socket_hint, then recwn_socket_hint's generation belt — the
+/// row hangs off the kernel's own struct sock). Both live in the BTF
+/// `.maps` section and their defs carry pinning=LIBBPF_NONE; aya
+/// 0.16's loader honors that flag strictly — the default pin
+/// directory serves PinningType::ByName maps only — which left the
+/// pair unpinned and the 44-object family at 42 (the night train's
+/// pin-family verdict caught it). These explicit paths ride the
+/// loader's per-map arm (create_pinned_by_name: reuse an existing
+/// pin — the compatibility check — before it ever creates), the same
+/// persistence contract the ByName family gets from the default
+/// directory.
+pub const PIN_MAP_PACE_SOCKET_HINT: &str = "/sys/fs/bpf/zelynic/pace_socket_hint";
+pub const PIN_MAP_RECWN_SOCKET_HINT: &str = "/sys/fs/bpf/zelynic/recwn_socket_hint";
+
 /// NIGHT-hunt-19 (error-path audit): the operational-pin predicate,
 /// pure so the partial-failure regression is unit-pinned. Lives in
 /// the pin module (the NIGHT-improve-44 LOC-cap split — the limiter
