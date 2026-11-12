@@ -24,7 +24,15 @@ fn size_bucket_is_ilog2() {
     assert_eq!(size_bucket(9000), 13); // jumbo
     assert_eq!(size_bucket(65_535), 15); // the full-GSO skb class
     assert_eq!(size_bucket(1 << 31), 31); // the cap's own edge
-    assert_eq!(size_bucket(u64::MAX), 31); // clamped, never a panic
+    assert_eq!(size_bucket(u64::MAX), 31); // 63 & 31 — the mask's own answer
+    // The wrap law (the verifier-proof doc): inputs past the u32 skb
+    // length ALIAS through the mask (ilog2 & 31) instead of
+    // clamping — unreachable for any real skb the kernel hands a
+    // cgroup_skb hook, pinned so the aliasing shape stays
+    // deliberate rather than accidental.
+    assert_eq!(size_bucket(1 << 33), 33 & 31);
+    assert_eq!(size_bucket((1 << 63) - 1), 62 & 31);
+    assert_eq!(size_bucket(u64::MAX), 63 & 31);
 }
 
 #[test]

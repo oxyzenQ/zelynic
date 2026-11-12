@@ -51,17 +51,27 @@ const _: () = assert!(core::mem::size_of::<HistRow>() == 512);
 /// The log2 bucket of a byte count (the size half). Zero answers
 /// bucket 0 — a zero-length skb is not traffic, but a count there
 /// beats a clz panic on 0.
+///
+/// The cap rides an AND on the RAW log2, not a clamp on the
+/// post-comparison value — the server sentinel's off=2040 lesson:
+/// the first build's clamp (and the call-site mask after it) was
+/// PROVABLY DEAD to LLVM for the u32 skb length the hooks see, the
+/// compiler deleted it, and the verifier — which cannot see LLVM's
+/// reasoning — read the unbounded ilog2 and rejected the load. The
+/// AND on a value LLVM knows spans 0..=63 (63 & 31 is not a no-op
+/// it may fold) survives every optimization pass, and the
+/// verifier's own AND tracking caps the index at 31 by
+/// construction. Inputs at or above 2^32 — no skb the kernel hands
+/// a cgroup_skb hook — wrap through the mask instead of clamping;
+/// the reachable contract (every real skb, the pinned points) is
+/// unchanged.
 #[inline]
 pub fn size_bucket(bytes: u64) -> usize {
     if bytes == 0 {
         return 0;
     }
-    let b = 63 - bytes.leading_zeros() as usize;
-    if b >= HIST_BUCKETS {
-        HIST_BUCKETS - 1
-    } else {
-        b
-    }
+    let raw = 63 - bytes.leading_zeros() as usize;
+    raw & (HIST_BUCKETS - 1)
 }
 
 /// The log2 bucket of an srtt sample in MICROSECONDS — the recwn
@@ -76,10 +86,8 @@ pub fn srtt_bucket(srtt_us: u64) -> usize {
     if srtt_us == 0 {
         return 0;
     }
-    let b = 63 - srtt_us.leading_zeros() as usize;
-    if b >= HIST_BUCKETS {
-        HIST_BUCKETS - 1
-    } else {
-        b
-    }
+    // The same AND-not-clamp law as size_bucket — the verifier's
+    // proof must survive LLVM, and it does here for the same reason.
+    let raw = 63 - srtt_us.leading_zeros() as usize;
+    raw & (HIST_BUCKETS - 1)
 }
