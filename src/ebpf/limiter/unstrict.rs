@@ -20,8 +20,9 @@ impl super::Limiter {
     /// Remove policy for a target (unstrict).
     ///
     /// Returns the number of POLICIES removed — each direction (dl/ul)
-    /// counts separately, the same unit `apply_single`/`apply_group`
-    /// report as "(N policies, active in background)". NIGHT-hunt-10:
+    /// counts separately, the same unit `apply_single` and the group
+    /// applies report as "(N policies, active in background)".
+    /// NIGHT-hunt-10:
     /// the old per-cgroup counting printed "Removed 1 limit" for the
     /// same state strict-single had just described as "4 policies".
     ///
@@ -49,13 +50,27 @@ impl super::Limiter {
     /// per-target unstrict returned. The single-name cost is
     /// unchanged (one walk, one removal); a thousand-name `um`
     /// drops from a thousand walks to one.
-    pub fn unstrict_multi(&mut self, targets: &[Target]) -> Result<usize> {
+    ///
+    /// night-total-hardening-1: the return grew a no-limits
+    /// accounting — `(policies removed, labels of the targets whose
+    /// removal found nothing)`. The old shape silently skipped
+    /// those members inside a success verdict (`u brave::noexist`
+    /// printed one OK line for the whole list and nothing about
+    /// the member that had no limits to remove); the handler now
+    /// names them in a grey tail so a typo can never hide inside
+    /// a green removal.
+    pub fn unstrict_multi(&mut self, targets: &[Target]) -> Result<(usize, Vec<String>)> {
         let ids_per_target = self.resolve_target_list(targets)?;
         let mut removed = 0usize;
-        for ids in ids_per_target {
-            removed += self.remove_ids(&ids)?;
+        let mut no_limits: Vec<String> = Vec::new();
+        for (target, ids) in targets.iter().zip(ids_per_target) {
+            let n = self.remove_ids(&ids)?;
+            if n == 0 {
+                no_limits.push(target.label());
+            }
+            removed += n;
         }
-        Ok(removed)
+        Ok((removed, no_limits))
     }
 
     /// The removal body split from `unstrict` (NIGHT-hunt-29): the
