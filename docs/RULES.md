@@ -96,6 +96,23 @@ section 16) scans every `.sh`/`.py` under `scripts/`, prints each
 file's count, and fails on any file over the cap without an exemption
 marker.
 
+## CI Runtime Caps
+
+Every workflow job declares `timeout-minutes` — an uncapped job is a
+lane that hangs to the platform's default (hours) instead of failing
+loudly. The cap is a maximum, and the estate's sanctioned floor for
+that maximum is 10 minutes: below it, a cap kills honest work on
+runner jitter rather than on real failures. Heavy lanes carry larger,
+deliberate ceilings (the supermassive batteries ride 40-60) — the
+floor only bans caps too tight to survive a slow runner, it never
+asks a lane to shrink.
+
+`scripts/gates/check-timeout-caps.py` (wired into
+`scripts/gate-keepers.sh`) is the enforcement: every job in
+`.github/workflows/*.yml` must declare a cap, and the cap must be at
+least the floor — a missing or too-tight cap fails the push with the
+file:job list.
+
 ## Rust Toolchain Pin
 
 - `rust-toolchain.toml` pins a concrete `X.Y.Z` version — never a

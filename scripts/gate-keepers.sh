@@ -924,6 +924,27 @@ else
 	skip "check-fuzz-includes.sh not found — skipping"
 fi
 
+# ── 23. CI Runtime Caps (night-zen-2) ──────────────────────
+# docs/RULES.md "CI Runtime Caps" is the rule's home: every workflow
+# job declares timeout-minutes and no cap sits below the sanctioned
+# floor (10 minutes) — an uncapped job hangs to the platform default
+# instead of failing loudly, and a too-tight cap kills honest work on
+# runner jitter. The gate parses the estate's yamllint-pinned shape
+# (two-space job keys under jobs:) and fails with the file:job list.
+header "CI Runtime Caps (check-timeout-caps.py)"
+if [ -f scripts/gates/check-timeout-caps.py ] && command -v python3 >/dev/null 2>&1; then
+	if python3 scripts/gates/check-timeout-caps.py 2>&1; then
+		info "runtime caps: every job is capped and no cap sits below the floor"
+		PASS=$((PASS + 1))
+	else
+		fail "runtime caps: an uncapped job or a below-floor cap found (see the file:job list above)"
+	fi
+elif [ ! -f scripts/gates/check-timeout-caps.py ]; then
+	skip "check-timeout-caps.py not found — skipping"
+else
+	skip "python3 not installed — skipping"
+fi
+
 # ── Summary ────────────────────────────────────────────────────────────────
 echo ""
 echo "═══════════════════════════════════════════════════════════════"
