@@ -64,10 +64,12 @@
 # __pycache__ class").
 export PYTHONDONTWRITEBYTECODE=1
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+# The brand palette (night-cafe-1): the tier values are the bash twin
+# of src/output/color.rs — same RGB triples, same 256/16 rungs, mono
+# when piped. The legacy RED/GREEN/YELLOW/NC names map onto the tiers
+# inside the palette.
+# shellcheck disable=SC1091
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ux_palette.sh"
 
 PASS=0
 FAIL=0

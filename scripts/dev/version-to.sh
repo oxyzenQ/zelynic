@@ -45,11 +45,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${SCRIPT_DIR}"
 
-# Colors
-readonly RED='\033[0;31m'
-readonly GREEN='\033[0;32m'
-readonly YELLOW='\033[1;33m'
-readonly NC='\033[0m'
+# night-cafe-1: the tiers come from the shared brand palette — the
+# bash twin of src/output/color.rs — so this surface renders the exact
+# values the CLI renders (mono when piped; the legacy RED/GREEN/
+# YELLOW/NC names map onto the tiers inside the palette).
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/ux_palette.sh"
 
 # Read current version from Cargo.toml
 current_version() {

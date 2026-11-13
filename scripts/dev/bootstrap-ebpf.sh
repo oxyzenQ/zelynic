@@ -94,10 +94,11 @@ TOOLCHAIN_FILE="${REPO_ROOT}/ebpf/rust-toolchain.toml"
 LOCAL_BIN="${HOME}/.local/bin"
 TMP_DIR=""
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+# night-cafe-1: the tiers come from the shared brand palette — the
+# bash twin of src/output/color.rs — so this surface renders the exact
+# values the CLI renders (mono when piped; the legacy RED/GREEN/
+# YELLOW/NC names map onto the tiers inside the palette).
+. "${SCRIPT_DIR}/../lib/ux_palette.sh"
 
 ok() { echo -e "${GREEN}[bootstrap-ebpf]${NC} $1"; }
 warn() { echo -e "${YELLOW}[bootstrap-ebpf]${NC} $1"; }
