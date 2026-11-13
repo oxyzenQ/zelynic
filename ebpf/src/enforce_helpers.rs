@@ -414,13 +414,19 @@ pub(crate) fn hist_record(
     // cgroup), Relaxed because a count has no ordering to keep.
     unsafe { AtomicU64::from_ptr(core::ptr::addr_of_mut!((*row).size[sb])) }
         .fetch_add(1, Ordering::Relaxed);
+    // SAFETY: the row's exact-count word (v35) — the same stable
+    // map-memory contract, the same RMW add discipline.
     unsafe { AtomicU64::from_ptr(core::ptr::addr_of_mut!((*row).size_count)) }
         .fetch_add(1, Ordering::Relaxed);
+    // SAFETY: the row's exact-sum word (v35) — one aligned u64, the
+    // same RMW add, the sampled set's mass never lost to a race.
     unsafe { AtomicU64::from_ptr(core::ptr::addr_of_mut!((*row).size_sum)) }
         .fetch_add(pkt_len, Ordering::Relaxed);
     if pkt_len > 0 {
-        // SAFETY: the same row words, the Z1 bounded CAS updates.
+        // SAFETY: the row's min word (v35) — one addr_of_mut into the
+        // same stable map memory, the replace law owns the rest.
         hist::agg_min_word(unsafe { core::ptr::addr_of_mut!((*row).size_min) }, pkt_len);
+        // SAFETY: the row's max word (v35) — the same contract.
         hist::agg_max_word(unsafe { core::ptr::addr_of_mut!((*row).size_max) }, pkt_len);
     }
     // The srtt half: the socket's own pointer, the same union read
@@ -436,14 +442,21 @@ pub(crate) fn hist_record(
             // SAFETY: the same row, the same RMW view as the size half.
             unsafe { AtomicU64::from_ptr(core::ptr::addr_of_mut!((*row).srtt[rb])) }
                 .fetch_add(1, Ordering::Relaxed);
+            // SAFETY: the row's srtt exact-count word (v35) — the same
+            // stable map memory, the same RMW add discipline.
             unsafe { AtomicU64::from_ptr(core::ptr::addr_of_mut!((*row).srtt_count)) }
                 .fetch_add(1, Ordering::Relaxed);
+            // SAFETY: the row's srtt exact-sum word (v35) — the same
+            // aligned u64, the same RMW add.
             unsafe { AtomicU64::from_ptr(core::ptr::addr_of_mut!((*row).srtt_sum)) }
                 .fetch_add(u64::from(srtt_us), Ordering::Relaxed);
+            // SAFETY: the row's srtt min word (v35) — one addr_of_mut
+            // into the same stable map memory.
             hist::agg_min_word(
                 unsafe { core::ptr::addr_of_mut!((*row).srtt_min) },
                 u64::from(srtt_us),
             );
+            // SAFETY: the row's srtt max word (v35) — the same contract.
             hist::agg_max_word(
                 unsafe { core::ptr::addr_of_mut!((*row).srtt_max) },
                 u64::from(srtt_us),
@@ -454,7 +467,10 @@ pub(crate) fn hist_record(
     // (pkt_len), WHAT RTT (the peek's word or the unmeasured 0), on
     // WHICH socket (the skb helper's own cookie — the proven ctx
     // form, the same socket the peek rode; 0 = unowned, honest).
+    // SAFETY: the program's own context pointer — the helper reads
+    // the skb's socket, no store, no lifetime escape.
     let cookie = unsafe { bpf_get_socket_cookie(ctx.as_ptr()) };
+    // SAFETY: the plain ktime helper — a clock read, no memory touch.
     let ts_ns = unsafe { bpf_ktime_get_ns() };
     hist::tail_update(row, pkt_len, u64::from(srtt_us), cookie, ts_ns);
 }

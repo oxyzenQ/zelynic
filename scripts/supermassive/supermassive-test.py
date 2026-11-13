@@ -2784,9 +2784,7 @@ def stage_server_histogram():
         agg_mean = dl_size.get("mean")
         tail = (dl or {}).get("tail") or []
         if None in (count, agg_sum, agg_min, agg_max):
-            failures.append(
-                "exact aggregates missing — the v35 words did not ride the JSON"
-            )
+            failures.append("exact aggregates missing — the v35 words did not ride the JSON")
         else:
             if abs(count - total) > 2:
                 failures.append(
@@ -2804,9 +2802,7 @@ def stage_server_histogram():
                         f"mean {agg_mean} != sum/count {true_mean:.1f} (the division broke)"
                     )
             if not tail:
-                failures.append(
-                    "tail answered empty under bulk traffic — the worst-8 never filled"
-                )
+                failures.append("tail answered empty under bulk traffic — the worst-8 never filled")
             else:
                 if any(not t.get("ts_ns") for t in tail):
                     failures.append("a tail slot rode without its ktime stamp")
