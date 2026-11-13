@@ -110,8 +110,8 @@ echo "audits-index: $TRACKED_COUNT/$TRACKED_COUNT tracked audit docs indexed —
 # The index file itself is the map, so it does not index itself.
 
 LIVING="$(git ls-files -- 'docs/*.md' 'docs/archive/*.md' \
-	'docs/research/*.md' 'docs/research-future/*.md' \
-	| grep -v -F "$INDEX_FILE" | sort)"
+	'docs/research/*.md' 'docs/research-future/*.md' |
+	grep -v -F "$INDEX_FILE" | sort)"
 LIVING_COUNT="$(printf '%s\n' "$LIVING" | grep -c . || true)"
 
 # No living docs beyond the map: complete by vacuum (a fresh docs
@@ -127,9 +127,9 @@ fi
 # cover a tracked docs/ path, so they do not join the set; a link
 # written any other non-canonical way stays "missing" below — the
 # gate fails closed on non-canonical rows instead of blessing them.
-INDEXED_DOCS="$(grep -o '](\([^)]*\.md\))' "$INDEX_FILE" 2>/dev/null \
-	| grep -v '](\.\./' \
-	| sed -e 's|^](|docs/|' -e 's|)$||' | sort -u || true)"
+INDEXED_DOCS="$(grep -o '](\([^)]*\.md\))' "$INDEX_FILE" 2>/dev/null |
+	grep -v '](\.\./' |
+	sed -e 's|^](|docs/|' -e 's|)$||' | sort -u || true)"
 
 MISSING_DOCS="$(comm -23 <(printf '%s\n' "$LIVING") <(printf '%s\n' "$INDEXED_DOCS"))"
 
