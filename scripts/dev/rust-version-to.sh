@@ -50,14 +50,12 @@ readonly WORKFLOW_SKIP_SET=("audit.yml")
 readonly DOC_AUDIT_DIRS=("${REPO_ROOT}/docs")
 readonly DOC_AUDIT_FILES=("${REPO_ROOT}/README.md" "${REPO_ROOT}/CONTRIBUTING.md")
 
-# Colors (intentionally neutral escape codes; the [INFO]/[OK]/[WARN]/
-# [ERROR] labels carry the semantic weight — ANSI colors break in CI logs
-# and piped contexts).
-readonly RED='\033[0;31m'
-readonly GREEN='\033[0;32m'
-readonly YELLOW='\033[1;33m'
-readonly BLUE='\033[0;34m'
-readonly NC='\033[0m'
+# Colors (night-cafe-1: the tiers come from the shared brand palette,
+# the bash twin of src/output/color.rs — the [INFO]/[OK]/[WARN]/
+# [ERROR] labels still carry the semantic weight, and the palette
+# renders mono in CI logs and piped contexts, so the labels stay the
+# only signal exactly where escapes would garble).
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/ux_palette.sh"
 
 log_info() { printf '%b[INFO]%b %s\n' "${BLUE}" "${NC}" "$*"; }
 log_ok() { printf '%b[OK]%b %s\n' "${GREEN}" "${NC}" "$*"; }

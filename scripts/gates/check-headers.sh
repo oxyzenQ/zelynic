@@ -45,9 +45,11 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-# Colors
-RED='\033[0;31m'
-NC='\033[0m'
+# night-cafe-1: the tiers come from the shared brand palette — the
+# bash twin of src/output/color.rs — so this surface renders the exact
+# values the CLI renders (mono when piped; the legacy RED/NC names map
+# onto the tiers inside the palette).
+. "${REPO_ROOT}/scripts/lib/ux_palette.sh"
 
 MISSING=0
 WRONG=0
