@@ -43,11 +43,46 @@ BIN=${ZELYNIC_BIN:-"$DIR/zelynic-fixed-cli-hardening-1"}
 PASS=0
 FAIL=0
 
+# night-cafe-1 binary hygiene: the vendored fixed CLI ships as a gz
+# package with checksum sidecars (the legacy-for-test vendoring
+# precedent — raw binaries are never tracked), so a default-target run
+# extracts the package into a private temp dir, verifies the pinned
+# sha256, and tests the extracted copy; the temp dir dies with the
+# battery. An explicit ZELYNIC_BIN is never touched.
+VENDORED_SHA256="7556c6272eb114709afc3059820c434302708c7033ce2e88d041b7b4d9b2fc66"
+EXTRACTED_BIN=""
+cleanup_extracted() {
+	if [ -n "$EXTRACTED_BIN" ]; then
+		rm -rf -- "$(dirname "$EXTRACTED_BIN")"
+	fi
+}
+trap cleanup_extracted EXIT
+
 if [ ! -x "$BIN" ]; then
-	echo "FAIL  binary under test not executable: $BIN"
-	echo "      ZELYNIC_BIN=<path> names another build, or build from source:"
-	echo "      ./scripts/dev/bootstrap-ebpf.sh"
-	exit 1
+	if [ "${ZELYNIC_BIN:-}" = "" ] && [ -f "$DIR/zelynic-fixed-cli-hardening-1.gz" ]; then
+		TMPBIN="$(mktemp -d)" || {
+			echo "FAIL  vendored package staging failed (mktemp -d)"
+			exit 1
+		}
+		gunzip -c "$DIR/zelynic-fixed-cli-hardening-1.gz" > "$TMPBIN/zelynic-fixed-cli-hardening-1" || {
+			echo "FAIL  vendored package extraction failed: $DIR/zelynic-fixed-cli-hardening-1.gz"
+			exit 1
+		}
+		got="$(sha256sum "$TMPBIN/zelynic-fixed-cli-hardening-1" | awk '{print $1}')"
+		if [ "$got" != "$VENDORED_SHA256" ]; then
+			echo "FAIL  vendored package sha256 mismatch: $got"
+			echo "      expected: $VENDORED_SHA256 — refuse to test unverified bytes"
+			exit 1
+		fi
+		chmod 755 "$TMPBIN/zelynic-fixed-cli-hardening-1"
+		EXTRACTED_BIN="$TMPBIN/zelynic-fixed-cli-hardening-1"
+		BIN="$EXTRACTED_BIN"
+	else
+		echo "FAIL  binary under test not executable: $BIN"
+		echo "      ZELYNIC_BIN=<path> names another build, or build from source:"
+		echo "      ./scripts/dev/bootstrap-ebpf.sh"
+		exit 1
+	fi
 fi
 
 check() {
