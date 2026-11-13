@@ -56,6 +56,14 @@ __pycache__/
 *.pyc
 .ruff_cache
 
+# The night-total-hardening-1 vendored fixed CLI (scripts/labs-exp/)
+# rides the same law as /legacy/zelynic: the raw binary is a local
+# extraction product, never tracked — the tracked lane is the .gz
+# package with its .b3sum sidecar (the legacy-for-test vendoring
+# precedent, night-cafe-1). The batteries auto-extract and sha256-pin
+# the bytes; a manual session extracts with `gunzip -c`.
+scripts/labs-exp/zelynic-fixed-cli-hardening-1
+
 # The vs-legacy bench harness (scripts/bench/quota-saver-ab-vs-legacy.sh)
 # installs its auto-downloaded release binary here — a test artifact,
 # never tracked. The VENDORED pair (the v11.0.0 tarball and its

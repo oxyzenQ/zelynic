@@ -14,16 +14,24 @@ precedent).
 
 | File | Purpose |
 | --- | --- |
-| `zelynic-fixed-cli-hardening-1` | The fixed CLI binary, v80.2.0, static musl, x86_64 |
-| `verify-cli-ux.sh` | The 17-case non-root verification battery (ZELYNIC_BIN names another build) |
-| `verify-root-lane.sh` | The root-lane battery: the seven Step 2 shapes automated, probe-cgroup isolated, `--apply-row` for the forensic rig's once-per-process apply row |
+| `zelynic-fixed-cli-hardening-1.gz` | The fixed CLI binary, v80.2.0, static musl, x86_64 — the gz package (raw binaries are never tracked, night-cafe-1) |
+| `zelynic-fixed-cli-hardening-1.b3sum` | BLAKE3 sidecar over the package bytes |
+| `verify-cli-ux.sh` | The 17-case non-root verification battery — auto-extracts the package and sha256-pins the bytes when the raw binary is absent (ZELYNIC_BIN names another build) |
+| `verify-root-lane.sh` | The root-lane battery: the seven Step 2 shapes automated, probe-cgroup isolated, `--apply-row` for the forensic rig's once-per-process apply row — the same package bootstrap as its sibling |
 | `VERIFY_LOCAL_HARDENING_1.md` | This guide |
 
 Binary integrity:
 
 ```
+b3sum -c scripts/labs-exp/zelynic-fixed-cli-hardening-1.b3sum
+
 sha256: 7556c6272eb114709afc3059820c434302708c7033ce2e88d041b7b4d9b2fc66
 ```
+
+`b3sum` is the official BLAKE3 utility (the `b3sum` package on
+Ubuntu 24.04+, the same lane docs/VERIFY_RELEASE.md prescribes); the
+sha256 pins the extracted binary bytes, the same value both
+batteries verify before running a case.
 
 Provenance and the staleness contract (no silent substitutions, the
 from-source law held):
@@ -37,10 +45,15 @@ from-source law held):
   `local-generic-musl`; `zelynic doctor` answers FULL-LIFE with
   `eBPF objects: source-built`.
 - The binary is a SNAPSHOT of the 81353a8 fixes, not a living build
-  product: as the tree moves, rebuild from source instead of trusting the
-  vendored bytes. `sha256sum` on arrival, then
-  `./scripts/labs-exp/zelynic-fixed-cli-hardening-1 -V` (expect `v80.2.0`,
-  commit `81353a8`).
+  product: as the tree moves, rebuild from source instead of trusting
+  the vendored bytes. `b3sum -c` on arrival, then either battery (each
+  extracts the package and verifies the sha256 pin itself), or, for a
+  bare version probe:
+
+```
+gunzip -c scripts/labs-exp/zelynic-fixed-cli-hardening-1.gz > /tmp/zelynic-fixed-cli && chmod 755 /tmp/zelynic-fixed-cli
+/tmp/zelynic-fixed-cli -V   # expect v80.2.0, commit 81353a8
+```
 - Rebuild contract, three commands:
 
 ```
@@ -53,6 +66,21 @@ git clone https://github.com/oxyzenQ/zelynic && cd zelynic
 ```
 ./scripts/labs-exp/verify-cli-ux.sh
 ```
+
+## Why the binary ships packaged (night-cafe-1)
+
+Raw binaries are never tracked in this repository — the vendored
+counterfactual lane set the precedent: `legacy-for-test/` ships its
+release tarball with checksum sidecars and the raw extraction product
+rides .gitignore (`/legacy/zelynic`). The night-total-hardening-1
+vendored CLI obeys the same law: the tracked lane is the `.gz`
+package plus its `.b3sum` sidecar, the raw binary stays a local
+extraction product, and both batteries carry the bootstrap — absent
+a raw binary, they extract the package into a private temp dir,
+verify the pinned sha256, run the cases against the extracted copy,
+and tear the temp dir down on exit. The zero-friction posture is
+unchanged: a fresh clone still verifies with zero manual download
+steps.
 
 Expected: `battery: 17 passed, 0 failed`. The battery pins, on the binary
 itself:
