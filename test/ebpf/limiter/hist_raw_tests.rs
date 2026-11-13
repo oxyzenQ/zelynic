@@ -12,7 +12,11 @@ use super::*;
 #[test]
 fn mirror_layout_is_the_schema_pin() {
     assert_eq!(HIST_BUCKETS, 32);
-    assert_eq!(core::mem::size_of::<HistRowRaw>(), 512);
+    assert_eq!(HIST_TAIL, 8);
+    // v35: 512 (the two halves) + 64 (the exact aggregates) +
+    // 256 (the eight tail story slots).
+    assert_eq!(core::mem::size_of::<HistRowRaw>(), 832);
+    assert_eq!(core::mem::size_of::<HistTailRaw>(), 32);
 }
 
 #[test]
@@ -54,4 +58,34 @@ fn quantile_read_answers_none_on_an_empty_half() {
     let b = [0u64; HIST_BUCKETS];
     assert_eq!(quantile_permille(&b, 500), None);
     assert_eq!(samples(&b), 0);
+}
+
+// night-frontier-Z1 (schema v35): the exact mean and the tail story
+// read — the figures the bucket bounds approximate but never say.
+#[test]
+fn mean_is_the_exact_division_or_absent() {
+    assert_eq!(mean(0, 0), None);
+    assert_eq!(mean(1000, 4), Some(250));
+    assert_eq!(
+        mean(1001, 4),
+        Some(250),
+        "the truncating division is the figure the words carry"
+    );
+}
+
+#[test]
+fn tail_read_answers_only_the_live_slots() {
+    let mut tail = [HistTailRaw::default(); HIST_TAIL];
+    assert!(tail_entries(&tail).is_empty(), "a fresh row keeps no story");
+    tail[3] = HistTailRaw {
+        ts_ns: 42,
+        size: 1500,
+        srtt_us: 0,
+        cookie: 7,
+    };
+    let live = tail_entries(&tail);
+    assert_eq!(live.len(), 1);
+    assert_eq!(live[0].size, 1500);
+    assert_eq!(live[0].cookie, 7);
+    assert_eq!(live[0].srtt_us, 0, "the unmeasured sentinel rides raw");
 }

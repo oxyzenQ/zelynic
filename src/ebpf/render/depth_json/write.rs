@@ -12,7 +12,7 @@
 
 use super::{
     BypassAuditJson, DepthDocJson, DepthEntryJson, DepthMissJson, DepthTargetJson, EndpointJson,
-    EnforcementStatsJson, HistHalfJson, HistJson, HistStatsJson, ProcJson, TrafficJson,
+    EnforcementStatsJson, HistHalfJson, HistJson, HistStatsJson, ProcJson, TailJson, TrafficJson,
 };
 
 impl DepthDocJson {
@@ -248,6 +248,22 @@ impl HistStatsJson {
             Some(v) => write_number(out, v),
             None => out.push_str("null"),
         }
+        // The Z1 exact aggregates (schema v35) — additive at the end,
+        // the field order the stable scripting API reads: the bounds
+        // above approximate, these words ARE the kernel's own.
+        out.push_str(",\"count\":");
+        write_number(out, self.count);
+        out.push_str(",\"sum\":");
+        write_number(out, self.sum);
+        out.push_str(",\"min\":");
+        write_number(out, self.min);
+        out.push_str(",\"max\":");
+        write_number(out, self.max);
+        out.push_str(",\"mean\":");
+        match self.mean {
+            Some(v) => write_number(out, v),
+            None => out.push_str("null"),
+        }
         out.push('}');
     }
 }
@@ -264,6 +280,12 @@ impl HistHalfJson {
             Some(half) => half.write_json(out),
             None => out.push_str("null"),
         }
+        // The Z1 tail story list (schema v35) — additive at the end;
+        // empty while the kernel keeps no worst-by-size slot yet.
+        out.push_str(",\"tail\":");
+        crate::json::write::write_array(out, self.tail.len(), |out, i| {
+            self.tail[i].write_json(out);
+        });
         out.push('}');
     }
 }
@@ -284,6 +306,24 @@ impl HistJson {
             Some(half) => half.write_json(out),
             None => out.push_str("null"),
         }
+        out.push('}');
+    }
+}
+
+impl TailJson {
+    fn write_json(&self, out: &mut String) {
+        use crate::json::write::{write_number, write_opt_number, write_opt_string};
+
+        out.push_str("{\"ts_ns\":");
+        write_number(out, self.ts_ns);
+        out.push_str(",\"size\":");
+        write_number(out, self.size);
+        out.push_str(",\"srtt_us\":");
+        write_opt_number(out, self.srtt_us);
+        out.push_str(",\"cookie\":");
+        write_number(out, self.cookie);
+        out.push_str(",\"endpoint\":");
+        write_opt_string(out, self.endpoint.as_deref());
         out.push('}');
     }
 }

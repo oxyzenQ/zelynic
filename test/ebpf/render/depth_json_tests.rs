@@ -61,7 +61,7 @@ fn member_fixture() -> ProcessFacts {
     }
 }
 
-fn report_fixture(enforcement: Enforcement) -> DepthReport {
+pub(crate) fn report_fixture(enforcement: Enforcement) -> DepthReport {
     DepthReport {
         target: "cg:1234".to_string(),
         cgroup_id: 1234,

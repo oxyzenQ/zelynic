@@ -133,7 +133,27 @@
 ///     difference between "no samples yet" and "no such lane" —
 ///     the forced reload (once, re-apply after upgrade) re-pins the
 ///     full v34 map set.
-pub const SCHEMA_VERSION_EXPECTED: u32 = 34;
+/// v35 (night-frontier-Z1, the histogram depth pack — the depth
+///     innovation deepened): the HistRow grows IN PLACE — the two
+///     32-bucket halves stay byte-identical to v34, then eight
+///     exact-aggregate words (count/sum/min/max per half: count/sum
+///     RMW adds, min/max the volatile replace law, the 0-sentinel
+///     "no min yet",
+///     a zero-length skb stays bucket-consistent but skips the mass
+///     words) and eight 32-byte tail story slots (ts_ns/size/
+///     srtt_us/cookie — the worst-8-by-size samples, the socket
+///     cookie the skb helper names, the identity the walk's own
+///     ConnectionMap resolves to an endpoint at render time; srtt 0
+///     in a slot = the unmeasured sentinel). 512 → 832 bytes; the
+///     mirror asserts the exact size. ee --depth's histogram section
+///     and JSON block gain the exact aggregates (the figures the
+///     bucket bounds can never say exactly: min/max/mean) and the
+///     tail list — all additive, all honestly absent while no
+///     samples exist. The bump is REQUIRED, not polite: a pinned
+///     v34 row is 512 bytes and a v35 reader would map the 320-byte
+///     extension onto nothing — the forced reload (once, re-apply
+///     after upgrade) re-pins the full v35 map set.
+pub const SCHEMA_VERSION_EXPECTED: u32 = 35;
 
 #[cfg(test)]
 #[path = "../../../test/ebpf/limiter/schema_sync_pin_tests.rs"]

@@ -2773,12 +2773,71 @@ def stage_server_histogram():
             )
         elif dl_size.get("p50") is None or dl_size.get("p95") is None:
             failures.append("quantiles answered null on a non-empty half")
+        # night-frontier-Z1 (schema v35): the exact aggregates and the
+        # tail story list — coherence the kernel's own words must keep
+        # under live bulk traffic (works-not-gimmick: the words ride
+        # the JSON AND they agree with the buckets they summarize).
+        count = dl_size.get("count")
+        agg_sum = dl_size.get("sum")
+        agg_min = dl_size.get("min")
+        agg_max = dl_size.get("max")
+        agg_mean = dl_size.get("mean")
+        tail = (dl or {}).get("tail") or []
+        if None in (count, agg_sum, agg_min, agg_max):
+            failures.append(
+                "exact aggregates missing — the v35 words did not ride the JSON"
+            )
+        else:
+            if abs(count - total) > 2:
+                failures.append(
+                    f"exact count {count} != bucket samples {total} (the ±2 in-flight tolerance)"
+                )
+            if agg_min > agg_max:
+                failures.append(f"exact bounds incoherent: min {agg_min} > max {agg_max}")
+            p50, p95, p99 = (dl_size.get(k) for k in ("p50", "p95", "p99"))
+            if not (p50 <= p95 <= p99):
+                failures.append(f"quantile ladder incoherent: p50 {p50} p95 {p95} p99 {p99}")
+            if count > 0 and agg_mean is not None:
+                true_mean = agg_sum / count
+                if abs(agg_mean - true_mean) > max(1.0, 0.01 * true_mean):
+                    failures.append(
+                        f"mean {agg_mean} != sum/count {true_mean:.1f} (the division broke)"
+                    )
+            if not tail:
+                failures.append(
+                    "tail answered empty under bulk traffic — the worst-8 never filled"
+                )
+            else:
+                if any(not t.get("ts_ns") for t in tail):
+                    failures.append("a tail slot rode without its ktime stamp")
+                if not any(t.get("cookie") for t in tail):
+                    failures.append("every tail slot rode cookie 0 — no socket identity kept")
+                if not any(t.get("endpoint") for t in tail):
+                    failures.append(
+                        "no tail slot resolved to a walked endpoint — the census join broke"
+                    )
+                p99_lb = p99 or 0
+                if p99_lb > 0:
+                    weakest = min(t["size"] for t in tail)
+                    if weakest < p99_lb:
+                        failures.append(
+                            f"tail weakest {weakest} < p99 lower bound {p99_lb} — "
+                            "the worst-by-size law broke"
+                        )
     dl_note = dl_size or {}
     ul_size = (hist.get("upload") or {}).get("size") or {}
     dl_srtt = (dl or {}).get("srtt") or {}
+    dl_tail = (dl or {}).get("tail") or []
+    tail_note = (
+        f", tail {len(dl_tail)} slots worst {max((t['size'] for t in dl_tail), default=0)}"
+        if dl_tail
+        else ""
+    )
     note = (
         f"traffic {got} bytes; download size samples "
-        f"{dl_note.get('samples', 0)}, p95 {dl_note.get('p95')}; "
+        f"{dl_note.get('samples', 0)}, p95 {dl_note.get('p95')}, "
+        f"exact count {dl_note.get('count')}, mean {dl_note.get('mean')}"
+        f"{tail_note}; "
         f"download srtt samples {dl_srtt.get('samples', 0)}; "
         f"upload size samples {ul_size.get('samples', 0)} "
         "(named, not asserted — loopback physics)"
