@@ -47,8 +47,8 @@ pub struct HistTailRaw {
 /// 0-sentinel "no min yet", the mass words skip zero-length skbs),
 /// then the eight tail story slots (ts_ns 0 = the empty sentinel).
 /// 512 + 64 + 256 = 832 bytes. The kernel takes cross-CPU atomic
-/// adds into the bucket/count/sum words and bounded CAS into the
-/// min/max words; the userspace read is one 832-byte map copy — a
+/// adds into the bucket/sum words and volatile replace into the
+/// min/max words; the userspace read is one 816-byte map copy — a
 /// half can lag the other by an in-flight sample, the sampling
 /// resolution's own coarseness.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -60,18 +60,16 @@ pub struct HistRowRaw {
     /// TCP srtt distribution, log2 of microseconds (the RTT lane's
     /// harvest — sockets the lane never owned stay unrecorded).
     pub srtt: [u64; HIST_BUCKETS],
-    pub size_count: u64,
     pub size_sum: u64,
     pub size_min: u64,
     pub size_max: u64,
-    pub srtt_count: u64,
     pub srtt_sum: u64,
     pub srtt_min: u64,
     pub srtt_max: u64,
     pub tail: [HistTailRaw; HIST_TAIL],
 }
 
-const _: () = assert!(core::mem::size_of::<HistRowRaw>() == 832);
+const _: () = assert!(core::mem::size_of::<HistRowRaw>() == 816);
 // SAFETY: all-u64 #[repr(C)] arrays — every bit pattern is a valid
 // value, the same class the PolicyRaw/RateRingRaw mirrors ride.
 unsafe impl aya::Pod for HistRowRaw {}

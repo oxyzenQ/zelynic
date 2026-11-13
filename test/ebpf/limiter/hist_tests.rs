@@ -75,13 +75,14 @@ fn sampler_constants_pair() {
 
 #[test]
 fn row_shape_is_the_schema_pin() {
-    // 832 bytes (v35): the two 32-bucket u64 halves (512) + the eight
-    // exact-aggregate words (64) + the eight tail story slots (256) —
+    // 816 bytes (v35): the two 32-bucket u64 halves (512) + the six
+    // exact-aggregate words (48 — the COUNT is not a word, the
+    // buckets are the count) + the eight tail story slots (256) —
     // the layout the userspace HistRowRaw mirror hand-copies under
     // schema v35.
     assert_eq!(HIST_BUCKETS, 32);
     assert_eq!(HIST_TAIL, 8);
-    assert_eq!(core::mem::size_of::<HistRow>(), 832);
+    assert_eq!(core::mem::size_of::<HistRow>(), 816);
     let row = HistRow::default();
     assert!(row.size.iter().all(|&c| c == 0));
     assert!(row.srtt.iter().all(|&c| c == 0));

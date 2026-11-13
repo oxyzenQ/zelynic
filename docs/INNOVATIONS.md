@@ -406,11 +406,11 @@ left after 2B: the buckets answer the SHAPE but the render's every
 figure is a bucket bound — an exact min/max/mean (the words the
 bounds can never say) did not exist, and a distribution without a
 story cannot answer "WHICH transfer was the monster". The row grows
-IN PLACE (512 → 832 bytes, no new map, no new lookup — the pressure
-law: one map family, reused): eight exact-aggregate words
-(count/sum/min/max for size and srtt — count/sum are RMW adds,
-min/max bounded 2-attempt CAS over map memory, a zero-length skb
-stays bucket-consistent but skips the mass words) and eight 32-byte
+IN PLACE (512 → 816 bytes, no new map, no new lookup — the pressure
+law: one map family, reused): six exact-aggregate words
+(sum/min/max for size and srtt — sum an RMW add, min/max the
+volatile check-then-store replace law over map memory, a zero-length
+skb stays bucket-consistent but skips the mass words) and eight 32-byte
 tail story slots (ts_ns/size/srtt_us/cookie — the worst-BY-SIZE
 samples, replaced strictly, the ktime stamp written LAST so an
 empty slot never reads half-filled). The story's "who" rides the
@@ -421,7 +421,14 @@ the walk missed renders the raw cookie, never a fabricated
 endpoint. ee --depth's line gains the exact mean and the worst
 slot; the JSON block gains the exact aggregates beside the bounds
 and the `tail` list (additive at the end, the stable scripting API
-reads on). The dive's own limit, recorded honestly: the BPF_F_
+reads on). The COUNT is deliberately not a word: the buckets ARE the
+count — the CI probe's own structural lesson (a second count source
+under the dense fleet's 4100-leaf LRU churn read zero while its
+buckets read three; "never a wrong count" is structural, not a
+hope), and the tail's worst-vs-p99 law is asserted live on a SETTLED
+row (300+ samples — a young row's generations are incoherent under
+that churn, the honest physics the probe itself taught). The dive's
+own limit, recorded honestly: the BPF_F_
 MMAPABLE zero-copy read (a Z1 candidate) is IMPOSSIBLE at this
 depth — the flag exists for ARRAY maps only, and the histogram's
 per-cgroup attribution NEEDS the LRU keying (every cgroup on the
@@ -429,15 +436,17 @@ host is a candidate row); an ARRAY would buy zero syscalls and lose
 the identity — the trench floor, mapped and documented, not
 crossed. Rootless pins: the write-side words' laws in the kernel's
 own test copy (`hist_tests.rs` — the sentinel-aware CAS min, the
-plain CAS max, the weakest-slot replacement), the mirror's 832-byte
+plain CAS max, the weakest-slot replacement), the mirror's 816-byte
 pin and the mean/tail read in `hist_raw_tests.rs`, the JSON wire in
 `depth_json_tests.rs`; CI proof: the supermassive server phase's
-histogram leg grew the Z1 assertions — exact count == bucket
-samples (±2 in-flight), min ≤ max, the quantile ladder monotonic,
-mean == sum/count (1%), the tail non-empty under bulk traffic with
-ktime stamps, socket identity, a walked endpoint on at least one
-slot, and the tail's weakest ≥ the p99 bucket's lower bound (the
-worst-8 ARE the top 0.8% — the physics, asserted live).
+histogram leg grew the Z1 assertions — the derived count ==
+bucket samples (the tautology pinned live), min ≤ max, the quantile
+ladder monotonic, mean == sum/count (1%), the tail non-empty under
+bulk traffic with ktime stamps, socket identity, a walked endpoint
+on at least one slot, and — on a settled row — the tail's weakest ≥
+the p99 bucket's lower bound (the worst-8 ARE the top 0.8%; the
+settled gate is the churn physics, named where it cannot be
+asserted).
 
 ## The Quota Saver — the Workload-Conditional Claim
 

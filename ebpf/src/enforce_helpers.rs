@@ -349,9 +349,11 @@ pub(crate) fn hist_sample_due() -> bool {
 /// one-birth discipline — a concurrent first sample on another CPU
 /// is never clobbered, the loser re-looks-up and adds onto the
 /// winner's row), then the recorded words. The size half always
-/// records: bucket add, then the exact aggregates (count/sum as RMW
-/// adds, min/max as the volatile replace words — a zero-length skb stays
-/// bucket-consistent but skips the mass words). The srtt half only
+/// records: bucket add, then the exact aggregates (sum as one RMW
+/// add, min/max as the volatile replace words — a zero-length skb stays
+/// bucket-consistent but skips the mass words; the COUNT rides no
+/// word — the buckets are the count, the Z1 probe's structural
+/// lesson). The srtt half only
 /// when the socket's recwn row carries the RTT lane's measurement —
 /// the READ-ONLY peek (flags 0, never a create), so a socket the
 /// lane never owned stays rowless and unmeasured. The tail story
@@ -383,7 +385,7 @@ pub(crate) fn hist_record(
         Some(ptr) => ptr,
         None => {
             // The first sample for this leaf: the init row COPIES
-            // from the kernel-pre-zeroed staging entry — an 832-byte
+            // from the kernel-pre-zeroed staging entry — an 816-byte
             // value can never touch the BPF stack (the linker's own
             // verdict on the first build), so the zero source lives
             // in map memory and the insert reads it from there.
@@ -414,12 +416,10 @@ pub(crate) fn hist_record(
     // cgroup), Relaxed because a count has no ordering to keep.
     unsafe { AtomicU64::from_ptr(core::ptr::addr_of_mut!((*row).size[sb])) }
         .fetch_add(1, Ordering::Relaxed);
-    // SAFETY: the row's exact-count word (v35) — the same stable
-    // map-memory contract, the same RMW add discipline.
-    unsafe { AtomicU64::from_ptr(core::ptr::addr_of_mut!((*row).size_count)) }
-        .fetch_add(1, Ordering::Relaxed);
     // SAFETY: the row's exact-sum word (v35) — one aligned u64, the
-    // same RMW add, the sampled set's mass never lost to a race.
+    // same RMW add discipline. The COUNT rides no word: the buckets
+    // are the count (the Z1 probe's structural lesson — a second
+    // count source under LRU churn can disagree with the buckets).
     unsafe { AtomicU64::from_ptr(core::ptr::addr_of_mut!((*row).size_sum)) }
         .fetch_add(pkt_len, Ordering::Relaxed);
     if pkt_len > 0 {
@@ -442,12 +442,9 @@ pub(crate) fn hist_record(
             // SAFETY: the same row, the same RMW view as the size half.
             unsafe { AtomicU64::from_ptr(core::ptr::addr_of_mut!((*row).srtt[rb])) }
                 .fetch_add(1, Ordering::Relaxed);
-            // SAFETY: the row's srtt exact-count word (v35) — the same
-            // stable map memory, the same RMW add discipline.
-            unsafe { AtomicU64::from_ptr(core::ptr::addr_of_mut!((*row).srtt_count)) }
-                .fetch_add(1, Ordering::Relaxed);
             // SAFETY: the row's srtt exact-sum word (v35) — the same
-            // aligned u64, the same RMW add.
+            // aligned u64, the same RMW add; the srtt count rides its
+            // buckets, no second source.
             unsafe { AtomicU64::from_ptr(core::ptr::addr_of_mut!((*row).srtt_sum)) }
                 .fetch_add(u64::from(srtt_us), Ordering::Relaxed);
             // SAFETY: the row's srtt min word (v35) — one addr_of_mut
