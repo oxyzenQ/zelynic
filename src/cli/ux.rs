@@ -121,10 +121,21 @@ fn enrich_unknown_arg_suggestion(e: &mut clap::Error, cmd: &clap::builder::Comma
     }
     // The typed flag lives in the InvalidArg context ("--VERBOS");
     // strip the dashes so bare flag names compare against bare names.
-    let typed = match e.get(ContextKind::InvalidArg) {
-        Some(ContextValue::String(s)) => s.trim_start_matches('-').to_string(),
+    let raw = match e.get(ContextKind::InvalidArg) {
+        Some(ContextValue::String(s)) => s.clone(),
         _ => return,
     };
+    // A bare word on the UnknownArgument lane is a positional overflow,
+    // never a flag typo — the flag rescues must not run on it. A real
+    // process name can sit one jaro-step from a flag spelling ("deep"
+    // against "--depth"), and suggesting a flag for a target the user
+    // meant is worse than no tip. The positional-overflow rescue owns
+    // this lane (the reaudit find: `zelynic ee brave electron` died
+    // raw, and the grammar that makes it one argument is '/'-separated).
+    if !raw.starts_with('-') {
+        return;
+    }
+    let typed = raw.trim_start_matches('-').to_string();
     if typed.is_empty() {
         return;
     }
@@ -172,6 +183,55 @@ fn enrich_unknown_arg_suggestion(e: &mut clap::Error, cmd: &clap::builder::Comma
             ContextValue::String(format!("--{best}")),
         );
     }
+}
+
+/// The positional-overflow tip (the reaudit find, the owner's live
+/// session): a bare word that overflows eagle-eyes' single TARGETS
+/// slot (`zelynic ee brave electron`) dies as UnknownArgument with no
+/// suggestion at all — clap cannot know the token was meant as a
+/// second target, and the grammar that joins targets into one
+/// argument is '/'-separated, not the strict-family '::'. The tip
+/// teaches the grammar exactly where the token dies. Keyed by the
+/// failing_subcommand walk (cli::argv), so a bare-word overflow on
+/// any other command keeps its plain error — an honest "unexpected
+/// argument" without a grammar tip that does not apply. Bare words
+/// never reach the flag rescues (the enrich above refuses them), so
+/// this is the only voice the overflow lane gets — one tip, the
+/// one-tip contract.
+fn enrich_positional_overflow(
+    e: &mut clap::Error,
+    cmd: &clap::builder::Command,
+    argv: &[OsString],
+) {
+    if e.kind() != clap::error::ErrorKind::UnknownArgument {
+        return;
+    }
+    if e.get(ContextKind::SuggestedArg).is_some() {
+        // A flag suggestion owns the lane (clap's own tip, or the
+        // rescues above) — never dilute it with a second voice.
+        return;
+    }
+    let raw = match e.get(ContextKind::InvalidArg) {
+        Some(ContextValue::String(s)) => s.clone(),
+        _ => return,
+    };
+    if raw.starts_with('-') {
+        return; // the dashed lane belongs to the flag rescues
+    }
+    let is_eagle = super::argv::failing_subcommand(cmd, argv, Some(&raw))
+        .is_some_and(|sub| sub.get_name() == "eagle-eyes");
+    if !is_eagle {
+        return;
+    }
+    e.remove(ContextKind::Suggested);
+    e.insert(
+        ContextKind::Suggested,
+        ContextValue::StyledStrs(vec![
+            "targets are ONE slash-separated argument: zelynic eagle-eyes brave/electron"
+                .to_string()
+                .into(),
+        ]),
+    );
 }
 
 /// The subcommand local-help interception (night-netrunner-5).
@@ -323,6 +383,7 @@ pub(crate) fn exit_clap_error(e: clap::Error) -> ! {
     // this bridge injects afterwards never touch the matcher.
     let native_usage_narrowed = e.get(ContextKind::SuggestedArg).is_some();
     enrich_unknown_arg_suggestion(&mut e, &cmd);
+    enrich_positional_overflow(&mut e, &cmd, &argv);
     enrich_removed_subcommand_redirect(&mut e);
     enrich_subcommand_flag_redirect(&mut e, &cmd);
     // NIGHT-hunt-Z9: clap's typo engine suggests hidden internal
@@ -397,6 +458,13 @@ mod ux_tests;
 #[path = "../../test/cli/usage_tests.rs"]
 mod usage_tests;
 
+// The reaudit find: the positional-overflow pins (the bare-word
+// overflow lane) split to their own file at the 500-LOC cap — the
+// same one-theme-one-file discipline the usage_tests move set.
+#[cfg(test)]
+#[path = "../../test/cli/overflow_tests.rs"]
+mod overflow_tests;
+
 // NIGHT-hunt-Z9: the hidden-vocabulary pins split to their own file
 // at the 500-LOC cap (one theme, one file, the usage_tests move).
 #[cfg(test)]
@@ -463,6 +531,7 @@ fn render_via_bridge(argv: &[&str]) -> String {
     let remapped_16 = capability() == ColorCapability::Color16;
     let native_usage_narrowed = err.get(ContextKind::SuggestedArg).is_some();
     enrich_unknown_arg_suggestion(&mut err, &cmd);
+    enrich_positional_overflow(&mut err, &cmd, &owned);
     enrich_removed_subcommand_redirect(&mut err);
     enrich_subcommand_flag_redirect(&mut err, &cmd);
     drop_hidden_subcommand_suggestions(&mut err, &cmd);
