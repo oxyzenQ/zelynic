@@ -37,6 +37,7 @@
 # No shebang on purpose: this file is sourced, never executed, so the
 # 644 permission rule applies (harness_lib.sh precedent).
 
+# shellcheck disable=SC2034 # the tiers are consumed by the sourcing scripts
 _zux_mono=0
 if [ -n "${NO_COLOR:-}" ] || [ "${CLICOLOR:-}" = "0" ]; then
 	_zux_mono=1
@@ -56,12 +57,12 @@ if [ "$_zux_mono" -eq 0 ]; then
 	_zux_ct="${COLORTERM:-}"
 	_zux_term="${TERM:-}"
 	case "$_zux_ct" in
-	*truecolor*|*24bit*) _zux_depth="rgb" ;;
+	*truecolor* | *24bit*) _zux_depth="rgb" ;;
 	esac
 	if [ -z "$_zux_depth" ]; then
 		case "$_zux_term" in
-		*-direct*|*-truecolor*) _zux_depth="rgb" ;;
-		*alacritty*|*kitty*|*ghostty*|*wezterm*|*foot*|*contour*) _zux_depth="rgb" ;;
+		*-direct* | *-truecolor*) _zux_depth="rgb" ;;
+		*alacritty* | *kitty* | *ghostty* | *wezterm* | *foot* | *contour*) _zux_depth="rgb" ;;
 		*256color*) _zux_depth="c256" ;;
 		esac
 	fi
