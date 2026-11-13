@@ -55,7 +55,7 @@ readonly DOC_AUDIT_FILES=("${REPO_ROOT}/README.md" "${REPO_ROOT}/CONTRIBUTING.md
 # [ERROR] labels still carry the semantic weight, and the palette
 # renders mono in CI logs and piped contexts, so the labels stay the
 # only signal exactly where escapes would garble).
-. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/ux_palette.sh"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/ux_palette.sh"
 
 log_info() { printf '%b[INFO]%b %s\n' "${BLUE}" "${NC}" "$*"; }
 log_ok() { printf '%b[OK]%b %s\n' "${GREEN}" "${NC}" "$*"; }
