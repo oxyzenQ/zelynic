@@ -93,6 +93,22 @@ pub(crate) fn parse_target_spec(spec: &str) -> Result<Vec<Target>> {
              separated by '/' (e.g., 'zelynic eagle-eyes brave/firefox')"
         );
     }
+    // The reaudit find (the owner's live session): '::' is the
+    // strict-family list separator, so a spec carrying it was walked
+    // as ONE name ('brave::electron'), missed the identity walk, and
+    // reported "No live cgroup matches" — a dead-app verdict for what
+    // is a grammar mistake. The grammar tip names the real fix before
+    // the walk can misreport; the strict-family grammar keeps '::'
+    // (its lists) and eagle-eyes keeps the single '/'-separated
+    // argument (the surface.rs contract).
+    if spec.contains("::") {
+        anyhow::bail!(
+            "'{spec}' carries the strict-list '::' separator — it is the \
+             strict-family list grammar, not the eagle-eyes target grammar\n  \
+             tip: eagle-eyes targets are '/'-separated: zelynic eagle-eyes \
+             brave/firefox"
+        );
+    }
     if trimmed.iter().any(|t| t.is_empty()) {
         anyhow::bail!(
             "empty target in '{spec}' (check the slashes) — pass names or \

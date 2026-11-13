@@ -242,3 +242,41 @@ fn liveness_gate_duplicate_token_is_not_a_false_miss() {
     assert_eq!(ids, vec![7001]);
     assert!(misses.is_empty(), "got: {misses:?}");
 }
+
+/// The reaudit find: '::' is the strict-family list separator — a
+/// spec carrying it used to walk as ONE name ('brave::electron'),
+/// miss the identity walk, and report "No live cgroup matches" (a
+/// dead-app verdict for a grammar mistake). The grammar tip now
+/// fires ahead of the hollow- and empty-segment checks (the
+/// separator is the root cause) and names the '/' fix.
+#[test]
+fn spec_parse_refuses_the_strict_list_separator() {
+    for spec in [
+        "brave::electron",
+        "brave::",
+        "::electron",
+        " brave :: firefox ",
+    ] {
+        let err = parse_target_spec(spec).expect_err("a '::' spec must fail with the grammar tip");
+        let shown = format!("{err}");
+        assert!(
+            shown.contains("'/'-separated"),
+            "the grammar tip must name the '/' grammar for {spec:?}, got: {shown}"
+        );
+        // The JSON door's split marker (chain_parts): the tip rides
+        // the embedded `  tip: ` line, so a --print-json consumer
+        // gets a real tip field — never the empty-tip class the
+        // transcript flagged.
+        assert!(
+            shown.contains("\n  tip: "),
+            "the tip must ride the embedded marker for the JSON door, got: {shown}"
+        );
+        assert!(
+            shown.contains(spec.trim()),
+            "the error must echo the spec, got: {shown}"
+        );
+    }
+    // The '/' grammar itself is untouched.
+    assert!(parse_target_spec("brave/electron").is_ok());
+    assert!(parse_target_spec("brave/cg:123/456").is_ok());
+}
