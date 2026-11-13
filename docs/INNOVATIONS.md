@@ -521,6 +521,68 @@ rejections below are as load-bearing as the scales.
   rate from the very person responsible for it. The surface kept
   the numbers.
 
+## Deferred by verdict
+
+The frontier ledger — the five asks from the night-frontier-1 list
+that are measured, named, and NOT built, each with the condition that
+would reopen it. Honest research includes what was never started on
+purpose; a silent no is the only dishonest one.
+
+- **BPF CO-RE — compile once, run everywhere.** The ask: one object
+  image across kernel versions, no recompile per target. The measure
+  (night-core-1, 2026-11-12): the datapath's kernel-internal field
+  reads count exactly ONE (`bpf_sock.protocol`, frozen UAPI offset 12,
+  two guard sites) beside helper-mediated call sites and UAPI context
+  reads the kernel translates at load time, and both shipped objects
+  parse to `core_relo_len = 0` — zero relocations to carry. The rustc
+  `preserve_access_index` limitation is real but irrelevant: there is
+  nothing to relocate. Deferred because CO-RE solves a cost this
+  datapath does not pay; BTF is already the verifier's validation
+  backstop and the versioned prebuilt lane carries distribution.
+  Reopens when: the datapath starts reading kernel-internal structs
+  directly — a structural rewrite, not a migration.
+
+- **XDP ingress hook.** The ask: drop earlier than `cgroup_skb`, save
+  stack CPU on drop-heavy ingress. Deferred: the engine is a POLICER —
+  it shapes traffic to a rate; it does not exist to discard it. XDP
+  runs before socket and cgroup attribution exist, so per-cgroup
+  verdicts would have to be rebuilt at that layer, and a second
+  hooking layer beside the cgroup-root ingress/egress pair breaks the
+  one-hooking-layer design the whole engine rests on. Reopens when:
+  the owner ships a pure-ingress discard product — a different tool,
+  not an upgrade to this one.
+
+- **Per-tenant hierarchical fair-share.** The ask: guaranteed,
+  separate bandwidth shares between tenants (A and B) on one host.
+  The state: the cgroup v2 hierarchy is already the tenancy substrate
+  (subtree-aware attribution, #16's member resolution), and the DRR
+  fair-shared bucket (#2) arbitrates siblings INSIDE one cgroup. The
+  deferred step is the inter-tenant scheduler across sibling
+  subtrees — the natural next rung, deliberately unbuilt until a real
+  multi-tenant host exists to measure it honestly (the sandbox cannot
+  fabricate tenancy, and a fairness claim without a measurement is
+  the kind this tree refuses). Reopens when: such a host is available.
+
+- **LSM-BPF enforcement hooks.** The ask: block socket creation by
+  policy, enforcement stricter than policing. Deferred, leaning
+  permanently: zelynic is read-only by design — it taxes traffic,
+  it never refuses to create it, and bypass detection answers in
+  shadow, never with a kill. An LSM hook would let the tool deny
+  syscalls: a different trust contract, a different threat model, a
+  different review surface. Reopens when: the owner decides to ship
+  a second, access-control product.
+
+- **BPF token — unprivileged enforcement (kernel 6.9+).** The ask:
+  load the enforcement programs without root. The state: the 5.15
+  floor and root-by-design are pinned contracts (the surface refuses
+  loudly without both — the reliable-lts-1 ledger's Q1/Q5), and the
+  kernel's BPF-token delegation is its own future lane for
+  unprivileged loading. Deferred until the supported floor rises past
+  6.9 AND a rootless enforcement story is measured safe: attribution
+  without privilege is already honest (the resolver tree proves it),
+  but enforcement without privilege changes the security model this
+  tool ships with. Reopens when: both conditions hold.
+
 ## Reading order for a new maintainer
 
 `ebpf/src/schema.rs` (the version-by-version contract history) →
