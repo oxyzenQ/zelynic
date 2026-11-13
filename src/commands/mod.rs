@@ -56,8 +56,12 @@ pub(crate) mod strict;
 pub(crate) mod target_grammar;
 // night-during's LOC-cap split: the strict-all handler moved out of
 // strict.rs when the --during threading crossed the 500-line cap.
-#[cfg(feature = "ebpf")]
+// night-signature-advanced-1: UNGATED on purpose — the provenance
+// report is not an eBPF surface; a dormant build carries the same
+// masked identity and answers `sig` the same way (the original
+// cfg gate above belonged to strict_all and is restored there).
 pub(crate) mod sig_report;
+#[cfg(feature = "ebpf")]
 pub(crate) mod strict_all;
 
 #[cfg(not(feature = "ebpf"))]
