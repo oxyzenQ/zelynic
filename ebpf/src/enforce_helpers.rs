@@ -9,6 +9,7 @@
 //
 use aya_ebpf::EbpfContext as _;
 use aya_ebpf::bindings::{__sk_buff, bpf_sock};
+use aya_ebpf::helpers::{bpf_get_socket_cookie, bpf_ktime_get_ns};
 use aya_ebpf::maps::HashMap;
 use aya_ebpf::maps::LruHashMap;
 use aya_ebpf::programs::SkBuffContext;
@@ -343,19 +344,27 @@ pub(crate) fn hist_sample_due() -> bool {
     }
 }
 
-/// The sampled row write (night-frontier-2B): get-or-create the
-/// leaf's row (the v11 BPF_NOEXIST one-birth discipline — a
-/// concurrent first sample on another CPU is never clobbered, the
-/// loser re-looks-up and adds onto the winner's row), then one
-/// atomic add per recorded half. The size half always records; the
-/// srtt half only when the socket's recwn row carries the RTT lane's
-/// measurement — the READ-ONLY peek (flags 0, never a create), so a
-/// socket the lane never owned stays rowless and unmeasured. A full
-/// LRU (2048 leaf cgroups under observation) drops the sample, the
-/// honest miss every bookkeeping lane here takes — never a wrong
-/// count, just an uncounted packet. Keyed at the LEAF (the ee
-/// --depth target's identity), taken BEFORE the policy verdict so
-/// the unlimited majority's distribution exists — a sampled packet a
+/// The sampled row write (night-frontier-2B; the Z1 depth pack,
+/// schema v35): get-or-create the leaf's row (the v11 BPF_NOEXIST
+/// one-birth discipline — a concurrent first sample on another CPU
+/// is never clobbered, the loser re-looks-up and adds onto the
+/// winner's row), then the recorded words. The size half always
+/// records: bucket add, then the exact aggregates (count/sum as RMW
+/// adds, min/max as the volatile replace words — a zero-length skb stays
+/// bucket-consistent but skips the mass words). The srtt half only
+/// when the socket's recwn row carries the RTT lane's measurement —
+/// the READ-ONLY peek (flags 0, never a create), so a socket the
+/// lane never owned stays rowless and unmeasured. The tail story
+/// slot records EVERY sampled packet's size event (the worst-8-by-
+/// size rows, the socket cookie the skb's own helper names — the
+/// same socket the peek rode — and the ktime stamp; srtt 0 in a
+/// slot = the unmeasured sentinel). No early returns: the tail
+/// exists independent of the RTT lane's reach. A full LRU (2048
+/// leaf cgroups under observation) drops the sample, the honest
+/// miss every bookkeeping lane here takes — never a wrong count,
+/// just an uncounted packet. Keyed at the LEAF (the ee --depth
+/// target's identity), taken BEFORE the policy verdict so the
+/// unlimited majority's distribution exists — a sampled packet a
 /// concurrent verdict later drops stays counted: the contamination
 /// is the drop ratio itself, far under the sampling resolution (the
 /// ring's delivered-only law is a rate law; this is a wire-shape
@@ -374,7 +383,7 @@ pub(crate) fn hist_record(
         Some(ptr) => ptr,
         None => {
             // The first sample for this leaf: the init row COPIES
-            // from the kernel-pre-zeroed staging entry — a 512-byte
+            // from the kernel-pre-zeroed staging entry — an 832-byte
             // value can never touch the BPF stack (the linker's own
             // verdict on the first build), so the zero source lives
             // in map memory and the insert reads it from there.
@@ -405,20 +414,47 @@ pub(crate) fn hist_record(
     // cgroup), Relaxed because a count has no ordering to keep.
     unsafe { AtomicU64::from_ptr(core::ptr::addr_of_mut!((*row).size[sb])) }
         .fetch_add(1, Ordering::Relaxed);
+    unsafe { AtomicU64::from_ptr(core::ptr::addr_of_mut!((*row).size_count)) }
+        .fetch_add(1, Ordering::Relaxed);
+    unsafe { AtomicU64::from_ptr(core::ptr::addr_of_mut!((*row).size_sum)) }
+        .fetch_add(pkt_len, Ordering::Relaxed);
+    if pkt_len > 0 {
+        // SAFETY: the same row words, the Z1 bounded CAS updates.
+        hist::agg_min_word(unsafe { core::ptr::addr_of_mut!((*row).size_min) }, pkt_len);
+        hist::agg_max_word(unsafe { core::ptr::addr_of_mut!((*row).size_max) }, pkt_len);
+    }
     // The srtt half: the socket's own pointer, the same union read
     // the prime site rides (a plain pointer load the verifier
     // proves, null-checked before any use below).
     // SAFETY: the program's own context pointer.
     let sk: *mut bpf_sock = unsafe { (*ctx.as_ptr().cast::<__sk_buff>()).__bindgen_anon_2.sk };
-    if sk.is_null() {
-        return;
+    let mut srtt_us: u32 = 0;
+    if !sk.is_null() {
+        srtt_us = recwn_flow::recwn_peek_srtt(sk);
+        if srtt_us != 0 {
+            let rb = hist::srtt_bucket(u64::from(srtt_us)) & (hist::HIST_BUCKETS - 1);
+            // SAFETY: the same row, the same RMW view as the size half.
+            unsafe { AtomicU64::from_ptr(core::ptr::addr_of_mut!((*row).srtt[rb])) }
+                .fetch_add(1, Ordering::Relaxed);
+            unsafe { AtomicU64::from_ptr(core::ptr::addr_of_mut!((*row).srtt_count)) }
+                .fetch_add(1, Ordering::Relaxed);
+            unsafe { AtomicU64::from_ptr(core::ptr::addr_of_mut!((*row).srtt_sum)) }
+                .fetch_add(u64::from(srtt_us), Ordering::Relaxed);
+            hist::agg_min_word(
+                unsafe { core::ptr::addr_of_mut!((*row).srtt_min) },
+                u64::from(srtt_us),
+            );
+            hist::agg_max_word(
+                unsafe { core::ptr::addr_of_mut!((*row).srtt_max) },
+                u64::from(srtt_us),
+            );
+        }
     }
-    let srtt_us = recwn_flow::recwn_peek_srtt(sk);
-    if srtt_us == 0 {
-        return;
-    }
-    let rb = hist::srtt_bucket(u64::from(srtt_us)) & (hist::HIST_BUCKETS - 1);
-    // SAFETY: the same row, the same RMW view as the size half.
-    unsafe { AtomicU64::from_ptr(core::ptr::addr_of_mut!((*row).srtt[rb])) }
-        .fetch_add(1, Ordering::Relaxed);
+    // The tail story row (night-frontier-Z1): WHEN (ktime), HOW BIG
+    // (pkt_len), WHAT RTT (the peek's word or the unmeasured 0), on
+    // WHICH socket (the skb helper's own cookie — the proven ctx
+    // form, the same socket the peek rode; 0 = unowned, honest).
+    let cookie = unsafe { bpf_get_socket_cookie(ctx.as_ptr()) };
+    let ts_ns = unsafe { bpf_ktime_get_ns() };
+    hist::tail_update(row, pkt_len, u64::from(srtt_us), cookie, ts_ns);
 }

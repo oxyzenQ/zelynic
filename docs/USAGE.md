@@ -1249,7 +1249,7 @@ question a bare `cg:1234` row leaves open — WHAT is this:
   enforcement:      limited — dl 100.0 KB/s · ul 100.0 KB/s
   accounting:       1.4 GB let through, 6.2 MB dropped (0.44% of what arrived)
   lanes:            recwn (download only) · ecn armed, no marks yet · pacing 100.0 KB/s
-  histogram:        download, 1000 samples — size p50 ≥1.0 KB p95 ≥8.1 KB p99 ≥8.1 KB
+  histogram:        download, 1000 samples — mean 3.9 KB · worst 8.2 KB · size p50 ≥1.0 KB p95 ≥8.1 KB p99 ≥8.1 KB
   resources:        12.5 MB memory · 1m:2s cpu
   started:          10m:20s ago
   command:          ./cat-test --serve
@@ -1266,16 +1266,18 @@ question a bare `cg:1234` row leaves open — WHAT is this:
         zelynic ee cg:1234
 ```
 
-The HISTOGRAM lines (night-frontier-2B, schema v34) are the report's
-sampled distribution: one line per direction with samples — packet
-SIZE and TCP srtt, each read off the kernel's 32 log2 buckets as
-bucket-bounded quantiles. `p50 ≥1.0 KB` names the LOWER bound of the
-bucket the quantile fell in (the true value lives in [2^b, 2^(b+1))
-of the metric's own unit — bytes or microseconds; the ≥ prefix
-admits the bound). The srtt half renders only when the RTT lane's
-sockets recorded; an absent direction, an absent half, and a
-pre-v34 pin all read the honest absence (no line, `null` in the
-JSON's `histogram` block) — never a zero dressed as data. srtt
+The HISTOGRAM lines (night-frontier-2B; the Z1 depth pack, schema
+v35) are the report's sampled distribution: one line per direction
+with samples — the exact mean and the worst tail slot's mass first
+(the kernel's own words, the figures the bounds can never say),
+then packet SIZE and TCP srtt, each read off the kernel's 32 log2
+buckets as bucket-bounded quantiles. `p50 ≥1.0 KB` names the LOWER
+bound of the bucket the quantile fell in (the true value lives in
+[2^b, 2^(b+1)) of the metric's own unit — bytes or microseconds;
+the ≥ prefix admits the bound). The srtt half renders only when the
+RTT lane's sockets recorded; an absent direction, an absent half,
+and a pre-v34 pin all read the honest absence (no line, `null` in
+the JSON's `histogram` block) — never a zero dressed as data. srtt
 bounds render sub-second honest: raw microseconds under 1 ms
 (`≥512 µs`), whole floored milliseconds under a second (`≥16ms`),
 the uptime ladder at or beyond (`≥1s`) — every tier floors, so the
@@ -2625,7 +2627,7 @@ are churn, not drift.
 (multi-target specs only; a full miss exits 1 with the text error):
 
 ```json
-{"targets":[{"target":"cg:1234","cgroup_id":1234,"name":"cat-test","cgroup_path":"/sys/fs/cgroup/cat-test","uid":1000,"user":"cat","enforcement":"limited","download_bytes_per_sec":100000,"upload_bytes_per_sec":100000,"group_id":0,"oldest_started_secs":620,"processes":1,"socket_holders":1,"sockets":2,"traffic":{"window_secs":3,"download_bytes":12400000,"upload_bytes":340000,"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000,"socket_inode":120888,"rtt_us":19000,"rttvar_us":9000,"retrans_window":1,"segs_out_window":712},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null,"socket_inode":120889,"rtt_us":null,"rttvar_us":null,"retrans_window":null,"segs_out_window":null}]},"histogram":{"sample_shift":10,"download":{"size":{"samples":1000,"buckets":[0,0,0,0,0,0,0,0,0,0,600,0,0,400,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"p50":1024,"p95":8192,"p99":8192},"srtt":null},"upload":null},"procs":[{"pid":1234,"comm":"cat-test","uid":1000,"user":"cat","ppid":1,"state":"S (sleeping)","threads":4,"rss_kb":1234,"exe":"/home/cat/cat-test","exe_deleted":false,"kind":"binary","script":null,"permission":"755","cwd":"/home/cat","cmdline":"./cat-test --serve","started_ago_secs":620,"started_epoch":1758900000}],"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000,"socket_inode":120888,"rtt_us":19000,"rttvar_us":9000,"retrans_window":1,"segs_out_window":712},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null,"socket_inode":120889,"rtt_us":null,"rttvar_us":null,"retrans_window":null,"segs_out_window":null}]}],"bypass_audit":{"window_secs":3,"nic_tx_bytes":12900000,"nic_rx_bytes":13000000,"bpf_tx_bytes":340000,"bpf_rx_bytes":12450000,"shadow_tx_bytes":12560000,"shadow_rx_bytes":550000,"verdict":"bypassed_tx","shadow_tx_percent":97,"shadow_rx_percent":4}}
+{"targets":[{"target":"cg:1234","cgroup_id":1234,"name":"cat-test","cgroup_path":"/sys/fs/cgroup/cat-test","uid":1000,"user":"cat","enforcement":"limited","download_bytes_per_sec":100000,"upload_bytes_per_sec":100000,"group_id":0,"oldest_started_secs":620,"processes":1,"socket_holders":1,"sockets":2,"traffic":{"window_secs":3,"download_bytes":12400000,"upload_bytes":340000,"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000,"socket_inode":120888,"rtt_us":19000,"rttvar_us":9000,"retrans_window":1,"segs_out_window":712},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null,"socket_inode":120889,"rtt_us":null,"rttvar_us":null,"retrans_window":null,"segs_out_window":null}]},"histogram":{"sample_shift":10,"download":{"size":{"samples":1000,"buckets":[0,0,0,0,0,0,0,0,0,0,600,0,0,400,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"p50":1024,"p95":8192,"p99":8192,"count":1000,"sum":3891200,"min":1024,"max":8192,"mean":3891},"srtt":null,"tail":[{"ts_ns":123456,"size":8192,"srtt_us":19000,"cookie":120999,"endpoint":"142.250.185.78:443 (curl)"}]},"upload":null},"procs":[{"pid":1234,"comm":"cat-test","uid":1000,"user":"cat","ppid":1,"state":"S (sleeping)","threads":4,"rss_kb":1234,"exe":"/home/cat/cat-test","exe_deleted":false,"kind":"binary","script":null,"permission":"755","cwd":"/home/cat","cmdline":"./cat-test --serve","started_ago_secs":620,"started_epoch":1758900000}],"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000,"socket_inode":120888,"rtt_us":19000,"rttvar_us":9000,"retrans_window":1,"segs_out_window":712},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null,"socket_inode":120889,"rtt_us":null,"rttvar_us":null,"retrans_window":null,"segs_out_window":null}]}],"bypass_audit":{"window_secs":3,"nic_tx_bytes":12900000,"nic_rx_bytes":13000000,"bpf_tx_bytes":340000,"bpf_rx_bytes":12450000,"shadow_tx_bytes":12560000,"shadow_rx_bytes":550000,"verdict":"bypassed_tx","shadow_tx_percent":97,"shadow_rx_percent":4}}
 ```
 
 `enforcement` is `"unlimited"` | `"blocked"` | `"limited"`; an
@@ -2689,26 +2691,35 @@ happen, `0` would claim it did. `rtt_us` is the SRTT at the closing
 walk; jitter is the kernel's rttvar in its own words, not a
 per-frame re-derivation.
 
-`histogram` (night-frontier-2B, schema v34) is the target's sampled
-distribution — the kernel's 1-in-1024-per-CPU sampler (the hot path
-pays one per-CPU tick, the sampled packet the LRU row) recording
-packet SIZE in bytes and TCP srtt in microseconds into 32 log2
-buckets per direction (bucket b spans [2^b, 2^(b+1)) of the
-metric's own unit). Each present half carries the raw 32-bucket
-array and the bucket-bounded quantiles — the LOWER bound of the
-first bucket whose cumulative count reaches the quantile, so `p50`
-1024 reads "at least half the packets were in the one-KiB class or
-smaller" and the true value lives in [2^b, 2^(b+1)) (the log2
-resolution); `sample_shift` (10) is the cadence divisor a script
-multiplies bucket counts by to estimate rates. Every absent piece
-is null — a direction with no row, a half whose sockets never
-sampled, a pre-v34 pin: the honest absence, never a fabricated
-zero row. The human report's `histogram:` lines are this block's
-own projection (one line per direction with samples). The block
-lives on the TARGET — a sibling of `traffic`, never a child of it:
-the scripting read is `.targets[].histogram` (a
-`.targets[].traffic.histogram` path evaluates to null — the block
-was never there; the live session's own jq miss names the trap).
+`histogram` (night-frontier-2B; the Z1 depth pack, schema v35) is
+the target's sampled distribution — the kernel's 1-in-1024-per-CPU
+sampler (the hot path pays one per-CPU tick, the sampled packet the
+LRU row) recording packet SIZE in bytes and TCP srtt in microseconds
+into 32 log2 buckets per direction (bucket b spans [2^b, 2^(b+1))
+of the metric's own unit). Each present half carries the raw
+32-bucket array and the bucket-bounded quantiles — the LOWER bound
+of the first bucket whose cumulative count reaches the quantile, so
+`p50` 1024 reads "at least half the packets were in the one-KiB
+class or smaller" and the true value lives in [2^b, 2^(b+1)) (the
+log2 resolution); `sample_shift` (10) is the cadence divisor a
+script multiplies bucket counts by to estimate rates. Since Z1 each
+present half also carries the EXACT aggregates —
+`count`/`sum`/`min`/`max`/`mean`, the kernel's own words the bounds
+approximate (the min words ride the 0-sentinel of a fresh row; a
+zero-length skb is bucket-consistent but skips the mass words) —
+and each present row carries the `tail` list: the worst-8-by-size
+story slots (`ts_ns` ktime, `size`, `srtt_us` null while
+unmeasured, the raw `cookie`, and the `endpoint` the walk's census
+resolves the cookie to — null while the walk missed it, never a
+fabricated name). Every absent piece is null — a direction with no
+row, a half whose sockets never sampled, a pre-v34 pin: the honest
+absence, never a fabricated zero row. The human report's
+`histogram:` lines are this block's own projection (one line per
+direction with samples). The block lives on the TARGET — a sibling
+of `traffic`, never a child of it: the scripting read is
+`.targets[].histogram` (a `.targets[].traffic.histogram` path
+evaluates to null — the block was never there; the live session's
+own jq miss names the trap).
 
 `bypass_audit` (NIGHT-upgrade-charger-core-1-a) is the focus
 window's interface-vs-hooks shadow verdict, machine-scope:

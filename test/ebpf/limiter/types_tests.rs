@@ -293,7 +293,11 @@ fn test_schema_version_constant() {
     // the bump is required, not polite: a pinned v33 object lacks
     // the hist maps entirely, and the version is the one gate
     // distinguishing "no samples yet" from "no such lane".
-    assert_eq!(SCHEMA_VERSION_EXPECTED, 34);
+    // v35 (night-frontier-Z1, the histogram depth pack): the row
+    // grows IN PLACE — 512 → 832 bytes (the exact aggregates plus
+    // the eight tail story slots, no new map) — the forced reload
+    // re-pins the full v35 map set.
+    assert_eq!(SCHEMA_VERSION_EXPECTED, 35);
 }
 
 // ── night-spark-4, schema v26: the CE ledger's layout pins ─────────

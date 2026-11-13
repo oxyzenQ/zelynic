@@ -126,8 +126,28 @@
 ///     gate distinguishing "no samples yet" from "no such lane";
 ///     the forced reload (once, re-apply after upgrade) re-pins the
 ///     full v34 map set.
+/// v35 (night-frontier-Z1, the histogram depth pack): the HistRow
+///     grows IN PLACE — the two 32-bucket halves stay byte-identical
+///     to v34, then eight exact-aggregate words (count/sum/min/max
+///     for size and srtt: count/sum are RMW adds, min/max the
+///     volatile check-then-store replace law (the measured_srtt
+///     ratchet's own discipline — the BPF ISA has no plain-atomic
+///     load for a CAS shape), the 0-sentinel "no min yet") and
+///     eight 32-byte tail story slots (ts_ns/size/srtt_us/cookie —
+///     the worst-by-size samples, the socket cookie the skb helper
+///     names — the same identity userspace's walk already maps to an
+///     endpoint, so the kernel never parses the wire and never reads
+///     a kernel-struct offset; ts written LAST so an empty slot never
+///     reads half-filled). 512 → 832 bytes. No new map, no new
+///     lookup: the sampler's get-or-create still pays once, the
+///     aggregates ride the same sampled write, the tail scan is an
+///     8-slot linear pass the verifier unrolls. The bump is
+///     REQUIRED, not polite: a pinned v34 row is 512 bytes and a v35
+///     reader would map the 320-byte extension onto nothing — the
+///     forced reload (once, re-apply after upgrade) re-pins the full
+///     v35 map set.
 #[allow(dead_code)]
-pub(crate) const SCHEMA_VERSION: u32 = 34;
+pub(crate) const SCHEMA_VERSION: u32 = 35;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs

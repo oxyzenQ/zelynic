@@ -316,7 +316,9 @@ static ecn_debt_ul: LruHashMap<u64, u64> = LruHashMap::pinned(4096, 0);
 // cgroup — the identity the ee --depth target names, NOT the
 // resolved policy root the stats/ring family keys: the histogram is
 // a per-app distribution, and an unpolicED app deserves its shape
-// too). Two metric halves per row (hist::HistRow, 512 bytes): size
+// too). Two metric halves per row (hist::HistRow, 832 bytes since
+// the Z1 depth pack's v35 in-row extension: the buckets plus the
+// exact aggregates and the eight tail story slots): size
 // (bytes) records on every sampled packet; srtt (microseconds)
 // records only when the socket's recwn hint row carries the RTT
 // lane's measurement (the no-CO-RE source — the sock_ops uapi
@@ -347,7 +349,7 @@ static depth_hist_ul: LruHashMap<u32, hist::HistRow> = LruHashMap::pinned(2048, 
 static hist_sample_tick: PerCpuArray<u64> = PerCpuArray::pinned(1, 0);
 
 /// The zero-row source (night-frontier-2B): one kernel-pre-zeroed
-/// entry the first-sample insert COPIES from — a 512-byte HistRow
+/// entry the first-sample insert COPIES from — an 832-byte HistRow
 /// can never touch the BPF stack (the linker's own verdict on the
 /// first build: "the BPF stack limit is exceeded"), so the init
 /// value lives in map memory and the insert reads it from there.

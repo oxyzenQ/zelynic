@@ -11,7 +11,10 @@
 #[path = "../../../ebpf/src/hist.rs"]
 mod hist;
 
-use hist::{HIST_BUCKETS, HIST_SAMPLE_MASK, HIST_SAMPLE_SHIFT, HistRow, size_bucket, srtt_bucket};
+use hist::{
+    HIST_BUCKETS, HIST_SAMPLE_MASK, HIST_SAMPLE_SHIFT, HIST_TAIL, HistRow, agg_max_word,
+    agg_min_word, size_bucket, srtt_bucket, tail_update,
+};
 
 #[test]
 fn size_bucket_is_ilog2() {
@@ -72,11 +75,86 @@ fn sampler_constants_pair() {
 
 #[test]
 fn row_shape_is_the_schema_pin() {
-    // 512 bytes: two 32-bucket u64 halves back to back — the layout
-    // the userspace HistRowRaw mirror hand-copies under schema v34.
+    // 832 bytes (v35): the two 32-bucket u64 halves (512) + the eight
+    // exact-aggregate words (64) + the eight tail story slots (256) —
+    // the layout the userspace HistRowRaw mirror hand-copies under
+    // schema v35.
     assert_eq!(HIST_BUCKETS, 32);
-    assert_eq!(core::mem::size_of::<HistRow>(), 512);
+    assert_eq!(HIST_TAIL, 8);
+    assert_eq!(core::mem::size_of::<HistRow>(), 832);
     let row = HistRow::default();
     assert!(row.size.iter().all(|&c| c == 0));
     assert!(row.srtt.iter().all(|&c| c == 0));
+}
+
+// night-frontier-Z1 (schema v35): the write-side words' laws, driven
+// over real rows in userspace memory — the same arithmetic the BPF
+// program runs against map memory.
+#[test]
+fn agg_min_word_is_the_sentinel_aware_cas_min() {
+    let mut row = HistRow::default();
+    let word = core::ptr::addr_of_mut!(row.size_min);
+    // The fresh row's 0-sentinel loses to the first real sample.
+    agg_min_word(word, 1500);
+    assert_eq!(row.size_min, 1500);
+    // A tighter sample replaces; a looser one cannot.
+    agg_min_word(word, 64);
+    assert_eq!(row.size_min, 64);
+    agg_min_word(word, 9000);
+    assert_eq!(row.size_min, 64);
+    // A true zero-length sample would store 0 — but the record site
+    // skips the mass words for it (the doc's own law).
+    agg_min_word(word, 0);
+    assert_eq!(row.size_min, 0, "0 is the sentinel, 0 is also the min");
+}
+
+#[test]
+fn agg_max_word_is_the_plain_cas_max() {
+    let mut row = HistRow::default();
+    let word = core::ptr::addr_of_mut!(row.srtt_max);
+    agg_max_word(word, 40_200);
+    assert_eq!(row.srtt_max, 40_200);
+    agg_max_word(word, 14_600);
+    assert_eq!(row.srtt_max, 40_200, "a smaller sample cannot lower max");
+    agg_max_word(word, 199_000);
+    assert_eq!(row.srtt_max, 199_000);
+    agg_max_word(word, 0);
+    assert_eq!(row.srtt_max, 199_000);
+}
+
+#[test]
+fn tail_update_fills_the_weakest_slot_strictly() {
+    let mut row = HistRow::default();
+    // The first eight samples fill the empty slots (ts 0 always
+    // loses to a real sample).
+    for i in 0..8u64 {
+        tail_update(&mut row, 1000 + i, 19_000 + i, 100 + i, 5_000 + i);
+    }
+    assert_eq!(row.tail.iter().filter(|t| t.ts_ns != 0).count(), 8);
+    // An empty-slot scan picks the smallest size: 1000 (slot 0).
+    // A sample not beating the weakest slot (strictly) stays out.
+    tail_update(&mut row, 999, 0, 999, 6_000);
+    assert!(
+        row.tail.iter().all(|t| t.size != 999),
+        "999 does not beat the weakest (1000)"
+    );
+    // A sample beating the weakest replaces THAT slot, fields and all.
+    tail_update(&mut row, 50_000, 21_000, 777, 7_000);
+    let slot = row
+        .tail
+        .iter()
+        .find(|t| t.size == 50_000)
+        .expect("the new worst landed");
+    assert_eq!(slot.srtt_us, 21_000);
+    assert_eq!(slot.cookie, 777);
+    assert_eq!(slot.ts_ns, 7_000);
+    // The replaced slot is the old weakest (size 1000) — the tail now
+    // holds sizes 1001..1007 plus 50_000.
+    let mut sizes: Vec<u64> = row.tail.iter().map(|t| t.size).collect();
+    sizes.sort_unstable();
+    assert_eq!(sizes[0], 1001, "the weakest (1000) was replaced");
+    assert_eq!(sizes[7], 50_000, "the new worst rides");
+    // A zero-length skb writes no story (no mass, no slot).
+    tail_update(&mut row, 0, 19_000, 123, 8_000);
+    assert!(row.tail.iter().all(|t| t.cookie != 123));
 }
