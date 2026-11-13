@@ -21,10 +21,7 @@ pub use build::BuildInfo;
 pub use build::VERSION;
 pub(crate) use build::{build_hash, build_label, build_time};
 pub(crate) use signature::{
-    identity_of,
-    manifest_fingerprint,
-    materialized_authors,
-    provenance_view,
+    identity_of, manifest_fingerprint, materialized_authors, provenance_view,
 };
 
 pub const NAME: &str = "zelynic";
@@ -384,7 +381,10 @@ mod tests {
             .position(|l| l.starts_with("Signature: "))
             .expect("Signature line present");
         let depth = lines.get(sig_idx + 1).copied().unwrap_or("");
-        assert!(depth.contains("Depth-matrix: "), "depth line follows Signature: {depth}");
+        assert!(
+            depth.contains("Depth-matrix: "),
+            "depth line follows Signature: {depth}"
+        );
         let count = body
             .lines()
             .filter(|l| l.contains("Depth-matrix: "))

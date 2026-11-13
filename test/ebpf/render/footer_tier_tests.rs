@@ -188,7 +188,10 @@ fn footer_tiers_degrade_in_the_engraved_order() {
     assert!(!tiny.iter().any(|l| l.contains("avg arrival dl")));
     assert!(tiny.iter().any(|l| l.contains("total usage internet in")));
     assert!(tiny.iter().any(|l| l.contains("1s realtime")));
-    assert!(tiny.iter().any(|l| l.contains(") by rezky_nightky (oxyzenQ)")));
+    assert!(
+        tiny.iter()
+            .any(|l| l.contains(") by rezky_nightky (oxyzenQ)"))
+    );
     // No roof grid at survival height: the row above the total row
     // is the table's own territory (the header grid or a data row),
     // never the footer's roof.
