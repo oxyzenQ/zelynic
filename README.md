@@ -281,8 +281,15 @@ reports its build label in the version output:
 $ ./target/x86_64-unknown-linux-musl/pro-native-musl/zelynic -V
 Build: local-pro-native-musl (<hash>)
 Build-time: 9/18/2026 01:30 (UTC)
-Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)
+Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ) 2026
+Depth-matrix: fp=<fingerprint> status=verified anchor=b3:<blake3> layers=d0:masked-words,d1:masked-words,d2:dual-fingerprint,d3:blake3-anchor
 ```
+
+The Signature and Depth-matrix lines materialize at runtime from the
+masked provenance layers (night-signature-advanced-1): the ownership
+claim exists in the artifact only as opaque masked words —
+`strings` over the binary finds no identity — and `zelynic sig`
+renders the full four-depth verification report. 
 
 A native build never clobbers `target/release/zelynic` — the separate
 profile names keep both binaries side by side. Note: a native binary

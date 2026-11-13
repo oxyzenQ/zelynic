@@ -1970,6 +1970,33 @@ contract; a development build says so and never claims the release
 contract). `--print-json` mirrors the same six facts under the
 `build` object, field-for-field with the text lines.
 
+### sig — provenance signature report
+
+```bash
+zelynic sig
+```
+
+Renders the four-depth provenance matrix over this binary's embedded
+build signature (night-signature-advanced-1, the sibling-tools
+shape): D0 runtime-identity (the lane-honest manifest materializes
+from the masked layers), D1 embedded-marker (the authors layer binds
+to the manifest identity), D2 anchor-integrity (the blake3 seal
+recomputes from the masked payload), and D3 binary-self-hash (blake3
+over the running image — a fingerprint to compare against the
+published release hash; it cannot embed its own digest). The
+ownership claim is masked in the artifact — `strings` over the
+binary finds no identity — and materializes only on the `-V` and
+`sig` surfaces. Exits 1 when any depth fails, so a script (or the
+release verification lane) can gate on the verdict:
+
+```bash
+zelynic sig && echo authentic || echo tampered
+```
+
+`-V/--version` carries the same verdict inline as the Depth-matrix
+line (`fp=... status=verified anchor=b3:...`) — one line a script
+can grep without running the full report.
+
 ---
 
 ## Global options
