@@ -216,5 +216,8 @@ fn short_terminals_keep_the_note_and_the_fill() {
         joined.contains("5s realtime - theme "),
         "the status line names the real cadence, got: {joined}"
     );
-    assert!(joined.contains("by rezky_nightky (oxyzenQ)"), "the stamp survives");
+    assert!(
+        joined.contains("by rezky_nightky (oxyzenQ)"),
+        "the stamp survives"
+    );
 }

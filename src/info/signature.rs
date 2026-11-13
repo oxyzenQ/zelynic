@@ -202,11 +202,7 @@ const MANIFEST_DORMANT_FINGERPRINT: u64 = layer_fingerprint(
 
 pub(crate) const AUTHORS_SEED: u64 = 0x8F62D3B147E9A208;
 pub(crate) const AUTHORS_BYTE_LEN: usize = 23; // 3 words
-const MASKED_AUTHORS_WORDS: [u64; 3] = [
-    0x2E4FCE5FF275597A,
-    0xE272762DD2A80261,
-    0xE7A772A241B3A02F,
-];
+const MASKED_AUTHORS_WORDS: [u64; 3] = [0x2E4FCE5FF275597A, 0xE272762DD2A80261, 0xE7A772A241B3A02F];
 
 /// D2 digest over the clear authors bytes (same law as D0).
 const AUTHORS_FINGERPRINT: u64 =
@@ -480,13 +476,17 @@ pub(crate) fn provenance_view() -> ProvenanceView {
     // from the former plaintext signature_line()): the dormant stamp —
     // and only it — flips the displayed claim.
     let (active_bytes, active_fp) = match super::ebpf_lane() {
-        "dormant (not compiled)" => (manifest_dormant_bytes.as_slice(), MANIFEST_DORMANT_FINGERPRINT),
+        "dormant (not compiled)" => (
+            manifest_dormant_bytes.as_slice(),
+            MANIFEST_DORMANT_FINGERPRINT,
+        ),
         _ => (manifest_full_bytes.as_slice(), MANIFEST_FINGERPRINT),
     };
 
     let active_fp_runtime = fnv1a64_bytes(active_bytes);
     let authors_fp_runtime = fnv1a64_bytes(&authors_bytes);
-    let fingerprints_ok = active_fp_runtime == active_fp && authors_fp_runtime == AUTHORS_FINGERPRINT;
+    let fingerprints_ok =
+        active_fp_runtime == active_fp && authors_fp_runtime == AUTHORS_FINGERPRINT;
 
     let manifest = String::from_utf8_lossy(active_bytes).into_owned();
     let authors = String::from_utf8_lossy(&authors_bytes).into_owned();
@@ -563,8 +563,11 @@ mod tests {
         assert_eq!(view.authors, AUTHORS_ORACLE);
         // The non-displayed manifest stays sealed too: its bytes unmask
         // to the oracle (the anchor binds both lanes).
-        let dormant =
-            unmask_to_bytes(&MASKED_MANIFEST_DORMANT_WORDS, MANIFEST_DORMANT_SEED, MANIFEST_DORMANT_BYTE_LEN);
+        let dormant = unmask_to_bytes(
+            &MASKED_MANIFEST_DORMANT_WORDS,
+            MANIFEST_DORMANT_SEED,
+            MANIFEST_DORMANT_BYTE_LEN,
+        );
         assert_eq!(String::from_utf8_lossy(&dormant), MANIFEST_DORMANT_ORACLE);
     }
 
@@ -692,13 +695,22 @@ mod tests {
         let authors = unmask_to_bytes(&MASKED_AUTHORS_WORDS, AUTHORS_SEED, AUTHORS_BYTE_LEN);
         let mut forged_full = full.clone();
         forged_full[5] ^= 0x01;
-        assert_ne!(anchor_digest(&forged_full, &dormant, &authors), DEPTH_ANCHOR);
+        assert_ne!(
+            anchor_digest(&forged_full, &dormant, &authors),
+            DEPTH_ANCHOR
+        );
         let mut forged_dormant = dormant.clone();
         forged_dormant[9] ^= 0x80;
-        assert_ne!(anchor_digest(&full, &forged_dormant, &authors), DEPTH_ANCHOR);
+        assert_ne!(
+            anchor_digest(&full, &forged_dormant, &authors),
+            DEPTH_ANCHOR
+        );
         let mut forged_authors = authors.clone();
         forged_authors[2] ^= 0x01;
-        assert_ne!(anchor_digest(&full, &dormant, &forged_authors), DEPTH_ANCHOR);
+        assert_ne!(
+            anchor_digest(&full, &dormant, &forged_authors),
+            DEPTH_ANCHOR
+        );
         // Dropping a layer from the framing (length-prefix mismatch)
         // also breaks it — the framing is part of the seal.
         assert_ne!(anchor_digest(&full, &dormant, &[]), DEPTH_ANCHOR);

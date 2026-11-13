@@ -503,8 +503,7 @@ mod tests {
             lines[20]
         );
         assert!(
-            lines[21].starts_with(" │  v")
-                && lines[21].contains(") by rezky_nightky (oxyzenQ)"),
+            lines[21].starts_with(" │  v") && lines[21].contains(") by rezky_nightky (oxyzenQ)"),
             "copyright is the simplified build stamp (NIGHT-boost-19): {}",
             lines[21]
         );
