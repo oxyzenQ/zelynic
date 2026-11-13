@@ -98,7 +98,7 @@ TMP_DIR=""
 # bash twin of src/output/color.rs — so this surface renders the exact
 # values the CLI renders (mono when piped; the legacy RED/GREEN/
 # YELLOW/NC names map onto the tiers inside the palette).
-. "${SCRIPT_DIR}/../lib/ux_palette.sh"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/ux_palette.sh"
 
 ok() { echo -e "${GREEN}[bootstrap-ebpf]${NC} $1"; }
 warn() { echo -e "${YELLOW}[bootstrap-ebpf]${NC} $1"; }

@@ -39,7 +39,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # bash twin of src/output/color.rs — so this surface renders the exact
 # values the CLI renders (mono when piped; the legacy RED/GREEN/
 # YELLOW/NC names map onto the tiers inside the palette).
-. "${SCRIPT_DIR}/lib/ux_palette.sh"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/ux_palette.sh"
 
 ok() { echo -e "${GREEN}[setup]${NC} $1"; }
 warn() { echo -e "${YELLOW}[setup]${NC} $1"; }

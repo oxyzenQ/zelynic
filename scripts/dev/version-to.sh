@@ -49,7 +49,7 @@ cd "${SCRIPT_DIR}"
 # bash twin of src/output/color.rs — so this surface renders the exact
 # values the CLI renders (mono when piped; the legacy RED/GREEN/
 # YELLOW/NC names map onto the tiers inside the palette).
-. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/ux_palette.sh"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/ux_palette.sh"
 
 # Read current version from Cargo.toml
 current_version() {
