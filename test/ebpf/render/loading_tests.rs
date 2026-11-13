@@ -108,7 +108,7 @@ fn the_footer_is_the_empty_session_footer() {
         "avg arrival dl | ul = 0 B/s | 0 B/s",
         "1s realtime - theme ",
         " - q quit - t theme",
-        "by oxyzenQ",
+        "by rezky_nightky (oxyzenQ)",
     ] {
         assert!(
             joined.contains(fragment),
@@ -216,5 +216,5 @@ fn short_terminals_keep_the_note_and_the_fill() {
         joined.contains("5s realtime - theme "),
         "the status line names the real cadence, got: {joined}"
     );
-    assert!(joined.contains("by oxyzenQ"), "the stamp survives");
+    assert!(joined.contains("by rezky_nightky (oxyzenQ)"), "the stamp survives");
 }

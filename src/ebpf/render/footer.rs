@@ -23,7 +23,10 @@
 //!
 //!   1s realtime - theme netrunner - q quit - t theme  <- grey (engrave-2)
 //!
-//!   v11.0.0 (a1b2c3d) by oxyzenQ              <- the build stamp (engrave-3)
+//!   v11.0.0 (a1b2c3d) by <authors>            <- the build stamp (engrave-3;
+//!                                                   the authors materialize
+//!                                                   from the masked layer,
+//!                                                   night-signature-advanced-1)
 //! ```
 //!
 //! The NIGHT-engrave-6 pair (the owner's data-center spec): the MAX

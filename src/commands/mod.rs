@@ -57,6 +57,7 @@ pub(crate) mod target_grammar;
 // night-during's LOC-cap split: the strict-all handler moved out of
 // strict.rs when the --during threading crossed the 500-line cap.
 #[cfg(feature = "ebpf")]
+pub(crate) mod sig_report;
 pub(crate) mod strict_all;
 
 #[cfg(not(feature = "ebpf"))]
@@ -384,6 +385,16 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
         }
 
         Some(Commands::Doctor) => crate::capabilities::run_doctor(cli.print_json),
+        // night-signature-advanced-1: the four-depth provenance
+        // report (subcommand only, no --sig spelling — the owner's
+        // call). Exits 1 itself on a tampered verdict.
+        Some(Commands::Sig) => {
+            // Prints the ladder itself and exits 1 on a tampered
+            // verdict; on Authentic it returns and the Ok(()) keeps
+            // the dispatcher's Result shape.
+            sig_report::run();
+            Ok(())
+        }
 
         // NIGHT-upgrade-charger-core-1-b: the enforcement probe's hidden child
         // roles — spawned by the probe orchestrator, never typed by hand.

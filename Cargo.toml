@@ -164,6 +164,17 @@ clippy = { undocumented_unsafe_blocks = "deny" }
 # the chrono ban in deny.toml (cargo deny check all).
 clap = { version = "4", default-features = false, features = ["std", "color", "help", "usage", "error-context", "derive", "suggestions"] }
 anyhow = "1"
+# blake3 (night-signature-advanced-1): the depth-matrix signature's
+# cryptographic anchor — the runtime recompute over the masked
+# provenance layers and the `sig` report's binary self-hash. The
+# "pure" feature skips EVERY C/asm path in blake3's build.rs (the
+# estate's supply-chain posture: no C toolchain in the build graph,
+# no cc gate surprises on exotic targets) while pure-Rust blake3
+# still hashes ~0.5 GB/s — the anchor payload is 201 bytes and the
+# self-hash streams the running image, where even that floor is
+# orders of magnitude beyond need. The cosmostrix lineage carries
+# the same pinned feature set.
+blake3 = { version = "1", default-features = false, features = ["std", "pure"] }
 # S1 (night-dragon-maintenance-T1): serde and serde_json REMOVED —
 # the JSON lane is hand-written in src/json/ (the zejtron lineage's
 # peak-lean law: the runtime graph carries no crate that exists only

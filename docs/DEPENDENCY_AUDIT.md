@@ -48,6 +48,7 @@ updated so the next re-audit starts from fresh evidence, not from the
 |------------|----------------------------------|---------|
 | clap | src/cli/ (derive + 8 ux/suggestion files); the `suggestions` feature provably renders "tip: some similar subcommands exist" (verified live) | keep, features exact |
 | anyhow | every module (`Result` + `Context` + `anyhow!`) | keep |
+| blake3 | src/info/signature.rs (night-signature-advanced-1): the depth-matrix anchor recompute over the masked provenance layers + the `sig` report's streaming binary self-hash; features std+pure exactly as pinned (the "pure" feature skips every C/asm path in blake3's build.rs — no C toolchain in the graph) | keep, features exact |
 | serde | **removed** (night-dragon-maintenance-T1 (S1)): the JSON lane is hand-written in src/json/ — the derive stack (serde, serde_core, serde_derive) left the graph; regressions blocked by the deny.toml ban | removed |
 | serde_json | **removed** (S1): src/json/parse.rs (the Value tree, the docker lane's deserializer) + write.rs (the escape law) replace it; wire bytes verified byte-identical against the pre-S1 binary | removed |
 | nix | features user/term/feature exactly as pinned (geteuid, termios, uname — update/mod.rs re-verified) | keep, features exact |

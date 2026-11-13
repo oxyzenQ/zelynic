@@ -15,13 +15,19 @@
 /// that lane through the re-exports below; the capability doctor
 /// serializes [`BuildInfo`] directly.
 mod build;
+mod signature;
 
 pub use build::BuildInfo;
 pub use build::VERSION;
-use build::{build_hash, build_label, build_time};
+pub(crate) use build::{build_hash, build_label, build_time};
+pub(crate) use signature::{
+    identity_of,
+    manifest_fingerprint,
+    materialized_authors,
+    provenance_view,
+};
 
 pub const NAME: &str = "zelynic";
-pub const COPYRIGHT: &str = "(c) 2026 rezky_nightky (oxyzenQ)";
 pub const REPOSITORY: &str = "https://github.com/oxyzenQ/zelynic";
 pub const DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
 
@@ -41,30 +47,31 @@ pub const DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
 /// call sites left, the dependency-audit discipline.)
 const LICENSE_LINE: &str = "License: AGPL-3.0-only";
 
-/// The `Signature:` line for full-life builds as ONE contiguous
-/// literal (NIGHT-dinner-4) — the NIGHT-blade-4 discipline applied to
-/// the new line: release.yml's v4 legs prove an artifact through
-/// `strings`, so the bytes the pipeline greps stay contiguous by
-/// construction (never a format! join). The claim "Pure eBPF
-/// builtin" is true of BOTH full-life lanes — source-built objects
-/// cross-compiled from the local ebpf/ tree, registry-prebuilt
-/// objects staged from ebpf-prebuilt/ — because either way they ride
-/// inside the binary (`include_bytes!`): no toolchain, no clang, no
-/// separate object files ever touch the target machine. Which lane
-/// produced them is the doctor's answer, not the brand surface's
-/// (NIGHT-dinner-3: `zelynic doctor` reports build_flavor +
-/// ebpf_lane on text and JSON).
-const SIGNATURE_LINE: &str =
-    "Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)";
-
-/// The dormant-lane Signature (NIGHT-dinner-4): a
-/// `--no-default-features` build embeds no eBPF objects at all, and
-/// the claims discipline (QA.md) does not let its version report
-/// claim "Pure eBPF builtin" about surfaces that answer their honest
-/// refusal. Same masterclass shape — prefix, attribution — with the
-/// honest claim swapped in.
-const SIGNATURE_DORMANT_LINE: &str =
-    "Signature: eBPF dormant — Official Build by rezky_nightky (oxyzenQ)";
+// The `Signature:` line source (night-signature-advanced-1): the
+// lane-honest manifest is NO LONGER a plaintext literal — the former
+// `SIGNATURE_LINE` / `SIGNATURE_DORMANT_LINE` consts carried the
+// ownership claim as greppable bytes (strings(1) or rg over the
+// artifact found "Official Build by rezky_nightky (oxyzenQ)" and
+// handed a thief the mark on a plate, the night-signature-1 gap the
+// owner named). The manifest now materializes at runtime from the
+// masked layers in [`signature`] — at rest the artifact carries only
+// opaque integers, and the release pipeline's strings probe verifies
+// the ABSENCE of the identity (the negative probe) instead of its
+// presence. The claims discipline (QA.md) is unchanged: the manifest
+// this report displays is the lane-honest one, chosen by the same
+// stamp law [`ebpf_lane`] documents, and the "License:" line keeps
+// its NIGHT-blade-4 contiguous-literal discipline — that line claims
+// no identity, so it stays plaintext for the AVX-512 legs.
+//
+// The Depth-matrix line (night-signature-advanced-1, the owner's
+// green mark): the masked scheme's status surface, rendered from the
+// same single provenance pass — `fp=<fingerprint>` (the active
+// manifest's FNV-1a 64, dual-layer with the authors digest),
+// `status=verified|tampered`, `anchor=b3:<blake3>` (the 256-bit seal
+// over all three masked layers), and the four storage-layer tokens.
+// The line is the one body line the owner marked for color — the
+// estate's status green (#50FA7B, the hacker-green tier) — while the
+// rest of the body stays plain per the estate-parity law below.
 
 /// The eBPF object lane this binary was built through (NIGHT-ask-2),
 /// stamped by build.rs as `ZELYNIC_EBPF_LANE`:
@@ -113,28 +120,35 @@ pub(crate) fn ebpf_lane() -> &'static str {
 /// stamp value [`ebpf_lane`] documents; every path that compiles
 /// eBPF code stamps a lane explicitly, so a full build can never
 /// fall into the dormant arm.
-fn signature_line() -> &'static str {
-    match ebpf_lane() {
-        "dormant (not compiled)" => SIGNATURE_DORMANT_LINE,
-        _ => SIGNATURE_LINE,
-    }
+fn signature_line() -> String {
+    format!("Signature: {}", provenance_view().manifest)
 }
 
 /// The plain-text body of the version report (everything after the
 /// brand header). Separated from [`print_version_report`] so tests can
 /// assert the full line set without capturing stdout.
 fn version_body() -> String {
+    let provenance = provenance_view();
+    // The one body line the owner marked for color
+    // (night-signature-advanced-1): the Depth-matrix status line rides
+    // the estate's status green — the hacker-green tier — while every
+    // sibling line stays plain per the estate-parity law. ok() wraps
+    // one line (the color layer refuses multi-line wraps) and degrades
+    // to plain text when the capability says so.
+    let depth_line = crate::output::ok(&provenance.depth_line);
     format!(
         "Build: {} ({})\n\
          Build-time: {}\n\
          {}\n\
-         Copyright: {COPYRIGHT}\n\
+         {depth_line}\n\
+         Copyright: (c) 2026 {}\n\
          {LICENSE_LINE}\n\
          Source: {REPOSITORY}",
         build_label(),
         build_hash(),
         build_time(),
-        signature_line()
+        signature_line(),
+        provenance.authors,
     )
 }
 
@@ -159,15 +173,21 @@ fn version_body() -> String {
 /// to grep from scripts (`zelynic -V | grep Signature`).
 ///
 /// ```text
-/// zelynic: v11.0.0
+/// zelynic: v80.2.0
 /// Per-app network rate limiter and traffic monitor for Linux. Pure eBPF. Boring and silent.
 /// Build: pro-linux-amd64-v3-musl (ad36a81)
 /// Build-time: 9/18/2026 01:30 (UTC)
-/// Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)
+/// Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ) 2026
+/// Depth-matrix: fp=a60dfb6a39745f34 status=verified anchor=b3:f3a48ead... layers=d0:masked-words,d1:masked-words,d2:dual-fingerprint,d3:blake3-anchor
 /// Copyright: (c) 2026 rezky_nightky (oxyzenQ)
 /// License: AGPL-3.0-only
 /// Source: https://github.com/oxyzenQ/zelynic
 /// ```
+///
+/// (The Signature and Depth-matrix values above are the RUNTIME
+/// materialization of the masked layers — the artifact itself carries
+/// only opaque integers; see [`signature`]. The Depth-matrix line
+/// renders in the estate's status green on a TTY, plain when piped.)
 ///
 /// The `Build:` line carries the canonical label from [`build_label`]:
 /// `local-pro-native-musl` etc. for local alias builds (the alias
@@ -227,12 +247,28 @@ mod tests {
     /// bytes at all, on every color capability, and the brand header
     /// is the only colored surface this report emits.
     #[test]
-    fn version_report_body_is_plain_estate_parity() {
+    fn version_report_body_color_law() {
+        // night-dragon-maintenance-8 estate parity, as amended by the
+        // owner's night-signature-advanced-1 green mark: the -V body
+        // stays in the DEFAULT terminal color EXCEPT the one body line
+        // the owner marked — the Depth-matrix status line, which rides
+        // the estate's status green on a color-capable surface. The
+        // law's mechanical shape: every line except the Depth-matrix
+        // line carries zero ANSI escapes (the color layer's
+        // single-line-wrap refusal keeps one painted line from
+        // bleeding into its siblings); the Depth-matrix line itself is
+        // the only line allowed to carry them, and whether it does is
+        // the color capability's call (plain when piped/mono).
         let (_header, body) = version_report_payload();
-        assert!(
-            !body.contains('\x1b'),
-            "the -V body must print plain — no color wrap around the multi-line build facts"
-        );
+        for line in body.lines() {
+            if line.starts_with("Depth-matrix: ") {
+                continue;
+            }
+            assert!(
+                !line.contains('\x1b'),
+                "only the Depth-matrix line may carry color — this line leaked escapes: {line}"
+            );
+        }
     }
 
     /// NIGHT-blade-4 contract: the license line exists as ONE
@@ -289,24 +325,21 @@ mod tests {
             .filter(|l| l.starts_with("Signature: "))
             .count();
         assert_eq!(count, 1, "the Signature line must appear exactly once");
-        let expected = signature_line();
-        assert!(
-            [SIGNATURE_LINE, SIGNATURE_DORMANT_LINE].contains(&expected),
-            "signature must be one of the documented lines, got: {expected}"
-        );
         let lines: Vec<&str> = body.lines().collect();
         let time_idx = lines
             .iter()
             .position(|l| l.starts_with("Build-time: "))
             .expect("Build-time line present");
+        // The Signature line materializes from the masked layers and
+        // must be the lane-honest one: the dormant stamp — and only
+        // it — flips the claim (night-signature-advanced-1 keeps the
+        // NIGHT-dinner-4 law; only the at-rest encoding changed).
+        let expected = signature_line();
         assert_eq!(
             lines[time_idx + 1],
             expected,
             "the Signature line must follow Build-time"
         );
-        // Lane honesty: the dormant stamp — and only it — flips the
-        // claim. A full build saying "eBPF dormant", or a dormant
-        // build saying "Pure eBPF builtin", fails here.
         let lane = ebpf_lane();
         assert!(
             [
@@ -317,12 +350,73 @@ mod tests {
             .contains(&lane),
             "lane must be one of the documented values, got: {lane}"
         );
+        let claim = expected
+            .strip_prefix("Signature: ")
+            .and_then(|rest| rest.split_once(" — "))
+            .map(|(head, _)| head)
+            .expect("Signature line carries the claim prefix");
         assert_eq!(
-            expected,
+            claim,
             match lane {
-                "dormant (not compiled)" => SIGNATURE_DORMANT_LINE,
-                _ => SIGNATURE_LINE,
+                "dormant (not compiled)" => "eBPF dormant",
+                _ => "Pure eBPF builtin",
             }
+        );
+        // The materialized manifest carries the owner identity and the
+        // year (the runtime surface the masked layers exist to feed).
+        assert!(
+            expected.ends_with("Official Build by rezky_nightky (oxyzenQ) 2026"),
+            "the materialized manifest must end with the owner identity: {expected}"
+        );
+    }
+
+    /// night-signature-advanced-1 contract: the Depth-matrix line sits
+    /// directly after the Signature line, exactly once, and carries the
+    /// four token groups in order (fp, status, anchor, layers). This is
+    /// the surface a script greps (`zelynic -V | grep Depth-matrix`),
+    /// so its shape is pinned like the License line's.
+    #[test]
+    fn depth_matrix_line_is_pinned_after_signature() {
+        let body = version_body();
+        let lines: Vec<&str> = body.lines().collect();
+        let sig_idx = lines
+            .iter()
+            .position(|l| l.starts_with("Signature: "))
+            .expect("Signature line present");
+        let depth = lines.get(sig_idx + 1).copied().unwrap_or("");
+        assert!(depth.contains("Depth-matrix: "), "depth line follows Signature: {depth}");
+        let count = body
+            .lines()
+            .filter(|l| l.contains("Depth-matrix: "))
+            .count();
+        assert_eq!(count, 1, "the Depth-matrix line must appear exactly once");
+        // Token order: fp, then status, then anchor, then layers.
+        let fp_pos = depth.find(" fp=").expect("fp token");
+        let status_pos = depth.find(" status=").expect("status token");
+        let anchor_pos = depth.find(" anchor=b3:").expect("anchor token");
+        let layers_pos = depth.find(" layers=").expect("layers token");
+        assert!(fp_pos < status_pos && status_pos < anchor_pos && anchor_pos < layers_pos);
+        assert!(depth.ends_with(
+            "layers=d0:masked-words,d1:masked-words,d2:dual-fingerprint,d3:blake3-anchor"
+        ));
+    }
+
+    /// night-signature-advanced-1 contract: the Copyright line carries
+    /// the materialized authors string — the same single provenance
+    /// pass the Signature line rides — exactly once, in its documented
+    /// position after the Depth-matrix line.
+    #[test]
+    fn copyright_line_is_pinned_after_depth_matrix() {
+        let body = version_body();
+        let lines: Vec<&str> = body.lines().collect();
+        let depth_idx = lines
+            .iter()
+            .position(|l| l.contains("Depth-matrix: "))
+            .expect("Depth-matrix line present");
+        assert!(
+            lines[depth_idx + 1].starts_with("Copyright: (c) 2026 rezky_nightky (oxyzenQ)"),
+            "Copyright must follow Depth-matrix, got: {}",
+            lines[depth_idx + 1]
         );
     }
 

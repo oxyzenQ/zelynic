@@ -248,13 +248,14 @@ fn test_version() {
     assert!(output.status.success());
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    // NIGHT-dinner-4: the Signature line is lane-honest — "Pure eBPF
-    // builtin" on a full build, "eBPF dormant" on the
-    // --no-default-features leg this suite also runs under — so the
-    // pin accepts exactly the two documented variants and nothing
-    // else.
-    let full_life = "Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)";
-    let dormant = "Signature: eBPF dormant — Official Build by rezky_nightky (oxyzenQ)";
+    // NIGHT-dinner-4 + night-signature-advanced-1: the Signature line
+    // is lane-honest — "Pure eBPF builtin" on a full build, "eBPF
+    // dormant" on the --no-default-features leg this suite also runs
+    // under — so the pin accepts exactly the two documented variants
+    // (now ending with the owner year the masked manifest carries)
+    // and nothing else.
+    let full_life = "Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ) 2026";
+    let dormant = "Signature: eBPF dormant — Official Build by rezky_nightky (oxyzenQ) 2026";
     let signature = stdout
         .lines()
         .find(|l| l.starts_with("Signature: "))
@@ -262,6 +263,20 @@ fn test_version() {
     assert!(
         signature == full_life || signature == dormant,
         "Signature line must be one of the two documented variants, got: {signature}"
+    );
+    // night-signature-advanced-1: the Depth-matrix line follows the
+    // Signature line and reports the masked scheme's verdict.
+    let depth = stdout
+        .lines()
+        .find(|l| l.contains("Depth-matrix: "))
+        .expect("Depth-matrix line present");
+    assert!(
+        depth.contains(" status=verified ")
+            && depth.contains(" anchor=b3:")
+            && depth.ends_with(
+                "layers=d0:masked-words,d1:masked-words,d2:dual-fingerprint,d3:blake3-anchor"
+            ),
+        "Depth-matrix line must carry the verified shape, got: {depth}"
     );
     assert!(
         stdout.contains("zelynic: v")

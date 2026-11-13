@@ -28,7 +28,13 @@ use super::clap_styles;
 #[command(
     name = "zelynic",
     version,
-    author = "rezky_nightky (oxyzenQ)",
+    // night-signature-advanced-1: the former `author = "rezky_nightky
+    // (oxyzenQ)"` literal here was the identity's last plaintext seat
+    // in the artifact — a dead-weight clap attribute (this command
+    // disables clap's version flag and the custom -V owns the identity,
+    // so nothing ever rendered the author string), but the bytes rode
+    // in .rodata and strings(1) found them. The identity surfaces only
+    // through the masked layers (src/info/signature.rs) now.
     about = env!("CARGO_PKG_DESCRIPTION"),
     long_about = None,
     disable_version_flag = true,
