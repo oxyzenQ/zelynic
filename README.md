@@ -289,7 +289,7 @@ The Signature and Depth-matrix lines materialize at runtime from the
 masked provenance layers (night-signature-advanced-1): the ownership
 claim exists in the artifact only as opaque masked words —
 `strings` over the binary finds no identity — and `zelynic sig`
-renders the full four-depth verification report. 
+renders the full four-depth verification report.
 
 A native build never clobbers `target/release/zelynic` — the separate
 profile names keep both binaries side by side. Note: a native binary

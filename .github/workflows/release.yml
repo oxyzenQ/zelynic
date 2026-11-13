@@ -449,7 +449,7 @@ jobs:
               # and its bytes are sealed inside the masked manifests'
               # fingerprints.
               if grep -aqF "rezky_nightky" "${BIN}"; then
-                echo "::error::Identity plaintext found in the artifact — the masked provenance scheme regressed (night-signature-advanced-1 contract)"; exit 1
+                echo "::error::Identity plaintext found in the artifact — the masking regressed"; exit 1
               fi
               grep -aFq "License: AGPL-3.0-only" "${BIN}" \
                 || { echo "::error::Expected embedded license literal"; exit 1; }
