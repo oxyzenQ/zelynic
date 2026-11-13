@@ -8,9 +8,10 @@ for depth matrix signature" — an embedded depth signature built by
 "rezky_nightky (oxyzenQ) 2026" on the `-V/--version` surface and a
 depth report subcommand, aimed at theft, hacked binaries, and fake
 rebrands. Then the owner's own research verdict on the old
-night-signature-1 draft: "percuma jika di project gue tulis jelas —
-ada manusia jahat bisa cuma pakai grep/rg dan wording itu langsung
-ketahuan dan lenyap." A plaintext identity in the binary hands the
+night-signature-1 draft (the owner's verdict, translated from the
+session's own words): pointless — writing the claim plainly in this
+project means any malicious actor with grep or rg finds the wording
+instantly and strips it. A plaintext identity in the binary hands the
 thief the mark on a plate. The hardening: embed the claim as opaque
 masked words, materialize it only at runtime, seal it with blake3,
 and render the four-depth verification matrix — the cosmostrix
