@@ -98,7 +98,7 @@ if [ ! -x "$BIN" ]; then
 			echo "FAIL  vendored package staging failed (mktemp -d)"
 			exit 1
 		}
-		gunzip -c "$DIR/zelynic-fixed-cli-hardening-1.gz" > "$TMPBIN/zelynic-fixed-cli-hardening-1" || {
+		gunzip -c "$DIR/zelynic-fixed-cli-hardening-1.gz" >"$TMPBIN/zelynic-fixed-cli-hardening-1" || {
 			echo "FAIL  vendored package extraction failed: $DIR/zelynic-fixed-cli-hardening-1.gz"
 			exit 1
 		}

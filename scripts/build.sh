@@ -19,6 +19,7 @@ set -euo pipefail
 # bash twin of src/output/color.rs — so this surface renders the exact
 # values the CLI renders (mono when piped; the legacy RED/GREEN/
 # YELLOW/BLUE/CYAN/NC names map onto the tiers inside the palette).
+# shellcheck source=scripts/lib/ux_palette.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/ux_palette.sh"
 
 # Configuration with intelligent defaults

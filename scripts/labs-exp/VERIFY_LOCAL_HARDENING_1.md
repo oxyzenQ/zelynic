@@ -54,6 +54,7 @@ from-source law held):
 gunzip -c scripts/labs-exp/zelynic-fixed-cli-hardening-1.gz > /tmp/zelynic-fixed-cli && chmod 755 /tmp/zelynic-fixed-cli
 /tmp/zelynic-fixed-cli -V   # expect v80.2.0, commit 81353a8
 ```
+
 - Rebuild contract, three commands:
 
 ```
