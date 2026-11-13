@@ -67,6 +67,12 @@
 # guest) — see guest_exit.
 set -u
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Root-owned __pycache__ wall (night-cafe-1): the guest runs as root,
+# so the export keeps every interpreter this init spawns from writing
+# repo-local bytecode (docs/MAINTENANCE.md, the pycache class).
+export PYTHONDONTWRITEBYTECODE=1
+
 FAILURES=0
 note() {
 	echo "E2E-RESULT: $1 — $2"

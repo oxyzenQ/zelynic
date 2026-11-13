@@ -94,6 +94,13 @@
 set -u
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+# Root-owned __pycache__ wall (night-cafe-1): this init runs as the
+# guest's root and drives the python harnesses directly, so the export
+# keeps every interpreter it spawns from writing repo-local bytecode
+# (docs/MAINTENANCE.md, the pycache class). The in-file guard blocks
+# stay the authoritative wall for the sudo-stripped env lanes.
+export PYTHONDONTWRITEBYTECODE=1
+
 FAILURES=0
 
 note() {

@@ -269,10 +269,12 @@ The shipped fix removes the phenomenon instead of documenting
 around it: every python entry point under `scripts/` now sets
 `sys.dont_write_bytecode = True` immediately BEFORE its first local
 import (the guard block sits directly above the
-`import zelynic_harness_lib` line in all eleven files), so no
-repo-local bytecode is written at any privilege level. The cost is a
-per-run recompile of the shared lib — milliseconds for test
-harnesses, invisible next to the eBPF work they drive. The rule
+`import zelynic_harness_lib` line in all fourteen harness entry
+points that import repo-local code — the depth, supermassive, and
+bench suites; entry scripts that import nothing repo-local need no
+guard), so no repo-local bytecode is written at any privilege level.
+The cost is a per-run recompile of the shared lib — milliseconds for
+test harnesses, invisible next to the eBPF work they drive. The rule
 going forward: a new harness copies the guard block; a python file
 under `scripts/` that imports repo-local code without the guard is a
 regression of this class. A checkout already poisoned by pre-fix
@@ -280,6 +282,16 @@ root-owned caches recovers with one sudo cleanup:
 `sudo find . -name __pycache__ -type d -prune -exec rm -rf {} +` —
 after that the tree is normal-user-owned again and the guard keeps
 it that way.
+
+night-cafe-1 added the shell-layer second wall: the shared shell
+library and the root-lane drivers (`scripts/lib/harness_lib.sh`,
+`scripts/ci/supermassive-init.sh`, `scripts/ci/e2e-init.sh`,
+`scripts/labs-exp/verify-cli-ux.sh`) export
+`PYTHONDONTWRITEBYTECODE=1` before any interpreter they spawn, so a
+future unguarded entry point or an inline `python3 -c` import stays
+harmless on every non-sudo lane. The export does not survive sudo's
+env_reset — that is why the per-file guard blocks remain the
+authoritative root-lane wall rather than a redundant belt.
 
 ### The unknown commit id class (armed since NIGHT-ask-1)
 
