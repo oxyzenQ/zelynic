@@ -436,8 +436,21 @@ jobs:
               # contract the version literal check below already uses.
               grep -aFq "${LABEL}" "${BIN}" \
                 || { echo "::error::Expected embedded build label ${LABEL}"; exit 1; }
-              grep -aFq "Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)" "${BIN}" \
-                || { echo "::error::Expected embedded version-report literals"; exit 1; }
+              # night-signature-advanced-1: the ownership claim is
+              # MASKED in the artifact — the Signature/Copyright/
+              # engraving surfaces materialize at runtime from the
+              # masked layers (src/info/signature.rs), so the
+              # identity's plaintext must NOT exist in the bytes. The
+              # probe inverts with the scheme: a positive identity
+              # grep here would mean the masking regressed (a
+              # plaintext seat returned), so the ABSENCE is the
+              # verification. The generic "Official Build by " marker
+              # stays plaintext by design — it carries no identity,
+              # and its bytes are sealed inside the masked manifests'
+              # fingerprints.
+              if grep -aqF "rezky_nightky" "${BIN}"; then
+                echo "::error::Identity plaintext found in the artifact — the masked provenance scheme regressed (night-signature-advanced-1 contract)"; exit 1
+              fi
               grep -aFq "License: AGPL-3.0-only" "${BIN}" \
                 || { echo "::error::Expected embedded license literal"; exit 1; }
               # NIGHT-lts-9: the version literal (env!(CARGO_PKG_VERSION)
