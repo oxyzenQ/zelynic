@@ -20,9 +20,13 @@ mod signature;
 pub use build::BuildInfo;
 pub use build::VERSION;
 pub(crate) use build::{build_hash, build_label, build_time};
-pub(crate) use signature::{
-    identity_of, manifest_fingerprint, materialized_authors, provenance_view,
-};
+pub(crate) use signature::{identity_of, manifest_fingerprint, provenance_view};
+// The materialized authors feed only the ebpf-gated engraving footer
+// (status stamp + eagle-eyes engraving) — a dormant build renders no
+// footer, so the accessor's re-export rides the same gate or the
+// dormant lane fails -D warnings on the dead surface.
+#[cfg(feature = "ebpf")]
+pub(crate) use signature::materialized_authors;
 
 pub const NAME: &str = "zelynic";
 pub const REPOSITORY: &str = "https://github.com/oxyzenQ/zelynic";
