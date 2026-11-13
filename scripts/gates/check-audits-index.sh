@@ -102,9 +102,11 @@ fi
 
 echo "audits-index: $TRACKED_COUNT/$TRACKED_COUNT tracked audit docs indexed — the map is complete"
 
-# ── The living-tree half (night-audit-3) ─────────────────────────────
-# The same recipe over the rest of the tree the master index maps:
-# the living top-level docs, the archive, and the research pages.
+# ── The docs-tree half (night-audit-3) ───────────────────────────────
+# The same recipe over the whole tree the master index maps: the
+# top-level pages, the archive, the research pages, and (by the glob
+# that reaches them) the audits records the first half already
+# enforces — one set, one verdict, nothing double-gated differently.
 # The index file itself is the map, so it does not index itself.
 
 LIVING="$(git ls-files -- 'docs/*.md' 'docs/archive/*.md' \
@@ -115,7 +117,7 @@ LIVING_COUNT="$(printf '%s\n' "$LIVING" | grep -c . || true)"
 # No living docs beyond the map: complete by vacuum (a fresh docs
 # tree before its first page). Same admission the audits half makes.
 if [ "$LIVING_COUNT" -eq 0 ]; then
-	echo "docs-index: no tracked living docs — complete by vacuum"
+	echo "docs-index: no tracked docs-tree pages — complete by vacuum"
 	exit 0
 fi
 
@@ -137,8 +139,8 @@ if [ -n "$MISSING_DOCS" ]; then
 		[ -n "$doc" ] || continue
 		echo "  - $doc (add its row to the master index)"
 	done <<<"$MISSING_DOCS"
-	echo "docs-index: the master index must cover every living doc it maps"
+	echo "docs-index: the master index must cover every doc it maps"
 	exit 1
 fi
 
-echo "docs-index: $LIVING_COUNT/$LIVING_COUNT tracked living docs indexed — the living tree is complete"
+echo "docs-index: $LIVING_COUNT/$LIVING_COUNT tracked docs-tree pages indexed — the whole tree the map owns is complete"
