@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # OS: Linux only — zelynic is a Linux eBPF tool; no other OS is supported.
 #
-# ZELYNIC AUDITS INDEX COMPLETENESS CHECK (NIGHT-total-lts-8 followup)
+# ZELYNIC INDEX COMPLETENESS CHECK (NIGHT-total-lts-8 followup; the
+# living-tree half rides night-audit-3)
 #
 # lts-8's one find: the docs/README.md audits index stopped at the
 # 2026-10-03 Z10 row — eighteen sessions shipped audit docs without
@@ -22,6 +23,18 @@
 # set must be EMPTY. An audit doc that ships without a row fails
 # the push, so the institutional-memory map can never drift behind
 # the records again.
+#
+# The living-tree half (night-audit-3, 2026-11-13): the same lie in
+# the map's other sections. docs/README.md calls itself the master
+# index of all zelynic documentation, yet the audits/ check was its
+# only coverage eyes — and the ungated halves had drifted: the living
+# QUOTA_SAVER_PHYSICS.md and the archived CHANGELOG-V20-ERA.md had no
+# rows while their siblings did. The recipe extends unchanged: every
+# tracked docs/*.md (the index file itself excepted), docs/archive/*.
+# md, docs/research/*.md, and docs/research-future/*.md must carry a
+# canonical ](...md) link row in the index, lifted the same way the
+# audits rows lift. The audits/ half keeps its own check and its own
+# verdict line below — one gate, two halves, the same contract.
 #
 # Scope honesty (one contract, one place): this gate owns COVERAGE
 # only. A dead index row — a link pointing at a path that no longer
@@ -88,3 +101,44 @@ if [ -n "$MISSING" ]; then
 fi
 
 echo "audits-index: $TRACKED_COUNT/$TRACKED_COUNT tracked audit docs indexed — the map is complete"
+
+# ── The living-tree half (night-audit-3) ─────────────────────────────
+# The same recipe over the rest of the tree the master index maps:
+# the living top-level docs, the archive, and the research pages.
+# The index file itself is the map, so it does not index itself.
+
+LIVING="$(git ls-files -- 'docs/*.md' 'docs/archive/*.md' \
+	'docs/research/*.md' 'docs/research-future/*.md' \
+	| grep -v -F "$INDEX_FILE" | sort)"
+LIVING_COUNT="$(printf '%s\n' "$LIVING" | grep -c . || true)"
+
+# No living docs beyond the map: complete by vacuum (a fresh docs
+# tree before its first page). Same admission the audits half makes.
+if [ "$LIVING_COUNT" -eq 0 ]; then
+	echo "docs-index: no tracked living docs — complete by vacuum"
+	exit 0
+fi
+
+# The indexed set: EVERY markdown link target ending in .md that
+# resolves inside docs/, lifted to repo-root paths. The ../ links
+# point outside docs/ (the root README, CONTRIBUTING) and cannot
+# cover a tracked docs/ path, so they do not join the set; a link
+# written any other non-canonical way stays "missing" below — the
+# gate fails closed on non-canonical rows instead of blessing them.
+INDEXED_DOCS="$(grep -o '](\([^)]*\.md\))' "$INDEX_FILE" 2>/dev/null \
+	| grep -v '](\.\./' \
+	| sed -e 's|^](|docs/|' -e 's|)$||' | sort -u || true)"
+
+MISSING_DOCS="$(comm -23 <(printf '%s\n' "$LIVING") <(printf '%s\n' "$INDEXED_DOCS"))"
+
+if [ -n "$MISSING_DOCS" ]; then
+	echo "docs-index: FAIL — tracked doc(s) missing from $INDEX_FILE:"
+	while IFS= read -r doc; do
+		[ -n "$doc" ] || continue
+		echo "  - $doc (add its row to the master index)"
+	done <<<"$MISSING_DOCS"
+	echo "docs-index: the master index must cover every living doc it maps"
+	exit 1
+fi
+
+echo "docs-index: $LIVING_COUNT/$LIVING_COUNT tracked living docs indexed — the living tree is complete"

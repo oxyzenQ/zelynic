@@ -230,7 +230,12 @@ doc lands, the index gets the same commit. Since the
 NIGHT-total-lts-8 followup that law is machine-enforced: gate 20 of
 the battery (`scripts/gates/check-audits-index.sh`) fails any push
 whose tracked `docs/audits/*.md` docs carry no index row, so the
-institutional-memory map cannot drift behind the records again. The
+institutional-memory map cannot drift behind the records again. Since
+night-audit-3 the same recipe covers the map's living tree too: a
+tracked `docs/*.md`, `docs/archive/*.md`, `docs/research/*.md`, or
+`docs/research-future/*.md` doc without a canonical index row fails
+the push the same way (the ungated halves had drifted — the
+quota-saver physics page and the v20-era archive had no rows). The
 [CLAIMS_VERIFICATION.md](CLAIMS_VERIFICATION.md) ledger is the deeper
 discipline: any *claim* (a number, a "fastest", a "zero") that appears
 in public-facing text must have a verifying mechanism recorded there —

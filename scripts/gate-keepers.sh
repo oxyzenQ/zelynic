@@ -99,7 +99,7 @@
 #       scripts/ gate files). Every tracked file is scanned —
 #       nothing excluded — and any other casing fails the push)
 #
-#  20.  Audits index completeness (NIGHT-total-lts-8 followup, the
+#  20.  Index completeness (NIGHT-total-lts-8 followup, the
 #       owner-approved gate — scripts/gates/check-audits-index.sh:
 #       every tracked docs/audits/*.md doc must carry a row in the
 #       docs/README.md institutional-memory index (the lts-8
@@ -108,7 +108,13 @@
 #       sessions of audit docs shipping unindexed because nothing
 #       failed — the gate inventory freeze is lifted for exactly
 #       this check, so the map can never drift behind the records
-#       again; coverage only, dead rows stay lts-6's instrument)
+#       again; coverage only, dead rows stay lts-6's instrument).
+#       night-audit-3 extends the same recipe to the map's living
+#       tree: every tracked docs/*.md (the index itself excepted),
+#       docs/archive/*.md, docs/research/*.md, and
+#       docs/research-future/*.md must carry a canonical ](...md)
+#       row too — the ungated halves had drifted (the quota-saver
+#       physics page and the v20-era archive had no rows)
 #  21.  Secret-name consistency (night-dragon-maintenance-4 —
 #       scripts/gates/check-secret-names.sh: every secrets.X reference
 #       in any tracked file resolves to the canonical four-secret
@@ -862,7 +868,8 @@ else
 	skip "python3 not installed — skipping"
 fi
 
-# ── 20. Audits Index Completeness (NIGHT-total-lts-8 followup) ─────
+# ── 20. Index Completeness (NIGHT-total-lts-8 followup; the
+#        living-tree half rides night-audit-3) ──────────────────────
 # The owner approved lifting the gate-inventory freeze for exactly
 # this gate: lts-8's one find was the docs/README.md audits index
 # drifting twenty docs behind the records across eighteen sessions,
@@ -873,13 +880,18 @@ fi
 # minus the index's audits/ link set must be empty, so an audit doc
 # that ships without an institutional-memory row fails the push —
 # before the commit, since git ls-files sees staged files too.
-header "Audits Index Completeness (check-audits-index.sh)"
+# night-audit-3 extends the same recipe to the map's living tree:
+# tracked docs/*.md (the index itself excepted), docs/archive/*.md,
+# docs/research/*.md, and docs/research-future/*.md minus the
+# index's canonical link set must be empty as well — the ungated
+# halves had drifted, and now they cannot again.
+header "Index Completeness (check-audits-index.sh)"
 if [ -f scripts/gates/check-audits-index.sh ]; then
 	if bash scripts/gates/check-audits-index.sh 2>&1; then
-		info "audits index: every tracked audit doc carries a docs/README.md row (the map is complete)"
+		info "index: every tracked audit doc and living doc carries a docs/README.md row (the map is complete)"
 		PASS=$((PASS + 1))
 	else
-		fail "audits index: tracked audit doc(s) missing from the docs/README.md index (add the rows — the institutional memory must stay mappable)"
+		fail "index: tracked doc(s) missing from the docs/README.md index (add the rows — the institutional memory must stay mappable)"
 	fi
 else
 	skip "check-audits-index.sh not found — skipping"
