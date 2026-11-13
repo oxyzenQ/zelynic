@@ -380,7 +380,10 @@ fn identity_core(manifest: &str) -> Option<&str> {
 /// on every frame, and the unmask family must not run per frame. The
 /// cache carries the SAME bytes the provenance pass verifies (the
 /// single-pass invariant holds: one materialization feeds every
-/// consumer).
+/// consumer). Ebpf-gated: its only consumer is the engraving footer,
+/// which the dormant flavor does not render — an ungated copy here
+/// would be a dead surface the dormant lane's -D warnings refuses.
+#[cfg(feature = "ebpf")]
 #[must_use]
 pub(crate) fn materialized_authors() -> &'static str {
     static CACHE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
