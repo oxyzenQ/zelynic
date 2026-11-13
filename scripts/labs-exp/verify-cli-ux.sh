@@ -32,6 +32,12 @@
 
 set -u
 
+# Root-owned __pycache__ wall (night-cafe-1): the JSON-door parses ride
+# python3 -c, and the export keeps any interpreter this battery spawns
+# from writing repo-local bytecode (docs/MAINTENANCE.md, the pycache
+# class).
+export PYTHONDONTWRITEBYTECODE=1
+
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN=${ZELYNIC_BIN:-"$DIR/zelynic-fixed-cli-hardening-1"}
 PASS=0

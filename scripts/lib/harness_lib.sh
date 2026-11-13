@@ -55,6 +55,15 @@
 #   - counters PASS / FAIL / TOTAL start at 0; log_* bump them
 #   - cleanup() stays harness-owned — teardown is script-specific
 
+# Root-owned __pycache__ wall, shell layer (night-cafe-1): any
+# interpreter a sourcing harness spawns inherits dont-write-bytecode,
+# so no repo-local bytecode is written at any privilege level. The
+# per-file guard blocks in the python entry points stay the root-lane
+# wall — sudo's env_reset strips environment guards before the
+# interpreter starts (docs/MAINTENANCE.md, "The root-owned
+# __pycache__ class").
+export PYTHONDONTWRITEBYTECODE=1
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
