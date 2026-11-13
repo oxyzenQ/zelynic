@@ -356,9 +356,10 @@ fn traffic_json(focus: &Option<TrafficFocus>) -> Option<TrafficJson> {
 /// half's unit) and the bucket-bounded quantiles (the LOWER bound of
 /// the first bucket whose cumulative count reaches the quantile —
 /// null while the half holds no samples), then the Z1 exact
-/// aggregates: count/sum/min/max are the kernel's own words (the
-/// bounds approximate, these ARE — the sampled set's exact mass),
-/// mean the sum's honest division (null while the set is empty).
+/// aggregates: sum/min/max are the kernel's own words (the bounds
+/// approximate, these ARE — the sampled set's exact mass; `count`
+/// derives from the buckets, the one source), mean the sum's honest
+/// division.
 #[derive(Debug, Clone)]
 pub struct HistStatsJson {
     pub samples: u64,
@@ -398,9 +399,8 @@ pub struct TailJson {
     pub endpoint: Option<String>,
 }
 
-/// The depth histogram block as JSON (night-frontier-2B, schema
-/// v34; None stays null — the honest absence, the additive rule
-/// every block above rode).
+/// The depth histogram block as JSON (night-frontier-2B; None
+/// stays null — the honest absence, the additive rule above).
 #[derive(Debug, Clone)]
 pub struct HistJson {
     /// The kernel's sampling cadence: one sample per 2^shift packets
@@ -411,9 +411,12 @@ pub struct HistJson {
     pub upload: Option<HistHalfJson>,
 }
 
-fn hist_stats_json(buckets: &[u64; 32], count: u64, sum: u64, min: u64, max: u64) -> HistStatsJson {
+fn hist_stats_json(buckets: &[u64; 32], sum: u64, min: u64, max: u64) -> HistStatsJson {
+    // The count is DERIVED — sum(buckets) IS the count (the Z1
+    // probe's structural lesson: no second count source).
+    let count = samples(buckets);
     HistStatsJson {
-        samples: samples(buckets),
+        samples: count,
         buckets: buckets.to_vec(),
         p50: quantile_permille(buckets, 500),
         p95: quantile_permille(buckets, 950),
@@ -429,17 +432,16 @@ fn hist_stats_json(buckets: &[u64; 32], count: u64, sum: u64, min: u64, max: u64
 fn hist_half_json(row: &Option<HistRowRaw>, labels: &HashMap<u64, String>) -> Option<HistHalfJson> {
     row.as_ref().map(|r| HistHalfJson {
         size: (samples(&r.size) > 0)
-            .then(|| hist_stats_json(&r.size, r.size_count, r.size_sum, r.size_min, r.size_max)),
+            .then(|| hist_stats_json(&r.size, r.size_sum, r.size_min, r.size_max)),
         srtt: (samples(&r.srtt) > 0)
-            .then(|| hist_stats_json(&r.srtt, r.srtt_count, r.srtt_sum, r.srtt_min, r.srtt_max)),
+            .then(|| hist_stats_json(&r.srtt, r.srtt_sum, r.srtt_min, r.srtt_max)),
         tail: hist_tail::tail_json(&r.tail, labels),
     })
 }
 
 /// The depth histogram block as JSON (None stays null — the honest
-/// absence, never a zero row dressed as data). The tail labels ride
-/// the walk's own census (night-frontier-Z1: the cookie→endpoint
-/// map the traffic block already walked, no second walk).
+/// absence). The tail labels ride the walk's own census (the Z1
+/// cookie→endpoint map, no second walk).
 fn histogram_json(
     section: &Option<HistSection>,
     conns: Option<&CgroupConnections>,
@@ -592,9 +594,7 @@ pub fn depth_doc_json(
 #[path = "../../../../test/ebpf/render/depth_json_tests.rs"]
 mod tests;
 
-// The Z1 depth pack's JSON pins (the sibling-split lineage again —
-// the exact-aggregate and tail wire rides its own file under the
-// 600-line LOC law).
+// The Z1 depth pack's JSON pins (the sibling-split lineage again).
 #[cfg(test)]
 #[path = "../../../../test/ebpf/render/depth_json_z1_tests.rs"]
 mod z1_tests;

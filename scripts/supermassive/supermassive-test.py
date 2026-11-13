@@ -2774,21 +2774,28 @@ def stage_server_histogram():
         elif dl_size.get("p50") is None or dl_size.get("p95") is None:
             failures.append("quantiles answered null on a non-empty half")
         # night-frontier-Z1 (schema v35): the exact aggregates and the
-        # tail story list — coherence the kernel's own words must keep
-        # under live bulk traffic (works-not-gimmick: the words ride
-        # the JSON AND they agree with the buckets they summarize).
+        # tail story list. The count is DERIVED (sum(buckets)) — the
+        # Z1 probe's own structural lesson, asserted as the tautology
+        # it now is. The SETTLED-ROW gate: the dense fleet's LRU churn
+        # (4100 candidate leaves over a 2048-row map) makes a YOUNG
+        # row's generations incoherent — the p99 of one generation and
+        # the tail of another; below the settled threshold the tail's
+        # presence and identity stay asserted (per-slot laws,
+        # generation-independent), the worst-vs-p99 law is named, not
+        # asserted (the loopback-physics precedent).
         count = dl_size.get("count")
         agg_sum = dl_size.get("sum")
         agg_min = dl_size.get("min")
         agg_max = dl_size.get("max")
         agg_mean = dl_size.get("mean")
         tail = (dl or {}).get("tail") or []
+        settled = total >= 300
         if None in (count, agg_sum, agg_min, agg_max):
             failures.append("exact aggregates missing — the v35 words did not ride the JSON")
         else:
-            if abs(count - total) > 2:
+            if count != total:
                 failures.append(
-                    f"exact count {count} != bucket samples {total} (the ±2 in-flight tolerance)"
+                    f"derived count {count} != bucket samples {total} (the buckets are the count)"
                 )
             if agg_min > agg_max:
                 failures.append(f"exact bounds incoherent: min {agg_min} > max {agg_max}")
@@ -2813,13 +2820,12 @@ def stage_server_histogram():
                         "no tail slot resolved to a walked endpoint — the census join broke"
                     )
                 p99_lb = p99 or 0
-                if p99_lb > 0:
-                    weakest = min(t["size"] for t in tail)
-                    if weakest < p99_lb:
-                        failures.append(
-                            f"tail weakest {weakest} < p99 lower bound {p99_lb} — "
-                            "the worst-by-size law broke"
-                        )
+                weakest = min(t["size"] for t in tail)
+                if settled and p99_lb > 0 and weakest < p99_lb:
+                    failures.append(
+                        f"tail weakest {weakest} < p99 lower bound {p99_lb} on a settled row "
+                        f"({total} samples) — the worst-by-size law broke"
+                    )
     dl_note = dl_size or {}
     ul_size = (hist.get("upload") or {}).get("size") or {}
     dl_srtt = (dl or {}).get("srtt") or {}

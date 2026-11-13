@@ -46,7 +46,7 @@ pub(crate) fn hist_half_sentence(label: &str, row: &HistRowRaw) -> String {
     // The Z1 exact mean (the sampled set's own arithmetic mean) and
     // the worst story slot's mass — the two figures the log2 buckets
     // approximate but never say.
-    if let Some(m) = mean(row.size_sum, row.size_count) {
+    if let Some(m) = mean(row.size_sum, samples(&row.size)) {
         bits.push(format!("mean {}", format_bytes(m)));
     }
     if let Some(worst) = tail_entries(&row.tail).iter().map(|t| t.size).max() {

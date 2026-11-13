@@ -80,15 +80,19 @@ pub const HIST_TAIL: usize = 8;
 pub struct HistRow {
     pub size: [u64; HIST_BUCKETS],
     pub srtt: [u64; HIST_BUCKETS],
-    /// The sampled set's exact aggregates. `*_min` words ride the
-    /// 0-sentinel (a fresh row answers 0 = "no min yet"); a
-    /// zero-length skb increments count/sum (bucket-consistent)
-    /// but skips min/max — the aggregates describe traffic mass.
-    pub size_count: u64,
+    /// The sampled set's exact aggregates. The COUNT is NOT a word —
+    /// the buckets ARE the count (each sample adds exactly one to one
+    /// bucket; sum(buckets) is the derivation, tautologically
+    /// coherent — the Z1 probe's own lesson: a second count source
+    /// under LRU eviction churn can disagree with the buckets it
+    /// summarizes, and "never a wrong count" is a structural law, not
+    /// a hope). `*_min` words ride the 0-sentinel (a fresh row
+    /// answers 0 = "no min yet"); a zero-length skb adds to the
+    /// buckets (consistent) but skips min/max — the aggregates
+    /// describe traffic mass.
     pub size_sum: u64,
     pub size_min: u64,
     pub size_max: u64,
-    pub srtt_count: u64,
     pub srtt_sum: u64,
     pub srtt_min: u64,
     pub srtt_max: u64,
@@ -99,7 +103,7 @@ pub struct HistRow {
     pub tail: [HistTail; HIST_TAIL],
 }
 
-const _: () = assert!(core::mem::size_of::<HistRow>() == 832);
+const _: () = assert!(core::mem::size_of::<HistRow>() == 816);
 
 /// One aggregate-min word's update (night-frontier-Z1): the
 /// check-then-store replace law — the measured_srtt ratchet's own

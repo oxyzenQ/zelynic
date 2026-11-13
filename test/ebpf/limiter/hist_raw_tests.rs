@@ -13,9 +13,9 @@ use super::*;
 fn mirror_layout_is_the_schema_pin() {
     assert_eq!(HIST_BUCKETS, 32);
     assert_eq!(HIST_TAIL, 8);
-    // v35: 512 (the two halves) + 64 (the exact aggregates) +
-    // 256 (the eight tail story slots).
-    assert_eq!(core::mem::size_of::<HistRowRaw>(), 832);
+    // v35: 512 (the two halves) + 48 (the exact aggregates — the
+    // count rides no word) + 256 (the eight tail story slots).
+    assert_eq!(core::mem::size_of::<HistRowRaw>(), 816);
     assert_eq!(core::mem::size_of::<HistTailRaw>(), 32);
 }
 

@@ -23,9 +23,10 @@ fn json_histogram_block_carries_the_z1_exact_words_and_tail() {
     row.size[10] = 600; // the 1 KiB class
     row.size[13] = 400; // the 8 KiB class
     row.srtt[19] = 3; // the 1 s class (the RTT lane's harvest)
+    row.srtt_sum = 3 * 19_000; // the mass the three srtt samples carry
     // The exact words + one live tail slot. The fixture's census owns
-    // no cookies — the endpoint stays the honest None.
-    row.size_count = 1000;
+    // no cookies — the endpoint stays the honest None. The count is
+    // derived (the buckets sum to 1000 — the assert pins that).
     row.size_sum = 600 * 1024 + 400 * 8192;
     row.size_min = 1024;
     row.size_max = 8192;
@@ -54,11 +55,12 @@ fn json_histogram_block_carries_the_z1_exact_words_and_tail() {
         text.contains("\"mean\":3891"),
         "the mean is the sum's division"
     );
-    // An aggregate-less half's mean stays the honest null — never a
-    // zero dressed as a measurement.
+    // The srtt half's mean rides its own division (the derived count
+    // makes a present half's mean always a real figure — the honest
+    // null lives on the whole-half level, the absent upload row).
     assert!(
-        text.contains("\"mean\":null"),
-        "the empty aggregate is null"
+        text.contains("\"mean\":19000"),
+        "the srtt mean is its own division"
     );
     // The tail story list rides with its raw cookie; the endpoint
     // stays null while the walk's census owns no such cookie.
