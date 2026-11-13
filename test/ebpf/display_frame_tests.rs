@@ -64,7 +64,7 @@ fn owner_run_lines() -> Flanks {
         ),
         (
             StatusLineKind::Protected,
-            "  v80.1.0 (b521d47) by oxyzenQ".to_string(),
+            "  v80.1.0 (b521d47) by rezky_nightky (oxyzenQ)".to_string(),
         ),
     ];
     (above, below)
@@ -244,10 +244,13 @@ fn the_empty_board_fits_its_two_lines() {
     let above = vec![(StatusLineKind::Census, "  active limits: none".to_string())];
     let below = vec![(
         StatusLineKind::Protected,
-        "  v80.1.0 (b521d47) by oxyzenQ".to_string(),
+        "  v80.1.0 (b521d47) by rezky_nightky (oxyzenQ)".to_string(),
     )];
     let frame = frame_status_output(above, below, 80);
-    assert_eq!(frame.width, 30, "the stamp is the widest of the two");
+    // night-signature-advanced-1: the stamp's authors materialize from
+    // the masked layer ("by rezky_nightky (oxyzenQ)" — 46 columns with
+    // the full identity), so the width pin rides the new shape.
+    assert_eq!(frame.width, 46, "the stamp is the widest of the two");
     assert_eq!(frame.above_grid.len(), 1);
     assert_eq!(frame.below_grid.len(), 1);
     for line in frame.above_grid.iter().chain(frame.below_grid.iter()) {

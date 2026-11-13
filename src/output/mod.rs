@@ -223,9 +223,13 @@ pub fn field(label: &str, value: &str) -> String {
 #[cfg(feature = "ebpf")] // every flagship surface lives under the ebpf graph
 pub fn signature_footer() -> String {
     color::brand(&format!(
-        "v{} ({}) by oxyzenQ",
+        // night-signature-advanced-1: the engraving materializes from
+        // the masked authors layer — the former plaintext "by oxyzenQ"
+        // literal was a greppable identity seat in every artifact.
+        "v{} ({}) by {}",
         env!("CARGO_PKG_VERSION"),
-        option_env!("GIT_HASH").unwrap_or("unknown")
+        option_env!("GIT_HASH").unwrap_or("unknown"),
+        crate::info::materialized_authors()
     ))
 }
 

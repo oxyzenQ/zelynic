@@ -194,7 +194,7 @@ fn eagle_frame_builds_lines() {
         "the owner's engrave-3 gap above the copyright"
     );
     assert!(
-        lines[22].starts_with(" │  v") && lines[22].contains(") by oxyzenQ"),
+        lines[22].starts_with(" │  v") && lines[22].contains(") by rezky_nightky (oxyzenQ)"),
         "copyright is the frame's last content row: {}",
         lines[22]
     );
@@ -346,7 +346,7 @@ fn footer_layout_pins_to_the_bottom() {
         "the owner's engrave-3 gap above the copyright"
     );
     assert!(
-        lines[22].starts_with(" │  v") && lines[22].contains(") by oxyzenQ"),
+        lines[22].starts_with(" │  v") && lines[22].contains(") by rezky_nightky (oxyzenQ)"),
         "copyright is the frame's last content row: {}",
         lines[22]
     );

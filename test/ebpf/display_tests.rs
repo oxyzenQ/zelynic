@@ -322,7 +322,7 @@ fn status_branch_frames_carry_the_flagship_chrome() {
             "{name}: the compact frame carries no blank filler lines"
         );
         assert!(
-            lines[lines.len() - 1].contains("by oxyzenQ"),
+            lines[lines.len() - 1].contains("by rezky_nightky (oxyzenQ)"),
             "{name}: the signature stamp closes the frame, got: {}",
             lines[lines.len() - 1]
         );

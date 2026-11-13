@@ -272,6 +272,14 @@ pub(crate) fn print_help() {
         "    Check host eBPF support and this binary's build facts — the flavor verdict leads, the BUILD block (version, commit, variant, rustc, profile) follows."
     );
     println_safe!();
+    // night-signature-advanced-1: the provenance surface joins the
+    // support group — the report a maintainer runs to prove the
+    // binary they hold was built by the owner's pipeline.
+    synopsis("zelynic sig");
+    println_safe!(
+        "    Render the four-depth provenance signature (runtime-identity, embedded-marker, anchor-integrity, binary-self-hash) — exits 1 on any failed depth."
+    );
+    println_safe!();
     // NIGHT-improve-25: the two-letter aliases — every enforcement
     // verb plus the monitor in two keystrokes. Documented as a
     // compact table after the command groups, so the canonical
