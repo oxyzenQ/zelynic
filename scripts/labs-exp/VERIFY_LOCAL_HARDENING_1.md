@@ -16,6 +16,7 @@ precedent).
 | --- | --- |
 | `zelynic-fixed-cli-hardening-1` | The fixed CLI binary, v80.2.0, static musl, x86_64 |
 | `verify-cli-ux.sh` | The 17-case non-root verification battery (ZELYNIC_BIN names another build) |
+| `verify-root-lane.sh` | The root-lane battery: the seven Step 2 shapes automated, probe-cgroup isolated, `--apply-row` for the forensic rig's once-per-process apply row |
 | `VERIFY_LOCAL_HARDENING_1.md` | This guide |
 
 Binary integrity:
@@ -78,7 +79,19 @@ itself:
 ## Step 2 — the root-lane shapes (needs root + cgroup v2 + the eBPF floor)
 
 These fixes live post-privilege by design; verify them on a machine that
-meets the floor (kernel >= 5.15, cgroup v2, bpffs mounted, root):
+meets the floor (kernel >= 5.15, cgroup v2, bpffs mounted, root). The
+battery automates all seven shapes with its own probe-cgroup isolation —
+nothing outside its own `/sys/fs/cgroup/zelynic-root-lane-battery` is
+touched, and the EXIT trap tears the probe down even on Ctrl-C:
+
+```
+sudo ./scripts/labs-exp/verify-root-lane.sh
+```
+
+The table below keeps the audit's original shapes; the battery rides
+machine-independent spellings of the same verdicts (a dead id just
+under u32::MAX, the probe cgroup as the resolvable member, the root id
+discovered per machine):
 
 | Command | Old (buggy) behavior | Fixed behavior |
 | --- | --- | --- |
@@ -86,9 +99,15 @@ meets the floor (kernel >= 5.15, cgroup v2, bpffs mounted, root):
 | `sudo zelynic b 1011::11` | the same blind OK through a list | the atomic refusal: "target '1011' resolved to no cgroup — the list apply is atomic, nothing was blocked", naming the miss beside the resolvable remainder |
 | `sudo zelynic s zylaxion::brave::noexist 1mb` | the resolvable half enforced, the miss vanished | the pre-flight marks the dead segment a MISS; "nothing was limited (2 of 3 targets were resolvable, 0 applied)" |
 | `sudo zelynic u zylaxion::kate::noexist` | "Removed N policies across 7 targets" claiming members that matched nothing | the success line counts only targets that actually had limits removed; a grey tail names every member that had none |
-| `sudo zelynic s 1 --force-this` | the identical root catch-all warning printed twice | warned ONCE per process (the second guard rung stays silent) |
+| `sudo zelynic s <root-ino> 1mb --no-test --force-this` | the identical root catch-all warning printed twice | warned ONCE per process (the second guard rung stays silent); the apply lands, so this is the battery's opt-in `--apply-row` |
 | `sudo zelynic ee zylaxion::brave` | the no-match error left the user guessing the separator | the tip names it: "eagle-eyes targets separate with '/' — e.g. 'zelynic ee brave/electron'" |
 | `sudo zelynic b zylaxion::noexist` | the abort line said "limited" for the block family | the verb carries the family: "nothing was blocked", never "limited" |
+
+Two command notes the table packs tight: the root id in row 5 is the
+cgroupfs mount's own inode — discover it with
+`stat -c %i /sys/fs/cgroup` (often 1, never assumed), and the rate rides
+the command — without one the parse-before-execute ladder answers
+"No rate specified" before any guard rung fires.
 
 Honest-behavior notes (by design, not bugs): the sweep family (`s brave
 --all`, `b --all`) keeps its best-effort admission — a fleet snapshot must
