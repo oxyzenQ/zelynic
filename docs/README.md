@@ -58,6 +58,7 @@ question well, and this page says which.
 |-----|--------|
 | [PERFORMANCE.md](PERFORMANCE.md) | Measured overhead on real hardware, benchmark methodology |
 | [CROSS_DISTRO_RESULTS.md](CROSS_DISTRO_RESULTS.md) | Validation matrix across distributions and kernels |
+| [QUOTA_SAVER_PHYSICS.md](QUOTA_SAVER_PHYSICS.md) | The quota saver's physics page: why a dropped download is a purchase, not a saving — the four lanes and three physics behind RECWN, the formula and the measured curve, the eight losses no receiver can close, and the savings-to-rate guidance |
 
 ## Research
 
@@ -192,6 +193,7 @@ readable in every checkout, never rewritten.
 | Archive | Covers |
 |---------|--------|
 | [archive/CHANGELOG_PRE_V11.md](archive/CHANGELOG_PRE_V11.md) | The pre-v11 release history: changelog entries [1.0.0] (2026-01-01) through [7.0.0] (2026-07-11) — the deleted v10-era file, restored byte-identical from git history into docs/archive/ by NIGHT-dinner-15 (2026-09-28), superseding NIGHT-hunt-18's git-history-only call |
+| [archive/CHANGELOG-V20-ERA.md](archive/CHANGELOG-V20-ERA.md) | The v20-era release history: the changelog blob as it stood at the v20.0.0 cut (b743d9c, 2026-10-04), split out of the root changelog by NIGHT-improve-43 (2026-10-06) and relocated to docs/archive/ by the re-issued pass — frozen entries, never rewritten, the archive wrapper carrying the provenance note |
 
 ## Project Meta
 
