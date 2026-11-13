@@ -153,6 +153,57 @@ the owner's host observation stands unreproduced, and the new
 build (which also changed the warning-path bytes) is the retry
 vehicle.
 
+## The local re-verification record (the fixed CLI handed to the owner)
+
+Date: 2026-11-13, at 81353a8 (this session's HEAD). The fixed CLI was
+rebuilt from this exact tree on a clean agent sandbox through the
+documented host path — scripts/dev/bootstrap-ebpf.sh (the dated
+nightly pin nightly-2026-09-18 with rust-src + rustfmt, bpf-linker
+0.11.1 prebuilt static-musl into ~/.local/bin, no sudo, no system
+LLVM), then stable 1.98.1 userspace over the source-built eBPF lane:
+`cargo build --profile release --features ebpf --target
+x86_64-unknown-linux-musl` with +crt-static and no target-cpu pin —
+a generic-baseline static-pie binary (ZELYNIC_BUILD local-generic-
+musl) any x86_64 host runs, doctor answering FULL-LIFE with
+"eBPF objects: source-built". The prebuilt substitution never rode:
+a tree with the sources builds the sources.
+
+The non-root battery re-proved the operator-visible fixes on the
+binary itself, 17/17 green: the 32-bit numeric-boundary refusal at
+the input boundary in both spellings (bare digits and cg:-prefixed)
+and both lanes (single and the '::' list, the member named), the
+u32::MAX edge flowing past the boundary to the privilege ladder, the
+empty-target rung, the danger-guard rung firing before the privilege
+ask (the same wording and --force-this tip), the JSON door's
+valueless-flag verdict rendering the prose lane's "a value is
+required" byte-for-clap with an empty tip and exit 1 while a genuine
+non-empty value error keeps its own bounded-window verdict, and the
+help tiers (ee -h clean of NIGHT-* lineage at 13 lines, the detail
+tier pointing at docs/USAGE.md, the root -h reference alive). The
+same shapes probed across the verb surface (b, u, u multi) answer
+with the identical boundary refusal — one grammar, every door.
+
+The test trees behind the fixes ran whole: 1069 bin tests + 72
+integration tests, 0 failures. The byte law re-proven in a second
+agent environment: the agent's own grep/cat views again ate the
+literal `[h` bytes (the doctor shape line rendering as "ost-caps]"
+and the index row rendering an empty pair of backticks) while the
+Read tool and od -c proved the source bytes and the binary's stdout
+bytes correct — check bytes, not views, the law's second independent
+reproduction.
+
+The residual hunt beyond the session's finds: no dishonest verdict
+surfaced anywhere on the CLI UX surface — the strict family, the
+block family, the unstrict family, and the monitor all answer the
+honest rung (the boundary refusal, the danger refusal, the privilege
+verdict, the named miss). One design observation rides for the
+owner's call, not a bug: eagle-eyes digit targets resolve after the
+privilege gate by design (the multi-user /proc law), so a
+past-u32 digit spec reaches the ladder as an eventual named miss
+rather than the pre-root boundary refusal the strict family owns —
+a purely lexical pre-root check would buy cross-verb consistency if
+the owner ever wants it.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
