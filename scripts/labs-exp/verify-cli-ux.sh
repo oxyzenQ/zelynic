@@ -34,7 +34,8 @@ set -u
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN=${ZELYNIC_BIN:-"$DIR/zelynic-fixed-cli-hardening-1"}
-PASS=0; FAIL=0
+PASS=0
+FAIL=0
 
 if [ ! -x "$BIN" ]; then
 	echo "FAIL  binary under test not executable: $BIN"
@@ -44,18 +45,20 @@ if [ ! -x "$BIN" ]; then
 fi
 
 check() {
-	local name="$1"; shift
-	local expect="$1"; shift
+	local name="$1"
+	shift
+	local expect="$1"
+	shift
 	local out
 	out=$("$BIN" "$@" 2>&1)
 	if echo "$out" | grep -qF "$expect"; then
 		echo "PASS  $name"
-		PASS=$((PASS+1))
+		PASS=$((PASS + 1))
 	else
 		echo "FAIL  $name"
 		echo "      expected grep: $expect"
 		echo "      got: $(echo "$out" | head -4 | tr '\n' '|')"
-		FAIL=$((FAIL+1))
+		FAIL=$((FAIL + 1))
 	fi
 }
 
@@ -90,10 +93,11 @@ check "boundary: list lane names the member" \
 # the boundary (it flows to the privilege ladder as an id).
 out=$("$BIN" s 4294967295 1mb 2>&1)
 if echo "$out" | grep -q "too large for a cgroup id"; then
-	echo "FAIL  boundary: u32::MAX wrongly refused"; FAIL=$((FAIL+1))
+	echo "FAIL  boundary: u32::MAX wrongly refused"
+	FAIL=$((FAIL + 1))
 else
 	echo "PASS  boundary: u32::MAX not refused (flows to privilege ladder)"
-	PASS=$((PASS+1))
+	PASS=$((PASS + 1))
 fi
 
 # The empty-target boundary (NIGHT-dinner-16, the same door).
@@ -111,11 +115,11 @@ assert d['error'] == \"a value is required for '--focus <SECONDS>' but none was 
 assert d['tip'] == '', d
 " 2>/dev/null; then
 	echo "PASS  json door: valueless --focus renders prose verdict"
-	PASS=$((PASS+1))
+	PASS=$((PASS + 1))
 else
 	echo "FAIL  json door: valueless --focus"
 	echo "      got: $out"
-	FAIL=$((FAIL+1))
+	FAIL=$((FAIL + 1))
 fi
 
 # A GENUINE non-empty value error keeps its own verdict on the JSON
@@ -128,53 +132,60 @@ fi
 out=$("$BIN" ee 123 --depth --print-json --focus 0 2>&1)
 if echo "$out" | grep -qF "Invalid focus window '0': must be between 1s and 30s"; then
 	echo "PASS  json door: genuine value error kept (runtime verdict)"
-	PASS=$((PASS+1))
+	PASS=$((PASS + 1))
 else
 	echo "FAIL  json door: genuine value error kept"
 	echo "      got: $out"
-	FAIL=$((FAIL+1))
+	FAIL=$((FAIL + 1))
 fi
 
 # The JSON lane's exit-code contract.
 "$BIN" ee --depth --print-json --focus >/dev/null 2>&1
 if [ $? -eq 1 ]; then
-	echo "PASS  json door: exit 1"; PASS=$((PASS+1))
+	echo "PASS  json door: exit 1"
+	PASS=$((PASS + 1))
 else
-	echo "FAIL  json door: exit 1"; FAIL=$((FAIL+1))
+	echo "FAIL  json door: exit 1"
+	FAIL=$((FAIL + 1))
 fi
 
 # The help rewrite: ee -h is the short tier — the lineage
 # archaeology must stay OUT of the terminal help.
 out=$("$BIN" ee -h 2>&1)
 if echo "$out" | grep -q "NIGHT-"; then
-	echo "FAIL  help: ee -h still carries lineage"; FAIL=$((FAIL+1))
+	echo "FAIL  help: ee -h still carries lineage"
+	FAIL=$((FAIL + 1))
 else
 	echo "PASS  help: ee -h clean of lineage"
-	PASS=$((PASS+1))
+	PASS=$((PASS + 1))
 fi
 lines=$(echo "$out" | wc -l)
 if [ "$lines" -le 40 ]; then
-	echo "PASS  help: ee -h compact ($lines lines)"; PASS=$((PASS+1))
+	echo "PASS  help: ee -h compact ($lines lines)"
+	PASS=$((PASS + 1))
 else
-	echo "FAIL  help: ee -h wall ($lines lines)"; FAIL=$((FAIL+1))
+	echo "FAIL  help: ee -h wall ($lines lines)"
+	FAIL=$((FAIL + 1))
 fi
 
 # --help is the detail tier: the full contract stays reachable.
 out=$("$BIN" ee --help 2>&1)
 if echo "$out" | grep -q "USAGE.md"; then
 	echo "PASS  help: --help points to the lineage home (USAGE.md)"
-	PASS=$((PASS+1))
+	PASS=$((PASS + 1))
 else
-	echo "FAIL  help: --help lineage pointer"; FAIL=$((FAIL+1))
+	echo "FAIL  help: --help lineage pointer"
+	FAIL=$((FAIL + 1))
 fi
 
 # The launcher's own help stays the curated reference.
 out=$("$BIN" -h 2>&1)
 if echo "$out" | grep -q "eagle-eyes"; then
 	echo "PASS  help: root -h curated reference alive"
-	PASS=$((PASS+1))
+	PASS=$((PASS + 1))
 else
-	echo "FAIL  help: root -h reference"; FAIL=$((FAIL+1))
+	echo "FAIL  help: root -h reference"
+	FAIL=$((FAIL + 1))
 fi
 
 echo "----"
