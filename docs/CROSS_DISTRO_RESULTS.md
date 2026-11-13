@@ -150,6 +150,25 @@
 > trigger, per-push CI stays fast. (night-verify-1 retired the
 > supermassive and e2e lanes' own night trains: those shards ride
 > every push now, so no check on a push ever answers Skipped.)
+>
+> Addendum 5 — the endurance clocks leave CI (the owner's exhaust
+> call, 2026-11-13): the endurance shard was the estate's longest
+> run (a 40-minute job riding every push) for physics that does not
+> change per commit — the 300-cycle churn walks the same ~300 fresh
+> group slots against the 256-entry map cap on every run, and
+> burning the hosted fleet for it per push is exhaust, not signal.
+> The supermassive-e2e lane carries the per-push shards it always
+> proved (fast: the USER-mode nonroot contract + the limiter depth
+> stresstest; surface: the whole-CLI smoke battery + the quota
+> saver A/B proof) on the same kernel span; the endurance clocks
+> moved back to where the depth audit found them — owner-local,
+> full depth, on demand, on the owner's own host/machine:
+> `scripts/sandbox/zelynic-sandbox.sh --endurance` (the one-click
+> VM lane) or `sudo ./scripts/depth/endurance-test.sh` (the direct
+> battery). The suite itself changed not a byte — only the venue
+> did: night-verify-1's "no Skipped row on a push" law is untouched,
+> because the endurance clocks can never be a Skipped row where they
+> are no longer a job.
 
 ## Summary
 

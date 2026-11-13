@@ -26,15 +26,19 @@
 #             boot's budget together)
 #   surface = the whole-CLI smoke battery + the quota saver A/B
 #             proof
-# and the ONE suite that is irreducible serial physics — the
-# endurance clocks, whose 300-cycle churn exists to walk ~300 fresh
-# group slots against the 256-entry map cap (the boundary crossing
-# IS the test, so it is never sharded and never shortened) — rides
-# its own shards on EVERY push (night-verify-1, the owner's call: a
-# schedule-only lane was a Skipped row on every push — the schedule
-# trigger retired whole), full depth, in the same union as the
-# rest. Depth is never cut anywhere: every push proves all 5 suites
-# on both kernel envelopes plus the arm64 host.
+# and the ONE suite that lives OFF this lane — the endurance
+# clocks, whose 300-cycle churn exists to walk ~300 fresh group
+# slots against the 256-entry map cap (the boundary crossing IS
+# the test, so it is never sharded and never shortened) — is a
+# 40-minute irreducible serial job, and the owner's exhaust call
+# retired it from CI whole: an every-push 40-minute shard burns
+# the hosted fleet for physics CI does not need to re-prove per
+# commit. The endurance clocks belong to the owner's own
+# host/machine, where they run at full depth on demand
+# (scripts/sandbox/zelynic-sandbox.sh --endurance — the lane the
+# SAFETY_ANALYSIS contract always pointed at). Depth is never cut
+# in CI: every push proves the four depth suites on both kernel
+# envelopes plus the arm64 host.
 #
 # The arm64 variant (the owner's arm64 mandate): the IDENTICAL
 # shard contract, run HOST-NATIVE on the free arm64 runner
@@ -56,24 +60,29 @@
 # The suite lives in scripts/ci/e2e-init.sh (its header is the
 # contract's home); the arm64 leg's twin lives in
 # scripts/ci/e2e-native.sh (its header is its own contract's home).
-# This file only makes the legs run. Five
+# This file only makes the legs run. Four
 # canonical invocations per full sweep, the modes the owner named:
 # the unprivileged USER leg first (nonroot-depth-test.sh - the
 # honest refusal contract), then the ROOT legs (zelynic is a root
 # tool - README's "Linux kernel 5.15.0+, cgroup v2, root" - so the
 # enforcement depth is root by design): the limiter depth
 # stresstest (measured rates + BPF-counter cross-checks, full
-# depth), the endurance clocks (full churn + monitor soak), the
-# whole-CLI-surface smoke battery. Real KVM, real eBPF, real user
-# AND real root - no container shortcut, no simulation.
+# depth), the whole-CLI-surface smoke battery. Real KVM, real
+# eBPF, real user AND real root - no container shortcut, no
+# simulation. The fifth invocation of the original five — the
+# endurance clocks (full churn + monitor soak) — is the owner-host
+# lane (scripts/sandbox/zelynic-sandbox.sh --endurance), never a
+# hosted-fleet shard again.
 #
 # Why a separate lane from supermassive.yml: that lane owns the
 # limiter matrix and its engine batteries (v1-v4, the MMSPA A/B,
 # the three root rig suites) on the same kernel span; this lane
-# owns the per-surface end-to-end depth - the five depth suites
+# owns the per-surface end-to-end depth - the four depth suites
 # no other CI lane executes (the depth audit's finding: all five
-# had ZERO CI wiring, owner-local only). Two contracts, two lanes
-# - neither reduces the other.
+# had ZERO CI wiring, owner-local only; four were wired in here,
+# and the fifth — the endurance clocks — went back to owner-local
+# with the owner's exhaust call, its original home). Two contracts,
+# two lanes - neither reduces the other.
 #
 # Build shape (the owner's from-source law): the stage job builds
 # the pro-linux-amd64-v3-musl alias - the release page's amd64-v3
@@ -93,10 +102,11 @@
 # base) burns the per-push shards - no path filter, no branch
 # filter, the same blind posture every push-triggered lane in the
 # estate now carries. workflow_dispatch stays as the manual
-# recovery lane (a dispatch is the full sweep). night-verify-1
+# recovery lane (a dispatch is the four-shard sweep). night-verify-1
 # retired the schedule (20:00 UTC, the small hours in the owner's
-# Asia/Jakarta evening): the endurance shards ride every push like
-# the rest.
+# Asia/Jakarta evening); the owner's exhaust call retired the
+# endurance shards from this lane whole — the 40-minute serial job
+# belongs on the owner's own host, not on a per-push hosted fleet.
 #
 # The jobs fail on any FAIL (every suite exits 1 on its own
 # failure, and the init's E2E-VERDICT relay aggregates the rows;
@@ -109,8 +119,11 @@ name: Dragon Guard - Supermassive E2E
   push:
   pull_request:
   # night-verify-1 (the owner's call): the schedule trigger is
-  # retired whole — the endurance shards ride every push like the
-  # per-push shards, so no check on a push ever answers Skipped.
+  # retired whole — every shard here rides every push, so no check
+  # on a push ever answers Skipped. The endurance clocks left the
+  # lane with the owner's exhaust call — they run on the owner's
+  # own host now, and can never be a Skipped row here because they
+  # are never a job here.
   workflow_dispatch:
 
 permissions:
@@ -851,196 +864,3 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # ── the endurance shard: the endurance clocks, WHOLE ───────────────────
-  # The 300-cycle churn exists to walk ~300 fresh group slots against
-  # the 256-entry map cap - the boundary crossing IS the test, so it
-  # is never sharded (a fresh-map slice under 256 cycles would never
-  # cross the boundary it exists to cross) and never shortened (the
-  # budget buys headroom, never depth). Since night-verify-1 it
-  # rides every push like the per-push shards: full depth, on the
-  # same envelopes, no schedule left.
-  supermassive-e2e-endurance:
-    name: ${{ matrix.title }}
-    needs: [stage, stage-arm64]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - title: supermassive e2e - endurance clocks (the jammy 5.15.0 LTS floor kernel)
-            profile: jammy
-            vm_timeout: 2400
-          - title: supermassive e2e - endurance clocks (the archive's latest kernel)
-            profile: best
-            vm_timeout: 1800
-          - title: supermassive e2e - endurance clocks (the native arm64 runner host)
-            profile: arm64
-            vm_timeout: 2400
-    runs-on: ${{ matrix.profile == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
-    timeout-minutes: 40
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
-        with:
-          persist-credentials: false
-
-      - name: Harden DNS (the poisoned-resolver defense)
-        uses: ./.github/actions/harden-dns
-      - name: Verify KVM
-        if: matrix.profile != 'arm64'
-        run: |
-          test -e /dev/kvm || {
-            echo "FAIL: /dev/kvm is absent - this runner image cannot boot the micro-VM"
-            exit 1
-          }
-          test -w /dev/kvm || sudo chmod 666 /dev/kvm
-          test -w /dev/kvm || {
-            echo "FAIL: /dev/kvm is not usable by the runner user even after chmod"
-            ls -l /dev/kvm
-            exit 1
-          }
-          echo "OK: /dev/kvm present and usable"
-
-      - name: Install qemu
-        if: matrix.profile != 'arm64'
-        run: |
-          sudo apt-get -o Acquire::Retries=5 update -qq
-          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends qemu-system-x86
-
-      - name: Download the staged micro-VM bundle
-        if: matrix.profile != 'arm64'
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8, NIGHT-hunt-20 SHA pin
-        with:
-          name: e2e-vm-${{ matrix.profile }}
-          path: /tmp/kfloor
-
-      - name: Prepare the arm64 native leg (userland + kernel surfaces)
-        if: matrix.profile == 'arm64'
-        run: |
-          set -euo pipefail
-          sudo apt-get -o Acquire::Retries=5 update -qq
-          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
-            python3 iproute2 kmod curl nftables linux-tools-generic
-          sudo ip link set lo up
-          mountpoint -q /sys/fs/bpf || sudo mount -t bpf bpf /sys/fs/bpf
-          test "$(stat -fc %T /sys/fs/cgroup)" = "cgroup2fs" || {
-            echo "FAIL: /sys/fs/cgroup is $(stat -fc %T /sys/fs/cgroup), wanted cgroup2fs"
-            exit 1
-          }
-
-      - name: Download the staged arm64 payload
-        if: matrix.profile == 'arm64'
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8, NIGHT-hunt-20 SHA pin
-        with:
-          name: e2e-arm64-payload
-          path: target/aarch64-unknown-linux-musl/pro-native-arm64-musl
-
-      - name: Boot the micro-VM and run the endurance clocks
-        if: matrix.profile != 'arm64'
-        run: |
-          set -euo pipefail
-          cd /tmp/kfloor
-          CORES=$(nproc)
-          TOTAL_MB=$(free -m | awk '/^Mem:/{print $2}')
-          if [ "${{ matrix.profile }}" != "best" ]; then
-            SMP=$(( CORES / 4 )); [ "$SMP" -lt 1 ] && SMP=1
-            MEM=$(( TOTAL_MB / 8 )); [ "$MEM" -lt 1024 ] && MEM=1024
-          else
-            SMP=$CORES
-            MEM=$(( TOTAL_MB * 3 / 4 ))
-          fi
-          echo "envelope: $SMP vCPU / $MEM MB (of $CORES cores / $TOTAL_MB MB on the runner)"
-          set +e
-          timeout ${{ matrix.vm_timeout }} qemu-system-x86_64 \
-            -machine q35,accel=kvm -cpu host \
-            -m "$MEM" -smp "$SMP" \
-            -netdev user,id=net0 \
-            -device virtio-net-pci,netdev=net0 \
-            -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
-            -kernel vmlinuz-floor \
-            -initrd initrd.gz \
-            -append "console=ttyS0 panic=-1 zelynic-suite=endurance" \
-            -nographic -no-reboot 2>&1 | tee vm.log
-          QEMU_RC=${PIPESTATUS[0]}
-          set -e
-          if test "$QEMU_RC" -ne 0 && test "$QEMU_RC" -ne 1; then
-            echo "FAIL: qemu exited $QEMU_RC - log tail:"
-            tail -40 vm.log
-            exit 1
-          fi
-          exit 0
-
-      - name: Run the endurance clocks natively on the arm64 host
-        if: matrix.profile == 'arm64'
-        run: |
-          set -euo pipefail
-          mkdir -p /tmp/kfloor
-          STAGE=/opt/zelynic-e2e
-          sudo rm -rf "$STAGE"
-          sudo mkdir -p "$STAGE/target/aarch64-unknown-linux-musl/pro-native-arm64-musl"
-          git -C "$GITHUB_WORKSPACE" archive HEAD | sudo tar -x -C "$STAGE"
-          # The same pinned-mode install (the artifact relay's zip
-          # round-trip drops the executable bit).
-          sudo install -m 0755 \
-            "$GITHUB_WORKSPACE/target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic" \
-            "$STAGE/target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic"
-          cd "$GITHUB_WORKSPACE"
-          set +e
-          sudo ZELYNIC_UPLOAD_WINDOWS=4 timeout ${{ matrix.vm_timeout }} \
-            bash "$STAGE/scripts/ci/e2e-native.sh" \
-            --binary "$STAGE/target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic" \
-            --suite endurance \
-            2>&1 | tee /tmp/kfloor/vm.log
-          RC=${PIPESTATUS[0]}
-          set -e
-          if test "$RC" -ne 0; then
-            echo "FAIL: the native arm64 endurance clocks exited $RC - log tail:"
-            tail -40 /tmp/kfloor/vm.log
-            exit 1
-          fi
-          exit 0
-
-      - name: Verdict
-        run: |
-          set -euo pipefail
-          cd /tmp/kfloor
-          echo "-- e2e depth verdicts (${{ matrix.title }}) --"
-          grep -E '^E2E-(RESULT|VERDICT)' vm.log || true
-          grep -q '^E2E-VERDICT: PASS' vm.log
-          echo "OK: the endurance clocks proven on the ${{ matrix.title }} leg"
-
-      # The red-leg evidence rider (the night-train autopsy): a red
-      # endurance leg carries its own vm.log off the runner. The
-      # sentinel rows live only in that log - both shapes stage it at
-      # the same path (the qemu legs tee it, the native arm64 leg
-      # tees it) - so one step serves the whole matrix, and the next
-      # red night reads as a diagnosis, not a shrug.
-      - name: Red-leg evidence (vm.log)
-        if: failure()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7, NIGHT-hunt-20 SHA pin
-        with:
-          name: endurance-vm-log-${{ matrix.profile }}
-          path: /tmp/kfloor/vm.log
-          if-no-files-found: warn
-
-      - name: Watch summary
-        if: always()
-        run: |
-          cd /tmp/kfloor 2>/dev/null || exit 0
-          {
-            echo "## Dragon Guard watch - ${{ matrix.title }}"
-            echo
-            echo "- trigger: ${{ github.event_name }}"
-            echo "- run: ${{ github.run_id }} (attempt ${{ github.run_attempt }})"
-            echo
-            echo "### suite verdicts (the init's sentinel rows)"
-            echo
-            echo '```'
-            grep -E '^E2E-(RESULT|VERDICT)' vm.log || true
-            echo '```'
-            echo
-            echo "### FAIL/SKIP inventory"
-            echo
-            echo '```'
-            grep -E '^(FAIL|SKIP|X  |X )' vm.log | head -40 || true
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
