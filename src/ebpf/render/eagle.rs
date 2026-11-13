@@ -405,13 +405,10 @@ pub(super) fn render_eagle_eyes_at(
             // FIRST (detail first, deep figures first to go — the
             // sacrifice ladder's order, the audit's own).
             // night-engrave-1-ee: the line INDENTS to the detail
-            // tree's first level — the cgroup block's own four
-            // columns — so the figures sit under the sockets they
-            // summarize and read as the row's child. At column 0 the
-            // same line read as the next row's opening (the owner's
-            // eagle-eyes find: the layout said bug where the truth
-            // was structure). Indent BEFORE the width trim, so the
-            // composed line never exceeds the frame.
+            // tree's first level (the block's own four columns)
+            // BEFORE the width trim — the figures sit under the
+            // sockets they summarize; at column 0 the same line read
+            // as the next row's opening (the owner's eagle-eyes find).
             let mut deep_line = if deep && cols.show_total {
                 super::deep::row_deep_line(conns, *cgroup_id)
             } else {
@@ -591,11 +588,8 @@ mod eagle_scroll_tests;
 #[path = "../../../test/ebpf/render/eagle_floor_tests.rs"]
 mod eagle_floor_tests;
 
-// night-engrave-1-ee: the deep line's indent pins — the rtt figures
-// sit under the socket tree they summarize (the cgroup block's own
-// four columns), never at column 0 where the next row could claim
-// them (the owner's live find: the layout said bug where the truth
-// was structure).
+// night-engrave-1-ee: the deep line's indent pins — the figures sit
+// under their socket tree, never at column 0 (the owner's find).
 #[cfg(test)]
 #[path = "../../../test/ebpf/render/deep_layout_tests.rs"]
 mod deep_layout_tests;
