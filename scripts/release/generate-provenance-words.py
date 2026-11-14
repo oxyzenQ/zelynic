@@ -59,14 +59,18 @@ Usage:
 # bytes, E2 80 94, and every layer below operates on bytes, not chars).
 MANIFEST_FULL = "Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ) 2026"
 MANIFEST_DORMANT = "eBPF dormant — Official Build by rezky_nightky (oxyzenQ) 2026"
-AUTHORS = "rezky_nightky (oxyzenQ)"
+AUTHORS = "rezky_nightky (oxyzenQ) <with dot rezky at gmail dot com>"
 
 # Per-layer seeds. Decoys with no external meaning; rotating them is a
 # supported operation (re-run this tool, paste the new block). All three
 # must differ so the layers never produce identical .rodata bytes.
+# SEED_AUTHORS rotation (night-pro-1): the 57-byte contact-address
+# authors truth under the retired 0x8F62_D3B1_47E9_A208 seed masked
+# into a 5-byte printable ASCII run, breaking the strings-invisibility
+# contract below; the rotated seed holds the longest run at 3.
 SEED_MANIFEST = 0x5B1E_C8A2_39D7_F460
 SEED_MANIFEST_DORMANT = 0xC94A_20F7_81E3_B5D6
-SEED_AUTHORS = 0x8F62_D3B1_47E9_A208
+SEED_AUTHORS = 0x6A09_40DD_C5C9_1647
 
 MASK64 = (1 << 64) - 1
 GOLDEN = 0x9E3779B97F4A7C15

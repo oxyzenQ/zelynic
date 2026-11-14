@@ -21,12 +21,12 @@ pub use build::BuildInfo;
 pub use build::VERSION;
 pub(crate) use build::{build_hash, build_label, build_time};
 pub(crate) use signature::{identity_of, manifest_fingerprint, provenance_view};
-// The materialized authors feed only the ebpf-gated engraving footer
-// (status stamp + eagle-eyes engraving) — a dormant build renders no
-// footer, so the accessor's re-export rides the same gate or the
-// dormant lane fails -D warnings on the dead surface.
+// The materialized identity core feeds only the ebpf-gated engraving
+// footer (status stamp + eagle-eyes engraving) — a dormant build
+// renders no footer, so the accessor's re-export rides the same gate
+// or the dormant lane fails -D warnings on the dead surface.
 #[cfg(feature = "ebpf")]
-pub(crate) use signature::materialized_authors;
+pub(crate) use signature::materialized_identity_core;
 
 pub const NAME: &str = "zelynic";
 pub const REPOSITORY: &str = "https://github.com/oxyzenQ/zelynic";
@@ -179,8 +179,8 @@ fn version_body() -> String {
 /// Build: pro-linux-amd64-v3-musl (ad36a81)
 /// Build-time: 2026-09-18 01:30Z
 /// Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ) 2026
-/// Depth-matrix: fp=a60dfb6a39745f34 status=verified anchor=b3:f3a48ead... layers=d0:masked-words,d1:masked-words,d2:dual-fingerprint,d3:blake3-anchor
-/// Copyright: (c) 2026 rezky_nightky (oxyzenQ)
+/// Depth-matrix: fp=a60dfb6a39745f34 status=verified anchor=b3:dbcbb0eb... layers=d0:masked-words,d1:masked-words,d2:dual-fingerprint,d3:blake3-anchor
+/// Copyright: (c) 2026 rezky_nightky (oxyzenQ) <with dot rezky at gmail dot com>
 /// License: AGPL-3.0-only
 /// Source: https://github.com/oxyzenQ/zelynic
 /// ```
@@ -292,7 +292,7 @@ mod tests {
         let body = version_body();
         for line in [
             "Build-time: ",
-            "Copyright: (c) 2026 rezky_nightky (oxyzenQ)",
+            "Copyright: (c) 2026 rezky_nightky (oxyzenQ) <with dot rezky at gmail dot com>",
             "License: AGPL-3.0-only",
             "Source: https://github.com/oxyzenQ/zelynic",
         ] {
@@ -419,7 +419,7 @@ mod tests {
             .position(|l| l.contains("Depth-matrix: "))
             .expect("Depth-matrix line present");
         assert!(
-            lines[depth_idx + 1].starts_with("Copyright: (c) 2026 rezky_nightky (oxyzenQ)"),
+            lines[depth_idx + 1].starts_with("Copyright: (c) 2026 rezky_nightky (oxyzenQ) <with dot rezky at gmail dot com>"),
             "Copyright must follow Depth-matrix, got: {}",
             lines[depth_idx + 1]
         );

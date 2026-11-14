@@ -24,18 +24,18 @@ const MANIFEST_FULL_ORACLE: &str =
     "Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ) 2026";
 const MANIFEST_DORMANT_ORACLE: &str =
     "eBPF dormant — Official Build by rezky_nightky (oxyzenQ) 2026";
-const AUTHORS_ORACLE: &str = "rezky_nightky (oxyzenQ)";
+const AUTHORS_ORACLE: &str = "rezky_nightky (oxyzenQ) <with dot rezky at gmail dot com>";
 /// Generator cross-check values (scripts/release/
 /// generate-provenance-words.py prints them). If these diverge from
 /// the const eval, the generator and the Rust mirror have drifted.
 const MANIFEST_FINGERPRINT_ORACLE: u64 = 0xA60D_FB6A_3974_5F34;
 const MANIFEST_DORMANT_FINGERPRINT_ORACLE: u64 = 0x397D_F6AE_668B_1922;
-const AUTHORS_FINGERPRINT_ORACLE: u64 = 0xB1A2_7B10_A64C_879A;
+const AUTHORS_FINGERPRINT_ORACLE: u64 = 0xC97B_13F8_1603_5D55;
 /// Generator's printed anchor cross-check (blake3 over the framed
 /// payload). The Python mirror and the Rust crate were proven
 /// byte-identical on this value at integration time.
 const DEPTH_ANCHOR_HEX_ORACLE: &str =
-    "f3a48eadb1c781d5b2a7065b0dddde8f1b9069e61482bb929aa7513dbc68f0ae";
+    "dbcbb0ebcb3689f431c917449d412b6330c7b9b3be34bc46af3b4bba7a82119a";
 
 fn active_oracle() -> &'static str {
     match super::super::ebpf_lane() {
@@ -148,7 +148,7 @@ fn depth_anchor_matches_runtime_blake3() {
 fn anchor_payload_framing_is_exact() {
     // Domain tag, then length-prefixed layers: byte-exact mirror of
     // the generator's anchor_payload. Pinned against the real
-    // layer lengths (68 full + 63 dormant + 23 authors).
+    // layer lengths (68 full + 63 dormant + 57 authors).
     let full = unmask_to_bytes(&MASKED_MANIFEST_WORDS, MANIFEST_SEED, MANIFEST_BYTE_LEN);
     let dormant = unmask_to_bytes(
         &MASKED_MANIFEST_DORMANT_WORDS,
@@ -162,9 +162,9 @@ fn anchor_payload_framing_is_exact() {
     assert_eq!(&payload[31..99], full.as_slice());
     assert_eq!(&payload[99..107], &63u64.to_le_bytes());
     assert_eq!(&payload[107..170], dormant.as_slice());
-    assert_eq!(&payload[170..178], &23u64.to_le_bytes());
-    assert_eq!(&payload[178..201], authors.as_slice());
-    assert_eq!(payload.len(), 201);
+    assert_eq!(&payload[170..178], &57u64.to_le_bytes());
+    assert_eq!(&payload[178..235], authors.as_slice());
+    assert_eq!(payload.len(), 235);
 }
 
 #[test]

@@ -39,7 +39,11 @@
 //!       Recomputed at runtime from the same words; `-V` reports
 //!       `status=verified` or `status=tampered` on its `Depth-matrix:`
 //!       line (the fingerprint rides the ACTIVE manifest, the lane the
-//!       binary was built through).
+//!       binary was built through). Scope (night-pro-1 audit): the
+//!       digest pins the identity CLAIM bytes, not the artifact —
+//!       zylaxion ships a byte-identical manifest and therefore
+//!       legitimately reports the same `fp=` value; artifact identity
+//!       stays the D3 anchor's and the `sig` self-hash's job.
 //!
 //!   D3  `DEPTH_ANCHOR` — a BLAKE3 digest over the framed clear
 //!       payload of ALL THREE layers (domain tag + length-prefixed
@@ -200,9 +204,9 @@ const MANIFEST_DORMANT_FINGERPRINT: u64 = layer_fingerprint(
 // independent seed, so the identity has a second, differently-masked
 // reconstruction inside the same artifact.
 
-pub(crate) const AUTHORS_SEED: u64 = 0x8F62D3B147E9A208;
-pub(crate) const AUTHORS_BYTE_LEN: usize = 23; // 3 words
-const MASKED_AUTHORS_WORDS: [u64; 3] = [0x2E4FCE5FF275597A, 0xE272762DD2A80261, 0xE7A772A241B3A02F];
+pub(crate) const AUTHORS_SEED: u64 = 0x6A0940DDC5C91647;
+pub(crate) const AUTHORS_BYTE_LEN: usize = 57; // 8 words
+const MASKED_AUTHORS_WORDS: [u64; 8] = [0x56E50F8C47BCE49F, 0xF5449B476A06A6D9, 0x8D144B47290A868D, 0x86C888281719A28D, 0xCC5326C3680DD803, 0x26DD3C7ADBD7017C, 0xA984CE24978FDFA5, 0x34F0B71AD5866709];
 
 /// D2 digest over the clear authors bytes (same law as D0).
 const AUTHORS_FINGERPRINT: u64 =
@@ -223,10 +227,10 @@ const AUTHORS_FINGERPRINT: u64 =
 /// and must be done together with a generator re-run.
 const ANCHOR_DOMAIN: &[u8] = b"zelynic/depth-matrix/v1";
 
-/// The embedded anchor (generator output, night-signature-advanced-1).
+/// The embedded anchor (generator output, night-pro-1 authors regen).
 pub(crate) const DEPTH_ANCHOR: [u8; 32] = [
-    0xF3, 0xA4, 0x8E, 0xAD, 0xB1, 0xC7, 0x81, 0xD5, 0xB2, 0xA7, 0x06, 0x5B, 0x0D, 0xDD, 0xDE, 0x8F,
-    0x1B, 0x90, 0x69, 0xE6, 0x14, 0x82, 0xBB, 0x92, 0x9A, 0xA7, 0x51, 0x3D, 0xBC, 0x68, 0xF0, 0xAE,
+    0xDB, 0xCB, 0xB0, 0xEB, 0xCB, 0x36, 0x89, 0xF4, 0x31, 0xC9, 0x17, 0x44, 0x9D, 0x41, 0x2B, 0x63,
+    0x30, 0xC7, 0xB9, 0xB3, 0xBE, 0x34, 0xBC, 0x46, 0xAF, 0x3B, 0x4B, 0xBA, 0x7A, 0x82, 0x11, 0x9A,
 ];
 
 // --- Compile-time fold ------------------------------------------------
@@ -375,19 +379,27 @@ fn identity_core(manifest: &str) -> Option<&str> {
         .and_then(|tail| tail.strip_suffix(MANIFEST_IDENTITY_YEAR))
 }
 
-/// The materialized authors string, computed once per process — the
+/// The materialized identity core, computed once per process — the
 /// footer surfaces (the status stamp, the eagle-eyes engraving) render
 /// on every frame, and the unmask family must not run per frame. The
-/// cache carries the SAME bytes the provenance pass verifies (the
-/// single-pass invariant holds: one materialization feeds every
-/// consumer). Ebpf-gated: its only consumer is the engraving footer,
-/// which the dormant flavor does not render — an ungated copy here
-/// would be a dead surface the dormant lane's -D warnings refuses.
+/// core is the manifest's identity minus the year: the compact
+/// engraving the footer has always carried (night-pro-1 — the contact
+/// address rides the Copyright line only, the frame footer keeps its
+/// width contract). The cache carries the SAME bytes the provenance
+/// pass verifies (the single-pass invariant holds: one materialization
+/// feeds every consumer). Ebpf-gated: its only consumer is the
+/// engraving footer, which the dormant flavor does not render — an
+/// ungated copy here would be a dead surface the dormant lane's
+/// -D warnings refuses.
 #[cfg(feature = "ebpf")]
 #[must_use]
-pub(crate) fn materialized_authors() -> &'static str {
+pub(crate) fn materialized_identity_core() -> &'static str {
     static CACHE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    CACHE.get_or_init(|| provenance_view().authors)
+    CACHE.get_or_init(|| {
+        identity_core(&provenance_view().manifest)
+            .unwrap_or_default()
+            .to_owned()
+    })
 }
 
 /// The identity text the surfaces render: the active manifest's
