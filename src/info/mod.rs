@@ -419,7 +419,7 @@ mod tests {
             .position(|l| l.contains("Depth-matrix: "))
             .expect("Depth-matrix line present");
         assert!(
-            lines[depth_idx + 1].starts_with("Copyright: (c) 2026 rezky_nightky (oxyzenQ) <with dot rezky at gmail dot com>"),
+            lines[depth_idx + 1].starts_with("Copyright: (c) 2026 rezky_nightky (oxyzenQ)"),
             "Copyright must follow Depth-matrix, got: {}",
             lines[depth_idx + 1]
         );
