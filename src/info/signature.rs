@@ -40,10 +40,21 @@
 //!       `status=verified` or `status=tampered` on its `Depth-matrix:`
 //!       line (the fingerprint rides the ACTIVE manifest, the lane the
 //!       binary was built through). Scope (night-pro-1 audit): the
-//!       digest pins the identity CLAIM bytes, not the artifact —
-//!       zylaxion ships a byte-identical manifest and therefore
-//!       legitimately reports the same `fp=` value; artifact identity
-//!       stays the D3 anchor's and the `sig` self-hash's job.
+//!       digest pins the identity CLAIM bytes, not the artifact. The
+//!       exact byte streams are the lane manifests — the full-life
+//!       "Pure eBPF builtin — Official Build by rezky_nightky
+//!       (oxyzenQ) 2026" (68 UTF-8 bytes, fp a60dfb6a39745f34) and
+//!       the dormant "eBPF dormant — Official Build by rezky_nightky
+//!       (oxyzenQ) 2026" (63 bytes, fp 397df6ae668b1922). The
+//!       full-life manifest is byte-identical to zylaxion's, so both
+//!       legitimately report the same `fp=` value; zejtron's manifest
+//!       is the identity clause only (46 bytes, 9174e0ce08feccba) and
+//!       cosmostrix's carries the "Cosmic Dragon" voice (64 bytes,
+//!       fe0d7239f86e7c1b) — differently framed claims, not a
+//!       derivation bug. The authors layer is byte-identical
+//!       estate-wide (57 bytes), hence the shared authors fingerprint
+//!       c97b13f816035d55. Artifact identity stays the D3 anchor's
+//!       and the `sig` self-hash's job.
 //!
 //!   D3  `DEPTH_ANCHOR` — a BLAKE3 digest over the framed clear
 //!       payload of ALL THREE layers (domain tag + length-prefixed
