@@ -599,9 +599,14 @@ honest doors: re-apply to follow the new workload, or `zelynic u
 cg:N` to remove the ghost row. The re-apply that re-pins also warns
 it healed a drifted identity, and a pin whose namespace vanished
 whole reads `STALE: netns://sandbox is gone ... (the watch points
-at a corpse)`. The pins die with the policies they describe (any
-unstrict spelling) and sweep whole with `unstrict --all` /
-`recover`.
+at a corpse)`. A probe that cannot determine — a hardened mount, a
+permissions fix mid-poll — reads the taxonomy's honest third word
+(night-frontier-Z4): `BLIND: netns://sandbox cannot be verified
+(Permission denied (os error 13)) ...` — the watch says why it
+cannot see and never claims a corpse; only the verified absence
+(every probe answering ENOENT) reads is-gone. The pins die with the
+policies they describe (any unstrict spelling) and sweep whole with
+`unstrict --all` / `recover`.
 
 Every failure is specific, never the generic no-match — the input
 was a well-formed reference whose infrastructure answered: "docker

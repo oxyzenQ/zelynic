@@ -550,7 +550,13 @@ STALE warning — handle gone: "STALE: netns://x is gone — policy
 cg:N still enforces against the dead namespace (the watch points
 at a corpse)"; changed word: "STALE: netns://x was recreated
 (identity A -> B) — policy cg:N enforces against the OLD
-namespace" — each naming the two honest doors (re-apply to follow
+namespace"; a probe that cannot DETERMINE (EACCES, EIO, an
+untrustworthy parse — night-frontier-Z4's errno taxonomy) reads
+BLIND: "BLIND: netns://x cannot be verified (Permission denied
+(os error 13)) — policy cg:N keeps enforcing while the watch cannot
+see the namespace" — the blind watch never claims a corpse; only
+the VERIFIED absence (every probe answering ENOENT) reads is-gone —
+each naming the two honest doors (re-apply to follow
 the new identity, or `zelynic u cg:N` to remove the ghost row),
 the warnings riding stderr so the status frame and the JSON
 contract on stdout stay byte-stable; TEARDOWN drops the pin with
@@ -596,6 +602,34 @@ byte-identical output — the determinism the
 5.15-floor cross-distro matrix verifies on hardware, pinned in unit
 form so it cannot regress between releases. The full contract lives
 in STABILITY.md.
+
+**The allocation lens and the pooled composition** (night-frontier-Z4,
+`src/ebpf/render.rs` + `test/ebpf/render/alloc_lens.rs`). The diff
+engine's zero-alloc law (NIGHT-blade-16) covered its own half end to
+end; the composition half still spent 249 heap events per busy frame
+at the lens's first sight. The lens — a counting global allocator,
+test-binary-only — is the proof instrument: without it every
+zero-alloc claim is theater. The pool is the law: the composers pop
+capacity-warm, bytes-free strings (`pooled_line` clears on pop — the
+deep-layout pins caught a composer inheriting a previous line's
+bytes and the fix landed before the commit did), the monitor's REAL
+loop returns the frame's spent lines after the diff engine's swap,
+and the ladders gained into-twins (one ladder per contract, the
+owned form its first consumer — format_bytes/format_bytes_wide/
+format_count/fit_to_width, the color wrappers' paint_in_place, the
+rate and label cells). The ranked rows, their labels, the header,
+the title core, and the grey detail trims render allocation-free;
+the lens pins the measured floor in the A/B harness's own test —
+164 heap events, down from 249 — with the named remainder (the
+border wrap's per-row pair, the footer's owned-Vec builders, the
+detail tree's contracts, title_bar's internals) enumerated beside
+the assert: a frame allocating above the floor fails the battery,
+and closing a named site lowers the floor in the same commit. That
+is the staged ladder NIGHT-blade-16 rode — stage 2 opens when the
+next allocation rung is worth its churn. The proof the law holds is
+the battery's own history: the pins failed twice while this landed
+(the inheritance bug, a lost cell spacer) and the raw-frame capture
+diffed byte-identical before the commit rode.
 
 ## The Quota Saver — the Workload-Conditional Claim
 
