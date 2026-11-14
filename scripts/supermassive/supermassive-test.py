@@ -2773,8 +2773,7 @@ def stage_server_histogram():
             record(
                 "server: histogram live proof (bulk traffic + depth JSON)",
                 "FAIL",
-                f"{label} stdout is not one JSON doc ({exc}): "
-                f"{(stdout or '').strip()[:200]}",
+                f"{label} stdout is not one JSON doc ({exc}): {(stdout or '').strip()[:200]}",
             )
             return None
         rows = [t for t in doc.get("targets", []) if t.get("cgroup_id") == a_id]
@@ -2935,9 +2934,7 @@ def stage_server_histogram():
     # to the leg-two worker's own connection — alive at the walk, so
     # the walk's census must own their cookies. Pre-stage slots ride
     # the note (dead sockets are the honest remainder).
-    unresolved = [
-        s for s in in_window if not s.get("endpoint") and s.get("cookie")
-    ]
+    unresolved = [s for s in in_window if not s.get("endpoint") and s.get("cookie")]
     if unresolved:
         failures.append(
             f"{len(unresolved)} in-window tail slots resolved to no walked "
@@ -2961,7 +2958,9 @@ def stage_server_histogram():
                 f"tail weakest {weakest} < p99 lower bound {p99_lb} on a clean "
                 f"pre-state row ({dl2} samples) — the worst-by-size law broke"
             )
-        law_state = f"asserted (weakest {min(t.get('size', 0) for t in dl_tail2)} vs p99 lb {p99_lb})"
+        law_state = (
+            f"asserted (weakest {min(t.get('size', 0) for t in dl_tail2)} vs p99 lb {p99_lb})"
+        )
     elif not clean_pre:
         law_state = f"named (pre-state dirty: leg-1 dl samples {dl1}, tail {len(tail1)})"
     else:
