@@ -41,6 +41,38 @@ v80.0.0
 
 ### Added
 
+- **The tail-aware clamp bracket: honesty from the mean to the tail
+  in `ee --depth` (night-frontier-Z2, userspace-only — no map, no
+  kernel word, no schema bump).** The depth report's histogram line
+  gains one grey sibling, the download lane's `clamp bracket:` row:
+  from the srtt half's exact min word (Z1's aggregate) and the
+  bucket-bounded p99, through the RECWN window law's own userspace
+  twin, it derives the two ends of the honest single-clamp range —
+  `ceiling` = BDP(min RTT) (the tightest clamp that still lets the
+  fastest path fill its pipe) and `floor` = BDP(p99 RTT) (the clamp
+  under which the tail stops filling theirs, a lower-bound read the
+  `>=` prefix admits) — plus the HONESTY RATIO (`p99/min RTT`).
+  Ratio within one log2 octave (permille 2000, the 32-bucket
+  histogram's own resolution quantum) or the cadence floor
+  collapsed the ends byte-identical: the line recommends the single
+  clamp (the larger end — no measured socket under-fills). Ratio
+  past the octave with the ends diverged: the report REFUSES —
+  `no single clamp (mixed local+remote paths; per-socket: the
+  traffic section's rtt pairs)` — a fleet spread across local and
+  remote paths has no honest one-number receive window, and the
+  per-socket truth rides the rtt pairs the traffic section and the
+  JSON `endpoints[].rtt_us` already carry (the per-socket CLAMP
+  itself stays the Dive ladder's deferred -4000m rung, the
+  self-auditing clamp the -8000m one). `--print-json` carries the
+  same verdict as the target's additive `clamp_bracket` object
+  (`min_rtt_us`, `p99_rtt_us`, `ceiling_bytes`, `floor_bytes`,
+  `honesty_ratio_permille`, `verdict` "single"/"mixed",
+  `clamp_bytes` null on mixed; `null` on every honest absence —
+  scripts predating the field ignore it). Pinned rootless in
+  `test/ebpf/render/bracket_tests.rs` (the absence law, the
+  cadence-floor collapse clause, the inclusive octave edge, the
+  mixed refusal, the text row, the JSON wire).
+
 - **The depth histogram: the distribution surfaces in `ee --depth`
   (night-frontier-2B, schema v34).** Two additive LRU maps
   (`depth_hist_dl`/`depth_hist_ul`), one row per cgroup per

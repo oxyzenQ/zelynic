@@ -92,6 +92,7 @@
 mod baseline;
 mod baseline_panel;
 mod border;
+mod bracket_section;
 mod bypass;
 mod deep;
 mod depth_json;

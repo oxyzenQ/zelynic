@@ -11,8 +11,9 @@
 //! scripting API.
 
 use super::{
-    BypassAuditJson, DepthDocJson, DepthEntryJson, DepthMissJson, DepthTargetJson, EndpointJson,
-    EnforcementStatsJson, HistHalfJson, HistJson, HistStatsJson, ProcJson, TailJson, TrafficJson,
+    BypassAuditJson, ClampBracketJson, DepthDocJson, DepthEntryJson, DepthMissJson,
+    DepthTargetJson, EndpointJson, EnforcementStatsJson, HistHalfJson, HistJson, HistStatsJson,
+    ProcJson, TailJson, TrafficJson,
 };
 
 impl DepthDocJson {
@@ -118,6 +119,37 @@ impl DepthTargetJson {
         crate::json::write::write_array(out, self.endpoints.len(), |out, i| {
             self.endpoints[i].write_json(out);
         });
+        // night-frontier-Z2: the tail-aware clamp bracket — the
+        // additive key rides LAST (the stable scripting API reads
+        // on; scripts predating the field ignore it), null when the
+        // honest absence holds.
+        out.push_str(",\"clamp_bracket\":");
+        match &self.clamp_bracket {
+            Some(bracket) => bracket.write_json(out),
+            None => out.push_str("null"),
+        }
+        out.push('}');
+    }
+}
+
+impl ClampBracketJson {
+    fn write_json(&self, out: &mut String) {
+        use crate::json::write::{write_number, write_opt_number, write_string};
+
+        out.push_str("{\"min_rtt_us\":");
+        write_number(out, self.min_rtt_us);
+        out.push_str(",\"p99_rtt_us\":");
+        write_number(out, self.p99_rtt_us);
+        out.push_str(",\"ceiling_bytes\":");
+        write_number(out, self.ceiling_bytes);
+        out.push_str(",\"floor_bytes\":");
+        write_number(out, self.floor_bytes);
+        out.push_str(",\"honesty_ratio_permille\":");
+        write_number(out, self.honesty_ratio_permille);
+        out.push_str(",\"verdict\":");
+        write_string(out, self.verdict);
+        out.push_str(",\"clamp_bytes\":");
+        write_opt_number(out, self.clamp_bytes);
         out.push('}');
     }
 }

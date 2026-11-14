@@ -297,6 +297,18 @@ pub fn depth_report_lines(reports: &[DepthReport], width: usize) -> Vec<String> 
         // the section's own module owns the shape (the 600-line
         // law's split); absent = no samples yet, the honest absence.
         crate::ebpf::render::hist_section::push_hist_lines(&mut lines, &report.histogram);
+        // night-frontier-Z2 (Dive 2, -1000m): the tail-aware clamp
+        // bracket — one grey row under the histogram, the download
+        // lane only (the RECWN lane shapes receive windows): the
+        // honest single-clamp ends through the window law, the
+        // honesty ratio, and the single/mixed verdict. Absent on
+        // every honest absence (no rate, no srtt samples) — never a
+        // bracket the inputs cannot back.
+        crate::ebpf::render::bracket_section::push_bracket_lines(
+            &mut lines,
+            &report.histogram,
+            &report.enforcement,
+        );
         // NIGHT-blade-5 + private-research-3: the controller's own
         // resource view — the two counters no /proc walk can
         // reconstruct (memory.current includes page-cache and kernel

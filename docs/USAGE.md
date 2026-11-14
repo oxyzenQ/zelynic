@@ -1250,6 +1250,7 @@ question a bare `cg:1234` row leaves open — WHAT is this:
   accounting:       1.4 GB let through, 6.2 MB dropped (0.44% of what arrived)
   lanes:            recwn (download only) · ecn armed, no marks yet · pacing 100.0 KB/s
   histogram:        download, 1000 samples — mean 3.9 KB · worst 8.2 KB · size p50 ≥1.0 KB p95 ≥8.1 KB p99 ≥8.1 KB
+  clamp bracket:    40.0 KB single clamp (honesty ratio ≥1.1x) — floor ≥40.0 KB @ p99 ≥11ms / ceiling 40.0 KB @ min 10ms
   resources:        12.5 MB memory · 1m:2s cpu
   started:          10m:20s ago
   command:          ./cat-test --serve
@@ -1285,6 +1286,30 @@ the uptime ladder at or beyond (`≥1s`) — every tier floors, so the
 renders `≥16ms`, never the old seconds-only truncation's `≥0s`
 (night-frontier hardening; the buckets and the JSON block below
 still carry the full arrays).
+
+The CLAMP BRACKET line (night-frontier-Z2) is the histogram's
+honesty step from the mean to the tail: it answers whether ONE
+receive-window clamp can honestly serve the fleet the srtt half
+sampled, by composing the exact min RTT word and the bucket-bounded
+p99 through the RECWN window law (the same law the runtime clamp
+applies). The output is a bracket, never a bare number —
+`floor ≥40.0 KB @ p99 ≥11ms` (the clamp under which the tail stops
+filling its pipe; the ≥ prefix admits the bucket bound) and
+`ceiling 40.0 KB @ min 10ms` (the tightest clamp that still lets
+the fastest path fill its pipe) — plus the HONESTY RATIO
+(`p99/min RTT`): near 1x the paths agree and the line recommends
+the single clamp (the larger end — no measured socket under-fills);
+past one log2 octave with the ends diverged the line REFUSES —
+`no single clamp (honesty ratio ≥3.4x, mixed local+remote paths;
+per-socket: the traffic section's rtt pairs)` — a fleet spread
+across local and remote paths has no honest one-number window, and
+the per-socket truth is the rtt pairs the traffic section and the
+JSON `endpoints[].rtt_us` already carry. The line renders for the
+DOWNLOAD lane only (the RECWN lane shapes receive windows), and
+stays absent on every honest absence (no samples, no live download
+rate) — never a bracket the inputs cannot back. The same verdict
+rides `--print-json` as the target's additive `clamp_bracket`
+object (`verdict` "single"/"mixed", `clamp_bytes` null on mixed).
 
 The package name is the identity ladder (majority-vote comm, else
 the cgroup path's basename — a systemd scope names itself — else
@@ -2627,7 +2652,7 @@ are churn, not drift.
 (multi-target specs only; a full miss exits 1 with the text error):
 
 ```json
-{"targets":[{"target":"cg:1234","cgroup_id":1234,"name":"cat-test","cgroup_path":"/sys/fs/cgroup/cat-test","uid":1000,"user":"cat","enforcement":"limited","download_bytes_per_sec":100000,"upload_bytes_per_sec":100000,"group_id":0,"oldest_started_secs":620,"processes":1,"socket_holders":1,"sockets":2,"traffic":{"window_secs":3,"download_bytes":12400000,"upload_bytes":340000,"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000,"socket_inode":120888,"rtt_us":19000,"rttvar_us":9000,"retrans_window":1,"segs_out_window":712},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null,"socket_inode":120889,"rtt_us":null,"rttvar_us":null,"retrans_window":null,"segs_out_window":null}]},"histogram":{"sample_shift":10,"download":{"size":{"samples":1000,"buckets":[0,0,0,0,0,0,0,0,0,0,600,0,0,400,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"p50":1024,"p95":8192,"p99":8192,"count":1000,"sum":3891200,"min":1024,"max":8192,"mean":3891},"srtt":null,"tail":[{"ts_ns":123456,"size":8192,"srtt_us":19000,"cookie":120999,"endpoint":"142.250.185.78:443 (curl)"}]},"upload":null},"procs":[{"pid":1234,"comm":"cat-test","uid":1000,"user":"cat","ppid":1,"state":"S (sleeping)","threads":4,"rss_kb":1234,"exe":"/home/cat/cat-test","exe_deleted":false,"kind":"binary","script":null,"permission":"755","cwd":"/home/cat","cmdline":"./cat-test --serve","started_ago_secs":620,"started_epoch":1758900000}],"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000,"socket_inode":120888,"rtt_us":19000,"rttvar_us":9000,"retrans_window":1,"segs_out_window":712},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null,"socket_inode":120889,"rtt_us":null,"rttvar_us":null,"retrans_window":null,"segs_out_window":null}]}],"bypass_audit":{"window_secs":3,"nic_tx_bytes":12900000,"nic_rx_bytes":13000000,"bpf_tx_bytes":340000,"bpf_rx_bytes":12450000,"shadow_tx_bytes":12560000,"shadow_rx_bytes":550000,"verdict":"bypassed_tx","shadow_tx_percent":97,"shadow_rx_percent":4}}
+{"targets":[{"target":"cg:1234","cgroup_id":1234,"name":"cat-test","cgroup_path":"/sys/fs/cgroup/cat-test","uid":1000,"user":"cat","enforcement":"limited","download_bytes_per_sec":100000,"upload_bytes_per_sec":100000,"group_id":0,"oldest_started_secs":620,"processes":1,"socket_holders":1,"sockets":2,"traffic":{"window_secs":3,"download_bytes":12400000,"upload_bytes":340000,"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000,"socket_inode":120888,"rtt_us":19000,"rttvar_us":9000,"retrans_window":1,"segs_out_window":712},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null,"socket_inode":120889,"rtt_us":null,"rttvar_us":null,"retrans_window":null,"segs_out_window":null}]},"histogram":{"sample_shift":10,"download":{"size":{"samples":1000,"buckets":[0,0,0,0,0,0,0,0,0,0,600,0,0,400,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"p50":1024,"p95":8192,"p99":8192,"count":1000,"sum":3891200,"min":1024,"max":8192,"mean":3891},"srtt":null,"tail":[{"ts_ns":123456,"size":8192,"srtt_us":19000,"cookie":120999,"endpoint":"142.250.185.78:443 (curl)"}]},"upload":null},"procs":[{"pid":1234,"comm":"cat-test","uid":1000,"user":"cat","ppid":1,"state":"S (sleeping)","threads":4,"rss_kb":1234,"exe":"/home/cat/cat-test","exe_deleted":false,"kind":"binary","script":null,"permission":"755","cwd":"/home/cat","cmdline":"./cat-test --serve","started_ago_secs":620,"started_epoch":1758900000}],"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000,"socket_inode":120888,"rtt_us":19000,"rttvar_us":9000,"retrans_window":1,"segs_out_window":712},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null,"socket_inode":120889,"rtt_us":null,"rttvar_us":null,"retrans_window":null,"segs_out_window":null}]},"clamp_bracket":null}],"bypass_audit":{"window_secs":3,"nic_tx_bytes":12900000,"nic_rx_bytes":13000000,"bpf_tx_bytes":340000,"bpf_rx_bytes":12450000,"shadow_tx_bytes":12560000,"shadow_rx_bytes":550000,"verdict":"bypassed_tx","shadow_tx_percent":97,"shadow_rx_percent":4}}
 ```
 
 `enforcement` is `"unlimited"` | `"blocked"` | `"limited"`; an
@@ -2720,6 +2745,29 @@ of `traffic`, never a child of it: the scripting read is
 `.targets[].histogram` (a `.targets[].traffic.histogram` path
 evaluates to null — the block was never there; the live session's
 own jq miss names the trap).
+
+`clamp_bracket` (night-frontier-Z2) is the histogram's honesty
+step from the mean to the tail, on the target beside the block it
+reads: `{"min_rtt_us":10000,"p99_rtt_us":524288,"ceiling_bytes":200000,"floor_bytes":524288,"honesty_ratio_permille":52428,"verdict":"mixed","clamp_bytes":null}`
+— the exact min RTT word and the bucket-bounded p99 (microseconds,
+the `histogram` srtt half's own words), the two honest single-clamp
+ends derived through the RECWN window law from the target's live
+download rate (`ceiling_bytes` = BDP(min RTT), the tightest clamp
+that still lets the fastest path fill its pipe; `floor_bytes` =
+BDP(p99 RTT), the clamp under which the tail stops filling theirs —
+a lower-bound read), the HONESTY RATIO (`p99/min RTT`, permille —
+a lower bound itself, the p99 bucket bound's own honesty), and the
+verdict: `"single"` carries the recommendation in `clamp_bytes`
+(the larger end — no measured socket under-fills); `"mixed"`
+carries `clamp_bytes` null — the refusal IS the answer, the fleet
+mixes local and remote paths past one log2 octave and no
+one-number window is honest (the per-socket truth rides
+`endpoints[].rtt_us`). A script can key its display on the ratio:
+`honesty_ratio_permille <= 2000` is the same-path-class read the
+instrument certifies. `null` on every honest absence — no srtt
+samples, no live download rate, a zero min word — the same
+absence-vs-zero law every optional field carries. The text
+report's `clamp bracket:` line is this object's own projection.
 
 `bypass_audit` (NIGHT-upgrade-charger-core-1-a) is the focus
 window's interface-vs-hooks shadow verdict, machine-scope:

@@ -204,6 +204,20 @@ first-time reader, and this page pays it once, up front.
   honestly. (INNOVATIONS.md #10)
 - **The depth report**: `--depth` — the per-target deep report
   (endpoints, sockets, enforcement state).
+- **The clamp bracket**: the depth report's tail-aware clamp row
+  (night-frontier-Z2, INNOVATIONS.md #19) — whether ONE
+  receive-window clamp can honestly serve the fleet the histogram's
+  srtt half sampled. Renders the two ends through the RECWN window
+  law (`floor` from the bucket-bounded p99, `ceiling` from the
+  exact min RTT) and the verdict; download lane only, absent on the
+  honest absences.
+- **Honesty Ratio**: `p99/min RTT` — the clamp bracket's grading
+  metric. Near 1x the paths agree (one clamp serves); past one
+  log2 octave with the bracket's ends diverged the report refuses
+  the single clamp — a cgroup mixing local and remote paths has no
+  honest one-number window, and the per-socket rtt pairs are the
+  answer. The p99 read is a bucket lower bound, so the ratio is
+  one too — the `>=` prefix admits it everywhere it prints.
 - **Doctor**: `zelynic doctor` — the kernel/dist capability check;
   reports the build flavor (full-life / half-life, see
   [FAQ.md](FAQ.md)).
