@@ -2826,6 +2826,20 @@ lattice's verdict under `pins`: `{"state":"clean"|"active"|"stale","files":N}`
 (the same verdict the human report's "Pins:" line renders —
 `active` means the four enforcement pins are all present, `stale`
 is the partial lattice the `zelynic recover` hint applies to).
+night-frontier-Z5 adds the per-helper capability ladder's verdict
+under `ladder` (additive): `{"rungs":10,"met":10,"missed":[]}` —
+`rungs` is the ladder's total (every eBPF helper call and ISA/syscall
+shape the embedded objects are built against, one rung each,
+`src/ebpf/helper_ladder.rs`), `met` is how many the running kernel
+meets, and `missed` names the unmet rungs in ladder order (an empty
+array on a full ladder, always present so the shape is stable for
+scripts). On any kernel the 5.15.0 floor admits, `met` equals
+`rungs` by construction — the floor guarantees every rung; on a
+kernel below the floor the numbers read honestly per rung (a 5.11
+host reads `met:9`, `missed:["bpf_atomic_64"]`), and an unparsable
+release reads `met:0` with an empty `missed` — unprobeable is not
+missed, the probe cannot verify so it does not guess. The same
+verdict the human report's "Helper ladder:" line renders.
 The field is ABSENT where it cannot speak honestly: a half-life
 build owns no lattice, an unprivileged run must not audit root's
 pins, and an unreadable directory is absent too — never a

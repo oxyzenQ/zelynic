@@ -46,17 +46,34 @@ const QUIC_HINT_MAPS: bool =
 const QUIC_HINT_MAPS: bool = false;
 
 /// The Layer 1 shape facts, derived PURELY from one parsed kernel
-/// version (night-netrunner-2's version ladder): bpf_link (5.7+),
-/// 64-bit BPF_ATOMIC (5.12+), the ECN set-CE helper (5.1+). An
-/// unparsable version honestly claims nothing — the probe cannot
-/// verify, so it does not. Pure so the ladder is unit-pinned
-/// release by release without a host.
+/// version (night-netrunner-2's version ladder, night-frontier-Z5's
+/// promotion): each fact now reads its own rung on the per-helper
+/// capability ladder (helper_ladder.rs) — one table, one truth, the
+/// hard-coded thresholds retired. The verdicts are byte-identical to
+/// the literals they replace (bpf_link 5.7+, BPF_ATOMIC 5.12+, the
+/// ECN set-CE helper 5.1+) — pinned release by release by the test
+/// below, so the trace lines cannot drift. An unparsable version
+/// honestly claims nothing — the probe cannot verify, so it does
+/// not. Pure so the ladder is unit-pinned release by release without
+/// a host.
 #[must_use]
 fn shape_facts(version: Option<(u32, u32)>) -> (bool, bool, bool) {
-    match version {
-        Some(v) => (v >= (5, 7), v >= (5, 12), v >= (5, 1)),
-        None => (false, false, false),
-    }
+    // One table, one truth: each fact is its ladder rung's verdict
+    // against the parsed release (the rung's `since` IS the
+    // threshold, named where it lives instead of duplicated here).
+    let rung_met = |name: &str| match version {
+        Some(v) => crate::ebpf::helper_ladder::LADDER
+            .iter()
+            .find(|rung| rung.name == name)
+            .map(|rung| v >= rung.since)
+            .unwrap_or(false),
+        None => false,
+    };
+    (
+        rung_met("bpf_link"),
+        rung_met("bpf_atomic_64"),
+        rung_met("bpf_skb_ecn_set_ce"),
+    )
 }
 
 /// The one capability probe (night-netrunner-2, the Orchestra).

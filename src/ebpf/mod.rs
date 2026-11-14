@@ -33,6 +33,7 @@ pub(crate) mod display_order;
 mod display_recwn;
 #[cfg(feature = "ebpf")]
 pub mod embedded;
+pub mod helper_ladder;
 pub mod host_caps;
 #[cfg(feature = "ebpf")]
 pub mod identity;
