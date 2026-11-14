@@ -425,9 +425,14 @@ reads on). The COUNT is deliberately not a word: the buckets ARE the
 count — the CI probe's own structural lesson (a second count source
 under the dense fleet's 4100-leaf LRU churn read zero while its
 buckets read three; "never a wrong count" is structural, not a
-hope), and the tail's worst-vs-p99 law is asserted live on a SETTLED
-row (300+ samples — a young row's generations are incoherent under
-that churn, the honest physics the probe itself taught). The dive's
+hope), and the tail's worst-vs-p99 law is asserted live on a CLEAN
+row (the probe's two-leg pre-state read proves the row is
+single-generation — no samples, no tail — before the law may fire;
+the first CI lesson's "settled = 300+ samples" gate REFUTED itself
+on the 2026-11-14 run: 1039 cumulative samples still carried a
+storm-era 35-byte slot no single generation could hold — a settled
+count is NOT a generation certificate, the row outlives every
+session that touches it). The dive's
 own limit, recorded honestly: the BPF_F_
 MMAPABLE zero-copy read (a Z1 candidate) is IMPOSSIBLE at this
 depth — the flag exists for ARRAY maps only, and the histogram's
@@ -439,14 +444,20 @@ own test copy (`hist_tests.rs` — the sentinel-aware CAS min, the
 plain CAS max, the weakest-slot replacement), the mirror's 816-byte
 pin and the mean/tail read in `hist_raw_tests.rs`, the JSON wire in
 `depth_json_tests.rs`; CI proof: the supermassive server phase's
-histogram leg grew the Z1 assertions — the derived count ==
-bucket samples (the tautology pinned live), min ≤ max, the quantile
-ladder monotonic, mean == sum/count (1%), the tail non-empty under
-bulk traffic with ktime stamps, socket identity, a walked endpoint
-on at least one slot, and — on a settled row — the tail's weakest ≥
-the p99 bucket's lower bound (the worst-8 ARE the top 0.8%; the
-settled gate is the churn physics, named where it cannot be
-asserted).
+histogram leg (the two-leg shape: leg one reads the live pre-state,
+leg two drives the session under test) grew the Z1 assertions — the
+derived count == bucket samples (the tautology pinned live), min ≤
+max, the quantile ladder monotonic, mean == sum/count, the session
+proof (a size half that GREW across the second leg, or a tail slot
+stamped inside the leg's ktime window — the sampler demonstrably
+recorded the session, whatever the loopback attribution did to the
+download half), the census join scoped to the session's window (the
+slots the leg wrote belong to the leg's own live connection;
+pre-stage slots — dead sockets, the honest remainder — ride the
+note, never the verdict), and — on a clean pre-state row — the
+tail's weakest ≥ the p99 bucket's lower bound (the worst-8 ARE the
+top 0.8%; the generation gate is the churn physics, named where it
+cannot be asserted).
 
 **19. The tail-aware clamp bracket — honesty from the mean to the
 tail** (`src/ebpf/render/bracket_section.rs`, night-frontier-Z2,

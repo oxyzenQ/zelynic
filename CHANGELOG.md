@@ -39,6 +39,60 @@ v80.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **fix(ci): the histogram live proof's session laws scoped to the
+  session they test (the 2026-11-14 red run's lesson); the Z2 wire
+  pins' failure output de-tainted (CodeQL #34/#35/#36).** Three red
+  runs, two root causes, both probe-side — the kernel's sampled
+  write is byte-exact (the prebuilt object's `hist_record`
+  disassembles to the source's law: bucket add, unconditional sum
+  add, the volatile min/max pair, the tail scan with the ts-last
+  stores). Cause one: the Z1 probe asserted SESSION-local laws on a
+  row whose documented lifetime is machine-long. The tail is the
+  worst-8 EVER, so a lifetime row's slots belong to every past
+  session — the census-join assertion ("a walked endpoint on at
+  least one slot") refuted itself the first time the storm-era
+  slots outlived their sockets (four of six red jobs, on rows whose
+  bulk recording was healthy); and the "settled = 300+ samples"
+  gate behind the worst-vs-p99 law is NOT a generation certificate —
+  one red row held 1039 cumulative samples whose tail still carried
+  a 35-byte slot no single generation could put beside a 65535.
+  Cause two: the download half's recording is loopback-bimodal
+  (0-4 samples for 50-90 GB on three legs against the ~494 healthy
+  baseline; the upload half has always been "named, not asserted"
+  for the same physics) — asserting the download half non-null
+  turned environment shape into a stage failure. The close is the
+  two-leg shape: leg one drives bulk traffic and reads the live
+  PRE-STATE mid-traffic (the liveness gate rides the worker thread,
+  so the pre-state is real, not a cgroup-empty refusal); leg two
+  drives the session under test and the laws scope to it — the
+  session proof (either size half GREW across the leg, samples only
+  accumulate, or a tail slot stamped inside the leg's ktime window:
+  the rebirth path), the census join asserted ONLY on in-window
+  slots (the leg's own connection is alive at the walk; pre-stage
+  slots ride the note), the worst-by-size law asserted ONLY on a
+  clean pre-state row (single-generation, the cumulative p99 IS the
+  session's), and the mirror-arithmetic pins (samples == bucket
+  sum, the quantile ladder, count == samples, min ≤ max, mean ==
+  sum/count) riding every non-null half on both reads. The sum
+  word's zero-read anomaly (mean 0 across every non-empty red row,
+  buckets and tail fully populated — architecturally impossible
+  from the verified write path) is recorded as the standing
+  question it is: named in the note's class, never asserted,
+  never dressed.
+
+- **fix(tests): `bracket_tests.rs` stops panicking with the depth
+  document in hand (CodeQL cleartext-logging #34/#35/#36).** The
+  three JSON-wire pins interpolated the whole `ee --depth --print-json`
+  document into their assert messages, and the document carries the
+  report's process-identity payload (uid, user, exe, cmdline) —
+  sensitive data reaching a panic-formatted sink. The pins now parse
+  the `clamp_bracket` fragment into a plain-number struct
+  (`BracketWire`) and assert field-wise; the wire-order pin echoes
+  only the expected fragment, built from literals. The failure
+  output carries measurements, never the document.
+
 ### Added
 
 - **The tail-aware clamp bracket: honesty from the mean to the tail
