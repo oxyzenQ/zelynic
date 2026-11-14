@@ -71,22 +71,35 @@ fn parse_pin_refuses_garbage() {
 #[test]
 fn drift_verdict_truth_table() {
     // Same word — the watch points where it pointed.
-    assert_eq!(drift_verdict(100, Some(100)), DriftVerdict::Live);
-    // Source gone against a recorded identity — the corpse.
-    assert_eq!(drift_verdict(100, None), DriftVerdict::Removed);
+    assert_eq!(drift_verdict(100, Ok(Some(100))), DriftVerdict::Live);
+    // Source VERIFIED absent (every probe ENOENT) against a recorded
+    // identity — the corpse.
+    assert_eq!(drift_verdict(100, Ok(None)), DriftVerdict::Removed);
     // Different word — recreated.
     assert_eq!(
-        drift_verdict(100, Some(200)),
+        drift_verdict(100, Ok(Some(200))),
         DriftVerdict::Recreated { current: 200 }
     );
     // The 0 sentinel: no identity at attach, source still absent —
     // the honest silence.
-    assert_eq!(drift_verdict(0, None), DriftVerdict::Unverifiable);
+    assert_eq!(drift_verdict(0, Ok(None)), DriftVerdict::Unverifiable);
     // The 0 sentinel with the source APPEARING — a change the
     // operator should see.
     assert_eq!(
-        drift_verdict(0, Some(5)),
+        drift_verdict(0, Ok(Some(5))),
         DriftVerdict::Recreated { current: 5 }
+    );
+    // The taxonomy (night-frontier-Z4): a probe that cannot
+    // determine is never a corpse claim — the watch is blind.
+    match drift_verdict(100, Err(std::io::Error::from_raw_os_error(13))) {
+        DriftVerdict::Unreadable { cause } => assert!(cause.contains("Permission denied")),
+        other => panic!("a blind probe is Unreadable, not {other:?}"),
+    }
+    // A 0-pin with a blind probe stays honestly silent (nothing was
+    // verifiable before either).
+    assert_eq!(
+        drift_verdict(0, Err(std::io::Error::from_raw_os_error(13))),
+        DriftVerdict::Unverifiable
     );
 }
 
@@ -123,6 +136,26 @@ fn live_and_unverifiable_print_nothing() {
     let pin = sample_pin();
     assert!(warning_lines(&pin, &DriftVerdict::Live).is_empty());
     assert!(warning_lines(&pin, &DriftVerdict::Unverifiable).is_empty());
+}
+
+#[test]
+fn blind_warning_never_claims_a_corpse() {
+    let pin = sample_pin();
+    let lines = warning_lines(
+        &pin,
+        &DriftVerdict::Unreadable {
+            cause: "Permission denied (os error 13)".to_string(),
+        },
+    );
+    assert_eq!(lines.len(), 2);
+    assert!(lines[0].starts_with("BLIND: netns://sandbox cannot be verified"));
+    assert!(lines[0].contains("Permission denied"));
+    assert!(lines[0].contains("policy cg:1234"));
+    // The taxonomy's law: a blind watch never says gone.
+    assert!(!lines[0].contains("is gone"));
+    assert!(!lines[0].contains("the watch points at a corpse"));
+    assert!(lines[1].contains("re-apply"));
+    assert!(lines[1].contains("zelynic u cg:1234"));
 }
 
 #[test]
@@ -239,6 +272,66 @@ fn sweep_takes_the_whole_directory() {
     assert!(!dir.exists());
     // An empty sweep is honest zero, twice (idempotent).
     assert_eq!(sweep_identity_dir_in(&dir), 0);
+}
+
+// ── the probe taxonomy (night-frontier-Z4) ━━━━━━━━━━━━━━━━━━━━
+
+#[test]
+fn netns_probe_taxonomy_found_absent_blind() {
+    use std::os::unix::fs::MetadataExt;
+    let dir = tempdir();
+    // Found: a real handle file answers with its inode.
+    let handle = dir.join("sandbox");
+    fs::write(&handle, b"").ok();
+    let ino = fs::metadata(&handle).expect("the handle exists").ino();
+    assert_eq!(
+        current_netns_identity_in(&[&dir], "sandbox").expect("found"),
+        Some(ino)
+    );
+    // Verified absent: every probe ENOENT — the corpse case, not
+    // the blind one.
+    assert!(matches!(
+        current_netns_identity_in(&[&dir], "ghost"),
+        Ok(None)
+    ));
+    // Blind: a symlink loop is a probe the kernel refuses (ELOOP) —
+    // never bent into an absence.
+    std::os::unix::fs::symlink(dir.join("loop"), dir.join("loop")).ok();
+    let err = current_netns_identity_in(&[&dir], "loop").expect_err("ELOOP is not a determination");
+    assert_ne!(err.kind(), std::io::ErrorKind::NotFound);
+    // One absent base, one blind base: the honest unreadable — the
+    // handle may exist behind the refusal.
+    let blind_dir = tempdir();
+    std::os::unix::fs::symlink(blind_dir.join("ghost"), blind_dir.join("ghost")).ok();
+    assert!(current_netns_identity_in(&[&dir, &blind_dir], "ghost").is_err());
+    fs::remove_dir_all(&dir).ok();
+    fs::remove_dir_all(&blind_dir).ok();
+}
+
+#[test]
+fn iface_probe_taxonomy_found_absent_blind() {
+    let root = tempdir();
+    // Found: the kernel's own word, trimmed.
+    let dev = root.join("vrf0");
+    fs::create_dir_all(&dev).ok();
+    fs::write(dev.join("ifindex"), "7\n").ok();
+    assert_eq!(
+        current_iface_identity_in(&root, "vrf0").expect("found"),
+        Some(7)
+    );
+    // Verified absent: the device directory is gone.
+    assert!(matches!(
+        current_iface_identity_in(&root, "gone0"),
+        Ok(None)
+    ));
+    // Blind: an index the lane cannot parse is NOT an absence.
+    let bad = root.join("vrf1");
+    fs::create_dir_all(&bad).ok();
+    fs::write(bad.join("ifindex"), "not-a-number").ok();
+    let err =
+        current_iface_identity_in(&root, "vrf1").expect_err("an untrustworthy parse is unreadable");
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    fs::remove_dir_all(&root).ok();
 }
 
 // ── the mouth order (night-depth-hardening-1) ━━━━━━━━━━━━━━━━━━━━
