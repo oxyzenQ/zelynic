@@ -83,6 +83,7 @@ scheduled for implementation.
 | Doc | Covers |
 |-----|--------|
 | [VERIFY_RELEASE.md](VERIFY_RELEASE.md) | Checksums (SHA-512 / BLAKE3 / SHAKE256), GPG verification, the crates.io lane, owner publish procedures |
+| [GOLDEN_VECTORS.md](GOLDEN_VECTORS.md) | The release attestation appendix (night-frontier-Z5): the golden-vector corpus over the pure IP layer — eighteen frozen /proc/net rows with byte-exact verdicts, the state table, the ratification law (output change = corpus change = release-note event), the one-line ratification command |
 | [MAINTENANCE.md](MAINTENANCE.md) | Owner playbook: secret inventory, key rotation, release recovery, gate refresh cadence, the armed workspace incident classes (the in-tree artifact staging class included) |
 
 ## Audits
