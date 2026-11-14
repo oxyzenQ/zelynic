@@ -486,3 +486,12 @@ mod tests;
 #[cfg(test)]
 #[path = "../../../test/ebpf/render/report_lanes_tests.rs"]
 mod lanes_tests;
+
+// night-depth-hardening-1: the compositional determinism pins — the
+// same snapshot must render byte-identical text and JSON on every
+// supported distro (5.15+), run to run. They exercise the census's
+// own display laws (the extracted fns, not seam copies) and prove
+// the composition absorbs input-order variance end to end.
+#[cfg(test)]
+#[path = "../../../test/ebpf/render/determinism_tests.rs"]
+mod determinism_tests;
