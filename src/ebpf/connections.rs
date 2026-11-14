@@ -249,13 +249,9 @@ impl ConnectionMap {
             pidfd.close();
 
             if !held.is_empty() {
-                // Endpoint order: established first, queued first.
-                held.sort_by_key(|s| {
-                    (
-                        std::cmp::Reverse(s.state == "ESTABLISHED"),
-                        std::cmp::Reverse(s.queued),
-                    )
-                });
+                // The census's own display order — the shared law the
+                // determinism pins exercise (sort_sockets_for_display).
+                sort_sockets_for_display(&mut held);
                 // Canonical comm boundary (NIGHT-optimized-1):
                 // sanitize happens inside pid_comm() — comm is
                 // attacker-controllable via prctl and this label flows
@@ -270,15 +266,10 @@ impl ConnectionMap {
         }
 
         // Process order within each cgroup: most sockets first, then
-        // any-queued, then pid for determinism.
+        // any-queued, then pid for determinism — the shared law the
+        // determinism pins exercise (sort_holders_for_display).
         for detail in self.cache.values_mut() {
-            detail.socket_holders.sort_by_key(|p| {
-                (
-                    std::cmp::Reverse(p.sockets.len()),
-                    std::cmp::Reverse(p.sockets.iter().any(|s| s.queued)),
-                    p.pid,
-                )
-            });
+            sort_holders_for_display(&mut detail.socket_holders);
         }
 
         // The deep generation fold (night-netrunner-4): the window is
@@ -471,6 +462,45 @@ fn read_socket_tables() -> HashMap<u64, SocketInfo> {
         }
     }
     out
+}
+
+/// The census's socket display order (night-depth-hardening-1):
+/// established first, queued first, the inode the final tie. The
+/// first two keys are the display semantics; the inode is the
+/// intrinsic one — the kernel's hash-table row enumeration behind
+/// the /proc read and the /proc/pid/fd readdir order are neither one
+/// contractual, and both reshuffle across boots, rehashes, and
+/// distros. Before this tie the two equal-state sockets a single
+/// process holds kept walk order, so the byteless tie rows under the
+/// detail and traffic sections (both stable sorts) could swap frames
+/// on the same host. The inode is kernel-global and unique per
+/// socket — the same snapshot now ranks and renders identically on
+/// every supported distro (5.15+), run to run. pub(crate) so the
+/// determinism pins exercise the ONE law the walk applies (a seam
+/// copy would drift).
+pub(crate) fn sort_sockets_for_display(sockets: &mut [SocketInfo]) {
+    sockets.sort_by_key(|s| {
+        (
+            std::cmp::Reverse(s.state == "ESTABLISHED"),
+            std::cmp::Reverse(s.queued),
+            s.inode,
+        )
+    });
+}
+
+/// The census's holder display order (night-depth-hardening-1):
+/// most sockets first, then any-queued, then pid — the pid is the
+/// intrinsic final key (unique per process), so the holder walk is a
+/// total order the kernel never perturbs. pub(crate) so the
+/// determinism pins exercise the ONE law the walk applies.
+pub(crate) fn sort_holders_for_display(holders: &mut [ProcessDetail]) {
+    holders.sort_by_key(|p| {
+        (
+            std::cmp::Reverse(p.sockets.len()),
+            std::cmp::Reverse(p.sockets.iter().any(|s| s.queued)),
+            p.pid,
+        )
+    });
 }
 
 #[cfg(test)]
