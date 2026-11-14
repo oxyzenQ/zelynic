@@ -45,12 +45,17 @@
 //!    whose identity differs prints the drift line — the re-apply
 //!    that heals the ghost also names it.
 //! 2. READ (`status_visit`, every `zelynic status` visit): each pin
-//!    gets its one stat() — the handle gone is STALE-removed, a
-//!    changed inode/ifindex is STALE-recreated, the wording always
-//!    names the corpse and the two honest doors (re-apply, or
-//!    unstrict the ghost row). A pin whose cgroup no longer holds a
-//!    policy is residue, not a watch — dropped silently, the same
-//!    law the census sweeps enforce one layer down.
+//!    gets its one stat() — the verdict is the probe's errno
+//!    taxonomy (night-frontier-Z4): a verified absence (every probe
+//!    answers ENOENT) is STALE-removed — the corpse, the wording
+//!    always names it and the two honest doors (re-apply, or
+//!    unstrict the ghost row); a changed inode/ifindex is
+//!    STALE-recreated; a probe that cannot DETERMINE (EACCES, EIO,
+//!    an untrustworthy parse) is BLIND — the watch says why it
+//!    cannot see, never a corpse claim. A pin whose cgroup no
+//!    longer holds a policy is residue, not a watch — dropped
+//!    silently, the same law the census sweeps enforce one layer
+//!    down.
 //! 3. TEARDOWN (`drop_identity_pin_by_uri` /
 //!    `drop_identity_pins_for_cgroups`, the unstrict family; the
 //!    whole-directory sweep under `unpin_all_bpf`): the pin dies
@@ -182,8 +187,9 @@ pub enum DriftVerdict {
     /// The identity source answers with the pinned word — the watch
     /// points where it pointed at attach.
     Live,
-    /// The identity source is gone (the handle unlinked, the device
-    /// removed) while the policy row stands — the corpse case.
+    /// The identity source is VERIFIED absent (every probe answered
+    /// ENOENT — the handle unlinked, the device removed) while the
+    /// policy row stands — the corpse case.
     Removed,
     /// The source answers with a DIFFERENT word — the namespace or
     /// VRF was recreated; the policy row enforces against the old
@@ -193,21 +199,41 @@ pub enum DriftVerdict {
     /// attach) and the source is still absent — nothing to verify,
     /// honestly silent.
     Unverifiable,
+    /// The probe could not DETERMINE anything (EACCES, EIO, a parse
+    /// it cannot trust) — the watch is blind while the policy row
+    /// keeps enforcing. NOT a corpse claim: the wording names the
+    /// cause and never says gone (night-frontier-Z4's taxonomy: the
+    /// alarm says why, not just that).
+    Unreadable { cause: String },
 }
 
+/// One lane probe's answer: the identity source's current word
+/// (`Ok(Some)`), the verified absence (`Ok(None)` — every probe
+/// answered ENOENT, the corpse), or the honest unreadable (`Err` —
+/// a determination the probe could not make, never bent into an
+/// absence).
+pub type IdentityProbe = Result<Option<u64>, std::io::Error>;
+
 /// Pure: the verdict for a pinned word and the source's current
-/// answer. `None` (source absent) reads Removed against a recorded
-/// identity and Unverifiable against the 0 sentinel; a `Some` that
-/// differs reads Recreated — including the 0-pin case, where an
-/// identity APPEARING is a change the operator should see (the
-/// device came back as something new).
-pub fn drift_verdict(pinned: u64, current: Option<u64>) -> DriftVerdict {
+/// probe. `Ok(None)` (verified absent) reads Removed against a
+/// recorded identity and Unverifiable against the 0 sentinel; an
+/// `Err` reads Unreadable against a recorded identity and stays
+/// honestly silent against the 0 sentinel (nothing was verifiable
+/// before either); an `Ok(Some)` that differs reads Recreated —
+/// including the 0-pin case, where an identity APPEARING is a
+/// change the operator should see (the device came back as
+/// something new).
+pub fn drift_verdict(pinned: u64, current: IdentityProbe) -> DriftVerdict {
     match (pinned, current) {
-        (_, None) if pinned == 0 => DriftVerdict::Unverifiable,
-        (_, None) => DriftVerdict::Removed,
-        (0, Some(current)) => DriftVerdict::Recreated { current },
-        (p, Some(c)) if p == c => DriftVerdict::Live,
-        (_, Some(current)) => DriftVerdict::Recreated { current },
+        (_, Err(_)) if pinned == 0 => DriftVerdict::Unverifiable,
+        (_, Err(cause)) => DriftVerdict::Unreadable {
+            cause: cause.to_string(),
+        },
+        (_, Ok(None)) if pinned == 0 => DriftVerdict::Unverifiable,
+        (_, Ok(None)) => DriftVerdict::Removed,
+        (0, Ok(Some(current))) => DriftVerdict::Recreated { current },
+        (p, Ok(Some(c))) if p == c => DriftVerdict::Live,
+        (_, Ok(Some(current))) => DriftVerdict::Recreated { current },
     }
 }
 
@@ -252,6 +278,18 @@ pub fn warning_lines(pin: &IdentityPin, verdict: &DriftVerdict) -> Vec<String> {
                 pin.uri, pin.cgroup_id
             ),
         ],
+        DriftVerdict::Unreadable { cause } => vec![
+            format!(
+                "BLIND: {} cannot be verified ({cause}) — policy cg:{} keeps \
+                 enforcing while the watch cannot see the {noun}",
+                pin.uri, pin.cgroup_id
+            ),
+            format!(
+                "  tip: fix the cause above, then re-apply (zelynic s {} <rate>) \
+                 to refresh the pin, or remove the row: zelynic u cg:{}",
+                pin.uri, pin.cgroup_id
+            ),
+        ],
         DriftVerdict::Live | DriftVerdict::Unverifiable => Vec::new(),
     }
 }
@@ -267,32 +305,70 @@ fn pin_path_in(dir: &Path, pin: &IdentityPin) -> Option<PathBuf> {
     pin_file_name(&pin.lane, &pin.name).map(|f| dir.join(f))
 }
 
-/// The netns lane's identity source: the handle's nsfs inode, the
-/// same two-path probe the resolver owns (`/run/netns` first, the
-/// legacy `/var/run/netns` second). Absent everywhere is None.
-pub fn current_netns_identity(name: &str) -> Option<u64> {
+/// The netns lane's identity source, parameterized over the handle
+/// bases (the production wrapper passes `/run/netns` first, the
+/// legacy `/var/run/netns` second). Any probe that answers wins;
+/// every probe answering ENOENT is the verified absence — `Ok(None)`,
+/// the corpse; any other errno means the probe could not determine —
+/// `Err`, the honest unreadable (night-frontier-Z4's taxonomy).
+pub fn current_netns_identity_in(bases: &[&Path], name: &str) -> IdentityProbe {
     use std::os::unix::fs::MetadataExt;
-    for base in ["/run/netns", "/var/run/netns"] {
-        let handle = Path::new(base).join(name);
-        if let Ok(meta) = std::fs::metadata(&handle) {
-            return Some(meta.ino());
+    let mut absent = true;
+    let mut cause: Option<std::io::Error> = None;
+    for base in bases {
+        match std::fs::metadata(base.join(name)) {
+            Ok(meta) => return Ok(Some(meta.ino())),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(e) => {
+                absent = false;
+                if cause.is_none() {
+                    cause = Some(e);
+                }
+            }
         }
     }
-    None
+    if absent {
+        Ok(None)
+    } else {
+        Err(cause.expect("a non-NotFound errno was recorded"))
+    }
+}
+
+/// The netns lane's identity source: the production probe over the
+/// resolver's own two bases (`/run/netns` first, the legacy
+/// `/var/run/netns` second).
+pub fn current_netns_identity(name: &str) -> IdentityProbe {
+    current_netns_identity_in(
+        &[Path::new("/run/netns"), Path::new("/var/run/netns")],
+        name,
+    )
+}
+
+/// The iface lane's identity source, parameterized over the sysfs
+/// net root (the production wrapper passes `/sys/class/net`). A
+/// missing device reads verified absent — `Ok(None)`; an index the
+/// lane cannot parse is NOT an absence — `Err(InvalidData)`, the
+/// honest unreadable (night-frontier-Z4's taxonomy).
+pub fn current_iface_identity_in(root: &Path, name: &str) -> IdentityProbe {
+    match std::fs::read_to_string(root.join(name).join("ifindex")) {
+        Ok(text) => text.trim().parse::<u64>().map(Some).map_err(|_| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "ifindex is not a number")
+        }),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e),
+    }
 }
 
 /// The iface lane's identity source: the VRF device's ifindex, the
-/// kernel's own word at `/sys/class/net/<name>/ifindex`. Absent
-/// device or unreadable index is None.
-pub fn current_iface_identity(name: &str) -> Option<u64> {
-    std::fs::read_to_string(Path::new("/sys/class/net").join(name).join("ifindex"))
-        .ok()
-        .and_then(|s| s.trim().parse::<u64>().ok())
+/// kernel's own word at `/sys/class/net/<name>/ifindex`.
+pub fn current_iface_identity(name: &str) -> IdentityProbe {
+    current_iface_identity_in(Path::new("/sys/class/net"), name)
 }
 
 /// The lane's current identity word — the ONE stat() (or one sysfs
-/// read, its sysfs twin) the read-side contract promises.
-pub fn current_identity(lane: &str, name: &str) -> Option<u64> {
+/// read, its sysfs twin) the read-side contract promises, reduced
+/// through the errno taxonomy (verified absence vs unreadable).
+pub fn current_identity(lane: &str, name: &str) -> IdentityProbe {
     if lane == NETNS_LANE {
         current_netns_identity(name)
     } else {
