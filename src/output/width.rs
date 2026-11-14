@@ -183,6 +183,38 @@ pub fn pad_to_width(s: &str, w: usize) -> String {
     out
 }
 
+// ── the pooled twins (night-frontier-Z4) ─────────────────────────
+// The frame pool's writers: the same walks and the same bytes the
+// owned forms return, appended to a caller-owned String instead of
+// allocating one. The delegation keeps one measuring law per cell —
+// the owned form is the into-form's first consumer, not a second
+// implementation to drift.
+
+/// The pooled twin of [`fit_to_width`]: appends the same bytes to
+/// `out` (verbatim on the fast path, the boundary walk plus the
+/// ellipsis on the truncation path).
+pub fn fit_to_width_into(s: &str, w: usize, out: &mut String) {
+    if display_width(s) <= w {
+        out.push_str(s);
+        return;
+    }
+    if w == 0 {
+        return;
+    }
+    let mut used = 0usize;
+    for c in s.chars() {
+        let cw = char_width(c);
+        // `w >= 1` here (the zero guard above), so `w - 1` cannot
+        // underflow — the same boundary the owned form walks.
+        if used + cw > w - 1 {
+            break;
+        }
+        out.push(c);
+        used += cw;
+    }
+    out.push('…');
+}
+
 // ── the colored-line twins (night-ux-5, Shape B) ────────────────────────────
 //
 // The status frame's lines arrive ALREADY COLORED — the pure renderers

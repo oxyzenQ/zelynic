@@ -276,11 +276,23 @@ impl IdentityMap {
     ///
     /// Format: `cg:73386 (firefox)` if resolved, else `cg:73386`.
     pub fn label(&self, cgroup_id: u32) -> String {
+        let mut out = String::new();
+        self.write_label(cgroup_id, &mut out);
+        out
+    }
+
+    /// The pooled twin (night-frontier-Z4): the same label bytes into
+    /// a caller-owned String — the frame pool's row cells consume
+    /// this form.
+    pub fn write_label(&self, cgroup_id: u32, out: &mut String) {
+        use std::fmt::Write as _;
         match self.get(cgroup_id) {
             Some(id) if !id.comm.is_empty() => {
-                format!("cg:{cgroup_id} ({})", id.comm)
+                let _ = write!(out, "cg:{cgroup_id} ({})", id.comm);
             }
-            _ => format!("cg:{cgroup_id}"),
+            _ => {
+                let _ = write!(out, "cg:{cgroup_id}");
+            }
         }
     }
 

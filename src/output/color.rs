@@ -461,13 +461,6 @@ pub fn hot_open() -> &'static str {
     super::theme::escape(super::theme::Slot::Hot, false)
 }
 
-/// Wrap `msg` in champion red (the solid crown). Plain text when off.
-#[cfg(feature = "ebpf")] // only the eagle-eyes renderer crowns a champion
-#[must_use]
-pub fn hot(msg: &str) -> String {
-    wrap_single_line(hot_open(), msg)
-}
-
 // ── Grey tier (NIGHT-boost-14) ────────────────────────────────────────
 //
 // The subordinate tier: eagle-eyes subprocess usage lines and every
@@ -498,6 +491,22 @@ pub fn grey_open() -> &'static str {
 #[must_use]
 pub fn grey(msg: &str) -> String {
     wrap_single_line(grey_open(), msg)
+}
+
+// ── the pooled painter (night-frontier-Z4) ────────────────────────
+// The frame pool's paint half: the same bytes [`wrap_single_line`]
+// returns, painted onto a caller-owned String instead of allocating
+// one. The no-color capability paints nothing — the same plain text
+// the wrappers return there.
+
+/// Paint `msg` in place: `open` opens at byte 0, the reset closes at
+/// the end; a no-op when `open` is empty (the plain-text capability —
+/// the wrappers' exact bytes, minus the per-call String).
+pub fn paint_in_place(msg: &mut String, open: &str) {
+    if !open.is_empty() {
+        msg.insert_str(0, open);
+        msg.push_str(reset());
+    }
 }
 
 // NIGHT-boost-23: the color pins live under the single test/ tree

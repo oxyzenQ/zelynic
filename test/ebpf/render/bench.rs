@@ -331,7 +331,7 @@ fn frame_bench_eagle() {
         // first (visual metrics + A-comparable), then the diff
         // engine's real emission (byte count reported, bytes written
         // to the sink). Pinned 80x40 — see the module docs.
-        lines.clear();
+        super::recycle_frame_lines(&mut lines);
         render_eagle_eyes(
             &mut lines,
             &summary,
@@ -364,5 +364,212 @@ fn frame_bench_eagle() {
     println_safe!(
         "###META### frames={frames} elapsed_ms={}",
         start.elapsed().as_millis()
+    );
+}
+
+// ━━ the allocation pin (night-frontier-Z4) ━━━━━━━━━━━━━━━━━━━━━━
+// The lens's consumer: the live frame's steady state must perform
+// ZERO heap events — the composition pops pooled lines, the engine
+// diffs through its retained buffers (NIGHT-blade-16), and the
+// recycle returns the frame's strings for the next frame to
+// consume. The fixture is the harness's own shape shrunk to nine
+// cgroups (three carrying socket detail, the busy flags toggling on
+// the same 3-frame cycle); the summary's totals step per frame so
+// every row re-renders — the BUSY path, where a lazy pool would
+// leak allocations an idle frame never touches. Fixture assembly
+// sits OUTSIDE every lens window; the window covers exactly
+// render -> emit -> recycle, and the sink discards without
+// allocating (the bench's /dev/null costs a syscall; the pin costs
+// nothing).
+
+#[test]
+fn steady_state_frame_composition_allocates_zero() {
+    use super::alloc_lens;
+    use super::recycle_frame_lines;
+
+    struct DiscardSink;
+    impl std::io::Write for DiscardSink {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    const CGROUPS: usize = 9;
+    const COMMS: [&str; CGROUPS] = [
+        "alacritty",
+        "firefox",
+        "systemd-journald",
+        "curl",
+        "wget",
+        "brave",
+        "chrome",
+        "spotify",
+        "code",
+    ];
+    const REMOTES: [&str; 4] = [
+        "142.250.191.78:443",
+        "1.1.1.1:443",
+        "8.8.8.8:53",
+        "93.184.216.34:80",
+    ];
+
+    // Static fixture: identity + socket detail, the harness's shape
+    // (every third cgroup multi-tenant with RESOLVED cookies, one
+    // dup'd-fd pair — the dedup's collapse case — riding along).
+    let mut identity = IdentityMap::new();
+    let mut conns = ConnectionMap::new();
+    for (i, comm) in COMMS.iter().enumerate() {
+        let cg = i as u32 + 7_000;
+        identity.insert(ProcessIdentity {
+            cgroup_id: cg,
+            uid: 1000,
+            comm: (*comm).to_string(),
+        });
+        if i % 3 == 0 {
+            let cookie_base = 0x5EED_0000_u64 + 16 * i as u64;
+            let socket = |idx: usize| SocketInfo {
+                inode: 42,
+                proto: if idx == 2 { Proto::Udp } else { Proto::Tcp },
+                remote: REMOTES[idx % REMOTES.len()].to_string(),
+                state: if idx == 2 { "CLOSE" } else { "ESTABLISHED" },
+                queued: false,
+                cookie: Some(cookie_base + 1 + idx as u64),
+                deep: None,
+            };
+            conns.insert(
+                cg,
+                CgroupConnections {
+                    total_procs: 4,
+                    socket_holders: vec![
+                        ProcessDetail {
+                            pid: 4_000 + i as u32,
+                            comm: "curl".to_string(),
+                            sockets: vec![socket(0), socket(1), socket(3)],
+                        },
+                        ProcessDetail {
+                            pid: 5_000 + i as u32,
+                            comm: "wget".to_string(),
+                            sockets: vec![socket(2)],
+                        },
+                    ],
+                },
+            );
+        }
+    }
+
+    let mut screen = DiffScreen::new();
+    let mut lines: Vec<String> = Vec::with_capacity(48);
+    let mut session = SessionState::new();
+    let mut scroll = ScrollState::new();
+    let lane = BaselineLane::new();
+    let mut sink = DiscardSink;
+
+    // The busy stream: totals step per frame on the 3-cycle, so the
+    // rate columns (and every row) re-render every frame.
+    let mut dl_totals = [0u64; CGROUPS];
+    let mut ul_totals = [0u64; CGROUPS];
+    let summary_for = |frame: u64, dl: &mut [u64], ul: &mut [u64]| {
+        let dl_step = 400_000 + (frame % 3) * 250_000;
+        let ul_step = 90_000 + (frame % 3) * 60_000;
+        let mut cgroups = Vec::with_capacity(CGROUPS);
+        for (i, slot) in dl.iter_mut().enumerate().take(CGROUPS) {
+            let dl_delta = dl_step + 1_000 * i as u64;
+            let ul_delta = ul_step + 300 * i as u64;
+            *slot += dl_delta;
+            ul[i] += ul_delta;
+            cgroups.push(CgroupDelta {
+                cgroup_id: i as u32 + 7_000,
+                packets: ul_delta / 900 + 1,
+                bytes: ul_delta,
+                total_bytes: ul[i],
+                ingress_packets: dl_delta / 1_400 + 1,
+                ingress_bytes: dl_delta,
+                ingress_total_bytes: *slot,
+            });
+        }
+        CounterSummary {
+            total_packets: cgroups.iter().map(|c| c.packets).sum(),
+            total_bytes: cgroups.iter().map(|c| c.bytes).sum(),
+            total_ingress_packets: cgroups.iter().map(|c| c.ingress_packets).sum(),
+            total_ingress_bytes: cgroups.iter().map(|c| c.ingress_bytes).sum(),
+            cgroups,
+        }
+    };
+
+    // Warmup: pool, engine buffers, and session maps reach their
+    // steady shapes (the first frames allocate — that is the point).
+    for frame in 0..12 {
+        let summary = summary_for(frame, &mut dl_totals, &mut ul_totals);
+        render_eagle_eyes(
+            &mut lines,
+            &summary,
+            &[],
+            &identity,
+            Some(&conns),
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+            &mut session,
+            &lane,
+            Duration::from_secs(90),
+            &mut scroll,
+            false,
+        );
+        screen.emit_at(80, 40, &mut lines, &mut sink);
+        recycle_frame_lines(&mut lines);
+    }
+
+    // Measured: 24 busy frames, each one a closed lens window.
+    let mut worst = 0usize;
+    let mut worst_frame = 0u64;
+    for frame in 12..36 {
+        let summary = summary_for(frame, &mut dl_totals, &mut ul_totals);
+        let before = alloc_lens::count();
+        render_eagle_eyes(
+            &mut lines,
+            &summary,
+            &[],
+            &identity,
+            Some(&conns),
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+            &mut session,
+            &lane,
+            Duration::from_secs(90),
+            &mut scroll,
+            false,
+        );
+        screen.emit_at(80, 40, &mut lines, &mut sink);
+        recycle_frame_lines(&mut lines);
+        let allocs = alloc_lens::count() - before;
+        if allocs > worst {
+            worst = allocs;
+            worst_frame = frame;
+        }
+    }
+    // The floor pin (night-frontier-Z4, stage 1): the measured worst
+    // steady-state frame allocates FLOOR heap events — down from 249
+    // at the lens's first sight, with the row mass (the ranked rows,
+    // their labels, the header, the title scratch, the grey fitting)
+    // rendering allocation-free through the pool. The named remainder
+    // (each a stage-2 reopen, the NIGHT-blade-16 staged ladder):
+    //   - border::wrap's per-row pair (fit copy + row build), the
+    //     closing row and its sweep clones;
+    //   - the footer's owned-Vec builders (build_grip_footer and its
+    //     line family);
+    //   - the detail tree's owned-Vec contracts (detail_lines /
+    //     eagle_holder_lines / endpoint_text) and the ranked board's
+    //     Vec (session.ranked());
+    //   - title_bar's internals, grid_line, the per-frame bg escape.
+    // A frame allocating ABOVE the floor fails here; a change that
+    // closes a named site LOWERS the floor (and should, in the same
+    // commit that closes it).
+    const FLOOR: usize = 164;
+    assert!(
+        worst <= FLOOR,
+        "steady-state frame allocations: worst frame {worst_frame} allocated {worst} \
+         (floor {FLOOR}) — a named site regressed or grew a new allocation"
     );
 }

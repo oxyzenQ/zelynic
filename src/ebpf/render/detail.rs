@@ -56,18 +56,33 @@ pub(crate) fn label_with_count(
     conns: Option<&ConnectionMap>,
     cgroup_id: u32,
 ) -> String {
-    let base = identity.label(cgroup_id);
+    let mut out = String::new();
+    write_label_with_count(identity, conns, cgroup_id, &mut out);
+    out
+}
+
+/// The pooled twin (night-frontier-Z4): the same label bytes into a
+/// caller-owned String — the frame pool's row cells consume this
+/// form. The paren splice pops the closing paren and rewrites the
+/// tail in place; the count rides the SI ladder's into-form.
+pub(crate) fn write_label_with_count(
+    identity: &IdentityMap,
+    conns: Option<&ConnectionMap>,
+    cgroup_id: u32,
+    out: &mut String,
+) {
+    identity.write_label(cgroup_id, out);
     let Some(conns) = conns else {
-        return base;
+        return;
     };
     let procs = conns.proc_count(cgroup_id);
-    if procs > 1 {
+    if procs > 1 && out.ends_with(')') {
         // Splice before the closing paren: "(alacritty)" -> "(alacritty +3)".
-        if let Some(stripped) = base.strip_suffix(')') {
-            return format!("{stripped} +{})", format_count((procs - 1) as u64));
-        }
+        out.pop();
+        out.push_str(" +");
+        crate::ebpf::limiter::format_count_into((procs - 1) as u64, out);
+        out.push(')');
     }
-    base
 }
 
 /// Extract the primary comm from a label, tolerating the "+N" suffix
