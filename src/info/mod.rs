@@ -454,7 +454,10 @@ mod tests {
         if stamp == "unknown" {
             return; // degraded path, documented
         }
-        assert!(stamp.ends_with('Z'), "stamp must carry the Z suffix: {stamp}");
+        assert!(
+            stamp.ends_with('Z'),
+            "stamp must carry the Z suffix: {stamp}"
+        );
         let core = stamp.strip_suffix('Z').expect("suffix checked above");
         // Shape: YYYY-MM-DD then space then HH:MM (2-digit, zero-padded).
         let (date, time) = core
