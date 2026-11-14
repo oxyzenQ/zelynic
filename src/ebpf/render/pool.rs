@@ -121,8 +121,8 @@ pub(crate) fn write_rate_or_dash(out: &mut String, bps: u64) {
     }
 }
 
-/// The pooled grey trim (night-frontier-Z4): the detail trims' one
-/// home — copy into a warm scratch, fit to the width in place, paint
+/// The pooled grey trim (night-frontier-Z4): the detail lines' one
+/// finishing home — copy into a warm scratch, fit to the width in place, paint
 /// the grey in place, hand the string back. The same bytes the old
 /// `grey(&truncate_label(..))` chain returned, minus its Strings.
 pub(crate) fn grey_trim(line: &mut String, indent: Option<&str>, w: usize) {
