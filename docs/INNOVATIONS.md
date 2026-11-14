@@ -789,6 +789,33 @@ purpose; a silent no is the only dishonest one.
   flow) needs the chain as text more than the estate needs its next
   enforcement feature.
 
+- **The clamp ladder's deep rungs — the per-socket clamp (-4000m)
+  and the self-auditing clamp (-8000m).** The asks, stacked beneath
+  #19's refusal: sk_storage carrying a per-socket EWMA RTT so the
+  clamp's granularity is the socket, not the cgroup; and, after
+  shaping is applied, the observability layer measuring
+  achieved-vs-honest-ceiling and grading its own advice ("clamp
+  verified: 94% of the honest ceiling") — a closed loop with no
+  enforcement step in it, the observer auditing the limiter.
+  Deferred by verdict: #19's bracket refusal is the honest surface
+  both open through, and the rungs ride the same deferred floor as
+  Dive 3's story family (per-socket state wants sk_storage, the
+  self-audit wants a story reader to grade against). Reopens when:
+  the refusal starts being felt in the field — a measured
+  mixed-fleet surface the bracket cannot serve honestly.
+
+- **Emit-on-change histogram (-9000m).** The ask: the kernel itself
+  detects drift in the distribution's shape (a bucket's delta
+  crossing a threshold) and the ringbuf speaks only when the story
+  changes — silence as the default state, emission as the event.
+  Deferred by verdict: the mechanics compose lanes the tree already
+  carries (the depth histogram, the ringbuf paths), but the
+  threshold is the research problem — when does a shape change MEAN
+  something — and a mis-tuned threshold fails both ways at once:
+  silence on a real drift, or the same periodic flood wearing a
+  smarter hat. Reopens when: field measurements across real traffic
+  shapes exist to tune the threshold honestly.
+
 ## Reading order for a new maintainer
 
 `ebpf/src/schema.rs` (the version-by-version contract history) →
