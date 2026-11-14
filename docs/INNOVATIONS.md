@@ -668,7 +668,7 @@ refuses.
 attest the artifact — that the package is authentic and intact; the
 golden vectors attest the behavior — that the engine's pure IP
 layer produces exactly the verdicts the release says it does.
-Seventeen frozen `/proc/net` rows (the six table families, the
+Eighteen frozen `/proc/net` rows (the six table families, the
 byte-swap law's dedicated witness `78563412` reading back
 `18.52.86.120`, the IPv4-mapped display form surviving verbatim)
 plus seven rejection shapes and the eleven-code state table, each

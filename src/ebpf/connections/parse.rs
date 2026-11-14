@@ -538,6 +538,22 @@ mod golden_vectors {
             proto: Proto::Tcp,
             want: None,
         },
+        // The sixth table family's witness: udp6 rows print the
+        // same 32-hex address + port shape the tcp6/raw6 rows do,
+        // and the corpus demands every family carry at least one.
+        GoldenVector {
+            name: "GV-18:udp6-close-v6",
+            line: " 17: 00000000000000000000000000000000:9C40 \
+                   00000000000000000000000001000000:0035 07 00000000:00000000 \
+                   00:00000000 00000000  1000 0 444013 1 0000000000000000 100 0 0 10 0",
+            proto: Proto::Udp6,
+            want: Some(Want {
+                inode: 444013,
+                remote: "[::1]:53",
+                state: "CLOSE",
+                queued: false,
+            }),
+        },
     ];
 
     /// The corpus of record: every vector's verdict is the exact
@@ -636,7 +652,14 @@ mod golden_vectors {
             count,
             "golden vector ids must be unique — the appendix keys on them"
         );
-        for proto in [Proto::Tcp, Proto::Tcp6, Proto::Udp, Proto::Raw, Proto::Raw6] {
+        for proto in [
+            Proto::Tcp,
+            Proto::Tcp6,
+            Proto::Udp,
+            Proto::Udp6,
+            Proto::Raw,
+            Proto::Raw6,
+        ] {
             assert!(
                 GOLDEN_VECTORS.iter().any(|v| v.proto == proto),
                 "the corpus must cover the {} family",

@@ -304,7 +304,7 @@ The signature and the checksums attest the ARTIFACT: this binary
 comes from the maintainer and arrived intact. The golden vectors
 attest the BEHAVIOR: the binary's pure IP layer produces exactly the
 verdicts the release's attestation appendix records — frozen
-`/proc/net` rows in, byte-exact verdicts out, seventeen vectors plus
+`/proc/net` rows in, byte-exact verdicts out, eighteen vectors plus
 the state table, re-ratified by CI on every commit and every release
 tag (night-frontier-Z5). The appendix lives at
 [GOLDEN_VECTORS.md](GOLDEN_VECTORS.md); the one-line ratification
