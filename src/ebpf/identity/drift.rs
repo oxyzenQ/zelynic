@@ -313,18 +313,25 @@ pub fn write_identity_pin_in(dir: &Path, pin: &IdentityPin) -> Result<()> {
 }
 
 /// Read every parsable pin in `dir` — unparsable or foreign files
-/// are skipped, a missing directory is the honest empty.
+/// are skipped, a missing directory is the honest empty. The list is
+/// uri-ascending: the display form is unique per pin (one file per
+/// lane+name, the grammar's own word), a total order readdir never
+/// owes — every mouth that walks this list (the attach scan, the
+/// STALE print, the teardown sweep) rides one order on every distro
+/// (the determinism contract's mouth-order law, STABILITY.md).
 pub fn read_identity_pins_in(dir: &Path) -> Vec<IdentityPin> {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return Vec::new();
     };
-    entries
+    let mut pins: Vec<IdentityPin> = entries
         .flatten()
         .filter_map(|e| {
             let text = std::fs::read_to_string(e.path()).ok()?;
             parse_pin(&text)
         })
-        .collect()
+        .collect();
+    pins.sort_by(|a, b| a.uri.cmp(&b.uri));
+    pins
 }
 
 /// Drop every pin in `dir` whose cgroup id is in `ids` — the
@@ -413,7 +420,9 @@ pub fn attach_identity_pin(pin: &IdentityPin) {
 /// printer is the caller's — the tests read the verdicts, the CLI
 /// prints them). A pin whose cgroup no longer holds a policy is
 /// residue, not a watch: dropped silently, the census sweeps' own
-/// law. Returns the drifted pins with their verdicts, in file order.
+/// law. Returns the drifted pins with their verdicts, uri-ascending —
+/// the pin list's intrinsic order (the STALE lines' print order is a
+/// contract, not a readdir).
 pub fn verify_identity_pins_in(
     dir: &Path,
     live_cgroups: &HashSet<u32>,
