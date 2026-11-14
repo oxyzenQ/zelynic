@@ -221,6 +221,24 @@ fn report_json(report: &CapabilityReport) -> String {
     write_string(&mut out, &report.build_flavor);
     out.push_str(",\"ebpf_lane\":");
     write_string(&mut out, &report.ebpf_lane);
+    // night-frontier-Z5, additive: the per-helper capability
+    // ladder's verdict — `rungs` (the ladder's total), `met` (how
+    // many the running kernel meets), and `missed` (the missed
+    // rungs' names, table order; an empty array on a full ladder,
+    // always present so the shape is stable for scripts). An
+    // unparsable release reads met:0 — the same all-false shape the
+    // shape facts have always claimed (the probe cannot verify, so
+    // it does not).
+    let ladder = crate::ebpf::helper_ladder::ladder_summary(&report.system.kernel);
+    out.push_str(",\"ladder\":{\"rungs\":");
+    write_number(&mut out, ladder.rungs);
+    out.push_str(",\"met\":");
+    write_number(&mut out, ladder.met);
+    out.push_str(",\"missed\":");
+    write_array(&mut out, ladder.missed.len(), |out, i| {
+        write_string(out, ladder.missed[i]);
+    });
+    out.push('}');
     if let Some(build) = &report.build {
         out.push_str(",\"build\":");
         build.write_json(&mut out);
@@ -349,11 +367,44 @@ fn print_report(report: &CapabilityReport) {
     // human report — the recorded constants beside the gates, the
     // same pair of lines the attach paths' verbose lane opens with.
     // One probe, every consumer: the doctor's rows ARE the attach
-    // verdicts' source struct. The JSON contract is untouched (the
-    // pinned scripting API carries only the fields it always did);
+    // verdicts' source struct. The JSON contract grows only
+    // additively (the ladder field below is night-frontier-Z5's);
     // this line is the human surface's additive fact row.
     let caps = crate::ebpf::host_caps::HostCaps::probe();
     println_safe!("{}", field("Shape facts:", &caps.trace_lines()[1]));
+    // night-frontier-Z5: the per-helper capability ladder's
+    // one-glance verdict — on any kernel the floor admits, every
+    // rung is met BY CONSTRUCTION (the itemized guarantee behind
+    // the floor line above); a missed rung is named with its
+    // degradation class instead of a silent partial attach.
+    let ladder = crate::ebpf::helper_ladder::ladder_summary(&caps.kernel_release);
+    let ladder_line = if ladder.missed.is_empty() {
+        if report.system.kernel_floor_met {
+            format!(
+                "{} rungs met (the 5.15.0 floor guarantees every rung)",
+                ladder.rungs
+            )
+        } else {
+            format!(
+                "{} rungs met (the kernel is below the floor — attach is refused)",
+                ladder.rungs
+            )
+        }
+    } else {
+        format!("{}/{} rungs met", ladder.met, ladder.rungs)
+    };
+    println_safe!("{}", field("Helper ladder:", &ladder_line));
+    for name in &ladder.missed {
+        let plan = crate::ebpf::helper_ladder::LADDER
+            .iter()
+            .find(|rung| rung.name == *name)
+            .and_then(|rung| rung.above_floor_plan)
+            .unwrap_or("no degradation plan — the lanes riding it refuse at attach");
+        println_safe!(
+            "{}",
+            crate::output::grey(&format!("  ! {name} unmet — {plan}"))
+        );
+    }
     println_safe!(
         "{}",
         field(
@@ -515,6 +566,55 @@ mod tests {
         // night-improve-64: a None verdict serializes as ABSENCE —
         // the additive rule (never a fabricated "clean").
         assert!(!json.contains("pins"));
+        // night-frontier-Z5, additive: the per-helper capability
+        // ladder's verdict rides the JSON — rungs/met/missed, the
+        // same numbers the human report's "Helper ladder:" line
+        // renders. On the 6.18 fixture the ladder is full (ten
+        // rungs, none missed) and the missed array is honestly
+        // empty.
+        assert!(
+            json.contains("\"ladder\":{\"rungs\":10,\"met\":10,\"missed\":[]}"),
+            "the ladder verdict must ride: {json}"
+        );
+    }
+
+    /// night-frontier-Z5: the ladder verdict is a pure function of
+    /// the release string — the JSON's met/missed numbers must agree
+    /// with the summary the human line renders, on a below-floor
+    /// fixture too (the 5.11 kernel misses exactly the atomic rung).
+    #[test]
+    fn ladder_verdicts_ride_the_release_string() {
+        let mut report = CapabilityReport {
+            system: SystemInfo {
+                kernel: "5.11.0".to_string(),
+                kernel_floor_met: false,
+                cgroup_v2: true,
+                cgroup2_mount_path: Some("/sys/fs/cgroup".to_string()),
+                bpf_fs_mounted: true,
+                is_root: false,
+            },
+            ebpf_supported: false,
+            build_flavor: BUILD_FLAVOR_FULL_LIFE.to_string(),
+            ebpf_lane: "source-built".to_string(),
+            build: Some(crate::info::BuildInfo::collect()),
+            warnings: vec![],
+            pins: None,
+        };
+        let json = report_json(&report);
+        assert!(
+            json.contains("\"ladder\":{\"rungs\":10,\"met\":9,"),
+            "{json}"
+        );
+        assert!(json.contains("\"missed\":[\"bpf_atomic_64\"]"), "{json}");
+        // An unparsable release reads met:0 with every rung absent
+        // from `missed` — unprobeable is not missed (the honesty
+        // law: the probe cannot verify, so it does not guess).
+        report.system.kernel = "garbage-release".to_string();
+        let json = report_json(&report);
+        assert!(
+            json.contains("\"ladder\":{\"rungs\":10,\"met\":0,\"missed\":[]}"),
+            "{json}"
+        );
     }
 
     /// NIGHT-dinner-3: a half-life report carries the install-path
