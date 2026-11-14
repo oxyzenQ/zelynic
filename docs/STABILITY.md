@@ -70,6 +70,44 @@ This is the sense in which zelynic is production-stable while its eBPF
 dependencies are not: **stability is a property of what ships, and
 only reviewed, embedded, kernel-verified artifacts ship.**
 
+## The output determinism contract (night-depth-hardening-1)
+
+The same host state must render byte-identical output on every
+supported distro (5.15+), run to run — text report and JSON document
+alike. This is an LTS property: scripts diff frames, operators diff
+sessions, and a row that swaps position between two polls (or between
+a jammy 5.15 floor box and a current kernel) reads as a change that
+never happened. The kernel makes no promises the display can borrow —
+the /proc/net table's row order is hash-bucket enumeration, the
+per-pid fd list is readdir order, and both reshuffle across boots,
+rehashes, and distros. So every output row order is a TOTAL order the
+kernel never perturbs:
+
+- **The census rows** — sockets sort established-first, queued-first,
+  the kernel inode the final tie (unique per socket, kernel-global);
+  holders sort busiest-first, any-queued-first, pid the final tie
+  (`sort_sockets_for_display` / `sort_holders_for_display`, applied
+  once at census build, consumed everywhere).
+- **The policy rows** — cgroup ID ascending; the status surfaces'
+  name-first law (case-insensitive displayed name, then cgroup ID).
+- **The ranked boards** — accumulated totals desc, ties by cgroup ID
+  (the session board never reshuffles between frames on a tie); the
+  baseline panel weights desc, ties by ID; the byte-rank surfaces
+  bytes desc, ties riding the census's intrinsic order.
+- **The maps** — every HashMap in a render path is a LOOKUP table
+  (cookie, inode, label joins); no output iterates one. The JSON
+  document's field order is declaration order, the hand-written
+  writer's contract.
+
+The compositional pins (`test/ebpf/render/determinism_tests.rs`)
+prove the law end to end: a census built from permuted input
+converges under the two laws, and the traffic focus, the text report,
+and the JSON document are byte-identical across renders and across
+input orders — the same guarantee the cross-distro matrix
+([CROSS_DISTRO_RESULTS.md](CROSS_DISTRO_RESULTS.md)) verifies on
+hardware. A future row source that iterates an unordered container
+fails these pins before it ships.
+
 ## Honest limits (the 99% section)
 
 None of the above makes the system perfect. These are the real

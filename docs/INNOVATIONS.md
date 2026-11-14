@@ -576,6 +576,23 @@ wrapper a thin IDENTITY_DIR call). Dive 4's -4000m rung
 the answer) stays deferred by verdict; Dive 3's story family is
 deferred whole (see Deferred by verdict).
 
+**The determinism law beneath them all** (night-depth-hardening-1,
+`src/ebpf/connections.rs` + `test/ebpf/render/determinism_tests.rs`).
+The fourteen and the twenty all render rows, and a row whose order is
+not intrinsic breaks every one of them the same way: a frame diff
+reads a change that never happened. The law: every output row order
+is a total order the kernel never perturbs — the census's socket
+rows carry the kernel inode as the final tie (the /proc table's
+hash-bucket enumeration and the fd readdir order are contractual to
+nobody, and both reshuffle across boots, rehashes, and distros), the
+holders carry the pid, the boards carry the cgroup ID, and no render
+path iterates a hash map. The compositional pins render a permuted
+census through the traffic focus, the text report, and the JSON
+document and require byte-identical output — the determinism the
+5.15-floor cross-distro matrix verifies on hardware, pinned in unit
+form so it cannot regress between releases. The full contract lives
+in STABILITY.md.
+
 ## The Quota Saver — the Workload-Conditional Claim
 
 The fourteenth, fifteenth, and sixteenth entries above (RECWN, ECN,
