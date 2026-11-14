@@ -400,7 +400,9 @@ fn format_build_time_utc() -> String {
 }
 
 /// Pure formatting function — takes unix-epoch seconds and returns
-/// `M/D/YYYY HH:MM (UTC)`. Separated from `format_build_time_utc` so
+/// `YYYY-MM-DD HH:MMZ` (ISO 8601, UTC; night-pro-1 aligns the stamp
+/// with the flagship's format, replacing the US-ambiguous
+/// `M/D/YYYY HH:MM (UTC)` shape). Separated from `format_build_time_utc` so
 /// the algorithm is unit-testable without depending on the wall clock.
 ///
 /// Algorithm: split `total_secs` into days + seconds-of-day, then use
@@ -429,7 +431,7 @@ fn format_unix_secs_as_build_time(total_secs: i64) -> String {
     let m = if mp < 10 { mp + 3 } else { mp - 9 }; // [1, 12]
     let year = if m <= 2 { y + 1 } else { y };
 
-    format!("{m}/{d}/{year} {hour:02}:{minute:02} (UTC)")
+    format!("{year:04}-{m:02}-{d:02} {hour:02}:{minute:02}Z")
 }
 
 // The split modules (NIGHT-improve-31's plan, NIGHT-improve-44's
@@ -471,13 +473,13 @@ mod tests {
         // be real ground truth.
 
         // UNIX epoch: 1970-01-01 00:00:00 UTC.
-        assert_eq!(format_unix_secs_as_build_time(0), "1/1/1970 00:00 (UTC)");
+        assert_eq!(format_unix_secs_as_build_time(0), "1970-01-01 00:00Z");
 
         // 2000-01-01 00:00:00 UTC = 946_684_800 seconds since epoch.
         // Computed via: date -u -d '2000-01-01 00:00:00' +%s
         assert_eq!(
             format_unix_secs_as_build_time(946_684_800),
-            "1/1/2000 00:00 (UTC)"
+            "2000-01-01 00:00Z"
         );
 
         // 2024-02-29 12:34:00 UTC = 1_709_210_040 seconds since epoch.
@@ -485,14 +487,14 @@ mod tests {
         // Computed via: date -u -d '2024-02-29 12:34:00' +%s
         assert_eq!(
             format_unix_secs_as_build_time(1_709_210_040),
-            "2/29/2024 12:34 (UTC)"
+            "2024-02-29 12:34Z"
         );
 
         // 2026-08-04 15:30:00 UTC = 1_785_857_400 seconds since epoch.
         // Computed via: date -u -d '2026-08-04 15:30:00' +%s
         assert_eq!(
             format_unix_secs_as_build_time(1_785_857_400),
-            "8/4/2026 15:30 (UTC)"
+            "2026-08-04 15:30Z"
         );
     }
 
@@ -500,10 +502,11 @@ mod tests {
     fn build_time_format_truncates_sub_minute_seconds() {
         // 1_709_210_440 = 2024-02-29 12:40:40 UTC: the 40 sub-minute
         // seconds are dropped (minute precision, matching the cosmostrix
-        // `%-m/%-d/%Y %H:%M` format contract), never rounded up.
+        // ISO 8601 `%Y-%m-%d %H:%M` Z-suffixed format contract), never
+        // rounded up.
         assert_eq!(
             format_unix_secs_as_build_time(1_709_210_440),
-            "2/29/2024 12:40 (UTC)"
+            "2024-02-29 12:40Z"
         );
     }
 
@@ -515,8 +518,8 @@ mod tests {
         // 1969-12-31 23:59:00 UTC = -60 seconds.
         let result = format_unix_secs_as_build_time(-60);
         assert!(
-            result.ends_with("(UTC)"),
-            "negative-epoch result should still be (UTC)-suffixed: {result}"
+            result.ends_with('Z'),
+            "negative-epoch result should still be Z-suffixed: {result}"
         );
         assert!(
             result.contains("1969"),

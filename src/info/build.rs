@@ -241,7 +241,8 @@ pub(crate) fn build_hash() -> &'static str {
 /// Get the build timestamp injected at build time by build.rs.
 ///
 /// Computed by Howard Hinnant's civil_from_days algorithm inside
-/// build.rs (NIGHT-hunt-6, cosmostrix lineage) — `M/D/YYYY HH:MM (UTC)`
+/// build.rs (NIGHT-hunt-6, cosmostrix lineage) — `YYYY-MM-DD HH:MMZ`
+/// (ISO 8601, UTC; night-pro-1, the estate-wide format)
 /// — so no time crate (chrono and friends) is needed anywhere in the
 /// dependency tree. Falls back to "unknown" only when the build script
 /// could not read the system clock (pre-UNIX_EPOCH host clock).
