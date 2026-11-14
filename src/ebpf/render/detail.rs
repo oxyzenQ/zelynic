@@ -307,7 +307,11 @@ pub(crate) fn is_displayable(socket: &SocketInfo) -> bool {
 /// (NIGHT-boost-26's 2.4 promise; NIGHT-hunt-38: the law now serves
 /// BOTH trees, extracted so the two can never drift). Stable within
 /// equals (Rust's sort_by is stable, so byteless endpoints keep the
-/// walk's established-first order behind the traffic-carriers).
+/// census row order behind the traffic-carriers — and that row order
+/// is intrinsic, the inode tie in the census's own sort
+/// (night-depth-hardening-1), never the kernel's /proc hash
+/// enumeration: the same snapshot ranks identically on every
+/// supported distro, run to run).
 /// The ranked view needs this law MOST: its two-slot cap can hide
 /// the answer behind two quiet walk-first endpoints without it —
 /// truncation without ranking buries the very endpoint the owner
@@ -470,9 +474,9 @@ pub(crate) fn full_detail_lines(
         if endpoints.is_empty() {
             continue;
         }
-        // Bytes-desc, stable within equals — the shared law
-        // (NIGHT-hunt-38: `rank_endpoints_by_bytes`, one copy for
-        // both trees).
+        // Bytes-desc, stable within equals on the census's intrinsic
+        // row order — the shared law (NIGHT-hunt-38:
+        // `rank_endpoints_by_bytes`, one copy for both trees).
         rank_endpoints_by_bytes(&mut endpoints, Some(conns));
         if endpoints.len() == 1 {
             lines.push(format!(

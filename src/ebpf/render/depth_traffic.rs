@@ -182,7 +182,9 @@ pub struct TrafficFocus {
     pub deep_windows: HashMap<u64, crate::ebpf::connections::TcpDeepWindow>,
     /// The window's endpoint rows: movers first (bytes descending,
     /// the focus view's own ranking contract), byteless endpoints
-    /// behind them in the walk's established-first order.
+    /// behind them in the census row order — intrinsic, the inode tie
+    /// in the census's own sort (night-depth-hardening-1), never the
+    /// kernel's /proc hash enumeration.
     pub endpoints: Vec<TrafficEndpoint>,
 }
 
@@ -278,8 +280,11 @@ pub fn traffic_focus(
         }
     }
     // Movers first, bytes descending; stable within equals so the
-    // byteless rows keep the walk's established-first order (the
-    // focus view's own ranking contract, full_detail_lines).
+    // byteless rows keep the census row order (the focus view's own
+    // ranking contract, full_detail_lines) — and that order is
+    // intrinsic (the inode tie in the census's own sort,
+    // night-depth-hardening-1), so the same snapshot renders
+    // identically on every supported distro, run to run.
     endpoints.sort_by_key(|e| std::cmp::Reverse(e.total()));
     TrafficFocus {
         window_secs,
