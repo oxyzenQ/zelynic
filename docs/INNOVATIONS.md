@@ -631,6 +631,65 @@ the battery's own history: the pins failed twice while this landed
 (the inheritance bug, a lost cell spacer) and the raw-frame capture
 diffed byte-identical before the commit rode.
 
+**The per-helper capability ladder** (night-frontier-Z5,
+`src/ebpf/helper_ladder.rs` + `src/ebpf/host_caps.rs`). The floor
+law is one gate — at or above 5.15.0 the attach proceeds, below it
+everything is refused — and its guarantee was folklore: "the modern
+helper set" named nowhere itemized. The ladder makes the folklore a
+table: one rung per eBPF fact the two embedded objects consume,
+eight helper calls (ktime_get_ns 4.1, skb_load_bytes 4.5,
+get_socket_cookie 4.12, setsockopt 4.13, skb_cgroup_id 4.18,
+skb_ancestor_cgroup_id 4.19, skb_ecn_set_ce 5.1, sk_storage_get 5.2)
+and two shape rungs (bpf_link 5.7, bpf_atomic_64 5.12), each
+versioned from the canonical introducing commits, the rows climbing
+since-ascending with the top rung one below the floor — every rung
+is met BY CONSTRUCTION on any kernel the floor admits, the itemized
+proof. Three surfaces ride one table: the shape facts derive from
+it by name (the hardcoded 5.7/5.12/5.1 thresholds retired, the
+pre-existing release-by-release pin passing unchanged —
+byte-identical, the trace lines cannot drift), the doctor renders
+the one-glance verdict ("Helper ladder: 10/10 rungs met") naming any
+missed rung with its degradation class (verified live on a 5.10
+host: 9/10, the atomic rung unmet), and the doctor's JSON carries
+the same numbers additively (`{"rungs":10,"met":10,"missed":[]}`,
+unprobeable never reads as met). The graceful-degradation gate is a
+test, not a hope: a future rung whose introduction release sits
+ABOVE the floor cannot land without naming its per-feature
+degradation plan in the same commit, and the coverage pin demands
+the table stay in sync with the helper set the objects actually
+call. Stage 2 — the attach-time wiring that executes a plan — opens
+when the first above-floor rung is adopted; writing it earlier
+would be untestable speculation, the gimmick trap the ledger
+refuses.
+
+**The golden vectors — the release attestation appendix**
+(night-frontier-Z5, `src/ebpf/connections/parse.rs` +
+`docs/GOLDEN_VECTORS.md`). A release's checksums and GPG signature
+attest the artifact — that the package is authentic and intact; the
+golden vectors attest the behavior — that the engine's pure IP
+layer produces exactly the verdicts the release says it does.
+Seventeen frozen `/proc/net` rows (the six table families, the
+byte-swap law's dedicated witness `78563412` reading back
+`18.52.86.120`, the IPv4-mapped display form surviving verbatim)
+plus seven rejection shapes and the eleven-code state table, each
+vector carrying a stable `GV-NN:slug` id, walked by one test on
+every CI run — commit and release tag alike — so a tagged release
+whose parse layer disagrees with its appendix cannot exist. The
+layer is a total function of its input bytes (no clock, no
+environment, no map iteration), which is exactly what makes the
+engine's behavior attestable knowledge: the determinism contract's
+own release-time proof, reproducible on any machine offline
+(`cargo test --locked golden_vectors` — no root, no eBPF, no
+network). The law that keeps the appendix honest: an output change
+IS a corpus change, and a corpus change is a release-note event —
+the diff between two releases' appendix states is the pure layer's
+behavioral changelog between them. Honest scope is stated in the
+appendix itself: the vectors attest the parse law, the cross-distro
+matrix attests the kernel law, the signature attests the artifact
+law — three legs, one attestation. Stage 2 (per-release appendix
+stamps the day release engineering cuts one) opens with the next
+tag; the mechanical ratification already runs ahead of it.
+
 ## The Quota Saver — the Workload-Conditional Claim
 
 The fourteenth, fifteenth, and sixteenth entries above (RECWN, ECN,

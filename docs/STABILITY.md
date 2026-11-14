@@ -113,6 +113,16 @@ input orders — the same guarantee the cross-distro matrix
 hardware. A future row source that iterates an unordered container
 fails these pins before it ships.
 
+The release-time proof of the pure layer's half of this contract is
+the golden-vector corpus (night-frontier-Z5): seventeen frozen
+`/proc/net` rows with byte-exact verdicts, walked by
+`cargo test --locked golden_vectors` on every CI run and every
+release tag, mirrored in
+[GOLDEN_VECTORS.md](GOLDEN_VECTORS.md) — the attestation appendix
+that ships with the release package. A verdict that drifts fails the
+corpus before it can drift a frame; a release whose corpus changed
+carries the verdict diff in its release notes.
+
 ## Honest limits (the 99% section)
 
 None of the above makes the system perfect. These are the real

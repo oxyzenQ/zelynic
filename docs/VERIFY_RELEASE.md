@@ -298,6 +298,30 @@ against the live registry API). The first publish creates it.
    for the same number, which is why the tag/version match check and
    the CI gate run before every upload.
 
+## 5. Behavioral verification (the golden vectors)
+
+The signature and the checksums attest the ARTIFACT: this binary
+comes from the maintainer and arrived intact. The golden vectors
+attest the BEHAVIOR: the binary's pure IP layer produces exactly the
+verdicts the release's attestation appendix records — frozen
+`/proc/net` rows in, byte-exact verdicts out, seventeen vectors plus
+the state table, re-ratified by CI on every commit and every release
+tag (night-frontier-Z5). The appendix lives at
+[GOLDEN_VECTORS.md](GOLDEN_VECTORS.md); the one-line ratification
+against any checkout is:
+
+```bash
+cargo test --locked golden_vectors
+```
+
+No root, no eBPF, no network — any host, offline. A tagged release
+whose battery disagrees with the appendix cannot exist: the same
+commit carries both, and the CI gate refuses the drift. What the
+vectors do NOT cover (live kernel behavior) is attested by the
+5.15-floor cross-distro matrix and the Supermassive battery — the
+three proofs (artifact, behavior, kernel) compose into one
+attestation.
+
 ## Verification tools required
 
 - `sha512sum` — GNU coreutils (preinstalled on every Linux)
