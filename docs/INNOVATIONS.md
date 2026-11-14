@@ -448,6 +448,68 @@ the p99 bucket's lower bound (the worst-8 ARE the top 0.8%; the
 settled gate is the churn physics, named where it cannot be
 asserted).
 
+**19. The tail-aware clamp bracket — honesty from the mean to the
+tail** (`src/ebpf/render/bracket_section.rs`, night-frontier-Z2,
+userspace-only — no map, no kernel word, no schema bump). Dive 1
+gave the depth report the cgroup's RTT distribution; the RECWN lane
+(#14) clamps every owned socket's receive window by the per-socket
+law (`rate x max(measured srtt, 200 ms)`). The hole between them:
+the report named ONE window figure and stayed silent about whether
+ONE clamp is even honest for the fleet behind the histogram — a
+cgroup whose sockets ride both a local path (sub-millisecond RTT)
+and a remote path (hundreds of milliseconds) cannot be served by
+one receive-window value without lying to one class of them. The
+bracket is the composition of the two existing features (the
+value-per-line reason it ships): from the srtt half's EXACT min
+word (Z1's aggregate) and the bucket-bounded p99 (the quantile
+ladder), through the RECWN window law's own userspace twin, it
+derives the two ends of the honest single-clamp range —
+`ceiling_bytes` = BDP(min RTT), the tightest clamp that still lets
+the fastest path fill its pipe (any window below it under-delivers
+even the min-RTT socket); `floor_bytes` = BDP(p99 RTT), the clamp
+under which the tail's paths stop filling theirs (a lower-bound
+read, the p99 bucket bound's own honesty, the >= prefix admits
+it) — and one new metric: the HONESTY RATIO = p99/min RTT, the one
+number that grades the fleet. Ratio near 1: the paths agree, the
+bracket collapses, one clamp serves (the recommendation is the
+LARGER end — the pipe no measured socket under-fills; the
+delivery-first pick the quota saver's own contract wants).
+Ratio past ONE LOG2 OCTAVE (permille 2000 — the 32-bucket
+histogram's own resolution quantum; a tail within one octave of
+the min is the same path class as far as this instrument can
+certify) WITH the law's ends diverged: the acceptable single-clamp
+range is EMPTY and the report REFUSES — "no single clamp (mixed
+local+remote paths)" — and names the per-socket door that already
+exists (the traffic section's `[rtt X ±Y]` pairs, the JSON
+`endpoints[].rtt_us`). The divergence clause keeps the refusal
+honest at the cadence floor: when both RTTs ride sub-cadence the
+law answers byte-identical windows and one clamp DOES serve — the
+ratio alone cannot refuse (the floor absorbed the spread at this
+rate), refusing there would be noise dressed as rigor. On Mixed
+the module names NO clamp value — the refusal IS the answer; the
+per-socket CLAMP (sk-storage EWMA granularity) is the Dive
+ladder's -4000m rung, deferred by the owner's verdict, and the
+self-auditing clamp (achieved-vs-honest-ceiling grading) the
+-8000m rung beside it — this refusal is the honest door both will
+open through. The verdict clause pair (octave-cross AND
+ends-diverged) and the larger-end recommendation are pinned in
+`test/ebpf/render/bracket_tests.rs` (absence law, cadence-floor
+collapse, the inclusive 2000-permille edge, the mixed refusal's
+null clamp, the additive JSON wire); the render row rides one grey
+kv line under the histogram (`clamp bracket:`), download lane only
+— the RECWN lane shapes receive windows, so an upload bracket
+would name a clamp nothing applies. The JSON key `clamp_bracket`
+rides the target object additively (the stable v11 scripting API
+reads on; null on every honest absence — no samples, no live
+download rate, a zero min word). Honest limits, stated: the ratio
+rides the bucket-bounded p99 and is itself a lower bound (a MIXED
+verdict is final — the bound already crossed the octave; a SINGLE
+verdict is the octaves the bound can vouch for); the bracket is
+rate-conditional (BDP semantics — a higher policy rate can split a
+fleet the current rate collapses); and the histogram half can lag
+its exact words by an in-flight sample (the row doc's own
+coarseness — a zero min word reads as the honest absent bracket).
+
 ## The Quota Saver — the Workload-Conditional Claim
 
 The fourteenth, fifteenth, and sixteenth entries above (RECWN, ECN,

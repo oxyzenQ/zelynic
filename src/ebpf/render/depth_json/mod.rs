@@ -26,19 +26,28 @@
 //! indicator a scripted triage pipeline wants as a boolean instead
 //! of parsing the text report's marker.
 
-use std::collections::HashMap;
-
 use crate::ebpf::bypass::{ShadowAudit, ShadowVerdict, shadow_percent};
-use crate::ebpf::connections::CgroupConnections;
 use crate::ebpf::identity::depth::ProcessFacts;
-use crate::ebpf::limiter::hist::{HIST_SAMPLE_SHIFT, HistRowRaw, mean, quantile_permille, samples};
 use crate::ebpf::limiter::types::POLICY_FLAG_PER_SOCKET;
 use crate::ebpf::limiter::{LimiterStatsRaw, PolicyRaw};
 use crate::ebpf::render::depth_traffic::TrafficFocus;
 use crate::ebpf::render::report::{cgroup_abs_path, oldest_started_secs, representative};
 
-use super::hist_section::HistSection;
 use super::report::{DepthReport, Enforcement};
+
+// The histogram block's JSON projection (night-frontier-2B; the Z1
+// depth pack) and the tail-aware clamp bracket's (night-frontier-Z2)
+// — the sibling-split lineage, one file per contract (the 600-line
+// LOC law the split serves; the re-exports keep every name's path
+// stable for the writer sibling below).
+mod bracket;
+mod hist;
+mod hist_tail;
+
+pub use bracket::ClampBracketJson;
+use bracket::clamp_bracket_json;
+use hist::histogram_json;
+pub use hist::{HistHalfJson, HistJson, HistStatsJson, TailJson};
 
 /// One process row of the JSON document.
 #[derive(Debug, Clone)]
@@ -215,6 +224,19 @@ pub struct DepthTargetJson {
     pub histogram: Option<HistJson>,
     pub procs: Vec<ProcJson>,
     pub endpoints: Vec<EndpointJson>,
+    /// The tail-aware clamp bracket (night-frontier-Z2, Dive 2 at
+    /// -1000m): the honest single-clamp range for the DOWNLOAD lane
+    /// derived from the histogram's srtt half (the exact min word,
+    /// the bucket-bounded p99) through the RECWN window law, with
+    /// the honesty ratio (p99/min RTT, permille) grading whether one
+    /// clamp can serve the fleet. `null` on every honest absence (no
+    /// samples, no live download rate, no bracket the inputs can
+    /// back). ADDITIVE under the stable v11 contract (scripts
+    /// predating the field ignore it): `verdict` reads "single" or
+    /// "mixed"; on "single" `clamp_bytes` names the recommended
+    /// clamp, on "mixed" it is null — the refusal IS the answer, the
+    /// per-socket truth rides `endpoints[].rtt_us`.
+    pub clamp_bracket: Option<ClampBracketJson>,
 }
 
 /// A target that resolved to nothing (multi-target partial miss).
@@ -305,8 +327,6 @@ pub struct DepthDocJson {
 // lineage, the 600-line LOC law); the Z1 tail builders in hist_tail.
 mod write;
 
-mod hist_tail;
-
 /// The ledger row as JSON (None stays null — the honest absence).
 fn stats_json(stats: &Option<LimiterStatsRaw>) -> Option<EnforcementStatsJson> {
     stats.map(|s| EnforcementStatsJson {
@@ -348,111 +368,6 @@ fn traffic_json(focus: &Option<TrafficFocus>) -> Option<TrafficJson> {
                 segs_out_window: e.deep.map(|w| w.segs_out_window),
             })
             .collect(),
-    })
-}
-
-/// One half's stats as JSON (night-frontier-2B; Z1, schema v35):
-/// the 32 log2 bucket counts (bucket b covers [2^b, 2^(b+1)) of the
-/// half's unit) and the bucket-bounded quantiles (the LOWER bound of
-/// the first bucket whose cumulative count reaches the quantile —
-/// null while the half holds no samples), then the Z1 exact
-/// aggregates: sum/min/max are the kernel's own words (the bounds
-/// approximate, these ARE — the sampled set's exact mass; `count`
-/// derives from the buckets, the one source), mean the sum's honest
-/// division.
-#[derive(Debug, Clone)]
-pub struct HistStatsJson {
-    pub samples: u64,
-    pub buckets: Vec<u64>,
-    pub p50: Option<u64>,
-    pub p95: Option<u64>,
-    pub p99: Option<u64>,
-    pub count: u64,
-    pub sum: u64,
-    pub min: u64,
-    pub max: u64,
-    pub mean: Option<u64>,
-}
-
-/// One direction's histogram row as JSON: the size half plus the
-/// srtt half, each independently null (the srtt half of a cgroup the
-/// RTT lane never owned is absence, not zero), plus the Z1 tail
-/// story list (empty while the kernel kept no worst-by-size slot).
-#[derive(Debug, Clone)]
-pub struct HistHalfJson {
-    pub size: Option<HistStatsJson>,
-    pub srtt: Option<HistStatsJson>,
-    pub tail: Vec<TailJson>,
-}
-
-/// One tail story slot as JSON (night-frontier-Z1, schema v35):
-/// when, how big, what RTT (None = unmeasured), which socket (the
-/// raw bpf cookie) and the endpoint label the walk's census
-/// resolves (None = a cookie the walk missed — the raw cookie
-/// stays the honest remainder).
-#[derive(Debug, Clone)]
-pub struct TailJson {
-    pub ts_ns: u64,
-    pub size: u64,
-    pub srtt_us: Option<u64>,
-    pub cookie: u64,
-    pub endpoint: Option<String>,
-}
-
-/// The depth histogram block as JSON (night-frontier-2B; None
-/// stays null — the honest absence, the additive rule above).
-#[derive(Debug, Clone)]
-pub struct HistJson {
-    /// The kernel's sampling cadence: one sample per 2^shift packets
-    /// per CPU — the divisor a script multiplies bucket counts by
-    /// to estimate rates.
-    pub sample_shift: u32,
-    pub download: Option<HistHalfJson>,
-    pub upload: Option<HistHalfJson>,
-}
-
-fn hist_stats_json(buckets: &[u64; 32], sum: u64, min: u64, max: u64) -> HistStatsJson {
-    // The count is DERIVED — sum(buckets) IS the count (the Z1
-    // probe's structural lesson: no second count source).
-    let count = samples(buckets);
-    HistStatsJson {
-        samples: count,
-        buckets: buckets.to_vec(),
-        p50: quantile_permille(buckets, 500),
-        p95: quantile_permille(buckets, 950),
-        p99: quantile_permille(buckets, 990),
-        count,
-        sum,
-        min,
-        max,
-        mean: mean(sum, count),
-    }
-}
-
-fn hist_half_json(row: &Option<HistRowRaw>, labels: &HashMap<u64, String>) -> Option<HistHalfJson> {
-    row.as_ref().map(|r| HistHalfJson {
-        size: (samples(&r.size) > 0)
-            .then(|| hist_stats_json(&r.size, r.size_sum, r.size_min, r.size_max)),
-        srtt: (samples(&r.srtt) > 0)
-            .then(|| hist_stats_json(&r.srtt, r.srtt_sum, r.srtt_min, r.srtt_max)),
-        tail: hist_tail::tail_json(&r.tail, labels),
-    })
-}
-
-/// The depth histogram block as JSON (None stays null — the honest
-/// absence). The tail labels ride the walk's own census (the Z1
-/// cookie→endpoint map, no second walk).
-fn histogram_json(
-    section: &Option<HistSection>,
-    conns: Option<&CgroupConnections>,
-) -> Option<HistJson> {
-    section.as_ref().map(|h| {
-        let labels = hist_tail::tail_labels(conns);
-        HistJson {
-            sample_shift: HIST_SAMPLE_SHIFT,
-            download: hist_half_json(&h.download, &labels),
-            upload: hist_half_json(&h.upload, &labels),
-        }
     })
 }
 
@@ -573,6 +488,7 @@ pub fn depth_doc_json(
                     })
                     .collect()
             }),
+            clamp_bracket: clamp_bracket_json(&report.histogram, &report.enforcement),
         })));
     }
     for (target, error) in misses {
