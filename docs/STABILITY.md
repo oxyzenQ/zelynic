@@ -114,7 +114,7 @@ hardware. A future row source that iterates an unordered container
 fails these pins before it ships.
 
 The release-time proof of the pure layer's half of this contract is
-the golden-vector corpus (night-frontier-Z5): seventeen frozen
+the golden-vector corpus (night-frontier-Z5): eighteen frozen
 `/proc/net` rows with byte-exact verdicts, walked by
 `cargo test --locked golden_vectors` on every CI run and every
 release tag, mirrored in

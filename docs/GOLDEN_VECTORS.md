@@ -8,8 +8,10 @@ checksum files and the detached GPG signature documented in
 [VERIFY_RELEASE.md](VERIFY_RELEASE.md) — which attests that an
 artifact is authentic and intact. The golden vectors attest the
 other half, the part a checksum cannot see: that the artifact's
-**pure IP layer** behaves EXACTLY as this appendix records, byte for
-byte, on every host it will ever run on. Checksums prove the package
+**pure IP layer** — the deterministic parsing surface over all six
+`/proc/net` table families — behaves EXACTLY as this appendix
+records, byte for byte, on every host it will ever run on. Checksums
+prove the package
 was not tampered with; the vectors prove the behavior inside it is
 the behavior the release notes describe.
 
@@ -57,7 +59,7 @@ cargo test --locked golden_vectors
 ```
 
 Three tests run: the corpus walk (`the_golden_corpus_ratifies_the_ip_layer`,
-17 vectors), the state table pin (`the_state_table_is_canonical`,
+18 vectors), the state table pin (`the_state_table_is_canonical`,
 the kernel's eleven codes and the eight refusal shapes), and the
 corpus integrity pin (`the_corpus_keeps_its_names_unique_and_families_covered`).
 All green = the build's pure IP layer matches this appendix exactly.
@@ -240,6 +242,19 @@ Input (`Proto::Tcp`):
 
 Verdict: REJECTED (`None`) — a row cut short of the queue column is
 a malformed row.
+
+### GV-18:udp6-close-v6
+
+Input (`Proto::Udp6`):
+
+```
+ 17: 00000000000000000000000000000000:9C40 00000000000000000000000001000000:0035 07 00000000:00000000 00:00000000 00000000  1000 0 444013 1 0000000000000000 100 0 0 10 0
+```
+
+Verdict: parses — inode `444013`, remote `[::1]:53`, state `CLOSE`,
+queued `false`. The sixth table family's witness: `udp6` rows print
+the same 32-hex address + port shape the `tcp6` and `raw6` rows do,
+and the corpus demands every family carry at least one vector.
 
 ## The state table
 
