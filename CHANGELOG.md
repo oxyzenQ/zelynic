@@ -72,6 +72,36 @@ v80.0.0
   `test/ebpf/render/bracket_tests.rs` (the absence law, the
   cadence-floor collapse clause, the inclusive octave edge, the
   mixed refusal, the text row, the JSON wire).
+- **The identity drift alarm: the URI's contract verified per read
+  (night-frontier-Z3, userspace-only — no map, no kernel word, no
+  schema bump).** The `netns://` / `iface://` lanes resolve a URI
+  to a cgroup id ONCE, at apply time — and a namespace deleted and
+  recreated after that left the pinned policy enforcing against the
+  OLD cgroup while `status` showed a live-looking row and a fresh
+  apply with the same URI silently wrote a SECOND policy (kernfs
+  inode recycling could even point the old row at an unrelated
+  cgroup). The alarm pins the lane's identity at attach — the netns
+  handle's nsfs inode (captured from the stat the resolution
+  already paid) or the VRF device's ifindex — into
+  `/run/zelynic/identity/` (tmpfs, one line-format file per URI),
+  and every `zelynic status` visit re-verifies it with ONE stat():
+  a gone handle prints `STALE: netns://x is gone — policy cg:N
+  still enforces against the dead namespace (the watch points at a
+  corpse)`, a changed word prints `STALE: netns://x was recreated
+  (identity A -> B) — policy cg:N enforces against the OLD
+  namespace`, each naming the two honest doors (re-apply, or
+  unstrict the ghost row). Three best-effort mouths: the attach
+  re-pin warns when the same URI's identity drifted since the last
+  apply; the status read rides stderr (the frame and the JSON
+  contract on stdout stay byte-stable) and drops ghost pins (no
+  policy behind them) by the census sweeps' own law; the teardown
+  dies with the policy by URI or cgroup id, any spelling, and
+  `unpin_all_bpf` sweeps the directory whole. The verdict
+  reduction, the file-name law, the line format, and the wording
+  are pinned in `test/ebpf/identity/drift_tests.rs` (tempdir-driven
+  IO round trips included); Dive 3's story family (socket CV, phase
+  FSM, story export) and Dive 4's -4000m rung (resolution
+  transparency) are recorded deferred-by-verdict in INNOVATIONS.md.
 
 - **The depth histogram: the distribution surfaces in `ee --depth`
   (night-frontier-2B, schema v34).** Two additive LRU maps

@@ -225,6 +225,10 @@ pub(crate) fn unpin_all_bpf() -> Result<()> {
     // The retired persistence pair's state file: best-effort by the
     // same law, self-announcing when it actually sweeps.
     sweep_legacy_state();
+    // night-frontier-Z3: the identity pins' sweep — with the BPF
+    // estate gone, every pin describing it is a ghost (the drift
+    // alarm's whole-directory teardown mouth).
+    crate::ebpf::identity::drift::sweep_identity_dir();
     Ok(())
 }
 

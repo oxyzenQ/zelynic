@@ -587,6 +587,22 @@ with the alternatives named (`netns://` for the namespace, `cg:<id>`
 for the cgroup directly). A domain whose cgroup holds no live process
 is refused as dead, the netns lane's empty verdict, the same law.
 
+The identity contract is verified, not assumed (night-frontier-Z3's
+drift alarm): at apply, the lane's identity is pinned — the netns
+handle's nsfs inode, the VRF device's ifindex — into
+`/run/zelynic/identity/`, and every `zelynic status` visit
+re-verifies it with one stat(). A namespace deleted and recreated
+(or a VRF device redrawn) turns the next status into the STALE
+warning — `STALE: netns://sandbox was recreated (identity A -> B) —
+policy cg:N enforces against the OLD namespace` — naming the two
+honest doors: re-apply to follow the new workload, or `zelynic u
+cg:N` to remove the ghost row. The re-apply that re-pins also warns
+it healed a drifted identity, and a pin whose namespace vanished
+whole reads `STALE: netns://sandbox is gone ... (the watch points
+at a corpse)`. The pins die with the policies they describe (any
+unstrict spelling) and sweep whole with `unstrict --all` /
+`recover`.
+
 Every failure is specific, never the generic no-match — the input
 was a well-formed reference whose infrastructure answered: "docker
 socket not found", "no container named 'x'", "no pod 'y' in

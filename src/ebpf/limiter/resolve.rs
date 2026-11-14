@@ -64,25 +64,35 @@ pub(super) fn dead_direct_ids(ids: &[u32]) -> Vec<u32> {
 }
 
 impl super::Limiter {
-    /// Resolve a target to cgroup IDs. Process names do a DIRECT
-    /// /proc walk (not the identity cache) to find all PIDs matching
-    /// the name, then their cgroup IDs — the fix for aria2c sharing
-    /// a cgroup with alacritty (first-pid-wins lied).
-    pub(super) fn resolve_target(&mut self, target: &Target) -> Result<Vec<u32>> {
+    /// Resolve a target to cgroup IDs, plus the identity the drift
+    /// alarm pins (night-frontier-Z3) when the target was a container
+    /// URI — the single lane's resolution seam. Process names do a
+    /// DIRECT /proc walk (not the identity cache) to find all PIDs
+    /// matching the name, then their cgroup IDs — the fix for aria2c
+    /// sharing a cgroup with alacritty (first-pid-wins lied).
+    pub(super) fn resolve_target_with_identity(
+        &mut self,
+        target: &Target,
+    ) -> Result<(
+        Vec<u32>,
+        Option<crate::ebpf::identity::container::ResolvedIdentity>,
+    )> {
         match target {
             Target::CgroupId(id) => {
                 crate::output::verbose::vlog!(
                     "limiter",
                     "cg:{id} targeted directly (no /proc walk)"
                 );
-                Ok(vec![*id])
+                Ok((vec![*id], None))
             }
             Target::Container(c) => {
                 // charger-core-2 (TIER A #5): resolve-only — the URI
                 // becomes the workload's cgroup id, the rest is the
                 // single lane's machinery (specific infrastructure errors,
                 // never the generic no-match; the trace is resolve's own).
-                crate::ebpf::identity::container::resolve(c)
+                // night-frontier-Z3: the lane's identity word rides the
+                // same resolution (the netns stat it already paid).
+                crate::ebpf::identity::container::resolve_with_identity(c)
             }
             Target::ProcessName(name) => {
                 // Direct /proc walk: find all PIDs whose comm matches —
@@ -96,9 +106,17 @@ impl super::Limiter {
                 // Also refresh identity map for display purposes.
                 self.identity.maybe_refresh();
 
-                Ok(matched_pairs_to_ids(&matched))
+                Ok((matched_pairs_to_ids(&matched), None))
             }
         }
+    }
+
+    /// Resolve a target to cgroup IDs. Process names do a DIRECT
+    /// /proc walk (not the identity cache) to find all PIDs matching
+    /// the name, then their cgroup IDs — the fix for aria2c sharing
+    /// a cgroup with alacritty (first-pid-wins lied).
+    pub(super) fn resolve_target(&mut self, target: &Target) -> Result<Vec<u32>> {
+        Ok(self.resolve_target_with_identity(target)?.0)
     }
 
     /// The multi lanes' batched resolver (NIGHT-hunt-28): resolve
@@ -150,6 +168,64 @@ impl super::Limiter {
                         .unwrap_or_default();
                     crate::output::verbose::vlog_line!(resolution_trace_line(name, &matched));
                     out.push(matched_pairs_to_ids(&matched));
+                    walked_names = true;
+                }
+            }
+        }
+        if walked_names {
+            self.identity.maybe_refresh();
+        }
+        Ok(out)
+    }
+
+    /// The batched twin that also returns each container target's
+    /// identity (night-frontier-Z3): the group lanes' apply path pins
+    /// the URI's identity word beside the writes, so the contract is
+    /// `resolve_with_identity`'s at every attach spelling. The
+    /// ProcessName/CgroupId arms carry None, the same law the single
+    /// seam owns.
+    pub(super) fn resolve_target_list_with_identity(
+        &mut self,
+        targets: &[Target],
+    ) -> Result<
+        Vec<(
+            Vec<u32>,
+            Option<crate::ebpf::identity::container::ResolvedIdentity>,
+        )>,
+    > {
+        let names: Vec<String> = targets
+            .iter()
+            .filter_map(|t| match t {
+                Target::ProcessName(n) => Some(n.clone()),
+                _ => None,
+            })
+            .collect();
+        let matched_by_name = resolve_name_set(&names);
+
+        let mut out: Vec<(
+            Vec<u32>,
+            Option<crate::ebpf::identity::container::ResolvedIdentity>,
+        )> = Vec::with_capacity(targets.len());
+        let mut walked_names = false;
+        for target in targets {
+            match target {
+                Target::CgroupId(id) => {
+                    crate::output::verbose::vlog!(
+                        "limiter",
+                        "cg:{id} targeted directly (no /proc walk)"
+                    );
+                    out.push((vec![*id], None));
+                }
+                Target::Container(c) => {
+                    out.push(crate::ebpf::identity::container::resolve_with_identity(c)?);
+                }
+                Target::ProcessName(name) => {
+                    let matched = matched_by_name
+                        .get(&name.to_lowercase())
+                        .cloned()
+                        .unwrap_or_default();
+                    crate::output::verbose::vlog_line!(resolution_trace_line(name, &matched));
+                    out.push((matched_pairs_to_ids(&matched), None));
                     walked_names = true;
                 }
             }

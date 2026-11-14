@@ -36,7 +36,10 @@
 //! host-local; `ip vrf del <name>` removes the domain whole.
 //! Resolution reads live state at apply time — the same contract the
 //! process-name lane owns; the resolved cgroup id is the durable
-//! handle, the URI is the speller.
+//! handle, the URI is the speller. The speller's own contract is
+//! verified per read (night-frontier-Z3's drift alarm: the device's
+//! ifindex pinned at attach, one read per status visit, the STALE
+//! warning where a silent corpse used to sit).
 //!
 //! Pure cores (the vrf-parent matcher) are separated from the IO
 //! wrappers (the walk, the cgroup.procs read) so every decision pins
@@ -63,11 +66,16 @@ pub(super) fn iface_cgroup_matches(path: &Path, name: &str) -> bool {
             == Some("vrf")
 }
 
-/// Resolve `iface://<name>` to the VRF domain's cgroup id. Every
-/// failure is a specific, honest error — the sibling lanes' law —
-/// because the input was a well-formed reference whose
-/// INFRASTRUCTURE answered.
-pub(super) fn resolve_iface(name: &str) -> Result<Vec<u32>> {
+/// Resolve `iface://<name>` to the VRF domain's cgroup id, plus the
+/// identity the drift alarm pins (night-frontier-Z3): the VRF
+/// device's ifindex — a recreated VRF draws a fresh index from the
+/// kernel's monotonic counter, the word one sysfs read per read
+/// re-verifies. A domain whose device is absent at attach records 0
+/// (the honest absence; the alarm reads it UNVERIFIABLE, never a
+/// false alarm). Every failure is a specific, honest error — the
+/// sibling lanes' law — because the input was a well-formed
+/// reference whose INFRASTRUCTURE answered.
+pub(super) fn resolve_iface(name: &str) -> Result<(Vec<u32>, super::ResolvedIdentity)> {
     let root = PathBuf::from("/sys/fs/cgroup");
     let dir = find_cgroup_dir(&root, &|p| iface_cgroup_matches(p, name));
     let Some(dir) = dir else {
@@ -109,12 +117,27 @@ pub(super) fn resolve_iface(name: &str) -> Result<Vec<u32>> {
     }
     let id = cgroup_id_of(&dir)
         .ok_or_else(|| anyhow!("vrf cgroup {} could not be stat()ed", dir.display()))?;
+    // The drift alarm's identity word (night-frontier-Z3): the VRF
+    // device's ifindex, best-effort — a cgroup-resolvable domain
+    // whose device is absent pins 0, the honest absence.
+    let ifindex = std::fs::read_to_string(Path::new("/sys/class/net").join(name).join("ifindex"))
+        .ok()
+        .and_then(|s| s.trim().parse::<u64>().ok())
+        .unwrap_or(0);
     crate::output::verbose::vlog!(
         "iface",
-        "iface://{name} → {} ({members} member process(es), cgroup cg:{id})",
+        "iface://{name} → {} ({members} member process(es), cgroup cg:{id}, ifindex {ifindex})",
         dir.display()
     );
-    Ok(vec![id])
+    Ok((
+        vec![id],
+        super::ResolvedIdentity {
+            uri: format!("iface://{name}"),
+            lane: "iface",
+            name: name.to_string(),
+            identity: ifindex,
+        },
+    ))
 }
 
 // NIGHT-hunt-17: pins live under the single test/ tree (cosmostrix
