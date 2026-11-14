@@ -618,7 +618,7 @@ and the ladders gained into-twins (one ladder per contract, the
 owned form its first consumer — format_bytes/format_bytes_wide/
 format_count/fit_to_width, the color wrappers' paint_in_place, the
 rate and label cells). The ranked rows, their labels, the header,
-the title core, and the grey detail trims render allocation-free;
+the title core, and the grey detail fitting render allocation-free;
 the lens pins the measured floor in the A/B harness's own test —
 164 heap events, down from 249 — with the named remainder (the
 border wrap's per-row pair, the footer's owned-Vec builders, the
