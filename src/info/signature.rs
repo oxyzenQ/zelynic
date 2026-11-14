@@ -49,7 +49,7 @@
 //!       full-life manifest is byte-identical to zylaxion's, so both
 //!       legitimately report the same `fp=` value; zejtron's manifest
 //!       is the identity clause only (46 bytes, 9174e0ce08feccba) and
-//!       cosmostrix's carries the "Cosmic Dragon" voice (64 bytes,
+//!       cosmostrix's carries the cosmic dragon voice (64 bytes,
 //!       fe0d7239f86e7c1b) — differently framed claims, not a
 //!       derivation bug. The authors layer is byte-identical
 //!       estate-wide (57 bytes), hence the shared authors fingerprint
