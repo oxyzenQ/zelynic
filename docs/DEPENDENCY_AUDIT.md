@@ -188,7 +188,7 @@ ported from cosmostrix `build.rs`:
 
 - `build.rs::format_unix_secs_as_build_time()` — pure i64 arithmetic,
   proleptic Gregorian, leap-year correct, UTC only. Emits
-  `M/D/YYYY HH:MM (UTC)` via `cargo:rustc-env=ZELYNIC_BUILD_TIME`.
+  `YYYY-MM-DD HH:MMZ` (ISO 8601) via `cargo:rustc-env=ZELYNIC_BUILD_TIME`.
 - `src/info/mod.rs::build_time()` — reads the compile-time stamp,
   degrades to `unknown` on an unreadable host clock.
 

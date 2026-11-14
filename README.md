@@ -280,7 +280,7 @@ reports its build label in the version output:
 ```bash
 $ ./target/x86_64-unknown-linux-musl/pro-native-musl/zelynic -V
 Build: local-pro-native-musl (<hash>)
-Build-time: 9/18/2026 01:30 (UTC)
+Build-time: 2026-09-18 01:30Z
 Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ) 2026
 Depth-matrix: fp=<fingerprint> status=verified anchor=b3:<blake3> layers=d0:masked-words,d1:masked-words,d2:dual-fingerprint,d3:blake3-anchor
 ```

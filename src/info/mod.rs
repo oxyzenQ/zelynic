@@ -177,7 +177,7 @@ fn version_body() -> String {
 /// zelynic: v80.2.0
 /// Per-app network rate limiter and traffic monitor for Linux. Pure eBPF. Boring and silent.
 /// Build: pro-linux-amd64-v3-musl (ad36a81)
-/// Build-time: 9/18/2026 01:30 (UTC)
+/// Build-time: 2026-09-18 01:30Z
 /// Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ) 2026
 /// Depth-matrix: fp=a60dfb6a39745f34 status=verified anchor=b3:f3a48ead... layers=d0:masked-words,d1:masked-words,d2:dual-fingerprint,d3:blake3-anchor
 /// Copyright: (c) 2026 rezky_nightky (oxyzenQ)
@@ -197,7 +197,8 @@ fn version_body() -> String {
 /// `local-`), and `local-` + the detected `linux-<arch>-<libc>`
 /// string for plain local builds (a crates.io install included). The
 /// `Build-time:` line (NIGHT-hunt-6, cosmostrix parity) is stamped by
-/// build.rs via the Hinnant civil-from-days algorithm — UTC-only, so
+/// build.rs via the Hinnant civil-from-days algorithm — ISO 8601
+/// `YYYY-MM-DD HH:MMZ` (night-pro-1, the estate-wide format), UTC-only, so
 /// no timezone database is pulled into the binary and the stamp is
 /// identical across build hosts. The `Signature:` line
 /// (NIGHT-dinner-4) is the lane-honest one-line identity from
@@ -443,34 +444,35 @@ mod tests {
 
     /// NIGHT-hunt-6 contract: the stamped build time is either the
     /// documented degraded "unknown" (host clock unreadable at build
-    /// time) or matches the Hinnant `M/D/YYYY HH:MM (UTC)` shape with
-    /// a plausible year. A malformed stamp (e.g. an accidental local-
-    /// time format with an offset suffix) fails here, not in the wild.
+    /// time) or matches the ISO 8601 `YYYY-MM-DD HH:MMZ` shape
+    /// (night-pro-1, the estate-wide format) with a plausible year.
+    /// A malformed stamp (e.g. an accidental local-time format with
+    /// an offset suffix) fails here, not in the wild.
     #[test]
-    fn build_time_stamp_shape_is_m_d_yyyy_hh_mm_utc() {
+    fn build_time_stamp_shape_is_iso8601_yyyy_mm_dd_hh_mm_z() {
         let stamp = build_time();
         if stamp == "unknown" {
             return; // degraded path, documented
         }
-        assert!(
-            stamp.ends_with(" (UTC)"),
-            "stamp must carry the (UTC) suffix: {stamp}"
-        );
-        let core = stamp.strip_suffix(" (UTC)").expect("suffix checked above");
-        // Shape: M/D/YYYY then space then HH:MM (2-digit, zero-padded).
+        assert!(stamp.ends_with('Z'), "stamp must carry the Z suffix: {stamp}");
+        let core = stamp.strip_suffix('Z').expect("suffix checked above");
+        // Shape: YYYY-MM-DD then space then HH:MM (2-digit, zero-padded).
         let (date, time) = core
             .split_once(' ')
             .unwrap_or_else(|| panic!("date and time must be space-separated: {stamp}"));
-        let date_parts: Vec<&str> = date.split('/').collect();
-        assert_eq!(date_parts.len(), 3, "date must be M/D/YYYY: {stamp}");
-        let (month, day, year) = (
+        let date_parts: Vec<&str> = date.split('-').collect();
+        assert_eq!(date_parts.len(), 3, "date must be YYYY-MM-DD: {stamp}");
+        let (year, month, day) = (
             date_parts[0].parse::<u32>().unwrap_or(0),
             date_parts[1].parse::<u32>().unwrap_or(0),
             date_parts[2].parse::<u32>().unwrap_or(0),
         );
+        assert_eq!(date_parts[0].len(), 4, "year must be 4 digits: {stamp}");
+        assert_eq!(date_parts[1].len(), 2, "month must be 2 digits: {stamp}");
+        assert_eq!(date_parts[2].len(), 2, "day must be 2 digits: {stamp}");
+        assert!(year >= 2026, "year implausibly old: {stamp}");
         assert!((1..=12).contains(&month), "month out of range: {stamp}");
         assert!((1..=31).contains(&day), "day out of range: {stamp}");
-        assert!(year >= 2026, "year implausibly old: {stamp}");
         // Time is HH:MM — two 2-digit fields, hour and minute in range.
         let time_parts: Vec<&str> = time.split(':').collect();
         assert_eq!(time_parts.len(), 2, "time must be HH:MM: {stamp}");
