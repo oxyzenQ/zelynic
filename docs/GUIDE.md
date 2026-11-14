@@ -104,7 +104,13 @@ display prefix round-trips), or a workload URI
 (`docker://nginx`, `netns://sandbox`, `iface://red`). A `::`-separated list is the
 group lane — the
 separator is doubled because a single `:` already lives inside targets
-(`cg:`, `docker://`, `netns://`, `iface://`).
+(`cg:`, `docker://`, `netns://`, `iface://`). The URI lanes verify
+their own reference after the apply (the identity drift alarm): the
+namespace handle's inode / VRF device's ifindex is pinned at attach
+and re-checked with one stat() on every `status` visit — a deleted
+and recreated namespace reads `STALE` there ("the watch points at a
+corpse") instead of silently enforcing against the old cgroup; the
+fix is printed with it (re-apply, or unstrict the ghost row).
 
 ### The numbers, honestly
 

@@ -218,6 +218,13 @@ first-time reader, and this page pays it once, up front.
   honest one-number window, and the per-socket rtt pairs are the
   answer. The p99 read is a bucket lower bound, so the ratio is
   one too — the `>=` prefix admits it everywhere it prints.
+- **Identity drift alarm**: the container URI lanes' pinned
+  identity (the netns handle's nsfs inode, the VRF device's
+  ifindex — night-frontier-Z3, INNOVATIONS.md #20), re-verified
+  with one stat() on every `status` read. A recreated namespace or
+  VRF reads STALE ("the watch points at a corpse") instead of
+  silently enforcing against the old cgroup; the pin lives under
+  `/run/zelynic/identity/` and dies with the policy it describes.
 - **Doctor**: `zelynic doctor` — the kernel/dist capability check;
   reports the build flavor (full-life / half-life, see
   [FAQ.md](FAQ.md)).

@@ -137,18 +137,54 @@ pub fn parse_container(s: &str) -> Option<ContainerRef> {
     None
 }
 
+/// The identity a lane pinned at resolution (night-frontier-Z3, the
+/// drift alarm's capture half) — the ONE fact a later read verifies
+/// with one stat(): the netns lane's handle inode, the iface lane's
+/// device ifindex. Docker/k8s carry no such word (their resolution
+/// is already a live-state walk), so their arm resolves to None.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedIdentity {
+    /// The display URI, the round-trip form `ContainerRef::display`.
+    pub uri: String,
+    /// The lane tag (`netns` / `iface`) — the drift alarm's file and
+    /// verification dispatch key.
+    pub lane: &'static str,
+    /// The lane's name.
+    pub name: String,
+    /// The identity word: the nsfs inode or the ifindex (0 = the
+    /// honest absence, an iface with no device at attach).
+    pub identity: u64,
+}
+
+/// Resolve a container target to its cgroup ids AND the identity the
+/// drift alarm pins (night-frontier-Z3). Every failure is a
+/// specific, honest error — "socket not found", "no container named
+/// X", "no cgroup directory" — never the generic no-match, because
+/// the input was a well-formed reference whose INFRASTRUCTURE
+/// answered.
+pub fn resolve_with_identity(c: &ContainerRef) -> Result<(Vec<u32>, Option<ResolvedIdentity>)> {
+    match c {
+        ContainerRef::Docker { name } => Ok((docker::resolve_docker(name)?, None)),
+        ContainerRef::K8s { namespace, pod } => Ok((resolve_k8s(namespace, pod)?, None)),
+        ContainerRef::Netns { name } => {
+            let (ids, identity) = netns::resolve_netns(name)?;
+            Ok((ids, Some(identity)))
+        }
+        ContainerRef::Iface { name } => {
+            let (ids, identity) = iface::resolve_iface(name)?;
+            Ok((ids, Some(identity)))
+        }
+    }
+}
+
 /// Resolve a container target to its cgroup ids (one: a container
-/// is one workload cgroup). Every failure is a specific, honest
+/// is one workload cgroup) — the pre-Z3 signature, every existing
+/// caller's path unchanged. Every failure is a specific, honest
 /// error — "socket not found", "no container named X", "no cgroup
 /// directory" — never the generic no-match, because the input was
 /// a well-formed reference whose INFRASTRUCTURE answered.
 pub fn resolve(c: &ContainerRef) -> Result<Vec<u32>> {
-    match c {
-        ContainerRef::Docker { name } => docker::resolve_docker(name),
-        ContainerRef::K8s { namespace, pod } => resolve_k8s(namespace, pod),
-        ContainerRef::Netns { name } => netns::resolve_netns(name),
-        ContainerRef::Iface { name } => iface::resolve_iface(name),
-    }
+    Ok(resolve_with_identity(c)?.0)
 }
 
 // ━━ k8s ━━

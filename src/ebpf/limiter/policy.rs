@@ -72,7 +72,7 @@ impl super::Limiter {
             );
             return Ok(0);
         }
-        let cgroup_ids = self.resolve_target(target)?;
+        let (cgroup_ids, identity) = self.resolve_target_with_identity(target)?;
         if cgroup_ids.is_empty() {
             return Ok(0);
         }
@@ -157,6 +157,18 @@ impl super::Limiter {
         // stale — the walk sees only the live map, so the generation
         // bump makes the addition visible; once per invocation.
         self.mmspa_memo_invalidate_best_effort();
+
+        // night-frontier-Z3 (the drift alarm's attach mouth): the
+        // container lane's identity pins beside the writes it
+        // describes — a later read re-verifies it with one stat().
+        // Best-effort by contract; a same-URI pin whose identity
+        // drifted warns here, the re-apply healing the ghost also
+        // names it.
+        if let (Some(ident), Some(cid)) = (&identity, cgroup_ids.first()) {
+            crate::ebpf::identity::drift::attach_identity_pin(
+                &crate::ebpf::identity::drift::IdentityPin::from_resolution(ident, *cid),
+            );
+        }
 
         Ok(applied)
     }

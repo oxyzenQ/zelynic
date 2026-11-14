@@ -166,7 +166,28 @@ impl super::Limiter {
         // resolve_target loop was O(names x /proc), the residual
         // hunt-27 named (a thousand-name multi walked /proc a
         // thousand times before the first map write).
-        let ids_per_target = self.resolve_target_list(targets)?;
+        // night-frontier-Z3: the batched seam returns each container
+        // target's identity beside its ids — the group lanes pin the
+        // same word the single lane does.
+        let ids_per_target = self.resolve_target_list_with_identity(targets)?;
+        // night-frontier-Z3: the attach-mouth pins, captured from the
+        // pre-flight resolution before the id lists feed the group
+        // write — one pin per container member, the uri's identity
+        // beside the cgroup root the apply is about to write.
+        let attach_pins: Vec<crate::ebpf::identity::drift::IdentityPin> = ids_per_target
+            .iter()
+            .zip(targets.iter())
+            .filter_map(|((ids, identity), target)| match (target, identity) {
+                (Target::Container(_), Some(ident)) => ids.first().map(|cid| {
+                    crate::ebpf::identity::drift::IdentityPin::from_resolution(ident, *cid)
+                }),
+                _ => None,
+            })
+            .collect();
+        let ids_per_target: Vec<Vec<u32>> = ids_per_target
+            .into_iter()
+            .map(|(ids, _identity)| ids)
+            .collect();
         // night-total-hardening-1: the liveness gate — a DIRECT
         // cgroup-id segment the cgroupfs census proves absent is a
         // MISS exactly like an unknown name (its policy could never
@@ -280,6 +301,15 @@ impl super::Limiter {
         // collector (reclaim.rs owns the why).
         self.sweep_census_orphans();
         self.mmspa_memo_invalidate_best_effort();
+
+        // night-frontier-Z3 (the drift alarm's attach mouth, the group
+        // lanes): every container member's pin lands beside the writes
+        // it describes — the same contract the single lane's tail
+        // owns. The pins were captured in the pre-flight resolution
+        // (the resolve the writes already paid).
+        for pin in &attach_pins {
+            crate::ebpf::identity::drift::attach_identity_pin(pin);
+        }
 
         if crate::output::verbose::enabled() {
             for line in group_apply_lines(group_id, rates, all_cgroup_ids.len()) {

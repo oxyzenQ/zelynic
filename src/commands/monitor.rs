@@ -90,6 +90,30 @@ pub fn handle_status(json: bool) -> Result<()> {
         limiter.sweep_census_orphans();
     }
 
+    // night-frontier-Z3 (the drift alarm's read mouth): the visit
+    // the owner uses to CHECK state is the visit that verifies the
+    // container lanes' pinned identities — one stat() per pin, the
+    // STALE warning where a silent corpse used to sit, a ghost pin
+    // (no policy behind it) dropped by the same law the census
+    // sweeps own. Best-effort: a failed policy read skips the alarm
+    // (a warning lane never fails the visit; the render below owns
+    // the read-failure verdict), and the warnings ride stderr so the
+    // frame and the JSON contract on stdout stay byte-stable.
+    {
+        use crate::ebpf::limiter::Direction;
+        if let (Ok(dl), Ok(ul)) = (
+            limiter.read_policies_public(Direction::Download),
+            limiter.read_policies_public(Direction::Upload),
+        ) {
+            let live: std::collections::HashSet<u32> = dl
+                .iter()
+                .map(|(id, _)| *id)
+                .chain(ul.iter().map(|(id, _)| *id))
+                .collect();
+            crate::ebpf::identity::drift::status_visit(&live);
+        }
+    }
+
     if json {
         limiter.print_status_json()?;
     } else {

@@ -35,7 +35,15 @@ impl super::Limiter {
     /// entries — see [`Self::reclaim_cgroup_state`].
     pub fn unstrict(&mut self, target: &Target) -> Result<usize> {
         let cgroup_ids = self.resolve_target(target)?;
-        self.remove_ids(&cgroup_ids)
+        let removed = self.remove_ids(&cgroup_ids)?;
+        // night-frontier-Z3: the identity pin dies with the policy it
+        // describes — the by-URI sweep takes the recreated-identity
+        // case (the pin's cgroup id differs from the current
+        // resolution, so only the URI matches).
+        if let Target::Container(c) = target {
+            crate::ebpf::identity::drift::drop_identity_pin_by_uri(&c.display());
+        }
+        Ok(removed)
     }
 
     /// NIGHT-hunt-29 (hunt-28's named shard, owner-called): the
@@ -67,6 +75,12 @@ impl super::Limiter {
             let n = self.remove_ids(&ids)?;
             if n == 0 {
                 no_limits.push(target.label());
+            }
+            // night-frontier-Z3: the container member's identity pin
+            // dies with the removal, the same by-URI sweep the single
+            // lane owns.
+            if let Target::Container(c) = target {
+                crate::ebpf::identity::drift::drop_identity_pin_by_uri(&c.display());
             }
             removed += n;
         }
@@ -186,6 +200,12 @@ impl super::Limiter {
         // in one word so the re-walk cost is paid once, not per
         // packet, per leaf.
         self.mmspa_memo_invalidate_best_effort();
+
+        // night-frontier-Z3: the identity pins keyed by the removed
+        // cgroups die here — every spelling that resolves to the
+        // cgroup (cg:, name, URI) drops its pin through the same
+        // sweep, best-effort like every teardown rider.
+        crate::ebpf::identity::drift::drop_identity_pins_for_cgroups(cgroup_ids);
 
         Ok(removed)
     }

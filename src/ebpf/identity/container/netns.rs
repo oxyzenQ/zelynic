@@ -47,7 +47,10 @@
 //! host-local and the nsfs inode churns across reboots — the URI
 //! resolves against LIVE state at apply time, the same contract
 //! the process-name lane owns; the resolved cgroup id is the
-//! durable handle, the URI is the speller.
+//! durable handle, the URI is the speller. The speller's own
+//! contract is verified per read (night-frontier-Z3's drift alarm:
+//! the inode pinned at attach, one stat() per status visit, the
+//! STALE warning where a silent corpse used to sit).
 //!
 //! Pure cores (the ns-link inode parser, the verdict reduction)
 //! are separated from the IO wrappers (the handle stat, the /proc
@@ -142,10 +145,13 @@ fn handle_candidates(name: &str) -> [PathBuf; 2] {
 }
 
 /// Resolve `netns://<name>` to the workload cgroup's id living in
-/// the named namespace. Every failure is a specific, honest error
-/// — the sibling lanes' law — because the input was a well-formed
-/// reference whose INFRASTRUCTURE answered.
-pub(super) fn resolve_netns(name: &str) -> Result<Vec<u32>> {
+/// the named namespace, plus the identity the drift alarm pins
+/// (night-frontier-Z3): the handle's nsfs inode, the word one stat()
+/// per read re-verifies — captured from the stat the resolution
+/// already paid, zero extra syscalls. Every failure is a specific,
+/// honest error — the sibling lanes' law — because the input was a
+/// well-formed reference whose INFRASTRUCTURE answered.
+pub(super) fn resolve_netns(name: &str) -> Result<(Vec<u32>, super::ResolvedIdentity)> {
     let handle = handle_candidates(name)
         .into_iter()
         .find(|p| p.exists())
@@ -229,7 +235,15 @@ pub(super) fn resolve_netns(name: &str) -> Result<Vec<u32>> {
                 "netns",
                 "netns://{name} → {members} member process(es) (cgroup cg:{id})"
             );
-            Ok(vec![id])
+            Ok((
+                vec![id],
+                super::ResolvedIdentity {
+                    uri: format!("netns://{name}"),
+                    lane: "netns",
+                    name: name.to_string(),
+                    identity: ns_ino,
+                },
+            ))
         }
         NetnsVerdict::Empty => bail!(
             "namespace '{name}' exists but no process lives in it — nothing to limit \

@@ -61,6 +61,12 @@ pub mod pathwalk;
 // NAME a cgroup.
 pub mod container;
 
+// night-frontier-Z3 (Dive 4 -1000m): the identity drift alarm — the
+// container lanes' pinned identity (netns inode / ifindex),
+// re-verified with one stat() per read, the STALE warning where a
+// silent corpse used to sit.
+pub mod drift;
+
 // NIGHT-cybersecurity-2: sanitize_comm moved up to the always-compiled
 // output layer (src/output/sanitize.rs) so the update check — which
 // runs in BOTH feature graphs — reuses the one canonical terminal

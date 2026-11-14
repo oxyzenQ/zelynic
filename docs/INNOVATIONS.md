@@ -510,6 +510,61 @@ fleet the current rate collapses); and the histogram half can lag
 its exact words by an in-flight sample (the row doc's own
 coarseness — a zero min word reads as the honest absent bracket).
 
+**20. The identity drift alarm — the URI's contract, verified per
+read** (`src/ebpf/identity/drift.rs`, night-frontier-Z3,
+userspace-only — no map, no kernel word, no schema bump). The
+container lanes' documented contract ("the resolved cgroup id is
+the durable handle, the URI is the speller") carried a blind spot:
+the URI resolved ONCE, at apply time, and nothing re-checked the
+handle after. `ip netns del x && ip netns add x` recreates the
+namespace — a new nsfs inode, a new workload cgroup — and the
+pinned policy keeps enforcing against the OLD cgroup id while
+`status` shows a live-looking row; a fresh apply with the same URI
+silently writes a SECOND policy; kernfs inode recycling can even
+point the old row at an unrelated cgroup. The watch pointed at a
+corpse, and nothing said so. The alarm pins the lane's identity AT
+ATTACH — the netns handle's nsfs inode (captured from the stat the
+resolution already paid, zero extra syscalls), the iface VRF
+device's ifindex (a recreated VRF draws a fresh index from the
+kernel's monotonic counter; a domain with no device at attach
+records the 0 sentinel, the honest absence) — into
+`/run/zelynic/identity/` (tmpfs, one line-format file per URI; the
+volatility class the nsfs inode itself owns, the same class the BPF
+pins ride) and re-verifies with ONE stat() per read. Three mouths,
+all best-effort (a warning lane never fails the visit that carries
+it): ATTACH re-pins beside the writes and warns when the same
+URI's identity drifted since the last apply — the re-apply that
+heals the ghost also names it; READ (`zelynic status`) prints the
+STALE warning — handle gone: "STALE: netns://x is gone — policy
+cg:N still enforces against the dead namespace (the watch points
+at a corpse)"; changed word: "STALE: netns://x was recreated
+(identity A -> B) — policy cg:N enforces against the OLD
+namespace" — each naming the two honest doors (re-apply to follow
+the new identity, or `zelynic u cg:N` to remove the ghost row),
+the warnings riding stderr so the status frame and the JSON
+contract on stdout stay byte-stable; TEARDOWN drops the pin with
+the policy it describes — by URI (the recreated-identity case,
+where the pin's cgroup id differs from the current resolution) or
+by cgroup id (any spelling that resolves to it) — and
+`unpin_all_bpf` sweeps the directory beside the retired
+persistence pair's state file. A pin whose cgroup no longer holds
+a policy is residue, not a watch — dropped silently, the census
+sweeps' own law. Honest limits: an iface pin with the 0 sentinel
+reads UNVERIFIABLE (honest silence, never a false alarm) while the
+device stays absent, and a fresh ifindex the day it appears reads
+recreated — appearing IS a change; the alarm verifies the identity
+word only — the workload MOVED inside an unchanged namespace (a
+new cgroup, same inode) is the re-apply's own act, not a drift the
+alarm can see from the handle (the cgroup-id pin updates silently
+on that path). The verdict reduction, the file-name law, the line
+format, and the wording are pinned in
+`test/ebpf/identity/drift_tests.rs` (the tempdir-driven IO round
+trips included — the unpin_dir discipline, every production
+wrapper a thin IDENTITY_DIR call). Dive 4's -4000m rung
+(resolution transparency — the resolution CHAIN printed, not just
+the answer) stays deferred by verdict; Dive 3's story family is
+deferred whole (see Deferred by verdict).
+
 ## The Quota Saver — the Workload-Conditional Claim
 
 The fourteenth, fifteenth, and sixteenth entries above (RECWN, ECN,
@@ -692,6 +747,36 @@ purpose; a silent no is the only dishonest one.
   without privilege is already honest (the resolver tree proves it),
   but enforcement without privilege changes the security model this
   tool ships with. Reopens when: both conditions hold.
+
+- **Dive 3's sk_storage story family — socket CV, phase FSM, story
+  export (night-frontier-Z3).** The ask: sk_storage carrying the
+  socket's biography (birth timestamp, observer-seen
+  retransmissions, the last-16-sample ring), a kernel-side phase
+  byte (ramp → steady → decay → bad, inferred from pure packet
+  metrics, never kernel-internal reads), and the story export — one
+  socket printed as a timeline ("born → ramped 40ms → steady
+  12Mbps → degraded@T+3s → recovered → closed": what happened on
+  THIS socket, in order). Deferred whole by verdict: the mechanics
+  are compositions of lanes the tree already carries (the
+  sk_storage hint family of schema v31/v32, the rate rings, the
+  depth histogram), but every consumer they would serve is a socket
+  REPORT rewrite (night-engrave) that has not been commissioned —
+  state without a story-reader is cost without a customer. Reopens
+  when: the owner touches the socket report again — Stage 1 (the
+  socket CV value struct) climbs to NOW for free the day that
+  report is a real surface.
+
+- **Resolution transparency (`--resolve`, Dive 4's -4000m rung).**
+  The ask: `zelynic targets netns://x` printing the resolution
+  CHAIN — URI → netns inode → cgroup path → pinned programs — the
+  target not just answered but explained. Deferred by verdict: the
+  substance already exists (every resolver failure names its
+  discovery tip; the drift alarm, #20, verifies the identity the
+  chain pinned) and what remains is a read-only verb plumbing those
+  facts into one printout — a convenience surface, not a capability
+  gap. Reopens when: an operator surface (a dashboard, a support
+  flow) needs the chain as text more than the estate needs its next
+  enforcement feature.
 
 ## Reading order for a new maintainer
 
