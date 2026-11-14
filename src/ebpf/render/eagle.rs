@@ -85,65 +85,6 @@ const RANK_SPAN: usize = 4;
 /// see render/targets.rs for the two-home contract.
 use super::targets::resolve_targets;
 
-/// Render one eagle-eyes frame (NIGHT-improve-2: line-building — the
-/// caller submits the vector to the diff-based screen engine, which
-/// emits only the rows that changed).
-///
-/// `tokens` is the parsed positional TARGETS spec (empty = watch
-/// all). Resolution runs per frame against the LIVE identity map,
-/// so an app started mid-session appears on the next refresh — the
-/// monitor follows reality, no restart. A single token resolving to
-/// exactly one cgroup switches to the deep focus view (the old
-/// `observe --cgroup` depth, now autodetected). `interval` is the
-/// configured cadence (the status line's identity); `span` is the
-/// MEASURED poll-to-poll span (NIGHT-lts-3): the DOWNLOAD and
-/// UPLOAD columns report `delta / span` — the beat scheduler fires
-/// on the first 50ms wake past the cadence, so the honest
-/// denominator is the span the counters actually accumulated over
-/// (nominal division overstated every rate, and doubled the
-/// recovery spike after a transient map-read error).
-///
-/// `session` is the monitor's memory (NIGHT-boost-5): each frame's
-/// deltas fold in FIRST, then the table renders from the accumulated
-/// leaderboard — ranking by session total, rows persisting across
-/// quiet frames, and the TOTAL column carrying the accumulated
-/// figure. Since NIGHT-boost-14 the frame is pinned to the full
-/// terminal height with the grip footer near the bottom. `uptime`
-/// (NIGHT-boost-17; folded into the census row by NIGHT-engrave-1):
-/// the session age, riding the total row in every tier — and, since
-/// NIGHT-engrave-6, dividing the footer speed pair's AVG legs; the
-/// session's watched-set peaks (the pair's MAX figures) fold in with
-/// the same frame's deltas.
-///
-/// `deep` (night-netrunner-4, the netrunner-3 design's section 4.3):
-/// the --deep figure family — one grey deep line under every ranked
-/// row (the hungriest endpoint's rtt ± jitter and the window's
-/// retransmit share, or the protocol tag), the deep suffixes on the
-/// focus view's endpoint lines, and the Full-tier footer legend. The
-/// figures ride the walk's own data; the flag gates DISPLAY, never
-/// the datapath.
-#[allow(clippy::too_many_arguments)]
-pub fn render_eagle_eyes(
-    lines: &mut Vec<String>,
-    summary: &CounterSummary,
-    tokens: &[Target],
-    identity: &IdentityMap,
-    conns: Option<&ConnectionMap>,
-    interval: Duration,
-    span: Duration,
-    session: &mut SessionState,
-    baseline: &BaselineLane,
-    uptime: Duration,
-    scroll: &mut ScrollState,
-    deep: bool,
-) {
-    let geo = FrameGeometry::probe();
-    render_eagle_eyes_at(
-        lines, summary, tokens, identity, conns, interval, span, session, baseline, uptime, geo,
-        scroll, deep,
-    );
-}
-
 /// Size-injectable core of [`render_eagle_eyes`] (the emit/emit_at
 /// discipline of the diff engine): contract pins drive deterministic
 /// sizes, so the adaptive ladder and the pinned footer are testable.
@@ -403,16 +344,10 @@ pub(super) fn render_eagle_eyes_at(
                 Vec::new()
             };
             for line in &mut details {
-                // The pooled trim-and-grey (night-frontier-Z4): the
-                // fit walks in place on a warm scratch, the grey
-                // paints in place — the same bytes grey(&truncate_
-                // label(..)) returned, minus the two per-line
-                // Strings.
-                let mut fitted = super::pooled_line();
-                fitted.push_str(line);
-                super::fit_in_place(&mut fitted, geo.width);
-                crate::output::paint_in_place(&mut fitted, crate::output::grey_open());
-                *line = fitted;
+                // The pooled trim-and-grey (night-frontier-Z4): one
+                // warm scratch per line, the same bytes the old
+                // chain returned, minus its Strings.
+                super::grey_trim(line, None, geo.width);
             }
             // The deep line (night-netrunner-4, --deep): ONE grey
             // line after the detail tree — the hungriest endpoint's
@@ -435,17 +370,9 @@ pub(super) fn render_eagle_eyes_at(
             };
             if let Some(line) = deep_line.as_mut() {
                 // The pooled indent-trim-grey (night-frontier-Z4):
-                // the indent, the fit, and the grey all ride one
-                // warm scratch — the same bytes the old chain
-                // returned, minus its three Strings.
-                let mut fitted = super::pooled_line();
-                {
-                    use std::fmt::Write as _;
-                    let _ = write!(fitted, "    {line}");
-                }
-                super::fit_in_place(&mut fitted, geo.width);
-                crate::output::paint_in_place(&mut fitted, crate::output::grey_open());
-                *line = fitted;
+                // the indent rides the same scratch, the same bytes
+                // the old chain returned, minus its Strings.
+                super::grey_trim(line, Some("    "), geo.width);
             }
             let need = 1 + details.len() + usize::from(deep_line.is_some());
             if used + need > row_room {
