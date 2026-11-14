@@ -240,3 +240,67 @@ fn sweep_takes_the_whole_directory() {
     // An empty sweep is honest zero, twice (idempotent).
     assert_eq!(sweep_identity_dir_in(&dir), 0);
 }
+
+// ── the mouth order (night-depth-hardening-1) ━━━━━━━━━━━━━━━━━━━━
+
+#[test]
+fn read_returns_pins_in_uri_order_regardless_of_readdir_order() {
+    let dir = tempdir();
+    // Written in a deliberately shuffled order; readdir owes no
+    // order at all, so the read's uri-ascending list is the pins'
+    // own total order, never the filesystem's.
+    for (lane, name) in [
+        (IFACE_LANE, "vrf-b"),
+        (NETNS_LANE, "alpha"),
+        (IFACE_LANE, "vrf-a"),
+        (NETNS_LANE, "zulu"),
+    ] {
+        let pin = IdentityPin {
+            uri: format!("{lane}://{name}"),
+            lane: lane.to_string(),
+            name: name.to_string(),
+            cgroup_id: 7,
+            identity: 5,
+        };
+        write_identity_pin_in(&dir, &pin).expect("the write lands");
+    }
+    let uris: Vec<String> = read_identity_pins_in(&dir)
+        .into_iter()
+        .map(|p| p.uri)
+        .collect();
+    assert_eq!(
+        uris,
+        [
+            "iface://vrf-a",
+            "iface://vrf-b",
+            "netns://alpha",
+            "netns://zulu"
+        ]
+    );
+    fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn verify_reports_drifted_pins_in_uri_order() {
+    let dir = tempdir();
+    // Three live watches written shuffled; the lane probes find no
+    // /sys/class/net here, so each recorded identity reads Removed —
+    // the corpse case — and the STALE lines' order must be
+    // uri-ascending, the mouths' total order.
+    for name in ["vrf-c", "vrf-a", "vrf-b"] {
+        let pin = IdentityPin {
+            uri: format!("iface://{name}"),
+            lane: IFACE_LANE.to_string(),
+            name: name.to_string(),
+            cgroup_id: 11,
+            identity: 5,
+        };
+        write_identity_pin_in(&dir, &pin).expect("the write lands");
+    }
+    let live: HashSet<u32> = [11u32].into_iter().collect();
+    let drifted = verify_identity_pins_in(&dir, &live);
+    let uris: Vec<&str> = drifted.iter().map(|(p, _)| p.uri.as_str()).collect();
+    assert_eq!(uris, ["iface://vrf-a", "iface://vrf-b", "iface://vrf-c"]);
+    assert!(drifted.iter().all(|(_, v)| *v == DriftVerdict::Removed));
+    fs::remove_dir_all(&dir).ok();
+}

@@ -235,7 +235,8 @@ pub(super) fn pod_uid_matches(
 /// log dirs (a restarted pod, the old dir not yet GC'd) are
 /// disambiguated by the cgroup tree itself: only the LIVE pod owns
 /// a `pod<uid>` directory, so every candidate uid is probed and a
-/// single survivor wins; a tie stays an honest ambiguity.
+/// single survivor wins; a tie stays an honest ambiguity (its uid
+/// list prints uid-ascending, the walk order absorbed).
 fn resolve_k8s(namespace: &str, pod: &str) -> Result<Vec<u32>> {
     let log_root = Path::new("/var/log/pods");
     let entries = std::fs::read_dir(log_root).map_err(|_| {
@@ -250,7 +251,12 @@ fn resolve_k8s(namespace: &str, pod: &str) -> Result<Vec<u32>> {
             dirs.push(parsed);
         }
     }
-    let uids = pod_uid_matches(&dirs, namespace, pod);
+    let mut uids = pod_uid_matches(&dirs, namespace, pod);
+    // The walk order is readdir's, contractual to nobody: the uid
+    // list is sorted so the ambiguity error's `join(", ")` prints
+    // uid-ascending on every distro — the mouth-order law the drift
+    // alarm's pin list already rides (night-depth-hardening-1).
+    uids.sort();
     if uids.is_empty() {
         bail!(
             "no pod '{pod}' in namespace '{namespace}' under /var/log/pods\n  \
