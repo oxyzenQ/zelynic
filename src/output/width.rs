@@ -193,6 +193,8 @@ pub fn pad_to_width(s: &str, w: usize) -> String {
 /// The pooled twin of [`fit_to_width`]: appends the same bytes to
 /// `out` (verbatim on the fast path, the boundary walk plus the
 /// ellipsis on the truncation path).
+// Same ebpf gate as the frame tree — its only callers.
+#[cfg(feature = "ebpf")]
 pub fn fit_to_width_into(s: &str, w: usize, out: &mut String) {
     if display_width(s) <= w {
         out.push_str(s);

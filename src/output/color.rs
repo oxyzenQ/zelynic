@@ -502,6 +502,8 @@ pub fn grey(msg: &str) -> String {
 /// Paint `msg` in place: `open` opens at byte 0, the reset closes at
 /// the end; a no-op when `open` is empty (the plain-text capability —
 /// the wrappers' exact bytes, minus the per-call String).
+// Same ebpf gate as [`warn`] — its only callers ride the frame tree.
+#[cfg(feature = "ebpf")]
 pub fn paint_in_place(msg: &mut String, open: &str) {
     if !open.is_empty() {
         msg.insert_str(0, open);
