@@ -61,13 +61,12 @@ use super::footer::{FooterCensus, TOP_CHROME, build_grip_footer, grid_line, plan
 use super::scroll::{ScrollState, Section, scroll_note};
 use super::{
     FrameGeometry, SessionState, detail_lines, focus::board_rows, focus::render_eagle_focus,
-    plan_eagle_columns, rate_bps, title_bar, truncate_label,
+    plan_eagle_columns, pooled_line, rate_bps, title_bar,
 };
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::Target;
 use crate::ebpf::loader::CounterSummary;
-use crate::output::grey;
 
 /// Columns the rank furniture occupies between the shared gutter
 /// and the label column: the two-wide rank cell plus its two-wide
@@ -225,17 +224,24 @@ pub(super) fn render_eagle_eyes_at(
     // NIGHT-engrave-3: identity only — the top-right key hint
     // retired with the census (the legend's only home is the
     // footer's status line, which is why it rides every tier).
-    let title_core = if tokens.is_empty() {
-        "zelynic eagle-eyes".to_string()
-    } else {
-        let n = ids.len();
-        let plural = if n == 1 { "" } else { "s" };
-        format!("zelynic eagle-eyes — {n} target{plural}")
-    };
+    // The pooled title scratch (night-frontier-Z4): the same core
+    // text, written into a warm String instead of allocating one.
+    let mut title_core = pooled_line();
+    {
+        use std::fmt::Write as _;
+        if tokens.is_empty() {
+            let _ = write!(title_core, "zelynic eagle-eyes");
+        } else {
+            let n = ids.len();
+            let plural = if n == 1 { "" } else { "s" };
+            let _ = write!(title_core, "zelynic eagle-eyes — {n} target{plural}");
+        }
+    }
     // NIGHT-engrave-8: the bar composes at the FRAME's width —
     // one column inside the terminal — so wrap's leading inset
     // lands the corners one column from each edge.
     lines.push(title_bar(&title_core, border::frame_width(full_width)));
+    super::recycle_line(title_core);
 
     // The breathing gap (NIGHT-boost-14): one blank line of air —
     // the header used to sit too near the brand.
@@ -244,9 +250,10 @@ pub(super) fn render_eagle_eyes_at(
     // A watched name with no live cgroup says so — the empty-table
     // lie is exactly what the discovery stage must not tell.
     for name in &unresolved {
-        lines.push(format!(
-            "   no app named '{name}' — see 'zelynic list-apps'"
-        ));
+        super::push_pooled(
+            lines,
+            format_args!("   no app named '{name}' — see 'zelynic list-apps'"),
+        );
     }
 
     // The leaderboard: session-accumulated per cgroup, consumption-
@@ -267,9 +274,12 @@ pub(super) fn render_eagle_eyes_at(
     // pinned footer; once traffic HAS been seen this branch is dead
     // (the board holds every live row; transients retire).
     if session.is_empty() {
-        lines.push("   waiting for traffic…".to_string());
+        super::push_pooled(lines, format_args!("   waiting for traffic…"));
     } else if !tokens.is_empty() && board.is_empty() {
-        lines.push("   no traffic for the watched targets yet".to_string());
+        super::push_pooled(
+            lines,
+            format_args!("   no traffic for the watched targets yet"),
+        );
     }
 
     // Footer planning FIRST (NIGHT-boost-14): the pinned footer is
@@ -393,7 +403,16 @@ pub(super) fn render_eagle_eyes_at(
                 Vec::new()
             };
             for line in &mut details {
-                *line = grey(&truncate_label(line, geo.width));
+                // The pooled trim-and-grey (night-frontier-Z4): the
+                // fit walks in place on a warm scratch, the grey
+                // paints in place — the same bytes grey(&truncate_
+                // label(..)) returned, minus the two per-line
+                // Strings.
+                let mut fitted = super::pooled_line();
+                fitted.push_str(line);
+                super::fit_in_place(&mut fitted, geo.width);
+                crate::output::paint_in_place(&mut fitted, crate::output::grey_open());
+                *line = fitted;
             }
             // The deep line (night-netrunner-4, --deep): ONE grey
             // line after the detail tree — the hungriest endpoint's
@@ -415,7 +434,18 @@ pub(super) fn render_eagle_eyes_at(
                 None
             };
             if let Some(line) = deep_line.as_mut() {
-                *line = grey(&truncate_label(&format!("    {line}"), geo.width));
+                // The pooled indent-trim-grey (night-frontier-Z4):
+                // the indent, the fit, and the grey all ride one
+                // warm scratch — the same bytes the old chain
+                // returned, minus its three Strings.
+                let mut fitted = super::pooled_line();
+                {
+                    use std::fmt::Write as _;
+                    let _ = write!(fitted, "    {line}");
+                }
+                super::fit_in_place(&mut fitted, geo.width);
+                crate::output::paint_in_place(&mut fitted, crate::output::grey_open());
+                *line = fitted;
             }
             let need = 1 + details.len() + usize::from(deep_line.is_some());
             if used + need > row_room {
@@ -490,7 +520,15 @@ pub(super) fn render_eagle_eyes_at(
             if emitted > 0 && lines.len() >= table_floor {
                 lines.pop();
             }
-            lines.push(format!("   {}", grey(&note)));
+            // The pooled grey note (night-frontier-Z4): the leading
+            // spaces ride OUTSIDE the paint (the same bytes the old
+            // format!("   {}", grey(&note)) produced), the grey
+            // paints onto its own warm scratch.
+            let mut greyed = super::pooled_line();
+            greyed.push_str(&note);
+            crate::output::paint_in_place(&mut greyed, crate::output::grey_open());
+            super::push_pooled(lines, format_args!("   {greyed}"));
+            super::recycle_line(greyed);
         }
     }
 

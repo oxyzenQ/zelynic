@@ -83,7 +83,7 @@ pub(crate) use color::{ColorCapability, capability};
 // synopses paint it in every build flavor (half-life included).
 pub use color::grey;
 #[cfg(feature = "ebpf")] // champion + warn tiers live under the eagle-eyes graph
-pub use color::{hot, warn};
+pub use color::warn;
 pub use color::{parse_color_mode, set_forced_capability};
 
 // ── Broken-pipe-safe println/eprintln (cosmostrix contract) ────────────────
@@ -279,10 +279,12 @@ pub(crate) mod spinner;
 pub(crate) use spinner::Spinner;
 
 #[cfg(feature = "ebpf")]
+pub use color::{brand_open, grey_open, hot_open, ok_open, paint_in_place, warn_open};
+#[cfg(feature = "ebpf")]
 pub use labeled::eprintln_warn_labeled;
 pub use sanitize::sanitize_comm;
 #[cfg(feature = "ebpf")]
 pub use width::{
     char_width, colored_display_width, display_width, fit_colored_to_width, fit_to_width,
-    pad_colored_to_width, pad_to_width,
+    fit_to_width_into, pad_colored_to_width, pad_to_width,
 };

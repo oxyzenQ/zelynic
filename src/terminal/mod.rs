@@ -343,7 +343,13 @@ fn run_loop<F: FnMut(&mut Vec<String>, InputAction)>(
         let force = geo != last_geo || theme_switched || bg_switched || scrolled;
         match next_beat(last_render, last_guard, refresh_interval, guard, force) {
             Beat::Render => {
-                lines.clear();
+                // The pooled clear (night-frontier-Z4): the frame's
+                // spent lines return to the pool AFTER the diff
+                // engine has swapped them out (the previous beat's
+                // emit), so the composer pops warm strings and the
+                // steady-state frame performs zero heap events — the
+                // allocation pin holds the floor.
+                crate::ebpf::render::recycle_frame_lines(lines);
                 render(lines, action);
                 let mut stdout = RawStdout;
                 screen.emit(lines, &mut stdout);

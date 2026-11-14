@@ -69,6 +69,17 @@ pub fn monotonic_ns() -> u64 {
 ///           999_950 → "1.0 MB", 1_500_000_000_000 → "1.5 TB",
 ///           1e15 → "1.0 PB", 1e18 → "1.0 EB", u64::MAX → "18.4 EB"
 pub fn format_bytes(bytes: u64) -> String {
+    let mut out = String::new();
+    format_bytes_into(bytes, &mut out);
+    out
+}
+
+/// The pooled twin of [`format_bytes`] (night-frontier-Z4): the same
+/// walk, the same bytes, written into a caller-owned String — the
+/// frame pool's row cells consume this form. The owned form is this
+/// twin's first consumer, not a second ladder to drift.
+pub fn format_bytes_into(bytes: u64, out: &mut String) {
+    use std::fmt::Write as _;
     const DIVS: [u64; 7] = [
         1,
         1_000,
@@ -95,7 +106,7 @@ pub fn format_bytes(bytes: u64) -> String {
     }
 
     if tier == 0 {
-        format!("{bytes} B")
+        let _ = write!(out, "{bytes} B");
     } else {
         // Exact one-decimal rendering in u128 (NIGHT-boost-22): the
         // old `bytes as f64` division loses exactness above 2^53
@@ -108,7 +119,7 @@ pub fn format_bytes(bytes: u64) -> String {
         // same round-half-away discipline the rate parser uses.
         let div = u128::from(DIVS[tier]);
         let tenths = (u128::from(bytes) * 10 + div / 2) / div;
-        format!("{}.{} {}", tenths / 10, tenths % 10, UNITS[tier])
+        let _ = write!(out, "{}.{} {}", tenths / 10, tenths % 10, UNITS[tier]);
     }
 }
 
@@ -217,6 +228,15 @@ pub fn format_rate_exact(bps: u64) -> String {
 /// "340282366.9 QB"). Every OTHER surface keeps [`format_bytes`]:
 /// u64 IS the kernel map figures' truth. Examples: 1e21 → "1.0 ZB".
 pub fn format_bytes_wide(bytes: u128) -> String {
+    let mut out = String::new();
+    format_bytes_wide_into(bytes, &mut out);
+    out
+}
+
+/// The pooled twin of [`format_bytes_wide`] (night-frontier-Z4): the
+/// same walk, the same bytes, written into a caller-owned String.
+pub fn format_bytes_wide_into(bytes: u128, out: &mut String) {
+    use std::fmt::Write as _;
     const DIVS: [u128; 11] = [
         1,
         1_000,
@@ -242,7 +262,7 @@ pub fn format_bytes_wide(bytes: u128) -> String {
     }
 
     if tier == 0 {
-        format!("{bytes} B")
+        let _ = write!(out, "{bytes} B");
     } else {
         // Exact tenths without a widening multiply (u128 has none):
         // the REMAINDER's tenth (10*rem + div/2 < 11*div, so 0..=10)
@@ -254,7 +274,7 @@ pub fn format_bytes_wide(bytes: u128) -> String {
             whole += 1;
             tenths = 0;
         }
-        format!("{}.{} {}", whole, tenths, UNITS[tier])
+        let _ = write!(out, "{}.{} {}", whole, tenths, UNITS[tier]);
     }
 }
 
@@ -282,6 +302,15 @@ pub fn format_bytes_wide(bytes: u128) -> String {
 /// Examples: 24 → "24", 999 → "999", 1000 → "1.0K",
 ///           2_244_843 → "2.2M", u64::MAX → "18.4E"
 pub fn format_count(n: u64) -> String {
+    let mut out = String::new();
+    format_count_into(n, &mut out);
+    out
+}
+
+/// The pooled twin of [`format_count`] (night-frontier-Z4): the same
+/// walk, the same bytes, written into a caller-owned String.
+pub fn format_count_into(n: u64, out: &mut String) {
+    use std::fmt::Write as _;
     const DIVS: [u64; 7] = [
         1,
         1_000,
@@ -305,13 +334,13 @@ pub fn format_count(n: u64) -> String {
     }
 
     if tier == 0 {
-        format!("{n}")
+        let _ = write!(out, "{n}");
     } else {
         // Exact one-decimal tenths in u128 — the same half-up
         // rounding the byte ladder uses, no float anywhere.
         let div = u128::from(DIVS[tier]);
         let tenths = (u128::from(n) * 10 + div / 2) / div;
-        format!("{}.{}{}", tenths / 10, tenths % 10, UNITS[tier])
+        let _ = write!(out, "{}.{}{}", tenths / 10, tenths % 10, UNITS[tier]);
     }
 }
 
