@@ -31,7 +31,15 @@ unsafe impl GlobalAlloc for Counting {
         unsafe { System.alloc(layout) }
     }
 
-    unsafe fn dealloc(&self, _ptr: *mut u8, _layout: Layout) {}
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        // SAFETY: ptr was allocated by this allocator (the System
+        // forward) with this same layout — the mirror of alloc. The
+        // counter counts ALLOCATION events only; the free itself
+        // MUST still reach the system allocator (a no-op here leaves
+        // every byte of the test binary unfreed — the exact leak
+        // flood Miri caught on this lane).
+        unsafe { System.dealloc(ptr, layout) }
+    }
 
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
         ALLOCS.fetch_add(1, Ordering::Relaxed);
