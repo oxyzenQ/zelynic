@@ -98,6 +98,11 @@ kernel never perturbs:
   (cookie, inode, label joins); no output iterates one. The JSON
   document's field order is declaration order, the hand-written
   writer's contract.
+- **The alarm mouths** — the identity pins' STALE lines print uri
+  ascending (`read_identity_pins_in` imposes the pin grammar's own
+  unique display word as the list's total order, the readdir beneath
+  it absorbed like every other walk order); the k8s resolver's
+  ambiguity list rides the same uid-ascending law.
 
 The compositional pins (`test/ebpf/render/determinism_tests.rs`)
 prove the law end to end: a census built from permuted input

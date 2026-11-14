@@ -577,7 +577,8 @@ the answer) stays deferred by verdict; Dive 3's story family is
 deferred whole (see Deferred by verdict).
 
 **The determinism law beneath them all** (night-depth-hardening-1,
-`src/ebpf/connections.rs` + `test/ebpf/render/determinism_tests.rs`).
+`src/ebpf/connections.rs` + `src/ebpf/identity/drift.rs` +
+`test/ebpf/render/determinism_tests.rs`).
 The fourteen and the twenty all render rows, and a row whose order is
 not intrinsic breaks every one of them the same way: a frame diff
 reads a change that never happened. The law: every output row order
@@ -585,10 +586,13 @@ is a total order the kernel never perturbs — the census's socket
 rows carry the kernel inode as the final tie (the /proc table's
 hash-bucket enumeration and the fd readdir order are contractual to
 nobody, and both reshuffle across boots, rehashes, and distros), the
-holders carry the pid, the boards carry the cgroup ID, and no render
-path iterates a hash map. The compositional pins render a permuted
-census through the traffic focus, the text report, and the JSON
-document and require byte-identical output — the determinism the
+holders carry the pid, the boards carry the cgroup ID, the alarm
+mouths carry the pin's uri (the STALE lines and the resolver's
+ambiguity list print ascending, the readdir beneath sorted away at
+the source), and no render path iterates a hash map. The
+compositional pins render a permuted census through the traffic
+focus, the text report, and the JSON document and require
+byte-identical output — the determinism the
 5.15-floor cross-distro matrix verifies on hardware, pinned in unit
 form so it cannot regress between releases. The full contract lives
 in STABILITY.md.
@@ -719,7 +723,10 @@ rejections below are as load-bearing as the scales.
 The frontier ledger — the five asks from the night-frontier-1 list
 that are measured, named, and NOT built, each with the condition that
 would reopen it. Honest research includes what was never started on
-purpose; a silent no is the only dishonest one.
+purpose; a silent no is the only dishonest one. The surface law every
+rung rides (the owner's word, night-depth-hardening-1): no new CLI
+subcommand, no new flag — depth lands inside the verbs and surfaces
+that already exist, a minor bump, never a major.
 
 - **BPF CO-RE — compile once, run everywhere.** The ask: one object
   image across kernel versions, no recompile per target. The measure
