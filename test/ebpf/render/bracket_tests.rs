@@ -312,10 +312,79 @@ fn the_text_report_renders_the_bracket_row() {
     );
 }
 
+/// The `clamp_bracket` wire fragment's parsed shape (the CodeQL
+/// cleartext-logging boundary, alerts #34/#35/#36): the pins used to
+/// interpolate the whole depth JSON document into their assert
+/// messages, and the document carries the report's process-identity
+/// payload (uid, user, exe, cmdline) — sensitive data reaching a
+/// panic-formatted sink. The pins now parse the fragment into these
+/// plain number fields and the failure messages carry measurements
+/// only, never the document. None = the additive null (the honest
+/// absence) or a fragment too malformed to parse (the assert on the
+/// parsed fields fails, the message stays literal).
+#[derive(Debug, PartialEq)]
+struct BracketWire {
+    min_rtt_us: u64,
+    p99_rtt_us: u64,
+    ceiling_bytes: u64,
+    floor_bytes: u64,
+    honesty_ratio_permille: u64,
+    verdict: String,
+    clamp_bytes: Option<u64>,
+}
+
+/// Extract and parse the `"clamp_bracket":{...}` fragment's fields —
+/// numbers and the verdict word only, the boundary the struct's doc
+/// names.
+fn bracket_wire(text: &str) -> Option<BracketWire> {
+    let key = "\"clamp_bracket\":";
+    let start = text.find(key)? + key.len();
+    let rest = &text[start..];
+    if rest.starts_with("null") {
+        return None;
+    }
+    let end = rest.find('}')?;
+    let body = &rest[..=end];
+    let num = |name: &str| -> Option<u64> {
+        let k = format!("\"{name}\":");
+        let i = body.find(&k)? + k.len();
+        let j = i + body[i..].find([',', '}'])?;
+        body[i..j].parse().ok()
+    };
+    let verdict = {
+        let k = "\"verdict\":\"";
+        let i = body.find(k)? + k.len();
+        let j = i + body[i..].find('"')?;
+        body[i..j].to_string()
+    };
+    let clamp = {
+        let k = "\"clamp_bytes\":";
+        let i = body.find(k)? + k.len();
+        let v = &body[i..];
+        if v.starts_with("null") {
+            None
+        } else {
+            Some(v[..v.find([',', '}'])?].parse().ok()?)
+        }
+    };
+    Some(BracketWire {
+        min_rtt_us: num("min_rtt_us")?,
+        p99_rtt_us: num("p99_rtt_us")?,
+        ceiling_bytes: num("ceiling_bytes")?,
+        floor_bytes: num("floor_bytes")?,
+        honesty_ratio_permille: num("honesty_ratio_permille")?,
+        verdict,
+        clamp_bytes: clamp,
+    })
+}
+
 /// The JSON wire: `clamp_bracket` rides the target additively (the
 /// last key), null on the honest absence, the law's own words when
 /// it composes — verdict "mixed" carries clamp_bytes null, verdict
-/// "single" carries the recommendation.
+/// "single" carries the recommendation. The wire-order pin rides the
+/// expected fragment built from literals (untainted — the message
+/// may echo it); the field-wise pins ride the parsed struct, whose
+/// failure output carries numbers only.
 #[test]
 fn the_json_wire_carries_the_bracket_additively() {
     // Absence first: the null every pre-Z2 script reads through.
@@ -328,8 +397,8 @@ fn the_json_wire_carries_the_bracket_additively() {
     );
     let text = depth_doc_json(&[bare], &[], None).to_json();
     assert!(
-        text.contains("\"clamp_bracket\":null"),
-        "the absence rides the additive null: {text}"
+        text.contains("\"clamp_bracket\":null") && bracket_wire(&text).is_none(),
+        "the absence rides the additive null"
     );
     // Single: the full object with the recommendation.
     let single_row = srtt_row(262_144, 18, 1, 19, 999);
@@ -344,13 +413,28 @@ fn the_json_wire_carries_the_bracket_additively() {
         }),
     );
     let text = depth_doc_json(&[single], &[], None).to_json();
-    let expected = format!(
-        "\"clamp_bracket\":{{\"min_rtt_us\":262144,\"p99_rtt_us\":524288,\"ceiling_bytes\":262144,\"floor_bytes\":524288,\"honesty_ratio_permille\":2000,\"verdict\":\"single\",\"clamp_bytes\":{}}}",
-        524288
+    let expected = concat!(
+        "\"clamp_bracket\":{\"min_rtt_us\":262144,\"p99_rtt_us\":524288,",
+        "\"ceiling_bytes\":262144,\"floor_bytes\":524288,",
+        "\"honesty_ratio_permille\":2000,\"verdict\":\"single\",",
+        "\"clamp_bytes\":524288}"
     );
     assert!(
-        text.contains(&expected),
-        "the single bracket rides the law's exact words: {text}"
+        text.contains(expected),
+        "the single bracket rides the law's exact words, expected: {expected}"
+    );
+    let wire = bracket_wire(&text).expect("the single bracket parses");
+    assert_eq!(
+        wire,
+        BracketWire {
+            min_rtt_us: 262_144,
+            p99_rtt_us: 524_288,
+            ceiling_bytes: 262_144,
+            floor_bytes: 524_288,
+            honesty_ratio_permille: 2_000,
+            verdict: "single".to_string(),
+            clamp_bytes: Some(524_288),
+        }
     );
     // Mixed: clamp_bytes null — the refusal IS the answer.
     let mixed_row = srtt_row(10_000, 13, 1, 19, 999);
@@ -368,8 +452,14 @@ fn the_json_wire_carries_the_bracket_additively() {
     let expected = "\"clamp_bracket\":{\"min_rtt_us\":10000,\"p99_rtt_us\":524288,\"ceiling_bytes\":200000,\"floor_bytes\":524288,\"honesty_ratio_permille\":52428,\"verdict\":\"mixed\",\"clamp_bytes\":null}";
     assert!(
         text.contains(expected),
-        "the mixed bracket refuses by the null clamp: {text}"
+        "the mixed bracket refuses by the null clamp, expected: {expected}"
     );
+    let wire = bracket_wire(&text).expect("the mixed bracket parses");
+    assert_eq!(wire.verdict, "mixed");
+    assert_eq!(wire.min_rtt_us, 10_000);
+    assert_eq!(wire.p99_rtt_us, 524_288);
+    assert_eq!(wire.honesty_ratio_permille, 52_428);
+    assert_eq!(wire.clamp_bytes, None, "the refusal carries no clamp");
 }
 
 /// The bytes figure the sentence leads with IS format_bytes' own

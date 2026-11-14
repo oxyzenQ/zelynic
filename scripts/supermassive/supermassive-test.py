@@ -2635,40 +2635,76 @@ def stage_server_histogram():
     socket's OWN cgroup BEFORE the policy lookup — recording is
     policy-independent, so the leg needs no policy write at all.
 
-    The shape (three live CI iterations taught the order):
+    The shape (the 2026-11-14 CI run's lesson joins the three live
+    iterations that taught the order): the row the sampler fills is
+    the cgroup's LIFETIME row — it outlives every session that
+    touches it (the dense fleet's stages all drove traffic through
+    the same leaves), so every law this leg asserts must be either
+    row-lifetime-coherent or explicitly scoped to the session this
+    stage drove. Two legs make that scope observable:
       1. apply `strict <A> 1tb` — a ceiling loopback physics cannot
          touch, so the traffic below stays the unlimited
          maximum-packet lane, but the full pin skeleton (programs,
-         links, maps) is alive for BOTH the traffic and the read
+         links, maps) is alive for BOTH the traffic and the reads
          (iteration 2: after the zombie sweep's `u --all`,
          NIGHT-hunt-20's unpin-if-no-policies law leaves no session
          to read)
-      2. drive bulk loopback download through cgroup A on a WORKER
-         THREAD and read the depth report MID-TRAFFIC (iteration 3:
-         the depth command's liveness gate refuses a cgroup whose
-         members are gone — "No live cgroup matches" — and a
-         finished worker leaves cgroup A empty; the worker thread is
-         the subject's live member, and the report's 3s focus window
-         measures the real moving traffic). Samples are
-         ~= skbs/1024, and seconds of loopback bulk are tens of
-         thousands of skbs on every profile this harness runs
-      3. join the worker, then tear the leg's own policy down
-         (`u <A>`, best-effort) BEFORE the verdict records — the
-         slate ends as the leg found it
-      4. assert: the block non-null (null here is the honest
-         absence, which would mean the sampler never fired),
-         sample_shift == 10 (HIST_SAMPLE_SHIFT, the wire contract),
-         the download size half non-null with samples ==
-         sum(buckets) > 0 and non-null quantiles — the userspace
-         mirror's own arithmetic, checked end to end on the row the
-         traffic filled
+      2. LEG ONE drives bulk loopback download through cgroup A on a
+         WORKER THREAD and reads the depth report MID-TRAFFIC
+         (iteration 3: the depth command's liveness gate refuses a
+         cgroup whose members are gone — "No live cgroup matches" —
+         and a finished worker leaves cgroup A empty; the worker
+         thread is the subject's live member). That read is the
+         PRE-STATE: whatever the row held before this stage's own
+         second leg, coherent or absent.
+      3. LEG TWO repeats the shape and reads MID-TRAFFIC again. The
+         session laws run on the leg-two read against the leg-one
+         pre-state:
+           - the session proof: at least one direction's size half
+             GREW (samples only ever accumulate, so any growth is a
+             sample the sampler took during leg two), or a tail slot
+             carries a ktime stamp inside leg two's monotonic window
+             (a reborn row's empty tail fills from the session's own
+             first samples, whatever beat the incumbents). Neither
+             materializing means the sampler demonstrably recorded
+             nothing this stage — a real failure, never named away.
+           - the census join, session-scoped: every tail slot whose
+             ts_ns falls inside leg two's window must resolve to a
+             walked endpoint — the sockets that wrote those slots
+             are the leg-two worker's own connection, alive at the
+             walk. Slots outside the window predate the stage (their
+             sockets are long dead — the honest remainder the
+             render's own contract names: "a cookie the walk missed
+             stays unmapped"); they ride the note, never the
+             verdict. (The 2026-11-14 CI run's lesson: the tail is
+             the worst-8 EVER, so a lifetime row's slots belong to
+             every past session — asserting a live join on all of
+             them refuted itself the first time the storm-era slots
+             outlived their sockets.)
+           - the worst-by-size law, generation-scoped: asserted only
+             when leg one's row was CLEAN (no samples, no tail — the
+             leg-two row is then single-generation and the
+             cumulative p99 IS the session's own). A dirty pre-state
+             names the law in the note instead: a settled sample
+             count is NOT a generation certificate — the same CI
+             run held 1039 cumulative samples whose tail still
+             carried a storm-era 35-byte slot the bulk samples
+             could not have coexisted with in one generation, the
+             eviction-rebirth seam the buckets-are-the-count law
+             already teaches.
+      4. structural pins ride every non-null half on BOTH reads:
+         sample_shift == 10 (HIST_SAMPLE_SHIFT), samples ==
+         sum(buckets) > 0, the quantile ladder, and the Z1 exact
+         aggregates' arithmetic (count == samples, min <= max, mean
+         == sum/count) — the userspace mirror's own math, checked
+         end to end on the rows the traffic filled.
 
     The upload and srtt halves ride loopback's request direction and
     the RTT lane's harvest — physics the bulk stream does not
-    guarantee — so the verdict note names their sample counts instead
-    of asserting them."""
+    guarantee — so their sample counts stay named in the note, their
+    structural arithmetic asserted whenever they do answer."""
     out()
-    out("━━━ server depth: histogram live proof (bulk traffic + depth JSON) ━━━")
+    out("━━━ server depth: histogram live proof (two bulk legs + depth JSON) ━━━")
     a_id = CG.ids["a"]
     # Step 1: the leg's own session — 1tb is a ceiling loopback
     # physics cannot reach, so the clamp never engages and the
@@ -2684,164 +2720,260 @@ def stage_server_histogram():
             f"session apply (strict 1tb) failed: exit {rc}, {(se or so).strip()[:200]}",
         )
         return False
-    # Step 2: the traffic on a worker thread — the worker IS cgroup
-    # A's live member while the depth read runs (the liveness gate:
-    # a finished worker leaves the cgroup empty and the report
-    # refuses it — iteration 3's lesson).
-    traffic = {"bytes": 0}
 
-    def _drive_bulk():
-        traffic["bytes"] = py_download(12.0, name="a")
+    def _drive_leg():
+        """One bulk leg: a worker thread inside cgroup A downloads
+        for 8 s, the depth report is read MID-TRAFFIC (the liveness
+        gate: a finished worker leaves the cgroup empty and the
+        report refuses it — iteration 3's lesson). Returns (bytes,
+        rc, stdout, stderr, t0, t1) — t0/t1 bracket the leg in
+        CLOCK_MONOTONIC seconds, the same boot-relative clock the
+        kernel's ktime stamps ride."""
+        traffic = {"bytes": 0}
 
-    worker = threading.Thread(target=_drive_bulk, daemon=True)
-    worker.start()
-    time.sleep(2.0)  # the worker settles inside A; the sampler accrues
-    # Step 3: the read, MID-TRAFFIC (the session is alive; stdout
-    # carries the JSON document — and, in print-json mode, the error
-    # verdict too).
-    rc, stdout, stderr = run_zel_headless(
-        ["eagle-eyes", f"cg:{a_id}", "--depth", "--print-json"], timeout=60
-    )
-    worker.join(timeout=30)
+        def _run():
+            traffic["bytes"] = py_download(8.0, name="a")
+
+        t0 = time.monotonic()
+        worker = threading.Thread(target=_run, daemon=True)
+        worker.start()
+        time.sleep(2.0)  # the worker settles inside A; the sampler accrues
+        rc, stdout, stderr = run_zel_headless(
+            ["eagle-eyes", f"cg:{a_id}", "--depth", "--print-json"], timeout=60
+        )
+        t1 = time.monotonic()
+        worker.join(timeout=30)
+        return traffic["bytes"], rc, stdout, stderr, t0, t1
+
+    def _read_hist(leg, stdout, rc, stderr, got):
+        """Guard one depth read down to its histogram dict; every
+        guard failure records the stage FAIL (a mid-traffic read
+        that answers no coherent document is a real failure — the
+        feature under test IS this read)."""
+        label = f"leg {leg} depth read"
+        if got <= 0:
+            record(
+                "server: histogram live proof (bulk traffic + depth JSON)",
+                "FAIL",
+                f"{label}: 0 bytes moved — the sampler had no traffic to "
+                "sample, so every histogram verdict below would be garbage",
+            )
+            return None
+        if rc != 0:
+            record(
+                "server: histogram live proof (bulk traffic + depth JSON)",
+                "FAIL",
+                f"{label} exit {rc}; stderr: {(stderr or '').strip()[:200]}; "
+                f"stdout: {(stdout or '').strip()[:200]}",
+            )
+            return None
+        try:
+            doc = json.loads(stdout or "")
+        except json.JSONDecodeError as exc:
+            record(
+                "server: histogram live proof (bulk traffic + depth JSON)",
+                "FAIL",
+                f"{label} stdout is not one JSON doc ({exc}): "
+                f"{(stdout or '').strip()[:200]}",
+            )
+            return None
+        rows = [t for t in doc.get("targets", []) if t.get("cgroup_id") == a_id]
+        if not rows:
+            record(
+                "server: histogram live proof (bulk traffic + depth JSON)",
+                "FAIL",
+                f"{label}: the depth doc answered no row for cgroup {a_id} "
+                f"({len(doc.get('targets', []))} targets)",
+            )
+            return None
+        hist = rows[0].get("histogram")
+        if hist is None:
+            record(
+                "server: histogram live proof (bulk traffic + depth JSON)",
+                "FAIL",
+                f"{label}: histogram answered null after {got} bytes of bulk "
+                "loopback traffic (the honest absence held — the sampler "
+                "never recorded the traffic)",
+            )
+            return None
+        return hist
+
+    def _structural_pins(hist, label, failures):
+        """The mirror-arithmetic pins on every non-null half — the
+        userspace read's own math, asserted wherever the half
+        answers. The sum word's HEALTH is never asserted (its
+        lifetime semantics are the row's own); its ARITHMETIC is."""
+        shift = hist.get("sample_shift")
+        if shift != 10:
+            failures.append(f"{label}: sample_shift {shift!r} != 10 (HIST_SAMPLE_SHIFT)")
+        for half_name in ("download", "upload"):
+            half = hist.get(half_name) or {}
+            size = half.get("size")
+            if size is None:
+                continue
+            total = size.get("samples", 0)
+            bucket_sum = sum(size.get("buckets") or [])
+            if total <= 0 or bucket_sum <= 0:
+                failures.append(
+                    f"{label} {half_name}.size: samples {total}, bucket sum {bucket_sum}"
+                )
+                continue
+            if total != bucket_sum:
+                failures.append(
+                    f"{label} {half_name}.size: samples {total} != bucket sum "
+                    f"{bucket_sum} (the mirror's arithmetic broke)"
+                )
+            p50, p95, p99 = (size.get(k) for k in ("p50", "p95", "p99"))
+            if p50 is None or p95 is None:
+                failures.append(
+                    f"{label} {half_name}.size: quantiles answered null on a non-empty half"
+                )
+            elif not (p50 <= p95 <= (p99 or 0)):
+                failures.append(
+                    f"{label} {half_name}.size: quantile ladder incoherent: "
+                    f"p50 {p50} p95 {p95} p99 {p99}"
+                )
+            count = size.get("count")
+            agg_sum = size.get("sum")
+            agg_min = size.get("min")
+            agg_max = size.get("max")
+            agg_mean = size.get("mean")
+            if None in (count, agg_sum, agg_min, agg_max, agg_mean):
+                failures.append(
+                    f"{label} {half_name}.size: exact aggregates missing — "
+                    "the v35 words did not ride the JSON"
+                )
+                continue
+            if count != total:
+                failures.append(
+                    f"{label} {half_name}.size: derived count {count} != bucket "
+                    f"samples {total} (the buckets are the count)"
+                )
+            if agg_min > agg_max:
+                failures.append(
+                    f"{label} {half_name}.size: exact bounds incoherent: "
+                    f"min {agg_min} > max {agg_max}"
+                )
+            if count > 0 and agg_mean != agg_sum // count:
+                failures.append(
+                    f"{label} {half_name}.size: mean {agg_mean} != "
+                    f"sum/count {agg_sum // count} (the division broke)"
+                )
+
+    def _tail_slots(hist):
+        """Both halves' tail story lists, with the half named."""
+        pairs = []
+        for half_name in ("download", "upload"):
+            for slot in (hist.get(half_name) or {}).get("tail") or []:
+                pairs.append((half_name, slot))
+        return pairs
+
+    # Step 2: LEG ONE — the pre-state read.
+    got1, rc1, so1, se1, _, _ = _drive_leg()
+    hist1 = _read_hist(1, so1, rc1, se1, got1)
+    if hist1 is None:
+        return False
+    leg1_failures: list = []
+    _structural_pins(hist1, "leg 1", leg1_failures)
+    if leg1_failures:
+        record(
+            "server: histogram live proof (bulk traffic + depth JSON)",
+            "FAIL",
+            "; ".join(leg1_failures),
+        )
+        return False
+    dl1 = ((hist1.get("download") or {}).get("size") or {}).get("samples", 0)
+    ul1 = ((hist1.get("upload") or {}).get("size") or {}).get("samples", 0)
+    tail1 = _tail_slots(hist1)
+    # The generation gate: a CLEAN leg-one row (no samples, no tail)
+    # makes the leg-two row single-generation — the cumulative p99 IS
+    # the session's, and the worst-by-size law is sound to assert.
+    clean_pre = dl1 == 0 and not tail1
+
+    # Step 3: LEG TWO — the session under test.
+    got2, rc2, so2, se2, t0, t1 = _drive_leg()
+    hist2 = _read_hist(2, so2, rc2, se2, got2)
+    if hist2 is None:
+        return False
     # Step 4: the leg's own teardown, best-effort, before the
     # verdict — the slate ends as the leg found it.
     run_zel(["u", str(a_id)], timeout=30)
-    got = traffic["bytes"]
-    if got <= 0:
-        record(
-            "server: histogram live proof (bulk traffic + depth JSON)",
-            "FAIL",
-            "0 bytes moved — the sampler had no traffic to sample, so "
-            "every histogram verdict below would be garbage",
-        )
-        return False
-    if rc != 0:
-        record(
-            "server: histogram live proof (bulk traffic + depth JSON)",
-            "FAIL",
-            f"depth read exit {rc}; stderr: {(stderr or '').strip()[:200]}; "
-            f"stdout: {(stdout or '').strip()[:200]}",
-        )
-        return False
-    try:
-        doc = json.loads(stdout or "")
-    except json.JSONDecodeError as exc:
-        record(
-            "server: histogram live proof (bulk traffic + depth JSON)",
-            "FAIL",
-            f"depth stdout is not one JSON doc ({exc}): {(stdout or '').strip()[:200]}",
-        )
-        return False
-    rows = [t for t in doc.get("targets", []) if t.get("cgroup_id") == a_id]
-    if not rows:
-        record(
-            "server: histogram live proof (bulk traffic + depth JSON)",
-            "FAIL",
-            f"the depth doc answered no row for cgroup {a_id} "
-            f"({len(doc.get('targets', []))} targets)",
-        )
-        return False
-    hist = rows[0].get("histogram")
-    if hist is None:
-        record(
-            "server: histogram live proof (bulk traffic + depth JSON)",
-            "FAIL",
-            f"histogram answered null after {got} bytes of bulk loopback "
-            "traffic (the honest absence held — the sampler never "
-            "recorded the traffic)",
-        )
-        return False
-    failures = []
-    shift = hist.get("sample_shift")
-    if shift != 10:
-        failures.append(f"sample_shift {shift!r} != 10 (HIST_SAMPLE_SHIFT)")
-    dl = hist.get("download")
-    dl_size = (dl or {}).get("size")
-    if dl_size is None:
+
+    failures: list = []
+    _structural_pins(hist2, "leg 2", failures)
+
+    dl2 = ((hist2.get("download") or {}).get("size") or {}).get("samples", 0)
+    ul2 = ((hist2.get("upload") or {}).get("size") or {}).get("samples", 0)
+    slots2 = _tail_slots(hist2)
+    # The session window in ktime ns: CLOCK_MONOTONIC seconds are the
+    # same boot-relative clock bpf_ktime_get_ns rides; the 2 s slack
+    # covers the read's own walk time and any clock-read ordering.
+    win_lo, win_hi = int((t0 - 2.0) * 1e9), int((t1 + 2.0) * 1e9)
+    in_window = [s for _, s in slots2 if win_lo <= s.get("ts_ns", 0) <= win_hi]
+    stale = len(slots2) - len(in_window)
+    joined = sum(1 for s in in_window if s.get("endpoint"))
+
+    # The session proof: growth in either direction's size half, or a
+    # tail slot stamped inside the window (the rebirth path). Growth
+    # is monotone-safe: samples only accumulate, so any increase is
+    # a leg-two sample the sampler took.
+    proofs = []
+    if dl2 > dl1:
+        proofs.append(f"download grew {dl1}->{dl2}")
+    if ul2 > ul1:
+        proofs.append(f"upload grew {ul1}->{ul2}")
+    if in_window:
+        proofs.append(f"{len(in_window)} in-window tail slots")
+    if not proofs:
         failures.append(
-            "download.size answered null — the bulk download's own direction recorded nothing"
+            "no direction recorded the second leg — the sampler "
+            f"demonstrably recorded nothing (download {dl1}->{dl2}, "
+            f"upload {ul1}->{ul2}, 0 in-window tail slots)"
         )
-    else:
-        total = dl_size.get("samples", 0)
-        buckets = dl_size.get("buckets") or []
-        bucket_sum = sum(buckets)
-        if total <= 0 or bucket_sum <= 0:
-            failures.append(f"download.size samples {total}, bucket sum {bucket_sum}")
-        elif total != bucket_sum:
+
+    # The census join, session-scoped: the slots leg two wrote belong
+    # to the leg-two worker's own connection — alive at the walk, so
+    # the walk's census must own their cookies. Pre-stage slots ride
+    # the note (dead sockets are the honest remainder).
+    unresolved = [
+        s for s in in_window if not s.get("endpoint") and s.get("cookie")
+    ]
+    if unresolved:
+        failures.append(
+            f"{len(unresolved)} in-window tail slots resolved to no walked "
+            "endpoint — the session's own sockets went unrecognized "
+            f"(example cookie {unresolved[0].get('cookie')})"
+        )
+    cookie_kept = any(s.get("cookie") for _, s in slots2)
+    if slots2 and not cookie_kept:
+        failures.append("every tail slot rode cookie 0 — no socket identity kept")
+
+    # The worst-by-size law, generation-scoped: sound only on a
+    # single-generation row (clean leg-one pre-state).
+    dl_half2 = (hist2.get("download") or {}).get("size") or {}
+    dl_tail2 = (hist2.get("download") or {}).get("tail") or []
+    p99_lb = dl_half2.get("p99") or 0
+    law_state = "named (pre-state dirty)"
+    if clean_pre and dl_tail2 and p99_lb > 0:
+        weakest = min(t.get("size", 0) for t in dl_tail2)
+        if weakest < p99_lb:
             failures.append(
-                f"samples {total} != bucket sum {bucket_sum} (the mirror's arithmetic broke)"
+                f"tail weakest {weakest} < p99 lower bound {p99_lb} on a clean "
+                f"pre-state row ({dl2} samples) — the worst-by-size law broke"
             )
-        elif dl_size.get("p50") is None or dl_size.get("p95") is None:
-            failures.append("quantiles answered null on a non-empty half")
-        # night-frontier-Z1 (schema v35): the exact aggregates and the
-        # tail story list. The count is DERIVED (sum(buckets)) — the
-        # Z1 probe's own structural lesson, asserted as the tautology
-        # it now is. The SETTLED-ROW gate: the dense fleet's LRU churn
-        # (4100 candidate leaves over a 2048-row map) makes a YOUNG
-        # row's generations incoherent — the p99 of one generation and
-        # the tail of another; below the settled threshold the tail's
-        # presence and identity stay asserted (per-slot laws,
-        # generation-independent), the worst-vs-p99 law is named, not
-        # asserted (the loopback-physics precedent).
-        count = dl_size.get("count")
-        agg_sum = dl_size.get("sum")
-        agg_min = dl_size.get("min")
-        agg_max = dl_size.get("max")
-        agg_mean = dl_size.get("mean")
-        tail = (dl or {}).get("tail") or []
-        settled = total >= 300
-        if None in (count, agg_sum, agg_min, agg_max):
-            failures.append("exact aggregates missing — the v35 words did not ride the JSON")
-        else:
-            if count != total:
-                failures.append(
-                    f"derived count {count} != bucket samples {total} (the buckets are the count)"
-                )
-            if agg_min > agg_max:
-                failures.append(f"exact bounds incoherent: min {agg_min} > max {agg_max}")
-            p50, p95, p99 = (dl_size.get(k) for k in ("p50", "p95", "p99"))
-            if not (p50 <= p95 <= p99):
-                failures.append(f"quantile ladder incoherent: p50 {p50} p95 {p95} p99 {p99}")
-            if count > 0 and agg_mean is not None:
-                true_mean = agg_sum / count
-                if abs(agg_mean - true_mean) > max(1.0, 0.01 * true_mean):
-                    failures.append(
-                        f"mean {agg_mean} != sum/count {true_mean:.1f} (the division broke)"
-                    )
-            if not tail:
-                failures.append("tail answered empty under bulk traffic — the worst-8 never filled")
-            else:
-                if any(not t.get("ts_ns") for t in tail):
-                    failures.append("a tail slot rode without its ktime stamp")
-                if not any(t.get("cookie") for t in tail):
-                    failures.append("every tail slot rode cookie 0 — no socket identity kept")
-                if not any(t.get("endpoint") for t in tail):
-                    failures.append(
-                        "no tail slot resolved to a walked endpoint — the census join broke"
-                    )
-                p99_lb = p99 or 0
-                weakest = min(t["size"] for t in tail)
-                if settled and p99_lb > 0 and weakest < p99_lb:
-                    failures.append(
-                        f"tail weakest {weakest} < p99 lower bound {p99_lb} on a settled row "
-                        f"({total} samples) — the worst-by-size law broke"
-                    )
-    dl_note = dl_size or {}
-    ul_size = (hist.get("upload") or {}).get("size") or {}
-    dl_srtt = (dl or {}).get("srtt") or {}
-    dl_tail = (dl or {}).get("tail") or []
-    tail_note = (
-        f", tail {len(dl_tail)} slots worst {max((t['size'] for t in dl_tail), default=0)}"
-        if dl_tail
-        else ""
-    )
+        law_state = f"asserted (weakest {min(t.get('size', 0) for t in dl_tail2)} vs p99 lb {p99_lb})"
+    elif not clean_pre:
+        law_state = f"named (pre-state dirty: leg-1 dl samples {dl1}, tail {len(tail1)})"
+    else:
+        law_state = "named (no download tail or p99 this leg)"
+
     note = (
-        f"traffic {got} bytes; download size samples "
-        f"{dl_note.get('samples', 0)}, p95 {dl_note.get('p95')}, "
-        f"exact count {dl_note.get('count')}, mean {dl_note.get('mean')}"
-        f"{tail_note}; "
-        f"download srtt samples {dl_srtt.get('samples', 0)}; "
-        f"upload size samples {ul_size.get('samples', 0)} "
+        f"leg1 {got1} B, leg2 {got2} B; download size samples {dl1}->{dl2}, "
+        f"upload {ul1}->{ul2}; tail {len(slots2)} slots "
+        f"({len(in_window)} in-window, {joined} joined, {stale} pre-stage); "
+        f"session proof: {' + '.join(proofs) or 'NONE'}; "
+        f"worst-by-size: {law_state}; download srtt samples "
+        f"{((hist2.get('download') or {}).get('srtt') or {}).get('samples', 0)} "
         "(named, not asserted — loopback physics)"
     )
     if failures:
