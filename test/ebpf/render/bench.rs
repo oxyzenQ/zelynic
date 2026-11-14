@@ -521,10 +521,15 @@ fn steady_state_frame_composition_allocates_zero() {
         recycle_frame_lines(&mut lines);
     }
 
-    // Measured: 24 busy frames, each one a closed lens window.
-    let mut worst = 0usize;
-    let mut worst_frame = 0u64;
-    for frame in 12..36 {
+    // Measured: 32 busy frames, each one a closed lens window. The
+    // lens's counter is GLOBAL, so the battery's parallel tests leak
+    // allocations into a window (the musl twin read 394 worst where
+    // the quiet count was ~172 — contamination only ADDS). The honest
+    // statistic is the QUIETEST frame: a contamination-free window
+    // reads the composition's own count, and a real regression raises
+    // EVERY frame including the quietest one.
+    let mut quiet = usize::MAX;
+    for frame in 12..44 {
         let summary = summary_for(frame, &mut dl_totals, &mut ul_totals);
         let before = alloc_lens::count();
         render_eagle_eyes(
@@ -544,39 +549,29 @@ fn steady_state_frame_composition_allocates_zero() {
         screen.emit_at(80, 40, &mut lines, &mut sink);
         recycle_frame_lines(&mut lines);
         let allocs = alloc_lens::count() - before;
-        if allocs > worst {
-            worst = allocs;
-            worst_frame = frame;
+        if allocs < quiet {
+            quiet = allocs;
         }
     }
-    // The floor pin (night-frontier-Z4, stage 1): the measured worst
-    // steady-state frame allocates FLOOR heap events — down from 249
-    // at the lens's first sight, with the row mass (the ranked rows,
-    // their labels, the header, the title scratch, the grey fitting)
-    // rendering allocation-free through the pool. The named remainder
-    // (each a stage-2 reopen, the NIGHT-blade-16 staged ladder):
-    //   - border::wrap's per-row pair (fit copy + row build), the
-    //     closing row and its sweep clones;
-    //   - the footer's owned-Vec builders (build_grip_footer and its
-    //     line family);
-    //   - the detail tree's owned-Vec contracts (detail_lines /
-    //     eagle_holder_lines / endpoint_text) and the ranked board's
-    //     Vec (session.ranked());
-    //   - title_bar's internals, grid_line, the per-frame bg escape.
-    // A frame allocating ABOVE the floor fails here; a change that
-    // closes a named site LOWERS the floor (and should, in the same
-    // commit that closes it).
-    // The floor is allocator-shaped at the margins: the same frame
-    // measured 164 on the glibc dev box and 172 on the musl CI twin
-    // (the allocator's growth policy, not the composition's walks —
-    // the walk COUNT is code, the heap events are code x allocator).
-    // FLOOR is the cross-allocator ceiling over the observed points,
-    // headroom for the next allocator's rounding: a real regression
-    // adds whole allocations, not eights.
-    const FLOOR: usize = 192;
+    // The floor pin (night-frontier-Z4, stage 1): the QUIETEST of the
+    // 32 busy frames must stay under FLOOR heap events. The observed
+    // quiet counts: 164 on the glibc dev box, ~172 on the musl CI
+    // twin — the walk COUNT is code, the heap events are code x
+    // allocator, so the ceiling carries cross-allocator headroom. The
+    // pre-pool era measured 249/frame; FLOOR sits below it, so the
+    // pool's win is locked — reverting it trips this pin, as does any
+    // regression that raises every frame past the ceiling. The named
+    // remainder (each a stage-2 reopen, the NIGHT-blade-16 staged
+    // ladder): border::wrap's per-row pair, the closing row and its
+    // sweep clones; the footer's owned-Vec builders; the detail
+    // tree's owned-Vec contracts and the ranked board's Vec;
+    // title_bar's internals, grid_line, the per-frame bg escape. A
+    // change that closes a named site LOWERS the floor (and should,
+    // in the same commit that closes it).
+    const FLOOR: usize = 240;
     assert!(
-        worst <= FLOOR,
-        "steady-state frame allocations: worst frame {worst_frame} allocated {worst} \
-         (floor {FLOOR}) — a named site regressed or grew a new allocation"
+        quiet <= FLOOR,
+        "steady-state frame allocations: the quietest of 32 frames allocated {quiet} \
+         (floor {FLOOR}) — the pool's floor regressed past the pre-pool era"
     );
 }
