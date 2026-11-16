@@ -699,8 +699,10 @@ a dedicated detached package, `proofs/` — the ebpf crate's own
 detachment shape, so the instruments never enter the root manifest's
 dependency graph — whose harnesses compile the SAME law files the
 kernel object builds (the fuzz harnesses' #[path] include law: a law
-the proofs verify is a law the datapath runs). Two instruments, one
-per-push lane (.github/workflows/proofs.yml), three honest tiers:
+the proofs verify is a law the datapath runs). Two instruments, two
+lanes (.github/workflows/proofs.yml on every push, capped at 15
+minutes wall; .github/workflows/proofs-night.yml — the solver-bound
+tier, nightly plus workflow_dispatch), three honest tiers:
 
 - **The for-all tier (kani, bounded model checking).** Each harness
   turns a named law into a machine-checked theorem over ALL inputs
@@ -720,10 +722,14 @@ per-push lane (.github/workflows/proofs.yml), three honest tiers:
   [0, NS_PER_DAY) plus the unknown-kind enforcement posture). Four
   theorems sit behind nonlinear multiply/divide circuits (the
   refill overflow guard, the hostile-state enforce totality, the
-  ring stamp law, the bounded key) and carry the CI lane's full
-  budget as their verdict vehicle — the sandbox census measured
+  ring stamp law, the bounded key) and carry the night lane's full
+  budget as their verdict vehicle (proofs-night.yml: one matrix job
+  per harness, 300 minutes each) — the sandbox census measured
   them unfinished at ten minutes and undecided under every SMT
-  backend, recorded as such. The rate-domain assumption the heavy
+  backend, and the hosted per-push run measured the tier cancelled
+  at 59m44s still inside its first harness; the owner's 15-minute
+  per-push cap moved the tier off the push, the decision recorded
+  in the lane headers. The rate-domain assumption the heavy
   theorems carry is the system's own ceiling (MAX_RATE, the parse
   family's refusal line) — the theorems quantify over the reachable
   policy domain, stated in the harness, never hidden.
@@ -750,11 +756,13 @@ per-push lane (.github/workflows/proofs.yml), three honest tiers:
   rides the proofs manifest comments.
 
 The lane: `cargo test` in proofs/ (the sampled tier, rootless,
-stable-only) and `cargo kani --lib` per harness (the for-all tier,
-the pinned kani release) — the proofs.yml workflow runs both on
-every push, one invocation per harness so a verdict is never lost to
-a sibling's budget. A red is a counterexample or an undecided
-theorem, never a skip.
+stable-only) and `cargo kani --lib` per harness (the for-all tier's
+decidable half, the pinned kani release) — the proofs.yml workflow
+runs both on every push, one invocation per harness so a verdict is
+never lost to a sibling's budget, capped at 15 minutes wall; the four
+solver-bound theorems ride proofs-night.yml's nightly matrix with the
+full 300-minute budget, one harness per job. A red is a
+counterexample or an undecided theorem, never a skip.
 
 ## The Quota Saver — the Workload-Conditional Claim
 
