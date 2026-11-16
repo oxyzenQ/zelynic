@@ -132,6 +132,17 @@ lesson:
    that cannot be read live is a gimmick — the estate's honesty law
    refused it.
 
+A SECOND LIVE FIND, the rollback's own: the parity gate's tree-hash
+pin passed while the STAGED OBJECTS were stale — the refresh's
+in-sync path reused artifacts built from the mirror-era sources (the
+limiter object still carried the self_cost map at schema v36 while
+the binary expected v35 — the supermassive histogram leg's honest
+absence was the schema gate refusing a mixed estate). The fix was
+the clean rebuild (ebpf/target wiped, the objects regenerated from
+the reverted sources, zero self_cost strings in either object). The
+gate's residual — it pins the tree, not the object provenance — is
+recorded here for the owner's call.
+
 THE FINDING THAT OUTLIVES THE LANDING: the enforcer's verifier walk
 budget is FULL — the pre-Z6 program sat at the 1M insn ceiling, so
 NO new lane can ride the enforcer object until either the loader
