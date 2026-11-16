@@ -395,7 +395,7 @@ fn the_json_wire_carries_the_bracket_additively() {
         },
         None,
     );
-    let text = depth_doc_json(&[bare], &[], None, None).to_json();
+    let text = depth_doc_json(&[bare], &[], None).to_json();
     assert!(
         text.contains("\"clamp_bracket\":null") && bracket_wire(&text).is_none(),
         "the absence rides the additive null"
@@ -412,7 +412,7 @@ fn the_json_wire_carries_the_bracket_additively() {
             upload: None,
         }),
     );
-    let text = depth_doc_json(&[single], &[], None, None).to_json();
+    let text = depth_doc_json(&[single], &[], None).to_json();
     let expected = concat!(
         "\"clamp_bracket\":{\"min_rtt_us\":262144,\"p99_rtt_us\":524288,",
         "\"ceiling_bytes\":262144,\"floor_bytes\":524288,",
@@ -448,7 +448,7 @@ fn the_json_wire_carries_the_bracket_additively() {
             upload: None,
         }),
     );
-    let text = depth_doc_json(&[mixed], &[], None, None).to_json();
+    let text = depth_doc_json(&[mixed], &[], None).to_json();
     let expected = "\"clamp_bracket\":{\"min_rtt_us\":10000,\"p99_rtt_us\":524288,\"ceiling_bytes\":200000,\"floor_bytes\":524288,\"honesty_ratio_permille\":52428,\"verdict\":\"mixed\",\"clamp_bytes\":null}";
     assert!(
         text.contains(expected),

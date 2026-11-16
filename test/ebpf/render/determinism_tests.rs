@@ -275,7 +275,7 @@ fn depth_doc_json_converges_under_census_permutation() {
     )]));
     apply_census_order(straight.conns.as_mut().unwrap());
     apply_census_order(flipped.conns.as_mut().unwrap());
-    let one = depth_doc_json(&[straight], &[], None, None).to_json();
-    let two = depth_doc_json(&[flipped], &[], None, None).to_json();
+    let one = depth_doc_json(&[straight], &[], None).to_json();
+    let two = depth_doc_json(&[flipped], &[], None).to_json();
     assert_eq!(one, two, "the JSON document must absorb the input order");
 }

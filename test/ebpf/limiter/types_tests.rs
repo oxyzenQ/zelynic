@@ -297,11 +297,7 @@ fn test_schema_version_constant() {
     // grows IN PLACE — 512 → 832 bytes (the exact aggregates plus
     // the eight tail story slots, no new map) — the forced reload
     // re-pins the full v35 map set.
-    // v36 (night-frontier-Z6, the mirror): ONE additive per-CPU map,
-    // self_cost — the enforcer's own per-packet verdict cost, sampled
-    // by the SAME 1-in-1024 tick, the NIGHT-lts-2 fast-path law
-    // untouched — the forced reload re-pins the full v36 map set.
-    assert_eq!(SCHEMA_VERSION_EXPECTED, 36);
+    assert_eq!(SCHEMA_VERSION_EXPECTED, 35);
 }
 
 // ── night-spark-4, schema v26: the CE ledger's layout pins ─────────

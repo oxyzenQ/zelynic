@@ -73,25 +73,17 @@ the pinned release with its toolchain cached by version. The
 dependency record rides DEPENDENCY_AUDIT.md (proptest keep, kani
 keep pinned, loom signed NO, the out-of-scan scope note).
 
-## D2 — the mirror (schema v36, the enforcer's own tax)
+## D2 — the mirror (proven rootlessly, deferred on the live ceiling)
 
-One additive per-CPU map, `self_cost` (PerCpuArray<SelfCostRow>, one
-280-byte row per CPU: 32 log2 buckets of the verdict path's wall
-time in nanoseconds, then the Z1 exact-aggregate law — sum/min/max,
-the count riding no word because sum(buckets) IS the count). The
-sampler law is the precision claim: ONE tick decision, two
-consumers — the tick call moved from try_enforce's body to the
-program wrappers (selfcost_sample), the sampled packet's entry ktime
-stamps the window right after the tick (the tick is the meter's own
-cost, not the metered path), try_enforce gains the decision as a
-parameter and keeps its exact shape, and the verdict's close lands
-the delta in the per-CPU row (cost_record: plain RMW, no atomics
-owed — per-CPU isolation, the tick's own discipline; the AND-mask
-index law the 5.15 verifier lesson carries). The unlimited fast
-path's NIGHT-lts-2 law is untouched: unsampled packets (1023 of
-1024 per CPU) pay what they always paid; the sampled packet adds
-two ktime reads and one row write. Both directions pool into one
-row — the tax is the enforcer's, not a direction's.
+The design: one additive per-CPU map (`self_cost`), the verdict
+path's wall time sampled by the 1-in-1024 per-CPU tick, the delta
+landed at the verdict — every mechanism below was implemented,
+rootless-pinned, and live-tested to the verifier's own refusal. The
+landing's final state: the law file preserved in the test tree, the
+schema UNCHANGED at v35, the version UNCHANGED at 80.3.1, and the
+deferral recorded with its reopen conditions (the ledger's
+Deferred-by-verdict section — the genre the CO-RE audit
+established).
 
 The userspace half: the SelfCostRowRaw mirror (264-byte layout law,
 the Pod discipline), the cross-CPU fold law (buckets and sums add —
@@ -108,46 +100,53 @@ self-cost leg (the live leg drives thousands of packets through the
 enforcer and reads the block mid-traffic: count == sum(buckets), the
 quantiles present, the bounds present, the exact mean positive).
 
-THE LIVE VERIFIER'S OWN VERDICT — the landing's deepest find. The
-first object shape (a 32-branch log2 ladder for the cost bucket, the
-hist.rs shape re-stated, plus exact min/max replace words) was
-REFUSED by the kernel verifier on the C77 forensic leg: "BPF program
-is too large. Processed 1000001 insn" — the ladder's branches
-multiplied the verifier's explored states against the six-layer
-verdict path's whole state space at the wrapper's position, the
-widest state set in the program. Two fixes, each the live leg's own
-verdict:
+THE LIVE VERIFIER'S OWN VERDICT — the session's deepest find, and
+the reason the mirror is a SIGNED DEFERRAL, not a shipped lane. Four
+shapes attempted, each refused by the C77 forensic leg with its own
+lesson:
 
-1. The clz law: floor(log2(ns | 1)) clamped at 31 — four
-   instructions where the ladder spent thirty-two branches. The
-   ladder shape is the RIGHT one for the histogram's row load (the
-   5.15 lesson: the hooks hand a u32 skb length, so LLVM proves the
-   caps dead and deletes them, and the verifier — which cannot see
-   LLVM's reasoning — rejected the unbounded index); the mirror's
-   u64 clock delta inverts the story (log2 reaches 63, the clamp
-   CANNOT be proven dead, it stays an instruction the verifier
-   models natively).
-2. The exact min/max words are GONE — their replace pairs multiplied
-   the explored states again at the same position; the honest trade
-   is the estate's own shape (the bucket-bounded bounds read, the
-   same lower-bound law every quantile carries). v36 is unreleased,
-   so the contract re-shaped freely and the schema history entries
-   carry the final form.
+1. The 32-branch log2 ladder (the hist.rs shape re-stated) plus
+   exact min/max replace words: REFUSED — "BPF program is too large.
+   Processed 1000001 insn". The ladder's branches multiplied the
+   verifier's explored states against the six-layer verdict path's
+   whole state space at the wrapper's position, the widest state set
+   in the program.
+2. The clz law (floor(log2(ns | 1)) clamped at 31 — four
+   instructions; the RIGHT shape for a u64 clock delta, where the
+   clamp cannot be proven dead and stays an instruction the verifier
+   models natively) with the min/max words traded for the
+   bucket-bounded bounds read: STILL REFUSED — the walk was already
+   at the ceiling; ANY tail addition multiplies the widest state set
+   past it.
+3. The record as a real BPF-to-BPF subprogram (inline(never)):
+   WORSE — the hand-rolled loader ships no func_info, so the kernel
+   explores a B2B callee per caller state (no dedup), the walk grew,
+   the static program grew, and the resolver lanes timed out on the
+   loader side.
+4. The observer reframe (the always-on lane, the estate's headroom
+   king): the object loaded and the program verified, but the
+   OBSERVER'S MAPS ARE SESSION-SCOPED IN-PROCESS — the lazy camera
+   pins nothing by design, so a one-shot depth read can never see
+   them, and pinning them would change the observer's session model
+   (the counters' eviction semantics are documented behavior). A tax
+   that cannot be read live is a gimmick — the estate's honesty law
+   refused it.
 
-The rootless boundary table held byte for byte through both fixes
-(no pin moved for the clz law — the semantics are the ladder's own),
-and every red the live leg filed was fixed with a signed commit
-before the next push. The THIRD refusal (the record as a real BPF
-subprogram) taught the last lesson: the hand-rolled loader ships no
-func_info, so a B2B callee is explored per caller state — the walk
-exploded further and the static program grew. The final shape moved
-the mirror to the OBSERVER object — the always-on lane, the estate's
-headroom king, with the universal tax to publish (no host runs the
-limiter without first running the watcher) — the limiter-side
-wrappers reverted whole, the observer carrying its own 1-in-1024
-tick (its own counter; the two objects never share a map), and the
-hot path's documented cost is one per-CPU tick per packet — the
-price of publishing the always-on tax.
+THE FINDING THAT OUTLIVES THE LANDING: the enforcer's verifier walk
+budget is FULL — the pre-Z6 program sat at the 1M insn ceiling, so
+NO new lane can ride the enforcer object until either the loader
+ships program func_info (BTF-driven B2B dedup gives real headroom)
+or a walk-cost optimization frees budget. That boundary is now
+documented, measured four ways, and the mirror's law file is
+preserved whole (selfcost_core.rs + selfcost_core_tests.rs in the
+test tree — every law rootless-pinned: the 264-byte row shape, the
+clz bucket law and its exact power-of-two boundaries, the record
+law's contracts, the fold law, the bucket-bounded bounds, the ns
+ladder) — the kernel half is a #[path] wiring away the day a live
+lane exists. INNOVATIONS.md carries the deferral with its reopen
+conditions; schema stays at v35; the package version stays 80.3.1;
+the depth JSON and the supermassive leg carry no self_cost shape
+(no claim without its verdict).
 
 Schema v36 is REQUIRED, not polite: a pinned v35 object lacks the
 self_cost map entirely — the forced reload wipes the stale pins

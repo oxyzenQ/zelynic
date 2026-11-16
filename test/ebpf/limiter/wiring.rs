@@ -102,9 +102,10 @@ mod pace_tests;
 #[cfg(test)]
 #[path = "hist_tests.rs"]
 mod hist_tests;
-// night-frontier-Z6 (the mirror, schema v36): the self-cost row's
-// pure core compiles from ebpf/src/selfcost.rs the same way, pinned
-// rootlessly by test/ebpf/limiter/selfcost_tests.rs.
+// night-frontier-Z6 (the mirror, DEFERRED-BY-VERDICT): the self-cost
+// law file lives in the test tree (selfcost_core.rs — the preserved
+// asset the live lane's kernel half will wire back), pinned
+// rootlessly by selfcost_core_tests.rs.
 #[cfg(test)]
-#[path = "selfcost_tests.rs"]
-mod selfcost_tests;
+#[path = "selfcost_core_tests.rs"]
+mod selfcost_core_tests;

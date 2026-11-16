@@ -582,47 +582,6 @@ wrapper a thin IDENTITY_DIR call). Dive 4's -4000m rung
 the answer) stays deferred by verdict; Dive 3's story family is
 deferred whole (see Deferred by verdict).
 
-**21. The mirror — zelynic publishes its own per-packet tax**
-(`ebpf/src/selfcost.rs` + `src/ebpf/limiter/selfcost.rs`, schema
-v36, night-frontier-Z6). Every tool in the class prices its
-efficiency in prose; zelynic prices it in the datapath's own words.
-The observer path's wall time — stamped at program entry, closed at
-the verdict — lands in ONE additive per-CPU map (`self_cost`, a
-264-byte row: 32 log2 buckets of nanoseconds plus the exact mass —
-sum — the count riding no word because sum(buckets) IS the count;
-the min/max words the first sketch carried are gone, and the bounds
-ride the buckets themselves, the fold's own bucket-bounded read).
-The lane is the OBSERVER — the always-on datapath every host runs:
-the enforcer's walk budget proved FULL three ways on the C77 live
-leg (the 32-branch ladder, the clz law's tail, and the
-func_info-less B2B subprogram — each its own signed refusal), and
-the observer is the estate's headroom king, with the universal tax
-to publish: no host runs the limiter without first running the
-watcher. Recording rides the observer's OWN 1-in-1024 per-CPU tick
-(the histogram's tick rides the limiter object; the two objects
-never share a map) — the always-on hot path pays one per-CPU tick
-per packet, the cost of publishing the tax, the same class the
-limiter's hist amendment measured and priced. The measured window
-starts AFTER the tick (the tick is the meter's own cost, not the
-metered path), and the row is pooled across both directions — the
-tax is the observer's, not a direction's. The userspace twin folds the per-CPU
-rows machine-wide (buckets and sums add, the max ratchets, the min
-skips unsampled CPUs' sentinel — a zero cost that never happened is
-never reported) and the `ee --depth` JSON carries the `self_cost`
-block (the sampling cadence, the folded buckets, the bucket-bounded
-quantiles, the exact aggregates) additive and honestly absent while
-no packet has sampled. The verification ladder: `selfcost_tests.rs`
-(the ladder's exact boundaries, the record law's four contracts, the
-280-byte layout law), `selfcost_raw_tests.rs` (the fold law's
-sentinel, the ns ladder), the depth-JSON wire pins (the null absence,
-the sampled shape, the field-order tail), and the supermassive
-depth-phase assertions (the live leg drives thousands of packets and
-reads the block mid-traffic — count == sum(buckets), the quantiles
-present, the min sentinel honest). Why nobody has this number: it
-requires the tool to publish its own tax measured by the same
-datapath it polices — the honesty crown the measured-curve
-positioning stands on.
-
 **The determinism law beneath them all** (night-depth-hardening-1,
 `src/ebpf/connections.rs` + `src/ebpf/identity/drift.rs` +
 `test/ebpf/render/determinism_tests.rs`).
@@ -1039,6 +998,35 @@ that already exist, a minor bump, never a major.
   silence on a real drift, or the same periodic flood wearing a
   smarter hat. Reopens when: field measurements across real traffic
   shapes exist to tune the threshold honestly.
+
+- **The mirror — zelynic publishing its own per-packet tax
+  (night-frontier-Z6).** The ask: the datapath's own verdict-path
+  wall time, sampled by a 1-in-1024 per-CPU tick and published in
+  the `ee --depth` JSON — the one number no other limiter in the
+  class publishes. The MECHANISM is proven and preserved whole:
+  the law file (row shape, the clz bucket law, the record law, the
+  fold, the bucket-bounded bounds) lives in the test tree with
+  every law rootless-pinned (selfcost_core.rs +
+  selfcost_core_tests.rs), ready to wire the day a live lane
+  exists. The live leg refused three shapes, each its own signed
+  lesson: the 32-branch log2 ladder exploded the verifier's
+  explored states against the six-layer verdict path's state space
+  ("BPF program is too large. Processed 1000001 insn"); the clz
+  law (four instructions) still tipped the walk — the enforcer's
+  budget is FULL, pre-existing, and any tail addition multiplies
+  the widest state set; and the B2B subprogram shape cannot dedup
+  on a loader that ships no func_info (the callee explored per
+  caller state, the walk worse). The observer reframe measured
+  worse still: the observer's maps are session-scoped in-process
+  (the lazy camera pins nothing), so a one-shot depth read can
+  never see them — publishing them would need pins, which would
+  change the observer's session model. Deferred because the
+  estate's honesty law prices a lane that cannot be read live as a
+  gimmick. Reopens when: the hand-rolled loader ships program
+  func_info (BTF-driven B2B dedup — real verifier headroom for any
+  future enforcer lane), or a walk-cost optimization frees the
+  enforcer's ceiling, or the monitor gains an in-process surface
+  that reads its own live observer handle.
 
 ## Reading order for a new maintainer
 

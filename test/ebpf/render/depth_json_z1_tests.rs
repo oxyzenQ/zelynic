@@ -41,7 +41,7 @@ fn json_histogram_block_carries_the_z1_exact_words_and_tail() {
         download: Some(row),
         upload: None,
     });
-    let text = depth_doc_json(&[report], &[], None, None).to_json();
+    let text = depth_doc_json(&[report], &[], None).to_json();
     // The exact aggregates ride beside the bounds — the kernel's own
     // words, mean the sum's division.
     assert!(

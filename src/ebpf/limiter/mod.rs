@@ -40,7 +40,6 @@ pub mod rate_ring;
 mod reclaim;
 mod resolve;
 mod schema;
-pub mod selfcost;
 // The schema ledger's history half (night-T-3's 600-line split): a
 // doc-only sibling module of schema.rs, declared the standard way —
 // the test-tree discipline reserves src/ #[path] wirings for the
