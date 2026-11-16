@@ -2791,9 +2791,11 @@ samples, no live download rate, a zero min word — the same
 absence-vs-zero law every optional field carries. The text
 report's `clamp bracket:` line is this object's own projection.
 
-`self_cost` (night-frontier-Z6, schema v36) is the mirror — the
-LIMITER's own per-packet verdict cost, measured by the same datapath
-it polices, machine-scope (doc-level, a sibling of `bypass_audit`):
+`self_cost` (night-frontier-Z6, schema v36) is the mirror —
+zelynic's own per-packet datapath cost, measured by the always-on
+observer lane itself (the limiter's walk budget proved full on the
+live forensic leg; the observer is the datapath every host runs),
+machine-scope (doc-level, a sibling of `bypass_audit`):
 `{"sample_shift":10,"count":42,"buckets":[...32 entries...],"p50":1024,"p95":4096,"p99":8192,"sum_ns":71234,"min_ns":1024,"max_ns":16383,"mean_ns":1696}`
 — the verdict path's wall time in nanoseconds, sampled by the SAME
 1-in-1024 per-CPU tick the `histogram` block rides (one tick
@@ -2809,8 +2811,8 @@ the same resolution law the histogram carries), and
 kernel's own words carry (sum and mean are exact; the min/max pair
 is the BUCKET-BOUNDED read — the smallest sampled cost is AT LEAST
 `min_ns`, the largest BELOW `max_ns`, the log2 resolution's own
-shape, the C77 live leg's verifier budget having chosen the buckets'
-own bounds over exact words at the datapath's widest state
+shape, the live forensic leg's verifier budget having chosen the
+buckets' own bounds over exact words at the datapath's widest state
 position). Both directions
 pool into one row: the tax is the enforcer's, not a direction's.
 `null` while no packet has sampled yet (a fresh pin, an idle

@@ -153,14 +153,20 @@
 /// v36 (night-frontier-Z6, the mirror — the limiter publishing its
 ///     own per-packet tax): ONE additive per-CPU map, self_cost
 ///     (PerCpuArray<SelfCostRow>, one 264-byte row per CPU: 32
-///     log2 buckets of the verdict path's wall time in nanoseconds,
+///     log2 buckets of the OBSERVER path's wall time in nanoseconds,
 ///     plus the exact mass (sum), the count riding no word because
 ///     sum(buckets) IS the count; the min/max words the first sketch
 ///     carried are GONE — the C77 live leg measured their replace
 ///     pairs multiplying the verifier's explored states past the 1M
 ///     insn walk budget at the wrapper's position, and the bounds
 ///     ride the buckets themselves, the userspace fold's own
-///     bucket-bounded read). Recording
+///     bucket-bounded read). The map rides the OBSERVER object — the
+///     always-on lane (the C77 forensic leg measured the ENFORCER's
+///     walk budget full three ways: the 32-branch ladder, the clz
+///     law's tail, and the func_info-less B2B subprogram — the
+///     observer's counting program is the estate's headroom king,
+///     and its cost is the universal one to publish: no host runs
+///     the limiter without first running the watcher). Recording
 ///     rides the SAME 1-in-1024 per-CPU tick the depth histogram
 ///     rides — one tick decision, two consumers (the histogram's
 ///     row write inside try_enforce, the mirror's ktime pair around

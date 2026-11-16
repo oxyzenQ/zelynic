@@ -87,14 +87,23 @@
 #![no_main]
 
 use aya_ebpf::{
-    EbpfContext as _, helpers::bpf_get_socket_cookie, helpers::bpf_skb_cgroup_id,
-    macros::cgroup_skb, macros::map, maps::LruHashMap, programs::SkBuffContext,
+    EbpfContext as _, helpers::bpf_get_socket_cookie, helpers::bpf_ktime_get_ns,
+    helpers::bpf_skb_cgroup_id, macros::cgroup_skb, macros::map, maps::LruHashMap,
+    maps::PerCpuArray, programs::SkBuffContext,
 };
 
 // The observer's pure stats core (NIGHT-improve-29): the layout +
 // the atomic booking primitives, pure `core`, #[path]-pinned into
 // the userspace test tree the same way math.rs is (see stats.rs).
 mod stats;
+
+// night-frontier-Z6 (schema v36, the mirror): the observer's own
+// per-packet cost row and record law live in selfcost.rs -- the same
+// pure-core discipline (zero aya dependencies, #[path] AND
+// userspace-test-tree wiring), pinned rootlessly by
+// test/ebpf/limiter/selfcost_tests.rs.
+#[path = "selfcost.rs"]
+mod selfcost;
 
 use stats::{CgroupStats, book_packet, bump_socket_bytes};
 
@@ -218,6 +227,76 @@ static socket_counters_ingress: LruHashMap<u64, u64> =
 /// winner's entry instead of overwriting it.
 const BPF_NOEXIST: u64 = 1;
 
+/// The mirror's row (night-frontier-Z6, schema v36): the OBSERVER's
+/// own per-packet cost -- the always-on lane's tax, measured by the
+/// datapath that runs on every host where zelynic watches. The
+/// enforcer lane's walk budget is full (the C77 forensic leg measured
+/// ANY tail addition past the 1M insn walk -- the verdict that moved
+/// this lane here); the observer's program is the estate's headroom
+/// king, and its cost is the universal one to publish. One per-CPU
+/// row for BOTH directions pooled -- the tax is the observer's, not a
+/// direction's. Userspace reads the row through the pinned-map lane
+/// for the ee --depth self-cost block; the row shape is schema-pinned
+/// end to end.
+#[allow(non_upper_case_globals)]
+#[map]
+static self_cost: PerCpuArray<selfcost::SelfCostRow> = PerCpuArray::pinned(1, 0);
+
+/// The mirror's own tick (night-frontier-Z6): one per-CPU increment
+/// per packet -- the observer's sampling cadence, its own counter (the
+/// limiter's hist tick rides the other object; the two objects never
+/// share a map), the same 1-in-1024 law. The hot path pays one per-CPU
+/// tick per packet -- the cost of publishing the always-on lane's own
+/// tax, the same class the limiter's hist amendment measured and
+/// priced.
+#[allow(non_upper_case_globals)]
+#[map]
+static observer_sample_tick: PerCpuArray<u64> = PerCpuArray::pinned(1, 0);
+
+/// The mirror's sampling half (night-frontier-Z6, schema v36): the
+/// observer's OWN 1-in-1024 per-CPU tick and the entry ktime stamp
+/// taken right after it -- the measured window starts AFTER the tick
+/// itself (the tick is the meter's own cost, not the metered path).
+#[inline(always)]
+fn selfcost_sample(tick: &PerCpuArray<u64>) -> u64 {
+    match tick.get_ptr_mut(0) {
+        Some(t) => {
+            // SAFETY: the per-CPU array's own slot -- per-CPU
+            // isolation makes this CPU the slot's only writer, no
+            // atomics owed (the limiter's hist tick discipline).
+            let v = unsafe {
+                *t = (*t).wrapping_add(1);
+                *t
+            };
+            if v & selfcost::SELF_COST_SAMPLE_MASK == 0 {
+                // SAFETY: the monotonic-clock helper call every bpf_*
+                // call in the object rides; the return is a plain u64.
+                unsafe { bpf_ktime_get_ns() }
+            } else {
+                0
+            }
+        }
+        None => 0,
+    }
+}
+
+/// The mirror's record half (night-frontier-Z6): the observer path's
+/// wall time closed at the verdict, one per-CPU row write -- the
+/// sampled packet's only extra map work. The observer's walk budget
+/// is the estate's headroom king (the whole program is a counting
+/// lane), so no subprogram shape is owed here.
+#[inline(always)]
+fn selfcost_record(t0: u64, rows: &PerCpuArray<selfcost::SelfCostRow>) {
+    if t0 != 0
+        && let Some(row) = rows.get_ptr_mut(0)
+    {
+        // SAFETY: the helper call as above; the wrapping sub is the
+        // monotonic pair's own law (t0 <= now by the clock).
+        let delta = unsafe { bpf_ktime_get_ns() }.wrapping_sub(t0);
+        selfcost::cost_record(row, delta);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Egress observer: per-cgroup and per-socket counter updates. Ported
 // from observe_egress, with the 1-in-100 event branch and the events
@@ -265,6 +344,7 @@ fn bump_socket_counter(map: &LruHashMap<u64, u64>, cookie: u64, pkt_len: u64) {
 
 #[cgroup_skb(egress)]
 fn observe_egress(ctx: SkBuffContext) -> i32 {
+    let t0 = selfcost_sample(&observer_sample_tick);
     // SAFETY: the helper call hands the program's own skb context
     // pointer to the kernel; the return is a plain u64 cgroup id,
     // no pointer crosses back into the program.
@@ -305,6 +385,7 @@ fn observe_egress(ctx: SkBuffContext) -> i32 {
         }
     }
 
+    selfcost_record(t0, &self_cost);
     1
 }
 
@@ -314,6 +395,7 @@ fn observe_egress(ctx: SkBuffContext) -> i32 {
 
 #[cgroup_skb(ingress)]
 fn observe_ingress(ctx: SkBuffContext) -> i32 {
+    let t0 = selfcost_sample(&observer_sample_tick);
     // SAFETY: the helper call hands the program's own skb context
     // pointer to the kernel; the return is a plain u64 cgroup id,
     // no pointer crosses back into the program.
@@ -353,6 +435,7 @@ fn observe_ingress(ctx: SkBuffContext) -> i32 {
         }
     }
 
+    selfcost_record(t0, &self_cost);
     1
 }
 

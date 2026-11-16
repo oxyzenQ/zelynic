@@ -44,7 +44,6 @@
 #![no_main]
 
 use aya_ebpf::{
-    helpers::bpf_ktime_get_ns,
     macros::{cgroup_skb, map},
     maps::{Array, HashMap, LruHashMap, PerCpuArray},
     programs::SkBuffContext,
@@ -68,14 +67,6 @@ mod math;
 // test/ebpf/limiter/hist_tests.rs compile this exact file).
 #[path = "../hist.rs"]
 mod hist;
-
-// night-frontier-Z6 (schema v36, the mirror): the enforcer's own
-// per-packet cost row and record law live in ../selfcost.rs — the
-// same pure-core discipline (zero aya dependencies, #[path] AND
-// userspace-test-tree wiring), pinned rootlessly by
-// test/ebpf/limiter/selfcost_tests.rs.
-#[path = "../selfcost.rs"]
-mod selfcost;
 
 // NIGHT-private-research-2 (MMSPA): the resolution core lives in
 // ../mmspa.rs — same discipline as math.rs: pure `core`, zero aya
@@ -369,21 +360,6 @@ static hist_sample_tick: PerCpuArray<u64> = PerCpuArray::pinned(1, 0);
 #[map]
 static hist_zero_row: Array<hist::HistRow> = Array::pinned(1, 0);
 
-/// The mirror's row (night-frontier-Z6, schema v36): the enforcer's
-/// own per-packet verdict cost, sampled by the SAME 1-in-1024 per-CPU
-/// tick the depth histogram rides — one tick decision, two consumers,
-/// the hot path's cost UNCHANGED (the NIGHT-lts-2 law's frontier-2B
-/// amendment holds: the unlimited majority pays what it always paid;
-/// the sampled packet adds two ktime reads and one per-CPU row write,
-/// 1 in 1024 packets per CPU). One per-CPU row for BOTH directions
-/// pooled — the tax is the enforcer's, not a direction's (the same
-/// shared-tick posture hist_sample_tick rides). Userspace reads the
-/// row through the pinned-map lane for the ee --depth self-cost
-/// block; the row shape is schema-pinned end to end.
-#[allow(non_upper_case_globals)]
-#[map]
-static self_cost: PerCpuArray<selfcost::SelfCostRow> = PerCpuArray::pinned(1, 0);
-
 // ---------------------------------------------------------------------------
 // Enforcement program flow. The refill math (fill-detect, fractional
 // carry, cap, drop) lives in math.rs (NIGHT-depthbore-1); everything
@@ -405,8 +381,7 @@ static self_cost: PerCpuArray<selfcost::SelfCostRow> = PerCpuArray::pinned(1, 0)
 /// Download enforcement (ingress). Ported from enforce_dl.
 #[cgroup_skb(ingress)]
 fn enforce_dl(ctx: SkBuffContext) -> i32 {
-    let (sampled, t0) = selfcost_sample();
-    let verdict = try_enforce(
+    try_enforce(
         ctx,
         true,
         &cgroup_policy_dl,
@@ -423,66 +398,13 @@ fn enforce_dl(ctx: SkBuffContext) -> i32 {
         &cake_flow::flow_share_dl,
         &cake_flow::flow_ledger_dl,
         &depth_hist_dl,
-        sampled,
-    );
-    selfcost_record(t0);
-    verdict
-}
-
-/// The mirror's sampling half (night-frontier-Z6, schema v36): the
-/// SAME tick decision the depth histogram rides (hist_sample_due —
-/// one decision, two consumers), and the entry ktime stamp taken
-/// right after it. The measured window starts AFTER the tick itself:
-/// the tick is the meter's own cost, not the metered path.
-#[inline(always)]
-fn selfcost_sample() -> (bool, u64) {
-    if enforce_helpers::hist_sample_due() {
-        // SAFETY: the monotonic-clock helper call every bpf_* call in
-        // the object rides; the return is a plain u64.
-        let t0 = unsafe { bpf_ktime_get_ns() };
-        (true, t0)
-    } else {
-        (false, 0)
-    }
-}
-
-/// The mirror's record half (night-frontier-Z6): the verdict path's
-/// wall time closed at the verdict, one per-CPU row write — the
-/// sampled packet's only extra map work. The unlimited fast path's
-/// NIGHT-lts-2 law is untouched: unsampled packets (1023 of 1024 per
-/// CPU) take neither branch's extra reads. INLINE(NEVER) IS THE
-/// VERIFIER BUDGET'S OWN TOOL (the C77 leg's verdict, honored
-/// twice): the record sits at the program's widest state position —
-/// every terminal state of the six-layer verdict path flows into it
-/// — and an inlined body multiplies its instructions by that whole
-/// state set, the walk past the 1M insn budget three times running.
-/// A real BPF-to-BPF subprogram (the nightly emits the call for a
-/// non-inlined fn) is verified ONCE with its own budget and the
-/// caller pays one call instruction — the exact tool for a tail that
-/// must exist but must not be explored per-state. The floor carries
-/// it: BPF-to-BPF calls are 4.16-era, far under 5.15.
-#[inline(never)]
-fn selfcost_record(t0: u64) {
-    // The let-chain is the nightly-2024 shape the kernel crate
-    // speaks (bin/limiter.rs compiles under the ebpf toolchain only
-    // — the stable root never sees this file); collapsing the two
-    // guards satisfies the kernel clippy lane's collapsible_if and
-    // keeps the unsampled majority's exit branch one comparison.
-    if t0 != 0
-        && let Some(row) = self_cost.get_ptr_mut(0)
-    {
-        // SAFETY: the helper call as above; the wrapping sub is
-        // the monotonic pair's own law (t0 <= now by the clock).
-        let delta = unsafe { bpf_ktime_get_ns() }.wrapping_sub(t0);
-        selfcost::cost_record(row, delta);
-    }
+    )
 }
 
 /// Upload enforcement (egress). Ported from enforce_ul.
 #[cgroup_skb(egress)]
 fn enforce_ul(ctx: SkBuffContext) -> i32 {
-    let (sampled, t0) = selfcost_sample();
-    let verdict = try_enforce(
+    try_enforce(
         ctx,
         false,
         &cgroup_policy_ul,
@@ -499,10 +421,7 @@ fn enforce_ul(ctx: SkBuffContext) -> i32 {
         &cake_flow::flow_share_ul,
         &cake_flow::flow_ledger_ul,
         &depth_hist_ul,
-        sampled,
-    );
-    selfcost_record(t0);
-    verdict
+    )
 }
 
 #[cfg(not(test))]

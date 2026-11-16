@@ -25,6 +25,16 @@
 /// clamp, never a live reading.
 pub const SELF_COST_BUCKETS: usize = 32;
 
+/// The mirror's sampling cadence: record every 2^SHIFT-th packet, per
+/// CPU — the observer's OWN tick (the depth histogram's tick rides
+/// the limiter object; the two objects never share a map), the same
+/// 1-in-1024 cadence law the estate's sampler carries.
+pub const SELF_COST_SAMPLE_SHIFT: u32 = 10;
+
+/// The tick mask pairing with SELF_COST_SAMPLE_SHIFT: a tick
+/// qualifies for recording when `tick & MASK == 0`.
+pub const SELF_COST_SAMPLE_MASK: u64 = (1 << SELF_COST_SAMPLE_SHIFT) - 1;
+
 /// One sampled verdict's cost row, the per-CPU map value (264 bytes,
 /// all-u64): the 32 log2 buckets plus the exact mass the bucket
 /// bounds can never say. The COUNT rides no word — sum(buckets) IS
