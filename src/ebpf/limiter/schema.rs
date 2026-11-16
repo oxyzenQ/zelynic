@@ -153,30 +153,7 @@
 ///     v34 row is 512 bytes and a v35 reader would map the 304-byte
 ///     extension onto nothing — the forced reload (once, re-apply
 ///     after upgrade) re-pins the full v35 map set.
-/// v36 (night-frontier-Z6, the mirror — the limiter publishing its
-///     own per-packet tax): ONE additive per-CPU map, self_cost
-///     (PerCpuArray<SelfCostRow>, one 264-byte row per CPU: 32 log2
-///     buckets of the verdict path's wall time in nanoseconds, plus
-///     the exact mass (sum), the count riding no word because
-///     sum(buckets) IS the count; the min/max words the first sketch
-///     carried are gone — the C77 live leg measured their replace
-///     pairs past the verifier's walk budget, the bounds ride the
-///     buckets, the userspace fold's own bucket-bounded read).
-///     Recording rides the
-///     SAME 1-in-1024 per-CPU tick the depth histogram rides — one
-///     tick decision, two consumers — so the unlimited fast path's
-///     NIGHT-lts-2 law is untouched: unsampled packets pay what they
-///     always paid, the sampled packet adds two ktime reads and one
-///     per-CPU row write. The measured window starts AFTER the tick
-///     (the tick is the meter's own cost, not the metered path); the
-///     row is pooled across both directions. The userspace twin
-///     (src/ebpf/limiter/selfcost.rs SelfCostRowRaw) and the ee
-///     --depth self-cost block read the row through the pinned-map
-///     lane, additive and honestly absent while no packet has
-///     sampled. The bump is REQUIRED, not polite: a pinned v35
-///     object lacks the self_cost map entirely — the forced reload
-///     (once, re-apply after upgrade) re-pins the full v36 map set.
-pub const SCHEMA_VERSION_EXPECTED: u32 = 36;
+pub const SCHEMA_VERSION_EXPECTED: u32 = 35;
 
 #[cfg(test)]
 #[path = "../../../test/ebpf/limiter/schema_sync_pin_tests.rs"]

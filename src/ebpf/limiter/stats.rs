@@ -7,15 +7,12 @@
 use anyhow::{Context, Result, anyhow};
 use aya::maps::{Array as BpfArray, HashMap as BpfHashMap};
 
-use aya::maps::PerCpuArray as BpfPerCpuArray;
-
 use super::hist::HistRowRaw;
-use super::selfcost::{SelfCostFolded, SelfCostRowRaw, fold_self_cost};
 use super::types::{BucketRaw, Direction, LimiterStatsRaw, PolicyRaw};
 use crate::ebpf::display::recwn_lane;
 use crate::ebpf::pin::{
     self, PIN_MAP_BUCKET_DL, PIN_MAP_BUCKET_UL, PIN_MAP_DEPTH_HIST_DL, PIN_MAP_DEPTH_HIST_UL,
-    PIN_MAP_SELF_COST, PIN_MAP_STATS, PIN_MAP_WATCHDOG, PIN_PROG_RECWN,
+    PIN_MAP_STATS, PIN_MAP_WATCHDOG, PIN_PROG_RECWN,
 };
 
 impl super::Limiter {
@@ -263,58 +260,6 @@ impl super::Limiter {
             Ok(row) => Ok(Some(row)),
             Err(e) if super::lanes::map_error_means_absent(&e) => Ok(None),
             Err(e) => Err(anyhow!("{map_name} read: {e}")),
-        }
-    }
-
-    /// Read the mirror's per-CPU cost row, folded machine-wide
-    /// (night-frontier-Z6, schema v36) — the ee --depth self-cost
-    /// read. `Ok(None)` is the honest absence (a fresh pin no packet
-    /// has sampled yet — the same posture read_hist_public rides);
-    /// `Err` means unreadable. The CALLER gates on the pinned schema
-    /// version first: a pre-v36 pin has no self_cost map at all, and
-    /// the version is the one gate distinguishing "no samples yet"
-    /// from "no such lane" — this read must never be asked the
-    /// un-gated question.
-    pub fn read_self_cost_public(&self) -> Result<Option<SelfCostFolded>> {
-        // The self_cost row rides the OBSERVER object (night-frontier-Z6:
-        // the always-on lane's own tax — the C77 forensic leg measured the
-        // enforcer's walk budget full, and the observer is the estate's
-        // headroom king), so the read is PIN-ONLY: a monitor session pins
-        // the map, a monitor-less host answers the honest absence. A
-        // missing pin is ENOENT (no observer session ever ran) — Ok(None),
-        // the same posture read_hist_public's absent row rides; any other
-        // read failure is an anomaly and propagates.
-        // The architecture law: every pinned-map open flows through
-        // the pin helpers (architecture_pins's own test). ENOENT = no
-        // observer session ever pinned the map (the honest absence);
-        // the io error rides anyhow's source chain, so the downcast
-        // looks through the helper's context.
-        let pinned_map: aya::maps::Map = match pin::open_pinned_per_cpu_array_map(PIN_MAP_SELF_COST)
-        {
-            Ok(map) => map,
-            Err(e)
-                if e.downcast_ref::<std::io::Error>()
-                    .is_some_and(|io| io.kind() == std::io::ErrorKind::NotFound) =>
-            {
-                return Ok(None);
-            }
-            Err(e) => return Err(e),
-        };
-        let map: BpfPerCpuArray<_, SelfCostRowRaw> =
-            BpfPerCpuArray::try_from(&pinned_map).context("Failed to access self_cost")?;
-        match map.get(&0u32, 0) {
-            Ok(values) => {
-                let folded = fold_self_cost(&values);
-                // The honest absence: no CPU has sampled yet (a fresh
-                // pin, idle traffic under the 1/1024 resolution) —
-                // None, never a zero dressed as a measurement.
-                if super::selfcost::self_cost_samples(&folded) == 0 {
-                    Ok(None)
-                } else {
-                    Ok(Some(folded))
-                }
-            }
-            Err(e) => Err(anyhow!("self_cost read: {e}")),
         }
     }
 

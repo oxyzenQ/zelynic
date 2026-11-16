@@ -1,8 +1,8 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: AGPL-3.0-only
 
-//! night-frontier-Z6: rootless pins for the mirror's pure core
-//! (ebpf/src/selfcost.rs — the same file the BPF object builds). The
+//! night-frontier-Z6: rootless pins for the mirror's law file
+//! (selfcost_core.rs — the preserved asset beside this file). The
 //! hist_tests.rs discipline: the ladder's bounds and exact
 //! boundaries, the row's size law, and the record law's four
 //! contracts (the buckets ARE the count, the exact sum, the
@@ -13,10 +13,13 @@
 // module reuses THIS copy (one inclusion of selfcost.rs per test
 // binary — the duplicate-mod lint clippy -D warnings rightly rejects
 // two).
-#[path = "../../../ebpf/src/selfcost.rs"]
+#[path = "selfcost_core.rs"]
 pub(super) mod ebpf_selfcost;
 
-use self::ebpf_selfcost::{SELF_COST_BUCKETS, SelfCostRow, cost_bucket, cost_record};
+use self::ebpf_selfcost::{
+    SELF_COST_BUCKETS, SelfCostRow, SelfCostRowRaw, bucket_bounded_bounds, cost_bucket,
+    cost_record, fold_self_cost, format_ns, self_cost_samples,
+};
 
 /// The row's layout law: 32 buckets plus the exact-mass word, all
 /// u64 — 264 bytes, the shape the schema pin and the userspace twin
@@ -75,6 +78,48 @@ fn cost_record_keeps_the_four_laws() {
     // The exact sum: every nanosecond booked once.
     let total: u64 = samples.iter().sum();
     assert_eq!(row.sum_ns, total);
+}
+
+/// The fold law: buckets and sums add across CPUs, the sample count
+/// derives from the folded buckets (no second count source), and the
+/// bucket-bounded bounds ride the folded buckets themselves — the
+/// smallest sampled cost at least the first nonempty bucket's lower
+/// bound, the largest below the last nonempty bucket's ceiling.
+#[test]
+fn fold_and_bounds_hold_their_laws() {
+    let mut a = SelfCostRowRaw::default();
+    a.buckets[5] = 3;
+    a.buckets[12] = 1;
+    a.sum_ns = 900;
+    let mut b = SelfCostRowRaw::default();
+    b.buckets[5] = 2;
+    b.sum_ns = 1_100;
+    let folded = fold_self_cost(&[a, b]);
+    assert_eq!(folded.buckets[5], 5);
+    assert_eq!(folded.buckets[12], 1);
+    assert_eq!(folded.sum_ns, 2_000);
+    assert_eq!(self_cost_samples(&folded), 6);
+    let (lo, hi) = bucket_bounded_bounds(&folded).unwrap();
+    assert_eq!(lo, 1 << 5, "the lower bound is the first bucket's floor");
+    assert_eq!(
+        hi,
+        (1 << 13) - 1,
+        "the upper bound is the last bucket's ceiling minus one"
+    );
+    // The honest absence: an empty fold answers None, never a zero
+    // dressed as a measurement.
+    assert_eq!(bucket_bounded_bounds(&SelfCostRowRaw::default()), None);
+}
+
+/// The text surface's nanosecond ladder: ms past a millisecond, us
+/// past a microsecond, raw ns below — the three tiers the render
+/// labels ride.
+#[test]
+fn format_ns_ladder_is_honest() {
+    assert_eq!(format_ns(42), "42ns");
+    assert_eq!(format_ns(1_000), "1.0us");
+    assert_eq!(format_ns(1_000_000), "1.0ms");
+    assert_eq!(format_ns(12_345_678), "12.3ms");
 }
 
 /// The AND-mask law's semantics: cost_bucket already answers
