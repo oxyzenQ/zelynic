@@ -137,7 +137,17 @@ verdict:
 The rootless boundary table held byte for byte through both fixes
 (no pin moved for the clz law — the semantics are the ladder's own),
 and every red the live leg filed was fixed with a signed commit
-before the next push.
+before the next push. The THIRD refusal (the record as a real BPF
+subprogram) taught the last lesson: the hand-rolled loader ships no
+func_info, so a B2B callee is explored per caller state — the walk
+exploded further and the static program grew. The final shape moved
+the mirror to the OBSERVER object — the always-on lane, the estate's
+headroom king, with the universal tax to publish (no host runs the
+limiter without first running the watcher) — the limiter-side
+wrappers reverted whole, the observer carrying its own 1-in-1024
+tick (its own counter; the two objects never share a map), and the
+hot path's documented cost is one per-CPU tick per packet — the
+price of publishing the always-on tax.
 
 Schema v36 is REQUIRED, not polite: a pinned v35 object lacks the
 self_cost map entirely — the forced reload wipes the stale pins

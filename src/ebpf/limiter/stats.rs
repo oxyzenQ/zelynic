@@ -276,16 +276,32 @@ impl super::Limiter {
     /// from "no such lane" — this read must never be asked the
     /// un-gated question.
     pub fn read_self_cost_public(&self) -> Result<Option<SelfCostFolded>> {
-        let pinned;
-        let map_ref: &aya::maps::Map = match self.bpf.as_ref() {
-            Some(bpf) => bpf.map("self_cost").context("self_cost not found")?,
-            None => {
-                pinned = pin::open_pinned_per_cpu_array_map(PIN_MAP_SELF_COST)?;
-                &pinned
+        // The self_cost row rides the OBSERVER object (night-frontier-Z6:
+        // the always-on lane's own tax — the C77 forensic leg measured the
+        // enforcer's walk budget full, and the observer is the estate's
+        // headroom king), so the read is PIN-ONLY: a monitor session pins
+        // the map, a monitor-less host answers the honest absence. A
+        // missing pin is ENOENT (no observer session ever ran) — Ok(None),
+        // the same posture read_hist_public's absent row rides; any other
+        // read failure is an anomaly and propagates.
+        // The architecture law: every pinned-map open flows through
+        // the pin helpers (architecture_pins's own test). ENOENT = no
+        // observer session ever pinned the map (the honest absence);
+        // the io error rides anyhow's source chain, so the downcast
+        // looks through the helper's context.
+        let pinned_map: aya::maps::Map = match pin::open_pinned_per_cpu_array_map(PIN_MAP_SELF_COST)
+        {
+            Ok(map) => map,
+            Err(e)
+                if e.downcast_ref::<std::io::Error>()
+                    .is_some_and(|io| io.kind() == std::io::ErrorKind::NotFound) =>
+            {
+                return Ok(None);
             }
+            Err(e) => return Err(e),
         };
         let map: BpfPerCpuArray<_, SelfCostRowRaw> =
-            BpfPerCpuArray::try_from(map_ref).context("Failed to access self_cost")?;
+            BpfPerCpuArray::try_from(&pinned_map).context("Failed to access self_cost")?;
         match map.get(&0u32, 0) {
             Ok(values) => {
                 let folded = fold_self_cost(&values);
