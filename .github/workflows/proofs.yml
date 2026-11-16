@@ -2,11 +2,37 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 #
 # The proofs lane (night-frontier-Z6, D1 — the proven datapath): the
-# per-push verdict vehicle for the two verification instruments the
-# proofs package carries. The included sources are #[path] wirings of
+# per-push verdict vehicle for the decidable instruments the proofs
+# package carries. The included sources are #[path] wirings of
 # ebpf/src's core-only law files — the same bytes the kernel object
 # builds — so a theorem this lane verifies is a theorem the datapath
 # runs (the fuzz harnesses' include law, one directory over).
+#
+# Trigger discipline (the owner's per-push budget, 2026-11-17): this
+# lane is capped at 15 minutes wall — every job below carries
+# timeout-minutes: 15. The solver-bound tier left the per-push path:
+# the four theorems behind nonlinear multiply/divide circuits (the
+# refill overflow guard, the hostile-state enforce totality, the ring
+# stamp law, the bounded key) moved whole to proofs-night.yml, the
+# scheduled and manually dispatchable night lane, where each harness
+# gets its own matrix job with the full 300-minute budget CaDiCaL is
+# the verdict vehicle for. The evidence is the census plus the hosted
+# run: the tier measured unfinished at ten minutes locally, undecided
+# under bitwuzla/cvc5/z3, and the hosted per-push job measured
+# cancelled at 59m44s still inside its first harness — a 15-minute
+# budget is an undecided theorem, not a verdict. The night-verify-1
+# law (no schedule-only lanes: a schedule-only lane is a Skipped row
+# on every push) is amended for exactly this tier by owner decision:
+# a budget the per-push lane can never afford is a verdict vehicle
+# only on the night lane, and a red there is a counterexample or an
+# undecided theorem — both findings, never skips.
+#
+# The twelfth harness, daily_margin_erodes_monotonically_for_all_inputs,
+# stays wired out of BOTH lanes by signed census verdict: its
+# constant-modulo circuit was measured undecided under every backend,
+# so the sampled tier carries the margin law (the harness doc comment
+# and the Z6 audit hold the record — a hunt that flags it a gap is
+# re-reading a decision, not finding one).
 #
 # Two jobs, one package (proofs/ — the detached nested package, the
 # ebpf crate's own detachment shape; the root manifest's dependency
@@ -17,17 +43,11 @@
 #    per run. Fast, rootless, deterministic setup; a red is a real
 #    counterexample with a shrunk witness.
 #  * kani:      bounded model checking under the pinned kani release —
-#    the for-all tier. Six theorems decide in minutes (the decision
-#    tables, the ladders, the memo word, the hint state machine, the
-#    window domain, the consume sufficiency pair); three sit behind
-#    nonlinear multiply/divide circuits (the refill overflow guard,
-#    the hostile-state enforce totality, the ring stamp law, the
-#    bounded key) and get the job's full 60-minute budget with
-#    CaDiCaL — the sandbox census measured them unfinished at ten
-#    minutes and undecided under the SMT backends, so the runner is
-#    the for-all verdict vehicle for that tier. The census record
-#    (the Z6 audit) carries the per-harness tier table; a red here is
-#    a counterexample or an undecided theorem, never a skip.
+#    the for-all tier's decidable half. Six theorems decide in
+#    minutes (the decision tables, the ladders, the memo word, the
+#    hint state machine, the window domain, the consume sufficiency
+#    pair); one invocation per harness so a verdict is never lost to
+#    a sibling's budget.
 #
 # The loom instrument is absent by signed census verdict: loom has no
 # location-backed atomics (AtomicU64::from_ptr), and the datapath's
@@ -56,7 +76,7 @@ jobs:
   property:
     name: proptest exhaustion (stable, rootless)
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7, NIGHT-hunt-20 SHA pin
@@ -87,9 +107,9 @@ jobs:
         run: cd proofs && cargo test --locked
 
   kani:
-    name: bounded model checking (the deciding tier)
+    name: bounded model checking (the decidable tier)
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7, NIGHT-hunt-20 SHA pin
@@ -129,9 +149,9 @@ jobs:
           key: proofs-kani-${{ runner.os }}-${{ hashFiles('proofs/Cargo.lock') }}
           restore-keys: proofs-kani-${{ runner.os }}-
 
-      # The fast tier: six theorems, minutes each. One invocation per
-      # harness so a verdict is never lost to a sibling's budget.
-      - name: For-all theorems (the deciding tier)
+      # The decidable tier: six theorems, minutes each. One invocation
+      # per harness so a verdict is never lost to a sibling's budget.
+      - name: For-all theorems (the decidable tier)
         run: |
           cd proofs
           for h in \
@@ -141,63 +161,5 @@ jobs:
             memo_and_cache_table_hold_for_all_inputs \
             share_note_keeps_its_word_laws_for_all_inputs \
             window_domain_is_total_for_all_inputs; do
-            cargo kani --lib --harness "$h"
-          done
-
-  # The solver-bound tier: the four theorems behind nonlinear
-  # multiply/divide circuits — the census measured them unfinished at
-  # ten minutes locally and undecided under every SMT backend, so
-  # CaDiCaL with the maximum hosted-runner budget is their verdict
-  # vehicle (a 60-minute job was measured cancelled mid-tier; the
-  # budget IS the difference between an undecided theorem and a
-  # verified one). A red here is a counterexample or an undecided
-  # theorem; both are findings, never skips.
-  kani-heavy:
-    name: bounded model checking (the solver-bound tier)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 300
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7, NIGHT-hunt-20 SHA pin
-        with:
-          persist-credentials: false
-
-      - name: Harden DNS (the poisoned-resolver defense)
-        uses: ./.github/actions/harden-dns
-
-      - name: Install Rust toolchain (the root pin, minimal profile)
-        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87  # NIGHT-hunt-20 SHA pin
-        with:
-          toolchain: "1.98.1"
-
-      - name: Install kani-verifier (pinned release)
-        run: cargo install --locked kani-verifier@0.68.0
-
-      - name: Cache the kani toolchain bundle
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6, NIGHT-hunt-20 SHA pin
-        with:
-          path: ~/.kani
-          key: kani-0.68.0-${{ runner.os }}
-
-      - name: Kani first-time setup (bundled toolchain)
-        run: cargo kani setup
-
-      - name: Cache cargo registry
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6, NIGHT-hunt-20 SHA pin
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: proofs-kani-${{ runner.os }}-${{ hashFiles('proofs/Cargo.lock') }}
-          restore-keys: proofs-kani-${{ runner.os }}-
-
-      - name: For-all theorems (the solver-bound tier, one invocation each)
-        run: |
-          cd proofs
-          for h in \
-            refill_credits_is_total_and_bounded_for_all_inputs \
-            enforce_is_total_and_clamped_for_all_hostile_states \
-            ring_book_is_total_and_stamps_lawfully \
-            flow_key_bounded_is_total_for_all_window_shapes; do
             cargo kani --lib --harness "$h"
           done

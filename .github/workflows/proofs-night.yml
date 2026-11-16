@@ -1,0 +1,111 @@
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# The proofs night lane (night-frontier-Z6, D1 — the solver-bound
+# tier): the four theorems behind nonlinear multiply/divide circuits
+# — the refill overflow guard, the hostile-state enforce totality,
+# the ring stamp law, the bounded key — each in its own matrix job,
+# one harness per job with the full 300-minute budget CaDiCaL is the
+# verdict vehicle for. The census measured the harnesses unfinished
+# at ten minutes locally and undecided under bitwuzla/cvc5/z3 (the
+# SMT runs return per-check ERROR, not FAILURE — no counterexample,
+# an undecided circuit); the hosted per-push run measured the tier
+# cancelled at 59m44s still inside its first harness. The budget IS
+# the difference between an undecided theorem and a verified one.
+#
+# Why this tier left proofs.yml (the per-push lane): the owner's
+# per-push cap is 15 minutes wall — a budget the tier can never
+# afford, so a per-push seat would decide nothing while burning the
+# push. The night-verify-1 law (no schedule-only lanes: a
+# schedule-only lane is a Skipped row on every push) is amended for
+# exactly this tier by owner decision; the amendment is recorded in
+# proofs.yml's header, next to the evidence. A red here is a
+# counterexample or an undecided theorem, never a skip — and
+# fail-fast stays false so one finding never buries its siblings'
+# verdicts.
+#
+# Trigger: the nightly schedule (the standing verdict vehicle) plus
+# workflow_dispatch (the manual recovery lane, the estate's shape).
+
+name: zelynic - Proofs Night
+
+"on":
+  schedule:
+    # 02:23 Asia/Jakarta daily (19:23 UTC) — off the hour, the slot
+    # the scheduler's top-of-hour throttle queue avoids.
+    - cron: "23 19 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One run per ref: a new trigger supersedes the previous run's
+# verdict (the estate's concurrency shape).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  kani-heavy:
+    name: kani heavy - ${{ matrix.harness }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        harness:
+          - refill_credits_is_total_and_bounded_for_all_inputs
+          - enforce_is_total_and_clamped_for_all_hostile_states
+          - ring_book_is_total_and_stamps_lawfully
+          - flow_key_bounded_is_total_for_all_window_shapes
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7, NIGHT-hunt-20 SHA pin
+        with:
+          persist-credentials: false
+
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
+
+      - name: Install Rust toolchain (the root pin, minimal profile)
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87  # NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: "1.98.1"
+
+      # The pinned kani release: cargo-kani is a thin wrapper whose
+      # first run downloads the bundled verification toolchain. The
+      # cache keys on the release version — a bump re-downloads by
+      # construction.
+      - name: Install kani-verifier (pinned release)
+        run: cargo install --locked kani-verifier@0.68.0
+
+      - name: Cache the kani toolchain bundle
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6, NIGHT-hunt-20 SHA pin
+        with:
+          path: ~/.kani
+          key: kani-0.68.0-${{ runner.os }}
+
+      - name: Kani first-time setup (bundled toolchain)
+        run: cargo kani setup
+
+      - name: Cache cargo registry
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6, NIGHT-hunt-20 SHA pin
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: proofs-kani-${{ runner.os }}-${{ hashFiles('proofs/Cargo.lock') }}
+          restore-keys: proofs-kani-${{ runner.os }}-
+
+      # One invocation, the matrix's own harness: a verdict is never
+      # lost to a sibling's budget, and the wall is the slowest
+      # theorem, not the sum of four.
+      - name: For-all theorem (the solver-bound tier)
+        env:
+          HARNESS: ${{ matrix.harness }}
+        run: |
+          cd proofs
+          cargo kani --lib --harness "$HARNESS"
