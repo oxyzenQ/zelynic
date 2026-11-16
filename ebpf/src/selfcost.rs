@@ -1,0 +1,201 @@
+// Copyright (C) 2026 rezky_nightky
+// SPDX-License-Identifier: AGPL-3.0-only
+
+//! The mirror's pure core (night-frontier-Z6, schema v36): the
+//! enforcer's own per-packet cost, sampled by the SAME 1-in-1024
+//! per-CPU tick the depth histogram rides. The law files' discipline
+//! (math.rs, hist.rs): zero aya dependencies, wired into the limiter
+//! with #[path] AND into the userspace test tree, so the row shape
+//! and the record law carry rootless pins.
+//!
+//! WHY THIS LANE EXISTS: every limiter in the comparison table
+//! prices its efficiency in prose. zelynic prices it in the datapath's
+//! own words — the verdict path's wall time, stamped at program entry
+//! and closed at the verdict, one ktime pair per SAMPLED packet only
+//! (the two reads ride 1 in 1024 packets per CPU; the unlimited fast
+//! path's NIGHT-lts-2 two-lookup law is untouched). The measured
+//! window starts AFTER the sampler tick itself: the tick is the
+//! meter's own cost, not the metered path.
+
+/// Bucket count for the cost distribution. log2 scale, the hist.rs
+/// ladder's own shape: bucket b covers [2^b, 2^(b+1)) nanoseconds.
+/// 32 buckets reach 2^31 ns (~2.1 seconds) — far past any single
+/// verdict path (the fast path is microseconds; the policed path
+/// adds a documented constant chain), so bucket 31 is the honest
+/// clamp, never a live reading.
+pub const SELF_COST_BUCKETS: usize = 32;
+
+/// One sampled verdict's cost row, the per-CPU map value (280 bytes,
+/// all-u64): the 32 log2 buckets, then the exact aggregates the
+/// bucket bounds can never say — the sum/min/max law the Z1 depth
+/// pack established (sum a plain add, min/max the check-then-store
+/// replace pair, the 0-sentinel "no min yet"). The COUNT rides no
+/// word — sum(buckets) IS the count, the Z1 probe's structural
+/// lesson: a second count source can disagree with the buckets it
+/// summarizes, and "never a wrong count" is structural, not a hope.
+/// Per-CPU isolation means NO atomics are owed: this CPU is the
+/// row's only writer between program invocations (the sampler tick's
+/// own discipline, the plain-RMW shape enforce_helpers rides).
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct SelfCostRow {
+    /// Verdict-path cost distribution, log2 of nanoseconds (bucket b
+    /// covers [2^b, 2^(b+1)) ns).
+    pub buckets: [u64; SELF_COST_BUCKETS],
+    /// The sampled set's exact mass, nanoseconds (plain add — per-CPU
+    /// isolation, no atomics owed).
+    pub sum_ns: u64,
+    /// The sampled set's minimum, nanoseconds (0-sentinel: a fresh
+    /// row answers 0 = "no min yet").
+    pub min_ns: u64,
+    /// The sampled set's maximum, nanoseconds (0 loses to any real
+    /// sample).
+    pub max_ns: u64,
+}
+
+const _: () = assert!(core::mem::size_of::<SelfCostRow>() == 280);
+
+/// The log2 bucket of a cost sample in NANOSECONDS — the hist.rs
+/// ladder's own shape, re-stated here because the pure cores never
+/// import from each other (each file must compile standalone in BOTH
+/// trees; the rate_ring.rs trio's own rationale). Zero answers
+/// bucket 0 (a zero-delta sample is still a sample; a count there
+/// beats a clz panic on 0). The ladder IS the verifier's own proof —
+/// the straight-line comparison sequence nothing can optimize away,
+/// the same lesson size_bucket's doc carries.
+#[inline(always)]
+pub fn cost_bucket(ns: u64) -> usize {
+    if ns >= 1 << 31 {
+        return 31;
+    }
+    if ns >= 1 << 30 {
+        return 30;
+    }
+    if ns >= 1 << 29 {
+        return 29;
+    }
+    if ns >= 1 << 28 {
+        return 28;
+    }
+    if ns >= 1 << 27 {
+        return 27;
+    }
+    if ns >= 1 << 26 {
+        return 26;
+    }
+    if ns >= 1 << 25 {
+        return 25;
+    }
+    if ns >= 1 << 24 {
+        return 24;
+    }
+    if ns >= 1 << 23 {
+        return 23;
+    }
+    if ns >= 1 << 22 {
+        return 22;
+    }
+    if ns >= 1 << 21 {
+        return 21;
+    }
+    if ns >= 1 << 20 {
+        return 20;
+    }
+    if ns >= 1 << 19 {
+        return 19;
+    }
+    if ns >= 1 << 18 {
+        return 18;
+    }
+    if ns >= 1 << 17 {
+        return 17;
+    }
+    if ns >= 1 << 16 {
+        return 16;
+    }
+    if ns >= 1 << 15 {
+        return 15;
+    }
+    if ns >= 1 << 14 {
+        return 14;
+    }
+    if ns >= 1 << 13 {
+        return 13;
+    }
+    if ns >= 1 << 12 {
+        return 12;
+    }
+    if ns >= 1 << 11 {
+        return 11;
+    }
+    if ns >= 1 << 10 {
+        return 10;
+    }
+    if ns >= 1 << 9 {
+        return 9;
+    }
+    if ns >= 1 << 8 {
+        return 8;
+    }
+    if ns >= 1 << 7 {
+        return 7;
+    }
+    if ns >= 1 << 6 {
+        return 6;
+    }
+    if ns >= 1 << 5 {
+        return 5;
+    }
+    if ns >= 1 << 4 {
+        return 4;
+    }
+    if ns >= 1 << 3 {
+        return 3;
+    }
+    if ns >= 1 << 2 {
+        return 2;
+    }
+    if ns >= 1 << 1 {
+        return 1;
+    }
+    0
+}
+
+/// The sampled verdict's record (night-frontier-Z6): one bucket add,
+/// the exact-sum add, and the min/max replace pair — all plain RMW
+/// through the per-CPU map memory, NO atomics owed (this CPU is the
+/// row's only writer between invocations; the sampler tick's own
+/// plain-deref discipline). The bucket index rides an AND mask, not
+/// the clamp alone: the 5.15 verifier lesson hist_record's comment
+/// carries (an AND with the power-of-two bucket count is a proof the
+/// verifier always sees; the clamp's branch it cannot always see).
+/// Semantically a no-op — cost_bucket already answers 0..=31.
+///
+/// SAFETY: the caller hands the per-CPU array's own row pointer
+/// (get_ptr_mut on the CPU-local slot) — stable kernel memory for
+/// this invocation, 8-aligned repr(C) fields, this CPU the slot's
+/// only writer. Plain derefs, never aliased with a &mut, never
+/// copied out of the map.
+#[inline(always)]
+pub fn cost_record(row: *mut SelfCostRow, delta_ns: u64) {
+    let b = cost_bucket(delta_ns) & (SELF_COST_BUCKETS - 1);
+    unsafe {
+        let bp = core::ptr::addr_of_mut!((*row).buckets[b]);
+        *bp = (*bp).wrapping_add(1);
+        let sp = core::ptr::addr_of_mut!((*row).sum_ns);
+        *sp = (*sp).wrapping_add(delta_ns);
+        // The min replace law (the Z1 aggregate pair, the 0-sentinel
+        // "no min yet"): a real sample always lands on a fresh row.
+        let mp = core::ptr::addr_of_mut!((*row).min_ns);
+        let cur = *mp;
+        if cur == 0 || delta_ns < cur {
+            *mp = delta_ns;
+        }
+        // The max replace law (0 loses to any real sample).
+        let xp = core::ptr::addr_of_mut!((*row).max_ns);
+        let curx = *xp;
+        if delta_ns > curx {
+            *xp = delta_ns;
+        }
+    }
+}
