@@ -301,7 +301,7 @@ jobs:
           import json, sys
 
           doc = json.load(sys.stdin)
-          # The mirror (the enforcer's own per-packet tax): the same
+          # The mirror (the per-packet tax the enforcer itself pays):
           # traffic leg that fed the histogram fed the sampled cost
           # row — thousands of packets through the enforcer, several
           # 1/1024 samples per CPU. A host-wide lane: one tick
