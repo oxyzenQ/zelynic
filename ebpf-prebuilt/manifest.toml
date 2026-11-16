@@ -16,7 +16,7 @@
 # binaries embed.
 
 schema = 2
-generated = "2026-11-16T17:13:23Z"
+generated = "2026-11-16T17:14:49Z"
 toolchain = "nightly-2026-09-18"
 bpf_linker = "0.11.1"
 ebpf_tree_blake3 = "09ef1530fb926d675260451fe706558f1f0514182b6a223e7a44a90f68fc63b0"

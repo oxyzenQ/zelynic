@@ -93,21 +93,51 @@ path's NIGHT-lts-2 law is untouched: unsampled packets (1023 of
 two ktime reads and one row write. Both directions pool into one
 row — the tax is the enforcer's, not a direction's.
 
-The userspace half: the SelfCostRowRaw mirror (280-byte layout law,
-the Pod discipline), the cross-CPU fold law (buckets and sums add,
-the max ratchets, the min SKIPS unsampled CPUs' 0-sentinel — a zero
-cost that never happened is never reported), the per-CPU pinned-map
-opener, the doc-level `self_cost` JSON block beside bypass_audit
-(additive; null while no packet has sampled — the honest absence),
-and the text report's `self cost:` machine-scope tail line. The
-verification ladder: selfcost_tests.rs (the core law, rootless),
-selfcost_raw_tests.rs (the fold law + the ns ladder), the
-depth-JSON wire pins (the null absence, the sampled shape, the
-field-order tail), and the supermassive depth-phase self-cost leg
-(the live leg drives thousands of packets through the enforcer and
-reads the block mid-traffic: count == sum(buckets), the quantiles
-present, the min sentinel honest, max >= min, the exact mean
-positive).
+The userspace half: the SelfCostRowRaw mirror (264-byte layout law,
+the Pod discipline), the cross-CPU fold law (buckets and sums add —
+the bounds ride the folded buckets themselves,
+bucket_bounded_bounds's read), the per-CPU pinned-map opener, the
+doc-level `self_cost` JSON block beside bypass_audit (additive; null
+while no packet has sampled — the honest absence), and the text
+report's `self cost:` machine-scope tail line. The verification
+ladder: selfcost_tests.rs (the core law, rootless),
+selfcost_raw_tests.rs (the fold law, the bucket-bounded bounds, the
+ns ladder), the depth-JSON wire pins (the null absence, the sampled
+shape, the field-order tail), and the supermassive depth-phase
+self-cost leg (the live leg drives thousands of packets through the
+enforcer and reads the block mid-traffic: count == sum(buckets), the
+quantiles present, the bounds present, the exact mean positive).
+
+THE LIVE VERIFIER'S OWN VERDICT — the landing's deepest find. The
+first object shape (a 32-branch log2 ladder for the cost bucket, the
+hist.rs shape re-stated, plus exact min/max replace words) was
+REFUSED by the kernel verifier on the C77 forensic leg: "BPF program
+is too large. Processed 1000001 insn" — the ladder's branches
+multiplied the verifier's explored states against the six-layer
+verdict path's whole state space at the wrapper's position, the
+widest state set in the program. Two fixes, each the live leg's own
+verdict:
+
+1. The clz law: floor(log2(ns | 1)) clamped at 31 — four
+   instructions where the ladder spent thirty-two branches. The
+   ladder shape is the RIGHT one for the histogram's row load (the
+   5.15 lesson: the hooks hand a u32 skb length, so LLVM proves the
+   caps dead and deletes them, and the verifier — which cannot see
+   LLVM's reasoning — rejected the unbounded index); the mirror's
+   u64 clock delta inverts the story (log2 reaches 63, the clamp
+   CANNOT be proven dead, it stays an instruction the verifier
+   models natively).
+2. The exact min/max words are GONE — their replace pairs multiplied
+   the explored states again at the same position; the honest trade
+   is the estate's own shape (the bucket-bounded bounds read, the
+   same lower-bound law every quantile carries). v36 is unreleased,
+   so the contract re-shaped freely and the schema history entries
+   carry the final form.
+
+The rootless boundary table held byte for byte through both fixes
+(no pin moved for the clz law — the semantics are the ladder's own),
+and every red the live leg filed was fixed with a signed commit
+before the next push.
 
 Schema v36 is REQUIRED, not polite: a pinned v35 object lacks the
 self_cost map entirely — the forced reload wipes the stale pins
