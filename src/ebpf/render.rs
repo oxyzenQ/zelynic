@@ -214,6 +214,7 @@ pub use sentences::lanes_sentence;
 // — the machine-scope shadow verdict the depth handler prints after
 // the per-target blocks (pure, fixture-pinned).
 pub use bypass::bypass_section;
+pub use hist_section::push_self_cost_lines;
 
 // NIGHT-private-research-3: the depth report's network-traffic
 // focus — the measured window value the handler assembles and the

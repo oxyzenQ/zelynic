@@ -9,6 +9,7 @@
 use crate::ebpf::limiter::hist::{
     HIST_BUCKETS, HistRowRaw, mean, quantile_permille, samples, tail_entries,
 };
+use crate::ebpf::limiter::selfcost::{SelfCostFolded, format_ns, self_cost_samples};
 use crate::ebpf::limiter::{format_bytes, format_count};
 
 use super::format_srtt_lower_bound;
@@ -91,5 +92,45 @@ pub(crate) fn push_hist_lines(lines: &mut Vec<String>, histogram: &Option<HistSe
                 lines.push(kv("histogram", &hist_half_sentence(label, row)));
             }
         }
+    }
+}
+
+/// The mirror's one-line read (night-frontier-Z6, schema v36): the
+/// sampled count, the exact mean the kernel's sum/count law carries,
+/// and the bucket-bounded p50/p95/p99 of the verdict path's wall
+/// time — the >= prefix stays a true lower bound at every tier, the
+/// same honesty the histogram rows print. The tax is the enforcer's
+/// own; both directions pooled.
+pub fn self_cost_sentence(folded: &SelfCostFolded) -> String {
+    let count = self_cost_samples(folded);
+    let mut bits: Vec<String> = Vec::new();
+    if let Some(m) = mean(folded.sum_ns, count) {
+        bits.push(format!("mean {}", format_ns(m)));
+    }
+    let quantiles: Vec<String> = [500, 950, 990]
+        .iter()
+        .filter_map(|&p| {
+            quantile_permille(&folded.buckets, p).map(|v| format!("p{} ≥{}", p / 10, format_ns(v)))
+        })
+        .collect();
+    if !quantiles.is_empty() {
+        bits.push(quantiles.join(" "));
+    }
+    let detail = if bits.is_empty() {
+        String::new()
+    } else {
+        format!(" — {}", bits.join(" · "))
+    };
+    format!("{count} samples{detail}",)
+}
+
+/// Push the self-cost line (night-frontier-Z6): one kv row under the
+/// machine-scope block — the enforcer's own per-packet tax, sampled
+/// at 1/1024 per CPU and folded across them. Absent = no packet has
+/// sampled yet (or a pre-v36 pin), the honest absence — never a zero
+/// row dressed as data.
+pub fn push_self_cost_lines(lines: &mut Vec<String>, self_cost: &Option<SelfCostFolded>) {
+    if let Some(folded) = self_cost {
+        lines.push(kv("self cost", &self_cost_sentence(folded)));
     }
 }

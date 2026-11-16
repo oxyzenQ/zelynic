@@ -32,6 +32,7 @@ use anyhow::Result;
 
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
+use crate::ebpf::limiter::selfcost::SelfCostFolded;
 use crate::ebpf::limiter::types::SCHEMA_VERSION_EXPECTED;
 use crate::ebpf::limiter::{
     Direction, Limiter, LimiterStatsRaw, PolicyRaw, Target, parse_focus_window, pin_dir_has_files,
@@ -39,7 +40,7 @@ use crate::ebpf::limiter::{
 };
 use crate::ebpf::render::{
     DepthReport, Enforcement, HistSection, bypass_section, depth_doc_json, depth_report_lines,
-    package_name, traffic_focus,
+    package_name, push_self_cost_lines, traffic_focus,
 };
 use crate::output::{grey, print_json};
 
@@ -67,6 +68,25 @@ fn histogram_section(limiter: &Option<Limiter>, id: u32) -> Result<Option<HistSe
         return Ok(None);
     }
     Ok(Some(HistSection { download, upload }))
+}
+
+/// The machine-scope self-cost read (night-frontier-Z6, schema v36):
+/// the enforcer's own per-packet verdict cost, folded across the
+/// per-CPU rows — the same version gate the histogram read rides (a
+/// pre-v36 pin has no such lane; the version is the one gate
+/// distinguishing "no samples yet" from "no such lane"). No limiter
+/// session, a pre-v36 pin, or an idle machine all answer None — the
+/// honest absence, never zero-as-fact. Read failures propagate (the
+/// stats reader's contract: a broken pin is an anomaly, not a silent
+/// zero).
+fn self_cost_section(limiter: &Option<Limiter>) -> Result<Option<SelfCostFolded>> {
+    let Some(l) = limiter else {
+        return Ok(None);
+    };
+    if read_pinned_schema_version() != Some(SCHEMA_VERSION_EXPECTED) {
+        return Ok(None);
+    }
+    l.read_self_cost_public()
 }
 
 /// Parse the '/'-separated TARGETS spec (the grammar both eagle-eyes
@@ -511,9 +531,20 @@ pub(crate) fn handle_eagle_eyes_depth(
         ));
     }
 
+    // The mirror (night-frontier-Z6, schema v36): the enforcer's own
+    // per-packet tax, folded machine-wide — read once, doc-level
+    // (the row is the enforcer's, not a target's).
+    let self_cost = self_cost_section(&limiter)?;
+
     if json {
         print_json(
-            &depth_doc_json(&reports, &misses, focus_measure.as_ref().map(|m| &m.shadow)).to_json(),
+            &depth_doc_json(
+                &reports,
+                &misses,
+                focus_measure.as_ref().map(|m| &m.shadow),
+                self_cost.as_ref(),
+            )
+            .to_json(),
         );
     } else {
         for line in depth_report_lines(&reports, terminal_width()) {
@@ -522,11 +553,18 @@ pub(crate) fn handle_eagle_eyes_depth(
         for (target, reason) in &misses {
             println_safe!("{}", grey(&format!("  {target}: {reason}")));
         }
-        // The machine-scope bypass audit (charger-core-1-a), last.
+        // The machine-scope bypass audit (charger-core-1-a).
         if let Some(audit) = focus_measure.as_ref().map(|m| &m.shadow) {
             for line in bypass_section(audit) {
                 println_safe!("{line}");
             }
+        }
+        // The mirror's own line (night-frontier-Z6), last: the tax
+        // the datapath itself pays, measured where it polices.
+        let mut machine_lines: Vec<String> = Vec::new();
+        push_self_cost_lines(&mut machine_lines, &self_cost);
+        for line in machine_lines {
+            println_safe!("{line}");
         }
     }
     Ok(())

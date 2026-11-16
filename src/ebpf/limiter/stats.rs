@@ -7,12 +7,15 @@
 use anyhow::{Context, Result, anyhow};
 use aya::maps::{Array as BpfArray, HashMap as BpfHashMap};
 
+use aya::maps::PerCpuArray as BpfPerCpuArray;
+
 use super::hist::HistRowRaw;
+use super::selfcost::{SelfCostFolded, SelfCostRowRaw, fold_self_cost};
 use super::types::{BucketRaw, Direction, LimiterStatsRaw, PolicyRaw};
 use crate::ebpf::display::recwn_lane;
 use crate::ebpf::pin::{
     self, PIN_MAP_BUCKET_DL, PIN_MAP_BUCKET_UL, PIN_MAP_DEPTH_HIST_DL, PIN_MAP_DEPTH_HIST_UL,
-    PIN_MAP_STATS, PIN_MAP_WATCHDOG, PIN_PROG_RECWN,
+    PIN_MAP_SELF_COST, PIN_MAP_STATS, PIN_MAP_WATCHDOG, PIN_PROG_RECWN,
 };
 
 impl super::Limiter {
@@ -260,6 +263,42 @@ impl super::Limiter {
             Ok(row) => Ok(Some(row)),
             Err(e) if super::lanes::map_error_means_absent(&e) => Ok(None),
             Err(e) => Err(anyhow!("{map_name} read: {e}")),
+        }
+    }
+
+    /// Read the mirror's per-CPU cost row, folded machine-wide
+    /// (night-frontier-Z6, schema v36) — the ee --depth self-cost
+    /// read. `Ok(None)` is the honest absence (a fresh pin no packet
+    /// has sampled yet — the same posture read_hist_public rides);
+    /// `Err` means unreadable. The CALLER gates on the pinned schema
+    /// version first: a pre-v36 pin has no self_cost map at all, and
+    /// the version is the one gate distinguishing "no samples yet"
+    /// from "no such lane" — this read must never be asked the
+    /// un-gated question.
+    pub fn read_self_cost_public(&self) -> Result<Option<SelfCostFolded>> {
+        let pinned;
+        let map_ref: &aya::maps::Map = match self.bpf.as_ref() {
+            Some(bpf) => bpf.map("self_cost").context("self_cost not found")?,
+            None => {
+                pinned = pin::open_pinned_per_cpu_array_map(PIN_MAP_SELF_COST)?;
+                &pinned
+            }
+        };
+        let map: BpfPerCpuArray<_, SelfCostRowRaw> =
+            BpfPerCpuArray::try_from(map_ref).context("Failed to access self_cost")?;
+        match map.get(&0u32, 0) {
+            Ok(values) => {
+                let folded = fold_self_cost(&values);
+                // The honest absence: no CPU has sampled yet (a fresh
+                // pin, idle traffic under the 1/1024 resolution) —
+                // None, never a zero dressed as a measurement.
+                if super::selfcost::self_cost_samples(&folded) == 0 {
+                    Ok(None)
+                } else {
+                    Ok(Some(folded))
+                }
+            }
+            Err(e) => Err(anyhow!("self_cost read: {e}")),
         }
     }
 

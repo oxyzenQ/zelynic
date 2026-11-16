@@ -13,7 +13,7 @@
 use super::{
     BypassAuditJson, ClampBracketJson, DepthDocJson, DepthEntryJson, DepthMissJson,
     DepthTargetJson, EndpointJson, EnforcementStatsJson, HistHalfJson, HistJson, HistStatsJson,
-    ProcJson, TailJson, TrafficJson,
+    ProcJson, SelfCostJson, TailJson, TrafficJson,
 };
 
 impl DepthDocJson {
@@ -27,6 +27,11 @@ impl DepthDocJson {
         out.push_str(",\"bypass_audit\":");
         match &self.bypass_audit {
             Some(audit) => audit.write_json(out),
+            None => out.push_str("null"),
+        }
+        out.push_str(",\"self_cost\":");
+        match &self.self_cost {
+            Some(sc) => sc.write_json(out),
             None => out.push_str("null"),
         }
         out.push('}');
@@ -430,6 +435,39 @@ impl BypassAuditJson {
         write_number(out, self.shadow_tx_percent);
         out.push_str(",\"shadow_rx_percent\":");
         write_number(out, self.shadow_rx_percent);
+        out.push('}');
+    }
+}
+
+impl SelfCostJson {
+    fn write_json(&self, out: &mut String) {
+        use crate::json::write::{write_number, write_opt_number};
+
+        // The mirror's block (night-frontier-Z6, schema v36): field
+        // order is declaration order, the additive rule holds — a
+        // script predating the field reads the doc unchanged.
+        out.push_str("{\"sample_shift\":");
+        write_number(out, self.sample_shift);
+        out.push_str(",\"count\":");
+        write_number(out, self.count);
+        out.push_str(",\"buckets\":");
+        crate::json::write::write_array(out, self.buckets.len(), |out, i| {
+            write_number(out, self.buckets[i]);
+        });
+        out.push_str(",\"p50\":");
+        write_opt_number(out, self.p50);
+        out.push_str(",\"p95\":");
+        write_opt_number(out, self.p95);
+        out.push_str(",\"p99\":");
+        write_opt_number(out, self.p99);
+        out.push_str(",\"sum_ns\":");
+        write_number(out, self.sum_ns);
+        out.push_str(",\"min_ns\":");
+        write_number(out, self.min_ns);
+        out.push_str(",\"max_ns\":");
+        write_number(out, self.max_ns);
+        out.push_str(",\"mean_ns\":");
+        write_opt_number(out, self.mean_ns);
         out.push('}');
     }
 }

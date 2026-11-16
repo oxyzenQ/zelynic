@@ -83,6 +83,11 @@ pub const PIN_MAP_RATE_RING_UL: &str = "/sys/fs/bpf/zelynic/rate_ring_ul";
 pub const PIN_MAP_DEPTH_HIST_DL: &str = "/sys/fs/bpf/zelynic/depth_hist_dl";
 pub const PIN_MAP_DEPTH_HIST_UL: &str = "/sys/fs/bpf/zelynic/depth_hist_ul";
 
+/// The mirror's per-CPU cost row (night-frontier-Z6, schema v36) —
+/// the ee --depth self-cost read opens it when the pinned schema
+/// version gates it in (a pre-v36 pin has no such map at all).
+pub const PIN_MAP_SELF_COST: &str = "/sys/fs/bpf/zelynic/self_cost";
+
 /// The MMSPA leaf caches (NIGHT-private-research-2; direction-scoped
 /// since NIGHT-hunt-Z1, schema v18): leaf cgroup id -> the packed u64
 /// memo word (`(generation << 32) | root`, 0 root = resolved
@@ -194,6 +199,16 @@ pub(crate) fn open_pinned_array_map(pin_path: &str) -> Result<aya::maps::Map> {
     let map_data =
         MapData::from_pin(pin_path).map_err(|e| anyhow!("pinned map {pin_path}: {e}"))?;
     Ok(aya::maps::Map::Array(map_data))
+}
+
+/// Open a pinned per-CPU array map in read mode — the PerCpuArray
+/// twin (the mirror's self_cost row reader, night-frontier-Z6). The
+/// variant wrap keeps aya's map-type reporting honest, the same
+/// disclosure the hash-map openers carry.
+pub(crate) fn open_pinned_per_cpu_array_map(pin_path: &str) -> Result<aya::maps::Map> {
+    let map_data =
+        MapData::from_pin(pin_path).map_err(|e| anyhow!("pinned map {pin_path}: {e}"))?;
+    Ok(aya::maps::Map::PerCpuArray(map_data))
 }
 
 /// Read the pinned schema version. Returns None if pin doesn't exist or read fails.
