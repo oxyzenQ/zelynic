@@ -44,16 +44,20 @@ fn fold_adds_buckets_sums_and_max() {
 /// cost that never happened.
 #[test]
 fn fold_skips_unsampled_cpus_for_the_min() {
-    let mut a = SelfCostRowRaw::default();
-    a.min_ns = 4_000;
+    let a = SelfCostRowRaw {
+        min_ns: 4_000,
+        ..SelfCostRowRaw::default()
+    };
     let b = SelfCostRowRaw::default(); // never sampled: min 0
     let folded = fold_self_cost(&[a, b]);
     assert_eq!(
         folded.min_ns, 4_000,
         "an unsampled CPU fabricated a zero min"
     );
-    let mut c = SelfCostRowRaw::default();
-    c.min_ns = 2_500;
+    let c = SelfCostRowRaw {
+        min_ns: 2_500,
+        ..SelfCostRowRaw::default()
+    };
     let folded = fold_self_cost(&[a, b, c]);
     assert_eq!(folded.min_ns, 2_500, "the smallest real min must win");
     // The honest absence: no CPU sampled, the fold answers the
