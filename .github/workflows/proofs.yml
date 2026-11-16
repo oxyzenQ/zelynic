@@ -87,7 +87,7 @@ jobs:
         run: cd proofs && cargo test --locked
 
   kani:
-    name: bounded model checking (kani, for-all tier)
+    name: bounded model checking (the deciding tier)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -144,11 +144,54 @@ jobs:
             cargo kani --lib --harness "$h"
           done
 
-      # The heavy tier: the nonlinear multiply/divide circuits the
-      # census measured unfinished at ten minutes locally — the
-      # runner's full budget is their verdict vehicle. A red here is
-      # a counterexample or an undecided theorem; both are findings.
-      - name: For-all theorems (the heavy tier, full job budget)
+  # The solver-bound tier: the four theorems behind nonlinear
+  # multiply/divide circuits — the census measured them unfinished at
+  # ten minutes locally and undecided under every SMT backend, so
+  # CaDiCaL with the maximum hosted-runner budget is their verdict
+  # vehicle (a 60-minute job was measured cancelled mid-tier; the
+  # budget IS the difference between an undecided theorem and a
+  # verified one). A red here is a counterexample or an undecided
+  # theorem; both are findings, never skips.
+  kani-heavy:
+    name: bounded model checking (the solver-bound tier)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7, NIGHT-hunt-20 SHA pin
+        with:
+          persist-credentials: false
+
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
+
+      - name: Install Rust toolchain (the root pin, minimal profile)
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87  # NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: "1.98.1"
+
+      - name: Install kani-verifier (pinned release)
+        run: cargo install --locked kani-verifier@0.68.0
+
+      - name: Cache the kani toolchain bundle
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6, NIGHT-hunt-20 SHA pin
+        with:
+          path: ~/.kani
+          key: kani-0.68.0-${{ runner.os }}
+
+      - name: Kani first-time setup (bundled toolchain)
+        run: cargo kani setup
+
+      - name: Cache cargo registry
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6, NIGHT-hunt-20 SHA pin
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: proofs-kani-${{ runner.os }}-${{ hashFiles('proofs/Cargo.lock') }}
+          restore-keys: proofs-kani-${{ runner.os }}-
+
+      - name: For-all theorems (the solver-bound tier, one invocation each)
         run: |
           cd proofs
           for h in \
