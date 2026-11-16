@@ -296,6 +296,37 @@ jobs:
           )
           '
 
+          echo "--- the depth report's self-cost block (night-frontier-Z6, schema v36) ---"
+          sudo zelynic ee --depth "cg:${CGID}" --print-json | python3 -c '
+          import json, sys
+
+          doc = json.load(sys.stdin)
+          # The mirror (the enforcer's own per-packet tax): the same
+          # traffic leg that fed the histogram fed the sampled cost
+          # row — thousands of packets through the enforcer, several
+          # 1/1024 samples per CPU. A host-wide lane: one tick
+          # decision, two consumers.
+          sc = doc.get("self_cost")
+          assert sc, f"the self_cost block is absent: {doc}"
+          assert sc.get("sample_shift") == 10, sc
+          count = sc.get("count", 0)
+          assert count > 0, f"no cost samples recorded: {sc}"
+          buckets = sc.get("buckets", [])
+          assert sum(buckets) == count, f"the buckets disagree with the count: {sc}"
+          nonzero = [c for c in buckets if c > 0]
+          assert nonzero, f"the cost buckets are all zero: {sc}"
+          for q in ("p50", "p95", "p99"):
+              assert sc.get(q), f"{q} missing from the self_cost block: {sc}"
+          assert sc.get("min_ns", 0) > 0, f"the min sentinel leaked: {sc}"
+          assert sc.get("max_ns", 0) >= sc.get("min_ns", 0), f"max below min: {sc}"
+          mean = sc.get("mean_ns")
+          assert mean and mean > 0, f"the exact mean is absent: {sc}"
+          print(
+              "self_cost OK: count=%s mean=%sns p50=%sns p95=%sns p99=%sns"
+              " non-zero buckets=%s" % (count, mean, sc["p50"], sc["p95"], sc["p99"], len(nonzero))
+          )
+          '
+
           echo "--- cleanup (the pin hygiene the sibling legs share) ---"
           sudo zelynic u --all
 

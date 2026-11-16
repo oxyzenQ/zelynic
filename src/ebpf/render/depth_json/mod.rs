@@ -28,6 +28,7 @@
 
 use crate::ebpf::bypass::{ShadowAudit, ShadowVerdict, shadow_percent};
 use crate::ebpf::identity::depth::ProcessFacts;
+use crate::ebpf::limiter::selfcost::SelfCostFolded;
 use crate::ebpf::limiter::types::POLICY_FLAG_PER_SOCKET;
 use crate::ebpf::limiter::{LimiterStatsRaw, PolicyRaw};
 use crate::ebpf::render::depth_traffic::TrafficFocus;
@@ -43,11 +44,14 @@ use super::report::{DepthReport, Enforcement};
 mod bracket;
 mod hist;
 mod hist_tail;
+mod selfcost;
 
 pub use bracket::ClampBracketJson;
 use bracket::clamp_bracket_json;
 use hist::histogram_json;
 pub use hist::{HistHalfJson, HistJson, HistStatsJson, TailJson};
+pub use selfcost::SelfCostJson;
+use selfcost::self_cost_json;
 
 /// One process row of the JSON document.
 #[derive(Debug, Clone)]
@@ -321,6 +325,13 @@ pub struct DepthDocJson {
     /// null = the traffic focus window did not run — see the note
     /// fields). Additive: scripts predating the field ignore it.
     pub bypass_audit: Option<BypassAuditJson>,
+    /// The mirror (night-frontier-Z6, schema v36): the limiter's own
+    /// per-packet verdict cost, sampled by the depth histogram's
+    /// 1-in-1024 per-CPU tick and folded machine-wide. null = no
+    /// packet has sampled yet, or a pre-v36 pin (the honest absence,
+    /// never a zero dressed as a measurement). Additive: scripts
+    /// predating the field ignore it.
+    pub self_cost: Option<SelfCostJson>,
 }
 
 // The writer impls live in the child module below (the sibling-split
@@ -378,6 +389,7 @@ pub fn depth_doc_json(
     reports: &[DepthReport],
     misses: &[(String, String)],
     audit: Option<&ShadowAudit>,
+    self_cost: Option<&SelfCostFolded>,
 ) -> DepthDocJson {
     let mut targets = Vec::new();
     for report in reports {
@@ -500,6 +512,7 @@ pub fn depth_doc_json(
     DepthDocJson {
         targets,
         bypass_audit: bypass_audit_json(audit),
+        self_cost: self_cost.map(self_cost_json),
     }
 }
 
@@ -514,3 +527,10 @@ mod tests;
 #[cfg(test)]
 #[path = "../../../../test/ebpf/render/depth_json_z1_tests.rs"]
 mod z1_tests;
+
+// The Z6 mirror's JSON pins (the sibling-split lineage, one era per
+// file): the self_cost block's null absence, the sampled shape, and
+// the field-order tail.
+#[cfg(test)]
+#[path = "../../../../test/ebpf/render/depth_json_z6_tests.rs"]
+mod z6_tests;

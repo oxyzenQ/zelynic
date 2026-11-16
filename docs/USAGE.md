@@ -1273,6 +1273,7 @@ question a bare `cg:1234` row leaves open — WHAT is this:
   histogram:        download, 1000 samples — mean 3.9 KB · worst 8.2 KB · size p50 ≥1.0 KB p95 ≥8.1 KB p99 ≥8.1 KB
   clamp bracket:    40.0 KB single clamp (honesty ratio ≥1.1x) — floor ≥40.0 KB @ p99 ≥11ms / ceiling 40.0 KB @ min 10ms
   resources:        12.5 MB memory · 1m:2s cpu
+  self cost:        412 samples — mean 1.7us · p50 ≥1.0us p95 ≥4.1us p99 ≥8.2us (machine-scope tail line)
   started:          10m:20s ago
   command:          ./cat-test --serve
   ────────────────────────────────────────────────────────────────
@@ -2673,7 +2674,7 @@ are churn, not drift.
 (multi-target specs only; a full miss exits 1 with the text error):
 
 ```json
-{"targets":[{"target":"cg:1234","cgroup_id":1234,"name":"cat-test","cgroup_path":"/sys/fs/cgroup/cat-test","uid":1000,"user":"cat","enforcement":"limited","download_bytes_per_sec":100000,"upload_bytes_per_sec":100000,"group_id":0,"oldest_started_secs":620,"processes":1,"socket_holders":1,"sockets":2,"traffic":{"window_secs":3,"download_bytes":12400000,"upload_bytes":340000,"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000,"socket_inode":120888,"rtt_us":19000,"rttvar_us":9000,"retrans_window":1,"segs_out_window":712},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null,"socket_inode":120889,"rtt_us":null,"rttvar_us":null,"retrans_window":null,"segs_out_window":null}]},"histogram":{"sample_shift":10,"download":{"size":{"samples":1000,"buckets":[0,0,0,0,0,0,0,0,0,0,600,0,0,400,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"p50":1024,"p95":8192,"p99":8192,"count":1000,"sum":3891200,"min":1024,"max":8192,"mean":3891},"srtt":null,"tail":[{"ts_ns":123456,"size":8192,"srtt_us":19000,"cookie":120999,"endpoint":"142.250.185.78:443 (curl)"}]},"upload":null},"procs":[{"pid":1234,"comm":"cat-test","uid":1000,"user":"cat","ppid":1,"state":"S (sleeping)","threads":4,"rss_kb":1234,"exe":"/home/cat/cat-test","exe_deleted":false,"kind":"binary","script":null,"permission":"755","cwd":"/home/cat","cmdline":"./cat-test --serve","started_ago_secs":620,"started_epoch":1758900000}],"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000,"socket_inode":120888,"rtt_us":19000,"rttvar_us":9000,"retrans_window":1,"segs_out_window":712},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null,"socket_inode":120889,"rtt_us":null,"rttvar_us":null,"retrans_window":null,"segs_out_window":null}]},"clamp_bracket":null}],"bypass_audit":{"window_secs":3,"nic_tx_bytes":12900000,"nic_rx_bytes":13000000,"bpf_tx_bytes":340000,"bpf_rx_bytes":12450000,"shadow_tx_bytes":12560000,"shadow_rx_bytes":550000,"verdict":"bypassed_tx","shadow_tx_percent":97,"shadow_rx_percent":4}}
+{"targets":[{"target":"cg:1234","cgroup_id":1234,"name":"cat-test","cgroup_path":"/sys/fs/cgroup/cat-test","uid":1000,"user":"cat","enforcement":"limited","download_bytes_per_sec":100000,"upload_bytes_per_sec":100000,"group_id":0,"oldest_started_secs":620,"processes":1,"socket_holders":1,"sockets":2,"traffic":{"window_secs":3,"download_bytes":12400000,"upload_bytes":340000,"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000,"socket_inode":120888,"rtt_us":19000,"rttvar_us":9000,"retrans_window":1,"segs_out_window":712},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null,"socket_inode":120889,"rtt_us":null,"rttvar_us":null,"retrans_window":null,"segs_out_window":null}]},"histogram":{"sample_shift":10,"download":{"size":{"samples":1000,"buckets":[0,0,0,0,0,0,0,0,0,0,600,0,0,400,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"p50":1024,"p95":8192,"p99":8192,"count":1000,"sum":3891200,"min":1024,"max":8192,"mean":3891},"srtt":null,"tail":[{"ts_ns":123456,"size":8192,"srtt_us":19000,"cookie":120999,"endpoint":"142.250.185.78:443 (curl)"}]},"upload":null},"procs":[{"pid":1234,"comm":"cat-test","uid":1000,"user":"cat","ppid":1,"state":"S (sleeping)","threads":4,"rss_kb":1234,"exe":"/home/cat/cat-test","exe_deleted":false,"kind":"binary","script":null,"permission":"755","cwd":"/home/cat","cmdline":"./cat-test --serve","started_ago_secs":620,"started_epoch":1758900000}],"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000,"socket_inode":120888,"rtt_us":19000,"rttvar_us":9000,"retrans_window":1,"segs_out_window":712},{"pid":4242,"comm":"curl","proto":"tcp6","remote":"[2001:db8::1]:443","state":"ESTABLISHED","download_bytes":null,"upload_bytes":null,"socket_inode":120889,"rtt_us":null,"rttvar_us":null,"retrans_window":null,"segs_out_window":null}]},"clamp_bracket":null}],"bypass_audit":{"window_secs":3,"nic_tx_bytes":12900000,"nic_rx_bytes":13000000,"bpf_tx_bytes":340000,"bpf_rx_bytes":12450000,"shadow_tx_bytes":12560000,"shadow_rx_bytes":550000,"verdict":"bypassed_tx","shadow_tx_percent":97,"shadow_rx_percent":4},"self_cost":null}
 ```
 
 `enforcement` is `"unlimited"` | `"blocked"` | `"limited"`; an
@@ -2789,6 +2790,34 @@ instrument certifies. `null` on every honest absence — no srtt
 samples, no live download rate, a zero min word — the same
 absence-vs-zero law every optional field carries. The text
 report's `clamp bracket:` line is this object's own projection.
+
+`self_cost` (night-frontier-Z6, schema v36) is the mirror — the
+LIMITER's own per-packet verdict cost, measured by the same datapath
+it polices, machine-scope (doc-level, a sibling of `bypass_audit`):
+`{"sample_shift":10,"count":42,"buckets":[...32 entries...],"p50":1024,"p95":4096,"p99":8192,"sum_ns":71234,"min_ns":900,"max_ns":31050,"mean_ns":1696}`
+— the verdict path's wall time in nanoseconds, sampled by the SAME
+1-in-1024 per-CPU tick the `histogram` block rides (one tick
+decision, two consumers: the hot path pays what it always paid —
+the NIGHT-lts-2 law holds — and the sampled packet adds two ktime
+reads and one per-CPU row write). `buckets` fold every CPU's row
+machine-wide (bucket b spans [2^b, 2^(b+1)) nanoseconds), `count`
+derives from the buckets (sum(buckets) IS the count — no second
+count source exists, the Z1 structural law), the quantiles are the
+bucket-bounded LOWER bounds (the true value lives in [2^b, 2^(b+1)),
+the same resolution law the histogram carries), and
+`sum_ns`/`min_ns`/`max_ns`/`mean_ns` are the exact aggregates the
+kernel's own words carry (the min rides the 0-sentinel of a CPU
+that has never sampled; the fold skips unsampled CPUs for the min —
+a zero cost that never happened is never reported). Both directions
+pool into one row: the tax is the enforcer's, not a direction's.
+`null` while no packet has sampled yet (a fresh pin, an idle
+machine) or on a pre-v36 pin — the honest absence, never a zero
+dressed as a measurement. The text report's `self cost:` line is
+this block's own projection (the machine-scope tail, after the
+bypass section). The scripting read is `.self_cost` (not inside
+`targets[]` — the enforcer is machine-wide). THIS is the number no
+other limiter publishes: the tool's own tax, measured where it
+polices.
 
 `bypass_audit` (NIGHT-upgrade-charger-core-1-a) is the focus
 window's interface-vs-hooks shadow verdict, machine-scope:

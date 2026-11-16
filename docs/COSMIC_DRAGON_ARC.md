@@ -65,6 +65,7 @@ ledger is the quota saver's Layer 2, landed by night-spark-4:
 | 12 | Atomic multi-target rollback | — | `src/ebpf/limiter/atomic.rs:74` | `atomic_tests.rs` |
 | 13 | Time-windowed policies | v23 | `ebpf/src/during.rs:216` | `during_tests.rs`, `during_user_tests.rs` |
 | 14 | RECWN receive-window control | v25 | `ebpf/src/recwn.rs:98`, `recwn_flow.rs:114` | `recwn_tests.rs`, `recwn-probe.sh` |
+| 21 | The mirror (the enforcer's own per-packet tax, machine-wide) | v36 | `ebpf/src/selfcost.rs`, `bin/limiter.rs` selfcost pair | `selfcost_tests.rs`, `selfcost_raw_tests.rs`, the supermassive depth-phase self-cost leg |
 
 Status of the audit behind this table: the first thirteen lived in
 code, doc, and pin at the 2026-11-03 depth audit (below); the

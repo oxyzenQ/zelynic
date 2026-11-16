@@ -582,6 +582,39 @@ wrapper a thin IDENTITY_DIR call). Dive 4's -4000m rung
 the answer) stays deferred by verdict; Dive 3's story family is
 deferred whole (see Deferred by verdict).
 
+**21. The mirror — the limiter publishes its own per-packet tax**
+(`ebpf/src/selfcost.rs` + `src/ebpf/limiter/selfcost.rs`, schema
+v36, night-frontier-Z6). Every limiter prices its efficiency in
+prose; zelynic prices it in the datapath's own words. The verdict
+path's wall time — stamped at program entry, closed at the verdict —
+lands in ONE additive per-CPU map (`self_cost`, a 280-byte row: 32
+log2 buckets of nanoseconds, then the Z1 exact-aggregate law,
+sum/min/max, the count riding no word because sum(buckets) IS the
+count). Recording rides the SAME 1-in-1024 per-CPU tick the depth
+histogram rides — one tick decision, two consumers — so the
+unlimited fast path's NIGHT-lts-2 law is untouched: unsampled
+packets pay what they always paid, the sampled packet adds two ktime
+reads and one per-CPU row write. The measured window starts AFTER
+the tick (the tick is the meter's own cost, not the metered path),
+and the row is pooled across both directions — the tax is the
+enforcer's, not a direction's. The userspace twin folds the per-CPU
+rows machine-wide (buckets and sums add, the max ratchets, the min
+skips unsampled CPUs' sentinel — a zero cost that never happened is
+never reported) and the `ee --depth` JSON carries the `self_cost`
+block (the sampling cadence, the folded buckets, the bucket-bounded
+quantiles, the exact aggregates) additive and honestly absent while
+no packet has sampled. The verification ladder: `selfcost_tests.rs`
+(the ladder's exact boundaries, the record law's four contracts, the
+280-byte layout law), `selfcost_raw_tests.rs` (the fold law's
+sentinel, the ns ladder), the depth-JSON wire pins (the null absence,
+the sampled shape, the field-order tail), and the supermassive
+depth-phase assertions (the live leg drives thousands of packets and
+reads the block mid-traffic — count == sum(buckets), the quantiles
+present, the min sentinel honest). Why nobody has this number: it
+requires the tool to publish its own tax measured by the same
+datapath it polices — the honesty crown the measured-curve
+positioning stands on.
+
 **The determinism law beneath them all** (night-depth-hardening-1,
 `src/ebpf/connections.rs` + `src/ebpf/identity/drift.rs` +
 `test/ebpf/render/determinism_tests.rs`).

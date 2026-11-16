@@ -95,6 +95,7 @@ fn json_document_shape_is_the_scripting_contract() {
         &[report],
         &[("ghost".to_string(), "no live cgroup matches".to_string())],
         None,
+        None,
     );
     let text = doc.to_json();
     assert!(
@@ -129,7 +130,7 @@ fn json_document_shape_is_the_scripting_contract() {
         assert!(text.contains(field), "the JSON contract must carry {field}");
     }
     // The unlimited shape: nulls, never fabricated zeroes.
-    let doc = depth_doc_json(&[report_fixture(Enforcement::Unlimited)], &[], None);
+    let doc = depth_doc_json(&[report_fixture(Enforcement::Unlimited)], &[], None, None);
     let text = doc.to_json();
     assert!(text.contains("\"enforcement\":\"unlimited\""));
     assert!(text.contains("\"download_bytes_per_sec\":null"));
@@ -169,7 +170,12 @@ fn json_carries_the_bypass_audit() {
         10_700_000,
         3,
     );
-    let doc = depth_doc_json(&[report_fixture(Enforcement::Unlimited)], &[], Some(&clean));
+    let doc = depth_doc_json(
+        &[report_fixture(Enforcement::Unlimited)],
+        &[],
+        Some(&clean),
+        None,
+    );
     let text = doc.to_json();
     assert!(
         text.contains("\"bypass_audit\":{\"window_secs\":3"),
@@ -238,6 +244,7 @@ fn json_carries_the_bypass_audit() {
         &[report_fixture(Enforcement::Unlimited)],
         &[],
         Some(&flagged),
+        None,
     );
     let text = doc.to_json();
     assert!(
@@ -253,6 +260,7 @@ fn json_carries_the_bypass_audit() {
         &[report_fixture(Enforcement::Unlimited)],
         &[],
         Some(&unreadable),
+        None,
     );
     let text = doc.to_json();
     assert!(
@@ -268,7 +276,7 @@ fn json_carries_the_bypass_audit() {
 fn json_carries_the_deleted_exe_flag() {
     let mut report = report_fixture(Enforcement::Unlimited);
     report.depth.procs[0].exe_deleted = true;
-    let doc = depth_doc_json(&[report], &[], None);
+    let doc = depth_doc_json(&[report], &[], None, None);
     let text = doc.to_json();
     assert!(
         text.contains("\"exe_deleted\":true"),
@@ -372,7 +380,7 @@ fn json_carries_the_traffic_focus_window() {
     let mut report = report_fixture(Enforcement::Unlimited);
     report.conns = conns.get(1234).cloned();
     report.traffic = Some(focus);
-    let doc = depth_doc_json(&[report], &[], None);
+    let doc = depth_doc_json(&[report], &[], None, None);
     let text = doc.to_json();
     for field in [
         // NIGHT-improve-63: the traffic object carries the window's
@@ -452,7 +460,7 @@ fn json_carries_the_ledger_and_controller_resources() {
         memory_current_bytes: Some(2_500_000),
         cpu_usage_usec: Some(62_000_000),
     };
-    let doc = depth_doc_json(&[report], &[], None);
+    let doc = depth_doc_json(&[report], &[], None, None);
     let text = doc.to_json();
     for field in [
         "\"enforcement_stats\":{\"packets_allowed\":9001",
@@ -491,7 +499,7 @@ fn per_socket_fields_join_the_depth_row() {
         upload: policy(200_000),
     };
     let report = report_fixture(enforcement);
-    let doc = depth_doc_json(&[report], &[], None);
+    let doc = depth_doc_json(&[report], &[], None, None);
     let text = doc.to_json();
     assert!(
         text.contains("\"download_per_socket\":true"),
@@ -508,7 +516,7 @@ fn per_socket_fields_join_the_depth_row() {
 // contract — null while absent, the full shape when a row rides.
 #[test]
 fn json_histogram_block_is_null_while_absent() {
-    let doc = depth_doc_json(&[report_fixture(Enforcement::Unlimited)], &[], None);
+    let doc = depth_doc_json(&[report_fixture(Enforcement::Unlimited)], &[], None, None);
     let text = doc.to_json();
     assert!(
         text.contains("\"histogram\":null"),
@@ -527,7 +535,7 @@ fn json_histogram_block_carries_buckets_and_quantiles() {
         download: Some(row),
         upload: None,
     });
-    let text = depth_doc_json(&[report], &[], None).to_json();
+    let text = depth_doc_json(&[report], &[], None, None).to_json();
     // The cadence field rides so a script can scale counts to rates.
     assert!(
         text.contains("\"sample_shift\":10"),

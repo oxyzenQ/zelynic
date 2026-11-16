@@ -50,7 +50,7 @@ Rotation procedures:
 Plus the push-time guards (not scheduled, but part of the posture):
 `gate-keepers.yml` wholesale on every push and PR, `ci.yml`,
 `supermassive.yml`, `supermassive-container.yml`, `audit.yml`,
-`miri.yml`, `codeql.yml`, `fuzz.yml`, and the three-arm
+`miri.yml`, `codeql.yml`, `fuzz.yml`, `proofs.yml` (night-frontier-Z6: the proofs package's per-push for-all and property lanes), and the three-arm
 prebuilt-parity enforcement
 (NIGHT-dinner-1 — commit time, publish time, release time). Since
 the owner's unfiltered-CI simplification
