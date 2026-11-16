@@ -341,7 +341,7 @@ shipped binary.
 | Crate | Package | Verdict | Justification |
 |-------|---------|---------|---------------|
 | `proptest` 1 (dev) | proofs/ only | keep | the property-exhaustion instrument: 4096 shrinkable cases per law per run over the #[path]-included ebpf/src law files (the fuzz harnesses' include law). Dev-only, publish = false, never a binary input |
-| `kani-verifier` 0.68.0 | proofs/ CI lane, no manifest entry | keep, pinned | the for-all tier's toolchain: cargo kani ships the harness support crate from its own sysroot, so nothing lands in any Cargo.toml. Pinned by version in .github/workflows/proofs.yml and by the toolchain cache key |
+| `kani-verifier` 0.68.0 | proofs/ CI lane, no manifest entry | keep, pinned | the for-all tier's toolchain: cargo kani ships the harness support crate from its own sysroot, so nothing lands in any Cargo.toml. Pinned by version in .github/workflows/proofs.yml and proofs-night.yml, and by the toolchain cache key |
 | `loom` 0.7 | **censused, NOT adopted** | signed NO | the interleaving checker has no location-backed atomics (no `AtomicU64::from_ptr` in 0.7.3 — verified against the build), and the datapath's CAS discipline is pointer-cast over raw map-value memory by design (math.rs's access primitives, the BPF ISA lesson). Expressing the protocol would mean restructuring the core-only law files for a test instrument; a harness-side reimplementation would be a model, not a proof of the kernel bytes. Reopens the day loom ships from_ptr semantics |
 
 Scope notes, stated honestly:
