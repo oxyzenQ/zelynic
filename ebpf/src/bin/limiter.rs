@@ -450,8 +450,18 @@ fn selfcost_sample() -> (bool, u64) {
 /// wall time closed at the verdict, one per-CPU row write — the
 /// sampled packet's only extra map work. The unlimited fast path's
 /// NIGHT-lts-2 law is untouched: unsampled packets (1023 of 1024 per
-/// CPU) take neither branch's extra reads.
-#[inline(always)]
+/// CPU) take neither branch's extra reads. INLINE(NEVER) IS THE
+/// VERIFIER BUDGET'S OWN TOOL (the C77 leg's verdict, honored
+/// twice): the record sits at the program's widest state position —
+/// every terminal state of the six-layer verdict path flows into it
+/// — and an inlined body multiplies its instructions by that whole
+/// state set, the walk past the 1M insn budget three times running.
+/// A real BPF-to-BPF subprogram (the nightly emits the call for a
+/// non-inlined fn) is verified ONCE with its own budget and the
+/// caller pays one call instruction — the exact tool for a tail that
+/// must exist but must not be explored per-state. The floor carries
+/// it: BPF-to-BPF calls are 4.16-era, far under 5.15.
+#[inline(never)]
 fn selfcost_record(t0: u64) {
     // The let-chain is the nightly-2024 shape the kernel crate
     // speaks (bin/limiter.rs compiles under the ebpf toolchain only
