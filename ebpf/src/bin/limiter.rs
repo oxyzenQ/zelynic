@@ -453,13 +453,18 @@ fn selfcost_sample() -> (bool, u64) {
 /// CPU) take neither branch's extra reads.
 #[inline(always)]
 fn selfcost_record(t0: u64) {
-    if t0 != 0 {
-        if let Some(row) = self_cost.get_ptr_mut(0) {
-            // SAFETY: the helper call as above; the wrapping sub is
-            // the monotonic pair's own law (t0 <= now by the clock).
-            let delta = unsafe { bpf_ktime_get_ns() }.wrapping_sub(t0);
-            selfcost::cost_record(row, delta);
-        }
+    // The let-chain is the nightly-2024 shape the kernel crate
+    // speaks (bin/limiter.rs compiles under the ebpf toolchain only
+    // — the stable root never sees this file); collapsing the two
+    // guards satisfies the kernel clippy lane's collapsible_if and
+    // keeps the unsampled majority's exit branch one comparison.
+    if t0 != 0
+        && let Some(row) = self_cost.get_ptr_mut(0)
+    {
+        // SAFETY: the helper call as above; the wrapping sub is
+        // the monotonic pair's own law (t0 <= now by the clock).
+        let delta = unsafe { bpf_ktime_get_ns() }.wrapping_sub(t0);
+        selfcost::cost_record(row, delta);
     }
 }
 
