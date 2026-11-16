@@ -29,13 +29,13 @@ fn json_carries_the_self_cost_block() {
     );
 
     // The sampled shape: one CPU's row folded in — two samples in
-    // bucket 10 (1024 ns each), the exact aggregates the kernel's
-    // own words carry.
+    // bucket 10 (1024 ns each), the exact mass the kernel's own word
+    // carries, the bounds riding the buckets (the bucket-bounded
+    // read the C77 leg's verifier budget chose over the exact
+    // min/max words).
     let mut row = SelfCostRowRaw::default();
     row.buckets[10] = 2;
     row.sum_ns = 2_048;
-    row.min_ns = 1_020;
-    row.max_ns = 1_028;
     let folded = fold_self_cost(&[row]);
     let doc = depth_doc_json(
         &[report_fixture(Enforcement::Unlimited)],
@@ -51,8 +51,10 @@ fn json_carries_the_self_cost_block() {
         "\"p95\":1024",
         "\"p99\":1024",
         "\"sum_ns\":2048",
-        "\"min_ns\":1020",
-        "\"max_ns\":1028",
+        // The bucket-bounded bounds read: both ends ride bucket 10's
+        // band ([1024, 2048)) — the log2 resolution's own honesty.
+        "\"min_ns\":1024",
+        "\"max_ns\":2047",
         "\"mean_ns\":1024",
     ] {
         assert!(

@@ -25,17 +25,23 @@
 /// clamp, never a live reading.
 pub const SELF_COST_BUCKETS: usize = 32;
 
-/// One sampled verdict's cost row, the per-CPU map value (280 bytes,
-/// all-u64): the 32 log2 buckets, then the exact aggregates the
-/// bucket bounds can never say — the sum/min/max law the Z1 depth
-/// pack established (sum a plain add, min/max the check-then-store
-/// replace pair, the 0-sentinel "no min yet"). The COUNT rides no
-/// word — sum(buckets) IS the count, the Z1 probe's structural
-/// lesson: a second count source can disagree with the buckets it
-/// summarizes, and "never a wrong count" is structural, not a hope.
-/// Per-CPU isolation means NO atomics are owed: this CPU is the
-/// row's only writer between program invocations (the sampler tick's
-/// own discipline, the plain-RMW shape enforce_helpers rides).
+/// One sampled verdict's cost row, the per-CPU map value (264 bytes,
+/// all-u64): the 32 log2 buckets plus the exact mass the bucket
+/// bounds can never say. The COUNT rides no word — sum(buckets) IS
+/// the count, the Z1 probe's structural lesson: a second count
+/// source can disagree with the buckets it summarizes, and "never a
+/// wrong count" is structural, not a hope. The min/max words the
+/// first v36 sketch carried are GONE — the C77 live leg measured
+/// their replace pairs multiplying the verifier's explored states at
+/// the wrapper's position (the widest state set in the program, past
+/// the 1M insn walk budget) and the honest trade is the Z1 law's own
+/// shape: the userspace fold derives bucket-bounded min and max from
+/// the buckets (the bounds approximate, the mean and the mass are
+/// exact), the same bucket-bounded read every quantile in this
+/// estate already carries. Per-CPU isolation means NO atomics are
+/// owed: this CPU is the row's only writer between program
+/// invocations (the sampler tick's own discipline, the plain-RMW
+/// shape enforce_helpers rides).
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct SelfCostRow {
@@ -45,15 +51,9 @@ pub struct SelfCostRow {
     /// The sampled set's exact mass, nanoseconds (plain add — per-CPU
     /// isolation, no atomics owed).
     pub sum_ns: u64,
-    /// The sampled set's minimum, nanoseconds (0-sentinel: a fresh
-    /// row answers 0 = "no min yet").
-    pub min_ns: u64,
-    /// The sampled set's maximum, nanoseconds (0 loses to any real
-    /// sample).
-    pub max_ns: u64,
 }
 
-const _: () = assert!(core::mem::size_of::<SelfCostRow>() == 280);
+const _: () = assert!(core::mem::size_of::<SelfCostRow>() == 264);
 
 /// The log2 bucket of a cost sample in NANOSECONDS — the clz law
 /// (night-frontier-Z6, the verifier-budget fix the C77 lane found):
@@ -82,14 +82,17 @@ pub fn cost_bucket(ns: u64) -> usize {
     if log2 > 31 { 31 } else { log2 }
 }
 
-/// The sampled verdict's record (night-frontier-Z6): one bucket add,
-/// the exact-sum add, and the min/max replace pair — all plain RMW
-/// through the per-CPU map memory, NO atomics owed (this CPU is the
-/// row's only writer between invocations; the sampler tick's own
-/// plain-deref discipline). The bucket index rides an AND mask, not
-/// the clamp alone: the 5.15 verifier lesson hist_record's comment
-/// carries (an AND with the power-of-two bucket count is a proof the
-/// verifier always sees; the clamp's branch it cannot always see).
+/// The sampled verdict's record (night-frontier-Z6), minimal by the
+/// verifier's own budget: one bucket add, one exact-mass add — NO
+/// branches (the C77 leg measured the replace pairs multiplying the
+/// explored states past the walk budget at this position; the bounds
+/// the min/max words approximated ride the buckets themselves, the
+/// userspace fold's own read). All plain RMW through the per-CPU map
+/// memory, NO atomics owed (this CPU is the row's only writer between
+/// invocations; the sampler tick's own plain-deref discipline). The
+/// bucket index rides an AND mask, not the clamp alone: the 5.15
+/// verifier lesson hist_record's comment carries (an AND with the
+/// power-of-two bucket count is a proof the verifier always sees).
 /// Semantically a no-op — cost_bucket already answers 0..=31.
 ///
 /// SAFETY: the caller hands the per-CPU array's own row pointer
@@ -110,18 +113,5 @@ pub fn cost_record(row: *mut SelfCostRow, delta_ns: u64) {
         *bp = (*bp).wrapping_add(1);
         let sp = core::ptr::addr_of_mut!((*row).sum_ns);
         *sp = (*sp).wrapping_add(delta_ns);
-        // The min replace law (the Z1 aggregate pair, the 0-sentinel
-        // "no min yet"): a real sample always lands on a fresh row.
-        let mp = core::ptr::addr_of_mut!((*row).min_ns);
-        let cur = *mp;
-        if cur == 0 || delta_ns < cur {
-            *mp = delta_ns;
-        }
-        // The max replace law (0 loses to any real sample).
-        let xp = core::ptr::addr_of_mut!((*row).max_ns);
-        let curx = *xp;
-        if delta_ns > curx {
-            *xp = delta_ns;
-        }
     }
 }

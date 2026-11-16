@@ -587,10 +587,13 @@ deferred whole (see Deferred by verdict).
 v36, night-frontier-Z6). Every limiter prices its efficiency in
 prose; zelynic prices it in the datapath's own words. The verdict
 path's wall time — stamped at program entry, closed at the verdict —
-lands in ONE additive per-CPU map (`self_cost`, a 280-byte row: 32
-log2 buckets of nanoseconds, then the Z1 exact-aggregate law,
-sum/min/max, the count riding no word because sum(buckets) IS the
-count). Recording rides the SAME 1-in-1024 per-CPU tick the depth
+lands in ONE additive per-CPU map (`self_cost`, a 264-byte row: 32
+log2 buckets of nanoseconds plus the exact mass — sum — the count
+riding no word because sum(buckets) IS the count; the min/max words
+the first sketch carried are gone, the C77 live leg having measured
+their replace pairs past the verifier's walk budget, and the bounds
+riding the buckets themselves, the fold's own bucket-bounded read).
+Recording rides the SAME 1-in-1024 per-CPU tick the depth
 histogram rides — one tick decision, two consumers — so the
 unlimited fast path's NIGHT-lts-2 law is untouched: unsampled
 packets pay what they always paid, the sampled packet adds two ktime

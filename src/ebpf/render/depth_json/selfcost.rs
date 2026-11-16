@@ -8,7 +8,9 @@
 //! contract (the 600-line LOC law the split serves).
 
 use crate::ebpf::limiter::hist::{mean, quantile_permille};
-use crate::ebpf::limiter::selfcost::{SELF_COST_SAMPLE_SHIFT, SelfCostFolded, self_cost_samples};
+use crate::ebpf::limiter::selfcost::{
+    SELF_COST_SAMPLE_SHIFT, SelfCostFolded, bucket_bounded_bounds, self_cost_samples,
+};
 
 /// The mirror's stats as JSON (night-frontier-Z6, schema v36): the
 /// sampling cadence (the depth histogram's own shift — one tick
@@ -31,8 +33,14 @@ pub struct SelfCostJson {
     pub p95: Option<u64>,
     pub p99: Option<u64>,
     pub sum_ns: u64,
-    pub min_ns: u64,
-    pub max_ns: u64,
+    /// The bucket-bounded bounds read (night-frontier-Z6's honest
+    /// trade — the C77 leg measured the exact min/max words' replace
+    /// pairs past the verifier's walk budget at the wrapper's
+    /// position): the smallest sampled cost is AT LEAST `min_ns`, the
+    /// largest is BELOW `max_ns` — the log2 resolution's own shape.
+    /// null while no sample.
+    pub min_ns: Option<u64>,
+    pub max_ns: Option<u64>,
     pub mean_ns: Option<u64>,
 }
 
@@ -42,6 +50,7 @@ pub struct SelfCostJson {
 /// and the idle machine both answer).
 pub(super) fn self_cost_json(folded: &SelfCostFolded) -> SelfCostJson {
     let count = self_cost_samples(folded);
+    let bounds = bucket_bounded_bounds(folded);
     SelfCostJson {
         sample_shift: SELF_COST_SAMPLE_SHIFT,
         count,
@@ -50,8 +59,8 @@ pub(super) fn self_cost_json(folded: &SelfCostFolded) -> SelfCostJson {
         p95: quantile_permille(&folded.buckets, 950),
         p99: quantile_permille(&folded.buckets, 990),
         sum_ns: folded.sum_ns,
-        min_ns: folded.min_ns,
-        max_ns: folded.max_ns,
+        min_ns: bounds.map(|(lo, _)| lo),
+        max_ns: bounds.map(|(_, hi)| hi),
         mean_ns: mean(folded.sum_ns, count),
     }
 }
