@@ -179,6 +179,11 @@ pub fn cost_bucket(ns: u64) -> usize {
 #[inline(always)]
 pub fn cost_record(row: *mut SelfCostRow, delta_ns: u64) {
     let b = cost_bucket(delta_ns) & (SELF_COST_BUCKETS - 1);
+    // SAFETY: the caller hands the per-CPU array's own row pointer
+    // (get_ptr_mut on the CPU-local slot) — stable kernel memory for
+    // this invocation, 8-aligned repr(C) fields, this CPU the slot's
+    // only writer between invocations. Plain RMW derefs, never
+    // aliased with a &mut, never copied out of the map.
     unsafe {
         let bp = core::ptr::addr_of_mut!((*row).buckets[b]);
         *bp = (*bp).wrapping_add(1);
