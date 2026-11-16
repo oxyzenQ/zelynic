@@ -55,110 +55,31 @@ pub struct SelfCostRow {
 
 const _: () = assert!(core::mem::size_of::<SelfCostRow>() == 280);
 
-/// The log2 bucket of a cost sample in NANOSECONDS — the hist.rs
-/// ladder's own shape, re-stated here because the pure cores never
-/// import from each other (each file must compile standalone in BOTH
-/// trees; the rate_ring.rs trio's own rationale). Zero answers
-/// bucket 0 (a zero-delta sample is still a sample; a count there
-/// beats a clz panic on 0). The ladder IS the verifier's own proof —
-/// the straight-line comparison sequence nothing can optimize away,
-/// the same lesson size_bucket's doc carries.
+/// The log2 bucket of a cost sample in NANOSECONDS — the clz law
+/// (night-frontier-Z6, the verifier-budget fix the C77 lane found):
+/// `floor(log2(ns | 1))` clamped at 31, four instructions where the
+/// hist.rs ladder spends thirty-two branches. The ladder shape is
+/// the RIGHT one for the histogram's row load (the 5.15 lesson: the
+/// hooks hand a u32 skb length, so LLVM proves the caps dead and
+/// deletes them — the verifier, which cannot see LLVM's reasoning,
+/// rejected the unbounded index; straight-line comparisons are the
+/// shape nothing can optimize away). The mirror's input is a u64
+/// clock delta, where the story inverts: log2 reaches 63, so the
+/// clamp CANNOT be proven dead — it stays an instruction the
+/// verifier models natively (a bound it accepts on sight), and the
+/// 32-branch ladder at the WRAPPER's position multiplied the
+/// verifier's explored states against the six-layer verdict path's
+/// whole state space — the live C77 leg measured the walk past the
+/// 1M insn budget ("BPF program is too large"). `| 1` makes zero a
+/// legal input (a zero-delta sample is still a sample; it shares
+/// bucket 0 with 1 — a count there beats a clz panic on 0). The
+/// semantics are the ladder's own: bucket b covers [2^b, 2^(b+1))
+/// ns, bucket 31 the honest clamp — the rootless pins hold the
+/// boundary table byte for byte.
 #[inline(always)]
 pub fn cost_bucket(ns: u64) -> usize {
-    if ns >= 1 << 31 {
-        return 31;
-    }
-    if ns >= 1 << 30 {
-        return 30;
-    }
-    if ns >= 1 << 29 {
-        return 29;
-    }
-    if ns >= 1 << 28 {
-        return 28;
-    }
-    if ns >= 1 << 27 {
-        return 27;
-    }
-    if ns >= 1 << 26 {
-        return 26;
-    }
-    if ns >= 1 << 25 {
-        return 25;
-    }
-    if ns >= 1 << 24 {
-        return 24;
-    }
-    if ns >= 1 << 23 {
-        return 23;
-    }
-    if ns >= 1 << 22 {
-        return 22;
-    }
-    if ns >= 1 << 21 {
-        return 21;
-    }
-    if ns >= 1 << 20 {
-        return 20;
-    }
-    if ns >= 1 << 19 {
-        return 19;
-    }
-    if ns >= 1 << 18 {
-        return 18;
-    }
-    if ns >= 1 << 17 {
-        return 17;
-    }
-    if ns >= 1 << 16 {
-        return 16;
-    }
-    if ns >= 1 << 15 {
-        return 15;
-    }
-    if ns >= 1 << 14 {
-        return 14;
-    }
-    if ns >= 1 << 13 {
-        return 13;
-    }
-    if ns >= 1 << 12 {
-        return 12;
-    }
-    if ns >= 1 << 11 {
-        return 11;
-    }
-    if ns >= 1 << 10 {
-        return 10;
-    }
-    if ns >= 1 << 9 {
-        return 9;
-    }
-    if ns >= 1 << 8 {
-        return 8;
-    }
-    if ns >= 1 << 7 {
-        return 7;
-    }
-    if ns >= 1 << 6 {
-        return 6;
-    }
-    if ns >= 1 << 5 {
-        return 5;
-    }
-    if ns >= 1 << 4 {
-        return 4;
-    }
-    if ns >= 1 << 3 {
-        return 3;
-    }
-    if ns >= 1 << 2 {
-        return 2;
-    }
-    if ns >= 1 << 1 {
-        return 1;
-    }
-    0
+    let log2 = 63usize - (ns | 1).leading_zeros() as usize;
+    if log2 > 31 { 31 } else { log2 }
 }
 
 /// The sampled verdict's record (night-frontier-Z6): one bucket add,
