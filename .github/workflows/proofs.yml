@@ -1,0 +1,160 @@
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# The proofs lane (night-frontier-Z6, D1 — the proven datapath): the
+# per-push verdict vehicle for the two verification instruments the
+# proofs package carries. The included sources are #[path] wirings of
+# ebpf/src's core-only law files — the same bytes the kernel object
+# builds — so a theorem this lane verifies is a theorem the datapath
+# runs (the fuzz harnesses' include law, one directory over).
+#
+# Two jobs, one package (proofs/ — the detached nested package, the
+# ebpf crate's own detachment shape; the root manifest's dependency
+# graph never sees these instruments):
+#
+#  * property:  proptest exhaustion of the pure cores' laws on the
+#    pinned stable toolchain — thousands of shrinkable cases per law
+#    per run. Fast, rootless, deterministic setup; a red is a real
+#    counterexample with a shrunk witness.
+#  * kani:      bounded model checking under the pinned kani release —
+#    the for-all tier. Six theorems decide in minutes (the decision
+#    tables, the ladders, the memo word, the hint state machine, the
+#    window domain, the consume sufficiency pair); three sit behind
+#    nonlinear multiply/divide circuits (the refill overflow guard,
+#    the hostile-state enforce totality, the ring stamp law, the
+#    bounded key) and get the job's full 60-minute budget with
+#    CaDiCaL — the sandbox census measured them unfinished at ten
+#    minutes and undecided under the SMT backends, so the runner is
+#    the for-all verdict vehicle for that tier. The census record
+#    (the Z6 audit) carries the per-harness tier table; a red here is
+#    a counterexample or an undecided theorem, never a skip.
+#
+# The loom instrument is absent by signed census verdict: loom has no
+# location-backed atomics (AtomicU64::from_ptr), and the datapath's
+# CAS discipline is pointer-cast over raw map-value memory — the
+# record rides the manifest comment and the Z6 audit.
+
+name: zelynic - Proofs
+
+"on":
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+# One run per ref: a new push supersedes the previous run's verdict
+# (the sibling's concurrency shape, every workflow in the estate).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  property:
+    name: proptest exhaustion (stable, rootless)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7, NIGHT-hunt-20 SHA pin
+        with:
+          persist-credentials: false
+
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
+
+      - name: Install Rust toolchain (the root pin, minimal profile)
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87  # NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: "1.98.1"
+
+      - name: Cache cargo registry
+        uses: actions/cache@5a3ec84eff668545ee6dbbd2881815a6b17993d3  # v4, NIGHT-hunt-20 SHA pin
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: proofs-property-${{ runner.os }}-${{ hashFiles('proofs/Cargo.lock') }}
+          restore-keys: proofs-property-${{ runner.os }}-
+
+      # The law files compile from ebpf/src under this package's own
+      # crate — no root build, no nightly, no eBPF objects: the proof
+      # lane's footprint is the instruments plus the law bytes.
+      - name: Property exhaustion (proptest, 4096 cases per law)
+        run: cd proofs && cargo test --locked
+
+  kani:
+    name: bounded model checking (kani, for-all tier)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7, NIGHT-hunt-20 SHA pin
+        with:
+          persist-credentials: false
+
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
+
+      - name: Install Rust toolchain (the root pin, minimal profile)
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87  # NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: "1.98.1"
+
+      # The pinned kani release: cargo-kani is a thin wrapper whose
+      # first run downloads the bundled verification toolchain. The
+      # cache keys on the release version — a bump re-downloads by
+      # construction.
+      - name: Install kani-verifier (pinned release)
+        run: cargo install --locked kani-verifier@0.68.0
+
+      - name: Cache the kani toolchain bundle
+        uses: actions/cache@5a3ec84eff668545ee6dbbd2881815a6b17993d3  # v4, NIGHT-hunt-20 SHA pin
+        with:
+          path: ~/.kani
+          key: kani-0.68.0-${{ runner.os }}
+
+      - name: Kani first-time setup (bundled toolchain)
+        run: cargo kani setup
+
+      - name: Cache cargo registry
+        uses: actions/cache@5a3ec84eff668545ee6dbbd2881815a6b17993d3  # v4, NIGHT-hunt-20 SHA pin
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: proofs-kani-${{ runner.os }}-${{ hashFiles('proofs/Cargo.lock') }}
+          restore-keys: proofs-kani-${{ runner.os }}-
+
+      # The fast tier: six theorems, minutes each. One invocation per
+      # harness so a verdict is never lost to a sibling's budget.
+      - name: For-all theorems (the deciding tier)
+        run: |
+          cd proofs
+          for h in \
+            consume_sufficiency_is_decisive_for_all_inputs \
+            bucket_ladders_are_bounded_and_exact_for_all_inputs \
+            hint_learn_holds_its_state_machine_for_all_sightings \
+            memo_and_cache_table_hold_for_all_inputs \
+            share_note_keeps_its_word_laws_for_all_inputs \
+            window_domain_is_total_for_all_inputs; do
+            cargo kani --lib --harness "$h"
+          done
+
+      # The heavy tier: the nonlinear multiply/divide circuits the
+      # census measured unfinished at ten minutes locally — the
+      # runner's full budget is their verdict vehicle. A red here is
+      # a counterexample or an undecided theorem; both are findings.
+      - name: For-all theorems (the heavy tier, full job budget)
+        run: |
+          cd proofs
+          for h in \
+            refill_credits_is_total_and_bounded_for_all_inputs \
+            enforce_is_total_and_clamped_for_all_hostile_states \
+            ring_book_is_total_and_stamps_lawfully \
+            flow_key_bounded_is_total_for_all_window_shapes; do
+            cargo kani --lib --harness "$h"
+          done

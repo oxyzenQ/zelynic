@@ -1,0 +1,55 @@
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# night-frontier-Z6 (D1, the proven datapath): the proof-harness
+# package. A detached nested package — the ebpf/ crate's own
+# detachment shape — so the proof instruments never enter the root
+# manifest's dependency graph (the "minimal dependencies, easy to
+# audit" philosophy holds: nothing here ships in any binary, and the
+# root crate's Cargo.lock never sees these crates).
+#
+# Three instruments, one package, each with its own lane:
+#
+#  * proptest  (dev-dependency): property-based exhaustion of the
+#    pure cores' laws on stable — thousands of shrinkable cases per
+#    law per run, the sampled-but-shrinking instrument.
+#  * kani      (sysroot-provided by cargo kani, no manifest entry):
+#    bounded model checking — FOR ALL INPUTS within the harness's
+#    domain, the totality laws become machine-checked theorems. The
+#    harnesses live in the #[cfg(kani)] module and only compile under
+#    the kani toolchain.
+#
+# The census also examined loom (the interleaving checker) and
+# returned a signed NO: loom 0.7.3 has no location-backed atomics
+# (no AtomicU64::from_ptr), and the datapath's CAS discipline is
+# pointer-cast over raw map-value memory by design — the BPF ISA
+# lesson math.rs's access primitives carry. Expressing the protocol
+# in loom would mean restructuring the core-only law files for a
+# test instrument, and a reimplementation in the harness would be a
+# model, not a proof of the bytes the kernel runs. The full record
+# rides the night-frontier-Z6 audit; the instrument reopens the day
+# loom ships from_ptr semantics.
+#
+# The included sources are #[path] wirings of ebpf/src's core-only
+# law files — the SAME bytes the kernel object builds (the fuzz
+# harnesses' include law, one directory over). A law the proofs
+# verify is a law the datapath runs.
+
+[package]
+name = "zelynic-proofs"
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-only"
+publish = false
+
+[dev-dependencies]
+# The property-exhaustion instrument (the shrinkable counterexample
+# machine). Dev-only: the property harness module is #[cfg(test)].
+proptest = "1"
+
+[lints]
+# The cfg name the kani harness module evaluates: cfg(kani) is set
+# only by the kani toolchain's cargo-kani invocation. Without the
+# registration the unexpected_cfgs lint fires on every build with
+# the cfg unset.
+rust = { unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] } }

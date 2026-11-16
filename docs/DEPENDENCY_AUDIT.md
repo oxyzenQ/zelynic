@@ -329,6 +329,36 @@ blocks. Keeping it is the lower-risk option.
 - Neither entry involves a crate with an open RustSec advisory
   (`cargo deny check advisories` passes clean over the full tree).
 
+## The proofs package (night-frontier-Z6, 2026-11-16)
+
+night-frontier-Z6 (D1, the proven datapath) landed `proofs/` — a
+detached nested package, the ebpf crate's own detachment shape —
+holding the two verification instruments the proof layer rides. The
+root manifest's dependency graph is untouched: no root entry moved,
+the root lockfile gained nothing, and no proof dependency reaches any
+shipped binary.
+
+| Crate | Package | Verdict | Justification |
+|-------|---------|---------|---------------|
+| `proptest` 1 (dev) | proofs/ only | keep | the property-exhaustion instrument: 4096 shrinkable cases per law per run over the #[path]-included ebpf/src law files (the fuzz harnesses' include law). Dev-only, publish = false, never a binary input |
+| `kani-verifier` 0.68.0 | proofs/ CI lane, no manifest entry | keep, pinned | the for-all tier's toolchain: cargo kani ships the harness support crate from its own sysroot, so nothing lands in any Cargo.toml. Pinned by version in .github/workflows/proofs.yml and by the toolchain cache key |
+| `loom` 0.7 | **censused, NOT adopted** | signed NO | the interleaving checker has no location-backed atomics (no `AtomicU64::from_ptr` in 0.7.3 — verified against the build), and the datapath's CAS discipline is pointer-cast over raw map-value memory by design (math.rs's access primitives, the BPF ISA lesson). Expressing the protocol would mean restructuring the core-only law files for a test instrument; a harness-side reimplementation would be a model, not a proof of the kernel bytes. Reopens the day loom ships from_ptr semantics |
+
+Scope notes, stated honestly:
+
+- The proofs package sits OUTSIDE the root `cargo deny check all`
+  scan (detached package, no workspace edge). Its two crates are
+  dev-tooling only — `publish = false`, zero binary surface — and the
+  lane pins both instruments by version; the supply-chain posture is
+  the fuzz/ crate's own (the same detached-package shape, the same
+  dev-only rule).
+- The proptest regression store
+  (proofs/proptest-regressions/) is committed per proptest's own
+  convention: the Z6 instrument's first real catch (the fraction
+  sanitize-on-read law's counterexample, shrunk to
+  rate=0/burst=0/frac=NS_PER_SEC) replays before any novel case — the
+  witness that sharpened the property to the exact documented law.
+
 ## Policy for adding dependencies
 
 Default answer is no. When a feature genuinely needs a new crate:
