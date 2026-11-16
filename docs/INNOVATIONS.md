@@ -690,6 +690,72 @@ law — three legs, one attestation. Stage 2 (per-release appendix
 stamps the day release engineering cuts one) opens with the next
 tag; the mechanical ratification already runs ahead of it.
 
+## The proof layer — the for-all tier (night-frontier-Z6)
+
+The scales above are pinned by rootless unit tests (sampled inputs,
+hand-picked edges) and the SMP hammers (sampled schedules). The
+proof layer (night-frontier-Z6, D1) adds the instruments above both:
+a dedicated detached package, `proofs/` — the ebpf crate's own
+detachment shape, so the instruments never enter the root manifest's
+dependency graph — whose harnesses compile the SAME law files the
+kernel object builds (the fuzz harnesses' #[path] include law: a law
+the proofs verify is a law the datapath runs). Two instruments, one
+per-push lane (.github/workflows/proofs.yml), three honest tiers:
+
+- **The for-all tier (kani, bounded model checking).** Each harness
+  turns a named law into a machine-checked theorem over ALL inputs
+  in its stated domain — the claims the docs make in prose ("the
+  fill-detect branch is the overflow guard", "the ladder IS the
+  verifier's own proof", "the cache decision table") become solver
+  verdicts. Six theorems decided at census time on the pinned kani
+  release (0.68.0): the consume sufficiency pair (try_consume
+  deducts exactly-want iff the stock covers it, for every state),
+  the 32-bucket ladder bounds and their exact power-of-two
+  boundaries (hist.rs, for every u64), the hint learn state machine
+  (confirm/restart/zero laws, every sighting pair), the memo word
+  round-trip and the cache decision table (mmspa.rs, every
+  generation/root/memo shape), the share-state word's rollover and
+  ratchet laws (drr.rs, every packed word and epoch), and the
+  window domain totality (during.rs, every wall instant in
+  [0, NS_PER_DAY) plus the unknown-kind enforcement posture). Four
+  theorems sit behind nonlinear multiply/divide circuits (the
+  refill overflow guard, the hostile-state enforce totality, the
+  ring stamp law, the bounded key) and carry the CI lane's full
+  budget as their verdict vehicle — the sandbox census measured
+  them unfinished at ten minutes and undecided under every SMT
+  backend, recorded as such. The rate-domain assumption the heavy
+  theorems carry is the system's own ceiling (MAX_RATE, the parse
+  family's refusal line) — the theorems quantify over the reachable
+  policy domain, stated in the harness, never hidden.
+- **The sampled tier (proptest, 4096 shrinkable cases per law).**
+  Every law the for-all tier covers plus the ones the solvers
+  cannot yet decide: the aggregate replace words, the tail's
+  worst-8 contract, the margin-erosion monotonicity (the u64
+  constant-modulo circuit no backend decides — the sampled tier
+  carries it until one does), the flow key's determinism half, the
+  DRR take laws, the rate-ring stamp law. The instrument's first
+  real catch is itself the record: the fraction sanitize-on-read
+  law's counterexample (shrunk to rate=0, frac=NS_PER_SEC) sharpened
+  the property from "stored fraction is healthy" to the exact
+  documented contract — the regression store replays it on every
+  run (proofs/proptest-regressions/).
+- **The census verdicts (the honest NOs).** Loom was examined and
+  rejected signed: no location-backed atomics (no AtomicU64::from_ptr
+  in 0.7.3), and the datapath's CAS discipline is pointer-cast over
+  raw map-value memory — restructuring the core-only law files for a
+  test instrument, or reimplementing the protocol in a harness, would
+  be a model rather than a proof of the bytes the kernel runs.
+  Reopens the day loom ships from_ptr semantics. The per-instrument
+  dependency record rides docs/DEPENDENCY_AUDIT.md; the tier table
+  rides the proofs manifest comments.
+
+The lane: `cargo test` in proofs/ (the sampled tier, rootless,
+stable-only) and `cargo kani --lib` per harness (the for-all tier,
+the pinned kani release) — the proofs.yml workflow runs both on
+every push, one invocation per harness so a verdict is never lost to
+a sibling's budget. A red is a counterexample or an undecided
+theorem, never a skip.
+
 ## The Quota Saver — the Workload-Conditional Claim
 
 The fourteenth, fifteenth, and sixteenth entries above (RECWN, ECN,
