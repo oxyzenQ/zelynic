@@ -103,7 +103,13 @@ pub struct HistRow {
     pub tail: [HistTail; HIST_TAIL],
 }
 
-const _: () = assert!(core::mem::size_of::<HistRow>() == 816);
+// The block wrap keeps the assert! invocation in statement position
+// (the semicolon-in-expression future-incompat lint under the kani
+// toolchain, rust-lang/rust#79813). Identical contract, no generated
+// code change.
+const _: () = {
+    assert!(core::mem::size_of::<HistRow>() == 816);
+};
 
 /// One aggregate-min word's update (night-frontier-Z1): the
 /// check-then-store replace law — the measured_srtt ratchet's own
