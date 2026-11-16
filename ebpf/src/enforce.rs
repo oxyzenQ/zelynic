@@ -32,7 +32,7 @@ use crate::drr_flow::drr_flow;
 use crate::ecn;
 use crate::enforce_helpers::{
     debt_key_for, ecn_rescue, get_bucket_ptr, get_debt_ptr, get_stats_ptr, hist_record,
-    hist_sample_due, ring_verdict, window_gate,
+    ring_verdict, window_gate,
 };
 use crate::hist;
 use crate::math::{Bucket, MAX_ENFORCABLE_BURST, POLICY_FLAG_PER_SOCKET, Policy, book, enforce};
@@ -62,6 +62,7 @@ pub(crate) fn try_enforce(
     flow_share_map: &LruHashMap<u64, u64>,
     flow_ledger_map: &LruHashMap<u64, u64>,
     depth_hist_map: &LruHashMap<u32, hist::HistRow>,
+    sampled: bool,
 ) -> i32 {
     // The unlimited fast path FIRST (NIGHT-lts-2): cgroup identity +
     // the direction's policy are the only two lookups a packet with
@@ -94,12 +95,17 @@ pub(crate) fn try_enforce(
     let leaf = unsafe { bpf_skb_cgroup_id(ctx.as_ptr().cast()) } as u32;
     let pkt_len = ctx.len();
 
-    // The depth histogram sampler (night-frontier-2B, schema v34):
-    // the per-CPU tick and the 1-in-1024 row write — the mechanics,
-    // the NIGHT-lts-2 amendment story, and the wire-shape contract
-    // live on hist_sample_due/hist_record in enforce_helpers (the
-    // 600-line law's split; the call site keeps the shape).
-    if hist_sample_due() {
+    // The depth histogram sampler (night-frontier-2B, schema v34;
+    // the Z6 mirror re-shape): the per-CPU tick and the 1-in-1024 row
+    // write — the mechanics, the NIGHT-lts-2 amendment story, and the
+    // wire-shape contract live on hist_sample_due/hist_record in
+    // enforce_helpers (the 600-line law's split; the call site keeps
+    // the shape). Since the Z6 mirror the DECISION rides the program
+    // wrappers (bin/limiter.rs's selfcost_sample) — one tick
+    // decision, two consumers (the histogram's row write here, the
+    // mirror's ktime pair around this whole path) — and this call
+    // site keeps the shape with the decision passed down.
+    if sampled {
         hist_record(depth_hist_map, leaf, u64::from(pkt_len), &ctx);
     }
 

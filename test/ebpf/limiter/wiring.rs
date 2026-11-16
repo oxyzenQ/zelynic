@@ -102,3 +102,9 @@ mod pace_tests;
 #[cfg(test)]
 #[path = "hist_tests.rs"]
 mod hist_tests;
+// night-frontier-Z6 (the mirror, schema v36): the self-cost row's
+// pure core compiles from ebpf/src/selfcost.rs the same way, pinned
+// rootlessly by test/ebpf/limiter/selfcost_tests.rs.
+#[cfg(test)]
+#[path = "selfcost_tests.rs"]
+mod selfcost_tests;

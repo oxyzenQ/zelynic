@@ -150,8 +150,35 @@
 ///     reader would map the 304-byte extension onto nothing — the
 ///     forced reload (once, re-apply after upgrade) re-pins the full
 ///     v35 map set.
+/// v36 (night-frontier-Z6, the mirror — the limiter publishing its
+///     own per-packet tax): ONE additive per-CPU map, self_cost
+///     (PerCpuArray<SelfCostRow>, one 280-byte row per CPU: 32
+///     log2 buckets of the verdict path's wall time in nanoseconds,
+///     then the Z1 exact-aggregate law — sum/min/max, the count
+///     riding no word because sum(buckets) IS the count). Recording
+///     rides the SAME 1-in-1024 per-CPU tick the depth histogram
+///     rides — one tick decision, two consumers (the histogram's
+///     row write inside try_enforce, the mirror's ktime pair around
+///     the whole verdict path, stamped at program entry and closed
+///     at the verdict) — so the unlimited fast path's NIGHT-lts-2
+///     law is untouched: unsampled packets pay what they always
+///     paid, the sampled packet adds two ktime reads and one per-CPU
+///     row write. The measured window starts AFTER the tick (the
+///     tick is the meter's own cost, not the metered path), and the
+///     row is pooled across both directions — the tax is the
+///     enforcer's, not a direction's. The pure core (selfcost.rs:
+///     the ladder, the row shape, the record law) carries rootless
+///     pins the hist.rs discipline wires; the userspace mirror and
+///     the ee --depth self-cost block read the row through the
+///     pinned-map lane, additive and honestly absent while no packet
+///     has sampled (or no limiter session ever pinned the map). The
+///     bump is REQUIRED, not polite: a pinned v35 object lacks the
+///     self_cost map entirely, and the version is the one gate
+///     distinguishing "no samples yet" from "no such lane" — the
+///     forced reload (once, re-apply after upgrade) re-pins the full
+///     v36 map set.
 #[allow(dead_code)]
-pub(crate) const SCHEMA_VERSION: u32 = 35;
+pub(crate) const SCHEMA_VERSION: u32 = 36;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs
