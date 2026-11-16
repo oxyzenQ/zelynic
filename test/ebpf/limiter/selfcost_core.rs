@@ -22,11 +22,16 @@
 pub const SELF_COST_BUCKETS: usize = 32;
 
 /// The mirror's sampling cadence: record every 2^SHIFT-th packet, per
-/// CPU -- the same 1-in-1024 law the estate's samplers carry.
+/// CPU -- the same 1-in-1024 law the estate's samplers carry. (The
+/// test-tree compilation has no tick lane reading it -- the pins hold
+/// the law; the live lane's kernel half is its reader.)
+#[allow(dead_code)]
 pub const SELF_COST_SAMPLE_SHIFT: u32 = 10;
 
 /// The tick mask pairing with SELF_COST_SAMPLE_SHIFT: a tick
-/// qualifies for recording when `tick & MASK == 0`.
+/// qualifies for recording when `tick & MASK == 0`. (Same posture as
+/// SHIFT: the live lane is the reader.)
+#[allow(dead_code)]
 pub const SELF_COST_SAMPLE_MASK: u64 = (1 << SELF_COST_SAMPLE_SHIFT) - 1;
 
 /// One sampled verdict's cost row, the per-CPU map value the live
@@ -91,6 +96,11 @@ pub fn cost_bucket(ns: u64) -> usize {
 #[inline(always)]
 pub fn cost_record(row: *mut SelfCostRow, delta_ns: u64) {
     let b = cost_bucket(delta_ns) & (SELF_COST_BUCKETS - 1);
+    // SAFETY: the caller hands the per-CPU array's own row pointer
+    // (get_ptr_mut on the CPU-local slot) -- stable kernel memory for
+    // this invocation, 8-aligned repr(C) fields, this CPU the slot's
+    // only writer between invocations. Plain RMW derefs, never
+    // aliased with a &mut, never copied out of the map.
     unsafe {
         let bp = core::ptr::addr_of_mut!((*row).buckets[b]);
         *bp = (*bp).wrapping_add(1);
