@@ -430,8 +430,15 @@ pub use drr_epoch::*;
 
 #[path = "drr_guarantee.rs"]
 mod drr_guarantee;
+// The split's glob edges are the datapath's resolution contract (the
+// kernel build and the rootless test tree resolve through them); the
+// proofs package's core-only wiring compiles the same re-exports with
+// no consumer, where the unused_imports lint fires. The attribute
+// targets that compilation shape; name resolution is untouched.
+#[allow(unused_imports)]
 pub use drr_guarantee::*;
 
 #[path = "drr_flow_law.rs"]
 mod drr_flow_law;
+#[allow(unused_imports)]
 pub use drr_flow_law::*;
