@@ -99,8 +99,16 @@ pub struct RateRing {
     pub slots: [RateSlot; RING_SLOTS as usize],
 }
 
-const _: () = assert!(core::mem::size_of::<RateSlot>() == 16);
-const _: () = assert!(core::mem::size_of::<RateRing>() == 128);
+// The block wrap keeps each assert! invocation in statement position
+// (the semicolon-in-expression future-incompat lint under the kani
+// toolchain, rust-lang/rust#79813). Identical contracts, no generated
+// code change.
+const _: () = {
+    assert!(core::mem::size_of::<RateSlot>() == 16);
+};
+const _: () = {
+    assert!(core::mem::size_of::<RateRing>() == 128);
+};
 
 /// How many one-second windows the ring keeps. Mirrored in userspace
 /// as `RATE_RING_SLOTS` (src/ebpf/limiter/rate_ring.rs — the layout

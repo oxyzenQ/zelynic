@@ -285,9 +285,20 @@ pub struct LimiterStats {
     pub measured_srtt_us: u64,
 }
 
-const _: () = assert!(core::mem::size_of::<Policy>() == 40);
-const _: () = assert!(core::mem::size_of::<Bucket>() == 24);
-const _: () = assert!(core::mem::size_of::<LimiterStats>() == 72);
+// The block wrap keeps each assert! invocation in statement position:
+// the macro's expansion in expression position trips the
+// semicolon-in-expression future-incompat lint under the kani
+// toolchain (rust-lang/rust#79813, a coming hard error). Identical
+// layout contracts, zero generated-code change.
+const _: () = {
+    assert!(core::mem::size_of::<Policy>() == 40);
+};
+const _: () = {
+    assert!(core::mem::size_of::<Bucket>() == 24);
+};
+const _: () = {
+    assert!(core::mem::size_of::<LimiterStats>() == 72);
+};
 
 /// Refill rate math: nanoseconds per second.
 pub const NS_PER_SEC: u64 = 1_000_000_000;
