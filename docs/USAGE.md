@@ -2794,7 +2794,7 @@ report's `clamp bracket:` line is this object's own projection.
 `self_cost` (night-frontier-Z6, schema v36) is the mirror — the
 LIMITER's own per-packet verdict cost, measured by the same datapath
 it polices, machine-scope (doc-level, a sibling of `bypass_audit`):
-`{"sample_shift":10,"count":42,"buckets":[...32 entries...],"p50":1024,"p95":4096,"p99":8192,"sum_ns":71234,"min_ns":900,"max_ns":31050,"mean_ns":1696}`
+`{"sample_shift":10,"count":42,"buckets":[...32 entries...],"p50":1024,"p95":4096,"p99":8192,"sum_ns":71234,"min_ns":1024,"max_ns":16383,"mean_ns":1696}`
 — the verdict path's wall time in nanoseconds, sampled by the SAME
 1-in-1024 per-CPU tick the `histogram` block rides (one tick
 decision, two consumers: the hot path pays what it always paid —
@@ -2806,9 +2806,12 @@ count source exists, the Z1 structural law), the quantiles are the
 bucket-bounded LOWER bounds (the true value lives in [2^b, 2^(b+1)),
 the same resolution law the histogram carries), and
 `sum_ns`/`min_ns`/`max_ns`/`mean_ns` are the exact aggregates the
-kernel's own words carry (the min rides the 0-sentinel of a CPU
-that has never sampled; the fold skips unsampled CPUs for the min —
-a zero cost that never happened is never reported). Both directions
+kernel's own words carry (sum and mean are exact; the min/max pair
+is the BUCKET-BOUNDED read — the smallest sampled cost is AT LEAST
+`min_ns`, the largest BELOW `max_ns`, the log2 resolution's own
+shape, the C77 live leg's verifier budget having chosen the buckets'
+own bounds over exact words at the datapath's widest state
+position). Both directions
 pool into one row: the tax is the enforcer's, not a direction's.
 `null` while no packet has sampled yet (a fresh pin, an idle
 machine) or on a pre-v36 pin — the honest absence, never a zero

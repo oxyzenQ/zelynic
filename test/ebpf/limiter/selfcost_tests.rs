@@ -18,12 +18,15 @@ pub(super) mod ebpf_selfcost;
 
 use self::ebpf_selfcost::{SELF_COST_BUCKETS, SelfCostRow, cost_bucket, cost_record};
 
-/// The row's layout law: 32 buckets plus the three exact-aggregate
-/// words, all u64 — 280 bytes, the shape the schema pin and the
-/// userspace twin both hold.
+/// The row's layout law: 32 buckets plus the exact-mass word, all
+/// u64 — 264 bytes, the shape the schema pin and the userspace twin
+/// both hold (the min/max words the first sketch carried are gone —
+/// the C77 live leg measured their replace pairs past the verifier's
+/// walk budget at the wrapper's position; the bounds ride the
+/// buckets).
 #[test]
 fn row_size_is_pinned() {
-    assert_eq!(core::mem::size_of::<SelfCostRow>(), 280);
+    assert_eq!(core::mem::size_of::<SelfCostRow>(), 264);
     assert_eq!(SELF_COST_BUCKETS, 32);
 }
 
@@ -54,8 +57,7 @@ fn cost_record_keeps_the_four_laws() {
     let mut row = SelfCostRow::default();
     // A fresh row answers zero everywhere: the honest absence.
     assert_eq!(row.buckets.iter().sum::<u64>(), 0);
-    assert_eq!(row.min_ns, 0);
-    assert_eq!(row.max_ns, 0);
+    assert_eq!(row.sum_ns, 0);
 
     let samples: [u64; 5] = [100, 3, 4096, 3, 65_537];
     for &ns in &samples {
@@ -73,24 +75,6 @@ fn cost_record_keeps_the_four_laws() {
     // The exact sum: every nanosecond booked once.
     let total: u64 = samples.iter().sum();
     assert_eq!(row.sum_ns, total);
-    // The 0-sentinel min: the true minimum of the sampled set.
-    assert_eq!(row.min_ns, 3);
-    // The max ratchet: the true maximum.
-    assert_eq!(row.max_ns, 65_537);
-}
-
-/// The min replace law's sentinel: a real sample always lands on a
-/// fresh row (0 = "no min yet"), and the min only goes DOWN — the
-/// replace pair never raises it.
-#[test]
-fn cost_record_min_never_rises() {
-    let mut row = SelfCostRow::default();
-    cost_record(&mut row, 5_000);
-    assert_eq!(row.min_ns, 5_000);
-    cost_record(&mut row, 9_000);
-    assert_eq!(row.min_ns, 5_000, "the min rose — the replace law broke");
-    cost_record(&mut row, 1);
-    assert_eq!(row.min_ns, 1);
 }
 
 /// The AND-mask law's semantics: cost_bucket already answers

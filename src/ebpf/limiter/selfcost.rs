@@ -27,12 +27,15 @@ pub const SELF_COST_SAMPLE_SHIFT: u32 = 10;
 
 /// One CPU's cost row, the mirror of ebpf/src/selfcost.rs's
 /// SelfCostRow (v36): the 32 log2 buckets of the verdict path's wall
-/// time in nanoseconds, then the exact aggregates (sum/min/max — the
-/// min rides the 0-sentinel "no min yet"; the COUNT rides no word —
-/// the buckets ARE the count, the Z1 structural law). 280 bytes. The
-/// kernel writes plain RMW through the per-CPU slot (no atomics owed
-/// — per-CPU isolation); the userspace read is one 280-byte-per-CPU
-/// map copy, folded by [`fold_self_cost`].
+/// time in nanoseconds plus the exact mass (the COUNT rides no word
+/// — the buckets ARE the count, the Z1 structural law; the min/max
+/// words the first sketch carried are gone — the C77 live leg
+/// measured their replace pairs multiplying the verifier's explored
+/// states past the walk budget at the wrapper's position, and the
+/// bounds ride the buckets themselves, the userspace fold's own
+/// read). 264 bytes. The kernel writes plain RMW through the per-CPU
+/// slot (no atomics owed — per-CPU isolation); the userspace read is
+/// one 264-byte-per-CPU map copy, folded by [`fold_self_cost`].
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 #[repr(align(8))]
 pub struct SelfCostRowRaw {
@@ -41,13 +44,9 @@ pub struct SelfCostRowRaw {
     pub buckets: [u64; SELF_COST_BUCKETS],
     /// The sampled set's exact mass, nanoseconds.
     pub sum_ns: u64,
-    /// The sampled set's minimum, nanoseconds (0 = the sentinel).
-    pub min_ns: u64,
-    /// The sampled set's maximum, nanoseconds.
-    pub max_ns: u64,
 }
 
-const _: () = assert!(core::mem::size_of::<SelfCostRowRaw>() == 280);
+const _: () = assert!(core::mem::size_of::<SelfCostRowRaw>() == 264);
 // SAFETY: all-u64 #[repr(C)] arrays — every bit pattern is a valid
 // value, the same class the HistRowRaw/PolicyRaw mirrors ride.
 unsafe impl aya::Pod for SelfCostRowRaw {}
@@ -62,18 +61,12 @@ pub struct SelfCostFolded {
     pub buckets: [u64; SELF_COST_BUCKETS],
     /// The folded exact mass, nanoseconds (the per-CPU sums added).
     pub sum_ns: u64,
-    /// The folded minimum, nanoseconds — the smallest nonzero per-CPU
-    /// min (0 = no CPU has sampled yet; the honest absence).
-    pub min_ns: u64,
-    /// The folded maximum, nanoseconds (the largest per-CPU max).
-    pub max_ns: u64,
 }
 
-/// The cross-CPU fold law: buckets and sums ADD across CPUs, the max
-/// takes the largest per-CPU high-water, and the min takes the
-/// smallest NONZERO per-CPU min (a CPU that has never sampled carries
-/// the 0-sentinel — folding it in would report a zero cost that
-/// never happened; the "never a wrong count" family's own shape).
+/// The cross-CPU fold law: buckets and sums ADD across CPUs — no
+/// other word exists to fold (the min/max bounds ride the folded
+/// buckets themselves, [`bucket_bounded_bounds`]'s read — the same
+/// bucket-bounded honesty every quantile in this estate carries).
 pub fn fold_self_cost(rows: &[SelfCostRowRaw]) -> SelfCostFolded {
     let mut folded = SelfCostFolded::default();
     for row in rows {
@@ -81,14 +74,20 @@ pub fn fold_self_cost(rows: &[SelfCostRowRaw]) -> SelfCostFolded {
             *dst = dst.wrapping_add(*src);
         }
         folded.sum_ns = folded.sum_ns.wrapping_add(row.sum_ns);
-        if row.min_ns != 0 && (folded.min_ns == 0 || row.min_ns < folded.min_ns) {
-            folded.min_ns = row.min_ns;
-        }
-        if row.max_ns > folded.max_ns {
-            folded.max_ns = row.max_ns;
-        }
     }
     folded
+}
+
+/// The bucket-bounded bounds read (the min/max words' honest
+/// successor): the smallest sampled cost is AT LEAST the first
+/// nonempty bucket's lower bound, the largest is BELOW the last
+/// nonempty bucket's upper bound — the log2 resolution's own shape,
+/// the same lower-bound law the quantiles print. None on an empty
+/// fold: the honest absence, never a zero dressed as a measurement.
+pub fn bucket_bounded_bounds(folded: &SelfCostFolded) -> Option<(u64, u64)> {
+    let first = folded.buckets.iter().position(|&c| c > 0)?;
+    let last = folded.buckets.iter().rposition(|&c| c > 0)?;
+    Some((1u64 << first, (1u64 << (last + 1)) - 1))
 }
 
 /// Total recorded samples across the folded row — sum(buckets) IS the

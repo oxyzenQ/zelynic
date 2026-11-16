@@ -152,10 +152,15 @@
 ///     v35 map set.
 /// v36 (night-frontier-Z6, the mirror — the limiter publishing its
 ///     own per-packet tax): ONE additive per-CPU map, self_cost
-///     (PerCpuArray<SelfCostRow>, one 280-byte row per CPU: 32
+///     (PerCpuArray<SelfCostRow>, one 264-byte row per CPU: 32
 ///     log2 buckets of the verdict path's wall time in nanoseconds,
-///     then the Z1 exact-aggregate law — sum/min/max, the count
-///     riding no word because sum(buckets) IS the count). Recording
+///     plus the exact mass (sum), the count riding no word because
+///     sum(buckets) IS the count; the min/max words the first sketch
+///     carried are GONE — the C77 live leg measured their replace
+///     pairs multiplying the verifier's explored states past the 1M
+///     insn walk budget at the wrapper's position, and the bounds
+///     ride the buckets themselves, the userspace fold's own
+///     bucket-bounded read). Recording
 ///     rides the SAME 1-in-1024 per-CPU tick the depth histogram
 ///     rides — one tick decision, two consumers (the histogram's
 ///     row write inside try_enforce, the mirror's ktime pair around
@@ -166,8 +171,12 @@
 ///     row write. The measured window starts AFTER the tick (the
 ///     tick is the meter's own cost, not the metered path), and the
 ///     row is pooled across both directions — the tax is the
-///     enforcer's, not a direction's. The pure core (selfcost.rs:
-///     the ladder, the row shape, the record law) carries rootless
+///     enforcer's, not a direction's. The bucket law is the clz law
+///     (floor(log2(ns | 1)) clamped at 31 — four instructions; the
+///     32-branch ladder the first shape carried measured the walk
+///     past the budget the same live leg). The pure core
+///     (selfcost.rs: the clz bucket law, the row shape, the record
+///     law) carries rootless
 ///     pins the hist.rs discipline wires; the userspace mirror and
 ///     the ee --depth self-cost block read the row through the
 ///     pinned-map lane, additive and honestly absent while no packet

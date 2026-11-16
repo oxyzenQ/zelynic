@@ -16,10 +16,10 @@
 # binaries embed.
 
 schema = 2
-generated = "2026-11-16T16:55:02Z"
+generated = "2026-11-16T17:13:23Z"
 toolchain = "nightly-2026-09-18"
 bpf_linker = "0.11.1"
-ebpf_tree_blake3 = "ca7dd0dd3a39ab2649eb0d276c627aa2ea21c998b6c63fdfabdc05b84ad4897c"
+ebpf_tree_blake3 = "09ef1530fb926d675260451fe706558f1f0514182b6a223e7a44a90f68fc63b0"
 built_by = "oxyzenQ <130107241+oxyzenQ@users.noreply.github.com>"
 
 [[object]]
@@ -29,6 +29,6 @@ size = 108120
 
 [[object]]
 name = "zelynic-limiter"
-blake3 = "946831a580c4b42358615a4484e791ea24769ec753f6e3970fea69ffd48864bd"
-size = 1124832
+blake3 = "b0274fa2626673db082b8025aa8dc90be72b648e2dd4da1c5579a0590fafff8a"
+size = 1123280
 

@@ -463,9 +463,9 @@ impl SelfCostJson {
         out.push_str(",\"sum_ns\":");
         write_number(out, self.sum_ns);
         out.push_str(",\"min_ns\":");
-        write_number(out, self.min_ns);
+        write_opt_number(out, self.min_ns);
         out.push_str(",\"max_ns\":");
-        write_number(out, self.max_ns);
+        write_opt_number(out, self.max_ns);
         out.push_str(",\"mean_ns\":");
         write_opt_number(out, self.mean_ns);
         out.push('}');
