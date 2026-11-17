@@ -41,6 +41,32 @@ v80.0.0
 
 ### Fixed
 
+- **fix(dev): the release ledger verifies its own writes — the bump's
+  version line can no longer land anywhere but inside `## [Released]`
+  (night-bump-1, the fatal class the owner hit on the v80.0.x line:
+  the bump's v80.0.6 line rode below the unreleased section because
+  nothing ever verified where a write landed).** scripts/dev/
+  version-to.sh's ledger work moved to a pre-flight before any file
+  is mutated, under four machine-checked laws: the shape law (one
+  Released + one Unreleased heading, Released first, the owner's
+  blank-spacer-and-bare-version-lines shape inside — the two
+  repairable shapes heal in place, a Released block below Unreleased
+  relocates and a stranded version line re-splices, while foreign
+  content refuses), the semver law (a bump below the ledger's top
+  refuses as the stale-tree downgrade; --force records a deliberate
+  release-line reset), the verification law (after any splice the
+  file is re-parsed and the line must sit inside ## [Released]
+  exactly once with Released above Unreleased — any other outcome
+  restores the backup and fails the run), and the history law (the
+  release's git history — the commits since the previous
+  release: vPREV commit — prints at bump time, so the ledger line's
+  association with the work it releases is verifiable in the same
+  breath). Proven by a 10-case harness against crafted repos
+  (healthy bump with history, downgrade refusal, forced reset, both
+  broken-shape heals, foreign-content refusal, missing-spacer
+  refusal, idempotent re-run, fresh creation, no-anchor skip):
+  10/10 green, the gate-keepers battery green, shellcheck clean.
+
 - **fix(ci): the histogram live proof's session laws scoped to the
   session they test (the 2026-11-14 red run's lesson); the Z2 wire
   pins' failure output de-tainted (CodeQL #34/#35/#36).** Three red

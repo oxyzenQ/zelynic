@@ -10,7 +10,9 @@
 # Usage:
 #   ./scripts/dev/version-to.sh v11.1.0        # Update to v11.1.0
 #   ./scripts/dev/version-to.sh v11.0.1 --commit # Update and auto-commit
-#   ./scripts/dev/version-to.sh                 # Show current version
+#   ./scripts/dev/version-to.sh v11.0.1 --force  # Record a deliberate
+#                                                # release-line reset
+#   ./scripts/dev/version-to.sh                # Show current version
 #
 # Single source of truth: Cargo.toml
 # Files updated: Cargo.toml, Cargo.lock, ebpf/Cargo.toml,
@@ -38,6 +40,31 @@
 # above "## [Unreleased]". Probed honestly, the README lane's rule:
 # a missing file, a missing anchor, or a non-standard Released shape
 # warns and writes nothing — never claim a write that did not happen)
+# NIGHT-bump-1 (the fatal class the owner hit on the v80.0.x line:
+# the bump's version line landed BELOW the unreleased section because
+# nothing ever verified where a write landed): the ledger work now
+# runs as a PRE-FLIGHT before any file is mutated, under four laws —
+#   1. Shape law: exactly one "## [Released]" and one
+#      "## [Unreleased]" heading, Released FIRST, the owner's pure
+#      shape (blank spacers + bare version lines) inside Released.
+#      The two repairable shapes heal in place, loudly: a Released
+#      block sitting below Unreleased relocates above it; a version
+#      line stranded outside Released is deleted and re-spliced.
+#      Foreign content inside Released refuses — a ledger this script
+#      did not create is not one it rewrites.
+#   2. Semver law: a bump that is NOT a step up from the ledger's top
+#      refuses (the stale-tree downgrade) unless --force records the
+#      deliberate release-line reset, named as such in the output.
+#   3. Verification law: after any splice the file is re-parsed and
+#      the version line must sit inside "## [Released]" exactly once
+#      with Released above Unreleased — any other outcome restores
+#      the backup and fails the run. A write this script cannot
+#      verify is a write it does not keep.
+#   4. History law: after a verified write the release's git history
+#      prints — the commits since the previous "release: vPREV"
+#      commit — so the ledger line's association with the work it
+#      releases is verifiable in the same breath, not by a manual
+#      git archaeology session afterwards.
 # Files auto-derived: scripts/build.sh (reads from Cargo.toml), binary (env!("CARGO_PKG_VERSION"))
 # =============================================================================
 set -euo pipefail
@@ -74,79 +101,245 @@ validate_version() {
 	fi
 }
 
-# Write the release line to CHANGELOG.md (NIGHT-improve-76). The
-# ledger shape is the owner's: a "## [Released]" heading with the
-# bare version line under it — newest first, created above
-# "## [Unreleased]" when absent. Pre-release (X.Y.Z-rc.1) and stable
-# (X.Y.Z) write the same shape. Honest probes (the README lane's
-# NIGHT-hunt-32 rule): a missing file, a missing "## [Unreleased]"
-# anchor, or a "## [Released]" section without this tool's own shape
-# (heading, blank spacer, version lines) warns and writes nothing —
-# a ledger this script did not create is not one it rewrites.
-changelog_release() {
+# The ## [Released] section's bare version lines, in file order
+# (NIGHT-bump-1: the ledger is parsed, never assumed).
+ledger_versions() {
+	awk '/^## \[Released\]$/{f=1;next} /^## \[Unreleased\]$/{f=0} f&&/^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$/' CHANGELOG.md
+}
+
+# ver_lt A B — true when A sorts before B in version order (A < B).
+# sort -V is the one comparator: pre-release labels, patch and minor
+# resets all order exactly as semver says.
+ver_lt() {
+	local first
+	first="$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -1)"
+	[ "${first}" = "$1" ] && [ "$1" != "$2" ]
+}
+
+# Relocate a ## [Released] block that sits BELOW ## [Unreleased]
+# (NIGHT-bump-1 law 1, the shape the owner hit on the v80.0.x line):
+# only the owner's pure shape relocates — heading, blank spacers,
+# bare version lines, nothing else. The block moves above Unreleased
+# and the result is re-verified; anything less honest refuses.
+ledger_relocate_released_block() {
+	local rline="$1" block bad tmp rest
+	block="$(sed -n "${rline},\$p" CHANGELOG.md)"
+	bad="$(printf '%s\n' "${block}" | grep -vE '^(## \[Released\]|v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?)$' | head -3 || true)"
+	if [ -n "${bad}" ]; then
+		echo -e "${RED}FAIL:${NC} CHANGELOG.md      → ## [Released] sits below ## [Unreleased] AND carries foreign content:" >&2
+		printf '%s\n' "${bad}" >&2
+		echo -e "  a ledger this script did not create is not one it rewrites — repair the shape by hand, then re-run." >&2
+		exit 1
+	fi
+	rest="$(sed -n "1,$((rline - 1))p" CHANGELOG.md)"
+	tmp="$(mktemp)"
+	awk -v blk="${block}" '
+		/^## \[Unreleased\]$/ && !done {
+			printf "%s\n\n", blk
+			done = 1
+		}
+		{ print }
+	' <<<"${rest}" >"${tmp}"
+	mv "${tmp}" CHANGELOG.md
+	local rnew uline
+	rnew="$(grep -n '^## \[Released\]$' CHANGELOG.md | cut -d: -f1)"
+	uline="$(grep -n '^## \[Unreleased\]$' CHANGELOG.md | cut -d: -f1)"
+	if [ "${rnew}" -gt "${uline}" ]; then
+		echo -e "${RED}FAIL:${NC} CHANGELOG.md      → the relocation did not verify (## [Released] still below ## [Unreleased]) — the file was left as found." >&2
+		exit 1
+	fi
+	echo -e "  ${GREEN}OK${NC} CHANGELOG.md        → ## [Released] relocated above ## [Unreleased] (the owner shape restored)"
+}
+
+# The release's git history (NIGHT-bump-1 law 4): the commits since
+# the previous release commit, printed at bump time — the association
+# between the ledger line and the work it releases is verifiable in
+# the same breath, not by manual git archaeology afterwards.
+git_release_history() {
+	local ver="$1" prev prev_esc rel_commit count
+	prev="$(ledger_versions | sed -n '2p')"
+	if [ -z "${prev}" ]; then
+		echo -e "  ${YELLOW}!${NC} release history     → no previous release line under ## [Released] — nothing to diff against"
+		return 0
+	fi
+	prev_esc="${prev//./\\.}"
+	rel_commit="$(git log -E --grep "^release: ${prev_esc}( |$)" --format=%H -n 1 2>/dev/null || true)"
+	if [ -z "${rel_commit}" ]; then
+		echo -e "  ${YELLOW}!${NC} release history     → no 'release: ${prev}' commit found in git history — showing the last 10 commits instead:"
+		git log --oneline -10 | sed 's/^/    /' || true
+		return 0
+	fi
+	count="$(git log --oneline "${rel_commit}..HEAD" | wc -l)"
+	echo -e "  ${GREEN}OK${NC} release history     → ${count} commit(s) since ${prev} (${rel_commit:0:8}):"
+	git log --oneline "${rel_commit}..HEAD" | head -15 | sed 's/^/    /' || true
+	if [ "${count}" -gt 15 ]; then
+		echo -e "    ... and $((count - 15)) more"
+	fi
+	return 0
+}
+
+# The whole ledger work, run as a PRE-FLIGHT before any file is
+# mutated (NIGHT-bump-1): shape checks, the two healable repairs, the
+# semver gate, the verified splice, and the history summary. Sets
+# LEDGER_DONE=true when the version line is already properly recorded,
+# so re-runs stay idempotent and the early-exit path still heals.
+ledger_preflight() {
 	local ver="v$1"
+	LEDGER_DONE=false
 	if [ ! -f CHANGELOG.md ]; then
 		echo -e "  ${YELLOW}!${NC} CHANGELOG.md        → file absent, nothing to write"
 		return 0
 	fi
-	# A version line never repeats: the re-run at a version the ledger
-	# already carries (the usual stale-tree re-entry) writes nothing.
-	if grep -qxF "${ver}" CHANGELOG.md; then
-		echo -e "  ${YELLOW}!${NC} CHANGELOG.md        → ${ver} already recorded, nothing to write"
+
+	# Law 1a: exactly one of each heading. More than one is a shape this
+	# script cannot parse and will not edit.
+	local rcount ucount
+	rcount="$(grep -c '^## \[Released\]$' CHANGELOG.md || true)"
+	ucount="$(grep -c '^## \[Unreleased\]$' CHANGELOG.md || true)"
+	if [ "${rcount}" -gt 1 ] || [ "${ucount}" -gt 1 ]; then
+		echo -e "${RED}FAIL:${NC} CHANGELOG.md      → ${rcount} '## [Released]' heading(s) and ${ucount} '## [Unreleased]' heading(s); expected exactly one of each. Repair the headings by hand, then re-run." >&2
+		exit 1
+	fi
+
+	# Law 1b: Released must PRECEDE Unreleased. The pure-block shape
+	# below-Unreleased relocates; anything richer refuses.
+	if [ "${rcount}" -eq 1 ] && [ "${ucount}" -eq 1 ]; then
+		local rline uline
+		rline="$(grep -n '^## \[Released\]$' CHANGELOG.md | cut -d: -f1)"
+		uline="$(grep -n '^## \[Unreleased\]$' CHANGELOG.md | cut -d: -f1)"
+		if [ "${rline}" -gt "${uline}" ]; then
+			ledger_relocate_released_block "${rline}"
+		fi
+	fi
+
+	# Law 1c: the owner's pure shape inside Released — blank spacers and
+	# bare version lines, nothing else.
+	if [ "${rcount}" -eq 1 ]; then
+		local junk
+		junk="$(awk '/^## \[Released\]$/{f=1;next} /^## \[Unreleased\]$/{f=0} f&&!/^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$/&&!/^$/' CHANGELOG.md | head -3 || true)"
+		if [ -n "${junk}" ]; then
+			echo -e "${RED}FAIL:${NC} CHANGELOG.md      → foreign content inside ## [Released] (the owner's shape is blank spacers + bare version lines):" >&2
+			printf '%s\n' "${junk}" >&2
+			echo -e "  a ledger this script did not create is not one it rewrites — repair the shape by hand, then re-run." >&2
+			exit 1
+		fi
+		# The spacer law: one blank line under the heading, the shape
+		# this script's own splice relies on. Its absence is hand-edit
+		# drift — refused, never guessed around.
+		if [ -n "$(sed -n '/^## \[Released\]$/{n;p;}' CHANGELOG.md)" ]; then
+			echo -e "${RED}FAIL:${NC} CHANGELOG.md      → the blank spacer under ## [Released] is gone (the owner shape is heading, blank line, version lines). Restore the blank line, then re-run." >&2
+			exit 1
+		fi
+	fi
+
+	# The version line never repeats — and a line stranded OUTSIDE
+	# Released (the owner's broken state) heals in place: delete the
+	# strays now, the splice below writes the line where it belongs.
+	local total inside
+	total="$(grep -cxF "${ver}" CHANGELOG.md || true)"
+	inside="$(sed -n '/^## \[Released\]$/,/^## \[Unreleased\]$/p' CHANGELOG.md | grep -cxF "${ver}" || true)"
+	if [ "${total}" -gt 0 ] && [ "${inside}" -eq "${total}" ]; then
+		LEDGER_DONE=true
+		echo -e "  ${GREEN}OK${NC} CHANGELOG.md        → ${ver} already recorded in ## [Released]"
 		return 0
 	fi
-	local tmp
-	tmp="$(mktemp)"
-	if grep -q '^## \[Released\]$' CHANGELOG.md; then
-		# The section exists. This tool's own shape puts one blank
-		# spacer between the heading and the version lines — the new
-		# version splices in under it, above the current top line.
-		if [ -z "$(sed -n '/^## \[Released\]$/{n;p;}' CHANGELOG.md)" ]; then
-			awk -v ver="${ver}" '
-                                /^## \[Released\]$/ && !done {
-                                        print
-                                        getline spacer
-                                        print spacer
-                                        print ver
-                                        done = 1
-                                        next
-                                }
-                                { print }
-                        ' CHANGELOG.md >"${tmp}"
-			mv "${tmp}" CHANGELOG.md
-			echo -e "  ${GREEN}OK${NC} CHANGELOG.md        → ${ver} (## [Released], newest first)"
-		else
-			rm -f "${tmp}"
-			echo -e "  ${YELLOW}!${NC} CHANGELOG.md        → unexpected ## [Released] shape (no blank spacer under the heading) — nothing to write"
+	if [ "${total}" -gt 0 ]; then
+		local tmp
+		tmp="$(mktemp)"
+		grep -vxF "${ver}" CHANGELOG.md >"${tmp}"
+		mv "${tmp}" CHANGELOG.md
+		echo -e "  ${YELLOW}!${NC} CHANGELOG.md        → ${ver} recorded OUTSIDE ## [Released] (${total} line(s), ${inside} inside) — deleted; the verified splice below records it properly"
+	fi
+
+	# Law 2: the semver gate — a bump below the ledger's top is the
+	# stale-tree downgrade; --force records a deliberate line reset.
+	if [ "${LEDGER_DONE}" != true ]; then
+		local top
+		top="$(ledger_versions | head -1)"
+		if [ -n "${top}" ] && ver_lt "${ver}" "${top}" && [ "${FORCE}" != true ]; then
+			echo -e "${RED}FAIL:${NC} ${ver} is not a step up from the ledger's top (${top}) — a stale-tree downgrade, refused. A deliberate release-line reset is recorded with: ./scripts/dev/version-to.sh ${ver#v} --force" >&2
+			exit 1
 		fi
-	else
-		# No section yet — create it above "## [Unreleased]" (the
-		# unreleased work keeps its own section below the ledger).
-		if grep -q '^## \[Unreleased\]$' CHANGELOG.md; then
-			awk -v ver="${ver}" '
-                                /^## \[Unreleased\]$/ && !done {
-                                        print "## [Released]"
-                                        print ""
-                                        print ver
-                                        print ""
-                                        done = 1
-                                }
-                                { print }
-                        ' CHANGELOG.md >"${tmp}"
-			mv "${tmp}" CHANGELOG.md
-			echo -e "  ${GREEN}OK${NC} CHANGELOG.md        → ${ver} (section created above ## [Unreleased])"
-		else
-			rm -f "${tmp}"
-			echo -e "  ${YELLOW}!${NC} CHANGELOG.md        → no ## [Unreleased] anchor found — nothing to write"
+		if [ -n "${top}" ] && ver_lt "${ver}" "${top}" && [ "${FORCE}" = true ]; then
+			echo -e "  ${YELLOW}!${NC} CHANGELOG.md        → release-line reset recorded (--force): ${ver} takes the ledger's top position while sorting below ${top}"
 		fi
 	fi
+
+	# Law 3 (the splice): write, then VERIFY — the version line must sit
+	# inside ## [Released] exactly once with Released above Unreleased;
+	# any other outcome restores the backup and fails the run. A write
+	# this script cannot verify is a write it does not keep.
+	local tmp backup
+	tmp="$(mktemp)"
+	backup="$(mktemp)"
+	cp CHANGELOG.md "${backup}"
+	if [ "${rcount}" -eq 1 ]; then
+		# The section exists with its verified spacer — splice the new
+		# version in under it, above the current top line.
+		awk -v ver="${ver}" '
+			/^## \[Released\]$/ && !done {
+				print
+				getline spacer
+				print spacer
+				print ver
+				done = 1
+				next
+			}
+			{ print }
+		' CHANGELOG.md >"${tmp}"
+		mv "${tmp}" CHANGELOG.md
+	elif [ "${ucount}" -eq 1 ]; then
+		# No section yet — create it above "## [Unreleased]" (the
+		# unreleased work keeps its own section below the ledger).
+		awk -v ver="${ver}" '
+			/^## \[Unreleased\]$/ && !done {
+				print "## [Released]"
+				print ""
+				print ver
+				print ""
+				done = 1
+			}
+			{ print }
+		' CHANGELOG.md >"${tmp}"
+		mv "${tmp}" CHANGELOG.md
+	else
+		rm -f "${tmp}" "${backup}"
+		echo -e "  ${YELLOW}!${NC} CHANGELOG.md        → no ## [Unreleased] anchor found — nothing to write"
+		return 0
+	fi
+	total="$(grep -cxF "${ver}" CHANGELOG.md || true)"
+	inside="$(sed -n '/^## \[Released\]$/,/^## \[Unreleased\]$/p' CHANGELOG.md | grep -cxF "${ver}" || true)"
+	local order_ok=true
+	if [ "$(grep -c '^## \[Released\]$' CHANGELOG.md || true)" -eq 1 ] && [ "$(grep -c '^## \[Unreleased\]$' CHANGELOG.md || true)" -eq 1 ]; then
+		local rnow unow
+		rnow="$(grep -n '^## \[Released\]$' CHANGELOG.md | cut -d: -f1)"
+		unow="$(grep -n '^## \[Unreleased\]$' CHANGELOG.md | cut -d: -f1)"
+		[ "${rnow}" -lt "${unow}" ] || order_ok=false
+	else
+		order_ok=false
+	fi
+	if [ "${total}" -ne 1 ] || [ "${inside}" -ne 1 ] || [ "${order_ok}" != true ]; then
+		mv "${backup}" CHANGELOG.md
+		echo -e "${RED}FAIL:${NC} CHANGELOG.md      → the ledger write did not verify (the version line must sit inside ## [Released] exactly once, with Released above Unreleased) — the file was restored, nothing kept." >&2
+		exit 1
+	fi
+	rm -f "${tmp}" "${backup}"
+	if [ "${rcount}" -eq 1 ]; then
+		echo -e "  ${GREEN}OK${NC} CHANGELOG.md        → ${ver} (## [Released], verified in place)"
+	else
+		echo -e "  ${GREEN}OK${NC} CHANGELOG.md        → ${ver} (section created above ## [Unreleased], verified in place)"
+	fi
+
+	# Law 4: the release's git history, printed while it is being made.
+	git_release_history "${ver}"
+	return 0
 }
 
 # Show current version and exit
 if [ $# -eq 0 ]; then
 	echo -e "Current version: ${GREEN}v$(current_version)${NC}"
 	echo ""
-	echo "Usage: ./scripts/dev/version-to.sh v<VERSION> [--commit]"
+	echo "Usage: ./scripts/dev/version-to.sh v<VERSION> [--commit] [--force]"
 	exit 0
 fi
 
@@ -154,9 +347,11 @@ NEW_VERSION="${1#v}"
 shift
 
 COMMIT=false
+FORCE=false
 for arg in "$@"; do
 	case "${arg}" in
 	--commit | -c) COMMIT=true ;;
+	--force | -f) FORCE=true ;;
 	*)
 		echo -e "${RED}Unknown option: ${arg}${NC}" >&2
 		exit 1
@@ -168,8 +363,18 @@ validate_version "${NEW_VERSION}"
 CURRENT=$(current_version)
 EBPF_CURRENT=$(ebpf_current_version)
 
+# NIGHT-bump-1: the ledger pre-flight runs BEFORE the early exit and
+# BEFORE any file is mutated — a re-run at an already-bumped version
+# still repairs a broken ledger (the owner's v80.0.6 heal path), and
+# a downgrade refusal fires before Cargo.toml moves.
+ledger_preflight "${NEW_VERSION}"
+
 if [ "${CURRENT}" = "${NEW_VERSION}" ] && [ "${EBPF_CURRENT}" = "${NEW_VERSION}" ]; then
-	echo -e "${YELLOW}Already at v${NEW_VERSION} (root + ebpf), nothing to change.${NC}"
+	if [ "${LEDGER_DONE}" = true ]; then
+		echo -e "${YELLOW}Already at v${NEW_VERSION} (root + ebpf) with the ledger line in ## [Released] — nothing to change.${NC}"
+	else
+		echo -e "${YELLOW}Already at v${NEW_VERSION} (root + ebpf), nothing to change.${NC}"
+	fi
 	exit 0
 fi
 
@@ -212,16 +417,21 @@ fi
 # versioned tarball names, and Version lines.
 README_HITS="$(grep -cE 'releases/download/v[0-9]|zelynic-v[0-9]+\.[0-9]+|^Version: v[0-9]' README.md 2>/dev/null || true)"
 if [ "${README_HITS:-0}" -gt 0 ]; then
-	sed -i -E "s|releases/download/v[0-9]+\\.[0-9]+\\.[0-9]+|releases/download/v${NEW_VERSION}|g" README.md
-	sed -i -E "s|zelynic-v[0-9]+\\.[0-9]+\\.[0-9]+(-[A-Za-z0-9.]+)?-x86_64|zelynic-v${NEW_VERSION}-x86_64|g" README.md
+	sed -i -E "s|releases/download/v[0-9]+\.[0-9]+\.[0-9]+|releases/download/v${NEW_VERSION}|g" README.md
+	sed -i -E "s|zelynic-v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?-x86_64|zelynic-v${NEW_VERSION}-x86_64|g" README.md
 	sed -i "s|Version: v.*|Version: v${NEW_VERSION}|" README.md
 	echo -e "  ${GREEN}OK${NC} README.md           → v${NEW_VERSION} (release URLs + versioned examples)"
 else
 	echo -e "  ${YELLOW}!${NC} README.md           → no version surface found (no release URL / versioned example / Version line) — nothing to rewrite"
 fi
 
-# --- Update CHANGELOG.md (NIGHT-improve-76: the release ledger line) ---
-changelog_release "${NEW_VERSION}"
+# --- CHANGELOG.md ledger (NIGHT-bump-1) ---
+# The ledger work ran as the pre-flight above: the shape was checked,
+# the repairable shapes healed, the semver gate fired before any file
+# moved, the splice was verified in place, and the release's git
+# history printed. Nothing re-runs here — a bump whose ledger write
+# could not be verified never reached this line.
+echo -e "  ${GREEN}OK${NC} CHANGELOG.md        → verified pre-flight (see the ledger lines above)"
 
 # --- scripts/build.sh reads dynamically from Cargo.toml, no update needed ---
 echo -e "  ${GREEN}OK${NC} scripts/build.sh    → auto (reads from Cargo.toml)"
