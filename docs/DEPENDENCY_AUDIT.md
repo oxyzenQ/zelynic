@@ -359,6 +359,56 @@ Scope notes, stated honestly:
   rate=0/burst=0/frac=NS_PER_SEC) replays before any novel case — the
   witness that sharpened the property to the exact documented law.
 
+## Supply-chain incident response (2026-08-20 arrayref advisory, audited 2026-11-17, night-supply-1)
+
+The Rust security response advisory (2026-08-20): a compromised
+crates.io account published six malicious crates (`proc-macro1`,
+`proc-macro-en`, `aovine`, `arone`, `aronenao`, `tinymember` — build
+scripts that download a payload, any version malicious) and slipped
+malicious republishes past three otherwise-benign crates the account
+owns — `arrayref@0.3.10` (86 minutes online before deletion),
+`internment@0.8.7` (90), `append-only-vec@0.1.9` (107). crates.io
+deleted the versions, unyanked the good ones, and locked the account;
+the crate author is a victim, not an actor.
+
+Verdict for this estate: **unaffected, proven.** The evidence:
+
+| Surface | Method | Result |
+|---------|--------|--------|
+| All four committed lockfiles (root, `proofs/`, `fuzz/`, `ebpf/`) | name + version grep over every `[[package]]` entry | zero hits across all nine names |
+| The whole tree | grep over every `.toml`, `.rs`, `.md`, `.yml` | zero references, no vendored copy anywhere |
+| This host's registry cache | the advisory's own `find(1)` command over `~/.cargo/registry/cache` | zero hits |
+
+A transitive edge would have had to appear in a committed lockfile;
+none did. The NIGHT-hunt-6 lean set (six direct, the audit table
+above) has no path to any affected crate.
+
+Tripwires added so a future pull-in fails loudly instead of
+compiling a payload's build script:
+
+- `deny.toml` `[bans]`: all nine ban at the name level. The six
+  malicious names were minted malicious and never resolve
+  legitimately; the three benign crates ban whole-name because the
+  pinned cargo-deny 0.20.2 bans schema carries no version scope
+  (crate/reason/wrappers only — a `version` key fails the config
+  deserializer, caught live by `cargo deny check` before the commit),
+  and the add-a-dependency policy makes any future need a documented
+  justification that revisits the list first. Enforced by the ci.yml
+  build.sh check-all lane (every push) and the weekly Dragon Guard
+  audit.
+- `.github/workflows/audit.yml`: the advisory scan widens from the
+  root workspace to **all four lockfiles** (`cargo audit --file`
+  for `proofs/`, `fuzz/`, `ebpf/`). The detachments that keep the
+  sibling graphs out of the root deny check had also kept their
+  lockfiles outside every advisory-DB scan; this incident is what
+  closed that gap. The deny-graph half (licenses/bans over the
+  detached trees) stays as the X1/Z6 scope notes above record it.
+
+Re-audit cadence: the grep battery above re-runs as the first step
+of any future dependency-incident response; the Monday clock
+(10:07 WIB, 03:07 UTC) re-scans the advisory DB against all four
+lockfiles standing.
+
 ## Policy for adding dependencies
 
 Default answer is no. When a feature genuinely needs a new crate:

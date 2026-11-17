@@ -86,7 +86,20 @@ jobs:
         # continue-on-error above, not in a silent exit code. Red in
         # the run list is the owner's morning signal, exactly why the
         # job exists.
-        run: cargo audit --deny warnings
+        #
+        # night-supply-1 (2026-11-17): the scan rode the root
+        # workspace alone — the proofs, fuzz, and ebpf detachments
+        # that keep their graphs out of the root deny check kept
+        # their lockfiles outside every advisory-DB scan too. The
+        # 2026-08-20 arrayref supply-chain incident made that gap
+        # concrete: every lockfile cargo can resolve gets the DB
+        # scan now. The root pass warms the advisory DB; the three
+        # --file passes reuse it.
+        run: |
+          cargo audit --deny warnings
+          cargo audit --file proofs/Cargo.lock --deny warnings
+          cargo audit --file fuzz/Cargo.lock --deny warnings
+          cargo audit --file ebpf/Cargo.lock --deny warnings
 
       - name: Install cargo-deny (pinned 0.20.2)
         run: cargo install cargo-deny --version 0.20.2 --locked
