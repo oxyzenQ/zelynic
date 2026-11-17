@@ -55,8 +55,9 @@
 # the docs that name the leg) — "low specs" says what the envelope
 # IS (the little-host slice), not what it is the minimum OF. The
 # same directive retires the hosted-runner old-OS legs: every base
-# runner rides the latest LTS (ubuntu-24.04, pinned — never a
-# floating label, the estate's anti-lottery contract), and ci.yml's
+# runner rides the latest LTS (ubuntu-24.04 at blade-3, ubuntu-26.04
+# since night-runner-2's fleet cutover — pinned, never a floating
+# label, the estate's anti-lottery contract), and ci.yml's
 # ubuntu-22.04 matrix entries are gone (the hosted kernel-span
 # role moved here long ago: the VM pair proves the REAL floor,
 # jammy 5.15.0, and the latest head, per push). The deliberate
@@ -286,7 +287,7 @@ jobs:
   # boots.
   stage:
     name: supermassive - stage (payload + both kernel envelopes)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -686,7 +687,7 @@ jobs:
           # from the network. The pair is verified HERE on the runner
           # (sha512sum -c against the release sidecar, b3sum -c
           # against the vendored digest — the VERIFY_RELEASE fast
-          # lane, the tool ubuntu-24.04 ships as the b3sum package,
+          # lane, the tool ubuntu-26.04 ships as the b3sum package,
           # the dinner-12 retries knob on both apt fetches), and a
           # missing file or a digest mismatch FAILS the leg before
           # any VM boots — the fetch-failure doctrine, now a checksum
@@ -814,7 +815,7 @@ jobs:
             battery: rigs
             profile: best
             vm_timeout: "720"
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
       - name: Checkout
@@ -990,7 +991,7 @@ jobs:
           - title: supermassive desktop matrix - best specs (musl)
             profile: best
             vm_timeout: "1800"
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 40
     steps:
       - name: Checkout

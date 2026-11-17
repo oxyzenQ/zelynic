@@ -88,7 +88,7 @@ jobs:
   # upload. Full contract: scripts/release/wait-for-ci.sh.
   ci_gate:
     name: CI gate (commit+tag push)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 40
     # NIGHT-dinner-12: actions: write (not read) — the gate's
     # infra-failure carve-out re-runs the failed jobs of a run whose
@@ -133,7 +133,7 @@ jobs:
 
   publish-crates-io:
     name: Publish to crates.io (${{ github.ref_name }})
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: ci_gate
     timeout-minutes: 30
     env:

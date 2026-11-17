@@ -119,11 +119,12 @@ jobs:
   # no CI edit, ever.
   validate:
     name: Validate release tag
-    # Runner pinned to ubuntu-24.04, never a floating ubuntu-latest:
-    # the label migrates to Ubuntu 26 on 2026-10-19 and would silently
-    # move the build environment (actions/runner-images#14748); OS
-    # upgrades here are deliberate, matrix-tested changes.
-    runs-on: ubuntu-24.04
+    # Runner pinned to ubuntu-26.04, never a floating ubuntu-latest:
+    # the label migrated to Ubuntu 26 across 2026-10-19 -> 2026-11-19
+    # (actions/runner-images#14748); this fleet moved first, matrix-
+    # tested (night-runner-1/2), and OS upgrades here stay deliberate,
+    # matrix-tested changes.
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     outputs:
       tag: ${{ steps.ver.outputs.tag }}
@@ -204,7 +205,7 @@ jobs:
   # bit-for-bit in optimization tier).
   build:
     name: Build Release Binary (${{ matrix.platform }})
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: validate
     timeout-minutes: 30
     strategy:
@@ -283,7 +284,7 @@ jobs:
 
       # night-dragon-maintenance-0: the release archives carry a BLAKE3
       # sidecar (the estate's fast modern lane, upgraded from BLAKE2b).
-      # Ubuntu 24.04 ships the b3sum package; the cargo install is the
+      # Ubuntu 26.04 ships the b3sum package; the cargo install is the
       # fallback for any runner image that drops it.
       - name: Install b3sum (the BLAKE3 digest tool)
         run: |
@@ -687,7 +688,7 @@ jobs:
   # ===========================================================================
   release:
     name: Create GitHub Release
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [validate, build]
     timeout-minutes: 10
     permissions:

@@ -42,7 +42,7 @@
 #
 # The arm64 variant (the owner's arm64 mandate): the IDENTICAL
 # shard contract, run HOST-NATIVE on the free arm64 runner
-# (ubuntu-24.04-arm) — stage-arm64 builds the pro-native-arm64-musl
+# (ubuntu-26.04-arm) — stage-arm64 builds the pro-native-arm64-musl
 # payload once, the arm shards stage it into /opt/zelynic-e2e and
 # drive scripts/ci/e2e-native.sh (e2e-init.sh's host-native twin:
 # the same five canonical invocations, verify-not-mount surfaces, a
@@ -153,7 +153,7 @@ jobs:
   # toolchain, a cargo tree, or a kernel resolver again.
   stage:
     name: supermassive e2e - stage (payload + both kernel envelopes)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
       - name: Checkout
@@ -528,7 +528,7 @@ jobs:
   # against is a cross-run reuse, not this relay.
   stage-arm64:
     name: supermassive e2e - stage arm64 (pro-native-arm64-musl)
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -617,7 +617,7 @@ jobs:
             vm_timeout: 720
     # The arm64 shards ride the free arm64 runner (public-repo free,
     # zero runner-minute cost); the x86 shards keep the standard image.
-    runs-on: ${{ matrix.profile == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    runs-on: ${{ matrix.profile == 'arm64' && 'ubuntu-26.04-arm' || 'ubuntu-26.04' }}
     timeout-minutes: 12
     steps:
       - name: Checkout

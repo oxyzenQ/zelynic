@@ -121,6 +121,31 @@ v80.0.0
 
 ### Added
 
+- **ci(ci): the runner fleet cuts over to ubuntu-26.04 — all 35
+  sites, one deliberate move (night-runner-2, the cutover half).**
+  runner-1's matrix-first probe proved the estate's two heaviest
+  compile surfaces on kernel 7.0 in CI (the Musl Static Twin and
+  eBPF Host ubuntu-26.04 legs, green on the runner-1 push's own
+  42-check-run ledger), and the cutover retires the 24.04 leg
+  before GitHub's 24.04 image retirement can become the next
+  calendar surprise (actions/runner-images#14748): the 30 plain
+  x64 pins, the 3 arm pins, and the arm64 ternary move to the
+  26.04 family, the two matrix arrays collapse to
+  `os: [ubuntu-26.04]` per blade-3's latest-LTS-only rule, and
+  every present-tense runner comment follows the fleet (the
+  hunt-26 pin rationales in audit/codeql/release/maintenance,
+  supermassive.yml's LTS note and its b3sum note, the release and
+  gate-keepers b3sum notes, supermassive-verify's runner
+  description — now root-capable kernel 7.0 — and the arm64
+  comments in ci.yml and supermassive-e2e.yml). The deliberate
+  non-runner pins stay: the server lane's Ubuntu Server 24.04
+  cloudimg guest, the jammy 5.15.0 floor kernel, the ubuntu:22.04
+  rootfs container, the SUITE containers. KERNEL_COMPATIBILITY's
+  distro table and kernel checklist follow the fleet (24.04 kept
+  as the retired-host row);
+  docs/audits/NIGHT_RUNNER_2_UBUNTU_26_CUTOVER_2026-11-18.md
+  carries the census and the evidence ledger.
+
 - **ci(ci): the ubuntu-26.04 leg joins the build matrix — the
   matrix-first probe ahead of the runner-fleet cutover
   (night-runner-1, phase 1).** The fleet froze on ubuntu-24.04 at

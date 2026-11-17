@@ -153,7 +153,8 @@ Check: `stat -fc %T /sys/fs/cgroup` should return `cgroup2fs`.
 | Distro | Kernel | Status | Notes |
 |--------|--------|--------|-------|
 | **Arch Linux** | 6.18+ | Verified | Dev machine (CachyOS 6.18) — all tests pass |
-| **Ubuntu 24.04 LTS** | 6.8 | Build-verified | CI build matrix — compiles + unit tests pass (no runtime record) |
+| **Ubuntu 26.04 LTS** | 7.0 | Build-verified | The CI build matrix host since night-runner-2 — compiles + unit tests pass per push (the nightly live-BPF lane proves runtime on the same kernel) |
+| **Ubuntu 24.04 LTS** | 6.8 | Retired from CI | The build-matrix host until night-runner-2's fleet cutover (was Build-verified; no runtime record) |
 | **Ubuntu 22.04 LTS** | 5.15 | Verified | THE FLOOR — the CI low-specs lane boots the newest 5.15.0-ABI jammy kernel in a KVM micro-VM on every qualifying push (plus the hosted build matrix) |
 | **Fedora 44** | 6.19 | Verified | Real enforcement tested (firefox 100kb → 690 Kbps) |
 | **Debian 13** | 6.12 | Verified | Real enforcement tested (firefox-esr 900kb → 7.0 Mbps) |
@@ -176,7 +177,7 @@ Check: `stat -fc %T /sys/fs/cgroup` should return `cgroup2fs`.
 - [x] 7.1 (CachyOS VM)
 - [ ] 6.1 LTS (pending — no runtime record)
 - [ ] 6.6 LTS (pending — no runtime record)
-- [ ] 6.8 (Ubuntu 24.04 — CI build matrix only, no runtime record)
+- [ ] 6.8 (pending — the hosted build matrix rode Ubuntu 24.04's 6.8 until night-runner-2 moved it to 26.04's 7.0; no runtime record)
 
 ### Hardware
 
