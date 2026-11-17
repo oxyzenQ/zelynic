@@ -207,15 +207,14 @@ jobs:
       # update left two of the three committed lockfiles permanently
       # stale). New workspaces join the lane without touching this
       # file; target trees are excluded so cache-restored build
-      # output can never join the walk.
+      # output can never join the walk. night-deps-1: the walk itself
+      # now lives in scripts/ci/sweep-cargo-workspaces.sh — the
+      # single source this update step and the commit job's staging
+      # step share (the two inline copies could drift), locally
+      # runnable the same way (--check is the no-write verdict twin).
       - name: Update dependencies
         shell: bash
-        run: |
-          set -Eeuo pipefail
-          while IFS= read -r manifest; do
-            echo "Refreshing $(dirname "$manifest")"
-            (cd "$(dirname "$manifest")" && cargo update --verbose)
-          done < <(find . -name Cargo.toml -not -path '*/target/*' | sort)
+        run: bash scripts/ci/sweep-cargo-workspaces.sh
 
       # night-zen-1: the walk can move the ebpf/ tree (its own
       # Cargo.lock rides the sweep), and the prebuilt lane pins that
@@ -415,8 +414,10 @@ jobs:
           # in-tree staging copies too; docs/MAINTENANCE.md §7). The
           # paths ride xargs — no command substitution in argument
           # position, so the SC2046 word-splitting seat stays silent.
-          find . -name Cargo.toml -not -path '*/target/*' \
-            | sed 's|Cargo\.toml$|Cargo.lock|' \
+          # night-deps-1: the walk is the shared script's --print-locks
+          # mode — the same discovery law the update step swept with,
+          # one source of truth.
+          bash scripts/ci/sweep-cargo-workspaces.sh --print-locks \
             | xargs -r git add --
           # the parity rider: the healed prebuilt lane stages with the
           # locks it matches (the commit gate's pairing rule, explicit
