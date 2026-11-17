@@ -146,7 +146,7 @@
 > ground truth over the 30 s overrun legs, the v32 ghost-row and pin
 > hygiene checks, and the netns:// and iface:// resolvers' honest
 > refusals verbatim. Gated behind the verify lane's own nightly
-> schedule (20:00 UTC) and the workflow_dispatch click — no push
+> schedule (10:07 WIB, 03:07 UTC) and the workflow_dispatch click — no push
 > trigger, per-push CI stays fast. (night-verify-1 retired the
 > supermassive and e2e lanes' own night trains: those shards ride
 > every push now, so no check on a push ever answers Skipped.)

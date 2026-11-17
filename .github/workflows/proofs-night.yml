@@ -36,9 +36,10 @@ name: zelynic - Proofs Night
 
 "on":
   schedule:
-    # 02:23 Asia/Jakarta daily (19:23 UTC) — off the hour, the slot
-    # the scheduler's top-of-hour throttle queue avoids.
-    - cron: "23 19 * * *"
+    # 10:07 Asia/Jakarta daily (03:07 UTC) — the owner's 10 o'clock
+    # morning (night-consistent-1), still off the hour: the throttle
+    # avoidance rides the minute, not the hour.
+    - cron: "7 3 * * *"
   workflow_dispatch:
 
 permissions:
