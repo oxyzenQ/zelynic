@@ -59,6 +59,7 @@ question well, and this page says which.
 | [PERFORMANCE.md](PERFORMANCE.md) | Measured overhead on real hardware, benchmark methodology |
 | [CROSS_DISTRO_RESULTS.md](CROSS_DISTRO_RESULTS.md) | Validation matrix across distributions and kernels |
 | [QUOTA_SAVER_PHYSICS.md](QUOTA_SAVER_PHYSICS.md) | The quota saver's physics page: why a dropped download is a purchase, not a saving — the four lanes and three physics behind RECWN, the formula and the measured curve, the eight losses no receiver can close, and the savings-to-rate guidance |
+| [ACK_CLOCK_HYPOTHESIS.md](ACK_CLOCK_HYPOTHESIS.md) | The ACK-clock hypothesis (night-frontier-Z7, D4 — the ninth lane, research note only): the one lever class the eight physics losses leave unowned, censused against the v5.15 sources rung by rung — the inflation direction is a signed NO with one verified inverted rung recorded (TCP_BPF_DELACK_MAX lowers the ceiling only), the reopen conditions named, experiment-before-code the reopen path |
 
 ## Research
 

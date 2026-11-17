@@ -290,6 +290,15 @@ limitation #15 already states: shape at the router or close the app.
 The saver's contract is the overrunning workload's marginal savings —
 measured, bounded, and honest about its ceiling.
 
+The ninth lane — the lever class this section leaves unowned — is
+recorded where it belongs: the ACK-clock hypothesis (shaping the
+sender's ACK clock at cgroup scope, the losses 3 and 4 lever) was
+censused against the 5.15 floor and signed NO for the inflation
+direction, with the one verified inverted rung (TCP_BPF_DELACK_MAX,
+ceiling-lowering only) and the reopen conditions riding
+[ACK_CLOCK_HYPOTHESIS.md](ACK_CLOCK_HYPOTHESIS.md) (night-frontier-Z7,
+D4 — research note only, zero code).
+
 ## 5. Where the lanes contribute: neutral at 100kb, carrying at 1mb
 
 Two truths, both measured, neither retracting the other.

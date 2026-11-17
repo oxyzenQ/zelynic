@@ -764,6 +764,58 @@ solver-bound theorems ride proofs-night.yml's nightly matrix with the
 full 300-minute budget, one harness per job. A red is a
 counterexample or an undecided theorem, never a skip.
 
+## night-frontier-Z7 — the byte-layout theorem (D3) and the ACK-clock census (D4)
+
+The Z7 depth lands two records, one theorem and one rejection, both
+rootless, both honest about what they verify.
+
+**D3 — the byte-layout theorem (the schema contract, machine-checked
+over its whole history).** The stats row (cgroup_limiter_stats — the
+kernel twin math.rs's LimiterStats, the userspace mirror
+LimiterStatsRaw) carried its layout history as prose (the schema
+ledger, v1..v30 in schema_ledger.rs, v31 onward beside the anchor)
+and as spot pins (the include_str! version-equality pin, the size
+pins, the offset-48 retirement note). The deepening turns the whole
+table into one generated rootless test —
+test/ebpf/limiter/schema_layout_tests.rs, wired as schema.rs's second
+test module — whose five-era version table (v1..v35, every era
+carrying its ledger anchor) is walked for every version and every
+word under three laws: offsets strictly increasing with append-only
+bumps (words never move, never disappear, new words land 8-byte
+aligned beyond the old tail), retired words hold their pinned offsets
+forever and never un-retire (the v29 offset-48 zero contract), and
+row size derives from each version's own words, never shrinks, and
+rides version boundaries only. The live bindings bind the table to
+the real bytes — every LimiterStatsRaw field maps by name and offset
+onto the current era, the row size rides size_of, and the 2030 gate
+pins the table's top version to SCHEMA_VERSION_EXPECTED: the next
+schema bump cannot land without extending the table, and the laws
+then verify the new era obeys the same discipline. Verified both
+ways: the walk passes clean, and a deliberately corrupted pin fails
+loudly naming the field, the offsets, and the law. A maintainer in
+2030 cannot silently break a retired word's offset — the theorem
+gate fails the push.
+
+**D4 — the ACK-clock hypothesis (the ninth lane, research note only).**
+The one lever class the eight physics losses leave unowned — shaping
+the sender's ACK clock at cgroup scope, synthetic RTT inflation via
+delayed-ACK modulation, targeting losses 3 and 4 — now carries its
+whitepaper and its signed census verdict
+(docs/ACK_CLOCK_HYPOTHESIS.md): ten rungs, every fact verified
+against the v5.15 sources line-cited, the inflation direction censused
+NO on the floor. The census's honest delta beyond the vault's
+predicted flat NO: TCP_BPF_DELACK_MAX shipped IN 5.15 — a real,
+cgroup-scoped, sock_ops-reachable ACK-timing write — but the rung is
+INVERTED (the setter rejects any ceiling above the kernel's own
+200 ms TCP_DELACK_MAX; the consumer clamps the ACK timer down), so
+the only reachable direction makes ACKs leave sooner — more upstream
+packets, a faster sender clock, fatal to the hypothesis in three
+independent ways the record carries. The reopen conditions are named
+and sharp (a raisable ceiling, a per-ACK callback, suppression plus
+emission at cgroup scope, forced-delay semantics); the reopen path
+runs experiment-before-code on the project's own harness; the shelf
+holds at -11000m — whitepaper vault only, zero code.
+
 ## The Quota Saver — the Workload-Conditional Claim
 
 The fourteenth, fifteenth, and sixteenth entries above (RECWN, ECN,
