@@ -88,7 +88,7 @@ jobs:
   # ── the stage: build once, boot once ────────────────────────────────
   stage:
     name: C77 - stage (payload + the latest kernel envelope)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -343,7 +343,7 @@ jobs:
     name: C77 - critical simulation (root lane + nonroot lane, the forensic rig)
     needs: [stage]
     if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
       - name: Checkout

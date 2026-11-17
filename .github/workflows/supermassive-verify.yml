@@ -8,8 +8,8 @@
 # the estate sells — v31 adaptive BDP, v32 sk_storage, the netns:// and
 # iface:// resolvers, the quota-saver A/B ground truth — deserve a lane
 # that proves their RUNTIME behavior on a real privileged host, not
-# only their source shape. A GitHub ubuntu-24.04 runner is already
-# root-capable, kernel 6.x/7.x, cgroup v2 unified, /sys/fs/bpf
+# only their source shape. A GitHub ubuntu-26.04 runner is already
+# root-capable, kernel 7.0, cgroup v2 unified, /sys/fs/bpf
 # mounted — no KVM needed, the runner IS the micro-VM.
 #
 # The build recipe mirrors ci.yml's proven-green steps: the pinned
@@ -66,7 +66,7 @@ defaults:
 jobs:
   verify:
     name: live runtime verification (root, kernel 6.x, cgroup v2)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 60
 
     steps:

@@ -99,7 +99,7 @@ env:
 jobs:
   property:
     name: Proptest exhaustion (23 laws, 4096 cases each, stable, rootless)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     env:
       # NIGHT-strict-2: the compile is warning-gated — registry
@@ -138,7 +138,7 @@ jobs:
 
   kani:
     name: Kani bounded model checking (6 decidable theorems, all inputs)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     env:
       # NIGHT-strict-2: the crate compilation under the kani driver is
@@ -204,7 +204,7 @@ jobs:
 
   loom-census:
     name: Loom concurrency census (absence guard, signed verdict)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
       - name: Checkout

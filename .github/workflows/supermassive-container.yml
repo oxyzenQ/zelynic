@@ -103,7 +103,7 @@ jobs:
   # ── docker E2E: native docker on the runner ──────────────────────────────
   docker-e2e:
     name: Container E2E - docker (native)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
@@ -188,7 +188,7 @@ jobs:
   # ── k8s E2E: kind cluster with /var/log/pods exposed ─────────────────────
   k8s-e2e:
     name: Container E2E - k8s (kind)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
@@ -320,7 +320,7 @@ jobs:
   # ── netns E2E: named network namespaces native on the runner ─────────────
   netns-e2e:
     name: Container E2E - netns (native)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
@@ -406,7 +406,7 @@ jobs:
   # ── iface E2E: VRF domains native on the runner ─────────────────────────
   iface-e2e:
     name: Container E2E - iface (native)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin

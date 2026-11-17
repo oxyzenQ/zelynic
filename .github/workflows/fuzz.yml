@@ -85,7 +85,7 @@ jobs:
     # The budget rides the event (the Fuzz step's table): 60s on
     # push and PR, 900s on the weekly deep session.
     name: cargo fuzz ${{ matrix.target }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 35
     strategy:
       fail-fast: false

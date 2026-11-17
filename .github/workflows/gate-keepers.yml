@@ -85,7 +85,7 @@ env:
 jobs:
   gatekeepers:
     name: Gate-keepers (wholesale)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -159,7 +159,7 @@ jobs:
       # The prebuilt-parity gate recomputes the lane's blake3 pins
       # (check-prebuilt-parity.sh, fail-closed on the digest tool's
       # absence). The release lane's own install order, verbatim:
-      # Ubuntu 24.04 ships the b3sum package; the cargo install is the
+      # Ubuntu 26.04 ships the b3sum package; the cargo install is the
       # fallback for any runner image that drops it. The owner's local
       # gate never saw this gap because the bootstrap installs the
       # pinned b3sum into ~/.cargo/bin.

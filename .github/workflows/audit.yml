@@ -51,11 +51,12 @@ env:
 jobs:
   audit:
     name: Observation-only audit
-    # Runner pinned to ubuntu-24.04, never a floating ubuntu-latest:
-    # the label migrates to Ubuntu 26 on 2026-10-19 and would silently
-    # move the build environment (actions/runner-images#14748); OS
-    # upgrades here are deliberate, matrix-tested changes.
-    runs-on: ubuntu-24.04
+    # Runner pinned to ubuntu-26.04, never a floating ubuntu-latest:
+    # the label migrated to Ubuntu 26 across 2026-10-19 -> 2026-11-19
+    # (actions/runner-images#14748); this fleet moved first, matrix-
+    # tested (night-runner-1/2), and OS upgrades here stay deliberate,
+    # matrix-tested changes.
+    runs-on: ubuntu-26.04
     # NIGHT-improve-13 (cosmostrix stability): every job carries an
     # explicit ceiling — a runaway job burns runner minutes silently.
     timeout-minutes: 15

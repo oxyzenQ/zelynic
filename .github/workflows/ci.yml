@@ -78,7 +78,7 @@ jobs:
     # reader who wants the exact contract can copy the name straight
     # into a terminal and get the same gate locally.
     name: build.sh check-all -q
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
@@ -206,8 +206,9 @@ jobs:
   # every push. The
   # matrix once pinned the hosted kernel span (5.15 through 6.8+);
   # NIGHT-blade-3 retires the old-OS leg — the runner rides the
-  # latest LTS only (ubuntu-24.04), because the REAL kernel span
-  # (the 5.15.0 floor through the archive's latest head) is proven
+  # latest LTS only (ubuntu-26.04 since night-runner-2), because the
+  # REAL kernel span (the 5.15.0 floor through the archive's latest
+  # head) is proven
   # per push inside the supermassive VM pair, a stronger contract
   # than a hosted 22.04 image ever was. clippy runs with
   # --target x86_64-unknown-linux-musl because lints are
@@ -237,15 +238,14 @@ jobs:
         # the supermassive VM pair (the 5.15.0 floor through the
         # latest head, per push); the matrix shape stays so a future
         # span leg is one line away.
-        # NIGHT-runner-1: that leg is the future arriving on a
-        # calendar — ubuntu-26.04 joins matrix-first (hunt-26's
-        # documented upgrade path) ahead of the fleet cutover: the
-        # runner-images window (actions/runner-images#14748) resolves
-        # ubuntu-latest to 26.04 by 2026-11-19, and the 24.04 image's
-        # own retirement is GitHub's next calendar surprise. The
-        # 24.04 leg stays this commit as the known-green floor; the
-        # cutover commit retires it (latest-LTS-only, blade-3's rule).
-        os: [ubuntu-24.04, ubuntu-26.04]
+        # NIGHT-runner-2: the cutover half lands — runner-1's 26.04
+        # probe proved this leg (the estate's heaviest compile
+        # surface) on kernel 7.0 in CI (the runner-1 push's own check
+        # runs), so the 24.04 leg retires per latest-LTS-only
+        # (blade-3's rule) before the 24.04 image's own retirement
+        # (actions/runner-images#14748) can become a calendar
+        # surprise; the shape stays one line from the next span leg.
+        os: [ubuntu-26.04]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     steps:
@@ -379,7 +379,7 @@ jobs:
 
   # The arm64 proof leg (the owner's arm64 mandate): the alias estate's
   # new pro-native-arm64-musl shape compiled, linted, and tested on the
-  # free arm64 runner (ubuntu-24.04-arm — public-repo free, zero
+  # free arm64 runner (ubuntu-26.04-arm — public-repo free, zero
   # runner-minute cost). The contract mirrors the musl twin above on the
   # aarch64 triple, so the v11.0.0-alpha.1 E0308 lesson (a musl-only
   # type error must surface on push, never first at tag time) now covers
@@ -401,7 +401,7 @@ jobs:
   # same SIGILL lottery the x86 native leg retired.
   musl-arm64:
     name: Musl Static ARM64 (native alias)
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
@@ -502,12 +502,12 @@ jobs:
         # NIGHT-blade-3: same retirement as the musl twin — the
         # latest LTS only; the kernel span is the supermassive
         # pair's job now.
-        # NIGHT-runner-1: matrix-first probe, the musl twin's
-        # rationale verbatim — the 26.04 leg (runner-images#14748,
-        # the window closes 2026-11-19) proves the eBPF object graph
-        # and its host tests on kernel 7.0 while the fleet is still
-        # frozen; the cutover commit retires the 24.04 leg.
-        os: [ubuntu-24.04, ubuntu-26.04]
+        # NIGHT-runner-2: the 24.04 leg retires — runner-1's probe
+        # proved the eBPF object graph and its host tests on kernel
+        # 7.0 in CI (the runner-1 push's own check runs); the fleet
+        # cuts over before the 24.04 image's own retirement
+        # (actions/runner-images#14748) can surprise anyone.
+        os: [ubuntu-26.04]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:

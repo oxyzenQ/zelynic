@@ -80,7 +80,7 @@ env:
 jobs:
   miri:
     name: Dragon Guard - Miri UB verification (8 pure-Rust families, both lanes)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # The fail-fast cap (night-dragon-maintenance-1, the sibling
     # zejtron night-dinner-6 containment law): sized against the
     # measured record, not inherited — 2026-10-26 measured both lanes

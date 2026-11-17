@@ -86,7 +86,7 @@ env:
 jobs:
   server-e2e:
     name: Server E2E - Ubuntu Server 24.04 LTS (cloud image, full boot)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # The cloud-image boot + proof is ~3-5 min on a hosted runner once
     # the image is cached; the budget is for the cold download and the
     # one retry a flaky mirror may owe.
