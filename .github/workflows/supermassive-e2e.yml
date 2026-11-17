@@ -507,6 +507,15 @@ jobs:
                 }
                 stage_opt virtio_ring drivers/virtio
                 stage_opt virtio drivers/virtio
+                stage_opt virtio_pci_legacy_dev drivers/virtio
+                stage_opt virtio_pci_modern_dev drivers/virtio
+                stage_opt virtio_pci drivers/virtio
+                stage_opt virtio_pci_legacy_dev drivers/virtio
+                stage_opt virtio_pci_modern_dev drivers/virtio
+                stage_opt virtio_pci drivers/virtio
+                stage_opt virtio_pci_legacy_dev drivers/virtio
+                stage_opt virtio_pci_modern_dev drivers/virtio
+                stage_opt virtio_pci drivers/virtio
                 echo "staged virtio modules: $(du -sh /tmp/stage/noble/virtio-mods | cut -f1)"
                 echo "  at /tmp/stage/noble/virtio-mods" ;;
             *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET - no usable virtio-net driver on this kernel"; exit 1 ;;
@@ -596,6 +605,15 @@ jobs:
                 }
                 stage_opt virtio_ring drivers/virtio
                 stage_opt virtio drivers/virtio
+                stage_opt virtio_pci_legacy_dev drivers/virtio
+                stage_opt virtio_pci_modern_dev drivers/virtio
+                stage_opt virtio_pci drivers/virtio
+                stage_opt virtio_pci_legacy_dev drivers/virtio
+                stage_opt virtio_pci_modern_dev drivers/virtio
+                stage_opt virtio_pci drivers/virtio
+                stage_opt virtio_pci_legacy_dev drivers/virtio
+                stage_opt virtio_pci_modern_dev drivers/virtio
+                stage_opt virtio_pci drivers/virtio
                 echo "staged virtio modules: $(du -sh /tmp/stage/bookworm/virtio-mods | cut -f1)"
                 echo "  at /tmp/stage/bookworm/virtio-mods" ;;
             *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET - no usable virtio-net driver on this kernel"; exit 1 ;;
@@ -701,6 +719,15 @@ jobs:
                 }
                 stage_opt virtio_ring drivers/virtio
                 stage_opt virtio drivers/virtio
+                stage_opt virtio_pci_legacy_dev drivers/virtio
+                stage_opt virtio_pci_modern_dev drivers/virtio
+                stage_opt virtio_pci drivers/virtio
+                stage_opt virtio_pci_legacy_dev drivers/virtio
+                stage_opt virtio_pci_modern_dev drivers/virtio
+                stage_opt virtio_pci drivers/virtio
+                stage_opt virtio_pci_legacy_dev drivers/virtio
+                stage_opt virtio_pci_modern_dev drivers/virtio
+                stage_opt virtio_pci drivers/virtio
                 echo "staged virtio modules: $(du -sh /tmp/stage/archlts/virtio-mods | cut -f1)"
                 echo "  at /tmp/stage/archlts/virtio-mods" ;;
             *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET - no usable virtio-net driver on this kernel"; exit 1 ;;

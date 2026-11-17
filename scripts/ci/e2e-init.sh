@@ -184,10 +184,16 @@ KMOD="/lib/modules/$KVER/kernel"
 # where Ubuntu builds them in — virtio_net.ko's insmod dies with
 # Unknown symbol unless the transport pair loads first, and the old
 # silent `2>/dev/null || true` chain left the egress red with no
-# evidence on the console). Ubuntu-built kernels stage no transport
-# pair at all — the chain skips what is not there.
+# evidence on the console), and the transport itself is split: the
+# device probes only when virtio_pci (plus its legacy/modern_dev
+# halves on the kernels that ship them split) rides the bus — the
+# run that loaded all five modules and still saw no eth0 taught
+# that. Ubuntu-built kernels stage no transport pair at all — the
+# chain skips what is not there.
 for mod in drivers/virtio/virtio_ring drivers/virtio/virtio \
-	net/core/failover drivers/net/net_failover drivers/net/virtio_net; do
+	drivers/virtio/virtio_pci_legacy_dev drivers/virtio/virtio_pci_modern_dev \
+	drivers/virtio/virtio_pci net/core/failover drivers/net/net_failover \
+	drivers/net/virtio_net; do
 	f="$KMOD/$mod.ko"
 	[ -f "$f" ] || continue
 	if insmod "$f" 2>/dev/null; then
