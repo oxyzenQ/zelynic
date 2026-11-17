@@ -86,6 +86,30 @@ deny = [
     { crate = "serde_json", reason = "removed S1: src/json/parse.rs (Value tree) + write.rs (the escape law) replace it" },
     { crate = "serde_core", reason = "removed S1, ban widened X1: serde-family-only crate; closes the direct-dependency loophole the facade-only ban left open" },
     { crate = "serde_derive", reason = "removed S1, ban widened X1: serde-family-only proc-macro crate; a direct derive dependency must fail the policy gate like its facade" },
+    # night-supply-1 (2026-11-17), the 2026-08-20 arrayref supply-chain
+    # incident: a compromised crates.io account shipped six malicious
+    # crates (build-script payload downloaders) and malicious
+    # republishes of three benign crates it owns (arrayref@0.3.10,
+    # internment@0.8.7, append-only-vec@0.1.9 — 86/90/107 minutes
+    # online before deletion). All nine ban at the name level: the six
+    # malicious names were minted malicious and never resolve
+    # legitimately, and the pinned cargo-deny 0.20.2 bans schema
+    # carries no version scope (crate/reason/wrappers only — the
+    # deserializer rejects a version key), so the three benign crates
+    # ban whole-name too. That stricter scope costs this estate
+    # nothing — no lockfile ever touched them (evidence table in
+    # docs/DEPENDENCY_AUDIT.md) and the add-a-dependency policy makes
+    # any future need a documented justification that revisits this
+    # list first.
+    { crate = "proc-macro1", reason = "malicious crate, 2026-08-20 Rust security response: build script downloads a payload" },
+    { crate = "proc-macro-en", reason = "malicious crate, 2026-08-20 Rust security response: build script downloads a payload" },
+    { crate = "aovine", reason = "malicious crate, 2026-08-20 Rust security response: build script downloads a payload" },
+    { crate = "arone", reason = "malicious crate, 2026-08-20 Rust security response: build script downloads a payload" },
+    { crate = "aronenao", reason = "malicious crate, 2026-08-20 Rust security response: build script downloads a payload" },
+    { crate = "tinymember", reason = "malicious crate, 2026-08-20 Rust security response: build script downloads a payload" },
+    { crate = "arrayref", reason = "benign crate, compromised account: the 2026-08-20 republish (0.3.10) carried the payload; whole-name tripwire, see the night-supply-1 note above" },
+    { crate = "internment", reason = "benign crate, compromised account: the 2026-08-20 republish (0.8.7) carried the payload; whole-name tripwire, see the night-supply-1 note above" },
+    { crate = "append-only-vec", reason = "benign crate, compromised account: the 2026-08-20 republish (0.1.9) carried the payload; whole-name tripwire, see the night-supply-1 note above" },
 ]
 skip = []
 skip-tree = []
