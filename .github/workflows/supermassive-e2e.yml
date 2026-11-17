@@ -602,10 +602,10 @@ jobs:
           curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 600 --connect-timeout 15 \
             -o "$PKG" "https://archive.archlinux.org/packages/l/linux-lts/$PKG"
           tar --zstd -xf "$PKG"
-          VMLINUZ=$(find . -name 'vmlinuz-lts' -o -name 'vmlinuz-6.6.*' | head -1)
+          VMLINUZ=$(find usr/lib/modules -maxdepth 2 -name 'vmlinuz*' | head -1)
           if test -z "$VMLINUZ"; then
-            echo "FAIL: no vmlinuz inside the package - extracted contents:"
-            find . -maxdepth 3 -name 'vmlinuz*' -o -maxdepth 2 -type d | head -20 || true
+            echo "FAIL: no vmlinuz under usr/lib/modules - the package tree:"
+            find . -maxdepth 4 \( -type d -o -name 'vmlinuz*' \) | head -20 || true
             exit 1
           fi
           cp "$VMLINUZ" /tmp/stage/archlts/vmlinuz-floor
@@ -667,7 +667,7 @@ jobs:
       # to the boot pair (kernel + initramfs) before the artifact
       # upload - the shards download the bundle, never the build
       # furniture.
-      - name: Assemble the micro-VM rootfs (both envelopes)
+      - name: Assemble the micro-VM rootfs (five envelopes)
         run: |
           set -euo pipefail
           SUITE=ubuntu:24.04
