@@ -154,7 +154,7 @@ Check: `stat -fc %T /sys/fs/cgroup` should return `cgroup2fs`.
 |--------|--------|--------|-------|
 | **Arch Linux** | 6.18+ | Verified | Dev machine (CachyOS 6.18) — all tests pass |
 | **Ubuntu 26.04 LTS** | 7.0 | Build-verified | The CI build matrix host since night-runner-2 — compiles + unit tests pass per push (the nightly live-BPF lane proves runtime on the same kernel) |
-| **Ubuntu 24.04 LTS** | 6.8 | Retired from CI | The build-matrix host until night-runner-2's fleet cutover; the 6.8 runtime record arrives with night-kernel-matrix-1's noble leg (below) |
+| **Ubuntu 24.04 LTS** | 6.8 | Runtime-verified in CI | The build-matrix host until night-runner-2's fleet cutover; the noble leg now boots the 6.8.0-ABI GA kernel in the KVM micro-VM on every push (run 44163461435: fast + surface green) |
 | **Ubuntu 22.04 LTS** | 5.15 | Verified | THE FLOOR — the CI low-specs lane boots the newest 5.15.0-ABI jammy kernel in a KVM micro-VM on every qualifying push (plus the hosted build matrix) |
 | **Fedora 44** | 6.19 | Verified | Real enforcement tested (firefox 100kb → 690 Kbps) |
 | **Debian 13** | 6.12 | Verified | Real enforcement tested (firefox-esr 900kb → 7.0 Mbps) |
@@ -175,11 +175,11 @@ Check: `stat -fc %T /sys/fs/cgroup` should return `cgroup2fs`.
 - [x] 6.19 (Fedora 44)
 - [x] 7.0 (Ubuntu 26.04)
 - [x] 7.1 (CachyOS VM)
-- [ ] 6.1 LTS (pending — night-kernel-matrix-1's bookworm leg boots the newest 6.1.0-ABI Debian kernel in the KVM micro-VM on every push; first runtime record pending the next run)
-- [ ] 6.6 LTS (pending — night-kernel-matrix-1's archlts leg boots the newest 6.6.y Arch LTS kernel in the KVM micro-VM on every push; first runtime record pending the next run)
-- [ ] 6.8 (pending — night-kernel-matrix-1's noble leg boots the newest 6.8.0-ABI Ubuntu 24.04 GA kernel in the KVM micro-VM on every push, the family's only live surface since night-runner-2 retired it from the hosted fleet; first runtime record pending the next run)
+- [x] 6.1 LTS (the bookworm leg boots the newest 6.1.0-ABI Debian kernel in the KVM micro-VM on every push; first record: run 44163461435 — fast + surface green)
+- [x] 6.6 LTS (the archlts leg boots the newest 6.6.y Arch LTS kernel in the KVM micro-VM on every push; first record: run 44163461435 — fast + surface green)
+- [x] 6.8 (the noble leg boots the newest 6.8.0-ABI Ubuntu 24.04 GA kernel in the KVM micro-VM on every push — the family's only live surface since night-runner-2 retired it from the hosted fleet; first record: run 44163461435 — fast + surface green)
 
-The pending rows are not paper debts: night-kernel-matrix-1 grew the
+The rows are no longer paper debts: night-kernel-matrix-1 grew the
 e2e lane from two kernel envelopes to five (jammy floor, noble 6.8 GA,
 Debian bookworm 6.1 LTS, Arch LTS 6.6, and the archive's dynamically
 resolved latest), every leg running the same fast/surface shard pair
@@ -189,8 +189,12 @@ anchor and booted in the KVM micro-VM. Each family leg's boot carries
 a cmdline family witness (`zelynic-kernel-glob=`) the guest init
 verifies against `uname -r` — a resolver drift fails loudly instead
 of quietly testing the wrong kernel and filing a record for a family
-that never ran. A row flips to checked the run a leg's green verdict
-lands in the Actions history, citing that run.
+that never ran. The first full-green run (44163461435, all fourteen
+jobs) closed the three rows, and the boot lessons rode in with it:
+the Arch package's real vmlinuz path (usr/lib/modules/<ver>/vmlinuz),
+and the virtio transport split — ring, virtio, the legacy_dev and
+modern_dev halves, virtio_pci — the init's insmod chain now loads in
+dependency order, loud when a module refuses.
 
 ### Hardware
 
