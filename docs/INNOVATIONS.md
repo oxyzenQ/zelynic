@@ -751,9 +751,17 @@ tier, nightly plus workflow_dispatch), three honest tiers:
   raw map-value memory — restructuring the core-only law files for a
   test instrument, or reimplementing the protocol in a harness, would
   be a model rather than a proof of the bytes the kernel runs.
-  Reopens the day loom ships from_ptr semantics. The per-instrument
-  dependency record rides docs/DEPENDENCY_AUDIT.md; the tier table
-  rides the proofs manifest comments.
+  Reopens the day loom ships from_ptr semantics — and the NO is
+  standing-enforced, not archival: the proofs lane's loom-census job
+  (the checks-list seat the check-name discipline signs — "Loom
+  concurrency census (absence guard, signed verdict)", the Miri
+  shape) re-reads the tree on every push and fails the day the basis
+  moves: a location-backed atomic landing outside the kernel crate's
+  access primitives (the pointer-cast discipline), or a loom
+  reference or dependency landing without a standing lane. The reopen
+  trigger is mechanical now. The per-instrument dependency record
+  rides docs/DEPENDENCY_AUDIT.md; the tier table rides the proofs
+  manifest comments.
 
 The lane: `cargo test` in proofs/ (the sampled tier, rootless,
 stable-only) and `cargo kani --lib` per harness (the for-all tier's
@@ -762,7 +770,11 @@ runs both on every push, one invocation per harness so a verdict is
 never lost to a sibling's budget, capped at 15 minutes wall; the four
 solver-bound theorems ride proofs-night.yml's nightly matrix with the
 full 300-minute budget, one harness per job. A red is a
-counterexample or an undecided theorem, never a skip.
+counterexample or an undecided theorem, never a skip — and the third
+seat on the proofs checks list, the loom-census absence guard, runs
+no harness at all: it re-reads the census basis out of the tree and
+fails loudly the day the signed verdict goes stale (a guard, not a
+lane — the honest NO is enforced, not merely archived).
 
 ## night-frontier-Z7 — the byte-layout theorem (D3) and the ACK-clock census (D4)
 
