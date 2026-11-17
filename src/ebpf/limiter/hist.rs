@@ -42,11 +42,12 @@ pub struct HistTailRaw {
 }
 
 /// One cgroup's distribution row, the mirror of ebpf/src/hist.rs's
-/// HistRow (v35): the two 32-bucket log2 halves, the eight exact
-/// aggregates (count/sum/min/max per half — the min words ride the
-/// 0-sentinel "no min yet", the mass words skip zero-length skbs),
-/// then the eight tail story slots (ts_ns 0 = the empty sentinel).
-/// 512 + 64 + 256 = 832 bytes. The kernel takes cross-CPU atomic
+/// HistRow (v35): the two 32-bucket log2 halves, the six exact
+/// aggregates (sum/min/max per half — the min words ride the
+/// 0-sentinel "no min yet", the mass words skip zero-length skbs;
+/// the count is the buckets, not a word), then the eight tail
+/// story slots (ts_ns 0 = the empty sentinel).
+/// 512 + 48 + 256 = 816 bytes. The kernel takes cross-CPU atomic
 /// adds into the bucket/sum words and volatile replace into the
 /// min/max words; the userspace read is one 816-byte map copy — a
 /// half can lag the other by an in-flight sample, the sampling

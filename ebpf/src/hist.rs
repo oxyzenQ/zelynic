@@ -66,12 +66,13 @@ pub const HIST_TAIL: usize = 8;
 
 /// One cgroup's distribution row (v35): the two metric halves back
 /// to back — 32 u64 buckets each — then the exact aggregates the
-/// sampled set carries (count, sum, min, max per half; the sum/min/
-/// max words the bucket bounds can never say exactly), then the
-/// tail story rows. 512 + 64 + 256 = 832 bytes, the shape the
+/// sampled set carries (sum, min, max per half — the words the
+/// bucket bounds can never say exactly; the count is the buckets
+/// themselves, see the field docs below), then the
+/// tail story rows. 512 + 48 + 256 = 816 bytes, the shape the
 /// userspace mirror (src/ebpf/limiter/hist.rs HistRowRaw)
 /// hand-copies under this schema's pin. Bucket counters and the
-/// count/sum words take cross-CPU atomic adds (the share-word
+/// sum words take cross-CPU atomic adds (the share-word
 /// discipline); min/max take the volatile check-then-store replace
 /// law; the tail slots take volatile field stores (ts last); the
 /// row itself is never rewritten wholesale, so no seq-lock is owed.
