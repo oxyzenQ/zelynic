@@ -233,11 +233,19 @@ jobs:
       fail-fast: false
       matrix:
         # NIGHT-blade-3: the old-OS leg is retired — every base
-        # runner uses the latest LTS (ubuntu-24.04). The kernel-span
-        # role moved to the supermassive VM pair (the 5.15.0 floor
-        # through the latest head, per push); the matrix shape stays
-        # so a future span leg is one line away.
-        os: [ubuntu-24.04]
+        # runner uses the latest LTS. The kernel-span role moved to
+        # the supermassive VM pair (the 5.15.0 floor through the
+        # latest head, per push); the matrix shape stays so a future
+        # span leg is one line away.
+        # NIGHT-runner-1: that leg is the future arriving on a
+        # calendar — ubuntu-26.04 joins matrix-first (hunt-26's
+        # documented upgrade path) ahead of the fleet cutover: the
+        # runner-images window (actions/runner-images#14748) resolves
+        # ubuntu-latest to 26.04 by 2026-11-19, and the 24.04 image's
+        # own retirement is GitHub's next calendar surprise. The
+        # 24.04 leg stays this commit as the known-green floor; the
+        # cutover commit retires it (latest-LTS-only, blade-3's rule).
+        os: [ubuntu-24.04, ubuntu-26.04]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     steps:
@@ -494,7 +502,12 @@ jobs:
         # NIGHT-blade-3: same retirement as the musl twin — the
         # latest LTS only; the kernel span is the supermassive
         # pair's job now.
-        os: [ubuntu-24.04]
+        # NIGHT-runner-1: matrix-first probe, the musl twin's
+        # rationale verbatim — the 26.04 leg (runner-images#14748,
+        # the window closes 2026-11-19) proves the eBPF object graph
+        # and its host tests on kernel 7.0 while the fleet is still
+        # frozen; the cutover commit retires the 24.04 leg.
+        os: [ubuntu-24.04, ubuntu-26.04]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:

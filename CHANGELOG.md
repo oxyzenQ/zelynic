@@ -95,6 +95,31 @@ v80.0.0
 
 ### Added
 
+- **ci(ci): the ubuntu-26.04 leg joins the build matrix — the
+  matrix-first probe ahead of the runner-fleet cutover
+  (night-runner-1, phase 1).** The fleet froze on ubuntu-24.04 at
+  NIGHT-hunt-26 when the floating label began this migration
+  (actions/runner-images#14748, the 2026-10-19 → 2026-11-19
+  window); the window closes 2026-11-19 and the freeze held every
+  lane on the known image through it — but the pin itself carries
+  the next calendar surprise (the 24.04 image's own retirement, the
+  same cadence that retired 22.04 and drove NIGHT-blade-3), so
+  hunt-26's documented path starts: ci.yml's musl static twin and
+  eBPF host now run both legs, the known-green 24.04 floor plus the
+  26.04 probe (kernel 7.0, new glibc, new python), while the
+  estate's exposure surface stays what
+  docs/audits/NIGHT_RUNNER_1_UBUNTU_26_RUNNER_FLEET_2026-11-18.md
+  prices it — musl-only shipping (no glibc floor in any artifact),
+  a prebuilt static bpf-linker (no runner LLVM), a four-name apt
+  surface with its cargo fallback, sources-pinned kernel fetches,
+  and the one honest delta: the live BPF host kernel moves to 7.0.
+  The estate's own lint needed the same honesty — the pinned
+  actionlint v1.7.7 (and even the newest release, v1.7.12)
+  predates 26.04's GA and rejects the real hosted label, so
+  actionlint.yaml carries the self-hosted-runner label allowlist
+  and the wholesale gate passes it explicitly, one contract for
+  the local seat and CI.
+
 - **The tail-aware clamp bracket: honesty from the mean to the tail
   in `ee --depth` (night-frontier-Z2, userspace-only — no map, no
   kernel word, no schema bump).** The depth report's histogram line
