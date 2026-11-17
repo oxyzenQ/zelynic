@@ -179,15 +179,24 @@ fi
 # check's time-boxed network row) honest instead of hanging.
 KVER=$(uname -r)
 KMOD="/lib/modules/$KVER/kernel"
-if [ -f "$KMOD/net/core/failover.ko" ]; then
-	insmod "$KMOD/net/core/failover.ko" 2>/dev/null || true
-fi
-if [ -f "$KMOD/drivers/net/net_failover.ko" ]; then
-	insmod "$KMOD/drivers/net/net_failover.ko" 2>/dev/null || true
-fi
-if [ -f "$KMOD/drivers/net/virtio_net.ko" ]; then
-	insmod "$KMOD/drivers/net/virtio_net.ko" 2>/dev/null || true
-fi
+# The module chain, dependency order, failures LOUD (the kernel-matrix
+# legs' lesson: Debian and Arch ship virtio and virtio_ring as MODULES
+# where Ubuntu builds them in — virtio_net.ko's insmod dies with
+# Unknown symbol unless the transport pair loads first, and the old
+# silent `2>/dev/null || true` chain left the egress red with no
+# evidence on the console). Ubuntu-built kernels stage no transport
+# pair at all — the chain skips what is not there.
+for mod in drivers/virtio/virtio_ring drivers/virtio/virtio \
+	net/core/failover drivers/net/net_failover drivers/net/virtio_net; do
+	f="$KMOD/$mod.ko"
+	[ -f "$f" ] || continue
+	if insmod "$f" 2>/dev/null; then
+		echo "E2E: module $mod loaded"
+	else
+		echo "E2E: module $mod: insmod FAILED:"
+		insmod "$f" 2>&1 | head -2 || true
+	fi
+done
 if [ -e /sys/class/net/eth0 ] &&
 	ip link set eth0 up &&
 	ip addr add 10.0.2.15/24 dev eth0 &&
