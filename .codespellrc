@@ -1,5 +1,8 @@
 [codespell]
-skip = ./.git,./target,./ebpf/target,./assets,./Cargo.lock
+# The target trees: the root crate's, the detached kernel crate's,
+# and the detached proof/fuzz packages' own build trees (the local
+# probes create the latter two; their .d dep files ride every build).
+skip = ./.git,./target,./ebpf/target,./proofs/target,./fuzz/target,./assets,./Cargo.lock
 # hevy is a DELIBERATE misspelling fixture in the supermassive
 # self-test typo-rescue pins (NIGHT-improve-19) — the engine must
 # suggest --heavy for it, so the word itself has to survive the
