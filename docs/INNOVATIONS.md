@@ -816,6 +816,69 @@ emission at cgroup scope, forced-delay semantics); the reopen path
 runs experiment-before-code on the project's own harness; the shelf
 holds at -11000m — whitepaper vault only, zero code.
 
+## night-frontier-Z8 — the claims-instrument closure (D5) and the bypass shelf (D6)
+
+The Z8 depth lands one closure and one shelf: the last standing open
+find signed into the machine record, and the one deepening that
+stays on the shelf on purpose.
+
+**D5 — the claims-instrument closure (the one standing open find,
+closed at the real instrument's own count).** The sharpest-skill
+audit (night-dragon-lts-1, section 5) re-checked the memory-safety
+claim's basis mechanically and found it not standing: no wiring
+anywhere enabled `clippy::undocumented_unsafe_blocks` (a
+restriction-group lint the default groups never turn on — CI's
+`-D warnings` does not reach it), and a static census mirroring the
+lint's positional rule counted 120 unsafe block openers in the tree
+(`src` 61 + `ebpf/src` 59) with 78 carrying no safety-mentioning
+comment in the window — the rationale genuinely living at doc level,
+the house convention the mechanical lint does not read. Two
+owner-call options were recorded: wire the lint as a standing lane
+and annotate, or re-spell the LTS-14 row's basis to the convention
+the tree actually holds. The owner took the first, across four
+signed rounds, each measured before it moved: the lts-2b closure
+annotated the gap at the real lint's own count — 109 sites (68
+root-crate: 61 blocks + 7 unsafe impls the static census cannot
+see; 41 kernel-crate blocks), every site carrying its actual local
+invariant, comments only, the lint measured zero on both crates
+(98d1a1e); lts-2c took the owner's call and wired the standing deny
+gate through one `[lints]` table per manifest — the root manifest
+and the detached kernel crate each carrying their own, level deny
+so every clippy invocation anywhere enforces the basis instead of
+CI alone, clippy-namespace only so plain rustc lanes byte-behave
+unchanged, the negative probe (a temporary undocumented unsafe
+block) denied with exit 101 naming the lint (d6c98d6); lts-2d took
+the kernel crate's pre-existing warn noise to zero (39 sites across
+nine files), the deny gate live during every edit; lts-2e made the
+kernel instrument standing — ci.yml's ebpf-host job runs
+`cargo clippy --locked -- -D warnings` on the pinned nightly beside
+the direct crate build, every push and PR. The delta between the
+census's 78-of-120 estimate and the lint's own 109 is the
+record's precision lesson: the static rule approximates the lint's
+accepted-comment semantics (inside-block first-statement comments,
+distance edges, the unsafe-impl class it never counts), so the
+closure was driven by the real instrument, not the estimate. The
+basis re-measured zero on 2026-11-17 at 046212d (check-all 53.6s
+exit 0, gate-keepers 27/27). LTS-14's memory-safety row is no
+longer a claim; it is a gate.
+
+**D6 — the bypass three-way reconciliation (the low rung, shelved
+by verdict).** Exists today: the bypass.rs interface-delta shadow
+audit (scale 10), the apply-side cgroupfs liveness census
+(night-total-hardening-1 find 1), the observer census maps. The
+deepening would cross the three inside the EXISTING status/depth
+JSON — a cgroup alive in cgroupfs, booking zero observer rows,
+while its interface delta is nonzero, names a bypass class the
+interface-only delta cannot (namespace-hosted workloads exiting
+another interface). Shadow only; detection never enforcement. The
+honest caveat holds: the audits call the bypass lane PEAK, and a
+new lie-class surface must earn its place — a marginal deepening is
+not field evidence, and building it without a witnessed miss is
+exactly the innovation-for-its-own-sake shape the honesty rule
+forbids. Verdict: SKIP unless field evidence arrives. The trigger
+is recorded in the deferred ledger below (a user-reported bypass
+class the delta demonstrably misses); nothing was built.
+
 ## The Quota Saver — the Workload-Conditional Claim
 
 The fourteenth, fifteenth, and sixteenth entries above (RECWN, ECN,
@@ -1087,6 +1150,22 @@ that already exist, a minor bump, never a major.
   future enforcer lane), or a walk-cost optimization frees the
   enforcer's ceiling, or the monitor gains an in-process surface
   that reads its own live observer handle.
+
+- **Bypass three-way reconciliation (night-frontier-Z8, D6 — the low
+  rung).** The ask: cross the three instruments the tree already
+  carries — the bypass.rs interface-delta shadow audit (scale 10),
+  the apply-side cgroupfs liveness census (night-total-hardening-1
+  find 1), the observer census maps — inside the status/depth JSON
+  that already exists, so a cgroup alive in cgroupfs that books zero
+  observer rows while its interface delta is nonzero names the
+  bypass class the interface-only delta cannot (namespace-hosted
+  workloads exiting another interface). Shadow only; detection never
+  enforcement. Deferred because the audits call the bypass lane PEAK
+  and a new lie-class surface must earn its place — no field
+  evidence exists of a bypass class the delta misses, and a marginal
+  deepening built without a witnessed miss is innovation for its own
+  sake. Reopens when: a user-reported bypass class lands that the
+  interface-only delta demonstrably cannot see.
 
 ## Reading order for a new maintainer
 
