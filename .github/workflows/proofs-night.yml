@@ -76,6 +76,14 @@ jobs:
     name: Kani solver-bound theorem - ${{ matrix.harness }}
     runs-on: ubuntu-24.04
     timeout-minutes: 300
+    env:
+      # NIGHT-strict-2: the crate compilation under the kani driver is
+      # warning-gated — kani 0.68.0 carries no --deny-warnings flag, so
+      # RUSTFLAGS is the vehicle (cargo passes it into the kani
+      # driver's rustc invocation). Probe-verified both ways on the
+      # proofs crate: the clean tree verifies under the flag, a
+      # planted unused variable fails the build naming the lint.
+      RUSTFLAGS: "-D warnings"
     strategy:
       fail-fast: false
       matrix:

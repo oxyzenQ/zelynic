@@ -101,6 +101,12 @@ jobs:
     name: Proptest exhaustion (23 laws, 4096 cases each, stable, rootless)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    env:
+      # NIGHT-strict-2: the compile is warning-gated — registry
+      # dependencies stay capped by cargo's --cap-lints, so only
+      # first-party code can fail. Probe-verified on this crate: the
+      # clean tree compiles and verifies under the flag.
+      RUSTFLAGS: "-D warnings"
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7, NIGHT-hunt-20 SHA pin
@@ -134,6 +140,14 @@ jobs:
     name: Kani bounded model checking (6 decidable theorems, all inputs)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    env:
+      # NIGHT-strict-2: the crate compilation under the kani driver is
+      # warning-gated too. kani 0.68.0 carries no --deny-warnings flag;
+      # RUSTFLAGS is the vehicle, and cargo passes it into the kani
+      # driver's rustc invocation. Probe-verified both ways on this
+      # crate: the clean tree verifies under the flag, a planted unused
+      # variable fails the build naming the lint (exit 101).
+      RUSTFLAGS: "-D warnings"
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7, NIGHT-hunt-20 SHA pin

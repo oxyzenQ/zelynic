@@ -33,6 +33,14 @@
 
 #![no_main]
 
+// The include law compiles the law file whole. `civil_from_days`
+// serves the root crate's wall-clock sibling renderer, which this
+// fuzz graph does not include — the item reads as dead in this
+// compilation unit alone. night-depth-infra-1's strict rule lives
+// here, on the include seat, never on the shared source: the root
+// crate's own strict lanes keep enforcing the source's real dead-code
+// law.
+#[allow(dead_code)]
 #[path = "../../src/ebpf/limiter/during_parse.rs"]
 mod during_parse;
 
