@@ -601,7 +601,21 @@ focus, the text report, and the JSON document and require
 byte-identical output — the determinism the
 5.15-floor cross-distro matrix verifies on hardware, pinned in unit
 form so it cannot regress between releases. The full contract lives
-in STABILITY.md.
+in STABILITY.md. The night-depth-hardening-2 sweep (2026-11-17)
+re-walked the law's whole surface hunting a residual gap and
+returned signed PEAK: the two display laws hold at their seats, the
+session board collects into a Vec and breaks ties by cgroup ID (its
+own comment names the hazard), the baseline lane's retire and panel
+walks sort and dedup their u32 keys into a total order before any
+output, the histogram label maps are lookup-only, the sweep cache
+never reaches row order, and the remaining float seats (the
+gradients, the suggestion similarity, the deep lane's ms split) are
+IEEE-deterministic arithmetic formatted by Rust's own locale-free
+fmt — no distro's LC_NUMERIC can bend them. The byte-shape surface
+the sweep added to the standing battery (one terminal newline, no
+trailing whitespace, no doubled blank line, every rootless lane)
+rides night-depth-infra-1's hygiene test. No code moved; the audit
+is the verdict.
 
 **The allocation lens and the pooled composition** (night-frontier-Z4,
 `src/ebpf/render.rs` + `test/ebpf/render/alloc_lens.rs`). The diff
