@@ -419,10 +419,14 @@ measure, which is a new campaign, not this one.
   `scripts/bench/ecn-probe.sh`, `scripts/bench/edt-probe.sh`, and
   the README's "The formulas" block (the booking laws, their
   conservative poles, and the EDT and RECWN retirements).
-- **The schemas** — `ebpf/src/schema.rs` (`SCHEMA_VERSION` 30 and
-  the contract history): v25 RECWN, v26 ECN, v27 EDT, v28 quota
-  telemetry, v29 the EDT booking retired (night-quota-audit), v30
-  the RECWN estimate retired (night-recvn-audit); the
+- **The schemas** — `ebpf/src/schema.rs` (`SCHEMA_VERSION` 35 at
+  this writing and the contract history): v25 RECWN, v26 ECN, v27
+  EDT, v28 quota telemetry, v29 the EDT booking retired
+  (night-quota-audit), v30 the RECWN estimate retired
+  (night-recvn-audit), then v31 the measured-RTT retune, v32 the
+  sk-storage hint, v33 the measured-srtt telemetry, v34-v35 the
+  depth histogram — the whole walk's canonical record is
+  `ebpf/src/schema_ledger.rs`; the
   `bytes_saved_total` /
   `bytes_saved_by_edt` / `bytes_saved_by_ecn` /
   `bytes_saved_by_recwn` keys in `status --print-json`.
