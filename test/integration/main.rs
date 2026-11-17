@@ -21,6 +21,9 @@
 //!   '::' list grammar's discovery path)
 //! - `privilege` — the unprivileged contract + validation ladder
 //! - `monitor_guard` — the eagle-eyes interactive-stdio refusal pins
+//! - `output_hygiene` — the byte-shape law every CLI lane carries
+//!   (one terminal newline, no trailing whitespace, no doubled blank
+//!   line; night-depth-infra-1)
 //! - `architecture_pins` — the cosmic dragon layer-discipline pins
 //!   (NIGHT-dinner-15: rootless source-contract pins over src/ —
 //!   the cli/terminal/pin/math/sanitizer/mutation single-path rules)
@@ -44,6 +47,7 @@ mod help_pins;
 mod help_render_pins;
 mod masterclass_pins;
 mod monitor_guard;
+mod output_hygiene;
 mod privilege;
 mod redirect_pins;
 mod smoke;
