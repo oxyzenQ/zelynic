@@ -35,7 +35,7 @@
 # Weekly cadence mirrors the cosmostrix contract: miri is slow and
 # nightly-only, so it is not on the per-PR critical path — the push
 # filter catches Rust-surface changes the same week, and the Sunday
-# run (00:00 UTC / 07:00 WIB) picks up whatever slipped through.
+# run (03:07 UTC / 10:07 WIB) picks up whatever slipped through.
 # The `--no-install` flag is the CI contract: this workflow installs
 # its own pinned toolchain below, so a missing component must fail
 # loudly rather than silently download a moving nightly.

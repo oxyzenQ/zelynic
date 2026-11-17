@@ -24,9 +24,9 @@
 # push and every pull request gets the scan now — the same blind
 # posture every push-triggered lane carries.
 #
-# Weekly scheduled scan Monday 00:00 UTC (07:00 WIB) for full
-# coverage — the owner's morning, one clock for every scheduled
-# workflow (NIGHT-improve-9).
+# Weekly scheduled scan Monday 03:07 UTC (10:07 WIB) for full
+# coverage — the owner's 10 o'clock morning, one clock for every
+# scheduled workflow (NIGHT-improve-9; night-consistent-1).
 
 name: Dragon Guard - CodeQL
 
