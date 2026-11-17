@@ -53,6 +53,13 @@
 # location-backed atomics (AtomicU64::from_ptr), and the datapath's
 # CAS discipline is pointer-cast over raw map-value memory — the
 # record rides the manifest comment and the Z6 audit.
+#
+# Check-name discipline (the owner's call, 2026-11-17): the checks
+# list is the acquisition surface, so every check name carries its
+# engine — "Kani bounded model checking (...)", "Proptest exhaustion
+# (...)" — the shape the Miri lane already sets ("Miri UB
+# verification (...)"). A generic tier label hides the instrument a
+# buyer is buying; this rename moves no step, no pin, no budget.
 
 name: zelynic - Proofs
 
@@ -74,7 +81,7 @@ env:
 
 jobs:
   property:
-    name: proptest exhaustion (stable, rootless)
+    name: Proptest exhaustion (23 laws, 4096 cases each, stable, rootless)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -107,7 +114,7 @@ jobs:
         run: cd proofs && cargo test --locked
 
   kani:
-    name: bounded model checking (the decidable tier)
+    name: Kani bounded model checking (6 decidable theorems, all inputs)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

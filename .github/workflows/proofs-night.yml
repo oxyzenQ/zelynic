@@ -26,6 +26,11 @@
 #
 # Trigger: the nightly schedule (the standing verdict vehicle) plus
 # workflow_dispatch (the manual recovery lane, the estate's shape).
+#
+# Check-name discipline (the owner's call, 2026-11-17): the engine's
+# name rides the check name, the Miri lane's shape — "Kani
+# solver-bound theorem - <harness>", not a bare tier label. This
+# rename moves no step, no pin, no budget.
 
 name: zelynic - Proofs Night
 
@@ -50,7 +55,7 @@ env:
 
 jobs:
   kani-heavy:
-    name: kani heavy - ${{ matrix.harness }}
+    name: Kani solver-bound theorem - ${{ matrix.harness }}
     runs-on: ubuntu-24.04
     timeout-minutes: 300
     strategy:
