@@ -136,6 +136,22 @@ if [ "${major:-0}" -gt 5 ] || { [ "${major:-0}" -eq 5 ] && [ "${minor:-0}" -ge 1
 else
 	note "kernel (uname -r = $kver, wanted >= 5.15)" FAIL
 fi
+# The family witness (night-kernel-matrix-1, the kernel-matrix legs):
+# the cmdline names the family the leg claims to boot
+# (zelynic-kernel-glob=6.8.* on the noble leg, 6.1.* on bookworm,
+# 6.6.* on the Arch LTS leg, 5.15.* on the floor) — uname -r must
+# match it, so a resolver drift fails LOUDLY here instead of quietly
+# testing the wrong kernel and filing a runtime record for a family
+# that never ran. The dynamic best leg names no glob and rides the
+# floor check alone.
+KGLOB=$(sed -n 's/.*zelynic-kernel-glob=\([^ ]*\).*/\1/p' /proc/cmdline)
+if [ -n "${KGLOB}" ]; then
+	if case "$kver" in ${KGLOB}) true ;; *) false ;; esac; then
+		note "kernel family witness (uname -r = $kver, wanted $KGLOB)" PASS
+	else
+		note "kernel family witness (uname -r = $kver, wanted $KGLOB)" FAIL
+	fi
+fi
 # Everything the five suites need (PID 1 owns them all): tmpfs
 # scratch, /run state, cgroup v2 (the rigs' own cgroup mkdirs),
 # bpffs (the pin surface), devpts (the monitor pty soak), loopback
