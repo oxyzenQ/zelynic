@@ -146,7 +146,9 @@ fi
 # floor check alone.
 KGLOB=$(sed -n 's/.*zelynic-kernel-glob=\([^ ]*\).*/\1/p' /proc/cmdline)
 if [ -n "${KGLOB}" ]; then
-	if case "$kver" in ${KGLOB}) true ;; *) false ;; esac; then
+	# shellcheck disable=SC2254  # the witness MUST glob-match: a quoted
+	# pattern would compare literally and never witness a family
+	if case "$kver" in ${KGLOB}) true ;; *) false ;; esac then
 		note "kernel family witness (uname -r = $kver, wanted $KGLOB)" PASS
 	else
 		note "kernel family witness (uname -r = $kver, wanted $KGLOB)" FAIL
