@@ -51,7 +51,7 @@
 # definition.
 #
 # The weekly deep session: the same three targets run for 15 minutes
-# each every Monday 07:30 WIB (00:30 UTC) - the continuous 60s net
+# each every Monday 10:07 WIB (03:07 UTC) - the continuous 60s net
 # cannot buy this depth. The corpus cache restores the accumulated
 # corpus under the same restore-keys, so the deep session and the push
 # sessions grow one asset; a scheduled run and a push on the same ref

@@ -33,7 +33,7 @@
 # Gating (the owner's night-verify-final constraint): the lane spends
 # a dedicated runner's worth of privileged minutes, so it never rides
 # per-push CI — the trigger surface is its own nightly schedule
-# (20:00 UTC) plus the workflow_dispatch click as the
+# (10:07 WIB, 03:07 UTC) plus the workflow_dispatch click as the
 # pre-qualification run. (night-verify-1 retired the supermassive
 # and e2e lanes' night trains: those shards ride every push now;
 # this lane keeps its nightly clock — it never produced a Skipped
