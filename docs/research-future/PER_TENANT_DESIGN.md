@@ -122,7 +122,7 @@ What exists, one law each:
   checked before any member walk (NIGHT-hunt-Z3) — the id whose
   row would match every socket on the machine refuses, exactly the
   guard a tenant layer must inherit.
-- **The CO-RE posture** (`docs/audits/NIGHT_CORE_1_...md`): the two
+- **The CO-RE posture** (`docs/audits/NIGHT_CORE_1_CO_RE_PORTABILITY_AUDIT_2026-11-12.md`): the two
   shipped objects carry zero relocations because the datapath is
   helper-mediated everywhere; a design that adds a kernel-internal
   struct deref would be the first to need CO-RE, and this one adds
