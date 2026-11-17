@@ -204,7 +204,10 @@ pub(crate) fn sig_report() -> (String, SigVerdict) {
         rows.len()
     ));
     text.push_str("note: the self-hash is a fingerprint to compare against a\n");
-    text.push_str("published release hash; it cannot embed its own digest.\n");
+    // night-depth-infra-1: no trailing newline here — println_safe!
+    // writes the terminal one itself, and the doubled byte this line
+    // used to carry was the census's only output-hygiene catch.
+    text.push_str("published release hash; it cannot embed its own digest.");
 
     (text, verdict)
 }
