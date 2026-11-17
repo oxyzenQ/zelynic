@@ -99,6 +99,15 @@ jobs:
       # (the stable pin the main crate's lanes ride) cannot leak into
       # the fuzz build.
       RUSTUP_TOOLCHAIN: nightly
+      # NIGHT-strict-2: the fuzz targets' compile is warning-gated —
+      # cargo-fuzz appends the user RUSTFLAGS after its own coverage
+      # flags (verified in the composed command line), so the flag
+      # reaches both the fuzz crate and the included law files.
+      # Probe-verified both ways: the clean tree builds under the
+      # flag, a planted unused variable fails the build naming the
+      # lint. The two include-seat dead-code allows the rule surfaced
+      # ride the fuzz targets, never the shared source.
+      RUSTFLAGS: "-D warnings"
 
     steps:
       - name: Checkout

@@ -136,6 +136,11 @@ jobs:
     runs-on: ubuntu-24.04
     needs: ci_gate
     timeout-minutes: 30
+    env:
+      # NIGHT-strict-2: the publish's verification build is
+      # warning-gated like every other lane that compiles — registry
+      # dependencies stay capped, only the shipped crate can fail.
+      RUSTFLAGS: "-D warnings"
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
