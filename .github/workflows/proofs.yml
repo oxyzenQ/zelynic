@@ -34,32 +34,49 @@
 # and the Z6 audit hold the record — a hunt that flags it a gap is
 # re-reading a decision, not finding one).
 #
-# Two jobs, one package (proofs/ — the detached nested package, the
-# ebpf crate's own detachment shape; the root manifest's dependency
-# graph never sees these instruments):
+# Three jobs, one checks list (proofs/ — the detached nested package,
+# the ebpf crate's own detachment shape; the root manifest's
+# dependency graph never sees these instruments):
 #
-#  * property:  proptest exhaustion of the pure cores' laws on the
+#  * property:    proptest exhaustion of the pure cores' laws on the
 #    pinned stable toolchain — thousands of shrinkable cases per law
 #    per run. Fast, rootless, deterministic setup; a red is a real
 #    counterexample with a shrunk witness.
-#  * kani:      bounded model checking under the pinned kani release —
-#    the for-all tier's decidable half. Six theorems decide in
+#  * kani:        bounded model checking under the pinned kani release
+#    — the for-all tier's decidable half. Six theorems decide in
 #    minutes (the decision tables, the ladders, the memo word, the
 #    hint state machine, the window domain, the consume sufficiency
 #    pair); one invocation per harness so a verdict is never lost to
 #    a sibling's budget.
+#  * loom-census: the signed census verdict's standing absence guard
+#    — a per-push scan that fails the day the census basis moves (a
+#    location-backed atomic lands outside the kernel crate's access
+#    primitives, or a loom reference or dependency lands without a
+#    standing lane). A guard, not a lane: no loom harness runs here
+#    and none is faked — the honest shape the signed verdict demands.
 #
-# The loom instrument is absent by signed census verdict: loom has no
-# location-backed atomics (AtomicU64::from_ptr), and the datapath's
-# CAS discipline is pointer-cast over raw map-value memory — the
-# record rides the manifest comment and the Z6 audit.
+# The loom instrument is censused, NOT adopted, by signed census
+# verdict: loom 0.7.3 carries no location-backed atomics (no
+# AtomicU64::from_ptr on its shim), while the datapath's CAS
+# discipline IS location-backed by design — std AtomicU64::from_ptr
+# over raw map-value memory, confined to the kernel crate's access
+# primitives (the BPF ISA lesson math.rs carries). Expressing the
+# protocol in loom would restructure the core-only law files for a
+# test instrument — a model, not a proof of the bytes the kernel
+# runs. The record rides the manifest comment, the Z6 audit, and
+# DEPENDENCY_AUDIT.md's loom row. The verdict is not just recorded,
+# it is standing-enforced: the loom-census job below re-reads the
+# tree on every push — the discipline's scope and the absence both
+# fail the push the day they move, instead of waiting for a reader
+# to rediscover the drift.
 #
 # Check-name discipline (the owner's call, 2026-11-17): the checks
 # list is the acquisition surface, so every check name carries its
 # engine — "Kani bounded model checking (...)", "Proptest exhaustion
-# (...)" — the shape the Miri lane already sets ("Miri UB
-# verification (...)"). A generic tier label hides the instrument a
-# buyer is buying; this rename moves no step, no pin, no budget.
+# (...)", "Loom concurrency census (...)" — the shape the Miri lane
+# already sets ("Miri UB verification (...)"). A generic tier label
+# hides the instrument a buyer is buying; the names move no step, no
+# pin, no budget.
 
 name: zelynic - Proofs
 
@@ -170,3 +187,66 @@ jobs:
             window_domain_is_total_for_all_inputs; do
             cargo kani --lib --harness "$h"
           done
+
+  loom-census:
+    name: Loom concurrency census (absence guard, signed verdict)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7, NIGHT-hunt-20 SHA pin
+        with:
+          persist-credentials: false
+
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
+
+      # The signed census verdict (proofs/Cargo.toml's header, the Z6
+      # audit, DEPENDENCY_AUDIT.md's loom row): loom is censused, NOT
+      # adopted — loom 0.7.3 carries no location-backed atomics (no
+      # AtomicU64::from_ptr on its shim), while the datapath's CAS
+      # discipline IS location-backed by design: std AtomicU64::from_ptr
+      # over raw map-value memory, confined to the kernel crate's
+      # access primitives. Expressing the protocol in loom would
+      # restructure the core-only law files for a test instrument — a
+      # model, not a proof of the bytes the kernel runs. This guard
+      # re-reads the tree every push and fails the day the signed
+      # basis moves: the reopen trigger made mechanical, not archival.
+      - name: Enforce the signed census verdict (the absence scan)
+        run: |
+          set -eu
+          # The count-must-survive-a-no-match law: grep exits 1 on zero
+          # matches and set -e would kill the scan, so every count rides
+          # wc -l (exit 0 always) — the SC2126 style hint is disabled.
+          # shellcheck disable=SC2126
+          stray=$(grep -rEn 'Atomic[A-Za-z0-9]*::from_(ptr|mut|mut_ptr)' \
+            --include='*.rs' src proofs fuzz test | wc -l)
+          # shellcheck disable=SC2126
+          sites=$(grep -rEn 'unsafe \{.*Atomic[A-Za-z0-9]*::from_(ptr|mut|mut_ptr)' \
+            --include='*.rs' ebpf/src | wc -l)
+          # shellcheck disable=SC2126
+          loom_api=$(grep -rEn '\bloom::' \
+            --include='*.rs' src ebpf proofs fuzz test | wc -l)
+          # shellcheck disable=SC2126
+          loom_dep=$(grep -E '^[[:space:]]*loom[[:space:]]*=' \
+            Cargo.toml ebpf/Cargo.toml proofs/Cargo.toml fuzz/Cargo.toml \
+            | wc -l)
+          echo "location-backed atomic sites (the kernel access layer): ${sites}"
+          echo "the same calls outside ebpf/src (must stay 0): ${stray}"
+          echo "loom api references in code (must stay 0): ${loom_api}"
+          echo "loom manifest dependencies (must stay 0): ${loom_dep}"
+          if [ "${stray}" -gt 0 ]; then
+            echo "FAIL: a location-backed atomic landed outside the kernel crate's"
+            echo "access primitives - the pointer-cast discipline the census signed"
+            echo "has moved. Restore the discipline or re-sign the census (the Z6 audit)."
+            exit 1
+          fi
+          if [ "${loom_api}" -gt 0 ] || [ "${loom_dep}" -gt 0 ]; then
+            echo "FAIL: loom entered the tree without a standing lane - the census"
+            echo "NO (censused, NOT adopted) holds only while loom stays out."
+            echo "Re-sign the census with a real lane, or remove the reference."
+            exit 1
+          fi
+          echo "PASS: the signed census verdict holds - the CAS discipline stays"
+          echo "pointer-cast over raw map-value memory inside the kernel access"
+          echo "primitives, and loom stays out of the tree (the honest NO)."
