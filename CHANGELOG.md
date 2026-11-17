@@ -39,6 +39,25 @@ v80.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **night-kernel-matrix-1: every kernel family the docs name boots in
+  CI** — the e2e lane grew from two kernel envelopes to five (the
+  jammy 5.15.0 floor and the archive's dynamically resolved latest
+  stay; the noble 6.8 GA, Debian bookworm 6.1 LTS, and Arch LTS 6.6
+  family legs joined), each booting the same fast/surface shard pair
+  in the KVM micro-VM with a cmdline family witness
+  (`zelynic-kernel-glob=`) the guest init verifies against `uname -r`
+  — a resolver drift fails loudly instead of filing a record for a
+  family that never ran. The first full-green run (44163461435, all
+  fourteen jobs) closed the three pending kernel checkbox rows in
+  docs/KERNEL_COMPATIBILITY.md: the 6.1, 6.6, and 6.8 runtime records
+  exist. The boot lessons rode in with it: the Arch package's real
+  vmlinuz path (usr/lib/modules/<ver>/vmlinuz), and the virtio
+  transport split (ring, virtio, the legacy_dev and modern_dev
+  halves, virtio_pci) the init's insmod chain now loads in dependency
+  order, loud when a module refuses.
+
 ### Fixed
 
 - **fix(dev): the release ledger verifies its own writes — the bump's
