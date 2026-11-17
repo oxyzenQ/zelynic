@@ -158,3 +158,7 @@ pub const SCHEMA_VERSION_EXPECTED: u32 = 35;
 #[cfg(test)]
 #[path = "../../../test/ebpf/limiter/schema_sync_pin_tests.rs"]
 mod sync_pin;
+
+#[cfg(test)]
+#[path = "../../../test/ebpf/limiter/schema_layout_tests.rs"]
+mod layout_theorem;
