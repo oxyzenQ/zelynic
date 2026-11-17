@@ -27,6 +27,23 @@
 # Trigger: the nightly schedule (the standing verdict vehicle) plus
 # workflow_dispatch (the manual recovery lane, the estate's shape).
 #
+# The 30-minute split rule (the owner's call, 2026-11-17): if a kani
+# or loom lane ever runs over 30 minutes, it must split into micro
+# tests. The rule is armed, not triggered: the per-push proofs lane
+# measured 41-57 seconds across its hosted runs (the six decidable
+# theorems already run as six separate kani invocations — one
+# verdict never lost to a sibling's budget — plus the proptest and
+# loom-census seats), and this night tier is already the finest
+# split that preserves the theorems: one harness per matrix job, the
+# wall is the slowest theorem, not the sum of four. A for-all
+# theorem does not decompose into micro tests without changing what
+# is proved — the honest split lever is lemma decomposition, a
+# proof-shape change that needs its own signed round. The
+# 300-minute budget is a ceiling for an undecided circuit, not a
+# measured runtime: this workflow's first scheduled fire is its
+# first hosted measurement, and a run that breaches the owner's
+# 30-minute line reopens the split conversation with real numbers.
+#
 # Check-name discipline (the owner's call, 2026-11-17): the engine's
 # name rides the check name, the Miri lane's shape — "Kani
 # solver-bound theorem - <harness>", not a bare tier label. This
