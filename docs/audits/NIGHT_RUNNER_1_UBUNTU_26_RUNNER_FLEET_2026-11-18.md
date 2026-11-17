@@ -124,7 +124,7 @@ deliberate matrix-first upgrade, not a calendar-triggered surprise."
 | 1 | Local gates on the changed workflow | yamllint + actionlint (+ the wholesale battery) | PASS — the wholesale battery 27/27, re-run live in the runner-2 seat (2026-11-18) before the cutover |
 | 1 | The 26.04 probe legs green on CI | this push's check runs (Musl Static Twin (ubuntu-26.04), eBPF Host (ubuntu-26.04)) | GREEN — both legs success on the runner-1 push's 42-check-run ledger (7bc37653), read from the API in the runner-2 seat |
 | 2 | All 35 sites on the 26.04 family | the phase-2 census | DONE — night-runner-2's census: 30 plain pins + 2 arm pins + the ternary + 2 arrays on the 26.04 family, zero non-26.04 hosted labels, zero `ubuntu-latest` (see NIGHT_RUNNER_2_UBUNTU_26_CUTOVER_2026-11-18.md §1) |
-| 2 | Fleet green on 26.04 end to end | the cutover push's check runs | pending the cutover push's own check runs |
+| 2 | Fleet green on 26.04 end to end | the cutover push's check runs | GREEN — 40/40 check runs success on the cutover push (0c234712), both 26.04 legs success, read from the API in the runner-3 seat (2026-11-18) |
 
 <!-- ZELYNIC-DISCLAIMER -->
 <!--

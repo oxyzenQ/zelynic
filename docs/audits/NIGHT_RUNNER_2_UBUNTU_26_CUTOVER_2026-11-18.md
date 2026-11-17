@@ -13,9 +13,10 @@
 > memory), then the edits in the runner-1 record's own phase-2
 > order (labels, then words, then docs), then the wholesale
 > battery re-run in this seat. Honesty note: the cutover push's
-> own end-to-end verdict stays "pending this push" in §6 until
-> its check runs fill it — this record never speaks a green
-> verdict before the evidence exists.
+> own end-to-end verdict was left "pending this push" in §6 until
+> its check runs filled it — the fill landed only after the
+> evidence existed (the runner-3 seat); this record never speaks
+> a green verdict before the evidence exists.
 
 ## 1. The census (from the YAML, after the edits)
 
