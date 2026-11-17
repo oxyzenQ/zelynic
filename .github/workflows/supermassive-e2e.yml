@@ -13,8 +13,10 @@
 # The contract: every surface, every guard, every error path,
 # exercised against the REAL compiled binary, on the kernel span.
 # night-T-1 reshaped the LANE, never the depth: a stage job builds
-# the release-tier v3 payload and BOTH kernel envelopes' initramfs
-# ONCE (the jammy 5.15.0 floor + the archive's dynamically resolved
+# the release-tier v3 payload and EVERY kernel envelope's initramfs
+# ONCE (night-kernel-matrix-1 grew the pair into the family matrix -
+# the jammy 5.15.0 floor, the noble 6.8 GA, the Debian bookworm 6.1
+# LTS, the Arch LTS 6.6 line, and the archive's dynamically resolved
 # latest, nothing pinned), uploads them as artifacts, and every
 # per-push shard boots the SAME initramfs naming its slice on the
 # kernel cmdline (zelynic-suite=, scripts/ci/e2e-init.sh reads it
@@ -144,17 +146,19 @@ env:
 jobs:
   # ── the stage: build once, boot many ────────────────────────────────
   # The x86 stage job is the lane's only build: the release-tier v3
-  # payload plus BOTH kernel envelopes (the jammy 5.15.0 floor deb
-  # and the archive's dynamically resolved latest), each packed with
-  # the SAME userland into its own initramfs (the rootfs draws from
-  # ubuntu:24.04, the guest tooling's ABI - python3, nft, bpftool -
-  # nothing the static musl payload depends on). The artifacts are
-  # the only thing the VM shards download; no shard pays for a
-  # toolchain, a cargo tree, or a kernel resolver again.
+  # payload plus EVERY kernel envelope (night-kernel-matrix-1 grew
+  # the pair into the family matrix: the jammy 5.15.0 floor deb, the
+  # archive's dynamically resolved latest, the noble 6.8 GA, the
+  # Debian bookworm 6.1 LTS, and the Arch LTS 6.6 line), each packed
+  # with the SAME userland into its own initramfs (the rootfs draws
+  # from ubuntu:24.04, the guest tooling's ABI - python3, nft,
+  # bpftool - nothing the static musl payload depends on). The
+  # artifacts are the only thing the VM shards download; no shard
+  # pays for a toolchain, a cargo tree, or a kernel resolver again.
   stage:
-    name: supermassive e2e - stage (payload + both kernel envelopes)
+    name: supermassive e2e - stage (payload + five kernel envelopes)
     runs-on: ubuntu-26.04
-    timeout-minutes: 15
+    timeout-minutes: 22
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
@@ -409,6 +413,249 @@ jobs:
             *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET - no usable virtio-net driver on this kernel"; exit 1 ;;
           esac
 
+      # ── the kernel-matrix legs (night-kernel-matrix-1, the owner's
+      # ask: the docs' pending kernel checkboxes close with LIVE boot
+      # records, not paper numbers - the floor leg's own principle
+      # spread across the whole family span). Three more envelopes,
+      # one per pending family, each a dynamic resolver inside its
+      # family anchor (no pinned ABI, no URL rot - the jammy leg's
+      # own law) plus the cmdline family witness the init runs: a
+      # resolver drift fails LOUDLY instead of quietly testing the
+      # wrong kernel.
+
+      # The noble 6.8 GA leg (Ubuntu 24.04's own GA kernel - the
+      # family the hosted build matrix rode for its whole
+      # Build-verified era): the jammy-floor walk's noble twin, the
+      # noble main and noble-updates pockets, the 6\.8\.0- anchor
+      # deliberately excluding noble's HWE 6.x images (those are the
+      # family the best leg's dynamic resolver walks onto).
+      - name: Fetch the noble 6.8 GA kernel (the 6.8 family leg)
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/stage/noble && cd /tmp/stage/noble
+          {
+            echo "deb http://archive.ubuntu.com/ubuntu/ noble main"
+            echo "deb http://archive.ubuntu.com/ubuntu/ noble-updates main"
+          } | sudo tee /etc/apt/sources.list.d/noble-family.list >/dev/null
+          sudo apt-get -o Acquire::Retries=5 update \
+            -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/noble-family.list \
+            -o Dir::Etc::sourceparts=/dev/null \
+            -o APT::Get::List-Cleanup=0
+          IMG=$(apt-cache search --names-only \
+            'linux-image-unsigned-6\.8\.0-.*-generic' 2>/dev/null \
+            | grep -oE 'linux-image-unsigned-6\.8\.0-[0-9]+-generic' \
+            | sort -V | tail -1 || true)
+          if test -z "$IMG"; then
+            echo "FAIL: no linux-image-unsigned-6.8.0-*-generic in the noble pockets - resolver evidence:"
+            apt-cache search --names-only 'linux-image-unsigned-6\.8' || true
+            exit 1
+          fi
+          echo "resolved: $IMG"
+          apt-get -o Acquire::Retries=5 download "$IMG"
+          dpkg -x "${IMG}"*_amd64.deb pkg
+          VMLINUZ=$(find pkg/boot -name 'vmlinuz-6.8.*' | head -1)
+          if test -z "$VMLINUZ"; then
+            echo "FAIL: no vmlinuz inside the deb - pkg/boot contents:"
+            ls -la pkg/boot || true
+            exit 1
+          fi
+          cp "$VMLINUZ" /tmp/stage/noble/vmlinuz-floor
+          echo "kernel: $(du -h /tmp/stage/noble/vmlinuz-floor | cut -f1) at /tmp/stage/noble/vmlinuz-floor"
+          KVER="${IMG#linux-image-unsigned-}"
+          MODPKG="linux-modules-$KVER"
+          apt-get -o Acquire::Retries=5 download "$MODPKG"
+          rm -rf mods /tmp/stage/noble/virtio-mods
+          dpkg-deb -x "${MODPKG}"*_amd64.deb mods
+          CFG="mods/boot/config-$KVER"
+          test -f "$CFG" || {
+            echo "FAIL: no config-$KVER inside $MODPKG - deb contents:"
+            ls mods/boot || true
+            exit 1
+          }
+          VNET=$(sed -n 's/^CONFIG_VIRTIO_NET=\(.*\)$/\1/p' "$CFG")
+          case "$VNET" in
+            y)  echo "virtio_net built-in (=y) - no modules to stage" ;;
+            m)  STG="/tmp/stage/noble/virtio-mods/lib/modules/$KVER/kernel"
+                mkdir -p "$STG/net/core" "$STG/drivers/net"
+                stage_mod() {
+                  mod=$1; dir=$2; flag=$3
+                  WANT=$(sed -n "s/^CONFIG_$flag=\(.*\)$/\1/p" "$CFG")
+                  if [ "$WANT" = "m" ]; then
+                    SRC="mods/lib/modules/$KVER/kernel/$dir/$mod.ko"
+                    test -f "$SRC" || { echo "FAIL: $mod.ko absent from $MODPKG (config says =m)"; exit 1; }
+                    cp "$SRC" "$STG/$dir/"
+                  fi
+                }
+                stage_mod failover net/core FAILOVER
+                stage_mod net_failover drivers/net NET_FAILOVER
+                stage_mod virtio_net drivers/net VIRTIO_NET
+                echo "staged virtio modules: $(du -sh /tmp/stage/noble/virtio-mods | cut -f1)"
+                echo "  at /tmp/stage/noble/virtio-mods" ;;
+            *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET - no usable virtio-net driver on this kernel"; exit 1 ;;
+          esac
+
+      # The bookworm 6.1 LTS leg (Debian 12's kernel line - the 6.1
+      # LTS family the BTF matrix measured but nothing ever BOOTED):
+      # the Debian pool fetched directly (the pool's flat index is
+      # the resolution surface - no apt keyring transplant, no
+      # trusted=yes downgrade; the newest 6.1.0-ABI unsigned image
+      # wins via sort -V across every pocket the pool serves). The
+      # unsigned deb carries vmlinuz, config AND modules in one
+      # tree (Debian does not split them like Ubuntu), and bookworm
+      # ships its modules xz-compressed - the staging walk
+      # decompresses the trio it stages, the guest init insmods
+      # plain .ko.
+      - name: Fetch the bookworm 6.1 LTS kernel (the 6.1 family leg)
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/stage/bookworm && cd /tmp/stage/bookworm
+          IDX=$(curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 300 --connect-timeout 15 \
+            https://deb.debian.org/debian/pool/main/l/linux/)
+          if test -z "$IDX"; then
+            echo "FAIL: the Debian pool index resolved nothing - restructure?"
+            curl -fsSL --retry 6 --retry-all-errors https://deb.debian.org/debian/pool/main/l/linux/ | head -40 || true
+            exit 1
+          fi
+          DEB=$(echo "$IDX" | grep -oE 'linux-image-6\.1\.0-[0-9]+-amd64-unsigned_[^"]*_amd64\.deb' \
+            | sort -V | tail -1 || true)
+          if test -z "$DEB"; then
+            echo "FAIL: no linux-image-6.1.0-*-amd64-unsigned in the Debian pool - index evidence:"
+            echo "$IDX" | grep -oE 'linux-image-6\.1[^"]*' | head -20 || true
+            exit 1
+          fi
+          echo "resolved: $DEB"
+          curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 600 --connect-timeout 15 \
+            -o "$DEB" "https://deb.debian.org/debian/pool/main/l/linux/$DEB"
+          dpkg -x "$DEB" pkg
+          KVER=$(ls pkg/lib/modules | head -1)
+          VMLINUZ=$(find pkg/boot -name "vmlinuz-$KVER" | head -1)
+          if test -z "$VMLINUZ"; then
+            echo "FAIL: no vmlinuz-$KVER inside the deb - pkg/boot contents:"
+            ls -la pkg/boot || true
+            exit 1
+          fi
+          cp "$VMLINUZ" /tmp/stage/bookworm/vmlinuz-floor
+          echo "kernel: $(du -h /tmp/stage/bookworm/vmlinuz-floor | cut -f1) at /tmp/stage/bookworm/vmlinuz-floor"
+          CFG="pkg/boot/config-$KVER"
+          test -f "$CFG" || {
+            echo "FAIL: no config-$KVER inside the deb - pkg/boot contents:"
+            ls pkg/boot || true
+            exit 1
+          }
+          VNET=$(sed -n 's/^CONFIG_VIRTIO_NET=\(.*\)$/\1/p' "$CFG")
+          case "$VNET" in
+            y)  echo "virtio_net built-in (=y) - no modules to stage" ;;
+            m)  STG="/tmp/stage/bookworm/virtio-mods/lib/modules/$KVER/kernel"
+                mkdir -p "$STG/net/core" "$STG/drivers/net"
+                stage_mod() {
+                  mod=$1; dir=$2; flag=$3
+                  WANT=$(sed -n "s/^CONFIG_$flag=\(.*\)$/\1/p" "$CFG")
+                  if [ "$WANT" = "m" ]; then
+                    SRC=$(find "pkg/lib/modules/$KVER/kernel/$dir" -maxdepth 1 -name "$mod.ko*" | head -1)
+                    test -n "$SRC" || { echo "FAIL: $mod.ko* absent from the deb (config says =m)"; exit 1; }
+                    case "$SRC" in
+                      *.xz) xz -dc "$SRC" > "$STG/$dir/$mod.ko" ;;
+                      *)    cp "$SRC" "$STG/$dir/$mod.ko" ;;
+                    esac
+                  fi
+                }
+                stage_mod failover net/core FAILOVER
+                stage_mod net_failover drivers/net NET_FAILOVER
+                stage_mod virtio_net drivers/net VIRTIO_NET
+                echo "staged virtio modules: $(du -sh /tmp/stage/bookworm/virtio-mods | cut -f1)"
+                echo "  at /tmp/stage/bookworm/virtio-mods" ;;
+            *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET - no usable virtio-net driver on this kernel"; exit 1 ;;
+          esac
+
+      # The Arch LTS 6.6 leg (the 6.6 LTS family the BTF matrix
+      # measured, from the same source the measurement rode - the
+      # versioned archive at archive.archlinux.org, whose flat index
+      # names every retained linux-lts build; the newest 6.6.y wins
+      # via sort -V, the LTS family anchor excluding the rolling
+      # mainline builds). The pkg.tar.zst opens with tar --zstd; the
+      # vmlinuz rides usr/lib/modules/<ver>/vmlinuz (the same member
+      # the BTF matrix's pin table extracted). The config-or-evidence
+      # walk: when the package carries its config the =y/=m read
+      # comes from it; when it does not, the virtio_net module file's
+      # own presence or absence is the verdict, printed as evidence -
+      # an assumption never silently rides.
+      - name: Fetch the Arch LTS 6.6 kernel (the 6.6 family leg)
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/stage/archlts && cd /tmp/stage/archlts
+          IDX=$(curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 300 --connect-timeout 15 \
+            https://archive.archlinux.org/packages/l/linux-lts/)
+          if test -z "$IDX"; then
+            echo "FAIL: the Arch archive index resolved nothing - restructure?"
+            curl -fsSL --retry 6 --retry-all-errors \
+              https://archive.archlinux.org/packages/l/linux-lts/ | head -40 || true
+            exit 1
+          fi
+          PKG=$(echo "$IDX" | grep -oE 'linux-lts-6\.6\.[0-9]+-[0-9]+-x86_64\.pkg\.tar\.zst' \
+            | sort -V | tail -1 || true)
+          if test -z "$PKG"; then
+            echo "FAIL: no linux-lts-6.6.*-x86_64.pkg.tar.zst in the Arch archive - index evidence:"
+            echo "$IDX" | grep -oE 'linux-lts-6\.[0-9]+[^"]*\.pkg\.tar\.zst' | sort -V | tail -10 || true
+            exit 1
+          fi
+          echo "resolved: $PKG"
+          curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 600 --connect-timeout 15 \
+            -o "$PKG" "https://archive.archlinux.org/packages/l/linux-lts/$PKG"
+          tar --zstd -xf "$PKG"
+          VMLINUZ=$(find . -name 'vmlinuz-lts' -o -name 'vmlinuz-6.6.*' | head -1)
+          if test -z "$VMLINUZ"; then
+            echo "FAIL: no vmlinuz inside the package - extracted contents:"
+            find . -maxdepth 3 -name 'vmlinuz*' -o -maxdepth 2 -type d | head -20 || true
+            exit 1
+          fi
+          cp "$VMLINUZ" /tmp/stage/archlts/vmlinuz-floor
+          echo "kernel: $(du -h /tmp/stage/archlts/vmlinuz-floor | cut -f1) at /tmp/stage/archlts/vmlinuz-floor"
+          KVER=$(ls usr/lib/modules 2>/dev/null | grep -v '^build$\|^extramodules$' | head -1)
+          if test -z "$KVER"; then
+            echo "FAIL: no usr/lib/modules/<ver> inside the package - extracted contents:"
+            ls usr/lib/modules 2>/dev/null || ls -la usr/lib || true
+            exit 1
+          fi
+          echo "resolved KVER: $KVER"
+          CFG=""
+          for c in "usr/lib/modules/$KVER/config" "boot/config-$KVER"; do
+            test -f "$c" && CFG="$c" && break
+          done
+          VIRTIO_KO=$(find "usr/lib/modules/$KVER" -name 'virtio_net.ko*' 2>/dev/null | head -1)
+          if test -n "$CFG"; then
+            VNET=$(sed -n 's/^CONFIG_VIRTIO_NET=\(.*\)$/\1/p' "$CFG")
+          elif test -n "$VIRTIO_KO"; then
+            echo "config file absent from the package - module-file evidence decides"
+            VNET=m
+          else
+            echo "config file absent, no virtio_net.ko* in usr/lib/modules/$KVER:"
+            echo "  the driver is built-in (=y), evidence above"
+            VNET=y
+          fi
+          case "$VNET" in
+            y)  echo "virtio_net built-in (=y) - no modules to stage" ;;
+            m)  STG="/tmp/stage/archlts/virtio-mods/lib/modules/$KVER/kernel"
+                mkdir -p "$STG/net/core" "$STG/drivers/net"
+                stage_mod() {
+                  mod=$1; dir=$2
+                  SRC=$(find "usr/lib/modules/$KVER/kernel/$dir" -maxdepth 1 -name "$mod.ko*" 2>/dev/null | head -1)
+                  test -n "$SRC" || {
+                    echo "FAIL: $mod.ko* absent from the package tree (config or evidence says =m)"
+                    exit 1
+                  }
+                  case "$SRC" in
+                    *.zst) zstd -dc "$SRC" > "$STG/$dir/$mod.ko" ;;
+                    *)     cp "$SRC" "$STG/$dir/$mod.ko" ;;
+                  esac
+                }
+                stage_mod failover net/core
+                stage_mod net_failover drivers/net
+                stage_mod virtio_net drivers/net
+                echo "staged virtio modules: $(du -sh /tmp/stage/archlts/virtio-mods | cut -f1)"
+                echo "  at /tmp/stage/archlts/virtio-mods" ;;
+            *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET - no usable virtio-net driver on this kernel"; exit 1 ;;
+          esac
+
       # The userland, held CONSTANT across both envelopes on purpose
       # (the leg's only variables are the kernel and the resource
       # envelope): one assemble() walk per envelope directory, the
@@ -499,10 +746,13 @@ jobs:
             ( cd rootfs && sudo find . -print0 | sudo cpio --null -o -H newc ) | gzip -1 > initrd.gz
             echo "initramfs: $(du -h initrd.gz | cut -f1)"
             # The sweep: the artifact carries the boot pair only.
-            rm -rf rootfs rootfs.tar pkg mods ./*.deb
+            rm -rf rootfs rootfs.tar pkg mods ./*.deb ./*.pkg.tar.zst
           }
           assemble /tmp/stage/jammy
           assemble /tmp/stage/best
+          assemble /tmp/stage/noble
+          assemble /tmp/stage/bookworm
+          assemble /tmp/stage/archlts
 
       - name: Upload the jammy floor micro-VM bundle
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7, NIGHT-hunt-20 SHA pin
@@ -516,6 +766,27 @@ jobs:
         with:
           name: e2e-vm-best
           path: /tmp/stage/best
+          retention-days: 3
+
+      - name: Upload the noble 6.8 micro-VM bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          name: e2e-vm-noble
+          path: /tmp/stage/noble
+          retention-days: 3
+
+      - name: Upload the bookworm 6.1 micro-VM bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          name: e2e-vm-bookworm
+          path: /tmp/stage/bookworm
+          retention-days: 3
+
+      - name: Upload the Arch LTS 6.6 micro-VM bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          name: e2e-vm-archlts
+          path: /tmp/stage/archlts
           retention-days: 3
 
   # ── the arm64 stage: the payload once, on the arm silicon ───────────
@@ -578,11 +849,14 @@ jobs:
           path: target/aarch64-unknown-linux-musl/pro-native-arm64-musl/zelynic
           retention-days: 3
 
-  # ── the per-push shards: fast + surface, three envelopes ───────────
+  # ── the per-push shards: fast + surface, five envelopes ────────────
   # Every shard: download the staged bundle, boot (or stage natively),
   # run ONE slice, grep the verdict. The wall clock is the slowest
   # SINGLE shard — the owner's night-T-1 target, never the sum of the
-  # suite again.
+  # suite again. kglob is the family witness the init verifies against
+  # uname -r (night-kernel-matrix-1): a resolver drift fails loudly
+  # instead of quietly testing the wrong kernel; the dynamic best leg
+  # names no family and rides the 5.15 floor check alone.
   supermassive-e2e:
     name: ${{ matrix.title }}
     needs: [stage, stage-arm64]
@@ -594,18 +868,52 @@ jobs:
           - title: supermassive e2e - fast lane (nonroot + limiter depth, the jammy 5.15.0 LTS floor kernel)
             profile: jammy
             shard: fast
+            kglob: "5.15.*"
             vm_timeout: 600
           - title: supermassive e2e - surface lane (smoke + quota A/B, the jammy 5.15.0 LTS floor kernel)
             profile: jammy
             shard: surface
+            kglob: "5.15.*"
+            vm_timeout: 720
+          - title: supermassive e2e - fast lane (nonroot + limiter depth, the noble 6.8 GA kernel)
+            profile: noble
+            shard: fast
+            kglob: "6.8.*"
+            vm_timeout: 600
+          - title: supermassive e2e - surface lane (smoke + quota A/B, the noble 6.8 GA kernel)
+            profile: noble
+            shard: surface
+            kglob: "6.8.*"
+            vm_timeout: 720
+          - title: supermassive e2e - fast lane (nonroot + limiter depth, the Debian bookworm 6.1 LTS kernel)
+            profile: bookworm
+            shard: fast
+            kglob: "6.1.*"
+            vm_timeout: 600
+          - title: supermassive e2e - surface lane (smoke + quota A/B, the Debian bookworm 6.1 LTS kernel)
+            profile: bookworm
+            shard: surface
+            kglob: "6.1.*"
+            vm_timeout: 720
+          - title: supermassive e2e - fast lane (nonroot + limiter depth, the Arch LTS 6.6 kernel)
+            profile: archlts
+            shard: fast
+            kglob: "6.6.*"
+            vm_timeout: 600
+          - title: supermassive e2e - surface lane (smoke + quota A/B, the Arch LTS 6.6 kernel)
+            profile: archlts
+            shard: surface
+            kglob: "6.6.*"
             vm_timeout: 720
           - title: supermassive e2e - fast lane (nonroot + limiter depth, the archive's latest kernel)
             profile: best
             shard: fast
+            kglob: ""
             vm_timeout: 600
           - title: supermassive e2e - surface lane (smoke + quota A/B, the archive's latest kernel)
             profile: best
             shard: surface
+            kglob: ""
             vm_timeout: 720
           - title: supermassive e2e - fast lane (nonroot + limiter depth, the native arm64 runner host)
             profile: arm64
@@ -717,6 +1025,8 @@ jobs:
       # the boot.
       - name: Boot the micro-VM and run the E2E depth shard
         if: matrix.profile != 'arm64'
+        env:
+          KGLOB_FLAG: ${{ matrix.kglob && format(' zelynic-kernel-glob={0}', matrix.kglob) || '' }}
         run: |
           set -euo pipefail
           cd /tmp/kfloor
@@ -739,7 +1049,7 @@ jobs:
             -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
             -kernel vmlinuz-floor \
             -initrd initrd.gz \
-            -append "console=ttyS0 panic=-1 zelynic-suite=${{ matrix.shard }}" \
+            -append "console=ttyS0 panic=-1 zelynic-suite=${{ matrix.shard }}${KGLOB_FLAG}" \
             -nographic -no-reboot 2>&1 | tee vm.log
           QEMU_RC=${PIPESTATUS[0]}
           set -e
