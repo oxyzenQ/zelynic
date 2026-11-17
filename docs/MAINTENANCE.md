@@ -153,6 +153,12 @@ binaries).
   repo-relative `Cargo.lock` path, and the commit job stages the
   exact lockfile set the walk produced — the root-only sweep left
   two of the three committed lockfiles out of every weekly refresh.
+  night-deps-1: the walk lives in one reusable script,
+  `scripts/ci/sweep-cargo-workspaces.sh` — the update step and the
+  commit job's staging share it (the two inline copies could drift),
+  and it runs locally the same way: default sweeps, `--print-locks`
+  lists the staged locks, `--check` is the no-write verdict twin
+  that names any lockfile behind its registry.
   The walk can move the `ebpf/` tree, and the prebuilt lane pins
   that tree's blake3, so the sweep carries the **parity rider**:
   the validate job heals the lane through the one writer
