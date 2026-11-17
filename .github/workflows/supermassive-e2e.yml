@@ -554,7 +554,7 @@ jobs:
           curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 600 --connect-timeout 15 \
             -o "$DEB" "https://deb.debian.org/debian/pool/main/l/linux/$DEB"
           dpkg -x "$DEB" pkg
-          KVER=$(ls pkg/lib/modules | head -1)
+          KVER=$(find pkg/lib/modules -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | head -1)
           VMLINUZ=$(find pkg/boot -name "vmlinuz-$KVER" | head -1)
           if test -z "$VMLINUZ"; then
             echo "FAIL: no vmlinuz-$KVER inside the deb - pkg/boot contents:"
@@ -662,7 +662,8 @@ jobs:
           fi
           cp "$VMLINUZ" /tmp/stage/archlts/vmlinuz-floor
           echo "kernel: $(du -h /tmp/stage/archlts/vmlinuz-floor | cut -f1) at /tmp/stage/archlts/vmlinuz-floor"
-          KVER=$(ls usr/lib/modules 2>/dev/null | grep -v '^build$\|^extramodules$' | head -1)
+          KVER=$(find usr/lib/modules -mindepth 1 -maxdepth 1 -type d \
+            -not -name build -not -name extramodules -printf '%f\n' | head -1)
           if test -z "$KVER"; then
             echo "FAIL: no usr/lib/modules/<ver> inside the package - extracted contents:"
             ls usr/lib/modules 2>/dev/null || ls -la usr/lib || true
