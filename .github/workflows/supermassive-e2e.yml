@@ -489,6 +489,24 @@ jobs:
                 stage_mod failover net/core FAILOVER
                 stage_mod net_failover drivers/net NET_FAILOVER
                 stage_mod virtio_net drivers/net VIRTIO_NET
+                # The transport pair, optional (night-kernel-matrix-1's
+                # boot lesson): Debian and Arch build virtio and
+                # virtio_ring as MODULES - virtio_net.ko needs them
+                # loaded first or its insmod dies Unknown symbol;
+                # Ubuntu builds them in, the tree ships no .ko, the
+                # optional stage skips what is absent.
+                stage_opt() {
+                  mod=$1; dir=$2
+                  SRC=$(find "mods/lib/modules/$KVER/kernel/$dir" -maxdepth 1 -name "$mod.ko*" 2>/dev/null | head -1)
+                  test -n "$SRC" || return 0
+                  mkdir -p "$STG/$dir"
+                  case "$SRC" in
+                    *.xz) xz -dc "$SRC" > "$STG/$dir/$mod.ko" ;;
+                    *)    cp "$SRC" "$STG/$dir/$mod.ko" ;;
+                  esac
+                }
+                stage_opt virtio_ring drivers/virtio
+                stage_opt virtio drivers/virtio
                 echo "staged virtio modules: $(du -sh /tmp/stage/noble/virtio-mods | cut -f1)"
                 echo "  at /tmp/stage/noble/virtio-mods" ;;
             *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET - no usable virtio-net driver on this kernel"; exit 1 ;;
@@ -562,6 +580,22 @@ jobs:
                 stage_mod failover net/core FAILOVER
                 stage_mod net_failover drivers/net NET_FAILOVER
                 stage_mod virtio_net drivers/net VIRTIO_NET
+                # The transport pair, optional: Debian builds virtio and
+                # virtio_ring as modules - virtio_net.ko needs them
+                # loaded first or its insmod dies Unknown symbol (the
+                # first live boot's exact red row).
+                stage_opt() {
+                  mod=$1; dir=$2
+                  SRC=$(find "pkg/lib/modules/$KVER/kernel/$dir" -maxdepth 1 -name "$mod.ko*" 2>/dev/null | head -1)
+                  test -n "$SRC" || return 0
+                  mkdir -p "$STG/$dir"
+                  case "$SRC" in
+                    *.xz) xz -dc "$SRC" > "$STG/$dir/$mod.ko" ;;
+                    *)    cp "$SRC" "$STG/$dir/$mod.ko" ;;
+                  esac
+                }
+                stage_opt virtio_ring drivers/virtio
+                stage_opt virtio drivers/virtio
                 echo "staged virtio modules: $(du -sh /tmp/stage/bookworm/virtio-mods | cut -f1)"
                 echo "  at /tmp/stage/bookworm/virtio-mods" ;;
             *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET - no usable virtio-net driver on this kernel"; exit 1 ;;
@@ -651,6 +685,22 @@ jobs:
                 stage_mod failover net/core
                 stage_mod net_failover drivers/net
                 stage_mod virtio_net drivers/net
+                # The transport pair, optional: Arch may build virtio
+                # and virtio_ring as modules too - virtio_net.ko needs
+                # them loaded first or its insmod dies Unknown symbol;
+                # built-in ships no .ko and the stage skips it.
+                stage_opt() {
+                  mod=$1; dir=$2
+                  SRC=$(find "usr/lib/modules/$KVER/kernel/$dir" -maxdepth 1 -name "$mod.ko*" 2>/dev/null | head -1)
+                  test -n "$SRC" || return 0
+                  mkdir -p "$STG/$dir"
+                  case "$SRC" in
+                    *.zst) zstd -dc "$SRC" > "$STG/$dir/$mod.ko" ;;
+                    *)     cp "$SRC" "$STG/$dir/$mod.ko" ;;
+                  esac
+                }
+                stage_opt virtio_ring drivers/virtio
+                stage_opt virtio drivers/virtio
                 echo "staged virtio modules: $(du -sh /tmp/stage/archlts/virtio-mods | cut -f1)"
                 echo "  at /tmp/stage/archlts/virtio-mods" ;;
             *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET - no usable virtio-net driver on this kernel"; exit 1 ;;
