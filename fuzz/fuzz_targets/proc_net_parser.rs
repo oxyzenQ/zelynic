@@ -47,6 +47,11 @@
 #[path = "../../src/ebpf/connections/types.rs"]
 mod types;
 
+// Same include-seat law for the parse walk: `parse_fd_number` and
+// `parse_socket_fd` serve the root crate's fd-surfaces this graph
+// does not wire, so the nightly dead-code pass reads them dead here.
+// The allow rides this seat, never the shared source.
+#[allow(dead_code)]
 #[path = "../../src/ebpf/connections/parse.rs"]
 mod parse;
 
