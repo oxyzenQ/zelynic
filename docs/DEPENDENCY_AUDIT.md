@@ -24,9 +24,12 @@ added, removed, trimmed, or accepted-as-risk.
 | Release binary size | 1,777,928 B | 1,777,912 B | unchanged (unused deps never linked) |
 
 The table is the NIGHT-hunt-6 (2026-09-18) snapshot, kept as recorded;
-the current direct set is the newest section's verdict (post-S1: six
-direct across the workspace — clap, anyhow, nix, libc at the root, aya
-behind the `ebpf` feature, aya-ebpf inside the ebpf crate).
+the current direct set is the re-audit table's verdict with blake3's
+arrival folded in (night-depth-cleanup-1): seven across the workspace —
+clap, anyhow, blake3, nix, libc at the root, aya behind the `ebpf`
+feature, aya-ebpf inside the ebpf crate. The re-audit section's own
+"six direct" verdict (2026-09-21) speaks for its date, before blake3
+existed in the graph.
 
 The supply-chain surface — crates downloaded, hashed, compiled, and
 audited on every build — shrank by one third. Binary size did not move
@@ -380,8 +383,9 @@ Verdict for this estate: **unaffected, proven.** The evidence:
 | This host's registry cache | the advisory's own `find(1)` command over `~/.cargo/registry/cache` | zero hits |
 
 A transitive edge would have had to appear in a committed lockfile;
-none did. The NIGHT-hunt-6 lean set (six direct, the audit table
-above) has no path to any affected crate.
+none did. The lean set (six at the root, seven across the workspace
+with the ebpf crate's aya-ebpf — the audit table above) has no path
+to any affected crate.
 
 Tripwires added so a future pull-in fails loudly instead of
 compiling a payload's build script:

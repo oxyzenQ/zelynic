@@ -81,7 +81,7 @@ Concrete classes we care about, with the current posture of each:
 | Injection (command, path, format-string, CI script) | Audited — argv-array curl, kernel-generated paths only, env-isolated CI scripts; the night-netrunner-5 sweep re-pinned every `Command::new` site (three: fixed-argv curl with the constant API URL, the binary spawning itself for the hidden probe roles, the rescue utils with hardcoded names and a root PATH pin) as carrying no unvalidated user input |
 | Memory safety in the kernel datapath | BPF verifier bounds-checks; C side reviewed per release |
 | Panic surfaces reachable from user input | Pinned by the non-root depth suite (exit 101 asserted absent) |
-| Supply chain (dependency compromise) | 7 direct deps, `cargo audit` + `cargo deny` in CI, chrono banned, every dep justified in [docs/DEPENDENCY_AUDIT.md](docs/DEPENDENCY_AUDIT.md) |
+| Supply chain (dependency compromise) | 6 direct deps, `cargo audit` + `cargo deny` in CI, chrono banned, every dep justified in [docs/DEPENDENCY_AUDIT.md](docs/DEPENDENCY_AUDIT.md) |
 | Release artifact tampering | SHA-512 + BLAKE3 + SHAKE256 checksums; verify per [docs/VERIFY_RELEASE.md](docs/VERIFY_RELEASE.md) |
 | AI-agent-swarm abuse (prompt-injected agent fleets looping zelynic surfaces; the ~10k-agent present scaling to 1M+) | Audited and bounded (NIGHT-critical-infra-1) — mutations serialize behind the operation lock with map caps; terminal injection dies at the sanitizer boundaries; the one unbounded surface (the `--check-update` outbound fetch) now runs at most one completed exchange per hour per user (the disclosed cooldown). Full analysis: the AI-Agent-Swarm Threat Model in [docs/SAFETY_ANALYSIS.md](docs/SAFETY_ANALYSIS.md) |
 
