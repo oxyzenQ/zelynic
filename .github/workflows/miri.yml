@@ -51,9 +51,10 @@ on:
   push:
   pull_request:
   schedule:
-    # Sunday 00:00 UTC (07:00 WIB) — picks up the week's commits in
-    # one shot, the cosmostrix cadence.
-    - cron: '0 0 * * 0'
+    # Sunday 10:07 WIB (03:07 UTC) — picks up the week's commits in
+    # one shot, the cosmostrix cadence (night-consistent-1 moves the
+    # clock to the owner's 10 o'clock morning).
+    - cron: '7 3 * * 0'
   # Manual trigger from the Actions tab.
   workflow_dispatch:
 

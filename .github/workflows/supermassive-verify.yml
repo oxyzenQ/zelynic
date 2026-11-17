@@ -44,10 +44,11 @@ name: Dragon Guard - Supermassive Verify
 on:
   workflow_dispatch:
   schedule:
-    # 20:00 UTC = 03:00 WIB (the owner's Asia/Jakarta night): this
-    # lane's own nightly slot (night-verify-1 renamed the family
-    # reference — the e2e lane's cadence retired with its schedule).
-    - cron: "0 20 * * *"
+    # 10:07 WIB (03:07 UTC) — the owner's 10 o'clock morning
+    # (night-consistent-1): this lane's own daily slot (night-verify-1
+    # renamed the family reference — the e2e lane's cadence retired
+    # with its schedule).
+    - cron: "7 3 * * *"
 
 permissions:
   contents: read

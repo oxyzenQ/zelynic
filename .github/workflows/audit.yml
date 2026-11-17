@@ -19,13 +19,14 @@ on:
   push:
   pull_request:
   schedule:
-    # Every Monday at 00:00 UTC (07:00 WIB) — the owner's morning,
-    # one clock for every scheduled workflow (NIGHT-improve-9).
+    # Every Monday at 10:07 WIB (03:07 UTC) — the owner's 10 o'clock
+    # morning, one clock for every scheduled workflow (NIGHT-improve-9;
+    # night-consistent-1).
     # NIGHT-improve-38: aligned to the weekly cadence maintenance.yml
     # and codeql.yml already carry — the advisory DB does not change
     # enough to justify a daily run, and a daily red in the run list
     # for an advisory the owner already triaged is noise, not signal.
-    - cron: "0 0 * * 1"
+    - cron: "7 3 * * 1"
   workflow_dispatch:
 
 permissions:
