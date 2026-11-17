@@ -376,7 +376,12 @@ fi
 # ── 3. Actionlint ──────────────────────────────────────────────────────────
 header "Actionlint"
 if command -v actionlint >/dev/null 2>&1; then
-	if actionlint .github/workflows/*.yml 2>&1; then
+	# NIGHT-runner-1: the runner-label allowlist rides the repo's
+	# actionlint.yaml — 1.7.x never auto-detects a repo-local config
+	# (only the user's own config dir), and the pinned 1.7.7 predates
+	# Ubuntu 26.04's GA, so the explicit flag keeps this seat and CI
+	# on the one contract (see actionlint.yaml's header).
+	if actionlint -config-file actionlint.yaml .github/workflows/*.yml 2>&1; then
 		info "actionlint: all workflow files pass"
 		PASS=$((PASS + 1))
 	else

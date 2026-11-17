@@ -1,0 +1,20 @@
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# NIGHT-runner-1: the self-hosted-runner label allowlist for
+# actionlint. The pinned actionlint (gate-keepers.yml, v1.7.7)
+# predates Ubuntu 26.04's GA (2026-09-17, actions/runner-images
+# #14747 and #14748), so its embedded label DB rejects labels the
+# hosted fleet actually serves — even the newest actionlint release
+# (v1.7.12, 2026-03-30) predates the GA and carries no 26.04 labels
+# (proved live in this seat with both binaries). This file is the
+# tool's own documented remedy for exactly that (the self-hosted
+# runner labels list, the shape the [runner-label] error points
+# at): ubuntu-26.04 and ubuntu-26.04-arm are real GitHub-hosted
+# labels, and the fleet's matrix-first probe and cutover rely on
+# them. Revisit when a future actionlint release ships the labels
+# in its DB — a duplicate of a known label stays harmless.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04
+    - ubuntu-26.04-arm
