@@ -999,6 +999,11 @@ jobs:
               echo '```'
               grep -E '^(FAIL: |Z9: |  - )' vm.log | head -40 || true
               echo '```'
+              # The failure bullets ride ::error:: under THIS step's own
+              # ten-annotation budget (the boot step's belongs to the
+              # census rows) - the failures land where the API reads
+              # them even when the battery's stdout stays in the guest.
+              grep -E '^  - ' vm.log | head -8 | sed 's/^/::error::/' || true
             fi
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
@@ -1129,6 +1134,11 @@ jobs:
               echo '```'
               grep -E '^(FAIL: |Z9: |  - )' vm.log | head -40 || true
               echo '```'
+              # The failure bullets ride ::error:: under THIS step's own
+              # ten-annotation budget (the boot step's belongs to the
+              # census rows) - the failures land where the API reads
+              # them even when the battery's stdout stays in the guest.
+              grep -E '^  - ' vm.log | head -8 | sed 's/^/::error::/' || true
             fi
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
