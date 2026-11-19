@@ -370,7 +370,7 @@ def bpftool_prog_id(pin_path: str) -> tuple:
     resemble. Tries the JSON form, falls back to the plain text the
     claims harness's tool snapshots parse. Returns (id, tool_output)."""
     bpftool = shutil.which("bpftool") or BPFTOOL_PATH
-    rc, out, err = run_cmd([bpftool, "-j", "prog", "show", pin_path], timeout=60)
+    rc, out, err = run_cmd([bpftool, "-j", "prog", "show", "pinned", pin_path], timeout=60)
     if rc == 0 and out.strip():
         try:
             rows = json.loads(out)
@@ -381,36 +381,37 @@ def bpftool_prog_id(pin_path: str) -> tuple:
                 return prog_id, out.strip()[:200]
         except ValueError:
             pass
-    rc, out, err = run_cmd([bpftool, "prog", "show", pin_path], timeout=60)
+    rc, out, err = run_cmd([bpftool, "prog", "show", "pinned", pin_path], timeout=60)
     if rc != 0:
         return None, f"rc={rc} out={out.strip()[:120]} err={err.strip()[:120]}"
-    m = re.search(r"([0-9]+):\s+\w+", out)
-    pid = None
-    if m:
-        pid = int(m.group(1))
-    else:
-        m2 = re.search(r"prog_id\s+(\d+)|id\s+(\d+)", out)
-        pid = int(m2.group(1) or m2.group(2)) if m2 else None
+    m = re.search(r"([0-9]+):\s+", out)
+    pid = int(m.group(1)) if m else None
     return pid, out.strip()[:200]
 
 
-def bpftool_cgroup_attach_table() -> list:
-    """The kernel's own attach table for the cgroup root, read by the
-    staged bpftool (`cgroup show` - the exact invocation the claims
-    battery proves on every survival leg). Returns
-    [(attach_type_text, prog_id), ...] from the plain text rows."""
+def bpftool_link_rows() -> list:
+    """The kernel's link table, read by the staged bpftool (`link show` -
+    the exact invocation the claims battery proves on every survival
+    leg, and the surface NIGHT-boost-12's hunt proved carries zelynic's
+    links: `cgroup show` walks only the LEGACY attach list, and the
+    schema-v6 attaches ride pinned BPF links it never lists). Returns
+    [(attach_word, prog_id), ...] for every row carrying both a prog id
+    and a recognizable attach word."""
     bpftool = shutil.which("bpftool") or BPFTOOL_PATH
-    rc, out, err = run_cmd([bpftool, "cgroup", "show", "/sys/fs/cgroup"], timeout=60)
+    rc, out, err = run_cmd([bpftool, "link", "show"], timeout=60)
     if rc != 0:
-        notice(f"bpftool cgroup show refused rc={rc}: {err.strip()[:160]}")
+        notice(f"bpftool link show refused rc={rc}: {err.strip()[:160]}")
         return []
     rows = []
     for line in out.splitlines():
-        # <path>  <attach_type>  prog_id <id> [prog_name <name>] — the
-        # parse rides the attach_type token and the prog_id number only.
-        m = re.match(r"\S+\s+(\S+)\s+prog_id\s+(\d+)", line.strip())
-        if m:
-            rows.append((m.group(1), int(m.group(2))))
+        m = re.search(r"prog_id\s+(\d+)|\bprog\s+(\d+)", line)
+        if not m:
+            continue
+        prog_id = int(m.group(1) or m.group(2))
+        low = line.lower()
+        word = next((w for w in ("ingress", "egress", "sock_ops") if w in low), None)
+        if word:
+            rows.append((word, prog_id))
     return rows
 
 
@@ -457,7 +458,7 @@ def census_programs() -> dict:
         pid, tool_out = bpftool_prog_id(pin_path)
         if pid is None:
             notice(f"CENSUS-PIN {prog} bpftool refused: {tool_out}")
-            census[prog] = None
+            census[prog] = "tool-refused"
             continue
         pinned_ids.add(pid)
         fd = prog_fd_by_id(pid)
@@ -475,8 +476,8 @@ def observer_pair(pinned_ids: set) -> dict:
     camera pins nothing, so its attach rows exist only while the
     monitor session runs. Returns name -> prog_id (or the miss, named)."""
     result = {}
-    table = bpftool_cgroup_attach_table()
-    notice(f"CGROUP-ATTACH-TABLE {table}")
+    table = bpftool_link_rows()
+    notice(f"LINK-TABLE {table}")
     for attach_text, prog_id in table:
         text = attach_text.lower()
         if prog_id in pinned_ids:
@@ -619,6 +620,13 @@ def main() -> int:
                 failures.append(
                     f"inventory: '{prog}' has no pinned file at "
                     f"{LIM_PIN_PROGS[prog]} — the limiter object did not load"
+                )
+                continue
+            if price == "tool-refused":
+                failures.append(
+                    f"inventory: '{prog}' pin exists but the staged bpftool "
+                    "could not read it - the identity read is part of the "
+                    "load-proof (see the census lines)"
                 )
                 continue
             measured = price
