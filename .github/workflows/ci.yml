@@ -640,3 +640,31 @@ jobs:
       - name: Supermassive v4 full battery (rootless CLI depth)
         run: python3 scripts/supermassive/supermassive-test-v4.py --binary target/debug/zelynic
 
+
+  # night-supply-2 (2026-11-19): the pre-merge dependency delta gate.
+  # The audit lane (audit.yml) scans the RESOLVED lockfiles after merge
+  # and on the Monday clock; this job reviews the DELTA a pull request
+  # proposes — every newly added crate is named before it can enter the
+  # estate, with its vulnerability and license findings attached. The
+  # 2026-08-20 arrayref incident class gets caught at review time, not
+  # after the merge. Pull-request-only by design: a delta needs a base,
+  # and pushes of the base carry nothing new to review.
+  dependency-review:
+    name: Dependency review (PR delta)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-26.04
+    # NIGHT-improve-13 (cosmostrix stability): an explicit ceiling — the
+    # job is one API diff call, it should never hang the estate.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          # GITHUB_TOKEN hardening: never persists into .git/config
+          # (night-dragon-maintenance-6, the estate-wide rule).
+          persist-credentials: false
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
+      - name: Review the dependency delta
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0, NIGHT-hunt-20 SHA pin
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}

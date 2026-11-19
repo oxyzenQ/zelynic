@@ -413,6 +413,43 @@ of any future dependency-incident response; the Monday clock
 (10:07 WIB, 03:07 UTC) re-scans the advisory DB against all four
 lockfiles standing.
 
+## night-supply-2: the re-resolution vector closes (2026-11-19)
+
+The night-supply-1 response banned the incident's nine crates and
+widened the advisory scan to every lockfile — name-level tripwires
+against the payload that shipped. night-supply-2 tightens the MECHANISM
+the incident rode, not just its names: a compromised republish only
+bites a graph that re-resolves against the index, so the estate stops
+re-resolving silently and reviews the delta before it merges. Three
+moves, verified against the cargo-deny schema before landing (the
+schema moved severity out of `[advisories]` — a `vulnerability` key
+now fails the deserializer, and the `unmaintained` / `unsound` keys
+take a scan scope, not a level):
+
+- `deny.toml` `[advisories]`: `yanked = "deny"` (the implicit default
+  was warn — every deleted payload version is a yanked version, and a
+  re-resolution that accepts yanked crates can pull the payload back),
+  `unmaintained = "all"` and `unsound = "all"` spelled out explicitly
+  so a cargo-deny default change can never silently loosen the policy.
+  Vulnerability advisories need no key: they always emit errors.
+- `deny.toml` `[bans]`: `wildcards = "allow"` became `"deny"`. A
+  wildcard version requirement forces re-resolution on every build
+  even with a committed lockfile — the exact window a malicious
+  republish lands inside. The root workspace carries none today
+  (verified across every manifest in the graph); from now on one
+  cannot enter without failing the gate.
+- `.github/workflows/ci.yml`: the `dependency-review` job, PR-only.
+  The audit lane scans the resolved lockfiles AFTER merge; this job
+  reviews the delta BEFORE it — every newly proposed crate named at
+  review time with its vulnerability and license findings. The action
+  is SHA-pinned per the NIGHT-hunt-20 estate rule.
+
+Together with night-supply-1 the chain is: name tripwires (the nine
+bans) + post-merge DB scans (all four lockfiles, weekly and per-push)
++ pre-merge delta review (every PR) + re-resolution defenses (yanked
+deny, wildcards deny). A repeat of the 2026-08-20 incident class now
+has to cross four independent gates, not one.
+
 ## Policy for adding dependencies
 
 Default answer is no. When a feature genuinely needs a new crate:
