@@ -196,7 +196,10 @@ jobs:
           if cmp -s alpha/zelynic beta/zelynic; then
             echo "::notice::D4 VERDICT: byte-identical. Two independent hosts, one commit, one hash: ${SHA_A}"
           else
-            echo "::error::D4 VERDICT: the two host builds DIFFER — the published hash is not rebuildable. sha256 alpha=${SHA_A} beta=${SHA_B}. The drift is in one of the pinned inputs (toolchain, bpf-linker, registry state, runner image); bisect with cargo build -v on both legs."
+            echo "::error::D4 VERDICT: the two host builds DIFFER — the published hash is not rebuildable."
+            echo "::error::sha256 alpha=${SHA_A} beta=${SHA_B}. The drift is in one of the pinned inputs"
+            echo "::error::(toolchain, bpf-linker, registry state, runner image);"
+            echo "::error::bisect with cargo build -v on both legs."
             exit 1
           fi
 
@@ -211,7 +214,11 @@ jobs:
           alpha/zelynic -V | grep -F "Build: pro-linux-amd64-v3-musl" \
             || { echo "::error::Expected the release build label in -V"; exit 1; }
           alpha/zelynic -V | grep -F "Build-time: ${EXPECTED_STAMP}" \
-            || { echo "::error::Build-time stamp does not match the SOURCE_DATE_EPOCH pin (expected ${EXPECTED_STAMP}) — build.rs fell back to the wall clock, which poisons reproducibility"; exit 1; }
+            || {
+              echo "::error::Build-time stamp does not match the SOURCE_DATE_EPOCH pin (expected ${EXPECTED_STAMP})"
+              echo "::error::build.rs fell back to the wall clock, which poisons reproducibility"
+              exit 1
+            }
           LDD_OUT="$(ldd alpha/zelynic 2>&1 || true)"
           grep -Eq "not a dynamic executable|statically linked" <<<"${LDD_OUT}" \
             || { echo "::error::rebuilt binary is not static: ${LDD_OUT}"; exit 1; }
