@@ -87,7 +87,6 @@ kernel to price them); --self-test needs none of it.
 
 import argparse
 import ctypes
-import errno
 import fcntl
 import json
 import os
@@ -148,20 +147,8 @@ BPFTOOL_PATH = "/usr/bin/bpftool"
 # whose layout the 5.15 floor shares for these early words. bpf_attach_type:
 # BPF_CGROUP_INET_INGRESS = 0, BPF_CGROUP_INET_EGRESS = 1.
 BPF_SYSCALL_NR = {"x86_64": 321, "aarch64": 280}
-BPF_PROG_GET_NEXT_ID = 12
 BPF_PROG_GET_FD_BY_ID = 14
-BPF_OBJ_GET_INFO_BY_FD = 16
-BPF_LINK_GET_FD_BY_ID = 31
-BPF_LINK_GET_NEXT_ID = 32
 ATTR_SIZE = 128
-INFO_BUF = 256
-PROG_ID_OFFSET = 4
-LINK_TYPE_OFFSET = 0
-LINK_PROG_ID_OFFSET = 8
-LINK_CGROUP_ATTACH_TYPE_OFFSET = 24
-LINK_TYPE_CGROUP = 3
-ATTACH_INET_INGRESS = 0
-ATTACH_INET_EGRESS = 1
 
 
 def fail(msg: str) -> None:
@@ -353,39 +340,10 @@ def _bpf(cmd: int, attr: bytes) -> tuple:
     return rc, buf.raw
 
 
-def walk_prog_ids() -> list:
-    """BPF_PROG_GET_NEXT_ID from zero until the kernel says ENOENT."""
-    ids = []
-    start = 0
-    while True:
-        try:
-            _, raw = _bpf(BPF_PROG_GET_NEXT_ID, struct.pack("<III", start, 0, 0))
-        except OSError as e:
-            if e.errno == errno.ENOENT:
-                return ids
-            raise
-        next_id = struct.unpack_from("<I", raw, 4)[0]
-        ids.append(next_id)
-        start = next_id + 1
-
-
 def prog_fd_by_id(prog_id: int) -> int:
     """BPF_PROG_GET_FD_BY_ID — the fd itself is the syscall's return."""
     rc, _ = _bpf(BPF_PROG_GET_FD_BY_ID, struct.pack("<I", prog_id))
     return int(rc)
-
-
-def prog_id_from_fd(fd: int) -> int:
-    """The kernel-side program id, from bpf_prog_info.id (the fixed
-    early UAPI offset) — the identity cross-check between a pin file
-    and the kernel's own id space."""
-    info = ctypes.create_string_buffer(INFO_BUF)
-    attr = struct.pack("<IIQ", fd, INFO_BUF, ctypes.addressof(info))
-    _, raw = _bpf(BPF_OBJ_GET_INFO_BY_FD, attr)
-    filled = struct.unpack_from("<I", raw, 4)[0]
-    if filled < PROG_ID_OFFSET + 4:
-        return 0
-    return struct.unpack_from("<I", info.raw, PROG_ID_OFFSET)[0]
 
 
 def fdinfo_verified_insns(fd: int):
@@ -405,55 +363,55 @@ def fdinfo_verified_insns(fd: int):
 
 def bpftool_prog_id(pin_path: str) -> tuple:
     """The pinned program's kernel id, read by the staged bpftool through
-    the one OBJ_GET path every bpf toolchain in the wild exercises
-    (`prog show file <pin>`). The direct BPF_OBJ_GET syscall refused with
-    EBADF on the live floor run (the v2 lesson - the seat is inside the
-    kernel's own OBJ_GET path, not worth guessing at from userspace when
-    the staged tool's read is the same kernel answer a human would
-    cross-check with). Returns (id, tool_output)."""
+    the documented positional form (`bpftool prog show <pin>`). The v3
+    lesson: the keyword-spelled `prog show file <pin>` refused rc=255 on
+    the staged tool while the positional shape is the form the tool's
+    own manpage documents and the survival battery's invocations
+    resemble. Tries the JSON form, falls back to the plain text the
+    claims harness's tool snapshots parse. Returns (id, tool_output)."""
     bpftool = shutil.which("bpftool") or BPFTOOL_PATH
-    rc, out, err = run_cmd([bpftool, "-j", "prog", "show", "file", pin_path], timeout=60)
-    if rc != 0:
-        return None, f"rc={rc} err={err.strip()[:200]}"
-    rows = json.loads(out)
-    if isinstance(rows, dict):
-        rows = [rows]
-    prog_id = rows[0].get("id") if rows else None
-    return prog_id, out.strip()[:200]
-
-
-def walk_links() -> list:
-    """BPF_LINK_GET_NEXT_ID until ENOENT; each link's fd stays open for
-    the caller (the identity walk reads link_info through it)."""
-    links = []
-    start = 0
-    while True:
+    rc, out, err = run_cmd([bpftool, "-j", "prog", "show", pin_path], timeout=60)
+    if rc == 0 and out.strip():
         try:
-            _, raw = _bpf(BPF_LINK_GET_NEXT_ID, struct.pack("<III", start, 0, 0))
-        except OSError as e:
-            if e.errno == errno.ENOENT:
-                return links
-            raise
-        next_id = struct.unpack_from("<I", raw, 4)[0]
-        links.append(next_id)
-        start = next_id + 1
+            rows = json.loads(out)
+            if isinstance(rows, dict):
+                rows = [rows]
+            prog_id = rows[0].get("id") if rows else None
+            if prog_id is not None:
+                return prog_id, out.strip()[:200]
+        except ValueError:
+            pass
+    rc, out, err = run_cmd([bpftool, "prog", "show", pin_path], timeout=60)
+    if rc != 0:
+        return None, f"rc={rc} out={out.strip()[:120]} err={err.strip()[:120]}"
+    m = re.search(r"([0-9]+):\s+\w+", out)
+    pid = None
+    if m:
+        pid = int(m.group(1))
+    else:
+        m2 = re.search(r"prog_id\s+(\d+)|id\s+(\d+)", out)
+        pid = int(m2.group(1) or m2.group(2)) if m2 else None
+    return pid, out.strip()[:200]
 
 
-def link_info(link_id: int) -> tuple:
-    """(prog_id, attach_type) from bpf_link_info — the kernel's own
-    record of WHAT a link attaches WHERE (early fixed offsets)."""
-    fd = int(_bpf(BPF_LINK_GET_FD_BY_ID, struct.pack("<I", link_id))[0])
-    info = ctypes.create_string_buffer(INFO_BUF)
-    attr = struct.pack("<IIQ", fd, INFO_BUF, ctypes.addressof(info))
-    try:
-        _bpf(BPF_OBJ_GET_INFO_BY_FD, attr)
-    finally:
-        os.close(fd)
-    raw_info = info.raw
-    prog_id = struct.unpack_from("<I", raw_info, LINK_PROG_ID_OFFSET)[0]
-    attach_type = struct.unpack_from("<I", raw_info, LINK_CGROUP_ATTACH_TYPE_OFFSET)[0]
-    link_type = struct.unpack_from("<I", raw_info, LINK_TYPE_OFFSET)[0]
-    return link_type, prog_id, attach_type
+def bpftool_cgroup_attach_table() -> list:
+    """The kernel's own attach table for the cgroup root, read by the
+    staged bpftool (`cgroup show` - the exact invocation the claims
+    battery proves on every survival leg). Returns
+    [(attach_type_text, prog_id), ...] from the plain text rows."""
+    bpftool = shutil.which("bpftool") or BPFTOOL_PATH
+    rc, out, err = run_cmd([bpftool, "cgroup", "show", "/sys/fs/cgroup"], timeout=60)
+    if rc != 0:
+        notice(f"bpftool cgroup show refused rc={rc}: {err.strip()[:160]}")
+        return []
+    rows = []
+    for line in out.splitlines():
+        # <path>  <attach_type>  prog_id <id> [prog_name <name>] — the
+        # parse rides the attach_type token and the prog_id number only.
+        m = re.match(r"\S+\s+(\S+)\s+prog_id\s+(\d+)", line.strip())
+        if m:
+            rows.append((m.group(1), int(m.group(2))))
+    return rows
 
 
 def spawn_monitor_on_pty(binary: str, cgid: int) -> tuple:
@@ -511,28 +469,24 @@ def census_programs() -> dict:
 
 
 def observer_pair(pinned_ids: set) -> dict:
-    """The two live observer programs, identified by the kernel's own
-    link metadata: the live cgroup links whose attach types are
-    INET_INGRESS / INET_EGRESS and whose prog ids are NOT the pinned
-    limiter set. Returns name -> prog_id (or the miss, named)."""
+    """The two live observer programs, identified from the kernel's own
+    attach table: the cgroup-root ingress / egress rows whose prog ids
+    are NOT the pinned limiter set are the observer's pair - the lazy
+    camera pins nothing, so its attach rows exist only while the
+    monitor session runs. Returns name -> prog_id (or the miss, named)."""
     result = {}
-    all_ids = walk_prog_ids()
-    live_ids = [pid for pid in all_ids if pid not in pinned_ids]
-    notice(f"CENSUS-WALK {len(all_ids)} kernel prog id(s); live (unpinned): {live_ids}")
-    for link_id in walk_links():
-        try:
-            link_type, prog_id, attach_type = link_info(link_id)
-        except OSError as e:
-            notice(f"CENSUS-LINK id={link_id} unreadable ({e})")
+    table = bpftool_cgroup_attach_table()
+    notice(f"CGROUP-ATTACH-TABLE {table}")
+    for attach_text, prog_id in table:
+        text = attach_text.lower()
+        if prog_id in pinned_ids:
             continue
-        if link_type != LINK_TYPE_CGROUP or prog_id not in live_ids:
-            continue
-        if attach_type == ATTACH_INET_INGRESS and "observe_ingress" not in result:
+        if "ingress" in text and "observe_ingress" not in result:
             result["observe_ingress"] = prog_id
-            notice(f"CENSUS-LINK observe_ingress prog_id={prog_id} (live ingress link)")
-        elif attach_type == ATTACH_INET_EGRESS and "observe_egress" not in result:
+            notice(f"CENSUS-LINK observe_ingress prog_id={prog_id} (live ingress attach)")
+        elif "egress" in text and "observe_egress" not in result:
             result["observe_egress"] = prog_id
-            notice(f"CENSUS-LINK observe_egress prog_id={prog_id} (live egress link)")
+            notice(f"CENSUS-LINK observe_egress prog_id={prog_id} (live egress attach)")
     return result
 
 
