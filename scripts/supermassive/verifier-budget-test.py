@@ -731,5 +731,8 @@ if __name__ == "__main__":
 
         tb = traceback.format_exc()
         print(tb)
-        print(f"::error::the census crashed: {tb.strip().splitlines()[-1][:400]}")
+        # One annotation per traceback line: the cap is generous, and
+        # the full walk to the crash lands where the API can read it.
+        for line in tb.strip().splitlines()[-10:]:
+            print(f"::error::census crash | {line[:240]}")
         sys.exit(2)
