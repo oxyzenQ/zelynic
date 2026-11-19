@@ -277,7 +277,7 @@ pub(crate) fn print_help() {
     // binary they hold was built by the owner's pipeline.
     synopsis("zelynic sig");
     println_safe!(
-        "    Render the four-depth provenance signature (runtime-identity, embedded-marker, anchor-integrity, binary-self-hash) — exits 1 on any failed depth."
+        "    Render the five-depth provenance signature (runtime-identity, embedded-marker, anchor-integrity, binary-self-hash, object-integrity) — exits 1 on any failed depth."
     );
     println_safe!();
     // NIGHT-improve-25: the two-letter aliases — every enforcement

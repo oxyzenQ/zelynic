@@ -322,6 +322,16 @@ vectors do NOT cover (live kernel behavior) is attested by the
 three proofs (artifact, behavior, kernel) compose into one
 attestation.
 
+The binary also seals itself: `zelynic sig` renders the five-depth
+ladder — D0-D3 over the masked provenance layers and the running
+image (night-signature-advanced-1), D4 object-integrity
+(night-depth-hardening-Z2) re-hashing the embedded eBPF kernel
+objects against the digests build.rs stamped into the binary. The
+camera the artifact plants is the camera its build pinned — an
+object patched inside the artifact fails the depth by name and the
+verdict goes TAMPERED (exit 1). A one-byte-flip tamper test runs
+rootless in the CI test lane on every push.
+
 ## 6. Reproducible builds (D4)
 
 Sections 1-5 attest the ARTIFACT: this binary comes from the

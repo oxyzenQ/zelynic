@@ -1,11 +1,11 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: AGPL-3.0-only
 
-//! The `sig` command surface — the four-depth signature report
-//! (night-signature-advanced-1).
+//! The `sig` command surface — the five-depth signature report
+//! (night-signature-advanced-1; D4 added by night-depth-hardening-Z2).
 //!
 //! The owner runs sibling tools across the fleet (zejtron and
-//! cosmostrix print the same four-depth shape), so `zelynic sig`
+//! cosmostrix print the same depth-ladder shape), so `zelynic sig`
 //! renders the same verdict ladder over zelynic's own provenance
 //! layers:
 //!
@@ -16,20 +16,34 @@
 //!   D2  anchor-integrity — the embedded blake3 anchor recomputes from
 //!       the materialized payload (the cryptographic seal).
 //!   D3  binary-self-hash — blake3 over the running executable image.
+//!   D4  object-integrity — blake3 over each embedded eBPF object,
+//!       compared against the digest build.rs stamped into the binary
+//!       at build time (night-depth-hardening-Z2). The binary proves
+//!       the kernel programs it carries are the ones its build pinned
+//!       (the source-built bytes or the ebpf-prebuilt manifest's pins,
+//!       per lane) — an object patched inside the artifact fails by
+//!       name and the verdict goes TAMPERED. This is the camera's own
+//!       seal: D0-D2 prove the ownership claim, D3 the whole image,
+//!       D4 the ring-0 payload specifically — the most sensitive asset
+//!       in the binary, running in kernel space.
 //!
-//! Numbering note (the cosmostrix contract, kept verbatim): these
-//! D0-D3 are the four VERIFICATION depths (the cross-tool parity
-//! labels). The `-V` Depth-matrix line's d0:-d3: tokens are the four
-//! STORAGE layers (masked manifests, masked authors, FNV fingerprints,
-//! blake3 anchor) — a different axis. The two numbering systems are
-//! documented here so a reader never has to guess which axis a `D2`
-//! refers to.
+//! Numbering note (the cosmostrix contract, kept verbatim): the
+//! D0-D3 depth rows are the VERIFICATION depths the sibling tools
+//! share; D4 is zelynic's own fifth row (the eBPF estate has no
+//! sibling counterpart to verify). The `-V` Depth-matrix line's
+//! d0:-d3: tokens are the four STORAGE layers (masked manifests,
+//! masked authors, FNV fingerprints, blake3 anchor) — a different
+//! axis, and the object-digest stamps ride no -V token: they are
+//! build-time seals reported through this ladder. The two numbering
+//! systems are documented here so a reader never has to guess which
+//! axis a `D2` refers to.
 //!
 //! The first three depths are the `-V` Depth-matrix line rendered per
 //! depth; they reuse [`provenance_view`]'s single pass (the invariant
 //! documented in `src/info/signature.rs` — the report shows exactly
-//! the bytes the integrity folds verify). D3 is exclusive to this
-//! command: it reads the whole image and must stay off the `-V` path.
+//! the bytes the integrity folds verify). D3 and D4 are exclusive to
+//! this command: D3 reads the whole image and D4 hashes the embedded
+//! kernel objects, and neither belongs on the `-V` path.
 //!
 //! # Honest limits of D3
 //!
@@ -108,7 +122,86 @@ fn binary_self_hash() -> Result<String, String> {
     Ok(hex)
 }
 
-/// Run the four-depth ladder and render the full report block.
+/// night-depth-hardening-Z2: one embedded object's identity check —
+/// blake3 over the exact bytes the binary embeds, against the digest
+/// build.rs stamped at build time. Pure, so the tamper test can drive
+/// it with a flipped byte and the D4 row can render its verdict. `Ok`
+/// carries the digest; `Err` names the object AND both hashes — a
+/// tampered artifact answers "which object and what drift", never a
+/// bare false. Feature-gated: the mechanism exists only where the
+/// embedded objects do (the dormant build has no camera to audit).
+#[cfg(feature = "ebpf")]
+#[must_use]
+fn object_matches_digest(name: &str, bytes: &[u8], pinned: &str) -> Result<String, String> {
+    let hex = blake3::hash(bytes).to_hex().to_string();
+    if hex == pinned {
+        Ok(hex)
+    } else {
+        Err(format!(
+            "object {name} hashes to b3:{hex} but the build stamped b3:{pinned} — the \
+             embedded kernel program is not the one the build pinned"
+        ))
+    }
+}
+
+/// D4 object-integrity (night-depth-hardening-Z2): verify every
+/// embedded eBPF object against its build-time digest stamp. A
+/// full-life build checks both objects; the dormant lane carries no
+/// objects and says so instead of passing silently. The stamps ride
+/// `option_env!` with a fail-closed missing case (the estate's
+/// build-stamp convention — `src/info/build.rs`): a build whose
+/// script failed to stamp produces a binary whose D4 depth FAILS with
+/// the reason named — an unsealed camera is an unverified camera,
+/// never a silent pass.
+#[cfg(feature = "ebpf")]
+fn object_integrity() -> (bool, String) {
+    let checks: [(&str, &[u8], Option<&str>); 2] = [
+        (
+            "zelynic-observer",
+            &crate::ebpf::loader::OBSERVER_ELF[..],
+            option_env!("ZELYNIC_EBPF_OBJ_DIGEST_OBSERVER"),
+        ),
+        (
+            "zelynic-limiter",
+            &crate::ebpf::limiter::types::LIMITER_ELF[..],
+            option_env!("ZELYNIC_EBPF_OBJ_DIGEST_LIMITER"),
+        ),
+    ];
+    let mut all_ok = true;
+    let mut parts = Vec::with_capacity(checks.len());
+    for (name, bytes, pinned) in checks {
+        match pinned {
+            Some(pinned) => match object_matches_digest(name, bytes, pinned) {
+                Ok(hex) => parts.push(format!("{name} b3:{hex}")),
+                Err(problem) => {
+                    all_ok = false;
+                    parts.push(problem);
+                }
+            },
+            None => {
+                all_ok = false;
+                parts.push(format!(
+                    "{name}: no build-time digest stamp — fail-closed, the camera \
+                     carries no seal to verify"
+                ));
+            }
+        }
+    }
+    (all_ok, parts.join("; "))
+}
+
+/// The dormant lane's honest D4: no embedded objects exist, so there
+/// is nothing to verify and nothing to hide — the row passes with the
+/// reason stated, never with a fake seal.
+#[cfg(not(feature = "ebpf"))]
+fn object_integrity() -> (bool, String) {
+    (
+        true,
+        "dormant lane — no embedded eBPF objects to seal".to_string(),
+    )
+}
+
+/// Run the five-depth ladder and render the full report block.
 ///
 /// The banner is the one colored line — brand purple, bold, the
 /// doctor/update banner tier (the owner's purple mark: the signature
@@ -141,6 +234,12 @@ pub(crate) fn sig_report() -> (String, SigVerdict) {
     // D3: the running image's own blake3 fingerprint.
     let self_hash = binary_self_hash();
 
+    // D4: the embedded kernel programs' own identities against the
+    // build's digest stamps (night-depth-hardening-Z2). The stamps are
+    // compile-time env; the bytes are the embedded objects — the
+    // runtime re-hash is the binary auditing its own ring-0 payload.
+    let (objects_ok, objects_detail) = object_integrity();
+
     let rows = [
         DepthRow {
             name: "runtime-identity",
@@ -164,6 +263,11 @@ pub(crate) fn sig_report() -> (String, SigVerdict) {
                 Ok(hex) => format!("b3:{hex}"),
                 Err(e) => format!("unavailable: {e}"),
             },
+        },
+        DepthRow {
+            name: "object-integrity",
+            passed: objects_ok,
+            detail: objects_detail,
         },
     ];
 
@@ -231,11 +335,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn pristine_build_reports_authentic_four_of_four() {
+    fn pristine_build_reports_authentic_five_of_five() {
         let (text, verdict) = sig_report();
         assert_eq!(verdict, SigVerdict::Authentic);
         assert!(
-            text.contains("SIGNATURE: AUTHENTIC (4/4 depths verified)"),
+            text.contains("SIGNATURE: AUTHENTIC (5/5 depths verified)"),
             "{text}"
         );
         for row in [
@@ -243,9 +347,59 @@ mod tests {
             "D1 embedded-marker",
             "D2 anchor-integrity",
             "D3 binary-self-hash",
+            "D4 object-integrity",
         ] {
             assert!(text.contains(row), "missing depth row {row}:\n{text}");
         }
+    }
+
+    /// night-depth-hardening-Z2: the D4 row must carry the digest
+    /// verdicts by object name — a pristine build shows both objects
+    /// sealed with their build-stamped digests.
+    #[cfg(feature = "ebpf")]
+    #[test]
+    fn d4_row_names_both_objects_and_their_digests() {
+        let (text, _) = sig_report();
+        assert!(
+            text.contains("D4 object-integrity"),
+            "D4 row present:\n{text}"
+        );
+        assert!(
+            text.contains("zelynic-observer b3:") && text.contains("zelynic-limiter b3:"),
+            "both objects named with their digests:\n{text}"
+        );
+    }
+
+    /// night-depth-hardening-Z2 tamper test — the CI-visible proof the
+    /// task named: the exact bytes the binary embeds, ONE byte flipped,
+    /// must FAIL against the build-stamped digest, naming the object
+    /// and both hashes. The pristine comparison in the same test holds
+    /// the honest twin: the probe flips in memory, the artifact does
+    /// not. Runs on every push in the rootless test lane; the same
+    /// mechanism fails the D4 row (verdict TAMPERED, exit 1) when a
+    /// real artifact carries a patched object.
+    #[cfg(feature = "ebpf")]
+    #[test]
+    fn one_flipped_object_byte_fails_by_name() {
+        let pristine = crate::ebpf::loader::OBSERVER_ELF;
+        let pinned = option_env!("ZELYNIC_EBPF_OBJ_DIGEST_OBSERVER")
+            .expect("test builds stamp the object digests via build.rs");
+
+        // The artifact's own bytes pass against their stamp.
+        assert!(
+            object_matches_digest("zelynic-observer", pristine, pinned).is_ok(),
+            "pristine bytes must verify"
+        );
+
+        // One flipped byte must fail BY NAME.
+        let mut bytes = pristine.to_vec();
+        let before = bytes[0];
+        bytes[0] ^= 0x01;
+        assert_ne!(bytes[0], before, "the flip must change the byte");
+        let err = object_matches_digest("zelynic-observer", &bytes, pinned).unwrap_err();
+        assert!(err.contains("zelynic-observer"), "names the object: {err}");
+        assert!(err.contains("b3:"), "names both hashes: {err}");
+        assert!(err.contains("stamped"), "names the drift shape: {err}");
     }
 
     #[test]

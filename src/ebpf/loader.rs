@@ -38,7 +38,9 @@ use crate::ebpf::trace;
 /// address alignment — the `object` crate's ELF64 parser requires
 /// it, and the plain align-1 static landed unaligned on the owner
 /// host (see src/ebpf/embedded.rs for the hunt record).
-static OBSERVER_ELF: &[u8] = &crate::ebpf::embedded::AlignedElf::new(*include_bytes!(concat!(
+/// `pub(crate)` since night-depth-hardening-Z2: the sig ladder's
+/// object-integrity depth hashes these exact bytes at runtime.
+pub(crate) static OBSERVER_ELF: &[u8] = &crate::ebpf::embedded::AlignedElf::new(*include_bytes!(concat!(
     env!("OUT_DIR"),
     "/zelynic-observer.o"
 )))
