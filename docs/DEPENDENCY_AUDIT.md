@@ -445,8 +445,8 @@ take a scan scope, not a level):
   is SHA-pinned per the NIGHT-hunt-20 estate rule.
 
 Together with night-supply-1 the chain is: name tripwires (the nine
-bans) + post-merge DB scans (all four lockfiles, weekly and per-push)
-+ pre-merge delta review (every PR) + re-resolution defenses (yanked
+bans), post-merge DB scans (all four lockfiles, weekly and per-push),
+pre-merge delta review (every PR), and re-resolution defenses (yanked
 deny, wildcards deny). A repeat of the 2026-08-20 incident class now
 has to cross four independent gates, not one.
 

@@ -1199,7 +1199,7 @@ v80.0.0
   of the tree died with Permission denied on each .pyc (the
   2026-10-28 field report). All eleven entry points now set
   sys.dont_write_bytecode = True immediately before their first
-  local import, so no __pycache__ is written at any privilege level
+  local import, so no `__pycache__` is written at any privilege level
   (proven A/B: without the guard one .pyc lands, with it zero); the
   cost is a per-run recompile of milliseconds. docs/MAINTENANCE.md
   gained the Workspace hygiene section (the full incident record for
