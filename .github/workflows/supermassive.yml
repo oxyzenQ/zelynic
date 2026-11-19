@@ -949,7 +949,7 @@ jobs:
           set -euo pipefail
           cd /tmp/kfloor
           echo "── supermassive verdicts (${{ matrix.title }}) ──"
-          grep -E '^MASS-(RESULT|VERDICT)' vm.log || true
+          grep -E '^MASS-(RESULT|VERDICT|CENSUS)' vm.log || true
           grep -q '^MASS-VERDICT: PASS' vm.log
           echo "OK: the kernel span proven on the ${{ matrix.title }} envelope"
 
@@ -971,13 +971,21 @@ jobs:
             echo "### battery verdicts (the init's sentinel rows)"
             echo
             echo '```'
-            grep -E '^MASS-(RESULT|VERDICT)' vm.log || true
+            grep -E '^MASS-(RESULT|VERDICT|CENSUS)' vm.log || true
             echo '```'
             echo
             echo "### FAIL/SKIP inventory (the busy-hour residual's home)"
             echo
             echo '```'
             grep -E '^  (X  |-- )' vm.log | head -40 || true
+            if grep -q '^MASS-VERDICT: FAIL' vm.log; then
+              echo
+              echo "### the failed battery's own failure lines"
+              echo
+              echo '```'
+              grep -E '^(FAIL: |Z9: |  - )' vm.log | head -40 || true
+              echo '```'
+            fi
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -1076,7 +1084,7 @@ jobs:
           set -euo pipefail
           cd /tmp/kfloor
           echo "── supermassive verdicts (${{ matrix.title }}) ──"
-          grep -E '^MASS-(RESULT|VERDICT)' vm.log || true
+          grep -E '^MASS-(RESULT|VERDICT|CENSUS)' vm.log || true
           grep -q '^MASS-VERDICT: PASS' vm.log
           echo "OK: the desktop matrix proven on the ${{ matrix.title }} envelope"
 
@@ -1093,12 +1101,20 @@ jobs:
             echo "### battery verdicts (the init's sentinel rows)"
             echo
             echo '```'
-            grep -E '^MASS-(RESULT|VERDICT)' vm.log || true
+            grep -E '^MASS-(RESULT|VERDICT|CENSUS)' vm.log || true
             echo '```'
             echo
             echo "### FAIL/SKIP inventory (the busy-hour residual's home)"
             echo
             echo '```'
             grep -E '^  (X  |-- )' vm.log | head -40 || true
+            if grep -q '^MASS-VERDICT: FAIL' vm.log; then
+              echo
+              echo "### the failed battery's own failure lines"
+              echo
+              echo '```'
+              grep -E '^(FAIL: |Z9: |  - )' vm.log | head -40 || true
+              echo '```'
+            fi
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
