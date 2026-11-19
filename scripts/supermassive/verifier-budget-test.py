@@ -169,7 +169,9 @@ PROG_TYPE_OFFSET = 0
 PROG_ID_OFFSET = 4
 PROG_XLATED_LEN_OFFSET = 20
 PROG_VERIFIED_INSNS_OFFSET = 216
-PROG_TYPE_CGROUP_SKB = 7
+PROG_TYPE_CGROUP_SKB = 8
+PROG_TYPE_SOCK_OPS = 13
+PROG_TYPES_ESTATE = (PROG_TYPE_CGROUP_SKB, PROG_TYPE_SOCK_OPS)
 
 
 def fail(msg: str) -> None:
@@ -380,7 +382,7 @@ def _read_info_once(fd_cmd: int, info_cmd: int, prog_id: int) -> tuple:
         return fd, None, f"kernel filled {filled} bytes - the field is absent here"
     prog_type = struct.unpack_from("<I", info.raw, PROG_TYPE_OFFSET)[0]
     seen_id = struct.unpack_from("<I", info.raw, PROG_ID_OFFSET)[0]
-    if prog_type != PROG_TYPE_CGROUP_SKB or seen_id != prog_id:
+    if prog_type not in PROG_TYPES_ESTATE or seen_id != prog_id:
         os.close(fd)
         return (
             fd,
