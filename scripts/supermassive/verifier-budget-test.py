@@ -411,13 +411,13 @@ def prog_price(prog_id: int, priced_envelope: bool) -> tuple:
         try:
             fd, price, diag = _read_info_once(fd_cmd, info_cmd, prog_id)
         except OSError as e:
-            notice(f"CALIBRATION pair ({fd_cmd},{info_cmd}) refused on prog {prog_id}: {e}")
+            print(f"Z9: CALIBRATION pair ({fd_cmd},{info_cmd}) refused on prog {prog_id}: {e}")
             continue
         absent = "the field is absent" in diag
         if price is not None or (absent and not priced_envelope):
-            notice(f"CALIBRATION pair ({fd_cmd},{info_cmd}) honored on prog {prog_id}: {diag}")
+            print(f"Z9: CALIBRATION pair ({fd_cmd},{info_cmd}) honored on prog {prog_id}: {diag}")
             return price, diag, (fd_cmd, info_cmd)
-        notice(f"CALIBRATION pair ({fd_cmd},{info_cmd}) gate-refused on prog {prog_id}: {diag}")
+        print(f"Z9: CALIBRATION pair ({fd_cmd},{info_cmd}) gate-refused on prog {prog_id}: {diag}")
     return None, "every candidate cmd pair failed the identity gates", None
 
 
