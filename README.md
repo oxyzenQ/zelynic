@@ -562,14 +562,52 @@ slightly easier to maintain.
 - **Linux-only at runtime** — the `ebpf` feature is a no-op
   elsewhere; BSD/macOS and Windows are out of scope, ever
 
-### What zelynic will NEVER be
+### What zelynic will NEVER be — the never-be charter
 
-- No Bloat TUI (minimal TUI only for focus monitoring)
-- No systemd service dependency
-- No `config.toml` (CLI options only)
-- No daemon mode
-- No REST API
-- No non-Linux support
+zelynic's boundary is part of the product. Every row below is a
+permanent refusal, not a paused roadmap item — a contribution that
+crosses one is rejected on sight, however good its implementation.
+The frozen CLI surface and maintenance mode (above) are the same
+contract wearing two other names. The fence protects the two things
+the tool cannot trade away: a root holder's trust, and the honest
+smallness that keeps the whole source auditable in one sitting.
+
+**Never become** — identity fences, what the tool can grow into:
+
+| Refusal | The fence's reason |
+|---------|--------------------|
+| No daemon, no background service, no always-running process | Enforcement lives in the kernel; a userspace daemon is a new failure domain, not a feature. |
+| No sound, no audio feedback, no notification output | A terminal tool speaks once, in text; a rate limiter that beeps is theater. |
+| No game, no gamification (points, streaks, badges, leaderboards) | The ledger reports bytes, not dopamine; a scoreboard rewards watching, not limiting. |
+| No bloat TUI (the minimal focus monitor is the ceiling) | Screens are for reading evidence, not for decoration. |
+| No GUI, no tray app, no desktop integration | One surface, one binary, one terminal. |
+| No REST API, no network listener, no IPC server | A tool that listens is a tool that can be attacked; zelynic talks to its own terminal and to the kernel. |
+| No cloud account, no telemetry, no analytics, no phone-home | The update check runs only when the user asks (`--check-update`) and answers nothing back. |
+| No AI/ML auto-tuning of the datapath | Kernel policy stays deterministic, proven, and explainable; a model in the hot path is unverifiable. |
+| No `config.toml`, no config language, no plugin or scripting engine | CLI options are the whole surface; a plugin engine is a supply chain of its own. |
+| No systemd (or any init/service manager) dependency | The kernel keeps enforcement alive; init systems are optional. |
+
+**Never expand** — scope fences, what it refuses to also be:
+
+| Refusal | The fence's reason |
+|---------|--------------------|
+| No firewall, no proxy, no per-domain or content filter | Rate and fairness are the job; a domain blocklist is another product. |
+| No payload or content inspection — packet headers only, read in-kernel, for attribution (who, where, how much) | Content stays unread; the tool counts and shapes bytes, never reads them. |
+| No non-Linux support, ever | The cgroup + eBPF pairing IS the product; an abstraction layer would betray it. |
+| No app store, no self-updater, no package-manager ambitions | Distribution belongs to the release channel and the user's package manager. |
+| No new feature families while in maintenance mode | Bug fixes, kernel compatibility, and performance are the only road (above). |
+
+**Never ask** — trust fences, what it demands or leaks:
+
+| Refusal | The fence's reason |
+|---------|--------------------|
+| No root beyond the documented enforcement surface | The privilege matrix is audited ([docs/SAFETY_ANALYSIS.md](docs/SAFETY_ANALYSIS.md)); `--check-update` refuses sudo outright. |
+| No silent state — every refusal, error, and counters row is visible in text | A quiet failure is an unverified failure; the eBPF lineage rejects, never half-applies. |
+
+When a row blocks a legitimate need, the honest answer is another
+tool class (the vs-traditional-tools table above names the
+neighbors), not a fence crossing. [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md)
+explains the reasoning that produced each fence.
 
 ### On theft and the value that outlasts it
 
