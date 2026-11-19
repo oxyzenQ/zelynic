@@ -591,6 +591,10 @@ def main() -> int:
         print(f"verifier budget: {len(failures)} failure(s)")
         for f_ in failures:
             print(f"  - {f_}")
+            # The verdict-loop failures carry the annotation channel too:
+            # the bullets are the only record of WHAT failed when the
+            # battery's own stdout stays inside the guest console.
+            print(f"::error::{f_}")
         return 1
     print("verifier budget: every estate program priced and within its ledger")
     return 0
