@@ -905,6 +905,95 @@ forbids. Verdict: SKIP unless field evidence arrives. The trigger
 is recorded in the deferred ledger below (a user-reported bypass
 class the delta demonstrably misses); nothing was built.
 
+## night-frontier-Z9 — the verifier budget ledger (D7)
+
+The gap the ledger's own prose recorded without a number: "the
+enforcer's budget is FULL, pre-existing" — and the only verifier-cost
+figure in the tree was a failure story (the mirror's census refusal,
+"Processed 1000001 insn"). Nothing pinned what the verifier charges
+for the six programs the estate ships, so a verdict-path change could
+eat the floor kernel's headroom silently: the one LTS failure class
+that arrives without any code misbehaving on the machine that measures
+it. The Z9 depth turns the verifier's own cost into a pinned contract
+— **the verifier budget ledger** — the first verifier-cost gate this
+class of tool carries.
+
+**The instrument** (`scripts/supermassive/verifier-budget-test.py` +
+`verifier-budget-ledger.json`, riding the supermassive lane as its own
+shard pair on BOTH kernel envelopes). The battery loads both embedded
+objects on the kernel it booted (a real strict apply for the limiter's
+four programs, a live eagle-eyes monitor session on a pty — the
+survival battery's proven shape — for the observer's two, whose lazy
+camera pins nothing and whose programs exist only mid-session), and
+prices every estate program with the kernel's own channels. The price
+is `verified_insns` (UAPI aba64c7da983, the v5.16 merge window —
+"bpf: Add verified_insns to bpf_prog_info and fdinfo"), read through
+BPF_OBJ_GET_INFO_BY_FD at its fixed UAPI offset (216 — appended after
+recursion_misses, before the attach_btf words, identical on every
+kernel that carries the field), behind three gates the info struct
+itself carries: the filled length names the 5.15 floor's shorter
+struct, the type word must be an estate program type, and the id word
+must equal the bpftool-confirmed program id.
+
+**The identity channel that cannot lie**: the limiter's four programs
+come through their pinned files (`prog show pinned <file>` — the pin
+name IS the loader's program name), and the observer's pair through
+the kernel's own link table (`link show` — the surface NIGHT-boost-12's
+hunt proved carries zelynic's links, since `cgroup show` walks only the
+legacy attach list) joined on attach direction. The kernel-side program
+NAME is not an identity the census leans on: aya stamps prog_name only
+when its BpfName feature probe passes, and the live reads saw empty
+names beside the tools' own tables.
+
+**The laws** (each enforced live, validated rootlessly by --self-test
+and twelve negative probes):
+
+- **The completeness law** — every program the estate loads carries a
+  row in both envelopes; the inventory gate arms at landing, never
+  deferred.
+- **The growth law** — a measured value above the pinned budget fails
+  the battery; a raise names its number and reason in the row's
+  history.
+- **The ratchet law** — lowering is free and recorded.
+- **The census law** — a null budget is census debt: the landing run
+  measured in census posture (`armed:false`, MASS-CENSUS rows printing)
+  and the arming commit pinned the watched run's numbers and flipped
+  `armed:true` in the same change; no half-armed state exists.
+- **The availability law** — the verified_insns field landed in the
+  v5.16 merge window: the 5.15 floor kernel does not expose it (the
+  kernel fills 80 of the info bytes and the census names the absence),
+  so the floor envelope prices by inventory — the load-proof IS the
+  floor's gate — and the head envelope prices fully.
+
+**The live lessons the first runs recorded** (each one a seat the
+next maintainer walks around): the FIELD is kernel UAPI, the DISPLAY
+tool only grew it in Oct 2026 — the staged bpftool never printed the
+number, so the census reads the kernel directly; the cgroup id is the
+kernfs inode (NIGHT-hunt-31 — no cgroup.id file exists in any mainline
+kernel, and the first census run stepped into that documented trap);
+`bpftool prog show`'s pin filter spells `pinned`, the positional path
+reads as an unrecognized token; `cgroup show` walks only the legacy
+attach list; link-table rows span two lines (the attach_type word on
+the tab-indented continuation); and the calibration counts the prog
+types from the header's own order (TRACEPOINT at 5 — a dropped entry
+made the first gate refuse a CORRECT program info with type-7).
+
+**The armed numbers** (the supermassive census run 44595619920,
+kernel 7.3.0-11-generic, the calibrated (13,15) channel, fill 232):
+enforce_dl 664129, enforce_ul 703842, zelynic_recwn 139, zelynic_pace
+63, observe_egress 70, observe_ingress 70 — carried verbatim into the
+ledger's head rows as budgets, with the floor rows null forever (an
+inventory envelope cannot price). The mirror's reopen condition "a
+walk-cost optimization frees the enforcer's ceiling" is now measurable
+by the same gate: the ledger IS the ceiling's ruler.
+
+**The observability rider**: the guest console is a read-hostile
+channel, so the census emits its rows as ::warning:: workflow commands
+(warnings create check-run annotations; notices do not) sized to the
+ten-per-step cap, the watch summary step re-emits the failure bullets
+under its own budget, and every shard uploads its boot log as an
+artifact. The diagnosis and the numbers land where the API reads them.
+
 ## The Quota Saver — the Workload-Conditional Claim
 
 The fourteenth, fifteenth, and sixteenth entries above (RECWN, ECN,
