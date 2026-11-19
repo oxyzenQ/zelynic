@@ -148,7 +148,22 @@ BPFTOOL_PATH = "/usr/bin/bpftool"
 # BPF_CGROUP_INET_INGRESS = 0, BPF_CGROUP_INET_EGRESS = 1.
 BPF_SYSCALL_NR = {"x86_64": 321, "aarch64": 280}
 BPF_PROG_GET_FD_BY_ID = 14
+BPF_OBJ_GET_INFO_BY_FD = 16
 ATTR_SIZE = 128
+INFO_BUF = 256
+# bpf_prog_info's fixed early layout (include/uapi/linux/bpf.h, the
+# append-only contract): type @0, id @4, xlated_prog_len @20,
+# verified_insns @216 - appended in the v5.16 merge window after
+# recursion_misses, before the attach_btf words, so the offset is the
+# same on every kernel that has the field at all. The 5.15 floor's
+# struct ends before it: the kernel fills fewer bytes and the
+# filled-length gate names the absence (the availability law's
+# machine check).
+PROG_TYPE_OFFSET = 0
+PROG_ID_OFFSET = 4
+PROG_XLATED_LEN_OFFSET = 20
+PROG_VERIFIED_INSNS_OFFSET = 216
+PROG_TYPE_CGROUP_SKB = 7
 
 
 def fail(msg: str) -> None:
@@ -346,20 +361,32 @@ def prog_fd_by_id(prog_id: int) -> int:
     return int(rc)
 
 
-def fdinfo_verified_insns(fd: int):
-    """The price channel: the program fd's /proc fdinfo line the kernel
-    has written since aba64c7da983. Returns (price_or_None, raw_lines) -
-    the raw tail rides the notices so a missing line names itself."""
-    try:
-        with open(f"/proc/self/fdinfo/{fd}", encoding="ascii") as f:
-            lines = f.read().splitlines()
-    except OSError as e:
-        return None, [f"unreadable: {e}"]
-    for line in lines:
-        m = re.match(r"^verified_insns:\s*(\d+)\s*$", line)
-        if m:
-            return int(m.group(1)), lines[-6:]
-    return None, lines[-6:]
+def prog_price(fd: int, expect_prog_id: int) -> tuple:
+    """The price channel: BPF_OBJ_GET_INFO_BY_FD on the program fd, the
+    price read from bpf_prog_info.verified_insns at its fixed UAPI
+    offset, behind three identity gates the info struct itself carries:
+    the type word must be CGROUP_SKB (a map fd's type word reads a map
+    type instead), the id word must equal the bpftool-confirmed prog
+    id, and the kernel's filled length must reach past the field (the
+    5.15 floor's shorter struct names its own absence). Returns
+    (price_or_None, diagnosis)."""
+    info = ctypes.create_string_buffer(INFO_BUF)
+    attr = struct.pack("<IIQ", fd, INFO_BUF, ctypes.addressof(info))
+    _, raw = _bpf(BPF_OBJ_GET_INFO_BY_FD, attr)
+    filled = struct.unpack_from("<I", raw, 4)[0]
+    if filled < PROG_VERIFIED_INSNS_OFFSET + 4:
+        return None, f"kernel filled {filled} bytes - the field is absent here"
+    prog_type = struct.unpack_from("<I", info.raw, PROG_TYPE_OFFSET)[0]
+    prog_id = struct.unpack_from("<I", info.raw, PROG_ID_OFFSET)[0]
+    if prog_type != PROG_TYPE_CGROUP_SKB or prog_id != expect_prog_id:
+        return None, (
+            f"identity gate: type={prog_type} id={prog_id} != the expected "
+            f"CGROUP_SKB prog {expect_prog_id}"
+        )
+    price = struct.unpack_from("<I", info.raw, PROG_VERIFIED_INSNS_OFFSET)[0]
+    if price <= 0:
+        return None, "the field read zero on a priced envelope"
+    return price, f"prog id={prog_id} type={prog_type} filled={filled}"
 
 
 def bpftool_prog_id(pin_path: str) -> tuple:
@@ -403,17 +430,17 @@ def bpftool_link_rows() -> list:
     if rc != 0:
         notice(f"bpftool link show refused rc={rc}: {err.strip()[:160]}")
         return []
-    notice(f"LINK-RAW rc={rc} head={out.strip()[:300]!r}")
     rows = []
+    last_prog_id = None
     for line in out.splitlines():
-        m = re.search(r"prog_id\s+(\d+)|\bprog\s+(\d+)", line)
-        if not m:
+        m = re.search(r"(\d+):\s+cgroup\s+prog\s+(\d+)", line)
+        if m:
+            last_prog_id = int(m.group(2))
             continue
-        prog_id = int(m.group(1) or m.group(2))
-        low = line.lower()
-        word = next((w for w in ("ingress", "egress", "sock_ops") if w in low), None)
-        if word:
-            rows.append((word, prog_id))
+        m = re.search(r"attach_type\s+(\S+)", line)
+        if m and last_prog_id is not None:
+            rows.append((m.group(1).lower(), last_prog_id))
+            last_prog_id = None
     return rows
 
 
@@ -464,12 +491,12 @@ def census_programs(envelope: str) -> dict:
             continue
         pinned_ids.add(pid)
         fd = prog_fd_by_id(pid)
-        price, raw_tail = fdinfo_verified_insns(fd)
+        price, diag = prog_price(fd, pid)
         os.close(fd)
         census[prog] = price
         notice(
             f"CENSUS-PIN {envelope} {prog} kernel={os.uname().release} "
-            f"prog_id={pid} price={price!r} fdinfo={raw_tail}"
+            f"prog_id={pid} price={price!r} diag={diag}"
         )
     return census, pinned_ids
 
@@ -644,7 +671,7 @@ def main() -> int:
                 )
                 continue
             fd_probe = prog_fd_by_id(prog_id)
-            measured = fdinfo_verified_insns(fd_probe)
+            measured, _ = prog_price(fd_probe, prog_id)
             os.close(fd_probe)
         if isinstance(measured, bool) or not isinstance(measured, int) or measured <= 0:
             if rows_pricing == "inventory":
