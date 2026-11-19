@@ -94,6 +94,7 @@ import os
 import platform
 import pty
 import re
+import shutil
 import signal
 import struct
 import subprocess
@@ -136,6 +137,8 @@ LIM_PIN_PROGS = {
     "zelynic_pace": "/sys/fs/bpf/zelynic/zelynic_pace",
 }
 
+BPFTOOL_PATH = "/usr/bin/bpftool"
+
 # The bpf() UAPI walk (the kernel's own channels, no display tool): the
 # syscall numbers are the stable per-arch assignments, and every cmd code
 # and struct offset below is read from include/uapi/linux/bpf.h (the
@@ -145,7 +148,6 @@ LIM_PIN_PROGS = {
 # whose layout the 5.15 floor shares for these early words. bpf_attach_type:
 # BPF_CGROUP_INET_INGRESS = 0, BPF_CGROUP_INET_EGRESS = 1.
 BPF_SYSCALL_NR = {"x86_64": 321, "aarch64": 280}
-BPF_OBJ_GET = 8
 BPF_PROG_GET_NEXT_ID = 12
 BPF_PROG_GET_FD_BY_ID = 14
 BPF_OBJ_GET_INFO_BY_FD = 16
@@ -401,13 +403,23 @@ def fdinfo_verified_insns(fd: int):
     return None
 
 
-def obj_get(path: str) -> int:
-    """BPF_OBJ_GET on a bpffs pin file: a pinned PROGRAM file's fd is
-    THE program's fd (the kernel keeps one prog per pin)."""
-    path_buf = ctypes.create_string_buffer(path.encode("ascii"))
-    attr = struct.pack("<QI4x", ctypes.addressof(path_buf), 0)
-    rc, _ = _bpf(BPF_OBJ_GET, attr)
-    return int(rc)
+def bpftool_prog_id(pin_path: str) -> tuple:
+    """The pinned program's kernel id, read by the staged bpftool through
+    the one OBJ_GET path every bpf toolchain in the wild exercises
+    (`prog show file <pin>`). The direct BPF_OBJ_GET syscall refused with
+    EBADF on the live floor run (the v2 lesson - the seat is inside the
+    kernel's own OBJ_GET path, not worth guessing at from userspace when
+    the staged tool's read is the same kernel answer a human would
+    cross-check with). Returns (id, tool_output)."""
+    bpftool = shutil.which("bpftool") or BPFTOOL_PATH
+    rc, out, err = run_cmd([bpftool, "-j", "prog", "show", "file", pin_path], timeout=60)
+    if rc != 0:
+        return None, f"rc={rc} err={err.strip()[:200]}"
+    rows = json.loads(out)
+    if isinstance(rows, dict):
+        rows = [rows]
+    prog_id = rows[0].get("id") if rows else None
+    return prog_id, out.strip()[:200]
 
 
 def walk_links() -> list:
@@ -475,16 +487,22 @@ def census_programs() -> dict:
     name -> (fd, verified_insns-or-None); the caller closes fds."""
     census = {}
     pinned_ids = set()
+    try:
+        pin_listing = sorted(os.listdir("/sys/fs/bpf/zelynic"))
+    except OSError as e:
+        pin_listing = [f"unlistable: {e}"]
+    notice(f"PIN-DIR /sys/fs/bpf/zelynic holds {pin_listing}")
     for prog, pin_path in LIM_PIN_PROGS.items():
         if not os.path.exists(pin_path):
             census[prog] = None
             continue
-        fd = obj_get(pin_path)
-        if fd <= 0:
+        pid, tool_out = bpftool_prog_id(pin_path)
+        if pid is None:
+            notice(f"CENSUS-PIN {prog} bpftool refused: {tool_out}")
             census[prog] = None
             continue
-        pid = prog_id_from_fd(fd)
         pinned_ids.add(pid)
+        fd = prog_fd_by_id(pid)
         price = fdinfo_verified_insns(fd)
         os.close(fd)
         census[prog] = price
