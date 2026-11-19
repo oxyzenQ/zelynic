@@ -488,7 +488,7 @@ def spawn_monitor_on_pty(binary: str, cgid: int) -> tuple:
     return proc, master
 
 
-def census_programs(envelope: str) -> dict:
+def census_programs(envelope: str, priced_envelope: bool) -> dict:
     """Price every estate program through the kernel's own channels.
 
     The limiter's four come through their pinned files (the pin name is
@@ -516,7 +516,7 @@ def census_programs(envelope: str) -> dict:
             continue
         pinned_ids.add(pid)
         try:
-            price, diag, pair = prog_price(pid)
+            price, diag, pair = prog_price(pid, priced_envelope)
         except OSError as e:
             census[prog] = "tool-refused"
             notice(f"CENSUS-PIN {envelope} {prog} syscall refused: {e}")
@@ -658,7 +658,7 @@ def main() -> int:
 
     # 4. The census: the kernel prices every estate program.
     try:
-        limiter_prices, pinned_ids = census_programs(envelope)
+        limiter_prices, pinned_ids = census_programs(envelope, rows_pricing == "verified_insns")
         observer_ids = observer_pair(pinned_ids)
     finally:
         os.close(master_fd)
