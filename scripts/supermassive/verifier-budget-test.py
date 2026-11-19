@@ -147,10 +147,16 @@ BPFTOOL_PATH = "/usr/bin/bpftool"
 # whose layout the 5.15 floor shares for these early words. bpf_attach_type:
 # BPF_CGROUP_INET_INGRESS = 0, BPF_CGROUP_INET_EGRESS = 1.
 BPF_SYSCALL_NR = {"x86_64": 321, "aarch64": 280}
-BPF_PROG_GET_FD_BY_ID = 14
-BPF_OBJ_GET_INFO_BY_FD = 16
 ATTR_SIZE = 128
 INFO_BUF = 256
+# The fd/info cmd pair is SELF-CALIBRATING: the candidate pairs cover the
+# kernel's own bpf_cmd spellings of (PROG_GET_FD_BY_ID, OBJ_GET_INFO_BY_FD),
+# and the identity gates in prog_price refuse every read that does not
+# answer CGROUP_SKB + the expected prog id - a wrong spelling reads a
+# different object class and fails the gates BY CONSTRUCTION. The first
+# pair whose read passes becomes the envelope's channel, and the
+# calibration pins which codes the running kernel honored.
+CMD_PAIR_CANDIDATES = [(14, 16), (13, 15), (14, 15), (13, 16)]
 # bpf_prog_info's fixed early layout (include/uapi/linux/bpf.h, the
 # append-only contract): type @0, id @4, xlated_prog_len @20,
 # verified_insns @216 - appended in the v5.16 merge window after
@@ -355,38 +361,57 @@ def _bpf(cmd: int, attr: bytes) -> tuple:
     return rc, buf.raw
 
 
-def prog_fd_by_id(prog_id: int) -> int:
-    """BPF_PROG_GET_FD_BY_ID — the fd itself is the syscall's return."""
-    rc, _ = _bpf(BPF_PROG_GET_FD_BY_ID, struct.pack("<I", prog_id))
-    return int(rc)
-
-
-def prog_price(fd: int, expect_prog_id: int) -> tuple:
-    """The price channel: BPF_OBJ_GET_INFO_BY_FD on the program fd, the
-    price read from bpf_prog_info.verified_insns at its fixed UAPI
-    offset, behind three identity gates the info struct itself carries:
-    the type word must be CGROUP_SKB (a map fd's type word reads a map
-    type instead), the id word must equal the bpftool-confirmed prog
-    id, and the kernel's filled length must reach past the field (the
-    5.15 floor's shorter struct names its own absence). Returns
-    (price_or_None, diagnosis)."""
+def _read_info_once(fd_cmd: int, info_cmd: int, prog_id: int) -> tuple:
+    """One candidate pair's read: (fd, price_or_None, diagnosis). The fd
+    opens by PROG_GET_FD_BY_ID at fd_cmd; the info read runs
+    OBJ_GET_INFO_BY_FD at info_cmd and validates the three gates."""
+    rc, _ = _bpf(fd_cmd, struct.pack("<I", prog_id))
+    fd = int(rc)
     info = ctypes.create_string_buffer(INFO_BUF)
     attr = struct.pack("<IIQ", fd, INFO_BUF, ctypes.addressof(info))
-    _, raw = _bpf(BPF_OBJ_GET_INFO_BY_FD, attr)
+    try:
+        _, raw = _bpf(info_cmd, attr)
+    except OSError:
+        os.close(fd)
+        raise
     filled = struct.unpack_from("<I", raw, 4)[0]
     if filled < PROG_VERIFIED_INSNS_OFFSET + 4:
-        return None, f"kernel filled {filled} bytes - the field is absent here"
+        os.close(fd)
+        return fd, None, f"kernel filled {filled} bytes - the field is absent here"
     prog_type = struct.unpack_from("<I", info.raw, PROG_TYPE_OFFSET)[0]
-    prog_id = struct.unpack_from("<I", info.raw, PROG_ID_OFFSET)[0]
-    if prog_type != PROG_TYPE_CGROUP_SKB or prog_id != expect_prog_id:
-        return None, (
-            f"identity gate: type={prog_type} id={prog_id} != the expected "
-            f"CGROUP_SKB prog {expect_prog_id}"
+    seen_id = struct.unpack_from("<I", info.raw, PROG_ID_OFFSET)[0]
+    if prog_type != PROG_TYPE_CGROUP_SKB or seen_id != prog_id:
+        os.close(fd)
+        return (
+            fd,
+            None,
+            (
+                f"identity gate: type={prog_type} id={seen_id} != the expected "
+                f"CGROUP_SKB prog {prog_id}"
+            ),
         )
     price = struct.unpack_from("<I", info.raw, PROG_VERIFIED_INSNS_OFFSET)[0]
+    os.close(fd)
     if price <= 0:
-        return None, "the field read zero on a priced envelope"
-    return price, f"prog id={prog_id} type={prog_type} filled={filled}"
+        return fd, None, "the field read zero on a priced envelope"
+    return fd, price, f"prog id={seen_id} type={prog_type} filled={filled}"
+
+
+def prog_price(prog_id: int) -> tuple:
+    """The calibrated price channel: try the candidate cmd pairs until
+    one passes the identity gates, then price with it. Returns
+    (price_or_None, diagnosis, the_honored_pair_or_None)."""
+    for fd_cmd, info_cmd in CMD_PAIR_CANDIDATES:
+        try:
+            fd, price, diag = _read_info_once(fd_cmd, info_cmd, prog_id)
+        except OSError as e:
+            notice(f"CALIBRATION pair ({fd_cmd},{info_cmd}) refused on prog {prog_id}: {e}")
+            continue
+        if price is not None or "the field is absent" in diag:
+            notice(f"CALIBRATION pair ({fd_cmd},{info_cmd}) honored on prog {prog_id}: {diag}")
+            return price, diag, (fd_cmd, info_cmd)
+        notice(f"CALIBRATION pair ({fd_cmd},{info_cmd}) gate-refused on prog {prog_id}: {diag}")
+    return None, "every candidate cmd pair failed the identity gates", None
 
 
 def bpftool_prog_id(pin_path: str) -> tuple:
@@ -490,13 +515,16 @@ def census_programs(envelope: str) -> dict:
             census[prog] = "tool-refused"
             continue
         pinned_ids.add(pid)
-        fd = prog_fd_by_id(pid)
-        price, diag = prog_price(fd, pid)
-        os.close(fd)
+        try:
+            price, diag, pair = prog_price(pid)
+        except OSError as e:
+            census[prog] = "tool-refused"
+            notice(f"CENSUS-PIN {envelope} {prog} syscall refused: {e}")
+            continue
         census[prog] = price
         notice(
             f"CENSUS-PIN {envelope} {prog} kernel={os.uname().release} "
-            f"prog_id={pid} price={price!r} diag={diag}"
+            f"prog_id={pid} pair={pair} price={price!r} diag={diag}"
         )
     return census, pinned_ids
 
@@ -670,9 +698,7 @@ def main() -> int:
                     "was alive, but the kernel holds no matching live link"
                 )
                 continue
-            fd_probe = prog_fd_by_id(prog_id)
-            measured, _ = prog_price(fd_probe, prog_id)
-            os.close(fd_probe)
+            measured, _, _ = prog_price(prog_id)
         if isinstance(measured, bool) or not isinstance(measured, int) or measured <= 0:
             if rows_pricing == "inventory":
                 # The inventory envelope: the load-proof IS the gate.
