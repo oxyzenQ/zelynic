@@ -131,7 +131,6 @@ fn binary_self_hash() -> Result<String, String> {
 /// bare false. Feature-gated: the mechanism exists only where the
 /// embedded objects do (the dormant build has no camera to audit).
 #[cfg(feature = "ebpf")]
-#[must_use]
 fn object_matches_digest(name: &str, bytes: &[u8], pinned: &str) -> Result<String, String> {
     let hex = blake3::hash(bytes).to_hex().to_string();
     if hex == pinned {
@@ -158,12 +157,12 @@ fn object_integrity() -> (bool, String) {
     let checks: [(&str, &[u8], Option<&str>); 2] = [
         (
             "zelynic-observer",
-            &crate::ebpf::loader::OBSERVER_ELF[..],
+            crate::ebpf::loader::OBSERVER_ELF,
             option_env!("ZELYNIC_EBPF_OBJ_DIGEST_OBSERVER"),
         ),
         (
             "zelynic-limiter",
-            &crate::ebpf::limiter::types::LIMITER_ELF[..],
+            crate::ebpf::limiter::types::LIMITER_ELF,
             option_env!("ZELYNIC_EBPF_OBJ_DIGEST_LIMITER"),
         ),
     ];
