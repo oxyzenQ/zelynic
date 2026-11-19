@@ -397,17 +397,22 @@ def _read_info_once(fd_cmd: int, info_cmd: int, prog_id: int) -> tuple:
     return fd, price, f"prog id={seen_id} type={prog_type} filled={filled}"
 
 
-def prog_price(prog_id: int) -> tuple:
+def prog_price(prog_id: int, priced_envelope: bool) -> tuple:
     """The calibrated price channel: try the candidate cmd pairs until
     one passes the identity gates, then price with it. Returns
-    (price_or_None, diagnosis, the_honored_pair_or_None)."""
+    (price_or_None, diagnosis, the_honored_pair_or_None). The absence
+    verdict is envelope-aware: an inventory envelope takes a short fill
+    as the kernel's own honest answer (the field does not exist there);
+    a priced envelope treats it as a WRONG-CHANNEL read and the search
+    continues."""
     for fd_cmd, info_cmd in CMD_PAIR_CANDIDATES:
         try:
             fd, price, diag = _read_info_once(fd_cmd, info_cmd, prog_id)
         except OSError as e:
             notice(f"CALIBRATION pair ({fd_cmd},{info_cmd}) refused on prog {prog_id}: {e}")
             continue
-        if price is not None or "the field is absent" in diag:
+        absent = "the field is absent" in diag
+        if price is not None or (absent and not priced_envelope):
             notice(f"CALIBRATION pair ({fd_cmd},{info_cmd}) honored on prog {prog_id}: {diag}")
             return price, diag, (fd_cmd, info_cmd)
         notice(f"CALIBRATION pair ({fd_cmd},{info_cmd}) gate-refused on prog {prog_id}: {diag}")
