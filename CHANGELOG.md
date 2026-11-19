@@ -42,6 +42,30 @@ v80.0.0
 
 ### Added
 
+- **night-frontier-Z9: the verifier budget ledger — the enforcement
+  estate's verifier cost is a pinned contract, not folklore.** The new
+  census-and-gate battery
+  (`scripts/supermassive/verifier-budget-test.py` + its wrapper, riding
+  the supermassive lane as its own shard pair on BOTH kernel envelopes)
+  loads both embedded objects on the kernel it booted (a real strict
+  apply, the eagle-eyes --depth one-shot), walks every loaded program
+  through the staged bpftool, and prices each with the kernel's own
+  number — `bpf_prog_info.verified_insns` (UAPI aba64c7da983), the
+  first verifier-cost pin in the tree. The ledger
+  (`scripts/supermassive/verifier-budget-ledger.json`) carries one
+  upper bound per program per envelope (the jammy 5.15.0 floor line,
+  the archive's dynamically resolved head) under three laws: the
+  completeness law (a loaded program without a row fails — always),
+  the growth law (measured above budget fails; a raise names its
+  number and reason in the row's history), and the ratchet law
+  (lowering is free and recorded). The landing run measures in census
+  posture (`armed:false` — MASS-CENSUS rows print, the comparison
+  defers); the arming commit pins the watched CI run's numbers and
+  flips armed:true in the same change — no half-armed state exists,
+  and the rootless --self-test refuses one. The floor kernel's
+  verifier headroom stops being a story the failure logs tell and
+  becomes a number the gate defends on every push.
+
 - **night-kernel-matrix-1: every kernel family the docs name boots in
   CI** — the e2e lane grew from two kernel envelopes to five (the
   jammy 5.15.0 floor and the archive's dynamically resolved latest
