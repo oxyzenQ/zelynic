@@ -748,11 +748,13 @@ def main() -> int:
             )
             continue
         print(f"MASS-CENSUS: {envelope} {prog} measured={measured}")
-        notice(f"MASS-CENSUS {envelope} {prog} measured={measured}")
+        # The priced row's number already rides the CENSUS-PIN /
+        # CENSUS-LIVE warning; the MASS-CENSUS line stays on the plain
+        # channel for the watch grep and the boot-log artifact.
         budget = where.get("budget")
         if budget is None:
-            notice(
-                f"CENSUS-DEBT {envelope} {prog} measured={measured} - "
+            print(
+                f"Z9: CENSUS-DEBT {envelope} {prog} measured={measured} - "
                 "comparison deferred, the arming commit pins this number"
             )
             continue
