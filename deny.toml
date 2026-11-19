@@ -20,6 +20,21 @@ all-features = true
 feature-depth = 1
 
 [advisories]
+# night-supply-2 (2026-11-19): the policy is spelled out explicitly so a
+# cargo-deny default change can never silently loosen it. The 2026-08-20
+# arrayref incident made the yanked class concrete: crates.io deleted the
+# malicious publishes within hours, so every payload version is a yanked
+# version — a graph re-resolution that accepts yanked crates is a
+# re-resolution that can silently pull the deleted payload back. The
+# implicit default was warn; deny is the contract. The other two keys name
+# the scan SCOPE, not severity (the schema moved severity out of this
+# section — vulnerability advisories always emit errors and have no key
+# here anymore): "all" keeps the whole root graph, the aya tree included
+# (all-features above), in the findings list where the observation lane
+# and the morning signal own the triage.
+yanked = "deny"
+unmaintained = "all"
+unsound = "all"
 # RustSec advisory database (default URL). No accepted advisories yet;
 # when one is accepted (informational unmaintained-crate class, etc.),
 # record it here with a reason string and mirror the rationale in
@@ -52,7 +67,13 @@ ignore = false
 
 [bans]
 multiple-versions = "warn"
-wildcards = "allow"
+# night-supply-2 (2026-11-19): a wildcard version requirement forces the
+# graph to re-resolve against the index on every build, even with a
+# committed lockfile — the exact vector the 2026-08-20 arrayref incident
+# exploited (a malicious republish lands inside a re-resolve window). The
+# root workspace carries none today (verified across every manifest in
+# the graph); from now on one cannot enter without failing this gate.
+wildcards = "deny"
 highlight = "all"
 workspace-default-features = "allow"
 external-default-features = "allow"
