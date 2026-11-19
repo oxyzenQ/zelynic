@@ -1263,8 +1263,10 @@ that already exist, a minor bump, never a major.
   gimmick. Reopens when: the hand-rolled loader ships program
   func_info (BTF-driven B2B dedup — real verifier headroom for any
   future enforcer lane), or a walk-cost optimization frees the
-  enforcer's ceiling, or the monitor gains an in-process surface
-  that reads its own live observer handle.
+  enforcer's ceiling (now measurable: the Z9 verifier budget ledger
+  prices the estate's programs and gates their growth), or the
+  monitor gains an in-process surface that reads its own live
+  observer handle.
 
 - **Bypass three-way reconciliation (night-frontier-Z8, D6 — the low
   rung).** The ask: cross the three instruments the tree already
