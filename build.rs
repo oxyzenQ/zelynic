@@ -234,6 +234,22 @@ fn build_ebpf_objects() {
         let dst = out_dir.join(format!("{name}.o"));
         std::fs::write(&dst, &data)
             .unwrap_or_else(|e| panic!("failed to stage {} into OUT_DIR: {e}", dst.display()));
+        // night-depth-hardening-Z2: stamp the blake3 of the EXACT bytes
+        // just staged for embedding. The sig ladder's object-integrity
+        // depth re-hashes the embedded objects at runtime and compares
+        // against these stamps — the binary proves the kernel programs
+        // it carries are the ones this build staged, not an injection.
+        // The env name strips the shared "zelynic-" stem (the var
+        // already carries the crate prefix): ZELYNIC_EBPF_OBJ_DIGEST_{
+        // OBSERVER,LIMITER}, exactly what sig_report.rs reads.
+        println!(
+            "cargo:rustc-env=ZELYNIC_EBPF_OBJ_DIGEST_{}={}",
+            name.strip_prefix("zelynic-")
+                .unwrap_or(name)
+                .to_uppercase()
+                .replace('-', "_"),
+            crate::blake3::blake3_hex(&data)
+        );
     }
 
     // NIGHT-ask-2: the lane stamp for the source-built path — see

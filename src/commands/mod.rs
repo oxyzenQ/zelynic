@@ -389,9 +389,10 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
         }
 
         Some(Commands::Doctor) => crate::capabilities::run_doctor(cli.print_json),
-        // night-signature-advanced-1: the four-depth provenance
+        // night-signature-advanced-1: the five-depth provenance
         // report (subcommand only, no --sig spelling — the owner's
-        // call). Exits 1 itself on a tampered verdict.
+        // call; the D4 object-integrity row is night-depth-hardening-Z2).
+        // Exits 1 itself on a tampered verdict.
         Some(Commands::Sig) => {
             // Prints the ladder itself and exits 1 on a tampered
             // verdict; on Authentic it returns and the Ok(()) keeps

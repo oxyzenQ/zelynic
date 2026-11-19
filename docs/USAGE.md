@@ -2024,17 +2024,21 @@ contract). `--print-json` mirrors the same six facts under the
 zelynic sig
 ```
 
-Renders the four-depth provenance matrix over this binary's embedded
+Renders the five-depth provenance matrix over this binary's embedded
 build signature (night-signature-advanced-1, the sibling-tools
 shape): D0 runtime-identity (the lane-honest manifest materializes
 from the masked layers), D1 embedded-marker (the authors layer binds
 to the manifest identity), D2 anchor-integrity (the blake3 seal
-recomputes from the masked payload), and D3 binary-self-hash (blake3
+recomputes from the masked payload), D3 binary-self-hash (blake3
 over the running image — a fingerprint to compare against the
-published release hash; it cannot embed its own digest). The
-ownership claim is masked in the artifact — `strings` over the
-binary finds no identity — and materializes only on the `-V` and
-`sig` surfaces. Exits 1 when any depth fails, so a script (or the
+published release hash; it cannot embed its own digest), and D4
+object-integrity (night-depth-hardening-Z2: blake3 over each
+embedded eBPF object, compared against the digest build.rs stamped
+at build time — the binary proves the kernel programs it carries are
+the ones its build pinned, and an object patched inside the artifact
+fails by name). The ownership claim is masked in the artifact —
+`strings` over the binary finds no identity — and materializes only
+on the `-V` and `sig` surfaces. Exits 1 when any depth fails, so a script (or the
 release verification lane) can gate on the verdict:
 
 ```bash

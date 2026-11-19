@@ -314,15 +314,18 @@ pub enum Commands {
     #[command(name = "doctor")]
     Doctor,
 
-    /// Render the provenance depth matrix — the four-depth signature
-    /// report over the masked identity layers.
+    /// Render the provenance depth matrix — the five-depth signature
+    /// report over the masked identity layers and the embedded
+    /// kernel objects.
     ///
     /// night-signature-advanced-1 (the cosmostrix `sig` shape, the
     /// owner's cross-tool contract): D0 runtime-identity, D1
     /// embedded-marker, D2 anchor-integrity (the blake3 seal), D3
     /// binary-self-hash (the fingerprint to compare against a
-    /// published release hash). Exits 1 when any depth fails, so a
-    /// script can gate on the verdict.
+    /// published release hash), plus zelynic's own D4 object-integrity
+    /// (night-depth-hardening-Z2: the embedded eBPF objects re-hashed
+    /// against their build-time digest stamps). Exits 1 when any
+    /// depth fails, so a script can gate on the verdict.
     #[command(name = "sig")]
     Sig,
 
