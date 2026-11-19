@@ -322,6 +322,66 @@ vectors do NOT cover (live kernel behavior) is attested by the
 three proofs (artifact, behavior, kernel) compose into one
 attestation.
 
+## 6. Reproducible builds (D4)
+
+Sections 1-5 attest the ARTIFACT: this binary comes from the
+maintainer, arrived intact, and behaves as attested. The D4 chain
+(night-depth-hardening-Z1) attests the PROCESS: the published
+artifact is what the source itself produces, byte for byte, on an
+independent machine.
+
+The recipe is fully pinned and committed:
+
+- the Rust toolchain pin (`rust-toolchain.toml`, `1.98.1`) plus the
+  dated eBPF nightly pin (`nightly-2026-09-18`) and the prebuilt
+  bpf-linker `0.11.1`
+- the committed `Cargo.lock` (`--locked` — never a fresh resolution)
+- the release matrix's exact `RUSTFLAGS` (the per-platform
+  `-C target-cpu` baseline plus `-C target-feature=+crt-static`)
+- `SOURCE_DATE_EPOCH` pinned to the release commit's timestamp —
+  build.rs derives the `-V` Build-time stamp from it, so the wall
+  clock never enters the bytes (the reproducible-builds.org
+  standard; a dev build without the pin keeps its honest local
+  stamp)
+
+Two independent CI hosts run the same recipe against the same commit
+and their outputs are compared byte-for-byte by `cmp` — the Dragon
+Guard - Reproducible Release (D4) lane
+(`.github/workflows/reproducible.yml`), triggered on every `v*` tag,
+on a weekly drift-watch clock, and on demand. A green run means the
+published hash is rebuildable from source under the pinned recipe; a
+red run prints both digests and names the drift — and the release's
+provenance claim does not stand until the drift is explained. This
+is the class of "modified build with no trace" killed permanently:
+a rebuild that differs cannot hide.
+
+Rebuild it yourself (any x86-64-v3 Linux host — the exact commands
+the CI legs run):
+
+```bash
+git clone --depth=1 --branch v<VERSION> https://github.com/oxyzenQ/zelynic.git
+cd zelynic
+export SOURCE_DATE_EPOCH="$(git log -1 --format=%ct HEAD)"
+export ZELYNIC_BUILD=pro-linux-amd64-v3-musl
+export RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3 -C target-feature=+crt-static"
+cargo build --release --locked --target x86_64-unknown-linux-musl --features ebpf
+sha256sum target/x86_64-unknown-linux-musl/release/zelynic
+```
+
+**What D4 claims, exactly.** The machine-checked contract is CI-host
+to CI-host identity: two independent hosts, same recipe, same commit,
+byte-identical outputs. A local rebuild is the best-effort lane, and
+it carries one honest residual: the Rust toolchain embeds the
+absolute registry path of each dependency's source
+(`$CARGO_HOME/registry/src/...`) into panic location strings, so a
+rebuild on a host whose toolchain layout differs from the build
+runner's (`/home/runner/.cargo`) may hash differently while producing
+the same program. That residual is a toolchain-wide property, not a
+zelynic input — and it is exactly why the two-leg CI lane, not a
+single local run, is the proof of record. The v3 flagship is the
+shape the D4 matrix proves today; the v4 package differs from it only
+in its `target-cpu` flag.
+
 ## Verification tools required
 
 - `sha512sum` — GNU coreutils (preinstalled on every Linux)

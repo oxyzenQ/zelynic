@@ -1,0 +1,218 @@
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# =============================================================================
+# night-depth-hardening-Z1 — the D4 reproducible-release chain.
+# =============================================================================
+#
+# D0-D3 (night-signature-advanced-1 and the byte-layout theorem) prove
+# the ARTIFACT: the depth matrix anchors the running binary's own bytes
+# against the digest the release publishes, and `sig` renders the
+# verification. D4 proves the PROCESS: two independent hosts build the
+# same commit with pinned inputs — the stable toolchain pin, the dated
+# eBPF nightly pin, the prebuilt bpf-linker, --locked dependencies, the
+# release matrix's exact RUSTFLAGS, and a commit-derived
+# SOURCE_DATE_EPOCH — and the two binaries must be BYTE-IDENTICAL,
+# verified by cmp right here. The claim the release page can now make:
+# "the hash we publish is the hash anyone can rebuild from source" —
+# machine-checked, not asserted. The class of "modified build with no
+# trace" dies permanently: a rebuild that differs names its drift.
+#
+# When the legs disagree, cmp fails and both digests print — the drift
+# lives in one of the pinned inputs (toolchain, linker, registry state,
+# runner tooling), and no release trusts its own provenance until the
+# drift is named.
+#
+# Triggers: v* tag pushes (the D4 verdict belongs to the release the
+# tag publishes), workflow_dispatch (manual verification), and the
+# Monday clock — the drift-watch sees external inputs move (a runner
+# image, a linker republish, a toolchain bump) before a release does,
+# the same external-state posture audit.yml's schedule carries.
+#
+# Cost note (deliberate): this lane builds the flagship v3 package
+# twice, cold, no cache — the cache would be a third opinion about
+# what "the inputs" are, and independence is the proof's whole point.
+# The v4 package shape is one matrix row away when the owner wants it.
+
+name: Dragon Guard - Reproducible Release (D4)
+
+on:
+  push:
+    tags:
+      - "v*"
+  schedule:
+    # Every Monday at 10:37 WIB (03:37 UTC) — thirty minutes behind
+    # audit.yml's clock (03:07), one weekly window per scanner family.
+    - cron: "37 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Rapid pushes of the same ref cancel the superseded run (the estate
+# stability pattern); the two build legs are one matrix inside one run,
+# so the group never races itself.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  CARGO_TERM_COLOR: always
+  RUST_VERSION: "1.98.1"
+
+jobs:
+  build:
+    name: Build leg ${{ matrix.leg }}
+    runs-on: ubuntu-26.04
+    # NIGHT-improve-13 (cosmostrix stability): every job carries an
+    # explicit ceiling. 30 minutes mirrors release.yml's build job —
+    # a cold release-tier musl build with the nested nightly eBPF
+    # cross-compile is the heaviest single compile in the estate.
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        leg: [alpha, beta]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          # One commit is the whole input set; depth 1 also makes the
+          # two legs' git probes structurally identical.
+          fetch-depth: 1
+          # GITHUB_TOKEN hardening: never persists into .git/config
+          # (night-dragon-maintenance-6, the estate-wide rule).
+          persist-credentials: false
+
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-unknown-linux-musl
+
+      # The nested eBPF cross-build resolves the SAME dated pin from
+      # ebpf/rust-toolchain.toml; installing it here mirrors the
+      # release build host exactly.
+      - name: Install eBPF nightly toolchain (dated pin)
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: nightly-2026-09-18
+          components: rust-src
+
+      - name: Install bpf-linker 0.11.1 (prebuilt static musl)
+        run: bash scripts/dev/install-bpf-linker.sh
+
+      # The pin that makes the two legs comparable: the commit's own
+      # committer timestamp. Same commit, same number, on both hosts —
+      # build.rs stamps the Build-time line from it, so a wall-clock
+      # difference between the legs can never leak into the bytes.
+      # This is the exact derivation the release build lane runs
+      # (release.yml), so a D4 artifact is byte-comparable to the
+      # published one by construction.
+      - name: Derive SOURCE_DATE_EPOCH from the commit
+        run: |
+          set -euo pipefail
+          EPOCH="$(git log -1 --format=%ct HEAD)"
+          SHA="$(git rev-parse --short=7 HEAD)"
+          {
+            echo "SOURCE_DATE_EPOCH=${EPOCH}"
+            echo "COMMIT_SHORT=${SHA}"
+          } >> "$GITHUB_ENV"
+          echo "pinned SOURCE_DATE_EPOCH=${EPOCH} (commit ${SHA})"
+
+      # The release build recipe, VERBATIM from release.yml's
+      # linux-amd64-v3-musl leg: the platform id's exact RUSTFLAGS,
+      # the same ZELYNIC_BUILD label, --locked, the musl target. A
+      # leg that drifted from the recipe would prove nothing about the
+      # published artifact — sameness of recipe is what makes the cmp
+      # verdict transferable.
+      - name: Build release binary (release recipe, verbatim)
+        env:
+          ZELYNIC_BUILD: pro-linux-amd64-v3-musl
+          RUSTFLAGS: "-D warnings -C target-cpu=x86-64-v3 -C target-feature=+crt-static"
+        run: cargo build --release --locked --target x86_64-unknown-linux-musl --features ebpf
+
+      - name: Record provenance
+        run: |
+          set -euo pipefail
+          BIN="target/x86_64-unknown-linux-musl/release/zelynic"
+          {
+            echo "source_date_epoch=${SOURCE_DATE_EPOCH}"
+            echo "commit_short=${COMMIT_SHORT}"
+            echo "build_label=pro-linux-amd64-v3-musl"
+            sha256sum "${BIN}" | awk '{print "sha256="$1}'
+          } > provenance.txt
+          cat provenance.txt
+
+      - name: Upload leg artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          name: reproducible-leg-${{ matrix.leg }}
+          path: |
+            target/x86_64-unknown-linux-musl/release/zelynic
+            provenance.txt
+          # The binary is the payload; retention mirrors the estate's
+          # diagnostic artifacts, never the release channel.
+          retention-days: 7
+
+  verify:
+    name: Byte-identity verdict
+    needs: build
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - name: Download leg alpha
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8, NIGHT-hunt-20 SHA pin
+        with:
+          name: reproducible-leg-alpha
+          path: alpha
+      - name: Download leg beta
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8, NIGHT-hunt-20 SHA pin
+        with:
+          name: reproducible-leg-beta
+          path: beta
+
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
+
+      - name: Compare the two hosts' bytes
+        run: |
+          set -euo pipefail
+          chmod +x alpha/zelynic beta/zelynic
+          # upload-artifact does not preserve the executable bit; the
+          # chmod above restores it for the execution checks below.
+          cmp alpha/provenance.txt beta/provenance.txt \
+            || { echo "::error::provenance differs between legs"; exit 1; }
+          echo "provenance records identical:"
+          cat alpha/provenance.txt
+          SHA_A="$(sha256sum alpha/zelynic | awk '{print $1}')"
+          SHA_B="$(sha256sum beta/zelynic | awk '{print $1}')"
+          echo "leg alpha sha256: ${SHA_A}"
+          echo "leg beta  sha256: ${SHA_B}"
+          if cmp -s alpha/zelynic beta/zelynic; then
+            echo "::notice::D4 VERDICT: byte-identical. Two independent hosts, one commit, one hash: ${SHA_A}"
+          else
+            echo "::error::D4 VERDICT: the two host builds DIFFER — the published hash is not rebuildable. sha256 alpha=${SHA_A} beta=${SHA_B}. The drift is in one of the pinned inputs (toolchain, bpf-linker, registry state, runner image); bisect with cargo build -v on both legs."
+            exit 1
+          fi
+
+      - name: Verify the rebuilt artifact answers for itself
+        run: |
+          set -euo pipefail
+          # The v3 baseline executes on every x86_64 runner (release.yml's
+          # own v3 verify does exactly this).
+          EPOCH="$(sed -n 's/^source_date_epoch=//p' alpha/provenance.txt)"
+          EXPECTED_STAMP="$(date -u -d "@${EPOCH}" '+%Y-%m-%d %H:%MZ')"
+          alpha/zelynic -V
+          alpha/zelynic -V | grep -F "Build: pro-linux-amd64-v3-musl" \
+            || { echo "::error::Expected the release build label in -V"; exit 1; }
+          alpha/zelynic -V | grep -F "Build-time: ${EXPECTED_STAMP}" \
+            || { echo "::error::Build-time stamp does not match the SOURCE_DATE_EPOCH pin (expected ${EXPECTED_STAMP}) — build.rs fell back to the wall clock, which poisons reproducibility"; exit 1; }
+          LDD_OUT="$(ldd alpha/zelynic 2>&1 || true)"
+          grep -Eq "not a dynamic executable|statically linked" <<<"${LDD_OUT}" \
+            || { echo "::error::rebuilt binary is not static: ${LDD_OUT}"; exit 1; }
+          echo "rebuild verified: label, commit-derived stamp, static musl"

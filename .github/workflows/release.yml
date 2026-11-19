@@ -380,6 +380,22 @@ jobs:
       - name: Prebuilt eBPF parity gate
         run: bash scripts/gates/check-prebuilt-parity.sh
 
+      # night-depth-hardening-Z1 (the D4 reproducible-release chain): the
+      # build stamp becomes a function of the SOURCE, not the wall clock.
+      # The tag's commit timestamp pins SOURCE_DATE_EPOCH (the
+      # reproducible-builds.org standard); build.rs derives the -V
+      # Build-time line from it. This is the half that makes the published
+      # hash REBUILDABLE: the D4 lane (.github/workflows/reproducible.yml)
+      # builds the same commit on two independent hosts with the same pin
+      # and cmp-proves byte-identity — "the hash the release publishes is
+      # the hash anyone can rebuild from source" is now machine-checked.
+      - name: Derive SOURCE_DATE_EPOCH from the release commit
+        run: |
+          set -euo pipefail
+          EPOCH="$(git log -1 --format=%ct HEAD)"
+          echo "SOURCE_DATE_EPOCH=${EPOCH}" >> "$GITHUB_ENV"
+          echo "pinned SOURCE_DATE_EPOCH=${EPOCH} (commit $(git rev-parse --short=7 HEAD))"
+
       # --locked on every release build (NIGHT-improve-11): a release
       # must reproduce from the committed lockfile — never a fresh
       # resolution at tag time. ZELYNIC_BUILD stamps the build label
