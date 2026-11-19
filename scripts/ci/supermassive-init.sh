@@ -523,8 +523,9 @@ esac
 # The enforcement estate's verifier cost, priced live on this leg's
 # kernel: the battery loads BOTH objects (a real strict apply for the
 # limiter's four programs, the eagle-eyes --depth one-shot for the
-# observer's two), walks every loaded program through the staged
-# bpftool, and prices each with bpf_prog_info.verified_insns against
+# observer's two), walks every loaded program through the kernel's own
+# bpf() UAPI channels, and prices each with verified_insns (the program
+# fd's fdinfo) against
 # scripts/supermassive/verifier-budget-ledger.json — the growth law
 # (measured above budget fails; a raise names its number), the ratchet
 # law (lowering is free), and the completeness law (a loaded program

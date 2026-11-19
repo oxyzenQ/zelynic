@@ -48,10 +48,16 @@ v80.0.0
   (`scripts/supermassive/verifier-budget-test.py` + its wrapper, riding
   the supermassive lane as its own shard pair on BOTH kernel envelopes)
   loads both embedded objects on the kernel it booted (a real strict
-  apply, the eagle-eyes --depth one-shot), walks every loaded program
-  through the staged bpftool, and prices each with the kernel's own
-  number — `bpf_prog_info.verified_insns` (UAPI aba64c7da983), the
-  first verifier-cost pin in the tree. The ledger
+  apply, the eagle-eyes --depth one-shot), prices every loaded program
+  through the kernel's own channels — the `bpf()` syscall walk, the name
+  from `bpf_prog_info`, the price from the program fd's fdinfo — with no
+  display tool in between (the first live run's lesson: the UAPI field
+  predates every distro bpftool's display of it). The price is
+  `verified_insns` (UAPI aba64c7da983), the first verifier-cost pin in
+  the tree, and the availability law is stated with it: the field landed
+  in the v5.16 merge window, so the 5.15 floor envelope prices by
+  inventory (the load-proof is the floor's gate) while the head envelope
+  prices fully. The ledger
   (`scripts/supermassive/verifier-budget-ledger.json`) carries one
   upper bound per program per envelope (the jammy 5.15.0 floor line,
   the archive's dynamically resolved head) under three laws: the
@@ -62,9 +68,10 @@ v80.0.0
   posture (`armed:false` — MASS-CENSUS rows print, the comparison
   defers); the arming commit pins the watched CI run's numbers and
   flips armed:true in the same change — no half-armed state exists,
-  and the rootless --self-test refuses one. The floor kernel's
-  verifier headroom stops being a story the failure logs tell and
-  becomes a number the gate defends on every push.
+  and the rootless --self-test refuses one. The head kernel's verifier
+  headroom stops being a story the failure logs tell and becomes a
+  number the gate defends on every push; the floor kernel's load-proof
+  stands gate-defended beside it.
 
 - **night-kernel-matrix-1: every kernel family the docs name boots in
   CI** — the e2e lane grew from two kernel envelopes to five (the

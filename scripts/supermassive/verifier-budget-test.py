@@ -16,12 +16,22 @@ that measures it.
 
 The instrument: the battery loads BOTH objects on the kernel it booted (a
 real strict apply for the limiter's four programs, the eagle-eyes --depth
-one-shot for the observer's two), walks every loaded program through the
-staged bpftool, and prices each one with the kernel's own number —
-bpf_prog_info.verified_insns (UAPI aba64c7da983, bpf: Add verified_insns
-to bpf_prog_info and fdinfo). The objects are byte-identical by
-construction (the parity gates), so for one kernel the number is
-deterministic: the budget pins the verifier walk, not a sample of it.
+one-shot for the observer's two), and prices every loaded program with the
+kernel's own channels — no display tool's mercy: the program walk runs the
+bpf() syscall itself (BPF_PROG_GET_NEXT_ID / BPF_PROG_GET_FD_BY_ID /
+BPF_OBJ_GET_INFO_BY_FD), the name comes from bpf_prog_info (the fixed
+early UAPI layout), and the price is verified_insns (UAPI aba64c7da983,
+2021-10-21 — "bpf: Add verified_insns to bpf_prog_info and fdinfo"), read
+from the program fd's /proc fdinfo. The first live run's lesson, recorded
+honestly: the FIELD is kernel UAPI, the DISPLAY tool only grew it in Oct
+2026 — the guest's staged bpftool (libbpf 0.5 era) never printed the
+number, so the census reads the kernel directly. The objects are
+byte-identical by construction (the parity gates), so for one kernel the
+number is deterministic: the budget pins the verifier walk, not a sample
+of it. The availability boundary is physics, not a gap: the field landed
+in the v5.16 merge window — the 5.15 floor kernel does not expose it, so
+the floor envelope prices by inventory (the load-proof IS the floor's
+gate) and the head envelope prices by verified_insns.
 
 The laws (each enforced here, validated rootlessly by --self-test):
   * the completeness law — every program the estate loads carries a row in
@@ -40,6 +50,13 @@ The laws (each enforced here, validated rootlessly by --self-test):
     deferred while the ledger's armed flag is false. The arming commit
     pins the numbers from a watched CI run and flips armed:true in the
     same change; armed true with any null budget is an invalid ledger.
+  * the availability law — the verified_insns field is kernel UAPI since
+    the v5.16 merge window; the 5.15 floor kernel does not expose it. The
+    floor envelope is therefore an inventory envelope: its rows stay null
+    forever (pinning one would be fabrication), its gate is the load-proof
+    (every estate program seen = the objects still load on the floor), and
+    the census names the absence instead of pretending. The head envelope
+    prices by verified_insns.
 
 Usage:
   sudo ./scripts/supermassive/verifier-budget-test.sh --binary /opt/zelynic/zelynic
@@ -51,9 +68,13 @@ kernel to price them); --self-test needs none of it.
 """
 
 import argparse
+import ctypes
+import errno
 import json
 import os
-import shutil
+import platform
+import re
+import struct
 import subprocess
 import sys
 import time
@@ -81,6 +102,23 @@ HISTORY_KINDS = ("pin", "raise", "lower")
 # to the estate's inventory and must carry a ledger row (the completeness
 # law's runtime half — the loader's own vocabulary).
 ESTATE_PREFIXES = ("zelynic", "observe")
+
+# The bpf() UAPI walk (the kernel's own channels, no display tool):
+# the syscall numbers are the stable per-arch assignments, the cmd codes
+# are the frozen bpf_cmd enum, and the name field sits at the fixed early
+# bpf_prog_info offset (byte 56, char[16]) — appended fields only ever
+# land after it, so a bounded read is safe on every kernel the floor
+# admits. verified_insns rides the program fd's /proc fdinfo (UAPI
+# aba64c7da983, the v5.16 merge window): the floor's 5.15 line does not
+# carry it, and the availability law prices the envelopes accordingly.
+BPF_SYSCALL_NR = {"x86_64": 321, "aarch64": 280}
+BPF_PROG_GET_NEXT_ID = 11
+BPF_PROG_GET_FD_BY_ID = 13
+BPF_OBJ_GET_INFO_BY_FD = 15
+ATTR_SIZE = 128
+INFO_BUF = 200
+NAME_OFFSET = 56
+NAME_LEN = 16
 
 CGROUP_ROOT = Path("/sys/fs/cgroup")
 TEST_CGROUP = CGROUP_ROOT / "zelynic-verifier-budget"
@@ -177,6 +215,12 @@ def validate_ledger(ledger: dict) -> list:
     for env_name, env in envelopes.items():
         if not isinstance(env, dict) or not isinstance(env.get("kernel_class"), str):
             errors.append(f"envelope {env_name}: kernel_class text is required")
+        pricing = env.get("pricing") if isinstance(env, dict) else None
+        if pricing not in ("verified_insns", "inventory"):
+            errors.append(
+                f"envelope {env_name}: pricing must be 'verified_insns' or "
+                f"'inventory', got {pricing!r}"
+            )
         rows = env.get("rows") if isinstance(env, dict) else None
         if not isinstance(rows, dict):
             errors.append(f"envelope {env_name}: rows object is required")
@@ -188,8 +232,19 @@ def validate_ledger(ledger: dict) -> list:
             continue
         for prog, row in rows.items():
             errors.extend(_validate_row(row, f"envelope {env_name} row {prog}"))
+        if pricing == "inventory":
+            for prog, row in rows.items():
+                if isinstance(row, dict) and (row.get("budget") is not None or row.get("history")):
+                    errors.append(
+                        f"envelope {env_name} row {prog}: an inventory "
+                        "envelope cannot price — a pinned budget there "
+                        "would be fabrication (the verified_insns field "
+                        "does not exist on its kernel class)"
+                    )
     if ledger.get("armed") is True:
         for env_name, env in envelopes.items():
+            if not isinstance(env, dict) or env.get("pricing") != "verified_insns":
+                continue
             rows = env.get("rows", {}) if isinstance(env, dict) else {}
             for prog, row in rows.items():
                 if isinstance(row, dict) and row.get("budget") is None:
@@ -230,47 +285,96 @@ def run_cmd(args: list, timeout: int = 60) -> tuple:
         return -1, "", str(e)
 
 
-def census_programs() -> dict:
-    """Walk the loaded programs through bpftool and price each one with
-    the kernel's own verifier number. Returns name -> list of
-    verified_insns (the list shape keeps a duplicate load visible)."""
-    bpftool = shutil.which("bpftool") or "/usr/bin/bpftool"
-    if not Path(bpftool).exists():
-        fail(
-            "bpftool is not available — the census reads the kernel's own "
-            "bpf_prog_info through it (the guest stages /usr/bin/bpftool; "
-            "on a host: install bpftool)"
-        )
-        sys.exit(2)
-    rc, out, err = run_cmd([bpftool, "-j", "prog", "show"], timeout=60)
-    if rc != 0:
-        fail(f"bpftool -j prog show refused (rc {rc}): {err.strip()[:300]}")
-        sys.exit(2)
-    text = out.strip()
-    if not text:
-        fail("bpftool reported no programs at all — nothing loaded?")
-        sys.exit(2)
-    try:
-        rows = json.loads(text)
-    except ValueError:
-        # Older bpftool builds emit concatenated objects; join them.
+def _bpf(cmd: int, attr: bytes) -> tuple:
+    """One bpf() syscall: (return value, the 128-byte attr tail the
+    kernel may have written back). The syscall numbers are the stable
+    per-arch assignments; anything else refuses instead of guessing."""
+    nr = BPF_SYSCALL_NR.get(platform.machine())
+    if nr is None:
+        raise OSError(f"no bpf syscall number pinned for {platform.machine()}")
+    libc = ctypes.CDLL(None, use_errno=True)
+    buf = ctypes.create_string_buffer(ATTR_SIZE)
+    ctypes.memmove(buf, attr, len(attr))
+    rc = libc.syscall(ctypes.c_long(nr), ctypes.c_int(cmd), buf, ctypes.c_int(ATTR_SIZE))
+    if rc < 0:
+        err = ctypes.get_errno()
+        raise OSError(err, os.strerror(err))
+    return rc, buf.raw
+
+
+def walk_prog_ids() -> list:
+    """BPF_PROG_GET_NEXT_ID from zero until the kernel says ENOENT."""
+    ids = []
+    start = 0
+    while True:
         try:
-            rows = json.loads(f"[{text.replace('}{', '},{')}]")
-        except ValueError:
-            fail(f"bpftool output is not JSON the census can read: {text[:300]}")
-            sys.exit(2)
-    if not isinstance(rows, list):
-        fail(f"bpftool output is not a program list: {text[:300]}")
-        sys.exit(2)
+            _, raw = _bpf(BPF_PROG_GET_NEXT_ID, struct.pack("<III", start, 0, 0))
+        except OSError as e:
+            if e.errno == errno.ENOENT:
+                return ids
+            raise
+        next_id = struct.unpack_from("<I", raw, 4)[0]
+        if next_id == start and start != 0:
+            return ids
+        ids.append(next_id)
+        start = next_id + 1
+
+
+def prog_fd_by_id(prog_id: int) -> int:
+    """BPF_PROG_GET_FD_BY_ID — the fd itself is the syscall's return."""
+    rc, _ = _bpf(BPF_PROG_GET_FD_BY_ID, struct.pack("<I", prog_id))
+    return int(rc)
+
+
+def prog_name(fd: int) -> str:
+    """BPF_OBJ_GET_INFO_BY_FD, bounded read; the name field sits at the
+    fixed early UAPI offset (56, char[16]) — appended fields land only
+    after it, so the bounded buffer is safe on every kernel the floor
+    admits."""
+    info = ctypes.create_string_buffer(INFO_BUF)
+    attr = struct.pack("<IIQ", fd, INFO_BUF, ctypes.addressof(info))
+    _, raw = _bpf(BPF_OBJ_GET_INFO_BY_FD, attr)
+    filled = struct.unpack_from("<I", raw, 4)[0]
+    if filled < NAME_OFFSET + NAME_LEN:
+        return ""
+    return (
+        info.raw[NAME_OFFSET : NAME_OFFSET + NAME_LEN].split(b"\x00")[0].decode("ascii", "replace")
+    )
+
+
+def fdinfo_verified_insns(fd: int):
+    """The price channel: the program fd's /proc fdinfo line the kernel
+    has written since aba64c7da983. None = the field does not exist on
+    this kernel (the 5.15 floor — the availability law's physics)."""
+    try:
+        with open(f"/proc/self/fdinfo/{fd}", encoding="ascii") as f:
+            for line in f:
+                m = re.match(r"^verified_insns:\s*(\d+)\s*$", line)
+                if m:
+                    return int(m.group(1))
+    except OSError:
+        return None
+    return None
+
+
+def census_programs() -> dict:
+    """Walk every loaded program through the kernel's own channels and
+    price each one. Returns name -> list of verified_insns (the list
+    shape keeps a duplicate load visible; a None entry names the
+    kernel's honest absence of the field)."""
     census = {}
-    for row in rows:
-        if not isinstance(row, dict):
+    for prog_id in walk_prog_ids():
+        fd = prog_fd_by_id(prog_id)
+        if fd <= 0:
             continue
-        name = row.get("name")
-        if not isinstance(name, str):
+        try:
+            name = prog_name(fd)
+            price = fdinfo_verified_insns(fd)
+        finally:
+            os.close(fd)
+        if not name:
             continue
-        entry = census.setdefault(name, [])
-        entry.append(row.get("verified_insns"))
+        census.setdefault(name, []).append(price)
     return census
 
 
@@ -339,6 +443,7 @@ def main() -> int:
     envelope = args.envelope or derive_envelope(os.uname().release)
     info(f"envelope: {envelope} (kernel {os.uname().release})")
     rows = ledger["envelopes"][envelope]["rows"]
+    rows_pricing = ledger["envelopes"][envelope].get("pricing", "verified_insns")
 
     binary = args.binary
     if not Path(binary).exists():
@@ -411,10 +516,29 @@ def main() -> int:
             )
             continue
         measured = seen[0]
+        priced = rows_pricing == "verified_insns"
+        if not priced:
+            # The inventory envelope: the load-proof IS the gate. The
+            # kernel may still volunteer the field (a mis-classified
+            # head); the number prints, nothing fabricates.
+            if isinstance(measured, int) and measured > 0:
+                print(f"MASS-CENSUS: {envelope} {prog} measured={measured}")
+                info(
+                    f"'{prog}' seen on this kernel and even reported "
+                    f"{measured} insns — the inventory gate holds"
+                )
+            else:
+                info(
+                    f"'{prog}' seen on this kernel — the inventory gate "
+                    "holds (verified_insns not exposed on it: the UAPI "
+                    "field landed in the v5.16 merge window)"
+                )
+            continue
         if isinstance(measured, bool) or not isinstance(measured, int) or measured <= 0:
             failures.append(
-                f"price: '{prog}' — the kernel/bpftool pair does not expose "
-                f"verified_insns here (got {measured!r})"
+                f"price: '{prog}' — the kernel does not expose "
+                f"verified_insns here (the UAPI field landed in the v5.16 "
+                f"merge window, aba64c7da983; got {measured!r})"
             )
             continue
         print(f"MASS-CENSUS: {envelope} {prog} measured={measured}")

@@ -2,11 +2,12 @@
   "schema": 1,
   "name": "the verifier budget ledger",
   "law": {
-    "what": "One pinned upper bound per program per kernel envelope, priced in the kernel's own verifier cost: the verified_insns count bpf_prog_info reports for the loaded program (UAPI aba64c7da983 - bpf: Add verified_insns to bpf_prog_info and fdinfo), read live by the census in scripts/supermassive/verifier-budget-test.py through the staged bpftool. The objects are byte-identical by construction (the parity gates), so for one kernel the number is deterministic - the budget pins the verifier walk, not a sample of it.",
+    "what": "One pinned upper bound per program per kernel envelope, priced in the kernel's own verifier cost: the verified_insns count the kernel reports for the loaded program (UAPI aba64c7da983, 2021-10-21 - bpf: Add verified_insns to bpf_prog_info and fdinfo), read live by the census in scripts/supermassive/verifier-budget-test.py through the kernel's own channels (the bpf() syscall for the program walk and the name, the program fd's /proc fdinfo for the price). The objects are byte-identical by construction (the parity gates), so for one kernel the number is deterministic - the budget pins the verifier walk, not a sample of it.",
     "growth_law": "A measured value above the pinned budget fails the battery. Raising a budget requires the commit that raises it to name the new number and the reason in the row's history (a raise is never silent - the growth is the event the gate exists to name).",
     "ratchet_law": "A budget may be lowered any time; the history records the lower value; a measured value below the budget never fails - it prints the headroom, and the ratchet (lowering the pin to the measured number) is the encouraged follow-up.",
     "completeness_law": "Every program the estate loads carries a row in BOTH envelopes. A loaded program missing from the ledger fails the battery on every run, census mode included - the inventory gate arms at landing and is never deferred; only the budget comparison defers.",
-    "census_law": "A null budget is census debt, named honestly: the battery measures the program, prints the number into the run log (MASS-CENSUS rows), and the budget comparison stays deferred while armed is false. The arming commit pins the measured numbers from a watched CI run and flips armed to true in the same change - no half-armed state exists (armed true with any null budget is an invalid ledger)."
+    "census_law": "A null budget is census debt, named honestly: the battery measures the program, prints the number into the run log (MASS-CENSUS rows), and the budget comparison stays deferred while armed is false. The arming commit pins the measured numbers from a watched CI run and flips armed to true in the same change - no half-armed state exists (armed true with any null budget is an invalid ledger).",
+    "availability_law": "The verified_insns field landed in the v5.16 merge window - the 5.15 floor kernel does not expose it, and no honest pin can exist there. The floor envelope is therefore an inventory envelope: its rows stay null forever (a pinned budget there would be fabrication), its gate is the load-proof itself (every estate program seen = the objects still load on the floor kernel). The head envelope prices by verified_insns."
   },
   "armed": false,
   "programs": [
@@ -19,26 +20,64 @@
   ],
   "envelopes": {
     "floor": {
-      "kernel_class": "uname -r 5.15.* - the jammy 5.15.0-ABI line, the documented 5.15.0 floor contract",
+      "kernel_class": "uname -r 5.15.* - the jammy 5.15.0-ABI line, the documented 5.15.0 floor contract (verified_insns does not exist on it: the UAPI field landed in the v5.16 merge window)",
       "rows": {
-        "enforce_dl": { "budget": null, "history": [] },
-        "enforce_ul": { "budget": null, "history": [] },
-        "zelynic_recwn": { "budget": null, "history": [] },
-        "zelynic_pace": { "budget": null, "history": [] },
-        "observe_egress": { "budget": null, "history": [] },
-        "observe_ingress": { "budget": null, "history": [] }
-      }
+        "enforce_dl": {
+          "budget": null,
+          "history": []
+        },
+        "enforce_ul": {
+          "budget": null,
+          "history": []
+        },
+        "zelynic_recwn": {
+          "budget": null,
+          "history": []
+        },
+        "zelynic_pace": {
+          "budget": null,
+          "history": []
+        },
+        "observe_egress": {
+          "budget": null,
+          "history": []
+        },
+        "observe_ingress": {
+          "budget": null,
+          "history": []
+        }
+      },
+      "pricing": "inventory"
     },
     "head": {
-      "kernel_class": "uname -r not 5.15.* - the archive's latest kernel, resolved dynamically at run time",
+      "kernel_class": "uname -r not 5.15.* - the archive's latest kernel, resolved dynamically at run time (any kernel at or past v5.16 exposes the field)",
       "rows": {
-        "enforce_dl": { "budget": null, "history": [] },
-        "enforce_ul": { "budget": null, "history": [] },
-        "zelynic_recwn": { "budget": null, "history": [] },
-        "zelynic_pace": { "budget": null, "history": [] },
-        "observe_egress": { "budget": null, "history": [] },
-        "observe_ingress": { "budget": null, "history": [] }
-      }
+        "enforce_dl": {
+          "budget": null,
+          "history": []
+        },
+        "enforce_ul": {
+          "budget": null,
+          "history": []
+        },
+        "zelynic_recwn": {
+          "budget": null,
+          "history": []
+        },
+        "zelynic_pace": {
+          "budget": null,
+          "history": []
+        },
+        "observe_egress": {
+          "budget": null,
+          "history": []
+        },
+        "observe_ingress": {
+          "budget": null,
+          "history": []
+        }
+      },
+      "pricing": "verified_insns"
     }
   }
 }
