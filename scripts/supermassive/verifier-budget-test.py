@@ -347,6 +347,7 @@ def prog_name(fd: int) -> str:
     attr = struct.pack("<IIQ", fd, INFO_BUF, ctypes.addressof(info))
     _, raw = _bpf(BPF_OBJ_GET_INFO_BY_FD, attr)
     filled = struct.unpack_from("<I", raw, 4)[0]
+    print(f"Z9: info read: kernel filled {filled} of {INFO_BUF} bytes")
     if filled < NAME_OFFSET + NAME_LEN:
         return ""
     return (
@@ -373,15 +374,24 @@ def census_programs() -> dict:
     """Walk every loaded program through the kernel's own channels and
     price each one. Returns name -> list of verified_insns (the list
     shape keeps a duplicate load visible; a None entry names the
-    kernel's honest absence of the field)."""
+    kernel's honest absence of the field). Every walk stage publishes
+    what it saw as a notice - the guest console is a read-hostile
+    channel, the annotations are not."""
     census = {}
-    for prog_id in walk_prog_ids():
+    ids = walk_prog_ids()
+    print(f"Z9: census walk: {len(ids)} program id(s) in the kernel: {ids}")
+    print(f"::notice::CENSUS-WALK {len(ids)} program id(s): {ids}")
+    for prog_id in ids:
         fd = prog_fd_by_id(prog_id)
+        print(f"Z9: id {prog_id} -> fd {fd}")
         if fd <= 0:
+            print(f"::notice::CENSUS-WALK id {prog_id} -> bad fd {fd}")
             continue
         try:
             name = prog_name(fd)
             price = fdinfo_verified_insns(fd)
+            print(f"Z9: id {prog_id} fd {fd} -> name {name!r} price {price!r}")
+            print(f"::notice::CENSUS-PROG id={prog_id} fd={fd} name={name!r} price={price!r}")
         finally:
             os.close(fd)
         if not name:
