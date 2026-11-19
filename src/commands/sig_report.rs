@@ -381,8 +381,12 @@ mod tests {
     #[test]
     fn one_flipped_object_byte_fails_by_name() {
         let pristine = crate::ebpf::loader::OBSERVER_ELF;
-        let pinned = option_env!("ZELYNIC_EBPF_OBJ_DIGEST_OBSERVER")
-            .expect("test builds stamp the object digests via build.rs");
+        // `env!`, not `option_env!(...).expect(...)` (clippy::option_env_unwrap,
+        // deny-by-default under -D warnings since the e406c47 pass): a test
+        // build compiles only where build.rs stamped the digest, so the
+        // compile-time macro is the honest shape — a build without the stamp
+        // fails HERE, at its own compile, instead of at run time.
+        let pinned = env!("ZELYNIC_EBPF_OBJ_DIGEST_OBSERVER");
 
         // The artifact's own bytes pass against their stamp.
         assert!(
