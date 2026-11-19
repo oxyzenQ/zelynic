@@ -402,12 +402,18 @@ def setup_cgroup(binary: str) -> tuple:
     )
     with open(TEST_CGROUP / "cgroup.procs", "w", encoding="ascii") as f:
         f.write(str(member.pid))
+    # The cgroup ID is the kernfs inode number — the same numbering
+    # bpf_skb_cgroup_id() returns (kernfs publishes kn->id as st_ino).
+    # No cgroup.id file exists in any mainline kernel (NIGHT-hunt-31 —
+    # the trap the first live census run stepped into, the existing
+    # harness's _read_id already knew); this mirrors zelynic's own
+    # cgroup_id_from_path, truncated to the u32 the BPF maps key on.
     try:
-        cgid = int((TEST_CGROUP / "cgroup.id").read_text(encoding="ascii").strip())
-    except (OSError, ValueError) as e:
+        cgid = os.stat(TEST_CGROUP).st_ino & 0xFFFFFFFF
+    except OSError as e:
         member.kill()
         member.wait()
-        fail(f"the census cgroup's id is unreadable: {e}")
+        fail(f"the census cgroup's id is unresolvable: {e}")
         sys.exit(2)
     info(f"census bed ready: {TEST_CGROUP} (cgroup id {cgid}, member {member.pid})")
     return member, cgid
