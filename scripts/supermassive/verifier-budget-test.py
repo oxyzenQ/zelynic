@@ -15,23 +15,41 @@ failure class that arrives without any code misbehaving on the machine
 that measures it.
 
 The instrument: the battery loads BOTH objects on the kernel it booted (a
-real strict apply for the limiter's four programs, the eagle-eyes --depth
-one-shot for the observer's two), and prices every loaded program with the
-kernel's own channels — no display tool's mercy: the program walk runs the
-bpf() syscall itself (BPF_PROG_GET_NEXT_ID / BPF_PROG_GET_FD_BY_ID /
-BPF_OBJ_GET_INFO_BY_FD), the name comes from bpf_prog_info (the fixed
-early UAPI layout), and the price is verified_insns (UAPI aba64c7da983,
-2021-10-21 — "bpf: Add verified_insns to bpf_prog_info and fdinfo"), read
-from the program fd's /proc fdinfo. The first live run's lesson, recorded
-honestly: the FIELD is kernel UAPI, the DISPLAY tool only grew it in Oct
-2026 — the guest's staged bpftool (libbpf 0.5 era) never printed the
-number, so the census reads the kernel directly. The objects are
-byte-identical by construction (the parity gates), so for one kernel the
-number is deterministic: the budget pins the verifier walk, not a sample
-of it. The availability boundary is physics, not a gap: the field landed
-in the v5.16 merge window — the 5.15 floor kernel does not expose it, so
-the floor envelope prices by inventory (the load-proof IS the floor's
-gate) and the head envelope prices by verified_insns.
+real strict apply for the limiter's four programs, a live eagle-eyes
+monitor session for the observer's two), and prices every estate program
+with the kernel's own channels — no display tool's mercy: the walk runs
+the bpf() syscall itself, and the price is verified_insns (UAPI
+aba64c7da983, 2021-10-21 — "bpf: Add verified_insns to bpf_prog_info and
+fdinfo"), read from the program fd's /proc fdinfo. The first live runs'
+lessons, recorded honestly: the FIELD is kernel UAPI, the DISPLAY tool
+only grew it in Oct 2026 (the guest's staged bpftool never printed the
+number); the cgroup id is the kernfs inode (NIGHT-hunt-31 — no cgroup.id
+file exists in any mainline kernel); and the kernel-side program NAME is
+not an identity the estate can lean on (aya stamps prog_name only when its
+BpfName feature probe passes — the live census saw empty names). The
+identity channel that cannot lie is the estate's own pin layer and the
+link metadata the kernel itself keeps.
+
+Identity map (v2):
+  * the limiter's four programs — the loader's own pinned files
+    (/sys/fs/bpf/zelynic/<program>): BPF_OBJ_GET on the pin file returns
+    THE program's fd; the pin file name is the loader's own program name;
+    bpf_prog_info.id confirms the kernel-side identity;
+  * the observer's two programs — session-scoped by design (the lazy
+    camera pins nothing), alive only while a monitor session runs: the
+    battery spawns the live eagle-eyes monitor on a pty (the v2
+    battery's proven shape), and the census walks the kernel's link
+    table — the two live cgroup links whose attach types are
+    BPF_CGROUP_INET_INGRESS / BPF_CGROUP_INET_EGRESS and whose programs
+    are NOT the pinned limiter set are the observer's ingress/egress
+    pair, exactly the identity the kernel keeps for the attach itself.
+
+The objects are byte-identical by construction (the parity gates), so for
+one kernel the number is deterministic: the budget pins the verifier walk,
+not a sample of it. The availability boundary is physics, not a gap: the
+field landed in the v5.16 merge window — the 5.15 floor kernel does not
+expose it, so the floor envelope prices by inventory (the load-proof IS
+the floor's gate) and the head envelope prices by verified_insns.
 
 The laws (each enforced here, validated rootlessly by --self-test):
   * the completeness law — every program the estate loads carries a row in
@@ -70,13 +88,17 @@ kernel to price them); --self-test needs none of it.
 import argparse
 import ctypes
 import errno
+import fcntl
 import json
 import os
 import platform
+import pty
 import re
+import signal
 import struct
 import subprocess
 import sys
+import termios
 import time
 from pathlib import Path
 
@@ -98,31 +120,46 @@ PROGRAMS = [
 ]
 ENVELOPES = ("floor", "head")
 HISTORY_KINDS = ("pin", "raise", "lower")
-# Any loaded program whose name starts with one of these prefixes belongs
-# to the estate's inventory and must carry a ledger row (the completeness
-# law's runtime half — the loader's own vocabulary).
-ESTATE_PREFIXES = ("zelynic", "observe")
-
-# The bpf() UAPI walk (the kernel's own channels, no display tool):
-# the syscall numbers are the stable per-arch assignments, the cmd codes
-# are the frozen bpf_cmd enum, and the name field sits at the fixed early
-# bpf_prog_info offset (byte 56, char[16]) — appended fields only ever
-# land after it, so a bounded read is safe on every kernel the floor
-# admits. verified_insns rides the program fd's /proc fdinfo (UAPI
-# aba64c7da983, the v5.16 merge window): the floor's 5.15 line does not
-# carry it, and the availability law prices the envelopes accordingly.
-BPF_SYSCALL_NR = {"x86_64": 321, "aarch64": 280}
-BPF_PROG_GET_NEXT_ID = 11
-BPF_PROG_GET_FD_BY_ID = 13
-BPF_OBJ_GET_INFO_BY_FD = 15
-ATTR_SIZE = 128
-INFO_BUF = 200
-NAME_OFFSET = 56
-NAME_LEN = 16
 
 CGROUP_ROOT = Path("/sys/fs/cgroup")
 TEST_CGROUP = CGROUP_ROOT / "zelynic-verifier-budget"
 APPLY_RATE = "1mb"
+
+# The loader's own pinned program files (src/ebpf/pin.rs): the pin file
+# name IS the loader's program name, and BPF_OBJ_GET on the file returns
+# THE program's fd — the identity channel that cannot lie about which
+# program is which.
+LIM_PIN_PROGS = {
+    "enforce_dl": "/sys/fs/bpf/zelynic/enforce_dl",
+    "enforce_ul": "/sys/fs/bpf/zelynic/enforce_ul",
+    "zelynic_recwn": "/sys/fs/bpf/zelynic/zelynic_recwn",
+    "zelynic_pace": "/sys/fs/bpf/zelynic/zelynic_pace",
+}
+
+# The bpf() UAPI walk (the kernel's own channels, no display tool): the
+# syscall numbers are the stable per-arch assignments, and every cmd code
+# and struct offset below is read from include/uapi/linux/bpf.h (the
+# frozen UAPI) — bpf_cmd from the enum's own order, bpf_prog_info's early
+# fields (id at 4, name at 56) fixed since the struct's birth, bpf_link_info
+# (type at 0, prog_id at 8, cgroup.attach_type at 24) from the 6.x header
+# whose layout the 5.15 floor shares for these early words. bpf_attach_type:
+# BPF_CGROUP_INET_INGRESS = 0, BPF_CGROUP_INET_EGRESS = 1.
+BPF_SYSCALL_NR = {"x86_64": 321, "aarch64": 280}
+BPF_OBJ_GET = 8
+BPF_PROG_GET_NEXT_ID = 12
+BPF_PROG_GET_FD_BY_ID = 14
+BPF_OBJ_GET_INFO_BY_FD = 16
+BPF_LINK_GET_FD_BY_ID = 31
+BPF_LINK_GET_NEXT_ID = 32
+ATTR_SIZE = 128
+INFO_BUF = 256
+PROG_ID_OFFSET = 4
+LINK_TYPE_OFFSET = 0
+LINK_PROG_ID_OFFSET = 8
+LINK_CGROUP_ATTACH_TYPE_OFFSET = 24
+LINK_TYPE_CGROUP = 3
+ATTACH_INET_INGRESS = 0
+ATTACH_INET_EGRESS = 1
 
 
 def fail(msg: str) -> None:
@@ -326,8 +363,6 @@ def walk_prog_ids() -> list:
                 return ids
             raise
         next_id = struct.unpack_from("<I", raw, 4)[0]
-        if next_id == start and start != 0:
-            return ids
         ids.append(next_id)
         start = next_id + 1
 
@@ -338,21 +373,17 @@ def prog_fd_by_id(prog_id: int) -> int:
     return int(rc)
 
 
-def prog_name(fd: int) -> str:
-    """BPF_OBJ_GET_INFO_BY_FD, bounded read; the name field sits at the
-    fixed early UAPI offset (56, char[16]) — appended fields land only
-    after it, so the bounded buffer is safe on every kernel the floor
-    admits."""
+def prog_id_from_fd(fd: int) -> int:
+    """The kernel-side program id, from bpf_prog_info.id (the fixed
+    early UAPI offset) — the identity cross-check between a pin file
+    and the kernel's own id space."""
     info = ctypes.create_string_buffer(INFO_BUF)
     attr = struct.pack("<IIQ", fd, INFO_BUF, ctypes.addressof(info))
     _, raw = _bpf(BPF_OBJ_GET_INFO_BY_FD, attr)
     filled = struct.unpack_from("<I", raw, 4)[0]
-    print(f"Z9: info read: kernel filled {filled} of {INFO_BUF} bytes")
-    if filled < NAME_OFFSET + NAME_LEN:
-        return ""
-    return (
-        info.raw[NAME_OFFSET : NAME_OFFSET + NAME_LEN].split(b"\x00")[0].decode("ascii", "replace")
-    )
+    if filled < PROG_ID_OFFSET + 4:
+        return 0
+    return struct.unpack_from("<I", info.raw, PROG_ID_OFFSET)[0]
 
 
 def fdinfo_verified_insns(fd: int):
@@ -370,39 +401,126 @@ def fdinfo_verified_insns(fd: int):
     return None
 
 
-def census_programs() -> dict:
-    """Walk every loaded program through the kernel's own channels and
-    price each one. Returns name -> list of verified_insns (the list
-    shape keeps a duplicate load visible; a None entry names the
-    kernel's honest absence of the field). Every walk stage publishes
-    what it saw as a notice - the guest console is a read-hostile
-    channel, the annotations are not."""
-    census = {}
-    ids = walk_prog_ids()
-    print(f"Z9: census walk: {len(ids)} program id(s) in the kernel: {ids}")
-    print(f"::notice::CENSUS-WALK {len(ids)} program id(s): {ids}")
-    for prog_id in ids:
-        fd = prog_fd_by_id(prog_id)
-        print(f"Z9: id {prog_id} -> fd {fd}")
-        if fd <= 0:
-            print(f"::notice::CENSUS-WALK id {prog_id} -> bad fd {fd}")
-            continue
+def obj_get(path: str) -> int:
+    """BPF_OBJ_GET on a bpffs pin file: a pinned PROGRAM file's fd is
+    THE program's fd (the kernel keeps one prog per pin)."""
+    path_buf = ctypes.create_string_buffer(path.encode("ascii"))
+    attr = struct.pack("<QI4x", ctypes.addressof(path_buf), 0)
+    rc, _ = _bpf(BPF_OBJ_GET, attr)
+    return int(rc)
+
+
+def walk_links() -> list:
+    """BPF_LINK_GET_NEXT_ID until ENOENT; each link's fd stays open for
+    the caller (the identity walk reads link_info through it)."""
+    links = []
+    start = 0
+    while True:
         try:
-            name = prog_name(fd)
-            price = fdinfo_verified_insns(fd)
-            print(f"Z9: id {prog_id} fd {fd} -> name {name!r} price {price!r}")
-            print(f"::notice::CENSUS-PROG id={prog_id} fd={fd} name={name!r} price={price!r}")
-        finally:
-            os.close(fd)
-        if not name:
+            _, raw = _bpf(BPF_LINK_GET_NEXT_ID, struct.pack("<III", start, 0, 0))
+        except OSError as e:
+            if e.errno == errno.ENOENT:
+                return links
+            raise
+        next_id = struct.unpack_from("<I", raw, 4)[0]
+        links.append(next_id)
+        start = next_id + 1
+
+
+def link_info(link_id: int) -> tuple:
+    """(prog_id, attach_type) from bpf_link_info — the kernel's own
+    record of WHAT a link attaches WHERE (early fixed offsets)."""
+    fd = int(_bpf(BPF_LINK_GET_FD_BY_ID, struct.pack("<I", link_id))[0])
+    info = ctypes.create_string_buffer(INFO_BUF)
+    attr = struct.pack("<IIQ", fd, INFO_BUF, ctypes.addressof(info))
+    try:
+        _bpf(BPF_OBJ_GET_INFO_BY_FD, attr)
+    finally:
+        os.close(fd)
+    raw_info = info.raw
+    prog_id = struct.unpack_from("<I", raw_info, LINK_PROG_ID_OFFSET)[0]
+    attach_type = struct.unpack_from("<I", raw_info, LINK_CGROUP_ATTACH_TYPE_OFFSET)[0]
+    link_type = struct.unpack_from("<I", raw_info, LINK_TYPE_OFFSET)[0]
+    return link_type, prog_id, attach_type
+
+
+def spawn_monitor_on_pty(binary: str, cgid: int) -> tuple:
+    """The live eagle-eyes monitor on a fresh pseudo-terminal (the v2
+    battery's proven shape: pty with a sane 80x24 geometry, stdin/out/
+    err on the slave). The observer's programs live only while this
+    session runs — the census prices them mid-flight."""
+    master, slave = pty.openpty()
+    fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 80, 0, 0))
+    proc = subprocess.Popen(
+        [binary, "eagle-eyes", f"cg:{cgid}"],
+        stdin=slave,
+        stdout=slave,
+        stderr=slave,
+        close_fds=True,
+        env=slim_env(),
+    )
+    os.close(slave)
+    return proc, master
+
+
+def census_programs() -> dict:
+    """Price every estate program through the kernel's own channels.
+
+    The limiter's four come through their pinned files (the pin name is
+    the loader's program name; BPF_OBJ_GET on the file is THE program).
+    The observer's two come through the kernel's link table: with the
+    live monitor session running, the two live cgroup links whose
+    attach types are INET_INGRESS / INET_EGRESS and whose programs are
+    NOT the pinned limiter set are the observer's pair. Returns
+    name -> (fd, verified_insns-or-None); the caller closes fds."""
+    census = {}
+    pinned_ids = set()
+    for prog, pin_path in LIM_PIN_PROGS.items():
+        if not os.path.exists(pin_path):
+            census[prog] = None
             continue
-        census.setdefault(name, []).append(price)
-    return census
+        fd = obj_get(pin_path)
+        if fd <= 0:
+            census[prog] = None
+            continue
+        pid = prog_id_from_fd(fd)
+        pinned_ids.add(pid)
+        price = fdinfo_verified_insns(fd)
+        os.close(fd)
+        census[prog] = price
+        notice(f"CENSUS-PIN {prog} pin={pin_path} prog_id={pid} price={price!r}")
+    return census, pinned_ids
 
 
-def setup_cgroup(binary: str) -> tuple:
+def observer_pair(pinned_ids: set) -> dict:
+    """The two live observer programs, identified by the kernel's own
+    link metadata: the live cgroup links whose attach types are
+    INET_INGRESS / INET_EGRESS and whose prog ids are NOT the pinned
+    limiter set. Returns name -> prog_id (or the miss, named)."""
+    result = {}
+    all_ids = walk_prog_ids()
+    live_ids = [pid for pid in all_ids if pid not in pinned_ids]
+    notice(f"CENSUS-WALK {len(all_ids)} kernel prog id(s); live (unpinned): {live_ids}")
+    for link_id in walk_links():
+        try:
+            link_type, prog_id, attach_type = link_info(link_id)
+        except OSError as e:
+            notice(f"CENSUS-LINK id={link_id} unreadable ({e})")
+            continue
+        if link_type != LINK_TYPE_CGROUP or prog_id not in live_ids:
+            continue
+        if attach_type == ATTACH_INET_INGRESS and "observe_ingress" not in result:
+            result["observe_ingress"] = prog_id
+            notice(f"CENSUS-LINK observe_ingress prog_id={prog_id} (live ingress link)")
+        elif attach_type == ATTACH_INET_EGRESS and "observe_egress" not in result:
+            result["observe_egress"] = prog_id
+            notice(f"CENSUS-LINK observe_egress prog_id={prog_id} (live egress link)")
+    return result
+
+
+def setup_cgroup():
     """One dedicated bed with one live member: the target the strict apply
-    polices and the liveness gate the depth one-shot demands."""
+    polices and the liveness the monitor session wants."""
     TEST_CGROUP.mkdir(parents=True, exist_ok=True)
     member = subprocess.Popen(
         ["sleep", "300"],
@@ -429,9 +547,12 @@ def setup_cgroup(binary: str) -> tuple:
     return member, cgid
 
 
-def teardown(member, cgid: int, binary: str) -> None:
+def teardown(member, cgid: int, binary: str, monitor=None) -> None:
     """The lane empties itself (best-effort hygiene, never a verdict —
     the guest is ephemeral, the host rerun deserves a clean slate)."""
+    if monitor is not None:
+        monitor.send_signal(signal.SIGKILL)
+        monitor.wait()
     run_cmd([binary, "unstrict", str(cgid)], timeout=60)
     member.kill()
     member.wait()
@@ -481,7 +602,7 @@ def main() -> int:
     failures = []
 
     # 1. The bed: one cgroup, one live member.
-    member, cgid = setup_cgroup(binary)
+    member, cgid = setup_cgroup()
 
     # 2. The limiter object: a real apply loads the four enforcement programs.
     rc, out, err = run_cmd([binary, "strict", str(cgid), APPLY_RATE], timeout=90)
@@ -491,35 +612,25 @@ def main() -> int:
         return 1
     info(f"strict {cgid} {APPLY_RATE} applied — the limiter object is loaded")
 
-    # 3. The observer object: the depth one-shot attaches it (headless-safe).
-    rc, out, err = run_cmd(
-        [binary, "eagle-eyes", "--depth", f"cg:{cgid}", "--print-json"], timeout=90
-    )
-    if rc != 0:
-        teardown(member, cgid, binary)
-        fail(f"eagle-eyes --depth refused (rc {rc}): {(err or out).strip()[:300]}")
+    # 3. The observer object: a LIVE monitor session (the pty shape the
+    #    survival battery proves) — the lazy camera pins nothing, so the
+    #    observer's programs exist only while this session runs.
+    monitor, master_fd = spawn_monitor_on_pty(binary, cgid)
+    time.sleep(3.0)
+    if monitor.poll() is not None:
+        teardown(member, cgid, binary, monitor)
+        fail("the eagle-eyes monitor session died before the census ran")
         return 1
+    info("eagle-eyes monitor session alive — the observer object is loaded")
+
+    # 4. The census: the kernel prices every estate program.
     try:
-        json.loads(out)
-    except ValueError:
-        teardown(member, cgid, binary)
-        fail("eagle-eyes --depth printed no JSON the census can read")
-        return 1
-    info("eagle-eyes --depth answered — the observer object is loaded")
+        limiter_prices, pinned_ids = census_programs()
+        observer_ids = observer_pair(pinned_ids)
+    finally:
+        os.close(master_fd)
 
-    # 4. The census: the kernel prices every loaded program.
-    census = census_programs()
-
-    # 5. The completeness law (runtime half): an estate program loaded but
-    # unledgered is the one failure the census posture cannot defer.
-    for name in sorted(census):
-        if name.startswith(ESTATE_PREFIXES) and name not in PROGRAMS:
-            failures.append(
-                f"completeness: loaded program '{name}' has no ledger row — "
-                "add it to both envelopes in the same commit that loaded it"
-            )
-
-    # 6. The verdict per program: the inventory, then the budget.
+    # 5. The verdict per program: the inventory, then the budget.
     armed = ledger["armed"]
     if not armed:
         info("census mode (armed:false) — the budget comparison defers, the inventory does not")
@@ -530,39 +641,35 @@ def main() -> int:
             # check keeps the law standing even against a hand-edited file.
             failures.append(f"inventory: '{prog}' has no {envelope} row")
             continue
-        seen = census.get(prog, [])
-        if not seen:
-            failures.append(
-                f"inventory: '{prog}' never loaded — the object carrying it "
-                "did not load, or it is missing from this kernel"
-            )
-            continue
-        if len(seen) > 1:
-            failures.append(
-                f"inventory: '{prog}' loaded {len(seen)} times — the census "
-                "expects exactly one copy of each estate program"
-            )
-            continue
-        measured = seen[0]
-        priced = rows_pricing == "verified_insns"
-        if not priced:
-            # The inventory envelope: the load-proof IS the gate. The
-            # kernel may still volunteer the field (a mis-classified
-            # head); the number prints, nothing fabricates.
-            if isinstance(measured, int) and measured > 0:
-                print(f"MASS-CENSUS: {envelope} {prog} measured={measured}")
-                notice(
-                    f"INVENTORY {envelope} {prog} seen and reported "
-                    f"{measured} insns - the inventory gate holds"
+        if prog in LIM_PIN_PROGS:
+            price = limiter_prices.get(prog, "missing-pin")
+            if price == "missing-pin":
+                failures.append(
+                    f"inventory: '{prog}' has no pinned file at "
+                    f"{LIM_PIN_PROGS[prog]} — the limiter object did not load"
                 )
-            else:
+                continue
+            measured = price
+        else:
+            prog_id = observer_ids.get(prog)
+            if prog_id is None:
+                failures.append(
+                    f"inventory: '{prog}' never loaded — the monitor session "
+                    "was alive, but the kernel holds no matching live link"
+                )
+                continue
+            fd_probe = prog_fd_by_id(prog_id)
+            measured = fdinfo_verified_insns(fd_probe)
+            os.close(fd_probe)
+        if isinstance(measured, bool) or not isinstance(measured, int) or measured <= 0:
+            if rows_pricing == "inventory":
+                # The inventory envelope: the load-proof IS the gate.
                 notice(
-                    f"INVENTORY {envelope} {prog} seen - the load-proof "
+                    f"INVENTORY {envelope} {prog} seen — the load-proof "
                     "gate holds (verified_insns not exposed on it: the "
                     "UAPI field landed in the v5.16 merge window)"
                 )
-            continue
-        if isinstance(measured, bool) or not isinstance(measured, int) or measured <= 0:
+                continue
             failures.append(
                 f"price: '{prog}' — the kernel does not expose "
                 f"verified_insns here (the UAPI field landed in the v5.16 "
@@ -595,7 +702,7 @@ def main() -> int:
                     "(the ratchet may lower it)"
                 )
 
-    teardown(member, cgid, binary)
+    teardown(member, cgid, binary, monitor)
 
     if failures:
         print(f"verifier budget: {len(failures)} failure(s)")
