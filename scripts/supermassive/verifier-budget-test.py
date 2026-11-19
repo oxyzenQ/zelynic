@@ -576,10 +576,10 @@ def observer_pair(pinned_ids: set) -> dict:
             continue
         if "ingress" in text and "observe_ingress" not in result:
             result["observe_ingress"] = prog_id
-            notice(f"CENSUS-LINK observe_ingress prog_id={prog_id} (live ingress attach)")
+            print(f"Z9: CENSUS-LINK observe_ingress prog_id={prog_id} (live ingress attach)")
         elif "egress" in text and "observe_egress" not in result:
             result["observe_egress"] = prog_id
-            notice(f"CENSUS-LINK observe_egress prog_id={prog_id} (live egress attach)")
+            print(f"Z9: CENSUS-LINK observe_egress prog_id={prog_id} (live egress attach)")
     return result
 
 
