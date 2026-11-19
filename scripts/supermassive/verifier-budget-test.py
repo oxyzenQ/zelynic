@@ -511,7 +511,7 @@ def census_programs(envelope: str, priced_envelope: bool) -> dict:
         pin_listing = sorted(os.listdir("/sys/fs/bpf/zelynic"))
     except OSError as e:
         pin_listing = [f"unlistable: {e}"]
-    notice(f"PIN-DIR /sys/fs/bpf/zelynic holds {pin_listing}")
+    print(f"Z9: PIN-DIR /sys/fs/bpf/zelynic holds {pin_listing}")
     for prog, pin_path in LIM_PIN_PROGS.items():
         if not os.path.exists(pin_path):
             census[prog] = None
@@ -556,7 +556,7 @@ def bpftool_prog_table() -> list:
         for r in rows
         if isinstance(r, dict)
     ]
-    notice(f"PROG-TABLE {table}")
+    print(f"Z9: PROG-TABLE {table}")
     return table
 
 
@@ -569,7 +569,7 @@ def observer_pair(pinned_ids: set) -> dict:
     result = {}
     bpftool_prog_table()
     table = bpftool_link_rows()
-    notice(f"LINK-TABLE {table}")
+    print(f"Z9: LINK-TABLE {table}")
     for attach_text, prog_id in table:
         text = attach_text.lower()
         if prog_id in pinned_ids:
@@ -730,7 +730,8 @@ def main() -> int:
                     "was alive, but the kernel holds no matching live link"
                 )
                 continue
-            measured, _, _ = prog_price(prog_id, rows_pricing == "verified_insns")
+            measured, obs_diag, _ = prog_price(prog_id, rows_pricing == "verified_insns")
+            notice(f"CENSUS-LIVE {prog} prog_id={prog_id} price={measured!r} diag={obs_diag}")
         if isinstance(measured, bool) or not isinstance(measured, int) or measured <= 0:
             if rows_pricing == "inventory":
                 # The inventory envelope: the load-proof IS the gate.
