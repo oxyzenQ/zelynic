@@ -40,10 +40,9 @@ use crate::ebpf::trace;
 /// host (see src/ebpf/embedded.rs for the hunt record).
 /// `pub(crate)` since night-depth-hardening-Z2: the sig ladder's
 /// object-integrity depth hashes these exact bytes at runtime.
-pub(crate) static OBSERVER_ELF: &[u8] = &crate::ebpf::embedded::AlignedElf::new(*include_bytes!(concat!(
-    env!("OUT_DIR"),
-    "/zelynic-observer.o"
-)))
+pub(crate) static OBSERVER_ELF: &[u8] = &crate::ebpf::embedded::AlignedElf::new(*include_bytes!(
+    concat!(env!("OUT_DIR"), "/zelynic-observer.o")
+))
 .bytes;
 
 /// Per-cgroup stats from BPF map (must match the observer
