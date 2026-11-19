@@ -9,7 +9,7 @@
     "census_law": "A null budget is census debt, named honestly: the battery measures the program, prints the number into the run log (MASS-CENSUS rows), and the budget comparison stays deferred while armed is false. The arming commit pins the measured numbers from a watched CI run and flips armed to true in the same change - no half-armed state exists (armed true with any null budget is an invalid ledger).",
     "availability_law": "The verified_insns field landed in the v5.16 merge window - the 5.15 floor kernel does not expose it, and no honest pin can exist there. The floor envelope is therefore an inventory envelope: its rows stay null forever (a pinned budget there would be fabrication), its gate is the load-proof itself (every estate program seen = the objects still load on the floor kernel). The head envelope prices by verified_insns."
   },
-  "armed": false,
+  "armed": true,
   "programs": [
     "enforce_dl",
     "enforce_ul",
@@ -53,28 +53,70 @@
       "kernel_class": "uname -r not 5.15.* - the archive's latest kernel, resolved dynamically at run time (any kernel at or past v5.16 exposes the field)",
       "rows": {
         "enforce_dl": {
-          "budget": null,
-          "history": []
+          "budget": 664129,
+          "history": [
+            {
+              "kind": "pin",
+              "value": 664129,
+              "source": "the supermassive census run 44595619920 (kernel 7.3.0-11-generic, pair (13,15) honored, fill 232)",
+              "reason": "the first live census of the estate on the archive's latest kernel - the arming commit"
+            }
+          ]
         },
         "enforce_ul": {
-          "budget": null,
-          "history": []
+          "budget": 703842,
+          "history": [
+            {
+              "kind": "pin",
+              "value": 703842,
+              "source": "the supermassive census run 44595619920 (kernel 7.3.0-11-generic, pair (13,15) honored, fill 232)",
+              "reason": "the first live census of the estate on the archive's latest kernel - the arming commit"
+            }
+          ]
         },
         "zelynic_recwn": {
-          "budget": null,
-          "history": []
+          "budget": 139,
+          "history": [
+            {
+              "kind": "pin",
+              "value": 139,
+              "source": "the supermassive census run 44595619920 (kernel 7.3.0-11-generic, pair (13,15) honored, fill 232)",
+              "reason": "the first live census of the estate on the archive's latest kernel - the arming commit"
+            }
+          ]
         },
         "zelynic_pace": {
-          "budget": null,
-          "history": []
+          "budget": 63,
+          "history": [
+            {
+              "kind": "pin",
+              "value": 63,
+              "source": "the supermassive census run 44595619920 (kernel 7.3.0-11-generic, pair (13,15) honored, fill 232)",
+              "reason": "the first live census of the estate on the archive's latest kernel - the arming commit"
+            }
+          ]
         },
         "observe_egress": {
-          "budget": null,
-          "history": []
+          "budget": 70,
+          "history": [
+            {
+              "kind": "pin",
+              "value": 70,
+              "source": "the supermassive census run 44595619920 (kernel 7.3.0-11-generic, pair (13,15) honored, fill 232)",
+              "reason": "the first live census of the estate on the archive's latest kernel - the arming commit"
+            }
+          ]
         },
         "observe_ingress": {
-          "budget": null,
-          "history": []
+          "budget": 70,
+          "history": [
+            {
+              "kind": "pin",
+              "value": 70,
+              "source": "the supermassive census run 44595619920 (kernel 7.3.0-11-generic, pair (13,15) honored, fill 232)",
+              "reason": "the first live census of the estate on the archive's latest kernel - the arming commit"
+            }
+          ]
         }
       },
       "pricing": "verified_insns"
