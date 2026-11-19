@@ -205,11 +205,21 @@ mod tests {
             .expect("fake toolchain dir");
 
         let saved = std::env::var_os("RUSTUP_HOME");
-        std::env::set_var("RUSTUP_HOME", &home);
+        // SAFETY: test-only process state, restored below before the
+        // test returns. This suite runs standalone via
+        // `rustc --test build.rs` — a single-threaded harness, so no
+        // concurrent thread can observe the mutation window. The
+        // unsafe blocks themselves are the NIGHT-improve-67 edition
+        // migration's doing: Rust 2024 made env mutation unsafe, and
+        // these cfg(test) bodies only compile in the standalone
+        // harness (cargo never builds a build script's test target).
+        unsafe {
+            std::env::set_var("RUSTUP_HOME", &home);
+        }
         let verdict = toolchain_manifests_loadable(pin);
         match saved {
-            Some(v) => std::env::set_var("RUSTUP_HOME", v),
-            None => std::env::remove_var("RUSTUP_HOME"),
+            Some(v) => unsafe { std::env::set_var("RUSTUP_HOME", v) },
+            None => unsafe { std::env::remove_var("RUSTUP_HOME") },
         }
         let _ = std::fs::remove_dir_all(&home);
 

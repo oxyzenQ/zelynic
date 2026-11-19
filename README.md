@@ -770,7 +770,13 @@ the container round trip, the per-run results — lives in
 
 Each release ships a **detached GPG signature** per archive plus three
 checksums: classical SHA-512 + fast-modern BLAKE3 +
-quantum-resistant SHAKE256. The authenticity check is one command —
+quantum-resistant SHAKE256. Beyond the artifact proofs, the release
+process itself is reproducible: two independent CI hosts build the
+same commit from the pinned recipe and must land byte-identical
+binaries (`cmp`-verified on every `v*` tag) — the published hash is
+the hash the source produces, not just the hash the maintainer
+obtained. The one-command checks and the D4 recipe live in
+[docs/VERIFY_RELEASE.md](docs/VERIFY_RELEASE.md), told once there:
 
 ```bash
 # one-time: import the maintainer's published signing key
