@@ -941,6 +941,20 @@ jobs:
           fi
           exit 0
 
+      # night-frontier-Z9 rider: the boot log lands as an artifact on
+      # every shard, success or failure — the guest's MASS-* sentinel
+      # rows and the batteries' own diagnostic lines stay downloadable
+      # through the API without shell access to the runner, and the
+      # busy-hour watch's step summary gets a byte-exact record to
+      # point at. The census rows (MASS-CENSUS) ride the same artifact.
+      - name: Upload the boot log
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          name: supermassive-boot-log-${{ matrix.battery }}-${{ matrix.profile }}
+          path: /tmp/kfloor/vm.log
+          retention-days: 3
+
       # The verdict lives in the log (the VM cannot relay exit codes
       # through qemu; the MASS-* sentinel lines are the contract —
       # scripts/ci/supermassive-init.sh owns them).
