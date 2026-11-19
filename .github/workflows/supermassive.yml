@@ -215,8 +215,9 @@
 #   engine (the harness self-tests + v1's server depth phase),
 #   legacy (the MMSPA-vs-v11.0.0 subtree delta), survival (v2 + v3 +
 #   v4 + the live claims proof), rigs (reload / crash-recovery /
-#   race-condition). Each shard's wall clock is one battery, the
-#   ~5-minute target, never the sum.
+#   race-condition), verifier (night-frontier-Z9: the verifier budget
+#   ledger's census + gate on the leg's own kernel). Each shard's wall
+#   clock is one battery, the ~5-minute target, never the sum.
 #
 #   the ONE battery that is irreducible serial physics — v1's
 #   desktop matrix (run_heavy is ONE stateful sequence: the baseline
@@ -815,6 +816,14 @@ jobs:
             battery: rigs
             profile: best
             vm_timeout: "720"
+          - title: supermassive verifier budget - low specs (the jammy 5.15.0 floor kernel, musl)
+            battery: verifier
+            profile: low
+            vm_timeout: "600"
+          - title: supermassive verifier budget - best specs (musl)
+            battery: verifier
+            profile: best
+            vm_timeout: "600"
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:

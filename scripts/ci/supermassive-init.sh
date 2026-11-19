@@ -272,9 +272,9 @@ for word in $CMDLINE; do
 	esac
 done
 case "$BATTERIES" in
-engine | legacy | survival | rigs | desktop | all) ;;
+engine | legacy | survival | rigs | desktop | verifier | all) ;;
 *)
-	note "battery selector '$BATTERIES' (wanted engine|legacy|survival|rigs|desktop|all)" FAIL
+	note "battery selector '$BATTERIES' (wanted engine|legacy|survival|rigs|desktop|verifier|all)" FAIL
 	BATTERIES="all"
 	;;
 esac
@@ -516,6 +516,30 @@ rigs | all)
 	# cleanup; a straggler zombie can hold the directory a moment) — the
 	# removal is best-effort hygiene, never a verdict.
 	rmdir /sys/fs/cgroup/zelynic-rig-suite 2>/dev/null || true
+	;;
+esac
+
+# ── the verifier budget ledger (night-frontier-Z9) ─────────────────────
+# The enforcement estate's verifier cost, priced live on this leg's
+# kernel: the battery loads BOTH objects (a real strict apply for the
+# limiter's four programs, the eagle-eyes --depth one-shot for the
+# observer's two), walks every loaded program through the staged
+# bpftool, and prices each with bpf_prog_info.verified_insns against
+# scripts/supermassive/verifier-budget-ledger.json — the growth law
+# (measured above budget fails; a raise names its number), the ratchet
+# law (lowering is free), and the completeness law (a loaded program
+# without a row fails, census mode included). A null budget is census
+# debt: the measured number prints MASS-CENSUS rows into the run log
+# and the comparison arms when the pin lands (armed:false — no
+# half-armed state exists).
+case "$BATTERIES" in
+verifier | all)
+	if python3 scripts/supermassive/verifier-budget-test.py \
+		--binary /opt/zelynic/zelynic; then
+		note "verifier budget ledger - census + gate (verified_insns)" PASS
+	else
+		note "verifier budget ledger - census + gate (verified_insns)" FAIL
+	fi
 	;;
 esac
 
