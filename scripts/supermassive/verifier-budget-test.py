@@ -348,17 +348,18 @@ def prog_fd_by_id(prog_id: int) -> int:
 
 def fdinfo_verified_insns(fd: int):
     """The price channel: the program fd's /proc fdinfo line the kernel
-    has written since aba64c7da983. None = the field does not exist on
-    this kernel (the 5.15 floor — the availability law's physics)."""
+    has written since aba64c7da983. Returns (price_or_None, raw_lines) -
+    the raw tail rides the notices so a missing line names itself."""
     try:
         with open(f"/proc/self/fdinfo/{fd}", encoding="ascii") as f:
-            for line in f:
-                m = re.match(r"^verified_insns:\s*(\d+)\s*$", line)
-                if m:
-                    return int(m.group(1))
-    except OSError:
-        return None
-    return None
+            lines = f.read().splitlines()
+    except OSError as e:
+        return None, [f"unreadable: {e}"]
+    for line in lines:
+        m = re.match(r"^verified_insns:\s*(\d+)\s*$", line)
+        if m:
+            return int(m.group(1)), lines[-6:]
+    return None, lines[-6:]
 
 
 def bpftool_prog_id(pin_path: str) -> tuple:
@@ -402,6 +403,7 @@ def bpftool_link_rows() -> list:
     if rc != 0:
         notice(f"bpftool link show refused rc={rc}: {err.strip()[:160]}")
         return []
+    notice(f"LINK-RAW rc={rc} head={out.strip()[:300]!r}")
     rows = []
     for line in out.splitlines():
         m = re.search(r"prog_id\s+(\d+)|\bprog\s+(\d+)", line)
@@ -434,7 +436,7 @@ def spawn_monitor_on_pty(binary: str, cgid: int) -> tuple:
     return proc, master
 
 
-def census_programs() -> dict:
+def census_programs(envelope: str) -> dict:
     """Price every estate program through the kernel's own channels.
 
     The limiter's four come through their pinned files (the pin name is
@@ -462,10 +464,13 @@ def census_programs() -> dict:
             continue
         pinned_ids.add(pid)
         fd = prog_fd_by_id(pid)
-        price = fdinfo_verified_insns(fd)
+        price, raw_tail = fdinfo_verified_insns(fd)
         os.close(fd)
         census[prog] = price
-        notice(f"CENSUS-PIN {prog} pin={pin_path} prog_id={pid} price={price!r}")
+        notice(
+            f"CENSUS-PIN {envelope} {prog} kernel={os.uname().release} "
+            f"prog_id={pid} price={price!r} fdinfo={raw_tail}"
+        )
     return census, pinned_ids
 
 
@@ -598,7 +603,7 @@ def main() -> int:
 
     # 4. The census: the kernel prices every estate program.
     try:
-        limiter_prices, pinned_ids = census_programs()
+        limiter_prices, pinned_ids = census_programs(envelope)
         observer_ids = observer_pair(pinned_ids)
     finally:
         os.close(master_fd)
