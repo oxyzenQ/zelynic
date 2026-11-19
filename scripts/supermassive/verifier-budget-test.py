@@ -127,10 +127,22 @@ APPLY_RATE = "1mb"
 
 def fail(msg: str) -> None:
     print(f"FAIL: {msg}")
+    # The annotation channel: the battery runs inside the micro-VM, its
+    # stdout reaches the runner through the boot step's tee, and the
+    # ::error:: workflow commands become check-run annotations - the
+    # failure lines land where the API can read them without shell
+    # access to the runner (the same convention reproducible.yml's
+    # verdict lanes use).
+    print(f"::error::{msg}")
 
 
 def info(msg: str) -> None:
     print(f"Z9: {msg}")
+
+
+def notice(msg: str) -> None:
+    print(f"Z9: {msg}")
+    print(f"::notice::{msg}")
 
 
 def load_ledger(path: Path) -> dict:
@@ -523,15 +535,15 @@ def main() -> int:
             # head); the number prints, nothing fabricates.
             if isinstance(measured, int) and measured > 0:
                 print(f"MASS-CENSUS: {envelope} {prog} measured={measured}")
-                info(
-                    f"'{prog}' seen on this kernel and even reported "
-                    f"{measured} insns — the inventory gate holds"
+                notice(
+                    f"INVENTORY {envelope} {prog} seen and reported "
+                    f"{measured} insns - the inventory gate holds"
                 )
             else:
-                info(
-                    f"'{prog}' seen on this kernel — the inventory gate "
-                    "holds (verified_insns not exposed on it: the UAPI "
-                    "field landed in the v5.16 merge window)"
+                notice(
+                    f"INVENTORY {envelope} {prog} seen - the load-proof "
+                    "gate holds (verified_insns not exposed on it: the "
+                    "UAPI field landed in the v5.16 merge window)"
                 )
             continue
         if isinstance(measured, bool) or not isinstance(measured, int) or measured <= 0:
@@ -542,9 +554,13 @@ def main() -> int:
             )
             continue
         print(f"MASS-CENSUS: {envelope} {prog} measured={measured}")
+        notice(f"MASS-CENSUS {envelope} {prog} measured={measured}")
         budget = where.get("budget")
         if budget is None:
-            info(f"'{prog}' = {measured} insns — census debt, comparison deferred")
+            notice(
+                f"CENSUS-DEBT {envelope} {prog} measured={measured} - "
+                "comparison deferred, the arming commit pins this number"
+            )
             continue
         if measured > budget:
             failures.append(
