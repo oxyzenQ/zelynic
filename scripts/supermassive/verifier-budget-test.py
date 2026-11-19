@@ -156,7 +156,7 @@ INFO_BUF = 256
 # different object class and fails the gates BY CONSTRUCTION. The first
 # pair whose read passes becomes the envelope's channel, and the
 # calibration pins which codes the running kernel honored.
-CMD_PAIR_CANDIDATES = [(14, 16), (13, 15), (14, 15), (13, 16)]
+CMD_PAIR_CANDIDATES = [(fd, info) for fd in (14, 13, 12, 11) for info in (15, 16)]
 # bpf_prog_info's fixed early layout (include/uapi/linux/bpf.h, the
 # append-only contract): type @0, id @4, xlated_prog_len @20,
 # verified_insns @216 - appended in the v5.16 merge window after
@@ -534,6 +534,30 @@ def census_programs(envelope: str, priced_envelope: bool) -> dict:
     return census, pinned_ids
 
 
+def bpftool_prog_table() -> list:
+    """The kernel's whole program table as the staged bpftool sees it -
+    the ground truth the calibration's identity gates validate against."""
+    bpftool = shutil.which("bpftool") or BPFTOOL_PATH
+    rc, out, err = run_cmd([bpftool, "-j", "prog", "show"], timeout=60)
+    if rc != 0:
+        notice(f"bpftool prog show refused rc={rc}: {err.strip()[:160]}")
+        return []
+    try:
+        rows = json.loads(out)
+    except ValueError:
+        notice(f"bpftool prog show unparsable: {out.strip()[:160]}")
+        return []
+    if isinstance(rows, dict):
+        rows = [rows]
+    table = [
+        {"id": r.get("id"), "type": r.get("type"), "name": r.get("name")}
+        for r in rows
+        if isinstance(r, dict)
+    ]
+    notice(f"PROG-TABLE {table}")
+    return table
+
+
 def observer_pair(pinned_ids: set) -> dict:
     """The two live observer programs, identified from the kernel's own
     attach table: the cgroup-root ingress / egress rows whose prog ids
@@ -541,6 +565,7 @@ def observer_pair(pinned_ids: set) -> dict:
     camera pins nothing, so its attach rows exist only while the
     monitor session runs. Returns name -> prog_id (or the miss, named)."""
     result = {}
+    bpftool_prog_table()
     table = bpftool_link_rows()
     notice(f"LINK-TABLE {table}")
     for attach_text, prog_id in table:
@@ -703,7 +728,7 @@ def main() -> int:
                     "was alive, but the kernel holds no matching live link"
                 )
                 continue
-            measured, _, _ = prog_price(prog_id)
+            measured, _, _ = prog_price(prog_id, rows_pricing == "verified_insns")
         if isinstance(measured, bool) or not isinstance(measured, int) or measured <= 0:
             if rows_pricing == "inventory":
                 # The inventory envelope: the load-proof IS the gate.
