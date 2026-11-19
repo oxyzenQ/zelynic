@@ -718,4 +718,18 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # The crash guard: an uncaught exception dies INSIDE the guest
+    # console - invisible to every read channel this seat owns - unless
+    # it names itself on the annotation channel. The verdict's own exit
+    # codes pass through untouched.
+    try:
+        sys.exit(main())
+    except SystemExit:
+        raise
+    except BaseException:
+        import traceback
+
+        tb = traceback.format_exc()
+        print(tb)
+        print(f"::error::the census crashed: {tb.strip().splitlines()[-1][:400]}")
+        sys.exit(2)
