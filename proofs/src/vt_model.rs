@@ -62,10 +62,10 @@ impl VtTerm {
     /// tokens — far past the widest session the strategies generate.
     pub(crate) const SAMPLED_BUDGET: usize = 720;
 
-    /// The for-all tier's bounded-domain budget: 3 rows x (chunk + K
-    /// + LF) = 9, plus the HOME/reset tokens and the tail's MoveTo+J
-    /// pairs — the domain's own bound, stated and verified (the
-    /// widest emission in that domain carries 15 tokens).
+    /// The for-all tier's bounded-domain budget: 3 rows x (chunk,
+    /// K, LF) = 9, plus the HOME/reset tokens and the tail's
+    /// MoveTo+J pairs — the domain's own bound, stated and verified
+    /// (the widest emission in that domain carries 15 tokens).
     pub(crate) const FORALL_BUDGET: usize = 16;
 
     /// A blank screen of `height` rows: the physical state a fresh
