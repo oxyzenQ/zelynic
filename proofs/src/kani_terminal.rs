@@ -154,6 +154,18 @@ fn emission_conformance_holds_for_all_small_frames() {
         term.matches(&prev, height),
         "the first frame does not rebuild the blank screen exactly"
     );
+    // The first-frame reset contract: a fresh screen's geometry is
+    // unknown, so the first emission can never idle — it always
+    // paints (and always through exactly one batched write).
+    assert!(
+        first_emitted > 0,
+        "the first frame idled on an unpainted screen"
+    );
+    assert_eq!(
+        first_sink.calls,
+        usize::from(first_emitted > 0),
+        "the first frame's write batch"
+    );
 
     let mut hop = next.clone();
     let mut hop_sink = CountSink::default();
