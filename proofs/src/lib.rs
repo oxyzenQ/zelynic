@@ -55,3 +55,57 @@ mod property_tests;
 #[cfg(kani)]
 #[path = "kani_cores.rs"]
 mod kani_cores;
+
+// ── night-frontier-Z10 rung 2 (D8, the no-corruption theorem): the
+// emission law files ─────────────────────────────────────────────────
+//
+// PHILOSOPHY.md names terminal corruption the one bug class a
+// monitoring tool cannot apologize its way out of. Z10's rung 2
+// turns that fear's standing countermeasures (the layered reset
+// contract, the byte-identical raw-frame capture) into a for-all
+// law: for EVERY frame pair in the theorem's domain, applying the
+// engine's emitted diff to the previous screen yields exactly the
+// new frame.
+
+// The probe seam the included engine's `use super::raw` resolves
+// against — the piped-sink environment, byte-for-byte raw.rs's
+// behavior on every piped run. The theorem harnesses drive the
+// size-injectable cores directly and never touch either stub (the
+// restatement rule the Z6 audit set, beside its SYSTEM_MAX_RATE
+// precedent).
+#[path = "raw_stub.rs"]
+mod raw;
+
+// The diff engine's own bytes — src/terminal/diff.rs included the
+// fuzz-harness way: the SAME emission bytes the flagship binary
+// runs, so a law these instruments verify is a law the renderer
+// draws. The engine's #[cfg(test)] submodules (the diff pins, the
+// guard pins, the ghost-cell soak) compile and run in this crate's
+// cargo test lane too — the engine's standing evidence rides along.
+#[path = "../../src/terminal/diff.rs"]
+mod diff_core;
+
+// The minimal VT state machine the emission law is checked against —
+// one implementation, both instruments below (the standing soak
+// model's semantics, restated as a law library).
+#[path = "vt_model.rs"]
+mod vt_model;
+
+// The sampled tier: the pairwise emission conformance property over
+// wide frames (up to 64 rows x 200 cols, SGR-bearing rows included,
+// wild geometry churn across a three-frame session), plus the three
+// structural laws in the same check: the absence of ESC[2J, the idle
+// fast path's zero-byte verdict, and the one-batched-write-per-frame
+// rule.
+#[cfg(test)]
+#[path = "terminal_laws.rs"]
+mod terminal_laws;
+
+// The for-all tier: the same conformance law over the bounded 4x16
+// domain, machine-checked for EVERY frame pair in it (the small
+// frames keep the solver's circuit inside its budget; the wide-frame
+// domain is the sampled tier's, and the boundary both domains state
+// is documented in vt_model.rs's scope note).
+#[cfg(kani)]
+#[path = "kani_terminal.rs"]
+mod kani_terminal;

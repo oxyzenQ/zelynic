@@ -41,13 +41,25 @@
 #  * property:    proptest exhaustion of the pure cores' laws on the
 #    pinned stable toolchain — thousands of shrinkable cases per law
 #    per run. Fast, rootless, deterministic setup; a red is a real
-#    counterexample with a shrunk witness.
+#    counterexample with a shrunk witness. Since night-frontier-Z10
+#    rung 2 the seat also carries the emission engine's own evidence:
+#    src/terminal/diff.rs is #[path]-included into the proof crate
+#    (the SAME bytes the flagship runs), so the diff pins, the guard
+#    pins, and the 20,000-frame ghost-cell soak compile and run here
+#    beside the sampled emission law (the no-corruption theorem's
+#    per-push half).
 #  * kani:        bounded model checking under the pinned kani release
 #    — the for-all tier's decidable half. Six theorems decide in
 #    minutes (the decision tables, the ladders, the memo word, the
 #    hint state machine, the window domain, the consume sufficiency
 #    pair); one invocation per harness so a verdict is never lost to
-#    a sibling's budget.
+#    a sibling's budget. The Z10 emission conformance theorem
+#    (night-frontier-Z10 rung 2) is deliberately NOT in this list:
+#    the census measured its engine-heap circuits out of memory on
+#    the 4 GB sandbox at four domain sizes (the record rides the
+#    harness doc and INNOVATIONS.md's D8 entry), so it rides the
+#    night lane's 300-minute matrix — a hunt that flags its absence
+#    here is re-reading that decision, not finding a gap.
 #  * loom-census: the signed census verdict's standing absence guard
 #    — a per-push scan that fails the day the census basis moves (a
 #    location-backed atomic lands outside the kernel crate's access
@@ -98,7 +110,7 @@ env:
 
 jobs:
   property:
-    name: Proptest exhaustion (23 laws, 4096 cases each, stable, rootless)
+    name: Proptest exhaustion (24 laws, 4096 cases each, stable, rootless)
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     env:
