@@ -994,6 +994,109 @@ ten-per-step cap, the watch summary step re-emits the failure bullets
 under its own budget, and every shard uploads its boot log as an
 artifact. The diagnosis and the numbers land where the API reads them.
 
+## night-frontier-Z10 — the no-corruption theorem (D8)
+
+PHILOSOPHY.md names the fear: "terminal corruption is the one bug
+class a monitoring tool cannot apologize its way out of." Every
+countermeasure the tree carried before this depth was an EXAMPLE of
+the emission contract holding — the layered reset contract, the
+five-layer `--reset-terminal`, the raw-frame capture diffed
+byte-identical, the ghost-cell soak's 20,000 replayed frames —
+evidence by enumeration, never a for-all. And the proof layer (Z6)
+rode only the ebpf law files: the renderer's own engine had no
+theorem. The Z10 depth closes exactly that gap.
+
+**The instrument** (`proofs/src/vt_model.rs` + `terminal_laws.rs` +
+`kani_terminal.rs`, wired in `proofs/src/lib.rs` beside the Z6
+cores): the diff emission engine (`src/terminal/diff.rs`) is
+included into the proof crate by `#[path]` — the fuzz harnesses'
+include law, the SAME bytes the flagship binary runs — and a
+minimal VT state machine is checked against it. The model
+implements exactly the emission set the engine owns (HOME,
+MoveTo at column 1, erase-below, erase-EOL, LF, content payloads,
+with complete SGR spans riding content verbatim — the render
+layer's style bytes are content, and a style change is a row
+change) and is deliberately STRICT: any token outside the grammar
+panics, the `ESC[2J` class included. One law quantifies over frame
+pairs — for EVERY pair (prev, next) in the domain,
+`apply_terminal(emit_diff(prev, next), prev) == next` — and three
+structural laws ride the same check: the absence of `ESC[2J` in
+any emission, the idle fast path's zero-byte verdict for an
+identical frame at identical geometry, and the
+one-batched-write-per-frame rule with the emitted byte count equal
+to the bytes the write carries.
+
+**The two tiers, the Z6 shape**: proptest's sampled tier runs the
+session property over wide frames — up to 64 rows x 200 columns,
+three-frame sessions with independently generated geometry
+(first frames, width resizes, tall regimes, grows, shrinks, and
+idle repeats all occur naturally; 4096 shrinkable cases per run) —
+riding the proofs.yml property lane's existing `cargo test` seat,
+per-push. Kani 0.68.0's for-all tier machine-checks the SAME
+conformance law over the bounded 3x8 domain (two-symbol alphabet,
+fully symbolic row counts, byte lengths, and screen heights) as
+the harness `emission_conformance_holds_for_all_small_frames`, one
+invocation per harness — on the proofs-night.yml matrix, the
+solver-bound tier the Z6 theorems already ride, and the census is
+part of the record: FOUR local attempts (4x16 at unwind 120, 3x8
+at 72 before and after the parser's token-budget restructure, 2x6
+at 44) each measured the solver out of memory inside about two and
+a half minutes on the 4 GB / 2 CPU census sandbox — the engine's
+own symbolic heap (the frame vectors the emission swaps and
+clones, the emission buffer, the model's rows), not one
+shrinkable circuit, is the weight; per-loop unwind annotations
+are unstable on this toolchain generation, so the one unwind
+bound is every loop's bound and the domain ships at its biggest
+census shape (3x8, unwind 68) as a night-lane harness, where the
+hosted runner decides and a red is a finding, never a skip. The
+per-push kani seat keeps the Z6 theorems it can afford; a
+toolchain generation that carries per-loop unwinds, or a smaller
+engine-heap footprint, reopens the per-push seat and the larger
+domain. The sampled tier already covers the wide frames meanwhile.
+
+**The model sharpened itself first** (the Z6 fraction law's
+precedent, honest again): the sampled property's first
+counterexample was not an engine bug — it was the MODEL being
+stricter than the grammar it checks. The strict parser rejected
+the engine's bare `ESC[H` (HOME) for failing the MoveTo shape it
+shares a final byte with; the grammar gained the HOME arm and the
+witness rides the committed regression store
+(`proofs/proptest-regressions/terminal_laws.txt`) like Z6's does.
+The theorem is therefore also a model-conformance pin: a future
+emission token the model does not know fails the lane the same
+way, and the model must be taught the token deliberately — never
+silently.
+
+**Why never-done**: tmux, vim, cosmostrix — no terminal renderer
+ships a machine-checked emission law against a modeled terminal
+state. The claim is whitepaper-grade and mechanical: the first
+terminal renderer whose diff emission is machine-checked against a
+modeled terminal state — the proof is a solver verdict and a
+shrinkable-witness property lane, not prose.
+
+**The honest appendix boundary** (the golden vectors' rule): the
+theorem holds over the op-set the engine emits and the domains the
+instruments state. The model is a MODEL: its resize semantics
+(shrink drops the bottom rows, grow reveals blank ones) and its
+row-as-payload equivalence (content is written wholesale at
+column 1; the erased tail is blank) are the standard terminal
+reading the standing soak already verified across 20,000 frames,
+restated as law. Rows in the theorem's domain carry plain payloads
+plus complete SGR spans — a payload impersonating a cursor move or
+an erase is outside the render layer's contract, and the model
+rejects it rather than guessing. The engine's probe wrappers
+(`src/terminal/raw.rs`) are not includeable standalone (their
+crate paths reach the whole terminal module), so the proof crate
+restates the piped-sink answers beside their source
+(`proofs/src/raw_stub.rs`, the Z6 `SYSTEM_MAX_RATE` restatement
+precedent) and the harnesses drive the size-injectable cores the
+benchmark harness already pins — the probes never enter a verdict.
+The for-all tier's domain is the bounded pair (blank to first
+frame, first frame to next frame) at 4x16 with a two-symbol
+alphabet; multi-hop sessions, SGR-bearing rows, and the wide-frame
+domain ride the sampled tier, where the solver's budget is not a
+guest.
+
 ## The Quota Saver — the Workload-Conditional Claim
 
 The fourteenth, fifteenth, and sixteenth entries above (RECWN, ECN,
