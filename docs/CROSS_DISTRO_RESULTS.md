@@ -148,11 +148,13 @@
 > the status JSON's `measured_srtt_us` assertion), the quota-saver A/B
 > ground truth over the 30 s overrun legs, the v32 ghost-row and pin
 > hygiene checks, and the netns:// and iface:// resolvers' honest
-> refusals verbatim. Gated behind the verify lane's own nightly
-> schedule (10:07 WIB, 03:07 UTC) and the workflow_dispatch click — no push
-> trigger, per-push CI stays fast. (night-verify-1 retired the
-> supermassive and e2e lanes' own night trains: those shards ride
-> every push now, so no check on a push ever answers Skipped.)
+> refusals verbatim. Rides every push since night-fly-1 (no test lane
+> keeps a clock — the nightly schedule retired and the lane joined
+> the per-push estate at its measured 7.2 minutes, ceiling-compliant)
+> plus the workflow_dispatch click as the manual pre-qualification
+> run. (night-verify-1 retired the supermassive and e2e lanes' own
+> night trains; night-fly-1 retired this lane's — every check on a
+> push answers for itself, nothing Skips.)
 >
 > Addendum 5 — the endurance clocks leave CI (the owner's exhaust
 > call, 2026-11-13): the endurance shard was the estate's longest

@@ -197,8 +197,9 @@ esac
 #    (any group-slot leak exhausts the 256 cap and fails loudly) plus
 #    the monitor's pty soak (no unbounded collection, no fd leak).
 #    The 300-cycle campaign exists to cross the 256-slot boundary —
-#    it runs WHOLE or not at all (night-T-1: the nightly schedule's
-#    own shard), never sharded, never shortened.
+#    it runs WHOLE or not at all (night-T-1: its own whole shard —
+#    the nightly clock retired by the night-fly-1 law, the shard
+#    rides every push now), never sharded, never shortened.
 case "$SUITE" in
 endurance | all)
 	if "$Z/scripts/depth/endurance-test.sh" --binary "$BINARY"; then
