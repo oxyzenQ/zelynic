@@ -557,7 +557,7 @@ jobs:
             "https://ftp.us.debian.org/debian"
           )
           pool_fetch() {
-            local rel="$1" out="$2" m rc=""
+            local rel="$1" out="$2" m
             for m in "${MIRRORS[@]}"; do
               echo "fetch: $m/$rel"
               if curl -fsSL --retry 1 --retry-all-errors --retry-delay 5 \
