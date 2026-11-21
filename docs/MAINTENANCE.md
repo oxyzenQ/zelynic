@@ -45,15 +45,15 @@ Rotation procedures:
 
 | Workflow | Cadence | Watches | On failure |
 |----------|---------|---------|------------|
-| `audit.yml` — Dragon Guard - Security Audit | weekly (Mon) 10:07 WIB (03:07 UTC) + every push/PR (unfiltered since night-dragon-maintenance-2) | `cargo audit` (RustSec) over all four committed lockfiles (root, `proofs/`, `fuzz/`, `ebpf/` — night-supply-1) + `cargo deny` (licenses/advisories) over the root tree | Observation-only by design: read the advisory, decide patch-vs-accept, record the decision in the audit trail. A weekly ping is information, not an emergency (NIGHT-improve-38: the cadence matches this table's clock) |
-| `codeql.yml` — Dragon Guard - CodeQL | weekly (Mon) | CodeQL security analysis of the userspace tree | Triage the alert; a confirmed finding gets a dated audit doc + a fix commit in the same task |
-| `fuzz.yml` — zelynic - Fuzz | 60s/target on every push + PR; deep session weekly (Mon) 10:07 WIB (03:07 UTC) | `cargo fuzz` over the three hostile-input parser surfaces (/proc/net rows, --during grammar, comm sanitizer), corpus cached between runs, seeds committed under `fuzz/seeds/` | A crash is a parser bug: fix the parser to return the named error, never the panic; the failing input rides the CI log |
+| `audit.yml` — Dragon Guard - Security Audit | every push/PR (unfiltered since night-dragon-maintenance-2; the weekly clock retired by night-fly-1) | `cargo audit` (RustSec) over all four committed lockfiles (root, `proofs/`, `fuzz/`, `ebpf/` — night-supply-1) + `cargo deny` (licenses/advisories) over the root tree | Observation-only by design: read the advisory, decide patch-vs-accept, record the decision in the audit trail. A red is information, not an emergency — the scan rides every commit it scans |
+| `codeql.yml` — Dragon Guard - CodeQL | every push/PR (night-fly-1) | CodeQL security analysis of the userspace tree | Triage the alert; a confirmed finding gets a dated audit doc + a fix commit in the same task |
+| `fuzz.yml` — zelynic - Fuzz | 60s/target on every push + PR; deep session via the dispatch button's `deep` input (600s/target, night-fly-1) | `cargo fuzz` over the three hostile-input parser surfaces (/proc/net rows, --during grammar, comm sanitizer), corpus cached between runs, seeds committed under `fuzz/seeds/` | A crash is a parser bug: fix the parser to return the named error, never the panic; the failing input rides the CI log |
 | `maintenance.yml` — Dependency Maintenance | weekly (Mon) | GPG subkey expiry (30-day warning), stale dependencies | The GPG warning starts the §1 rotation; stale deps get a scheduled upgrade window |
 
 Plus the push-time guards (not scheduled, but part of the posture):
 `gate-keepers.yml` wholesale on every push and PR, `ci.yml`,
 `supermassive.yml`, `supermassive-container.yml`, `audit.yml`,
-`miri.yml`, `codeql.yml`, `fuzz.yml`, `proofs.yml` (night-frontier-Z6: the proofs package's per-push for-all and property lanes, capped at 15 minutes wall) and `proofs-night.yml` (the same package's solver-bound kani tier: one matrix job per harness with the full 300-minute budget, nightly schedule plus workflow_dispatch), and the three-arm
+`miri.yml`, `codeql.yml`, `fuzz.yml`, `proofs.yml` (night-frontier-Z6: the proofs package's per-push for-all and property lanes, capped at 15 minutes wall) and `supermassive-verify.yml` (the privileged runtime verification lane, riding every push at its measured 7.2 minutes since night-fly-1 retired its nightly clock; the solver-bound night tier proofs-night.yml retired whole the same day — its single scheduled fire burned 300.6 minutes cancelled with zero solver verdicts), and the three-arm
 prebuilt-parity enforcement
 (NIGHT-dinner-1 — commit time, publish time, release time). Since
 the owner's unfiltered-CI simplification

@@ -412,8 +412,9 @@ compiling a payload's build script:
   detached trees) stays as the X1/Z6 scope notes above record it.
 
 Re-audit cadence: the grep battery above re-runs as the first step
-of any future dependency-incident response; the Monday clock
-(10:07 WIB, 03:07 UTC) re-scans the advisory DB against all four
+of any future dependency-incident response; the advisory DB re-scan
+rides every push now (the Monday clock retired by the night-fly-1
+law — the scan follows the commits it scans) against all four
 lockfiles standing.
 
 ## night-supply-2: the re-resolution vector closes (2026-11-19)

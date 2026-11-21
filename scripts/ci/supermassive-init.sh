@@ -89,7 +89,8 @@
 # every battery, the canonical order, the pre-split behavior. Depth is
 # never cut: the v1 desktop matrix runs WHOLE (it is one stateful
 # sequence — baseline, policies, realnet lane, quota pair — by
-# design), on the nightly schedule's own shard.
+# design), whole on its own shard (the nightly clock retired by the
+# night-fly-1 law — the shard rides every push now).
 
 set -u
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
