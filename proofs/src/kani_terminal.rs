@@ -2,49 +2,60 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 //! night-frontier-Z10 rung 2 (D8, the no-corruption theorem): the
-//! for-all tier. One harness turns the emission law into a
-//! machine-checked theorem: for EVERY frame pair in the stated
-//! domain — two frames of up to 3 rows, each row up to 8 bytes,
-//! each screen 1..=3 rows tall — applying the engine's emitted diff
-//! to the previous screen yields exactly the next frame, no
-//! emission ever leaves the grammar (the model's strict parser
-//! panics on any token outside the engine's emission set, the 2J
-//! class included), the idle fast path answers zero bytes for an
-//! identical frame at identical geometry, and every frame carries
-//! at most one batched write.
+//! for-all tier. One harness states the emission law as a theorem:
+//! for EVERY frame pair in the stated domain — two frames of up to 3
+//! rows, each row exactly 8 bytes, each screen 1..=3 rows tall —
+//! applying the engine's emitted diff to the previous screen yields
+//! exactly the next frame, no emission ever leaves the grammar (the
+//! model's strict parser panics on any token outside the engine's
+//! emission set, the 2J class included), the idle fast path answers
+//! zero bytes for an identical frame at identical geometry, and
+//! every frame carries at most one batched write.
 //!
 //! The domain's honest boundaries, stated per the Z6 rule:
-//! - Content is a two-symbol alphabet (`a`, `b`) plus empty rows:
-//!   the alphabet keeps the string-equality circuits inside the
-//!   solver's budget while remaining a real content domain (rows
-//!   differ, repeat, shrink, and go blank). SGR-bearing rows — the
-//!   render layer's embedded style bytes — ride the sampled tier
-//!   (terminal_laws.rs), which covers the wide frames and the width
-//!   resizes; the for-all tier carries the bounded core.
+//! - Content is a two-symbol alphabet (`a`, `b`) in full-width rows
+//!   plus empty rows (the row count is symbolic, 0..=ROWS): the
+//!   alphabet keeps the string-equality circuits inside the solver's
+//!   budget while remaining a real content domain (rows differ,
+//!   repeat, and go blank). Variable row lengths and SGR-bearing
+//!   rows — the render layer's embedded style bytes — ride the
+//!   sampled tier (terminal_laws.rs), which covers the wide frames
+//!   and the width resizes; the for-all tier carries the bounded
+//!   core.
 //! - The size is the MEASURED one, not the aspirational one, and the
-//!   lane is the MEASURED one too: the census ran FOUR local
-//!   attempts (4x16 at unwind 120, then 3x8 at 72, then 3x8 after
-//!   the parser's token-budget restructure, then 2x6 at unwind 44)
-//!   and every one measured the solver OUT OF MEMORY inside about
-//!   two and a half minutes on the 4 GB / 2 CPU census sandbox — the
+//!   lane is the MEASURED one too: the census now spans TWO machines
+//!   and ELEVEN shapes, and every one of them is a wall. The first
+//!   census (the previous session): 4x16 at unwind 120, 3x8 at 72
+//!   before and after the parser's token-budget restructure, 2x6 at
+//!   unwind 44 — each out of memory inside about two and a half
+//!   minutes on the 4 GB / 2 CPU census sandbox. The 2026-11-21
+//!   census extended it in both directions: on the sandbox, 2x8@68,
+//!   3x4@68, 1x8@68, 2x4@36, 2x6@44, 1x4@36, and even 1x4@24 and
+//!   1x1@16 — the MINIMAL domain — all die in the kernel's global
+//!   OOM killer (dmesg: cbmc, anon-rss 3.35 GB, the sandbox's own
+//!   ceiling); and the hosted 16 GB / 4 CPU runner killed the 3x8@68
+//!   seat mid-symbolic-execution twice (runs 44727607551 and
+//!   44876980805, both at the 24-25 minute mark, no solver verdict
+//!   printed, siblings alive past 27 minutes). The measured law: the
+//!   weight is INVARIANT to the domain dimensions — it is the
 //!   engine's own symbolic heap (the frame vectors the emission
-//!   swaps and clones, the emission buffer, the model's rows), not
-//!   one shrinkable circuit, is the weight. Per-loop unwind
-//!   annotations are unstable on this toolchain generation (the
-//!   stmt_expr_attributes gate rejects them), so the one unwind
-//!   bound is every loop's bound, the parser is one token per step
-//!   under a stated budget (the model's `apply_bounded`, the
-//!   domain's own 16-token bound), and the domain ships at 3x8 /
-//!   unwind 68 — the biggest of the census shapes — as a NIGHT-LANE
-//!   harness: the solver-bound tier the per-push lane cannot afford
-//!   is exactly what proofs-night.yml's 300-minute matrix seats
-//!   exist for (the Z6 move, the census recorded in both lane
-//!   headers). The hosted runner decides; a red there is a finding,
-//!   never a skip. The wide frames and the width resizes ride the
-//!   sampled tier, which carries the emission laws per-push. A
-//!   toolchain generation that carries per-loop unwinds, or a
-//!   smaller engine-heap footprint, reopens the per-push seat and
-//!   the larger domain.
+//!   swaps and clones, the emission buffer's growth, the model's
+//!   rows, and the panic-path machinery the direct indexings carry),
+//!   not one shrinkable circuit, so no domain shrink reaches a
+//!   verdict. Per-loop unwind annotations are unstable on this
+//!   toolchain generation (the stmt_expr_attributes gate rejects
+//!   them), and the full-width row shape (this file's `any_frame`)
+//!   already removed the measured-heaviest single path — the
+//!   symbolic-length `truncate`'s slice-index panic branch — with
+//!   the variable-length dimension riding the sampled tier. The seat
+//!   therefore sits OUT of the night matrix until one of the named
+//!   levers lands: per-loop unwinds on a toolchain generation that
+//!   carries them, a proof-friendly indexing form inside the engine
+//!   (behavior-preserving, its own signed round), or the lemma
+//!   decomposition the workflow header names. The theorem's
+//!   statement lives here, compiles clean under cfg(kani), and the
+//!   conformance evidence per-push rides the sampled tier and the
+//!   golden vectors.
 //! - The screen width is pinned at the column bound (8) across the
 //!   harness's two emits: a width change forces the reset path,
 //!   whose full repaint is the trivial branch; the interesting
@@ -88,10 +99,18 @@ impl Write for CountSink {
     }
 }
 
-/// One arbitrary frame: up to ROWS rows, each up to COLS bytes from
-/// the two-symbol alphabet. The row count and the byte lengths are
-/// symbolic — the harness quantifies over the WHOLE bounded domain,
-/// not a sample of shapes.
+/// One arbitrary frame: up to ROWS rows, each EXACTLY COLS bytes from
+/// the two-symbol alphabet. The row count and the screen heights are
+/// symbolic — the harness quantifies over the whole bounded row-count
+/// and height domain. The variable-byte-length dimension left the
+/// for-all domain by measurement: the row-length `truncate` carries a
+/// symbolic slice-index panic path whose `core::fmt` machinery alone
+/// balloons the symbolic execution past every ceiling measured (the
+/// 2026-11-21 census: every shape from 1x4@24 to 3x8@68 exceeded the
+/// census sandbox's 3.2 GB with it, the hosted 16 GB runner included),
+/// while full-width rows — the terminal's own common case — weigh
+/// nothing. Variable lengths ride the sampled tier (terminal_laws.rs),
+/// which covers them per-push on the wide frames.
 fn any_frame() -> Vec<String> {
     let mut rows: Vec<String> = Vec::new();
     for _ in 0..ROWS {
@@ -99,21 +118,13 @@ fn any_frame() -> Vec<String> {
         for b in &bytes {
             kani::assume(*b == b'a' || *b == b'b');
         }
-        let len: usize = kani::any();
-        kani::assume(len <= COLS);
         // SAFETY: every byte is assumed to be `a` or `b` (ASCII), so
         // the buffer is valid UTF-8 by construction — the assumes
         // directly above are the contract the unsafe block leans on.
-        // The build takes the CONCRETE-length array whole and
-        // truncates after: a symbolic-length slice copy unrolls its
-        // allocation loop for the full unwind budget per row, the
-        // exact measurement overhead that pushed the first census
-        // attempts out of memory (the harness's library-model cost is
-        // part of the theorem's budget — the Z6 census's own lesson).
-        let mut row = unsafe { String::from_utf8_unchecked(bytes.to_vec()) };
-        // ASCII-only content: truncation is always on a char boundary.
-        row.truncate(len);
-        rows.push(row);
+        // The build takes the CONCRETE-length array whole: no
+        // symbolic-length slice copy, no slice-index panic path, no
+        // fmt machinery — the census's measured weight, gone.
+        rows.push(unsafe { String::from_utf8_unchecked(bytes.to_vec()) });
     }
     let n: usize = kani::any();
     kani::assume(n <= ROWS);

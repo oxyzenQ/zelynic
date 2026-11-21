@@ -45,21 +45,25 @@
 # 30-minute line reopens the split conversation with real numbers.
 #
 # The fifth seat (night-frontier-Z10 rung 2, the no-corruption
-# theorem, D8): the emission law — for EVERY frame pair in its
-# bounded domain, applying the diff engine's emitted stream to the
-# previous screen yields exactly the next frame, the grammar-purity,
-# idle-zero-byte, and one-batched-write laws riding the same check.
-# Its census measured four out-of-memory attempts on the 4 GB / 2
-# CPU sandbox (4x16 at unwind 120, 3x8 at 72 before and after the
-# parser's token-budget restructure, 2x6 at 44 — each inside about
-# two and a half minutes; the engine's own symbolic heap is the
-# weight, per-loop unwind annotations are unstable on this
-# toolchain generation), so the harness ships here at its biggest
-# census shape (3x8, unwind 68) instead of the per-push lane. The
-# domain's honest boundaries and the model's scope ride
-# proofs/src/kani_terminal.rs and proofs/src/vt_model.rs; a red in
-# this seat is a counterexample, an undecided circuit, or an
-# out-of-memory — each a finding, never a skip.
+# theorem, D8): STANDING DOWN by measurement, 2026-11-21. The seat
+# entered this matrix with the 3x8/unwind-68 domain and the hosted
+# runner as its verdict vehicle; the vehicle answered twice — runs
+# 44727607551 and 44876980805 killed the seat's runner mid-symbolic-
+# execution at the 24-25 minute mark (no solver verdict printed, the
+# sibling seats alive past minute 27), and the extended local census
+# (eleven shapes across two machines, recorded in
+# proofs/src/kani_terminal.rs) measured the weight INVARIANT to the
+# domain: even 1x1/unwind-16 exceeds the census sandbox's ceiling,
+# so no domain shrink reaches a verdict on any machine this estate
+# can seat. A red that can never become a verdict is not the honest
+# finding shape — the seat leaves the matrix until one of its named
+# levers lands (per-loop unwinds on a toolchain that carries them, a
+# behavior-preserving proof-friendly indexing form inside the
+# engine, or the lemma decomposition this header names below). The
+# theorem's statement stays in proofs/src/kani_terminal.rs, the
+# conformance evidence per-push rides the sampled property tier and
+# the golden vectors, and the seat returns the day its budget
+# exists.
 #
 # Check-name discipline (the owner's call, 2026-11-17): the engine's
 # name rides the check name, the Miri lane's shape — "Kani
@@ -109,7 +113,6 @@ jobs:
           - enforce_is_total_and_clamped_for_all_hostile_states
           - ring_book_is_total_and_stamps_lawfully
           - flow_key_bounded_is_total_for_all_window_shapes
-          - emission_conformance_holds_for_all_small_frames
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7, NIGHT-hunt-20 SHA pin

@@ -1032,27 +1032,38 @@ three-frame sessions with independently generated geometry
 (first frames, width resizes, tall regimes, grows, shrinks, and
 idle repeats all occur naturally; 4096 shrinkable cases per run) —
 riding the proofs.yml property lane's existing `cargo test` seat,
-per-push. Kani 0.68.0's for-all tier machine-checks the SAME
-conformance law over the bounded 3x8 domain (two-symbol alphabet,
-fully symbolic row counts, byte lengths, and screen heights) as
-the harness `emission_conformance_holds_for_all_small_frames`, one
-invocation per harness — on the proofs-night.yml matrix, the
-solver-bound tier the Z6 theorems already ride, and the census is
-part of the record: FOUR local attempts (4x16 at unwind 120, 3x8
-at 72 before and after the parser's token-budget restructure, 2x6
-at 44) each measured the solver out of memory inside about two and
-a half minutes on the 4 GB / 2 CPU census sandbox — the engine's
-own symbolic heap (the frame vectors the emission swaps and
-clones, the emission buffer, the model's rows), not one
-shrinkable circuit, is the weight; per-loop unwind annotations
-are unstable on this toolchain generation, so the one unwind
-bound is every loop's bound and the domain ships at its biggest
-census shape (3x8, unwind 68) as a night-lane harness, where the
-hosted runner decides and a red is a finding, never a skip. The
-per-push kani seat keeps the Z6 theorems it can afford; a
-toolchain generation that carries per-loop unwinds, or a smaller
-engine-heap footprint, reopens the per-push seat and the larger
-domain. The sampled tier already covers the wide frames meanwhile.
+per-push. Kani's for-all tier STATES the same conformance law over
+the bounded 3x8 domain (two-symbol alphabet in full-width rows,
+fully symbolic row counts and screen heights) as the harness
+`emission_conformance_holds_for_all_small_frames` — and the census
+around it is now a two-machine record: the first census (four local
+attempts: 4x16 at unwind 120, 3x8 at 72 before and after the
+parser's token-budget restructure, 2x6 at 44) measured the solver
+out of memory inside about two and a half minutes on the 4 GB / 2
+CPU sandbox; the 2026-11-21 census extended it to eleven shapes and
+both machines — 2x8@68, 3x4@68, 1x8@68, 2x4@36, 2x6@44, 1x4@36,
+1x4@24, and the MINIMAL 1x1@16 all die in the sandbox kernel's
+global OOM (cbmc, anon-rss 3.35 GB, the sandbox's ceiling), and the
+hosted 16 GB runner killed the 3x8@68 seat mid-symbolic-execution
+twice (runs 44727607551 and 44876980805, both at 24-25 minutes, no
+solver verdict, the sibling seats alive past minute 27). The
+measured law the census proves: the weight is INVARIANT to the
+domain dimensions — the engine's own symbolic heap (the frame
+vectors the emission swaps and clones, the emission buffer's
+growth, the model's rows, and the panic-path machinery the direct
+indexings carry), not one shrinkable circuit, is the wall. The
+harness removed its own measured-heaviest single path (the
+symbolic-length `truncate`'s slice-index panic branch; rows are
+full-width now, variable lengths ride the sampled tier) and it
+still exceeds every ceiling. The seat therefore STANDS DOWN from
+the night matrix by measurement — a red that can never become a
+verdict is not an honest finding shape — and returns when one of
+its named levers lands: per-loop unwind annotations on a toolchain
+generation that carries them, a behavior-preserving proof-friendly
+indexing form inside the engine, or the lemma decomposition that
+splits the stream conformance into per-token theorems (each its own
+signed round). The per-push kani seat keeps the Z6 theorems it can
+afford; the sampled tier covers the wide frames meanwhile.
 
 **The model sharpened itself first** (the Z6 fraction law's
 precedent, honest again): the sampled property's first
@@ -1092,10 +1103,13 @@ restates the piped-sink answers beside their source
 precedent) and the harnesses drive the size-injectable cores the
 benchmark harness already pins — the probes never enter a verdict.
 The for-all tier's domain is the bounded pair (blank to first
-frame, first frame to next frame) at 4x16 with a two-symbol
-alphabet; multi-hop sessions, SGR-bearing rows, and the wide-frame
-domain ride the sampled tier, where the solver's budget is not a
-guest.
+frame, first frame to next frame) at 3x8 with a two-symbol
+alphabet in full-width rows; variable row lengths, multi-hop
+sessions, SGR-bearing rows, and the wide-frame domain ride the
+sampled tier, where the solver's budget is not a guest. The tier's
+solver verdict is the measured-open gap the census records (see
+"the two tiers" above); its stand-down is the honest shape until a
+lever lands.
 
 ## The Quota Saver — the Workload-Conditional Claim
 
