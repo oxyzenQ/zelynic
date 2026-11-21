@@ -90,3 +90,21 @@ after a3387d2: bytes/frame 1919.0 both sides; emit bytes/frame
   If you find a discrepancy, please open a PR — the doc is wrong, not
   the source.
 -->
+
+## The CI watch's own finds (pre-existing, named for the owner)
+
+- The noble 6.8 GA kernel's fast lane re-failed the non-binding
+  overhead tripwire across runs with a byte-identical payload
+  (+53.2%, then +43.9%, against a 07:34 green on the same bytes):
+  the measured overhead straddles the cap on that runner class —
+  the test's own "bursty contention" residual, now measured. Three
+  data points above are the cap-vs-runner conversation's numbers.
+- The floor-kernel engine leg caught a REAL coherence race the
+  ladder did not touch (the eBPF bytes are identical to the
+  morning's greens): `leg 2 download.size: exact bounds incoherent:
+  min 146 > max 0` — the histogram's exact min/max volatile
+  replace words read crossed at report time (run 44889620885, the
+  engine test - low specs shard). The check-then-store discipline
+  has a cross-CPU window; a kernel-side session owns the fix.
+  Both finds are recorded here because a red lane that names a
+  real race is the battery working, not the battery failing.
