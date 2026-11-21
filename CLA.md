@@ -55,7 +55,7 @@ merchantability or fitness for a particular purpose.
 
 If you become aware of any fact or circumstance that would make these
 representations inaccurate, you agree to notify the Owner promptly at
-[with.rezky@gmail.com](mailto:with.rezky@gmail.com).
+[oxyzenQ@proton.me](mailto:oxyzenQ@proton.me).
 
 ## 6. Acceptance
 
@@ -76,7 +76,7 @@ prepared under your direction) and that you have the right to submit
 it under this CLA — the same standard the Linux kernel, Docker, and
 Git itself run on.
 
-**Contact:** [with.rezky@gmail.com](mailto:with.rezky@gmail.com)
+**Contact:** [oxyzenQ@proton.me](mailto:oxyzenQ@proton.me)
 
 **Last Updated:** 2026-09-27
 

@@ -115,6 +115,13 @@
 # 0 = all passed; the verdict lines are the contract the Verdict
 # step greps - the VM cannot relay exit codes through qemu).
 
+# night-depth-cleanup-2 — the micro-run disposition (the 15-minute law):
+# every job in this lane runs at or under 4 minutes (the 57291ce batch
+# measured the surface lanes 3.3-4.0 and the fast lanes 2.8-3.6), so the
+# job-level law is already peak — the 15-minute wall is the runner queue
+# staggering ~25 micro jobs, which no further split can shrink. The
+# stage is already the payload's own minimum; splitting it would add an
+# artifact relay to a queue-bound lane for zero wall gain.
 name: Dragon Guard - Supermassive E2E
 
 "on":

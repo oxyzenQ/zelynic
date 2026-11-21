@@ -1119,7 +1119,7 @@ summarized by the patterns below:
 **Enterprise Internal** licenses these patterns for internal use
 only. **OEM / Redistribution** licenses them for embedding in a
 shipped product. For a redistribution license, the OEM tier is the
-entry price; contact <with.rezky@gmail.com> for the agreement.
+entry price; contact <oxyzenQ@proton.me> for the agreement.
 
 If your use case is a single-user laptop limiter, NetLimiter at $30
 does that job honestly. If it is per-app enforcement on a fleet
@@ -1186,7 +1186,7 @@ path that leaves you clean.
 Tiers are self-declared in good faith. Payment is USD-pegged crypto
 (Solana / Ethereum / Bitcoin, owner-verified addresses with QR codes —
 see COMMERCIAL_LICENSE.md). Licensing contact:
-[with.rezky@gmail.com](mailto:with.rezky@gmail.com). Common questions are
+[oxyzenQ@proton.me](mailto:oxyzenQ@proton.me). Common questions are
 answered in [docs/LICENSING_FAQ.md](docs/LICENSING_FAQ.md).
 
 The voluntary [crypto donations](#crypto-donations) above are separate
