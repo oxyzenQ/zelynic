@@ -43,6 +43,7 @@ use std::sync::Mutex;
 /// RESET inside the run: the caller opens once, closes once, and
 /// the terminal background (NIGHT-boost-26) rides the whole row
 /// unbroken.
+#[cfg(test)]
 pub(super) fn sweep_run(
     glyph: char,
     start: usize,

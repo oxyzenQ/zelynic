@@ -372,3 +372,35 @@ fn full_frame_wears_the_border() {
         "the default names itself"
     );
 }
+
+/// night-frontier-Z11's drift guard: the in-place fit and the fresh
+/// string fit must agree byte for byte over a hostile row set — the
+/// reference face's pins above hold `fit`'s own contract, and this
+/// pin holds the pair together (the production path rides the
+/// in-place twin only; a divergence here means the row the terminal
+/// receives changed shape without a pin catching it).
+#[test]
+fn fit_in_place_border_matches_the_reference_fit() {
+    let rows = [
+        "plain ascii row",
+        "\x1b[38;2;1;2;3mcolored row\x1b[0m with tail",
+        "\x1b[35mab\x1b[0m",
+        "CJK 幾多の行 row",
+        "wide　glyph row",
+        "\x1b[38;5;42mcube row\x1b[0m",
+        "row \x1b[1mwith an unclosed bold",
+        "",
+        "\x1b[0m",
+    ];
+    for row in rows {
+        for w in 0..=24usize {
+            let reference = fit(row, w);
+            let mut in_place = row.to_string();
+            fit_in_place_border(&mut in_place, w);
+            assert_eq!(
+                in_place, reference,
+                "the in-place fit diverged from the reference at width {w} for {row:?}"
+            );
+        }
+    }
+}

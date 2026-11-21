@@ -282,6 +282,7 @@ pub(super) fn rail_rgb(
 }
 
 /// The escape for one rail color at the probed capability depth.
+#[cfg(test)]
 pub(super) fn rail_escape(rgb: (u8, u8, u8), theme: Theme, cap: ColorCapability) -> String {
     let mut out = String::new();
     push_rail_escape(&mut out, rgb, theme, cap);
@@ -332,6 +333,7 @@ pub(super) fn push_rail_escape(
 /// row is cut at the boundary (a reset lands when a color was left
 /// open), and a short row pads with spaces — the right rail stays
 /// one straight edge whatever the content did.
+#[cfg(test)]
 fn fit(row: &str, width: usize) -> String {
     let mut out = String::with_capacity(row.len() + width);
     let mut visible = 0usize;
@@ -374,6 +376,89 @@ fn fit(row: &str, width: usize) -> String {
     out
 }
 
+// night-frontier-Z11 (stage 2): the wrap's retained buffers — the
+// terminal background escape, the per-row left rail prefix, and the
+// reset+bg splice string each ride a module-local scratch instead of
+// owning fresh Strings per row. The frame line pool's own
+// discipline at module scale: warm by the second frame, zero heap
+// events in steady state.
+thread_local! {
+    static BG: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
+    static LEFT: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
+    static SPLICE: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
+}
+
+/// Fit one composed row to the border's content width, IN PLACE
+/// (night-frontier-Z11): the into-twin of [`fit`] — the same walk
+/// (escapes copied whole, glyphs counted at their rendered width,
+/// the boundary cut, the open color closed, the short row padded),
+/// writing into the caller's buffer so the pooled row keeps its
+/// capacity across frames. The cut lands on a visible glyph (never
+/// mid-escape), exactly where [`fit`]'s fresh-string walk stopped
+/// copying.
+fn fit_in_place_border(buf: &mut String, width: usize) {
+    let mut visible = 0usize;
+    let mut seen_escape = false;
+    let mut cut: Option<usize> = None;
+    let mut it = buf.char_indices();
+    while let Some((idx, c)) = it.next() {
+        if c == '\x1b' {
+            seen_escape = true;
+            for (_i2, n) in it.by_ref() {
+                if n == 'm' {
+                    break;
+                }
+            }
+            continue;
+        }
+        // The ASCII fast path inlined at the call site (the same
+        // boundary constant [`fit`] inlines; the harness runs the dev
+        // profile, where a per-char cross-module call is a real
+        // frame).
+        let cw = if (c as u32) < 0x0300 {
+            1
+        } else {
+            crate::output::char_width(c)
+        };
+        if visible + cw > width {
+            cut = Some(idx);
+            break;
+        }
+        visible += cw;
+    }
+    if let Some(idx) = cut {
+        buf.truncate(idx);
+    }
+    if seen_escape && !buf.ends_with(RESET) {
+        buf.push_str(RESET);
+    }
+    while visible < width {
+        buf.push(' ');
+        visible += 1;
+    }
+}
+
+/// The background re-open splice, IN PLACE: every inner RESET gains
+/// the background back after it (NIGHT-boost-26's
+/// `content.replace(RESET, RESET+bg)`, without the owned String the
+/// replace built per row). The replacement bytes ride the module's
+/// retained splice scratch; the range splices shift bytes inside the
+/// warm row buffer.
+fn splice_bg_reopens(buf: &mut String, bg: &str) {
+    SPLICE.with(|cell| {
+        let mut repl = cell.borrow_mut();
+        let mut pos = 0usize;
+        while let Some(found) = buf[pos..].find(RESET) {
+            let at = pos + found;
+            repl.clear();
+            repl.push_str(RESET);
+            repl.push_str(bg);
+            buf.replace_range(at..at + RESET.len(), &repl);
+            pos = at + RESET.len() + bg.len();
+        }
+    });
+}
+
 /// Wrap the composed frame in its borders. Row 0 is the title bar —
 /// [`super::title_bar`] already renders its rounded corners spanning
 /// the full width (the top border), so it passes through untouched.
@@ -397,116 +482,149 @@ pub(super) fn wrap(lines: &mut Vec<String>, width: usize) {
     // would kill it mid-row, so each one re-opens the background
     // right after; the row's own trailing RESET then closes
     // everything the row opened.
-    let bg = terminal_bg::terminal_bg_escape();
-    // NIGHT-improve-41: the chroma engine's dark anchor is a pure
-    // function of the ACTIVE theme — one derivation per frame, not
-    // one per row (every row shares it; the per-row work is the
-    // blend alone). None on the legacy rungs, which derive their
-    // own encoded-channel anchor per call as they always have.
-    let chroma_anchor = (cap == ColorCapability::TrueColor)
-        .then(|| crate::output::chroma::scale_lightness(theme.brand_rgb(), DARK_FACTOR));
-    // Row 0 (the title bar) passes through the flank loop below
-    // untouched — it carries the top border. The inset column and
-    // the background still belong to it: the space leads
-    // (NIGHT-engrave-8, outside the paint), the background follows
-    // (NIGHT-boost-26, closed by the bar's own RESET).
-    let lead = if bg.is_empty() {
-        " ".to_string()
-    } else {
-        format!(" {bg}")
-    };
-    lines[0].insert_str(0, &lead);
-    for (i, line) in lines.iter_mut().enumerate().skip(1) {
-        let mut content = fit(line, content_w);
-        // Re-open the background after every inner reset so the
-        // paint survives a mid-row tier change (a grey detail line,
-        // a red champion row) — the reset stays honest for the
-        // glyphs it closed; the background simply rides on.
-        if !bg.is_empty() && content.contains('\x1b') {
-            content = content.replace(RESET, &format!("{RESET}{bg}"));
+    // night-frontier-Z11: the background escape rides the module's
+    // retained scratch (push_terminal_bg_escape writes in place) — the
+    // borrow lives across the whole wrap body inside BG.with, a &str
+    // instead of an owned String per frame.
+    BG.with(|cell| {
+        let mut bg_cell = cell.borrow_mut();
+        bg_cell.clear();
+        terminal_bg::push_terminal_bg_escape(&mut bg_cell);
+        let bg: &str = &bg_cell;
+        // NIGHT-improve-41: the chroma engine's dark anchor is a pure
+        // function of the ACTIVE theme — one derivation per frame, not
+        // one per row (every row shares it; the per-row work is the
+        // blend alone). None on the legacy rungs, which derive their
+        // own encoded-channel anchor per call as they always have.
+        let chroma_anchor = (cap == ColorCapability::TrueColor)
+            .then(|| crate::output::chroma::scale_lightness(theme.brand_rgb(), DARK_FACTOR));
+        // Row 0 (the title bar) passes through the flank loop below
+        // untouched — it carries the top border. The inset column and
+        // the background still belong to it: the space leads
+        // (NIGHT-engrave-8, outside the paint), the background follows
+        // (NIGHT-boost-26, closed by the bar's own RESET).
+        // The pass-through row's inset + background, inserted in place
+        // (the owned lead String's format! was another named site).
+        if bg.is_empty() {
+            lines[0].insert_str(0, " ");
+        } else {
+            lines[0].insert_str(0, &bg);
+            lines[0].insert_str(0, " ");
         }
-        let esc = rail_escape(rail_rgb(theme, chroma_anchor, i, rows, cap), theme, cap);
-        // A row that carried its own colors ends reset — the right
-        // rail re-opens the gradient. A plain row never disturbed
-        // the left rail's color: one escape carries both rails.
-        let mut row =
-            String::with_capacity(LEFT_INSET + bg.len() + esc.len() * 2 + content.len() + 8);
-        // NIGHT-engrave-8: the leading space column rides OUTSIDE
-        // the paint (the margin the terminal owns), the background
-        // opens the canvas at the rail.
-        row.push(' ');
-        row.push_str(&bg);
-        row.push_str(&esc);
-        row.push('│');
-        row.push_str(&content);
-        if content.contains('\x1b') {
-            row.push_str(&esc);
+        for (i, line) in lines.iter_mut().enumerate().skip(1) {
+            // night-frontier-Z11: the composition happens IN the pooled
+            // row's own buffer — mem::take hands the buffer out, the fit
+            // walks it in place, the splice and the rails land inside it,
+            // and the buffer returns with its capacity intact. The old
+            // shape built three owned Strings per row (the fit's fresh
+            // copy, the replace's fresh copy, the composed row itself,
+            // which even DISCARDED the pooled buffer the call site handed
+            // over); all three are gone.
+            let mut row = std::mem::take(line);
+            fit_in_place_border(&mut row, content_w);
+            // Re-open the background after every inner reset so the
+            // paint survives a mid-row tier change (a grey detail line,
+            // a red champion row) — the reset stays honest for the
+            // glyphs it closed; the background simply rides on.
+            // The escape flags: the fit's own walk said whether the row
+            // carried any escape — the right rail re-opens on that (the
+            // splice only ever ADDS escapes, so the post-splice answer is
+            // the same), and the splice itself rides the background's
+            // emptiness exactly as the replace did.
+            let raw_escaped = row.contains('\x1b');
+            if !bg.is_empty() && raw_escaped {
+                splice_bg_reopens(&mut row, &bg);
+            }
+            // The left rail: inset + background + rail color + the rail
+            // glyph, spliced ahead of the content from the retained
+            // prefix scratch (the rail color varies per row, so the
+            // scratch rebuilds; the buffer is warm).
+            LEFT.with(|cell| {
+                let mut left = cell.borrow_mut();
+                left.clear();
+                left.push(' ');
+                left.push_str(bg);
+                push_rail_escape(
+                    &mut left,
+                    rail_rgb(theme, chroma_anchor, i, rows, cap),
+                    theme,
+                    cap,
+                );
+                left.push('│');
+                row.insert_str(0, &left);
+            });
+            // The right rail: a row that carried its own colors ends with
+            // the rail color re-opened — the right rail re-opens the
+            // gradient. A plain row never disturbed the left rail's
+            // color: one escape carries both rails.
+            if raw_escaped {
+                push_rail_escape(
+                    &mut row,
+                    rail_rgb(theme, chroma_anchor, i, rows, cap),
+                    theme,
+                    cap,
+                );
+            }
+            row.push('│');
+            if !matches!(cap, ColorCapability::Mono) || !bg.is_empty() {
+                row.push_str(RESET);
+            }
+            *line = row;
         }
-        row.push('│');
-        if !esc.is_empty() || !bg.is_empty() {
-            row.push_str(RESET);
+        // The closing row (NIGHT-engrave-11: the horizontal masterclass
+        // sweep — the BD-02 bright foundation is re-expressed as the
+        // sweep's bright midpoint: the same wave the vertical rails
+        // ride, run ACROSS the columns, so the frame reads as one
+        // continuous wave on all four edges, dark corners and a glowing
+        // center; the corners land at the rails' own bottom colors and
+        // the box finally closes on itself). One color open per column,
+        // no inner reset — the terminal background (NIGHT-boost-26)
+        // rides until the row's single closing reset. The flat rungs
+        // keep their exact bytes: Color16 renders the bright anchor SGR
+        // around a plain glyph run, Mono renders plain glyphs.
+        let swept = matches!(cap, ColorCapability::TrueColor | ColorCapability::Color256);
+        let span = content_w + BORDER_W;
+        // night-frontier-Z11: the closing row rides a pooled buffer too —
+        // the three sweep runs append from the memo without cloning, and
+        // the flat rungs' bright anchor writes in place.
+        let mut closing = super::pool::pooled_line();
+        // The closing row opens with the inset column like every other
+        // row (NIGHT-engrave-8) and the terminal background
+        // (NIGHT-boost-26) — the floor it sits on is the terminal's
+        // own. The sweep-capable depths need no open SGR (every glyph
+        // carries its own column escape); the flat rungs open with the
+        // bright anchor exactly as they always have.
+        closing.push(' ');
+        closing.push_str(&bg);
+        if !swept {
+            push_rail_escape(&mut closing, theme.brand_rgb(), theme, cap);
         }
-        *line = row;
-    }
-    // The closing row (NIGHT-engrave-11: the horizontal masterclass
-    // sweep — the BD-02 bright foundation is re-expressed as the
-    // sweep's bright midpoint: the same wave the vertical rails
-    // ride, run ACROSS the columns, so the frame reads as one
-    // continuous wave on all four edges, dark corners and a glowing
-    // center; the corners land at the rails' own bottom colors and
-    // the box finally closes on itself). One color open per column,
-    // no inner reset — the terminal background (NIGHT-boost-26)
-    // rides until the row's single closing reset. The flat rungs
-    // keep their exact bytes: Color16 renders the bright anchor SGR
-    // around a plain glyph run, Mono renders plain glyphs.
-    let bright = rail_escape(theme.brand_rgb(), theme, cap);
-    let swept = matches!(cap, ColorCapability::TrueColor | ColorCapability::Color256);
-    let span = content_w + BORDER_W;
-    let mut closing = String::with_capacity(
-        LEFT_INSET + width + if swept { span * 24 } else { bright.len() } + bg.len() + RESET.len(),
-    );
-    // The closing row opens with the inset column like every other
-    // row (NIGHT-engrave-8) and the terminal background
-    // (NIGHT-boost-26) — the floor it sits on is the terminal's
-    // own. The sweep-capable depths need no open SGR (every glyph
-    // carries its own column escape); the flat rungs open with the
-    // bright anchor exactly as they always have.
-    closing.push(' ');
-    closing.push_str(&bg);
-    if !swept {
-        closing.push_str(&bright);
-    }
-    closing.push_str(&super::sweep::sweep_run(
-        '╰',
-        0,
-        1,
-        span,
-        theme,
-        chroma_anchor,
-        cap,
-    ));
-    closing.push_str(&super::sweep::sweep_run(
-        '─',
-        1,
-        content_w,
-        span,
-        theme,
-        chroma_anchor,
-        cap,
-    ));
-    closing.push_str(&super::sweep::sweep_run(
-        '╯',
-        content_w + 1,
-        1,
-        span,
-        theme,
-        chroma_anchor,
-        cap,
-    ));
-    if !bright.is_empty() {
-        closing.push_str(RESET);
-    }
-    lines.push(closing);
+        super::sweep::push_sweep_run(&mut closing, '╰', 0, 1, span, theme, chroma_anchor, cap);
+        super::sweep::push_sweep_run(
+            &mut closing,
+            '─',
+            1,
+            content_w,
+            span,
+            theme,
+            chroma_anchor,
+            cap,
+        );
+        super::sweep::push_sweep_run(
+            &mut closing,
+            '╯',
+            content_w + 1,
+            1,
+            span,
+            theme,
+            chroma_anchor,
+            cap,
+        );
+        if !matches!(cap, ColorCapability::Mono) {
+            closing.push_str(RESET);
+        }
+        lines.push(closing);
+    });
 }
 
 // NIGHT-boost-20: the border pins live under the single test/ tree
