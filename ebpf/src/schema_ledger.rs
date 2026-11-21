@@ -1,5 +1,5 @@
-// Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+// SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 //
 // The schema ledger's history half, moved VERBATIM out of
 // schema.rs's const doc at the 600-line cap (night-T-3's v31 hour,

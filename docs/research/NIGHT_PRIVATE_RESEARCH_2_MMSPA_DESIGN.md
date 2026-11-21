@@ -1,5 +1,8 @@
+<!--
+  SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+  SPDX-License-Identifier: AGPL-3.0-only OR Commercial
+-->
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
-<!-- Copyright (C) 2026 rezky_nightky (oxyzenQ) -->
 
 # The MMSPA design brief (NIGHT-private-research-2 & think-like-light-years-2, 2026-09-30)
 

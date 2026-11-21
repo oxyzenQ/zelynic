@@ -1,5 +1,5 @@
-// Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+// SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 
 //! The RECWN lane's derivation and its line (night-spark-2, schema
 //! v25 — Receive Window Control, the quota saver's Layer 1). The

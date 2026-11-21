@@ -1,5 +1,8 @@
+<!--
+  SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+  SPDX-License-Identifier: AGPL-3.0-only OR Commercial
+-->
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
-<!-- Copyright (C) 2026 rezky_nightky (oxyzenQ) -->
 
 # The NIGHT-total-lts-8 depth audit — the all-infra pass, round two: the map catches up with the memory
 

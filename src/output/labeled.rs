@@ -1,5 +1,5 @@
-// Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+// SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 
 //! Line-aware labeled rendering for stderr diagnostics (cosmostrix
 //! S-master-HUNT-5 contract, ported in NIGHT-hunt-5).

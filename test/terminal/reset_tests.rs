@@ -1,5 +1,5 @@
-// Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+// SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 
 //! Unit pins for the emergency terminal reset (NIGHT-hunt-31, the
 //! cosmostrix --reset-terminal skill transfer): the restore and reset

@@ -1,5 +1,5 @@
-// Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+// SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 //
 // NIGHT-improve-31 phase 2, executed by NIGHT-improve-44: the
 // RUSTFLAGS surgery — the host-poison strip (NIGHT-hunt-28) and the

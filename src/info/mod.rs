@@ -1,5 +1,5 @@
-// Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+// SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 
 //! zelynic package information constants and the version report.
 ///
@@ -46,7 +46,11 @@ pub const DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
 /// pre-blade-4 `pub const LICENSE` — the bare id, consumed only by
 /// the old inline capture — was removed with the capture: zero
 /// call sites left, the dependency-audit discipline.)
-const LICENSE_LINE: &str = "License: AGPL-3.0-only";
+/// The dual-license disclosure (night-ux-orion-2): the SPDX OR
+/// expression, byte-identical with the estate reference's -V line.
+/// The release pipeline's strings probe greps the AGPL prefix, which
+/// stays contiguous inside this longer literal.
+const LICENSE_LINE: &str = "License: AGPL-3.0-only OR Commercial";
 
 // The `Signature:` line source (night-signature-advanced-1): the
 // lane-honest manifest is NO LONGER a plaintext literal — the former
@@ -128,6 +132,11 @@ fn signature_line() -> String {
 /// The plain-text body of the version report (everything after the
 /// brand header). Separated from [`print_version_report`] so tests can
 /// assert the full line set without capturing stdout.
+/// The copyright window (night-ux-orion-2): the first year is the
+/// project's founding year and never moves; the trailing year rolls
+/// at a new-year release, and freezes forever at an acquisition.
+pub(crate) const COPYRIGHT_YEAR: &str = "2025-2026";
+
 fn version_body() -> String {
     let provenance = provenance_view();
     // The one body line the owner marked for color
@@ -142,14 +151,14 @@ fn version_body() -> String {
          Build-time: {}\n\
          {}\n\
          {depth_line}\n\
-         Copyright: (c) 2026 {}\n\
+         Copyright (c) {COPYRIGHT_YEAR} {}\n\
          {LICENSE_LINE}\n\
          Source: {REPOSITORY}",
         build_label(),
         build_hash(),
         build_time(),
         signature_line(),
-        provenance.authors,
+        identity_of(&provenance.manifest),
     )
 }
 
@@ -180,7 +189,7 @@ fn version_body() -> String {
 /// Build-time: 2026-09-18 01:30Z
 /// Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ) 2026
 /// Depth-matrix: fp=a60dfb6a39745f34 status=verified anchor=b3:dbcbb0eb... layers=d0:masked-words,d1:masked-words,d2:dual-fingerprint,d3:blake3-anchor
-/// Copyright: (c) 2026 rezky_nightky (oxyzenQ) <with dot rezky at gmail dot com>
+/// Copyright (c) 2025-2026 rezky_nightky (oxyzenQ)
 /// License: AGPL-3.0-only
 /// Source: https://github.com/oxyzenQ/zelynic
 /// ```
@@ -281,7 +290,7 @@ mod tests {
     /// the unit run, not on a release day.
     #[test]
     fn license_line_is_the_contiguous_bytes_the_release_probe_greps() {
-        assert_eq!(LICENSE_LINE, "License: AGPL-3.0-only");
+        assert_eq!(LICENSE_LINE, "License: AGPL-3.0-only OR Commercial");
     }
 
     /// NIGHT-hunt-6 contract: the version report carries the Build-time
@@ -292,8 +301,8 @@ mod tests {
         let body = version_body();
         for line in [
             "Build-time: ",
-            "Copyright: (c) 2026 rezky_nightky (oxyzenQ) <with dot rezky at gmail dot com>",
-            "License: AGPL-3.0-only",
+            "Copyright (c) 2025-2026 rezky_nightky (oxyzenQ)",
+            "License: AGPL-3.0-only OR Commercial",
             "Source: https://github.com/oxyzenQ/zelynic",
         ] {
             let count = body.lines().filter(|l| l.contains(line)).count();
@@ -419,7 +428,7 @@ mod tests {
             .position(|l| l.contains("Depth-matrix: "))
             .expect("Depth-matrix line present");
         assert!(
-            lines[depth_idx + 1].starts_with("Copyright: (c) 2026 rezky_nightky (oxyzenQ)"),
+            lines[depth_idx + 1].starts_with("Copyright (c) 2025-2026 rezky_nightky (oxyzenQ)"),
             "Copyright must follow Depth-matrix, got: {}",
             lines[depth_idx + 1]
         );

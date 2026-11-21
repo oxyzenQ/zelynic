@@ -1,5 +1,5 @@
-// Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+// SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 //
 // night-spark-5 (Egress Socket Pacing — schema v27, Layer 3): the
 // pure pacing law's rootless pins. The kernel half (pace_flow.rs)

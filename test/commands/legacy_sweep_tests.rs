@@ -1,5 +1,5 @@
-// Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+// SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 
 //! The legacy state sweep pins (NIGHT-lts-8's pointer, closed): the
 //! pure core behind `unpin_all_bpf`'s limits.json hygiene — the

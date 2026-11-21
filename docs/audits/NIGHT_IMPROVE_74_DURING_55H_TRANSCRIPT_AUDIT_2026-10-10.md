@@ -1,5 +1,8 @@
+<!--
+  SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+  SPDX-License-Identifier: AGPL-3.0-only OR Commercial
+-->
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
-<!-- Copyright (C) 2026 rezky_nightky (oxyzenQ) -->
 
 # The night-improve-74 audit — the 55h window that read 3d (the transcript's timezone, not the kernel's clock)
 

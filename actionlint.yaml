@@ -1,5 +1,5 @@
-# Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+# SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 #
 # NIGHT-runner-1: the self-hosted-runner label allowlist for
 # actionlint. The pinned actionlint (gate-keepers.yml, v1.7.7)

@@ -1,5 +1,5 @@
-// Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+// SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 //
 // zelynic eBPF limiter, the pure-Rust BPF source (NIGHT-improve-1,
 // phase 2, stage 1: port of the former bpf/limiter.bpf.c; phase 3

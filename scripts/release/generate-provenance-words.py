@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+# SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 # OS: Linux only — zelynic is a Linux eBPF tool; no other OS is supported.
 """Provenance word generator for the depth-matrix signature
 (night-signature-advanced-1 masked layers and blake3 anchor; the
@@ -59,7 +59,7 @@ Usage:
 # bytes, E2 80 94, and every layer below operates on bytes, not chars).
 MANIFEST_FULL = "Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ) 2026"
 MANIFEST_DORMANT = "eBPF dormant — Official Build by rezky_nightky (oxyzenQ) 2026"
-AUTHORS = "rezky_nightky (oxyzenQ) <with dot rezky at gmail dot com>"
+AUTHORS = "rezky_nightky (oxyzenQ) <oxyzenQ@proton.me>"
 
 # Per-layer seeds. Decoys with no external meaning; rotating them is a
 # supported operation (re-run this tool, paste the new block). All three

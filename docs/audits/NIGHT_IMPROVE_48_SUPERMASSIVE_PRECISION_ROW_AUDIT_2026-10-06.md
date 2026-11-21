@@ -1,5 +1,8 @@
+<!--
+  SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+  SPDX-License-Identifier: AGPL-3.0-only OR Commercial
+-->
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
-<!-- Copyright (C) 2026 rezky_nightky (oxyzenQ) -->
 
 # The NIGHT-improve-48 depth audit — the supermassive completeness question, the precision proof-claim's red CI lane root-caused and closed
 

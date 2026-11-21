@@ -1,3 +1,7 @@
+<!--
+  SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+  SPDX-License-Identifier: AGPL-3.0-only OR Commercial
+-->
 # Changelog
 
 All notable changes to this project will be documented in this file.

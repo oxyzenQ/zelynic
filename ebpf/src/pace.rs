@@ -1,5 +1,5 @@
-// Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+// SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 //
 // night-spark-5 (Egress Socket Pacing — Layer 3 of the quota
 // saver): the pure pacing law. Same discipline as math.rs /

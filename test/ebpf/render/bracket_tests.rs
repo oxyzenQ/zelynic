@@ -1,5 +1,5 @@
-// Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+// SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 
 //! night-frontier-Z2 (Dive 2 at -1000m) pins: the tail-aware clamp
 //! bracket's law, its render row, and its additive JSON wire. The

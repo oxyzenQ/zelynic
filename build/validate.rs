@@ -1,5 +1,5 @@
-// Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+// SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 //
 // NIGHT-improve-31 phase 1, executed by NIGHT-improve-44: the ELF
 // structural validators (NIGHT-hunt-29) — read_validated_ebpf_object,

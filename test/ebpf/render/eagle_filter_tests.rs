@@ -1,5 +1,5 @@
-// Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+// SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 
 //! Target-filter pins (NIGHT-boost-1 lineage; the watched-set
 //! contracts of NIGHT-engrave-4 and NIGHT-engrave-6): name tokens

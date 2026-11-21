@@ -1,5 +1,5 @@
-// Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+// SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 
 //! The provenance depth matrix's oracle suite (night-signature-advanced-1):
 //! the masked layers must materialize the exact plaintext truths, stay
@@ -24,18 +24,18 @@ const MANIFEST_FULL_ORACLE: &str =
     "Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ) 2026";
 const MANIFEST_DORMANT_ORACLE: &str =
     "eBPF dormant — Official Build by rezky_nightky (oxyzenQ) 2026";
-const AUTHORS_ORACLE: &str = "rezky_nightky (oxyzenQ) <with dot rezky at gmail dot com>";
+const AUTHORS_ORACLE: &str = "rezky_nightky (oxyzenQ) <oxyzenQ@proton.me>";
 /// Generator cross-check values (scripts/release/
 /// generate-provenance-words.py prints them). If these diverge from
 /// the const eval, the generator and the Rust mirror have drifted.
 const MANIFEST_FINGERPRINT_ORACLE: u64 = 0xA60D_FB6A_3974_5F34;
 const MANIFEST_DORMANT_FINGERPRINT_ORACLE: u64 = 0x397D_F6AE_668B_1922;
-const AUTHORS_FINGERPRINT_ORACLE: u64 = 0xC97B_13F8_1603_5D55;
+const AUTHORS_FINGERPRINT_ORACLE: u64 = 0x6677_1E5F_273B_9CAE;
 /// Generator's printed anchor cross-check (blake3 over the framed
 /// payload). The Python mirror and the Rust crate were proven
 /// byte-identical on this value at integration time.
 const DEPTH_ANCHOR_HEX_ORACLE: &str =
-    "dbcbb0ebcb3689f431c917449d412b6330c7b9b3be34bc46af3b4bba7a82119a";
+    "74b836227fc359a6d8c89833713a8b204d8fd18e2e27990875076c82d601a2a1";
 
 fn active_oracle() -> &'static str {
     match super::super::ebpf_lane() {
@@ -148,7 +148,7 @@ fn depth_anchor_matches_runtime_blake3() {
 fn anchor_payload_framing_is_exact() {
     // Domain tag, then length-prefixed layers: byte-exact mirror of
     // the generator's anchor_payload. Pinned against the real
-    // layer lengths (68 full + 63 dormant + 57 authors).
+    // layer lengths (68 full + 63 dormant + 43 authors).
     let full = unmask_to_bytes(&MASKED_MANIFEST_WORDS, MANIFEST_SEED, MANIFEST_BYTE_LEN);
     let dormant = unmask_to_bytes(
         &MASKED_MANIFEST_DORMANT_WORDS,
@@ -162,9 +162,9 @@ fn anchor_payload_framing_is_exact() {
     assert_eq!(&payload[31..99], full.as_slice());
     assert_eq!(&payload[99..107], &63u64.to_le_bytes());
     assert_eq!(&payload[107..170], dormant.as_slice());
-    assert_eq!(&payload[170..178], &57u64.to_le_bytes());
-    assert_eq!(&payload[178..235], authors.as_slice());
-    assert_eq!(payload.len(), 235);
+    assert_eq!(&payload[170..178], &43u64.to_le_bytes());
+    assert_eq!(&payload[178..221], authors.as_slice());
+    assert_eq!(payload.len(), 221);
 }
 
 #[test]

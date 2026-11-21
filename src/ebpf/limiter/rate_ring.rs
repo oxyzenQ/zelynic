@@ -1,5 +1,5 @@
-// Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+// SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 
 //! The time-series ring's userspace half (NIGHT-upgrade-charger-
 //! core-3a, Tier B #8 — EAGLE EYES V1): the hand-mirrored layout

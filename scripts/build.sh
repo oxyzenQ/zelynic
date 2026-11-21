@@ -1,6 +1,6 @@
 #!/bin/bash
-# Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+# SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 # OS: Linux only — zelynic is a Linux eBPF tool; no other OS is supported.
 # =============================================================================
 # ZELYNIC BUILD AUTOMATION SCRIPT

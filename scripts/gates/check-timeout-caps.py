@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+# SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 """CI runtime caps (night-zen-2; docs/RULES.md "CI Runtime Caps" is
 the rule's home).
 

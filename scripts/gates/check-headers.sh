@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+# SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 # OS: Linux only — zelynic is a Linux eBPF tool; no other OS is supported.
 #
 # ZELYNIC SPDX HEADER CHECK
@@ -10,8 +10,6 @@
 # the wrong license identifier.
 #
 # Required (both lines, within the first 10 lines of the file):
-#   Copyright (C) 2026 rezky_nightky
-#   SPDX-License-Identifier: AGPL-3.0-only
 # Rejected: any other SPDX-License-Identifier value (project is
 # AGPL-3.0-only licensed).
 #
@@ -56,8 +54,8 @@ MISSING=0
 WRONG=0
 CHECKED=0
 
-EXPECTED_COPYRIGHT="Copyright (C) 2026 rezky_nightky"
-EXPECTED_LICENSE_NAME="AGPL-3.0-only"
+EXPECTED_COPYRIGHT="SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)"
+EXPECTED_LICENSE_NAME="AGPL-3.0-only OR Commercial"
 
 while IFS= read -r -d '' file; do
 	CHECKED=$((CHECKED + 1))

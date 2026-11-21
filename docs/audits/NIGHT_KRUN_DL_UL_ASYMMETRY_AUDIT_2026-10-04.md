@@ -1,5 +1,8 @@
+<!--
+  SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+  SPDX-License-Identifier: AGPL-3.0-only OR Commercial
+-->
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
-<!-- Copyright (C) 2026 rezky_nightky (oxyzenQ) -->
 
 # NIGHT-curio-1: the 605ns vs 233ns per-run asymmetry - enforcement lane vs memoized bypass (2026-10-04)
 

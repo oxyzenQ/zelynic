@@ -1,4 +1,5 @@
-# Copyright (C) 2026 rezky_nightky
+# SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+# SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 # SPDX-License-Identifier: AGPL-3.0-only
 #
 # zelynic prebuilt eBPF object manifest (NIGHT-ask-2;
@@ -16,19 +17,19 @@
 # binaries embed.
 
 schema = 2
-generated = "2026-11-18T06:08:30Z"
+generated = "2026-11-21T10:54:54Z"
 toolchain = "nightly-2026-09-18"
 bpf_linker = "0.11.1"
-ebpf_tree_blake3 = "ff7dc192871f523e7ff6f1d27b409d4b3140f2884a51b3b0b463f58eeb1ae1ec"
-built_by = "rezky_nightky <130107241+oxyzenQ@users.noreply.github.com>"
+ebpf_tree_blake3 = "b74ca5aa45e38e0242a10bea4ae524f8f7e9f633246e266a1d36ab130ee77e5b"
+built_by = "oxyzenQ <130107241+oxyzenQ@users.noreply.github.com>"
 
 [[object]]
 name = "zelynic-observer"
-blake3 = "b506b7c80eaa7f76b7dc355f6dd3c9b46e6efc0513c2332a2ed3588415e71e1d"
-size = 108272
+blake3 = "7f1f8fc52228de81e56b6b76c669d7215d1362cd1be49bd1a0cd3622cf47f4c1"
+size = 108120
 
 [[object]]
 name = "zelynic-limiter"
-blake3 = "446efb12a7a523927c15218b3c12ce6d005fd12f3f64367e6bfa2278bd6b774a"
-size = 1113744
+blake3 = "c9b2e611ac1c2df97d14602e435ea885bf800ccd61273b28b64ff1069f885c71"
+size = 1112992
 

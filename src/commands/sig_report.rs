@@ -1,5 +1,5 @@
-// Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+// SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 
 //! The `sig` command surface — the five-depth signature report
 //! (night-signature-advanced-1; D4 added by night-depth-hardening-Z2).
@@ -221,9 +221,10 @@ pub(crate) fn sig_report() -> (String, SigVerdict) {
     let d0_shape_ok = !identity.is_empty();
 
     // D1: the authors layer materialized and binds to the identity.
-    let binding_ok = identity_of(&view.manifest)
-        .strip_suffix(" 2026")
-        .is_some_and(|core| view.authors.starts_with(core));
+    // identity_of now renders the clean core (the manifest's year slot
+    // stripped), so the binding compares against it directly - the
+    // inline year strip was a second, drift-prone copy of that law.
+    let binding_ok = !identity.is_empty() && view.authors.starts_with(&identity);
 
     // D2: the cryptographic anchor (already recomputed in the same
     // single pass that produced the display bytes — `verified` folds
@@ -289,6 +290,13 @@ pub(crate) fn sig_report() -> (String, SigVerdict) {
     }
     text.push('\n');
     text.push_str(&format!("identity    {identity}\n"));
+    // night-ux-orion-2: the contact row rides the materialized authors
+    // layer's own email segment (the D1 claim's angle-bracket tail) -
+    // one plaintext source, zero new constants.
+    if let Some((_, email)) = view.authors.rsplit_once('<') {
+        let email = email.trim_end_matches('>');
+        text.push_str(&format!("contact     {email}\n"));
+    }
     text.push_str(&format!(
         "fingerprint fp={:016x} (fnv1a64, dual-layer)\n",
         manifest_fingerprint()
@@ -409,7 +417,7 @@ mod tests {
     fn report_names_the_owner_identity() {
         let (text, _) = sig_report();
         assert!(
-            text.contains("identity    rezky_nightky (oxyzenQ) 2026"),
+            text.contains("identity    rezky_nightky (oxyzenQ)"),
             "identity field must materialize the masked layers:\n{text}"
         );
         assert!(

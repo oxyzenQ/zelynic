@@ -1,4 +1,7 @@
-<!-- Copyright (C) 2026 rezky_nightky -->
+<!--
+  SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+  SPDX-License-Identifier: AGPL-3.0-only OR Commercial
+-->
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
 # night-signature-advanced-1 — the masked provenance depth matrix: the identity leaves the artifact, the seal stays

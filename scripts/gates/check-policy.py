@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+# SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 """Check zelynic source policy rules."""
 
 from __future__ import annotations
@@ -10,8 +10,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MAX_LOC = 1000
-COPYRIGHT = "Copyright (C) 2026 rezky_nightky"
-SPDX = "SPDX-License-Identifier: AGPL-3.0-only"
+COPYRIGHT = "SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)"
+SPDX = "SPDX-License-Identifier: AGPL-3.0-only OR Commercial"
 
 # Self-declared LOC exemption (NIGHT-hunt-29; NIGHT-improve-44 narrowed
 # it): a non-Rust file over MAX_LOC passes only when it carries the
