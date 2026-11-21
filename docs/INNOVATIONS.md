@@ -1111,6 +1111,80 @@ solver verdict is the measured-open gap the census records (see
 "the two tiers" above); its stand-down is the honest shape until a
 lever lands.
 
+## night-frontier-Z11 — the zero-heap frame ladder (D9)
+
+Z4's allocation lens named the frame's remaining heap events and
+staged them; Z11 closes the ladder's stages and pins every landing.
+The floor pin (`steady_state_frame_composition_allocates_zero`,
+test/ebpf/render/bench.rs) measures the QUIETEST of 32 busy frames
+through a counting global allocator; its ceiling lowers in the same
+commit that closes a named site — the ladder's own ratchet. The
+measured floor, one line per stage, all on the same glibc dev box
+and the same fixture:
+
+- 249 heap events per frame — the pre-pool era (Z4's baseline).
+- 164 after Z4's pooled-line discipline (~172 on the musl CI twin —
+  the heap events are code x allocator, so every ceiling carries
+  cross-allocator headroom).
+- 150 after Z11 stage 1: the title bar, the swept bar, the grid
+  lines, and the rail escapes write into caller-owned buffers
+  (`title_bar_into`, `push_swept_bar`, `grid_line_into`,
+  `push_rail_escape`, `push_sweep_run`), the frame path pops pooled
+  rows for them, and the sweep memo's hit path appends the composed
+  bytes instead of cloning them — the clone WAS the per-frame heap
+  event the memo itself was paying.
+- 100 after stage 2: the border wrap composes IN the pooled rows
+  (`fit_in_place_border` walks the buffer in place, the background
+  re-open splice lands via replace_range, the rails write through
+  the escape twin, and the composed row stays in the buffer the
+  call site handed over — the old shape even discarded that pooled
+  buffer with `*line = row`); the closing row rides a pooled buffer
+  with the sweep runs appending from the memo; the per-frame
+  background escape writes into a retained module scratch. A
+  drift-guard pin holds the in-place fit and the reference fit
+  byte-identical over a hostile row set (CJK, wide glyphs, escapes
+  mid-row, unclosed colors) — and it earned its keep immediately:
+  its first run caught two wrong box-drawing escapes in the port
+  itself, fixed before landing.
+- 86 after stage 3a: the detail tree's line composition pushes
+  pooled rows (`push_detail_lines` and the holder/endpoint/
+  steady-rate twins beneath it) — the per-cgroup owned Vec<String>
+  of fresh format!-built Strings was the named site.
+- 34 after stage 3b: the footer's rows write into pooled buffers —
+  every census, speed-pair, limit, legend, status, and signature
+  row (the grey and brand brackets push their static opens and
+  resets around `write!`-composed figures; the counts ride the Z4
+  twins). The source-scan pin that grepped the old `brand(&format!())`
+  spelling now greps the tier's own markers — the same contract,
+  the into-twin's spelling.
+
+The named remainder (each a stage-4 reopen, honestly small): the
+detail tree's holders' walk scratch (the outer Vec plus one Vec per
+holder), the signature engraving's internals (the output layer's
+identity seat), and the focus view's own tree
+(`full_detail_lines` plus the ranked board's Vec — outside this
+pin's window, its own lens when the focus frame earns one).
+
+**The A/B the owner's law asks for** (frame-bench.py, quick window
+vs quick window, byte-identical LCG fixture, before = b21d345,
+after = a3387d2): bytes/frame 1919.0 on both sides — the visual
+parity the 204 render pins already proved, read back through the
+metrics (emit bytes/frame 682.1 vs 682.2, density gini 0.3263 vs
+0.3265, frame entropy 3.3526 vs 3.3515, dirty cells 113.5 vs 113.8
+— every delta inside the window's noise). The allocation floor
+dropped 164 to 34 across the same boundary: 4.8x fewer heap events
+per frame, the deterministic-latency win without a visual change.
+
+**Why it matters**: the monitor loop renders all day — a
+zero-heap-approaching frame path means no allocator jitter in the
+per-frame latency, no GC-adjacent pauses (Rust has none to amortize,
+but the malloc/free churn still taxes the path), and a craft ceiling
+a counting allocator in CI pins end to end. The claim this stage
+earns: the composition half of the render loop runs at a measured
+34 heap events per frame (down 86% from the pre-pool era), with the
+pin holding every landing and the named remainder staged for the
+next session.
+
 ## The Quota Saver — the Workload-Conditional Claim
 
 The fourteenth, fifteenth, and sixteenth entries above (RECWN, ECN,

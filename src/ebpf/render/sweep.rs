@@ -67,6 +67,11 @@ pub(super) fn sweep_run(
 /// takes them with zero heap events. The owned [`sweep_run`] stays
 /// for the one-shot callers (the --depth report's flat rungs, the
 /// tests).
+// The signature is the memo key's own shape (theme, capability,
+// glyph, start, len, span, anchor plus the out buffer) - collapsing
+// it into a struct would blur the byte-exact pairing with sweep_run
+// that the drift pins read.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn push_sweep_run(
     out: &mut String,
     glyph: char,
@@ -80,7 +85,7 @@ pub(super) fn push_sweep_run(
     // The flat rungs bypass the memo: their bytes are the trivial
     // glyph repeat, nothing to remember.
     if !matches!(cap, ColorCapability::TrueColor | ColorCapability::Color256) {
-        out.extend(std::iter::repeat(glyph).take(len));
+        out.extend(core::iter::repeat_n(glyph, len));
         return;
     }
     let key = (theme, cap, glyph, start, len, span, anchor);

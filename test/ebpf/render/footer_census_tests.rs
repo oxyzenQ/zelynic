@@ -120,10 +120,19 @@ fn footer_census_packets_ride_the_si_compact_ladder() {
 /// suggestion white.
 #[test]
 fn limit_line_rides_the_brand_tier() {
-    let footer_src =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/ebpf/render/footer.rs");
-    let src = std::fs::read_to_string(&footer_src)
-        .unwrap_or_else(|e| panic!("footer source readable: {e}"));
+    // night-frontier-Z11: the builder's rows moved into footer_grip.rs
+    // (the NIGHT-improve-44 split), so the scan reads both halves of
+    // the footer's source.
+    let mut src = String::new();
+    for part in ["footer.rs", "footer_grip.rs"] {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src/ebpf/render")
+            .join(part);
+        src.push_str(
+            &std::fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("{part} source readable: {e}")),
+        );
+    }
     // night-frontier-Z11: the composition moved into the pooled row
     // (brand_open + reset bracket the command's bytes), so the pin
     // greps the tier's own markers - the contract is the same, the
