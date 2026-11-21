@@ -73,24 +73,6 @@ after a3387d2: bytes/frame 1919.0 both sides; emit bytes/frame
   Proofs, Miri, CodeQL, Security Audit, CI, Fuzz, netrunner,
   Supermassive family, Verify).
 
-<!-- ZELYNIC-DISCLAIMER -->
-<!--
-  Documentation Disclaimer — read before relying on any data point.
-
-  This document may contain stale data, hardcoded counts, or outdated
-  file paths and symbol names. Maintainers update source code but may
-  forget to sync every doc — perfect sync across every .md file is a
-  known maintenance burden with diminishing returns.
-
-  Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
-  truth. Always cross-check against the actual source files before
-  relying on any specific number (target count, LOC, rate bound),
-  file path, function name, or config key.
-
-  If you find a discrepancy, please open a PR — the doc is wrong, not
-  the source.
--->
-
 ## The CI watch's own finds (pre-existing, named for the owner)
 
 - The noble 6.8 GA kernel's fast lane re-failed the non-binding
@@ -108,3 +90,21 @@ after a3387d2: bytes/frame 1919.0 both sides; emit bytes/frame
   has a cross-CPU window; a kernel-side session owns the fix.
   Both finds are recorded here because a red lane that names a
   real race is the battery working, not the battery failing.
+
+<!-- ZELYNIC-DISCLAIMER -->
+<!--
+  Documentation Disclaimer — read before relying on any data point.
+
+  This document may contain stale data, hardcoded counts, or outdated
+  file paths and symbol names. Maintainers update source code but may
+  forget to sync every doc — perfect sync across every .md file is a
+  known maintenance burden with diminishing returns.
+
+  Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
+  truth. Always cross-check against the actual source files before
+  relying on any specific number (target count, LOC, rate bound),
+  file path, function name, or config key.
+
+  If you find a discrepancy, please open a PR — the doc is wrong, not
+  the source.
+-->
