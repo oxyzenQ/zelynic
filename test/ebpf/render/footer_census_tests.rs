@@ -124,9 +124,13 @@ fn limit_line_rides_the_brand_tier() {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/ebpf/render/footer.rs");
     let src = std::fs::read_to_string(&footer_src)
         .unwrap_or_else(|e| panic!("footer source readable: {e}"));
+    // night-frontier-Z11: the composition moved into the pooled row
+    // (brand_open + reset bracket the command's bytes), so the pin
+    // greps the tier's own markers - the contract is the same, the
+    // spelling is the into-twin's.
     assert!(
-        src.contains("brand(&format!(\"'sudo zelynic s {name} {SUGGESTED_LIMIT}'\"))"),
-        "the limit command must render through brand() — the theme-aware tier"
+        src.contains("line.push_str(brand_open());"),
+        "the limit command must render through the brand tier — the theme-aware tier"
     );
     assert!(
         !src.contains("suggestion("),

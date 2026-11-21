@@ -567,16 +567,20 @@ fn steady_state_frame_composition_allocates_zero() {
     // cross-allocator headroom. FLOOR sits below the pre-pool era, so
     // the pool's win is locked — reverting it trips this pin, as does
     // any regression that raises every frame past the ceiling. The
-    // named remainder (each a stage-3 reopen, the NIGHT-blade-16
-    // staged ladder): the footer's owned-Vec builders (the ranked
-    // board's Vec is the focus view's, outside this pin's window)
-    // and the detail tree's holders' walk scratch (the outer Vec
-    // plus one Vec per holder, a handful of events). Z11 stage 3's
-    // first half (the detail tree's line composition rides pooled
-    // rows now) measured 100 on the same box; its quiet count sits
-    // at 86. A change that closes a named site LOWERS the floor
-    // (and should, in the same commit that closes it).
-    const FLOOR: usize = 110;
+    // named remainder (each a stage-4 reopen, the NIGHT-blade-16
+    // staged ladder): the detail tree's holders' walk scratch (the
+    // outer Vec plus one Vec per holder, a handful of events), the
+    // signature engraving's internals (the output layer's identity
+    // seat), and the focus view's own tree (full_detail_lines, the
+    // ranked board's Vec - outside this pin's window). Z11 stage 3
+    // closed the footer's owned-Vec builders (every census, speed
+    // pair, limit, legend, status, and signature row writes into a
+    // pooled row now) and the detail tree's line composition; the
+    // quiet count measured 34 on the same box (86 after stage 3a,
+    // 100 after stage 2, 150 after stage 1, 164 after Z4's pool,
+    // 249 pre-pool). A change that closes a named site LOWERS the
+    // floor (and should, in the same commit that closes it).
+    const FLOOR: usize = 50;
     // The measured number on the record: every run prints the quiet
     // count, so the floor's own trend is visible in the battery's
     // output (night-frontier-Z11's ladder law — a closed site LOWERS
