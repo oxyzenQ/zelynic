@@ -20,22 +20,20 @@ use super::*;
 /// a test that cannot name its expected output proves nothing.
 /// The release artifact contains none of them (cfg(test) is
 /// stripped from the binary).
-const MANIFEST_FULL_ORACLE: &str =
-    "Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ) 2026";
-const MANIFEST_DORMANT_ORACLE: &str =
-    "eBPF dormant — Official Build by rezky_nightky (oxyzenQ) 2026";
+const MANIFEST_FULL_ORACLE: &str = "Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)";
+const MANIFEST_DORMANT_ORACLE: &str = "eBPF dormant — Official Build by rezky_nightky (oxyzenQ)";
 const AUTHORS_ORACLE: &str = "rezky_nightky (oxyzenQ) <oxyzenQ@proton.me>";
 /// Generator cross-check values (scripts/release/
 /// generate-provenance-words.py prints them). If these diverge from
 /// the const eval, the generator and the Rust mirror have drifted.
-const MANIFEST_FINGERPRINT_ORACLE: u64 = 0xA60D_FB6A_3974_5F34;
-const MANIFEST_DORMANT_FINGERPRINT_ORACLE: u64 = 0x397D_F6AE_668B_1922;
+const MANIFEST_FINGERPRINT_ORACLE: u64 = 0x247D_2835_AC8B_DE6A;
+const MANIFEST_DORMANT_FINGERPRINT_ORACLE: u64 = 0xD8BB_2B18_D03D_2A40;
 const AUTHORS_FINGERPRINT_ORACLE: u64 = 0x6677_1E5F_273B_9CAE;
 /// Generator's printed anchor cross-check (blake3 over the framed
 /// payload). The Python mirror and the Rust crate were proven
 /// byte-identical on this value at integration time.
 const DEPTH_ANCHOR_HEX_ORACLE: &str =
-    "74b836227fc359a6d8c89833713a8b204d8fd18e2e27990875076c82d601a2a1";
+    "acf8e138aae172fb2974448eb34fa19fce29909d5755b2c2dca2a611e862e657";
 
 fn active_oracle() -> &'static str {
     match super::super::ebpf_lane() {
@@ -148,7 +146,8 @@ fn depth_anchor_matches_runtime_blake3() {
 fn anchor_payload_framing_is_exact() {
     // Domain tag, then length-prefixed layers: byte-exact mirror of
     // the generator's anchor_payload. Pinned against the real
-    // layer lengths (68 full + 63 dormant + 43 authors).
+    // layer lengths (63 full + 58 dormant + 43 authors, the
+    // yearless night-ux-orion-3 truths).
     let full = unmask_to_bytes(&MASKED_MANIFEST_WORDS, MANIFEST_SEED, MANIFEST_BYTE_LEN);
     let dormant = unmask_to_bytes(
         &MASKED_MANIFEST_DORMANT_WORDS,
@@ -158,13 +157,13 @@ fn anchor_payload_framing_is_exact() {
     let authors = unmask_to_bytes(&MASKED_AUTHORS_WORDS, AUTHORS_SEED, AUTHORS_BYTE_LEN);
     let payload = anchor_payload(&full, &dormant, &authors);
     assert!(payload.starts_with(b"zelynic/depth-matrix/v1"));
-    assert_eq!(&payload[23..31], &68u64.to_le_bytes());
-    assert_eq!(&payload[31..99], full.as_slice());
-    assert_eq!(&payload[99..107], &63u64.to_le_bytes());
-    assert_eq!(&payload[107..170], dormant.as_slice());
-    assert_eq!(&payload[170..178], &43u64.to_le_bytes());
-    assert_eq!(&payload[178..221], authors.as_slice());
-    assert_eq!(payload.len(), 221);
+    assert_eq!(&payload[23..31], &63u64.to_le_bytes());
+    assert_eq!(&payload[31..94], full.as_slice());
+    assert_eq!(&payload[94..102], &58u64.to_le_bytes());
+    assert_eq!(&payload[102..160], dormant.as_slice());
+    assert_eq!(&payload[160..168], &43u64.to_le_bytes());
+    assert_eq!(&payload[168..211], authors.as_slice());
+    assert_eq!(payload.len(), 211);
 }
 
 #[test]
@@ -243,12 +242,19 @@ fn identity_core_extraction_and_binding() {
     assert!(AUTHORS_ORACLE.starts_with(core), "layers bind coherently");
     // A rebranded manifest (different identity) breaks the binding:
     // the authors string no longer starts with the extracted core.
+    // The forged year tail rides along inside the core - the marker
+    // split is the only tamper gate here.
     let forged = "Pure eBPF builtin — Official Build by someone_else 2026";
     let forged_core = identity_core(forged).expect("marker present");
     assert!(!AUTHORS_ORACLE.starts_with(forged_core));
-    // Missing marker or missing year are tampering signals.
+    // A missing marker is the tampering signal. The yearless shape is
+    // the live shape (night-ux-orion-3): a manifest with the marker
+    // and no year is exactly what the truths carry.
     assert!(identity_core("Pure eBPF builtin").is_none());
-    assert!(identity_core("Official Build by rezky_nightky").is_none());
+    assert_eq!(
+        identity_core("Official Build by rezky_nightky"),
+        Some("rezky_nightky")
+    );
 }
 
 #[test]
@@ -261,7 +267,7 @@ fn provenance_view_shape_is_stable() {
         view.manifest
     );
     assert!(
-        view.manifest.ends_with("rezky_nightky (oxyzenQ) 2026"),
+        view.manifest.ends_with("rezky_nightky (oxyzenQ)"),
         "manifest ends with the owner identity"
     );
     let depth = &view.depth_line;

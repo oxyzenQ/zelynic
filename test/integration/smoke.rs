@@ -252,10 +252,11 @@ fn test_version() {
     // is lane-honest — "Pure eBPF builtin" on a full build, "eBPF
     // dormant" on the --no-default-features leg this suite also runs
     // under — so the pin accepts exactly the two documented variants
-    // (now ending with the owner year the masked manifest carries)
-    // and nothing else.
-    let full_life = "Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ) 2026";
-    let dormant = "Signature: eBPF dormant — Official Build by rezky_nightky (oxyzenQ) 2026";
+    // (yearless since night-ux-orion-3: the trailing year slot left
+    // the masked truths, a year belongs at the front of the Copyright
+    // line only) and nothing else.
+    let full_life = "Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)";
+    let dormant = "Signature: eBPF dormant — Official Build by rezky_nightky (oxyzenQ)";
     let signature = stdout
         .lines()
         .find(|l| l.starts_with("Signature: "))

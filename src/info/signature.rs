@@ -4,7 +4,7 @@
 //! Provenance depth matrix — the embedded, masked build signature.
 //!
 //! night-signature-advanced-1 (the night-signature-1 gap closed): the
-//! ownership claim "rezky_nightky (oxyzenQ) 2026" is embedded in the
+//! ownership claim "rezky_nightky (oxyzenQ)" is embedded in the
 //! binary in MASKED form and materializes to plaintext only at runtime,
 //! on the `-V/--version` surface and the `zelynic sig` report. The
 //! owner's threat model: a thief can grep the artifact with
@@ -43,11 +43,15 @@
 //!       digest pins the identity CLAIM bytes, not the artifact. The
 //!       exact byte streams are the lane manifests — the full-life
 //!       "Pure eBPF builtin — Official Build by rezky_nightky
-//!       (oxyzenQ) 2026" (68 UTF-8 bytes, fp a60dfb6a39745f34) and
+//!       (oxyzenQ)" (63 UTF-8 bytes, fp 247d2835ac8bde6a) and
 //!       the dormant "eBPF dormant — Official Build by rezky_nightky
-//!       (oxyzenQ) 2026" (63 bytes, fp 397df6ae668b1922). The
-//!       full-life manifest is byte-identical to zylaxion's, so both
-//!       legitimately report the same `fp=` value; zejtron's manifest
+//!       (oxyzenQ)" (58 bytes, fp d8bb2b18d03d2a40). The
+//!       manifests are yearless (night-ux-orion-3: the trailing
+//!       year slot left the truths — a year belongs at the front of
+//!       a copyright line, never dangling after the identity), so
+//!       zelynic's fp no longer matches zylaxion's (which still
+//!       carries the year) until the sibling rotates to the same
+//!       yearless shape; zejtron's manifest
 //!       is the identity clause only (46 bytes, 9174e0ce08feccba) and
 //!       cosmostrix's carries the cosmic dragon voice (64 bytes,
 //!       fe0d7239f86e7c1b) — differently framed claims, not a
@@ -96,10 +100,10 @@
 //!
 //! # Identity binding between the layers
 //!
-//! Each manifest carries "Official Build by <identity> <year>"; the
-//! authors string starts with the same identity. The runtime extracts
-//! the identity core from the ACTIVE materialized manifest (everything
-//! after the marker, minus the year suffix) and requires the authors
+//! Each manifest carries "Official Build by <identity>" (yearless,
+//! night-ux-orion-3); the authors string starts with the same identity.
+//! The runtime extracts the identity core from the ACTIVE materialized
+//! manifest (everything after the marker) and requires the authors
 //! string to start with it. Patching one layer alone breaks the
 //! binding; patching both consistently requires regenerating the masked
 //! words AND the fingerprints AND the anchor — at which point the
@@ -162,8 +166,8 @@ const fn mask_for(seed: u64, index: usize) -> u64 {
 // in UTF-8, chunked little-endian, XOR-masked word-by-word.
 
 pub(crate) const MANIFEST_SEED: u64 = 0x5B1EC8A239D7F460;
-pub(crate) const MANIFEST_BYTE_LEN: usize = 68; // 9 words
-const MASKED_MANIFEST_WORDS: [u64; 9] = [
+pub(crate) const MANIFEST_BYTE_LEN: usize = 63; // 8 words
+const MASKED_MANIFEST_WORDS: [u64; 8] = [
     0xE152F26790F92EE9,
     0xB543B56332AA5BC5,
     0xB2633B29DC27F859,
@@ -171,8 +175,7 @@ const MASKED_MANIFEST_WORDS: [u64; 9] = [
     0x061FF38AA20A6206,
     0xCA86AA678E01B0B8,
     0xD0C87F8C695030B0,
-    0x344195534845BE3B,
-    0x8AC573FBE1AE0DCD,
+    0x144195534845BE3B,
 ];
 
 /// D2 digest over the clear full-life manifest bytes, evaluated by the
@@ -189,7 +192,7 @@ const MANIFEST_FINGERPRINT: u64 =
 // Same law as D0, independent seed, the dormant lane's honest claim.
 
 pub(crate) const MANIFEST_DORMANT_SEED: u64 = 0xC94A20F781E3B5D6;
-pub(crate) const MANIFEST_DORMANT_BYTE_LEN: usize = 63; // 8 words
+pub(crate) const MANIFEST_DORMANT_BYTE_LEN: usize = 58; // 8 words
 const MASKED_MANIFEST_DORMANT_WORDS: [u64; 8] = [
     0x5CAA82A42E8E2E15,
     0xA95D11A814CCC9BC,
@@ -198,7 +201,7 @@ const MASKED_MANIFEST_DORMANT_WORDS: [u64; 8] = [
     0x25CFAF0CD2D4A2E9,
     0x9416EA1460658360,
     0x8242BFE37540809B,
-    0xB45281D6B3AE5B38,
+    0xB464B3E6818E5B38,
 ];
 
 /// D2 digest over the clear dormant manifest bytes (same law as D0).
@@ -245,10 +248,11 @@ const AUTHORS_FINGERPRINT: u64 =
 /// and must be done together with a generator re-run.
 const ANCHOR_DOMAIN: &[u8] = b"zelynic/depth-matrix/v1";
 
-/// The embedded anchor (generator output, night-pro-1 authors regen).
+/// The embedded anchor (generator output, night-ux-orion-3 yearless
+/// manifests regen).
 pub(crate) const DEPTH_ANCHOR: [u8; 32] = [
-    0x74, 0xB8, 0x36, 0x22, 0x7F, 0xC3, 0x59, 0xA6, 0xD8, 0xC8, 0x98, 0x33, 0x71, 0x3A, 0x8B, 0x20,
-    0x4D, 0x8F, 0xD1, 0x8E, 0x2E, 0x27, 0x99, 0x08, 0x75, 0x07, 0x6C, 0x82, 0xD6, 0x01, 0xA2, 0xA1,
+    0xAC, 0xF8, 0xE1, 0x38, 0xAA, 0xE1, 0x72, 0xFB, 0x29, 0x74, 0x44, 0x8E, 0xB3, 0x4F, 0xA1, 0x9F,
+    0xCE, 0x29, 0x90, 0x9D, 0x57, 0x55, 0xB2, 0xC2, 0xDC, 0xA2, 0xA6, 0x11, 0xE8, 0x62, 0xE6, 0x57,
 ];
 
 // --- Compile-time fold ------------------------------------------------
@@ -381,26 +385,23 @@ pub(crate) fn manifest_fingerprint() -> u64 {
 /// bytes are inside the manifests, hence bound by the fingerprints.
 const MANIFEST_IDENTITY_MARKER: &str = "Official Build by ";
 
-/// Year suffix the manifests carry after the identity. Generic text,
-/// same binding rationale as the marker.
-const MANIFEST_IDENTITY_YEAR: &str = " 2026";
-
 /// Extract the owner identity core from a materialized manifest:
-/// everything after the marker, minus the trailing year.
+/// everything after the marker. The manifests are yearless
+/// (night-ux-orion-3 — the former " <year>" suffix left the truths, so
+/// no suffix stripping happens here anymore).
 ///
-/// `None` means the manifest no longer carries the marker/year shape —
+/// `None` means the manifest no longer carries the marker shape —
 /// a tampering signal, not a panic path.
 fn identity_core(manifest: &str) -> Option<&str> {
     manifest
         .split_once(MANIFEST_IDENTITY_MARKER)
         .map(|(_, tail)| tail)
-        .and_then(|tail| tail.strip_suffix(MANIFEST_IDENTITY_YEAR))
 }
 
 /// The materialized identity core, computed once per process — the
 /// footer surfaces (the status stamp, the eagle-eyes engraving) render
 /// on every frame, and the unmask family must not run per frame. The
-/// core is the manifest's identity minus the year: the compact
+/// core is the manifest's identity: the compact
 /// engraving the footer has always carried (night-pro-1 — the contact
 /// address rides the Copyright line only, the frame footer keeps its
 /// width contract). The cache carries the SAME bytes the provenance
@@ -421,7 +422,7 @@ pub(crate) fn materialized_identity_core() -> &'static str {
 }
 
 /// The identity text the surfaces render: the active manifest's
-/// "Official Build by <identity> <year>" tail. Empty when the manifest
+/// "Official Build by <identity>" tail. Empty when the manifest
 /// no longer carries the marker shape (a tampering signal the surfaces
 /// render honestly instead of panicking on).
 #[must_use]
@@ -429,9 +430,11 @@ pub(crate) fn identity_of(manifest: &str) -> String {
     manifest
         .split_once(MANIFEST_IDENTITY_MARKER)
         .map(|(_, tail)| match tail.rsplit_once(' ') {
-            // The manifest shape is "Official Build by <identity> <year>";
-            // the year is the manifest's own slot, not the identity's -
-            // the surfaces render the clean core (night-ux-orion-2).
+            // Defensive trailing-year strip, kept from the pre-
+            // night-ux-orion-3 " <year>" slot: a year belongs at the
+            // front of a copyright line, never dangling after the
+            // identity, so the surfaces render the clean core even if
+            // a patched manifest reintroduces one.
             Some((core, year)) if year.len() == 4 && year.chars().all(|c| c.is_ascii_digit()) => {
                 core.to_string()
             }
