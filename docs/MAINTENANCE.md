@@ -48,7 +48,7 @@ Rotation procedures:
 | `audit.yml` — Dragon Guard - Security Audit | every push/PR (unfiltered since night-dragon-maintenance-2; the weekly clock retired by night-fly-1) | `cargo audit` (RustSec) over all four committed lockfiles (root, `proofs/`, `fuzz/`, `ebpf/` — night-supply-1) + `cargo deny` (licenses/advisories) over the root tree | Observation-only by design: read the advisory, decide patch-vs-accept, record the decision in the audit trail. A red is information, not an emergency — the scan rides every commit it scans |
 | `codeql.yml` — Dragon Guard - CodeQL | every push/PR (night-fly-1) | CodeQL security analysis of the userspace tree | Triage the alert; a confirmed finding gets a dated audit doc + a fix commit in the same task |
 | `fuzz.yml` — zelynic - Fuzz | 60s/target on every push + PR; deep session via the dispatch button's `deep` input (600s/target, night-fly-1) | `cargo fuzz` over the three hostile-input parser surfaces (/proc/net rows, --during grammar, comm sanitizer), corpus cached between runs, seeds committed under `fuzz/seeds/` | A crash is a parser bug: fix the parser to return the named error, never the panic; the failing input rides the CI log |
-| `maintenance.yml` — Dependency Maintenance | weekly (Mon) | GPG subkey expiry (30-day warning), stale dependencies | The GPG warning starts the §1 rotation; stale deps get a scheduled upgrade window |
+| `maintenance.yml` — Dragon Guard - AXP1-ZnQ Supply-Chain Sentinel | weekly (Sun 10:00 WIB) | RustSec advisory DB over all four lockfiles (pre-pass scan + post-sweep verdict), the registry sweep, GPG subkey expiry (30-day warning) | Scenario A (fixable): the sweep cleared it — green, the fix ships in the same run. Scenario B (unfixable): the job fails hard, CALL OWNER — the commit lane stays gated. The GPG warning starts the §1 rotation. The `scan_only` dispatch input is the owner's red button: the whole verdict, nothing ships (night-solid-defense-1) |
 
 Plus the push-time guards (not scheduled, but part of the posture):
 `gate-keepers.yml` wholesale on every push and PR, `ci.yml`,
@@ -63,8 +63,10 @@ glob spelling's sync tax across seven workflows outgrew the runner
 minutes it saved). The deliberate exceptions are the publish lanes
 (`release.yml`, `crates-io.yml` — the dedicated `v*` tag trigger,
 because a publish is the owner's deliberate act) and the clock
-lanes (`maintenance.yml` plus the weekly audit/CodeQL/miri
-schedules — they watch external state, not the tree).
+lane (`maintenance.yml` — the AXP1-ZnQ sentinel watches external
+state: the advisory database, the registry, the signing key;
+the weekly audit/CodeQL/miri clocks retired with the night-fly-1
+law, their scans riding every push now).
 
 ### Red runs that are not failures (the concurrency supersede)
 
@@ -370,7 +372,7 @@ glob.
 | Every | Do |
 |-------|----|
 | push | nothing manual — the gate battery runs itself |
-| weekly (Mon) | read the CodeQL + security-audit + dependency-maintenance results; rotate the GPG subkey if the 30-day warning fired |
+| weekly (Sun) | read the AXP1-ZnQ sentinel verdict (`maintenance.yml`) + the CodeQL and security-audit results; rotate the GPG subkey if the 30-day warning fired |
 | monthly | skim `git log -- docs/` for purpose drift; re-run `./scripts/gate-keepers.sh` once on the dev machine (re-arms the commit hook if the clone moved) |
 | per release | the §4 routine; the §3 ritual whenever `ebpf/` moved in the cycle |
 | quarterly | full sandbox validation matrix ([SANDBOX.md](SANDBOX.md)), a fresh dated audit doc recording the state of the project, and a stale-secret review (§1) |

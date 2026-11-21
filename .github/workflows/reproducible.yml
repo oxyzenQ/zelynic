@@ -41,8 +41,10 @@ on:
     tags:
       - "v*"
   schedule:
-    # Every Monday at 10:37 WIB (03:37 UTC) — thirty minutes behind
-    # audit.yml's clock (03:07), one weekly window per scanner family.
+    # Every Monday at 10:37 WIB (03:37 UTC) — the D4 publish-provenance
+    # re-check window (one weekly window per scanner family; the old
+    # "thirty minutes behind audit.yml" pairing retired with audit.yml's
+    # weekly clock, night-fly-1).
     - cron: "37 3 * * 1"
   workflow_dispatch:
 
