@@ -85,6 +85,24 @@ Miri lane ran 8m42s to `[OK] Miri verification PASSED (121 tests, 0 fail,
 439537ms)`). Rerun — or read the newer push's runs — before
 investigating.
 
+### Reds that name their outage (the bounded arch leg, night-solid-defense-1)
+
+One push-lane red is a diagnosed external outage, not something a rerun
+can manufacture green: the supermassive-e2e Arch 6.6 floor-kernel fetch
+rides archive.archlinux.org — the one canonical source for the retained
+6.6 packages (the substitute-source audit measured the estate empty:
+mirrors serve linux-lts at 6.18 only, the Internet Archive collections
+carry the package's history only to 3.10.43 and a snapshot item with no
+package tree). Since a84a50d the fetch walks two tight attempts and, on
+failure, prints the DNS-vs-host verdict — `resolver answers + connect
+dead = host-side outage of archive.archlinux.org ... not a code
+regression; rerun the lane when the archive returns` — inside ~25
+seconds, where the old shape burned five and a half minutes into a bare
+exit 28. Read the verdict lines, confirm the host is back in any
+browser, rerun the failed job when it is; the red is the honest report,
+the coverage stays whole (the other four kernel families boot and prove
+their shards around it).
+
 ## 3. The prebuilt eBPF lane (the one ritual with a hard rule)
 
 After **any** change under `ebpf/`, the same task must also refresh the
