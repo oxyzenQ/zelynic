@@ -108,14 +108,28 @@ jobs:
           set -euo pipefail
 
           # Import the signing key from a public keyserver (primary,
-          # then fallback).
-          gpg --batch --keyserver keys.openpgp.org \
-            --recv-keys "${GPG_KEY_FINGERPRINT}" 2>/dev/null || \
-          gpg --batch --keyserver keyserver.ubuntu.com \
-            --recv-keys "${GPG_KEY_FINGERPRINT}" 2>/dev/null || {
+          # then fallback). The fetch arm alone is not trusted: a
+          # keyserver can answer "success" while importing nothing
+          # (the empty-success class the scan_only dispatch proved
+          # live on a Sunday's flaky keyserver), so every arm verifies
+          # the key actually landed before the expiry walk reads it —
+          # a keyserver that answers but serves no key is the same
+          # non-fatal outage class as one that does not answer.
+          KEY_PRESENT=false
+          for KEYSERVER in keys.openpgp.org keyserver.ubuntu.com; do
+            if gpg --batch --keyserver "$KEYSERVER" \
+              --recv-keys "${GPG_KEY_FINGERPRINT}" >/dev/null 2>&1 && \
+              gpg --batch --list-keys "${GPG_KEY_FINGERPRINT}" >/dev/null 2>&1; then
+              echo "fetched the signing key from ${KEYSERVER}"
+              KEY_PRESENT=true
+              break
+            fi
+          done
+
+          if ! $KEY_PRESENT; then
             echo "::warning::Could not fetch GPG key ${GPG_KEY_FINGERPRINT} from keyservers"
             exit 0  # non-fatal — a keyserver outage must not break the pipeline
-          }
+          fi
 
           # Extract signing subkey expiry dates (skip master + revoked).
           # GPG colon format for a `sub:` record:
