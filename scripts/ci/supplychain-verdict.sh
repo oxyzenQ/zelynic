@@ -112,9 +112,18 @@ findings_for() {
 		echo "::error::AXP1-ZnQ: cargo audit output is not valid JSON for $workspace ($lock)" >&2
 		exit 1
 	fi
+	# The live-measured cargo-audit 0.22.2 shapes (the fixture
+	# battery caught the crash class): vulnerabilities and
+	# informational arrive as objects with .list, the three warning
+	# families (unmaintained, unsound, yanked) arrive as plain
+	# arrays, and every family can be absent or null. One
+	# normalizer reads all of it; a shape the coalescer cannot
+	# read still fails closed (jq exits non-zero, the lane dies
+	# loudly), never silently empty.
 	jq -r '
+		def items: (if type == "object" then (.list // []) else (. // []) end)[];
 		def rows(kind):
-			(.list // [])[] |
+			items |
 			[kind,
 			 (.advisory.id // .id // kind),
 			 (.package.name // .crate // "?"),
@@ -155,23 +164,30 @@ done <<<"$lockfiles"
 # lane were cleared by the update. The key drops the version (an
 # update fixes BY moving the version); yanked findings key on the
 # version (the identity there is the exact yanked release).
+#
+# The join reads the COMPOSITE key, and the cleared rows print WHOLE:
+# a workspace whose lane keeps one surviving finding must still report
+# its cleared sibling (a workspace-granularity join would silently
+# drop it), and the cleared banner + step-summary table must read the
+# same seven columns every other table reads (a prefix-stripped keyed
+# line would shift them - the fixture run proved the garble live).
 tab="$(printf '\t')"
-keyed() {
-	# OFS must be the tab: the join below reads the key as the first
-	# tab-field, and the default space separator would collapse the
-	# key into the workspace column.
+key_of() {
 	awk -F "$tab" -v OFS="$tab" '{
-		key = ($2 == "yanked") ? $1 FS $2 FS $4 FS $5 : $1 FS $2 FS $3 FS $4
-		print key, $0
+		if ($2 == "yanked") print $1, $2, $4, $5
+		else print $1, $2, $3, $4
 	}' "$1"
 }
-keyed "$pre_tsv" >"$state_dir/keyed-pre.tsv"
-keyed "$post_tsv" >"$state_dir/keyed-post.tsv"
-# File-order joins (the determinism law): cleared in pre order. The
+key_of "$post_tsv" >"$state_dir/keyed-post.tsv"
+# File-order walk (the determinism law): cleared in pre order. The
 # FILENAME guard keeps the join correct even when the swept lane is
 # empty (an empty first file breaks the classic FNR == NR trick).
-awk -F "$tab" 'FILENAME == ARGV[1] { seen[$1] = 1; next } !($1 in seen) { sub(/^[^\t]*\t/, ""); print }' \
-	"$state_dir/keyed-post.tsv" "$state_dir/keyed-pre.tsv" >"$cleared_tsv"
+awk -F "$tab" 'FILENAME == ARGV[1] { seen[$0] = 1; next }
+	{
+		key = ($2 == "yanked") ? $1 FS $2 FS $4 FS $5 : $1 FS $2 FS $3 FS $4
+		if (!(key in seen)) print
+	}' \
+	"$state_dir/keyed-post.tsv" "$pre_tsv" >"$cleared_tsv"
 
 still_bad="$(awk -F "$tab" '$2 == "vulnerability" || $2 == "unmaintained" || $2 == "unsound" || $2 == "yanked"' "$post_tsv" || true)"
 still_info="$(awk -F "$tab" '$2 == "informational"' "$post_tsv" || true)"
