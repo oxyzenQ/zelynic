@@ -105,16 +105,41 @@ Every workflow job declares `timeout-minutes` — an uncapped job is a
 lane that hangs to the platform's default (hours) instead of failing
 loudly. The cap is a maximum, and the estate's sanctioned floor for
 that maximum is 10 minutes: below it, a cap kills honest work on
-runner jitter rather than on real failures. Heavy lanes carry larger,
-deliberate ceilings (the supermassive batteries ride 40-60) — the
-floor only bans caps too tight to survive a slow runner, it never
-asks a lane to shrink.
+runner jitter rather than on real failures.
+
+The estate ceiling is 15 minutes (the owner's night-fly-1 law,
+2026-11-22): no CI job runs past it. A lane that cannot deliver its
+verdict inside 15 minutes is micro-split — the split lever is real
+engineering (per-harness matrix jobs, phase jobs, per-target legs),
+never a bigger cap. The law's motivation is measured, not
+hypothetical: the nightly kani solver-bound tier burned its full
+300-minute cap on its single scheduled fire (run 44896512098,
+2026-11-21) and died CANCELLED with zero solver verdicts — 300.6
+minutes of runner for no finding is exactly the fatal shape the
+ceiling outlaws. That tier retired; its record lives in
+proofs.yml's header and the night-fly-1 audit.
+
+The exception the law names for itself: publish- and
+maintenance-critical lanes — release.yml, reproducible.yml,
+maintenance.yml, crates-io.yml — keep their larger caps (and, where
+they had one, their clock), because a release build or a dependency
+sweep is not a per-push test.
+
+No test lane rides a schedule (the same law): every test is
+trigger-by-commit on main. The NIGHT-improve-9 one-clock design
+(daily/weekly cron slots for scanners, fuzz, miri, the verify lane)
+is retired; only the exception workflows above may keep a
+`schedule:` trigger. The deep fuzz session rides the dispatch
+button's `deep` input instead of a clock.
 
 `scripts/gates/check-timeout-caps.py` (wired into
-`scripts/gate-keepers.sh`) is the enforcement: every job in
-`.github/workflows/*.yml` must declare a cap, and the cap must be at
-least the floor — a missing or too-tight cap fails the push with the
-file:job list.
+`scripts/gate-keepers.sh`) is the enforcement — three laws, one
+gate: every job in `.github/workflows/*.yml` must declare a cap, the
+cap must sit in [floor, ceiling] outside the exempt set, and a
+`schedule:` trigger may appear only in the exempt set. A missing,
+too-tight, over-ceiling, or scheduled test lane fails the push with
+the file:job list. The measured basis for every cap rides the
+night-fly-1 audit record.
 
 ## Rust Toolchain Pin
 
