@@ -1,18 +1,57 @@
 # SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
 # SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 
-# NIGHT-improve-22 (cosmostrix naming lineage, codeql.yml
-# precedent): the Dragon Guard name replaces "Maintenance deps
-# weekly" — the job rows below keep their own descriptive names.
-name: Dragon Guard - Dependency Maintenance
+# night-solid-defense-1 (the zejtron production line, ported): this
+# lane is the owner's security supply-chain sentinel — the AXP1-ZnQ
+# bot. Its default function is still the dependency sweep (the
+# night-zen-1/night-deps-1 walk), and wrapped around that sweep now
+# rides the supply-chain verdict
+# (scripts/ci/supplychain-verdict.sh): a pre-pass scans every
+# committed lockfile against the RustSec advisory database, the sweep
+# runs, and the post-pass speaks the owner's two scenarios —
+#
+#   scenario A (fixable): the sweep cleared the advisory. The job
+#     stays green, a loud ::warning notice still fires (without the
+#     Sunday lane the tree would have carried the advisory for a
+#     week), and the validated lane below ships the fix.
+#   scenario B (unfixable): the finding survives the sweep — no
+#     automatic update path exists. The job fails hard (CALL OWNER),
+#     and the commit job never runs: nothing ships while the lane is
+#     red.
+#
+# The scan_only dispatch input is the owner's red button: any day of
+# the week, the advisory state of every workspace, one dispatch — the
+# whole verdict runs (pre-pass, sweep probe, post-pass) while the
+# ship lane (the eBPF toolchain, the parity rider, the checks, the
+# artifact, the commit) is skipped whole.
+#
+# NIGHT-improve-22 (cosmostrix naming lineage, codeql.yml precedent):
+# the Dragon Guard prefix stays; the sentinel name joins it so the
+# run list reads like a watcher on watch — the banners, annotations,
+# and step summary all sign as AXP1-ZnQ.
+name: Dragon Guard - AXP1-ZnQ Supply-Chain Sentinel
 
 on:
   schedule:
-    # Every Monday at 10:07 WIB (03:07 UTC) — the owner's 10 o'clock
-    # morning, one clock for every scheduled workflow (NIGHT-improve-9;
-    # night-consistent-1).
-    - cron: "7 3 * * 1"
+    # Every Sunday at 10:00 WIB (03:00 UTC) — the owner's explicit
+    # clock for the sentinel (night-solid-defense-1), the same Sunday
+    # morning the zejtron estate watches. The verdict is waiting when
+    # the week starts; the owner is asleep at fire time and the bot's
+    # report greets them. The night-fly-1 law keeps this lane's
+    # schedule by its own exception: maintenance-critical lanes watch
+    # external state (the advisory database, the registry, the
+    # signing key) — state no commit event can carry.
+    - cron: "0 3 * * 0"
   workflow_dispatch:
+    # night-solid-defense-1: the scan-only dispatch runs the whole
+    # verdict (pre-pass, sweep probe, post-pass) but skips the ship
+    # lane — no rider, no checks, no commit.
+    inputs:
+      scan_only:
+        description: "Verdict only - scan and sweep-probe, ship nothing"
+        type: boolean
+        default: false
+        required: false
 
 permissions:
   contents: read
@@ -44,8 +83,8 @@ jobs:
   # NIGHT-improve-14 (cosmostrix GPG lineage): weekly expiry monitor for
   # the release-signing key. Fails the check (error annotation) when a
   # signing subkey is expired; warns 30 days ahead so the rotation
-  # happens before any release is blocked. Runs on the same Monday
-  # 10:07 WIB (03:07 UTC) clock as the rest of this workflow.
+  # happens before any release is blocked. Runs on the same Sunday
+  # 10:00 WIB (03:00 UTC) clock as the rest of this workflow.
   #
   # The fingerprint is the maintainer's published master key (cosmic
   # dragon identity, shared with the cosmostrix release pipeline — one
@@ -128,7 +167,7 @@ jobs:
           fi
 
   validate:
-    name: Dependency sweep validate
+    name: AXP1-ZnQ verdict + dependency sweep validate
     # Runner pinned to ubuntu-26.04, never a floating ubuntu-latest:
     # the label migrated to Ubuntu 26 across 2026-10-19 -> 2026-11-19
     # (actions/runner-images#14748); this fleet moved first, matrix-
@@ -160,8 +199,12 @@ jobs:
 
       # NIGHT-improve-1 phase 3: clippy --all-features drives the
       # nested pure-Rust eBPF build — the dated nightly pin and
-      # bpf-linker must be present.
+      # bpf-linker must be present. The scan-only red button skips the
+      # whole ship lane (night-solid-defense-1): no nested build runs,
+      # so the two eBPF toolchain installs are skipped with it — the
+      # verdict rides plain cargo only.
       - name: Install eBPF nightly toolchain (dated pin)
+        if: inputs.scan_only != true
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
         with:
           toolchain: nightly-2026-09-18
@@ -171,6 +214,7 @@ jobs:
       # four CI jobs (check, gnu-dynamic, release, this one) — one
       # script, one place to bump the pin.
       - name: Install bpf-linker 0.11.1 (prebuilt static musl)
+        if: inputs.scan_only != true
         run: bash scripts/dev/install-bpf-linker.sh
 
       - name: Cache cargo registry
@@ -202,6 +246,21 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-maintenance-
 
+      # night-solid-defense-1: the sentinel's scanner, pinned exactly
+      # like the audit lane's (0.22.2, --locked) so red means a new
+      # advisory, never a new scanner release. Needed in BOTH modes —
+      # the scan-only red button is precisely the advisory verdict.
+      - name: Install the AXP1-ZnQ scanner (cargo-audit)
+        run: cargo install cargo-audit --version 0.22.2 --locked
+
+      # night-solid-defense-1, pre-pass: what the as-committed lane
+      # carries BEFORE the sweep touches it. The post-pass diffs
+      # against this snapshot to tell the owner's two scenarios apart:
+      # a finding the sweep cleared (fixable) and a finding the sweep
+      # left behind (unfixable — CALL OWNER).
+      - name: AXP1-ZnQ pre-pass (scan the committed lane)
+        run: bash scripts/ci/supplychain-verdict.sh --pre
+
       # night-zen-1: the refresh walks every committed Cargo.toml and
       # runs cargo update in each workspace, so ebpf/ and fuzz/ ride
       # the same weekly lane as the root crate (the root-only cargo
@@ -213,19 +272,34 @@ jobs:
       # single source this update step and the commit job's staging
       # step share (the two inline copies could drift), locally
       # runnable the same way (--check is the no-write verdict twin).
+      # In scan-only mode this step is the sweep probe: the worktree
+      # mutation is ephemeral (the ship lane below is skipped whole),
+      # and the post-pass verdict reads the would-be swept lane.
       - name: Update dependencies
         shell: bash
         run: bash scripts/ci/sweep-cargo-workspaces.sh
 
-      # night-zen-1: the walk can move the ebpf/ tree (its own
+      # night-solid-defense-1, the verdict: it speaks on the swept
+      # lane. Scenario A (fixable) — a loud notice, the job stays
+      # green and the validated lane below ships the fix. Scenario B
+      # (unfixable) — the job fails hard (CALL OWNER) and the commit
+      # job never runs: nothing ships while a dangerous dep has no
+      # automatic update path. The verdict runs before the heavy
+      # checks so a red Sunday lands fast, inside the same budget.
+      - name: The AXP1-ZnQ verdict (the swept lane)
+        run: bash scripts/ci/supplychain-verdict.sh --post
+
+      # night-zen-1: the refresh can move the ebpf/ tree (its own
       # Cargo.lock rides the sweep), and the prebuilt lane pins that
       # tree's blake3 — an unhealed pin would redden the wholesale
       # gate for the whole week. The ONE WRITER heals here, where the
       # full toolchain (the dated nightly + rust-src + bpf-linker
       # 0.11.1) is already installed: parity verdict first, the
       # writer only when the pin lags, and a writer failure fails
-      # the job — a sweep never ships a lane it cannot prove.
+      # the job — a sweep never ships a lane it cannot prove. The
+      # scan-only red button skips the rider whole: it ships nothing.
       - name: Keep the prebuilt lane in parity (the one writer)
+        if: inputs.scan_only != true
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -247,6 +321,7 @@ jobs:
           fi
 
       - name: Enforce dependency-only diff
+        if: inputs.scan_only != true
         id: changes
         shell: bash
         run: |
@@ -336,7 +411,13 @@ jobs:
     name: Dependency sweep commit
     runs-on: ubuntu-26.04
     needs: validate
-    if: needs.validate.outputs.changed == 'true'
+    # night-solid-defense-1: the scan-only dispatch ships nothing —
+    # and the unset `changed` output of a skipped diff step would
+    # block this job anyway; the explicit guard keeps the law stated,
+    # not implied. The scenario-B verdict failing the validate job
+    # blocks this job the same way: nothing ships while the advisory
+    # survives the sweep.
+    if: needs.validate.outputs.changed == 'true' && inputs.scan_only != true
     timeout-minutes: 10
     permissions:
       contents: write
