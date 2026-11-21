@@ -190,7 +190,7 @@ fn version_body() -> String {
 /// Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ) 2026
 /// Depth-matrix: fp=a60dfb6a39745f34 status=verified anchor=b3:dbcbb0eb... layers=d0:masked-words,d1:masked-words,d2:dual-fingerprint,d3:blake3-anchor
 /// Copyright (c) 2025-2026 rezky_nightky (oxyzenQ)
-/// License: AGPL-3.0-only
+/// License: AGPL-3.0-only OR Commercial
 /// Source: https://github.com/oxyzenQ/zelynic
 /// ```
 ///

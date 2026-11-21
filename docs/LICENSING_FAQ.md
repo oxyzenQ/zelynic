@@ -133,7 +133,7 @@ option — it is the one this warning exists for.
 
 ## More questions?
 
-Email [with.rezky@gmail.com](mailto:with.rezky@gmail.com) or open an
+Email [oxyzenQ@proton.me](mailto:oxyzenQ@proton.me) or open an
 issue on [GitHub](https://github.com/oxyzenQ/zelynic).
 
 <!-- ZELYNIC-DISCLAIMER -->

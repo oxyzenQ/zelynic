@@ -215,7 +215,7 @@ below:
 **Enterprise Internal** licenses these patterns for internal use
 only. **OEM / Redistribution** licenses them for embedding in a
 shipped product. For a redistribution license, the OEM tier is the
-entry price; contact <with.rezky@gmail.com> for the agreement.
+entry price; contact <oxyzenQ@proton.me> for the agreement.
 
 ### Why "just a rate limiter" is the wrong comparison
 
@@ -277,7 +277,7 @@ bundle have different economics:
   not against the binary license.
 
 Both tiers are self-declared in good faith. If your case sits at the
-boundary, contact <with.rezky@gmail.com> — the pricing philosophy
+boundary, contact <oxyzenQ@proton.me> — the pricing philosophy
 favors honest conversations over silent mis-tier.
 
 ### Business tier note
@@ -296,7 +296,7 @@ illegally, stripping or ignoring the license, or shipping it
 inside a closed-source commercial product — whether done by a
 company or by an individual — without contacting the owner
 (rezky_nightky / oxyzenQ,
-[with.rezky@gmail.com](mailto:with.rezky@gmail.com)) and paying
+[oxyzenQ@proton.me](mailto:oxyzenQ@proton.me)) and paying
 for the license first. It is theft — not a gray area, not a
 loophole, not a clever business move: the theft of one person's
 years of work, a breach of AGPL-3.0-only and of this Commercial
@@ -371,7 +371,7 @@ accompanies them, not by a different address.
 
 ## 6. Verification Process
 
-1. **Send a licensing inquiry** to [with.rezky@gmail.com](mailto:with.rezky@gmail.com)
+1. **Send a licensing inquiry** to [oxyzenQ@proton.me](mailto:oxyzenQ@proton.me)
    (or open a GitHub issue at [@oxyzenQ](https://github.com/oxyzenQ))
    naming your chosen tier and term.
 2. **Pay** the USD-pegged amount in crypto to the address above for
@@ -387,7 +387,7 @@ scope. Keep it; it is the proof of your commercial rights.
 
 ## 7. Contact
 
-- **Licensing email**: [with.rezky@gmail.com](mailto:with.rezky@gmail.com)
+- **Licensing email**: [oxyzenQ@proton.me](mailto:oxyzenQ@proton.me)
 - **GitHub**: [@oxyzenQ](https://github.com/oxyzenQ)
 
 For frequently asked questions, see

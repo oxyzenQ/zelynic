@@ -237,6 +237,16 @@
 # Depth is never cut anywhere; the budget still buys headroom,
 # never depth.
 
+# night-depth-cleanup-2 — the micro-run disposition (the 15-minute law):
+# every job in this lane runs well under 15 minutes (the 57291ce batch
+# measured stage 4.0, the desktop matrix 9.4/12.0, every other shard
+# <=3.7), so there is nothing left to split — the lane's wall clock is
+# the serial chain (the payload build -> the stateful desktop matrix)
+# plus runner queue, not one long runner. The desktop battery is ONE
+# stateful sequence by contract (night-T-1: "the desktop half is never
+# sharded inside, only scheduled") — sharding it would break the
+# baseline-through-every-stage contract, so the job-level micro-run law
+# holds and the wall stays honest.
 name: Dragon Guard - Supermassive
 
 on:
