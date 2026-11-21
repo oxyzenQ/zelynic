@@ -1,5 +1,5 @@
-// Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+// SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 
 //! The terminal layer's raw-fd IO helpers (NIGHT-ultimate-2 split:
 //! diff.rs sat at the owner's 500-line cap, and the raw wrappers

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+# SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 # LOC_EXEMPT: like the v1/v2/v3 harnesses, one self-contained script by
 # design — v4 is a thin orchestrator over the shared engine lib plus the
 # CLI-surface case tables it owns outright (commands, aliases, flags,

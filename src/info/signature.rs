@@ -1,5 +1,5 @@
-// Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+// SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 
 //! Provenance depth matrix — the embedded, masked build signature.
 //!
@@ -52,8 +52,8 @@
 //!       cosmostrix's carries the cosmic dragon voice (64 bytes,
 //!       fe0d7239f86e7c1b) — differently framed claims, not a
 //!       derivation bug. The authors layer is byte-identical
-//!       estate-wide (57 bytes), hence the shared authors fingerprint
-//!       c97b13f816035d55. Artifact identity stays the D3 anchor's
+//!       estate-wide (43 bytes, the proton contact), hence the authors fingerprint
+//!       66771e5f273b9cae. Artifact identity stays the D3 anchor's
 //!       and the `sig` self-hash's job.
 //!
 //!   D3  `DEPTH_ANCHOR` — a BLAKE3 digest over the framed clear
@@ -216,16 +216,14 @@ const MANIFEST_DORMANT_FINGERPRINT: u64 = layer_fingerprint(
 // reconstruction inside the same artifact.
 
 pub(crate) const AUTHORS_SEED: u64 = 0x6A0940DDC5C91647;
-pub(crate) const AUTHORS_BYTE_LEN: usize = 57; // 8 words
-const MASKED_AUTHORS_WORDS: [u64; 8] = [
+pub(crate) const AUTHORS_BYTE_LEN: usize = 43; // 6 words
+const MASKED_AUTHORS_WORDS: [u64; 6] = [
     0x56E50F8C47BCE49F,
     0xF5449B476A06A6D9,
     0x8D144B47290A868D,
-    0x86C888281719A28D,
-    0xCC5326C3680DD803,
-    0x26DD3C7ADBD7017C,
-    0xA984CE24978FDFA5,
-    0x34F0B71AD5866709,
+    0xB8C2CD3A1A08BA8D,
+    0xC24422CD620D8837,
+    0x4AB45D17BCC91070,
 ];
 
 /// D2 digest over the clear authors bytes (same law as D0).
@@ -249,8 +247,8 @@ const ANCHOR_DOMAIN: &[u8] = b"zelynic/depth-matrix/v1";
 
 /// The embedded anchor (generator output, night-pro-1 authors regen).
 pub(crate) const DEPTH_ANCHOR: [u8; 32] = [
-    0xDB, 0xCB, 0xB0, 0xEB, 0xCB, 0x36, 0x89, 0xF4, 0x31, 0xC9, 0x17, 0x44, 0x9D, 0x41, 0x2B, 0x63,
-    0x30, 0xC7, 0xB9, 0xB3, 0xBE, 0x34, 0xBC, 0x46, 0xAF, 0x3B, 0x4B, 0xBA, 0x7A, 0x82, 0x11, 0x9A,
+    0x74, 0xB8, 0x36, 0x22, 0x7F, 0xC3, 0x59, 0xA6, 0xD8, 0xC8, 0x98, 0x33, 0x71, 0x3A, 0x8B, 0x20,
+    0x4D, 0x8F, 0xD1, 0x8E, 0x2E, 0x27, 0x99, 0x08, 0x75, 0x07, 0x6C, 0x82, 0xD6, 0x01, 0xA2, 0xA1,
 ];
 
 // --- Compile-time fold ------------------------------------------------
@@ -430,7 +428,15 @@ pub(crate) fn materialized_identity_core() -> &'static str {
 pub(crate) fn identity_of(manifest: &str) -> String {
     manifest
         .split_once(MANIFEST_IDENTITY_MARKER)
-        .map(|(_, tail)| tail.to_string())
+        .map(|(_, tail)| match tail.rsplit_once(' ') {
+            // The manifest shape is "Official Build by <identity> <year>";
+            // the year is the manifest's own slot, not the identity's -
+            // the surfaces render the clean core (night-ux-orion-2).
+            Some((core, year)) if year.len() == 4 && year.chars().all(|c| c.is_ascii_digit()) => {
+                core.to_string()
+            }
+            _ => tail.to_string(),
+        })
         .unwrap_or_default()
 }
 

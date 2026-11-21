@@ -1,4 +1,7 @@
-<!-- Copyright (C) 2026 rezky_nightky -->
+<!--
+  SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+  SPDX-License-Identifier: AGPL-3.0-only OR Commercial
+-->
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
 # zelynic Trademark Policy
@@ -145,7 +148,7 @@ Enforcement begins with a polite request before any formal action — but the te
 
 ## 6. Contact
 
-For trademark inquiries, permission requests, or clarifications, please open an issue on the [GitHub repository](https://github.com/oxyzenQ/zelynic) or contact the project creator at [with.rezky@gmail.com](mailto:with.rezky@gmail.com).
+For trademark inquiries, permission requests, or clarifications, please open an issue on the [GitHub repository](https://github.com/oxyzenQ/zelynic) or contact the project creator at [oxyzenQ@proton.me](mailto:oxyzenQ@proton.me).
 
 ---
 

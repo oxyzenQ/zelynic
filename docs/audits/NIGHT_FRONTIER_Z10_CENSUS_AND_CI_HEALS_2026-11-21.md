@@ -1,4 +1,7 @@
-<!-- Copyright (C) 2026 rezky_nightky -->
+<!--
+  SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+  SPDX-License-Identifier: AGPL-3.0-only OR Commercial
+-->
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
 # night-frontier-Z10 — the census verdict, the seat's stand-down, and the two CI heals (the verifier census and the histogram leg)

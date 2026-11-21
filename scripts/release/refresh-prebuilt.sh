@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+# SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 # OS: Linux only — zelynic is a Linux eBPF tool; no other OS is supported.
 #
 # ZELYNIC PREBUILT eBPF OBJECT REFRESH (NIGHT-ask-2, refreshed by
@@ -324,7 +324,8 @@ done
 # one [[object]] block per object (name/blake3/size). The parity
 # gate parses exactly this shape and its header says so.
 {
-	echo "# Copyright (C) 2026 rezky_nightky"
+	echo "# SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)"
+	echo "# SPDX-License-Identifier: AGPL-3.0-only OR Commercial"
 	echo "# SPDX-License-Identifier: AGPL-3.0-only"
 	echo "#"
 	echo "# zelynic prebuilt eBPF object manifest (NIGHT-ask-2;"

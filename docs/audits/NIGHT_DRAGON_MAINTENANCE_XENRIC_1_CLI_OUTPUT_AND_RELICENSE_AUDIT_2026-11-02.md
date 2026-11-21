@@ -1,4 +1,7 @@
-<!-- Copyright (C) 2026 rezky_nightky -->
+<!--
+  SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+  SPDX-License-Identifier: AGPL-3.0-only OR Commercial
+-->
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
 # night-dragon-maintenance-xenric-1 — the CLI output lane and the relicense audit (2026-11-02)

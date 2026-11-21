@@ -1,5 +1,5 @@
-// Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+// SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 
 //! The self-proving enforcement probe (NIGHT-upgrade-charger-core-1-b,
 //! the TIER S ability): "applied" is a claim, "VERIFIED" is a

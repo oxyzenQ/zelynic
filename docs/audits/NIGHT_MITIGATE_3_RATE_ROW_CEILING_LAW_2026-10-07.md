@@ -1,5 +1,8 @@
+<!--
+  SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+  SPDX-License-Identifier: AGPL-3.0-only OR Commercial
+-->
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
-<!-- Copyright (C) 2026 rezky_nightky (oxyzenQ) -->
 
 # The NIGHT-mitigate-3 audit — the held-rate rows' floor was the overreach: the hunt-Z5 ceiling doctrine applied to the claims proof, one live run falsifying the fleet's convergence assumption on the way
 

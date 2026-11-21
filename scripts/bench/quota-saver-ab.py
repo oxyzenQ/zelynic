@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+# SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 # OS: Linux only — zelynic is a Linux eBPF tool; no other OS is supported.
 # LOC_EXEMPT: one runnable A/B proof — the ladder, the ledger, both scenarios, the overrunning pair and the verdict plumbing share one module by design; the module-package split is the tracked debt (night-spark-8 crossed the 1000 scripts cap adding the one-unit wire rule, night-spark-10 grew it with the overrun upload leg and the metered-plan translation)
 """The quota saver's A/B proof (night-netrunner-4, the final polish).

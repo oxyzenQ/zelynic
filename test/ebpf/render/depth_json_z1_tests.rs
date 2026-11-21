@@ -1,5 +1,5 @@
-// Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+// SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 
 //! night-frontier-Z1 (schema v35) pins: the depth pack's JSON wire —
 //! the exact aggregates (count/sum/min/max/mean, the kernel's own

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+# SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 # LOC_EXEMPT: one self-contained harness by design, the supermassive-test family precedent — the battery imports the v1 engine whole via importlib and shares the fleet/server/verdict plumbing with the wrapper, so splitting it means a module package, not a script (over the 1000 scripts cap under NIGHT-lts-2 — tracked debt, the split is its own NIGHT task)
 """zelynic MMSPA-vs-legacy depth test (NIGHT-perf-1) — the subtree
 contract proven as a DELTA between two real binaries.

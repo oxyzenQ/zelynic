@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Copyright (C) 2026 rezky_nightky
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+# SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 # OS: Linux only — zelynic is a Linux introspection tool; no other OS is supported.
 #
 # GATE 22: THE FUZZ INCLUDE LAW (night-dragon-maintenance-5, the

@@ -1,5 +1,5 @@
-// Copyright (C) 2026 rezky_nightky
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+// SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 
 //! The BPF-side anchor pin (NIGHT-upgrade-charger-core-3a), split
 //! out of src/ebpf/limiter/schema.rs at the 600-line owner cap (the

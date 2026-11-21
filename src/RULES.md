@@ -1,4 +1,7 @@
-<!-- Copyright (C) 2026 rezky_nightky -->
+<!--
+  SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+  SPDX-License-Identifier: AGPL-3.0-only OR Commercial
+-->
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
 # src/ Rules — Structure, Size, and Headers
@@ -57,7 +60,7 @@ lives once in [docs/RULES.md](../docs/RULES.md).
 ## Every File Carries Its License
 
 - Every `.rs` file starts with the copyright + SPDX header
-  (`// Copyright (C) 2026 rezky_nightky` /
+  (`// SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)` /
   `// SPDX-License-Identifier: AGPL-3.0-only`), enforced by
   `scripts/gates/check-headers.sh`; every living `.md` file carries the
   stale-data disclaimer block (`scripts/gates/inject-disclaimer.sh`).
