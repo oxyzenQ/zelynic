@@ -22,11 +22,9 @@
 # (NIGHT-improve-11's carry-what-you-scan rule, NIGHT-boost-10's
 # estate spelling) shared the whole estate's sync tax, and every
 # push and every pull request gets the scan now — the same blind
-# posture every push-triggered lane carries.
-#
-# Weekly scheduled scan Monday 03:07 UTC (10:07 WIB) for full
-# coverage — the owner's 10 o'clock morning, one clock for every
-# scheduled workflow (NIGHT-improve-9; night-consistent-1).
+# posture every push-triggered lane carries. The weekly scheduled
+# scan is retired by the night-fly-1 law (no schedule on test lanes —
+# the scan rides the commits it scans).
 
 name: Dragon Guard - CodeQL
 
@@ -35,13 +33,6 @@ name: Dragon Guard - CodeQL
   # header carries the simplification record.
   push:
   pull_request:
-  schedule:
-    # Monday 10:07 WIB (03:07 UTC) — the owner's 10 o'clock morning,
-    # one clock for every scheduled workflow (NIGHT-improve-9;
-    # night-consistent-1). The minute rides 07 past the hour: the
-    # scheduler's top-of-hour throttle avoidance, the proofs-night
-    # precedent.
-    - cron: '7 3 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -50,7 +41,7 @@ permissions:
   security-events: write
 
 # NIGHT-improve-32 (the combined-push estate pass): push, PR,
-# schedule, and dispatch all land in one per-ref group — the four
+# and dispatch all land in one per-ref group — the three
 # triggers are the same scan on the same ref, and a tag push next to
 # a branch push lands in a DIFFERENT group by construction
 # (github.ref differs), so a commit+tag combined push can never
@@ -73,7 +64,7 @@ jobs:
     # tested (night-runner-1/2), and OS upgrades here stay deliberate,
     # matrix-tested changes.
     runs-on: ubuntu-26.04
-    timeout-minutes: 45
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
