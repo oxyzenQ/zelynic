@@ -104,14 +104,42 @@ fn terminal_bg_at(stored: Option<(u8, u8, u8)>, cap: ColorCapability) -> Option<
 /// 6x6x6 cube (the rails' nearest-match); shallow depths paint
 /// nothing — a 16-color slot cannot represent an arbitrary grey.
 #[cfg(feature = "ebpf")]
+#[cfg(test)]
 pub(crate) fn terminal_bg_escape() -> String {
-    terminal_bg_escape_at(terminal_bg(), capability())
+    let mut out = String::new();
+    push_terminal_bg_escape(&mut out);
+    out
+}
+
+/// The into-twin of [`terminal_bg_escape`] (night-frontier-Z11, the
+/// frame render's allocation ladder stage 2): the same bytes into a
+/// caller-owned buffer — the border wrap keeps one retained buffer
+/// per frame instead of owning a fresh String per frame. `write!`
+/// into the String carries the same formatting `format!` ran.
+#[cfg(feature = "ebpf")]
+pub(crate) fn push_terminal_bg_escape(out: &mut String) {
+    use std::fmt::Write as _;
+    match terminal_bg() {
+        Some((r, g, b)) => match capability() {
+            ColorCapability::TrueColor => {
+                let _ = write!(out, "\x1b[48;2;{r};{g};{b}m");
+            }
+            ColorCapability::Color256 => {
+                let q = |c: u8| (usize::from(c) * 6 / 256).min(5);
+                let idx = 16 + 36 * q(r) + 6 * q(g) + q(b);
+                let _ = write!(out, "\x1b[48;5;{idx}m");
+            }
+            _ => {}
+        },
+        None => {}
+    }
 }
 
 /// Pure core of [`terminal_bg_escape`] (the emit/emit_at discipline):
 /// the escape for one triple at one depth, pinned without touching
 /// the process-global caches.
 #[cfg(any(test, feature = "ebpf"))]
+#[cfg(test)]
 fn terminal_bg_escape_at(bg: Option<(u8, u8, u8)>, cap: ColorCapability) -> String {
     match bg {
         Some((r, g, b)) => match cap {
