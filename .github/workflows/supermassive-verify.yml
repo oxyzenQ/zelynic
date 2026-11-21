@@ -30,31 +30,28 @@
 # expected-failure probes (empty netns, empty VRF) print their exit
 # codes explicitly — a failing probe must not fail the step.
 #
-# Gating (the owner's night-verify-final constraint): the lane spends
-# a dedicated runner's worth of privileged minutes, so it never rides
-# per-push CI — the trigger surface is its own nightly schedule
-# (10:07 WIB, 03:07 UTC) plus the workflow_dispatch click as the
-# pre-qualification run. (night-verify-1 retired the supermassive
-# and e2e lanes' night trains: those shards ride every push now;
-# this lane keeps its nightly clock — it never produced a Skipped
-# row on a push.)
+# Gating (the owner's night-verify-final constraint, superseded by
+# the night-fly-1 law, 2026-11-22): the lane no longer keeps a nightly
+# clock — no test lane rides a schedule, every test is
+# trigger-by-commit on main — so the lane rides every push, with the
+# workflow_dispatch click kept as the manual pre-qualification run.
+# The ceiling law's numbers made the move cheap: the lane's single
+# hosted scheduled fire (run 44896405423, 2026-11-21) measured 7.2
+# minutes wall, so 15 replaces the old 60-minute cap with doubled
+# headroom, and the privileged lane joins the per-push estate instead
+# of burning a daily slot.
 
 name: Dragon Guard - Supermassive Verify
 
 on:
+  push:
   workflow_dispatch:
-  schedule:
-    # 10:07 WIB (03:07 UTC) — the owner's 10 o'clock morning
-    # (night-consistent-1): this lane's own daily slot (night-verify-1
-    # renamed the family reference — the e2e lane's cadence retired
-    # with its schedule).
-    - cron: "7 3 * * *"
 
 permissions:
   contents: read
 
 concurrency:
-  # This lane's own group: the scheduled run and a manual
+  # This lane's own group: a push run and a manual
   # dispatch serialize instead of racing two privileged verifications.
   group: Dragon-Guard-Supermassive-Verify-${{ github.ref }}
   cancel-in-progress: false
@@ -67,7 +64,7 @@ jobs:
   verify:
     name: live runtime verification (root, kernel 6.x, cgroup v2)
     runs-on: ubuntu-26.04
-    timeout-minutes: 60
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
