@@ -62,8 +62,8 @@ use super::footer::{
 };
 use super::scroll::{ScrollState, Section, scroll_note};
 use super::{
-    FrameGeometry, SessionState, detail_lines, focus::board_rows, focus::render_eagle_focus,
-    plan_eagle_columns, pooled_line, rate_bps, title_bar_into,
+    FrameGeometry, SessionState, focus::board_rows, focus::render_eagle_focus, plan_eagle_columns,
+    pooled_line, rate_bps, title_bar_into,
 };
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
@@ -349,11 +349,14 @@ pub(super) fn render_eagle_eyes_at(
             // to drift), each line trimmed to the frame width above
             // it, so a long process/endpoint string can never wrap
             // the frame or shift the pinned footer.
-            let mut details = if cols.show_total {
-                detail_lines(conns, *cgroup_id, span)
-            } else {
-                Vec::new()
-            };
+            let mut details = Vec::new();
+            if cols.show_total {
+                // night-frontier-Z11: the detail block pushes pooled
+                // rows (the push_detail_lines twin) — the per-cgroup
+                // owned Vec<String> of fresh Strings was the named
+                // site; the grey trim below stays per line.
+                super::detail::push_detail_lines(&mut details, conns, *cgroup_id, span);
+            }
             for line in &mut details {
                 // The pooled trim-and-grey (night-frontier-Z4): one
                 // warm scratch per line, the same bytes the old
