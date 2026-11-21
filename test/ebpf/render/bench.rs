@@ -553,22 +553,30 @@ fn steady_state_frame_composition_allocates_zero() {
             quiet = allocs;
         }
     }
-    // The floor pin (night-frontier-Z4, stage 1): the QUIETEST of the
-    // 32 busy frames must stay under FLOOR heap events. The observed
-    // quiet counts: 164 on the glibc dev box, ~172 on the musl CI
-    // twin — the walk COUNT is code, the heap events are code x
-    // allocator, so the ceiling carries cross-allocator headroom. The
-    // pre-pool era measured 249/frame; FLOOR sits below it, so the
-    // pool's win is locked — reverting it trips this pin, as does any
-    // regression that raises every frame past the ceiling. The named
-    // remainder (each a stage-2 reopen, the NIGHT-blade-16 staged
-    // ladder): border::wrap's per-row pair, the closing row and its
-    // sweep clones; the footer's owned-Vec builders; the detail
-    // tree's owned-Vec contracts and the ranked board's Vec;
-    // title_bar's internals, grid_line, the per-frame bg escape. A
-    // change that closes a named site LOWERS the floor (and should,
-    // in the same commit that closes it).
-    const FLOOR: usize = 240;
+    // The floor pin (night-frontier-Z4, stage 1; Z11 stage 1 lower):
+    // the QUIETEST of the 32 busy frames must stay under FLOOR heap
+    // events. The observed quiet counts: 164 on the glibc dev box and
+    // ~172 on the musl CI twin after Z4's pool (249 pre-pool); Z11
+    // stage 1 (the title bar, the grid lines, the sweep memo's clone
+    // path, and the rail escapes ride into-twins now) measured 150 on
+    // the same box — the walk COUNT is code, the heap events are code
+    // x allocator, so the ceiling carries cross-allocator headroom.
+    // The pre-pool era measured 249/frame; FLOOR sits below it, so
+    // the pool's win is locked — reverting it trips this pin, as does
+    // any regression that raises every frame past the ceiling. The
+    // named remainder (each a stage-2 reopen, the NIGHT-blade-16
+    // staged ladder): border::wrap's per-row pair, the closing row
+    // and its sweep clones; the footer's owned-Vec builders; the
+    // detail tree's owned-Vec contracts and the ranked board's Vec;
+    // the per-frame bg escape. A change that closes a named site
+    // LOWERS the floor (and should, in the same commit that closes
+    // it).
+    const FLOOR: usize = 200;
+    // The measured number on the record: every run prints the quiet
+    // count, so the floor's own trend is visible in the battery's
+    // output (night-frontier-Z11's ladder law — a closed site LOWERS
+    // this number, and the print is its receipt).
+    eprintln!("steady-state frame allocations: quietest of 32 frames = {quiet} (floor {FLOOR})");
     assert!(
         quiet <= FLOOR,
         "steady-state frame allocations: the quietest of 32 frames allocated {quiet} \

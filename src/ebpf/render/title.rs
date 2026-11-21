@@ -8,8 +8,19 @@
 //! pins. The module map lives in the render root; this file owns
 //! one shape: `╭──…── <core> ──…──╮`, the core riding the middle.
 
-use super::{ColorCapability, border, capability, display_width, theme, truncate_label};
-use crate::output::brand_bold;
+use std::cell::RefCell;
+
+use super::{ColorCapability, border, capability, display_width, theme};
+use crate::output::brand_bold_into;
+
+// The glyph-row scratch (night-frontier-Z11): the one-char-per-column
+// row push_swept_bar paints from, and the fitted core's home —
+// two retained buffers, warm by the second frame, the frame line
+// pool's own discipline at module scale.
+thread_local! {
+    static GLYPHS: RefCell<String> = const { RefCell::new(String::new()) };
+    static FITTED: RefCell<String> = const { RefCell::new(String::new()) };
+}
 
 /// Render the title bar — the frame's TOP BORDER (NIGHT-boost-20):
 /// bold purple brand text, filled to the full frame width, with
@@ -43,6 +54,25 @@ use crate::output::brand_bold;
 /// report, loading, status, list-apps) centers together.
 #[must_use]
 pub(crate) fn title_bar(core: &str, width: usize) -> String {
+    let mut out = String::new();
+    title_bar_into(core, width, &mut out);
+    out
+}
+
+/// The into-twin of [`title_bar`] (night-frontier-Z11, the frame
+/// render's allocation ladder stage 1): the same bytes into a
+/// caller-owned buffer. The frame path pops a pooled row and hands
+/// it here, so the bar's per-frame construction — the glyph row, the
+/// flank runs, the sweep's per-column escapes — lands in a capacity
+/// warm buffer with zero heap events in steady state. The owned
+/// [`title_bar`] stays for the one-shot callers (loading, the depth
+/// report, the pins).
+///
+/// The glyph row (the one-char-per-column shape the swept painter
+/// walks) still needs a second scratch while `out` receives the
+/// painted bytes — the module's own thread-local holds it, the same
+/// retained-buffer discipline the frame line pool uses.
+pub(crate) fn title_bar_into(core: &str, width: usize, out: &mut String) {
     const CAP: &str = "─╮";
     // NIGHT-lts-1: the core's budget is its RENDERED width — the
     // focus title carries a cgroup's comm, and a CJK name paints
@@ -59,7 +89,7 @@ pub(crate) fn title_bar(core: &str, width: usize) -> String {
     let core_len = display_width(core);
 
     if width == 0 {
-        return String::new();
+        return;
     }
 
     // Too narrow to carry a cornered, guttered core (five columns
@@ -69,60 +99,97 @@ pub(crate) fn title_bar(core: &str, width: usize) -> String {
     // rectangular on the narrowest terminals.
     if width <= 5 {
         let tail = if width >= cap_len { CAP } else { "" };
-        let glyphs = format!(
-            "{}{}",
-            "─".repeat(width.saturating_sub(display_width(tail))),
-            tail
-        );
-        if matches!(
-            capability(),
-            ColorCapability::Mono | ColorCapability::Color16
-        ) {
-            return brand_bold(&glyphs);
-        }
-        return swept_bar(&glyphs, None, width);
+        let tail_w = display_width(tail);
+        let text = None;
+        GLYPHS.with(|g| {
+            let mut glyphs = g.borrow_mut();
+            glyphs.clear();
+            for _ in 0..width.saturating_sub(tail_w) {
+                glyphs.push('─');
+            }
+            glyphs.push_str(tail);
+            if matches!(
+                capability(),
+                ColorCapability::Mono | ColorCapability::Color16
+            ) {
+                brand_bold_into(out, &glyphs);
+            } else {
+                push_swept_bar(out, &glyphs, text, width);
+            }
+        });
+        return;
     }
 
     // The centered core's budget: two corners, two gutters, and one
     // flank dash a side are reserved; everything else is the core's.
     const RESERVED: usize = 6;
     let budget = width.saturating_sub(RESERVED);
-    let fitted = if core_len == 0 || budget == 0 {
-        String::new()
-    } else if core_len <= budget {
-        core.to_string()
-    } else {
-        truncate_label(core, budget)
-    };
-    let fitted_len = display_width(&fitted);
 
-    let (glyphs, text) = if fitted_len == 0 {
-        // The plain bar (width six, or a core too wide to carry one
-        // glyph): corners and fill only — geometry first, identity
-        // already yielded everything it had.
-        (format!("╭{}╮", "─".repeat(width - 2)), None)
-    } else {
-        let dashes = width - 4 - fitted_len;
-        let left = dashes / 2;
-        (
-            format!(
-                "╭{} {fitted} {}╮",
-                "─".repeat(left),
-                "─".repeat(dashes - left)
-            ),
-            Some((left + 2, fitted_len)),
-        )
-    };
+    // The fitted core rides the FITTED scratch first (the ellipsis
+    // fit writes in place), the glyph row rides GLYPHS — two
+    // retained buffers, the frame pool's own discipline, both warm
+    // by the second frame.
+    let text = FITTED.with(|f| {
+        let mut fitted = f.borrow_mut();
+        fitted.clear();
+        let fitted_len = if core_len == 0 || budget == 0 {
+            0
+        } else if core_len <= budget {
+            fitted.push_str(core);
+            core_len
+        } else {
+            // NIGHT-improve-36's ellipsis fit, into the scratch: the
+            // same bytes truncate_label returned, no owned String.
+            crate::output::fit_to_width_into(core, budget, &mut fitted);
+            display_width(&fitted)
+        };
+
+        GLYPHS.with(|g| {
+            let mut glyphs = g.borrow_mut();
+            glyphs.clear();
+            if fitted_len == 0 {
+                // The plain bar (width six, or a core too wide to carry
+                // one glyph): corners and fill only — geometry first,
+                // identity already yielded everything it had.
+                glyphs.push('╭');
+                for _ in 0..width - 2 {
+                    glyphs.push('─');
+                }
+                glyphs.push('╮');
+            } else {
+                let dashes = width - 4 - fitted_len;
+                let left = dashes / 2;
+                glyphs.push('╭');
+                for _ in 0..left {
+                    glyphs.push('─');
+                }
+                glyphs.push(' ');
+                glyphs.push_str(&fitted);
+                glyphs.push(' ');
+                for _ in 0..dashes - left {
+                    glyphs.push('─');
+                }
+                glyphs.push('╮');
+            }
+        });
+        if fitted_len == 0 {
+            None
+        } else {
+            let dashes = width - 4 - fitted_len;
+            Some((dashes / 2 + 2, fitted_len))
+        }
+    });
     if matches!(
         capability(),
         ColorCapability::Mono | ColorCapability::Color16
     ) {
-        return brand_bold(&glyphs);
+        GLYPHS.with(|g| brand_bold_into(out, &g.borrow()));
+        return;
     }
     // The label's first column sits one corner + one flank run + one
     // gutter in; its span is the RENDERED width (NIGHT-lts-1 — a
     // CJK name paints two columns per char).
-    swept_bar(&glyphs, text, width)
+    GLYPHS.with(|g| push_swept_bar(out, &g.borrow(), text, width));
 }
 
 /// NIGHT-engrave-11: the swept bar composer. `glyphs` is the bar's
@@ -139,7 +206,14 @@ pub(crate) fn title_bar(core: &str, width: usize) -> String {
 /// foreground only. Bare spaces (the prefix gutter, the separator)
 /// paint nothing — the background shows through exactly as the
 /// flat bar's brand-colored spaces read.
-fn swept_bar(glyphs: &str, text: Option<(usize, usize)>, width: usize) -> String {
+/// The into-twin of the swept bar (night-frontier-Z11 stage 1): the
+/// same per-column bytes into a caller-owned buffer — the sweep
+/// runs land via [`push_sweep_run`], whose memo-hit path appends the
+/// composed bytes without cloning them, so a warm `out` takes the
+/// whole bar with zero heap events. The bar's callers all ride this
+/// form now; the owned shape lives on only through
+/// [`title_bar`](fn.title_bar.html)'s one-shot wrapper.
+fn push_swept_bar(out: &mut String, glyphs: &str, text: Option<(usize, usize)>, width: usize) {
     let theme = theme::active();
     let cap = capability();
     // One anchor derivation for the whole bar (the border wrap's
@@ -148,14 +222,13 @@ fn swept_bar(glyphs: &str, text: Option<(usize, usize)>, width: usize) -> String
     let (text_start, text_end) = text.map_or((usize::MAX, usize::MAX), |(s, len)| {
         (s, s.saturating_add(len))
     });
-    let mut bar = String::with_capacity(width * 24 + 32);
     // The render tree assembles its own escapes (the NIGHT-boost-20
     // exception — the border gradient family builds its own ramp
     // bytes; the color layer's wrappers stay the CLI surface's
     // whole API). The bold open carries the brand fg the label
     // inherits; the swept columns replace the fg only, so the bold
     // weight spans the whole bar exactly as the flat bar's did.
-    bar.push_str(theme::escape(theme::Slot::Brand, true));
+    out.push_str(theme::escape(theme::Slot::Brand, true));
     let mut col = 0usize;
     // The furniture composes in BATCHED runs (the hoist's string
     // half): one sweep_run per contiguous same-glyph stretch, not
@@ -169,35 +242,19 @@ fn swept_bar(glyphs: &str, text: Option<(usize, usize)>, width: usize) -> String
             match seg {
                 Some((_s, open)) if open == g => {}
                 Some((s, open)) => {
-                    bar.push_str(&super::sweep::sweep_run(
-                        open,
-                        s,
-                        col - s,
-                        width,
-                        theme,
-                        Some(anchor),
-                        cap,
-                    ));
+                    super::sweep::push_sweep_run(out, open, s, col - s, width, theme, Some(anchor), cap);
                     seg = Some((col, g));
                 }
                 None => seg = Some((col, g)),
             }
         } else {
             if let Some((s, open)) = seg.take() {
-                bar.push_str(&super::sweep::sweep_run(
-                    open,
-                    s,
-                    col - s,
-                    width,
-                    theme,
-                    Some(anchor),
-                    cap,
-                ));
+                super::sweep::push_sweep_run(out, open, s, col - s, width, theme, Some(anchor), cap);
             }
             // The label's chars and the bare spaces paint nothing
             // here — the open SGR's bold brand colors the label
             // (identity), the background shows through the spaces.
-            bar.push(g);
+            out.push(g);
         }
         // The same rendered-width walk the fit path carries (the
         // ASCII fast path inlined at the call site).
@@ -208,18 +265,9 @@ fn swept_bar(glyphs: &str, text: Option<(usize, usize)>, width: usize) -> String
         };
     }
     if let Some((s, open)) = seg.take() {
-        bar.push_str(&super::sweep::sweep_run(
-            open,
-            s,
-            col - s,
-            width,
-            theme,
-            Some(anchor),
-            cap,
-        ));
+        super::sweep::push_sweep_run(out, open, s, col - s, width, theme, Some(anchor), cap);
     }
-    bar.push_str(border::RESET);
-    bar
+    out.push_str(border::RESET);
 }
 
 // NON_LATIN_FIXTURE: the CJK literal in the narrow-ladder pin below

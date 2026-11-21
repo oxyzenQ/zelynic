@@ -52,14 +52,42 @@ pub(super) fn sweep_run(
     anchor: Option<(u8, u8, u8)>,
     cap: ColorCapability,
 ) -> String {
+    let mut out = String::new();
+    push_sweep_run(&mut out, glyph, start, len, span, theme, anchor, cap);
+    out
+}
+
+/// The into-twin of [`sweep_run`] (night-frontier-Z11, the
+/// allocation ladder's stage 1): the same bytes into a caller-owned
+/// buffer. The memo's hit path stops cloning — the clone WAS the
+/// frame-cadence allocation (the composed bytes are memoized, so
+/// the per-frame cost was one heap event per call to copy them);
+/// the push borrows the composed bytes and appends, a warm buffer
+/// takes them with zero heap events. The owned [`sweep_run`] stays
+/// for the one-shot callers (the --depth report's flat rungs, the
+/// tests).
+pub(super) fn push_sweep_run(
+    out: &mut String,
+    glyph: char,
+    start: usize,
+    len: usize,
+    span: usize,
+    theme: Theme,
+    anchor: Option<(u8, u8, u8)>,
+    cap: ColorCapability,
+) {
     // The flat rungs bypass the memo: their bytes are the trivial
     // glyph repeat, nothing to remember.
     if !matches!(cap, ColorCapability::TrueColor | ColorCapability::Color256) {
-        return glyph.to_string().repeat(len);
+        out.extend(std::iter::repeat(glyph).take(len));
+        return;
     }
     let key = (theme, cap, glyph, start, len, span, anchor);
     if let Some(hit) = swept_runs().get(&key) {
-        return hit.clone();
+        // The borrow reads the memoized bytes straight into the
+        // caller's buffer — no clone, no heap event on the warm path.
+        out.push_str(hit);
+        return;
     }
     let composed = compose_sweep_run(glyph, start, len, span, theme, anchor, cap);
     let mut runs = swept_runs();
@@ -67,7 +95,7 @@ pub(super) fn sweep_run(
         runs.clear();
     }
     runs.insert(key, composed.clone());
-    composed
+    out.push_str(&composed);
 }
 
 /// The swept-run memo (NIGHT-engrave-11's LTS half): a composed run

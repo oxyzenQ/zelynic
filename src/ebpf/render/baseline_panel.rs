@@ -13,7 +13,8 @@
 //! back out of the frame.
 
 use super::baseline::{BaselineLane, BaselineWord, pair_phrase};
-use super::footer::grid_line;
+use super::footer::grid_line_into;
+use super::pooled_line;
 use super::scroll::{ScrollState, Section, scroll_note};
 use crate::ebpf::identity::IdentityMap;
 use crate::output::{grey, pad_to_width};
@@ -109,7 +110,11 @@ pub(crate) fn render_panel(
     };
     // The ruled separator: a section, not the table's tail.
     lines.push(String::new());
-    lines.push(grid_line(width));
+    // night-frontier-Z11: the grid writes into a pooled row (the
+    // grid_line_into twin).
+    let mut grid = pooled_line();
+    grid_line_into(width, &mut grid);
+    lines.push(grid);
     lines.push(format!(
         "{gutter}{}",
         grey("baseline · policy aggregate (8s ring)")

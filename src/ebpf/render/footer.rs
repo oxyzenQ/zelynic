@@ -76,7 +76,8 @@
 use std::time::Duration;
 
 use super::{
-    FrameGeometry, SessionAcc, comm_from_label, format_uptime, label_with_count, rate_bps_wide,
+    FrameGeometry, SessionAcc, comm_from_label, format_uptime, label_with_count, pooled_line,
+    rate_bps_wide,
 };
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
@@ -195,10 +196,30 @@ pub(super) fn plan_footer_tier(height: usize, extra: usize) -> FooterTier {
 /// sweep (the wrap row contract, unbroken).
 #[must_use]
 pub(crate) fn grid_line(width: usize) -> String {
+    let mut out = String::new();
+    grid_line_into(width, &mut out);
+    out
+}
+
+/// The into-twin of [`grid_line`] (night-frontier-Z11, the frame
+/// render's allocation ladder stage 1): the same bytes into a
+/// caller-owned buffer — the frame path pops a pooled row, this
+/// writes into it, and the warm buffer takes the grid with zero
+/// heap events in steady state. The owned [`grid_line`] stays for
+/// the report surfaces' one-shot tables.
+pub(crate) fn grid_line_into(width: usize, out: &mut String) {
+    out.clear();
     let cap = capability();
     match cap {
-        ColorCapability::Mono => "─".repeat(width),
-        ColorCapability::Color16 => brand(&"─".repeat(width)),
+        ColorCapability::Mono => out.extend(std::iter::repeat('─').take(width)),
+        ColorCapability::Color16 => {
+            // NIGHT-engrave-4's flat brand bytes, written in place:
+            // the open SGR, the dash run, the reset — the same bytes
+            // brand(&"─".repeat(w)) laid down, no owned Strings.
+            out.push_str(crate::output::brand_open());
+            out.extend(std::iter::repeat('─').take(width));
+            out.push_str(crate::output::reset());
+        }
         ColorCapability::TrueColor | ColorCapability::Color256 => {
             let theme = theme::active();
             // One anchor derivation for the line (the border wrap's
@@ -210,9 +231,8 @@ pub(crate) fn grid_line(width: usize) -> String {
                     super::border::DARK_FACTOR,
                 )
             });
-            let mut line = super::sweep::sweep_run('─', 0, width, width, theme, anchor, cap);
-            line.push_str(super::border::RESET);
-            line
+            super::sweep::push_sweep_run(out, '─', 0, width, width, theme, anchor, cap);
+            out.push_str(super::border::RESET);
         }
     }
 }
@@ -415,7 +435,11 @@ pub(super) fn build_grip_footer(
     // Tiny drops the roof: at survival height every row the frame
     // can spare becomes a data row.
     if tier != FooterTier::Tiny {
-        footer.push(grid_line(geo.width));
+        // night-frontier-Z11: the grid writes into a pooled row (the
+        // grid_line_into twin).
+        let mut grid = pooled_line();
+        grid_line_into(geo.width, &mut grid);
+        footer.push(grid);
     }
     // The owner's NIGHT-engrave-4 headline: WHO is eating the
     // network — the champion's name in brand purple inside the grey
