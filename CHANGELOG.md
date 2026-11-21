@@ -92,6 +92,50 @@ v80.0.0
 
 ### Fixed
 
+- **fix(ci): the verifier census keeps the pty master open through
+  the observe pricing — the observer's two programs were priced
+  after the session that owns them had died.** The census closed
+  the pty master in a `finally` block before the verdict loop
+  priced the eagle-eyes pair; closing the master ends the monitor
+  session, its Drop un-attaches the links, and the kernel unloads
+  the programs within milliseconds, so the pricing met ENOENT and
+  the armed ledger failed (run 44700704011: links walked at
+  31.249, prog 7 refused ENOENT at 31.263, one close in between).
+  The master now closes after teardown. The first fixed run priced
+  both observer programs at 70/70 — exactly at their pins, the
+  deterministic walk the ledger's law claims (run c700864's
+  supermassive verifier-budget leg, MASS-VERDICT PASS).
+
+- **fix(ci): the Verify lane's histogram leg moves the volume the
+  sampler's tick needs — the old shape could never produce a
+  sample.** The leg applied a 100kb cap and ran one 15s curl: the
+  measured transfer was 1.86 MB in 737 skbs (GRO hands the hook
+  ~2.5 KB skbs) and the tick records every 2^10-th packet per CPU,
+  so a single-CPU path never reached one tick — zero samples was
+  deterministic, not unlucky. The leg B netem 300ms also stayed on
+  the path, where the adaptive window itself caps the wire near
+  100 KB/s regardless of the applied rate. The leg now deletes the
+  netem qdisc, applies 2mb, and runs two 15s curls; the first
+  fixed run read back 7 samples with p50 4096, p95 16384, and
+  three non-zero buckets (run 44877687876, Phase 1.5 PASS).
+
+- **fix(proofs): the night matrix's fifth seat stands down by
+  measurement — the for-all emission harness's verdict is beyond
+  every machine the estate can seat, and a red that can never
+  become a verdict is not an honest finding shape.** The hosted
+  16 GB runner killed the 3x8@68 seat mid-symbolic-execution twice
+  (runs 44727607551 and 44876980805, both at 24-25 minutes, no
+  solver verdict, sibling seats alive past minute 27), and the
+  extended census (eleven shapes across two machines, recorded in
+  proofs/src/kani_terminal.rs and docs/INNOVATIONS.md's D8
+  section) measured the weight INVARIANT to the domain: even
+  1x1/unwind-16 exceeds the census sandbox's 3.35 GB ceiling. The
+  harness statement stays in the tree (full-width rows now, its
+  own measured-heaviest path — the symbolic-length truncate's
+  slice-index panic branch — removed), the conformance evidence
+  per-push rides the sampled tier and the golden vectors, and the
+  seat returns when one of its named levers lands.
+
 - **fix(dev): the release ledger verifies its own writes — the bump's
   version line can no longer land anywhere but inside `## [Released]`
   (night-bump-1, the fatal class the owner hit on the v80.0.x line:
