@@ -32,10 +32,11 @@
 # jurisdiction by design: the eBPF crate targets the kernel's
 # verifier, not an interpreter.
 #
-# Weekly cadence mirrors the cosmostrix contract: miri is slow and
-# nightly-only, so it is not on the per-PR critical path — the push
-# filter catches Rust-surface changes the same week, and the Sunday
-# run (03:07 UTC / 10:07 WIB) picks up whatever slipped through.
+# miri is slow and nightly-only, so it is not on the per-PR critical
+# path — the push filter catches Rust-surface changes as they land,
+# and the dispatch button picks up any ad-hoc pass (the weekly clock
+# retired by the night-fly-1 schedule law — every lane rides the
+# commits it scans).
 # The `--no-install` flag is the CI contract: this workflow installs
 # its own pinned toolchain below, so a missing component must fail
 # loudly rather than silently download a moving nightly.

@@ -288,7 +288,8 @@ blocks. Keeping it is the lower-risk option.
 1. `deny.toml [bans]` denies `chrono` — re-adding it fails
    `cargo deny check all` in CI (the check job's `build.sh check-all`
    gate runs the deny step; NIGHT-boost-7 folded the hand-rolled
-   steps into the script) and the weekly `audit.yml` observation run.
+   steps into the script) and the per-push `audit.yml` advisory scan
+   (the weekly clock retired by the night-fly-1 law).
 2. `deny.toml [graph] all-features = true` keeps the aya subtree
    inside every policy check (Finding 3).
 3. `Cargo.toml` carries the dependency contract comment: every direct
@@ -401,8 +402,8 @@ compiling a payload's build script:
   deserializer, caught live by `cargo deny check` before the commit),
   and the add-a-dependency policy makes any future need a documented
   justification that revisits the list first. Enforced by the ci.yml
-  build.sh check-all lane (every push) and the weekly Dragon Guard
-  audit.
+  build.sh check-all lane (every push) and the per-push Dragon Guard
+  audit lane.
 - `.github/workflows/audit.yml`: the advisory scan widens from the
   root workspace to **all four lockfiles** (`cargo audit --file`
   for `proofs/`, `fuzz/`, `ebpf/`). The detachments that keep the
@@ -449,7 +450,8 @@ take a scan scope, not a level):
   is SHA-pinned per the NIGHT-hunt-20 estate rule.
 
 Together with night-supply-1 the chain is: name tripwires (the nine
-bans), post-merge DB scans (all four lockfiles, weekly and per-push),
+bans), post-merge DB scans (all four lockfiles — per-push, plus the
+Sunday AXP1-ZnQ sentinel verdict that wraps the dependency sweep),
 pre-merge delta review (every PR), and re-resolution defenses (yanked
 deny, wildcards deny). A repeat of the 2026-08-20 incident class now
 has to cross four independent gates, not one.
