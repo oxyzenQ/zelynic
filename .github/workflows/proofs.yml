@@ -8,24 +8,28 @@
 # builds — so a theorem this lane verifies is a theorem the datapath
 # runs (the fuzz harnesses' include law, one directory over).
 #
-# Trigger discipline (the owner's per-push budget, 2026-11-17): this
-# lane is capped at 15 minutes wall — every job below carries
-# timeout-minutes: 15. The solver-bound tier left the per-push path:
-# the four theorems behind nonlinear multiply/divide circuits (the
-# refill overflow guard, the hostile-state enforce totality, the ring
-# stamp law, the bounded key) moved whole to proofs-night.yml, the
-# scheduled and manually dispatchable night lane, where each harness
-# gets its own matrix job with the full 300-minute budget CaDiCaL is
-# the verdict vehicle for. The evidence is the census plus the hosted
-# run: the tier measured unfinished at ten minutes locally, undecided
-# under bitwuzla/cvc5/z3, and the hosted per-push job measured
-# cancelled at 59m44s still inside its first harness — a 15-minute
-# budget is an undecided theorem, not a verdict. The night-verify-1
-# law (no schedule-only lanes: a schedule-only lane is a Skipped row
-# on every push) is amended for exactly this tier by owner decision:
-# a budget the per-push lane can never afford is a verdict vehicle
-# only on the night lane, and a red there is a counterexample or an
-# undecided theorem — both findings, never skips.
+# Trigger discipline (the owner's per-push budget, tightened by the
+# night-fly-1 law, 2026-11-22): this lane is capped at 15 minutes
+# wall — every job below carries timeout-minutes: 15, and 15 minutes
+# is now the ESTATE CEILING, not a per-lane choice: no CI job may run
+# past it, and no test lane may ride a schedule — every test runs
+# trigger-by-commit on main. The solver-bound tier's night vehicle
+# (proofs-night.yml) is RETIRED under that law, and the measurements
+# had closed the question before it: the tier measured unfinished at
+# ten minutes locally, undecided under bitwuzla/cvc5/z3, the hosted
+# per-push job was cancelled at 59m44s still inside its first
+# harness, and the nightly vehicle's single scheduled fire
+# (run 44896512098, 2026-11-21) burned its full 300-minute cap and
+# died CANCELLED with not one solver verdict printed — 300.6 minutes
+# of runner for zero findings is the fatal shape the ceiling law
+# exists to prevent. The four theorem statements stay wired in the
+# proofs sources; the sampled tier, the loom census, the golden
+# vectors, and the six decidable kani theorems below carry the
+# per-push conformance evidence. The tier returns the day its
+# verdict fits the ceiling: lemma decomposition, or per-loop unwinds
+# on a toolchain that carries them — a proof-shape change with its
+# own signed round, then a matrix of one-harness jobs inside 15
+# minutes.
 #
 # The twelfth harness, daily_margin_erodes_monotonically_for_all_inputs,
 # stays wired out of BOTH lanes by signed census verdict: its
