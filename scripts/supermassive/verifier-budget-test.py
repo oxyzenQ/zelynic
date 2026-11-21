@@ -688,12 +688,17 @@ def main() -> int:
         return 1
     info("eagle-eyes monitor session alive — the observer object is loaded")
 
-    # 4. The census: the kernel prices every estate program.
-    try:
-        limiter_prices, pinned_ids = census_programs(envelope, rows_pricing == "verified_insns")
-        observer_ids = observer_pair(pinned_ids)
-    finally:
-        os.close(master_fd)
+    # 4. The census: the kernel prices every estate program. The pty
+    #    master stays open through the verdict loop: closing it ends
+    #    the monitor session, the session's Drop un-attaches the
+    #    observer links, and the kernel unloads the observer programs
+    #    within milliseconds — the pricing below then meets ENOENT and
+    #    reports "the field is absent" on a priced envelope (the run
+    #    44700704011 evidence: links walked at 31.249, prog 7 refused
+    #    ENOENT at 31.263, one close in between). The observer's price
+    #    channel exists only while the session does.
+    limiter_prices, pinned_ids = census_programs(envelope, rows_pricing == "verified_insns")
+    observer_ids = observer_pair(pinned_ids)
 
     # 5. The verdict per program: the inventory, then the budget.
     armed = ledger["armed"]
@@ -775,7 +780,12 @@ def main() -> int:
                     "(the ratchet may lower it)"
                 )
 
+    # The census is priced; the session's work is done. Kill the
+    # monitor first (teardown's own order), then close the master —
+    # the fd held the session alive exactly as long as the pricing
+    # needed it.
     teardown(member, cgid, binary, monitor)
+    os.close(master_fd)
 
     if failures:
         print(f"verifier budget: {len(failures)} failure(s)")
