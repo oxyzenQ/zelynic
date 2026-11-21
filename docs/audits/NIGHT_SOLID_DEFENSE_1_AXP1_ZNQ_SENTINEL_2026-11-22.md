@@ -129,15 +129,17 @@ The second dispatch's verdict line, from the hosted log:
 
 ## Find 3: the E2E floor-kernel leg's single-source dependency, recorded
 
-The supermassive-e2e stage job went red three times across two
-commits (runs 44936228796 and its rerun, 44938271821 and its rerun),
-every time in the same step — "Fetch the Arch LTS 6.6 kernel (the
-6.6 family leg)" — on `curl: (28) Connection timed out` against
-archive.archlinux.org. The evidence chain:
+The supermassive-e2e stage job went red on five attempts across
+three commits (runs 44936228796 and its rerun, 44938271821 and its
+rerun, and the doc push's run with its rerun), every time in the
+same step — "Fetch the Arch LTS 6.6 kernel (the 6.6 family leg)" —
+on `curl: (28) Connection timed out` against archive.archlinux.org.
+The evidence chain:
 
-- the host answers nothing from the runners AND from an independent
-  sandbox probe (HTTP 000 at 45s) — a global outage of the archive,
-  the same host and class night-fly-1 recorded;
+- the host answers nothing from the runners AND from independent
+  sandbox probes hours apart (HTTP 000 at 45s, then 000 at 20s
+  again) — a global outage of the archive, the same host and class
+  night-fly-1 recorded;
 - the current mirror fleet serves linux-lts at 6.18.64 (the core
   index measured) — the 6.6 floor line exists nowhere else; no
   mirror walk can substitute (the Debian 6.1 leg got the walk
@@ -146,7 +148,14 @@ archive.archlinux.org. The evidence chain:
 - the session's diff is unrelated to the leg (the lane never touched
   it; gate-keepers, CI, audit, codeql, fuzz, miri, proofs, the four
   supermassive family lanes, verify, and the sentinel dispatch all
-  green around the red).
+  green around the red);
+- the honest contrast the same evening supplied: the supermassive
+  desktop lane's realnet probe flaked once (one of 104, the
+  removed-mid-window busy-hour residual class) and greened on its
+  failed-jobs rerun minutes later — that is what a transient looks
+  like; four identical reds at one external host for an hour, with
+  no recovery, is an outage, and no rerun manufactures a verdict
+  against a dead source.
 
 The named lever for a follow-up task: cache the once-fetched floor
 kernel (actions/cache keyed on the resolved package name — the
@@ -220,11 +229,14 @@ Hosted (the API record, not estimates):
     fix): full green — validate 3m04s, GPG check success, commit
     skipped. The sentinel's first complete hosted verdict, red
     button to report, inside four minutes.
-- The per-push estate on the fix commit (9ce28b0e): Gate-keepers,
-  CI, Security Audit, CodeQL, Fuzz, Miri, Proofs, Supermassive
-  Server, Supermassive Container E2E, netrunner, Verify green; the
-  same E2E archive leg red (Find 3) with a rerun riding; the
-  remaining shard still finishing at record time.
+- The per-push estate on the fix commit (9ce28b0e) and the record
+  commit (e56744b5): Gate-keepers, CI, Security Audit, CodeQL, Fuzz,
+  Miri, Proofs, Supermassive Server, Supermassive Container E2E,
+  netrunner, Verify green on both; the desktop shard's one realnet
+  probe flaked on e56744b5 and greened on its failed-jobs rerun
+  (the busy-hour residual class); the E2E archive leg stayed red
+  across every push and rerun while the archive is down (Find 3),
+  the rerun button is the verdict when it returns.
 - The Sunday clock is registered: the first scheduled fire lands
   2026-11-29 03:00 UTC (10:00 WIB), the verdict greets the dragon
   with the week's first coffee.
