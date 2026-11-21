@@ -234,7 +234,7 @@ pub(crate) use footer::grid_line;
 // NIGHT-boost-25: the monitor's opening frame — the prelude the
 // smooth open paints while the BPF load runs.
 pub(crate) use loading::loading_frame;
-pub(crate) use title::title_bar;
+pub(crate) use title::{title_bar, title_bar_into};
 
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;

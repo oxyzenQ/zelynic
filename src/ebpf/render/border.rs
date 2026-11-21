@@ -283,22 +283,43 @@ pub(super) fn rail_rgb(
 
 /// The escape for one rail color at the probed capability depth.
 pub(super) fn rail_escape(rgb: (u8, u8, u8), theme: Theme, cap: ColorCapability) -> String {
+    let mut out = String::new();
+    push_rail_escape(&mut out, rgb, theme, cap);
+    out
+}
+
+/// The into-twin of [`rail_escape`] (night-frontier-Z11 stage 1):
+/// the same bytes into a caller-owned buffer — the wrap's per-row
+/// rail escape stops owning a fresh String per row and lands in the
+/// warm row buffer instead. `write!` into the String carries the
+/// same formatting `format!` ran (String's fmt writes are
+/// infallible); the retained call-site buffer takes it with zero
+/// heap events in steady state.
+pub(super) fn push_rail_escape(
+    out: &mut String,
+    rgb: (u8, u8, u8),
+    theme: Theme,
+    cap: ColorCapability,
+) {
+    use std::fmt::Write as _;
     match cap {
-        ColorCapability::TrueColor => format!("\x1b[38;2;{};{};{}m", rgb.0, rgb.1, rgb.2),
+        ColorCapability::TrueColor => {
+            let _ = write!(out, "\x1b[38;2;{};{};{}m", rgb.0, rgb.1, rgb.2);
+        }
         ColorCapability::Color256 => {
             // Nearest xterm cube color: 16 + 36r + 6g + b over the
             // 6-per-channel quantization (the standard mapping — the
             // full brand quantizes to its own documented 256 index).
             let q = |c: u8| (usize::from(c) * 6 / 256).min(5);
             let idx = 16 + 36 * q(rgb.0) + 6 * q(rgb.1) + q(rgb.2);
-            format!("\x1b[38;5;{idx}m")
+            let _ = write!(out, "\x1b[38;5;{idx}m");
         }
         // Sixteen colors cannot ramp within one hue: the theme's flat
         // brand SGR is the honest rail.
         ColorCapability::Color16 => {
-            theme::escape_for(theme, theme::Slot::Brand, false, cap).to_string()
+            out.push_str(theme::escape_for(theme, theme::Slot::Brand, false, cap));
         }
-        ColorCapability::Mono => String::new(),
+        ColorCapability::Mono => {}
     }
 }
 

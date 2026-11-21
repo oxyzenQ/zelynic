@@ -36,7 +36,7 @@ use std::time::Duration;
 
 use super::border;
 use super::footer::{FooterCensus, build_grip_footer, plan_footer_tier};
-use super::{FrameGeometry, title_bar};
+use super::{FrameGeometry, pooled_line, title_bar_into};
 use crate::output::grey;
 
 /// Compose the opening frame: the chrome, the one honest note, and
@@ -51,10 +51,11 @@ pub(crate) fn loading_frame(interval: Duration, geo: FrameGeometry) -> Vec<Strin
     // NIGHT-engrave-8: the bar composes at the FRAME's width —
     // one column inside the terminal — so wrap's leading inset
     // lands the corners one column from each edge.
-    lines.push(title_bar(
-        "zelynic eagle-eyes",
-        border::frame_width(full_width),
-    ));
+    // night-frontier-Z11: the bar writes into a pooled row (the
+    // title_bar_into twin), the ladder law the ranked view rides.
+    let mut bar = pooled_line();
+    title_bar_into("zelynic eagle-eyes", border::frame_width(full_width), &mut bar);
+    lines.push(bar);
     // The breathing gap (the live frame's top-chrome ladder — the
     // header never sat directly under the brand).
     lines.push(String::new());

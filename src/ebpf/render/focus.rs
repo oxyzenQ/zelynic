@@ -25,8 +25,8 @@ use std::time::Duration;
 use super::baseline::{BaselineLane, render_focus_row};
 use super::footer::status_line;
 use super::{
-    FrameGeometry, SessionAcc, format_rate_or_dash, format_uptime, label_with_count, rate_bps,
-    title_bar,
+    FrameGeometry, SessionAcc, format_rate_or_dash, format_uptime, label_with_count, pooled_line,
+    rate_bps, title_bar_into,
 };
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
@@ -121,7 +121,15 @@ pub fn render_eagle_focus(
     // NIGHT-engrave-3: the focus title is identity only — the
     // legend's single home is the footer's status line, same as the
     // ranked view (the top-right hint pair retired).
-    let title_core = format!("zelynic eagle-eyes — {}", identity.label(cgroup_id));
+    // night-frontier-Z11: the focus title rides a pooled scratch and
+    // the identity's write_label twin — the format!'s owned String
+    // was another named frame-path allocation.
+    let mut title_core = pooled_line();
+    {
+        use std::fmt::Write as _;
+        let _ = write!(title_core, "zelynic eagle-eyes — ");
+    }
+    identity.write_label(cgroup_id, &mut title_core);
     // NIGHT-boost-20: the frame wears gradient rails with rounded
     // corners — compose into the bordered inset, flank at the end.
     let full_width = geo.width;
@@ -129,10 +137,9 @@ pub fn render_eagle_focus(
     // NIGHT-engrave-8: the bar composes at the FRAME's width —
     // one column inside the terminal — so wrap's leading inset
     // lands the corners one column from each edge.
-    lines.push(title_bar(
-        &title_core,
-        super::border::frame_width(full_width),
-    ));
+    let mut bar = pooled_line();
+    title_bar_into(&title_core, super::border::frame_width(full_width), &mut bar);
+    lines.push(bar);
 
     // The breathing gap (NIGHT-boost-14): same air under the title
     // as the ranked frame — one composition, two views.

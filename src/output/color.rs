@@ -392,6 +392,20 @@ pub fn brand_bold(msg: &str) -> String {
     wrap_single_line(brand_bold_open(), msg)
 }
 
+/// The into-twin of [`brand_bold`] (night-frontier-Z11, the frame
+/// render's allocation ladder): the same bytes into a caller-owned
+/// buffer — the frame path's flat brand wraps stop owning a fresh
+/// String per row. The multi-line debug guard rides along.
+pub fn brand_bold_into(out: &mut String, msg: &str) {
+    debug_assert!(
+        !msg.contains('\n'),
+        "color helpers wrap single lines only — a multi-line msg paints every line after the first with it (night-dragon-maintenance-8, the -V body field report); split the lines and wrap each"
+    );
+    out.push_str(brand_bold_open());
+    out.push_str(msg);
+    out.push_str(reset());
+}
+
 /// Wrap `msg` in brand purple (regular weight). Plain text when color is off.
 #[must_use]
 pub fn brand(msg: &str) -> String {

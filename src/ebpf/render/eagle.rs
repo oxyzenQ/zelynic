@@ -57,11 +57,13 @@ use super::baseline::BaselineLane;
 use super::baseline_panel::{PANEL_FLOOR, render_panel, view_rows};
 use super::border;
 use super::eagle_row::render_eagle_row;
-use super::footer::{FooterCensus, TOP_CHROME, build_grip_footer, grid_line, plan_footer_tier};
+use super::footer::{
+    FooterCensus, TOP_CHROME, build_grip_footer, grid_line_into, plan_footer_tier,
+};
 use super::scroll::{ScrollState, Section, scroll_note};
 use super::{
     FrameGeometry, SessionState, detail_lines, focus::board_rows, focus::render_eagle_focus,
-    plan_eagle_columns, pooled_line, rate_bps, title_bar,
+    plan_eagle_columns, pooled_line, rate_bps, title_bar_into,
 };
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
@@ -181,7 +183,12 @@ pub(super) fn render_eagle_eyes_at(
     // NIGHT-engrave-8: the bar composes at the FRAME's width —
     // one column inside the terminal — so wrap's leading inset
     // lands the corners one column from each edge.
-    lines.push(title_bar(&title_core, border::frame_width(full_width)));
+    // night-frontier-Z11: the bar writes into a pooled row (the
+    // title_bar_into twin) — the owned title_bar's fresh String per
+    // frame was the named allocation-ladder site.
+    let mut bar = pooled_line();
+    title_bar_into(&title_core, border::frame_width(full_width), &mut bar);
+    lines.push(bar);
     super::recycle_line(title_core);
 
     // The breathing gap (NIGHT-boost-14): one blank line of air —
@@ -314,7 +321,11 @@ pub(super) fn render_eagle_eyes_at(
         // The identity span the header's title cell covers.
         let title_w = cols.label_w + RANK_SPAN;
         super::eagle_row::render_eagle_header(lines, gutter, title_w, &cols);
-        lines.push(grid_line(geo.width));
+        // night-frontier-Z11: the grid writes into a pooled row (the
+        // grid_line_into twin), the same ladder law the bar rides.
+        let mut grid = pooled_line();
+        grid_line_into(geo.width, &mut grid);
+        lines.push(grid);
 
         // Row budget counts detail lines too (NIGHT-hunt-8): a row
         // plus its lines fit as a unit, within what remains after
