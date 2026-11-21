@@ -543,11 +543,45 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/stage/bookworm && cd /tmp/stage/bookworm
-          IDX=$(curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 300 --connect-timeout 15 \
-            https://deb.debian.org/debian/pool/main/l/linux/)
+          # The pool fetch walks the CDN plus its official mirrors and
+          # the first host that answers wins. The record that demands
+          # this shape (night-fly-1, run 44925181553): the e2e stage
+          # died twice on seven 15-second connect timeouts against
+          # deb.debian.org alone while the same host answered 200 from
+          # outside the runner - a runner-side CDN path flake, not an
+          # archive restructure, and one mirror's bad evening must not
+          # cost the lane its verdict.
+          MIRRORS=(
+            "https://deb.debian.org/debian"
+            "https://mirrors.kernel.org/debian"
+            "https://ftp.us.debian.org/debian"
+          )
+          pool_fetch() {
+            local rel="$1" out="$2" m rc=""
+            for m in "${MIRRORS[@]}"; do
+              echo "fetch: $m/$rel"
+              if curl -fsSL --retry 1 --retry-all-errors --retry-delay 5 \
+                  --max-time 240 --connect-timeout 10 \
+                  ${out:+-o "$out"} "$m/$rel"; then
+                echo "mirror OK: $m"
+                return 0
+              fi
+              echo "mirror failed: $m - trying the next"
+            done
+            return 1
+          }
+          IDX=""
+          for m in "${MIRRORS[@]}"; do
+            IDX=$(curl -fsSL --retry 1 --retry-all-errors --retry-delay 5 \
+                --max-time 60 --connect-timeout 10 "$m/pool/main/l/linux/") \
+              && test -n "$IDX" && { echo "index OK via $m"; POOL="$m"; break; }
+            IDX=""
+            echo "mirror failed: $m - trying the next"
+          done
           if test -z "$IDX"; then
-            echo "FAIL: the Debian pool index resolved nothing - restructure?"
-            curl -fsSL --retry 6 --retry-all-errors https://deb.debian.org/debian/pool/main/l/linux/ | head -40 || true
+            echo "FAIL: the Debian pool index resolved nothing on every mirror - restructure?"
+            curl -fsSL --retry 1 --connect-timeout 10 \
+              https://deb.debian.org/debian/pool/main/l/linux/ | head -40 || true
             exit 1
           fi
           DEB=$(echo "$IDX" | grep -oE 'linux-image-6\.1\.0-[0-9]+-amd64-unsigned_[^"]*_amd64\.deb' \
@@ -557,9 +591,13 @@ jobs:
             echo "$IDX" | grep -oE 'linux-image-6\.1[^"]*' | head -20 || true
             exit 1
           fi
-          echo "resolved: $DEB"
-          curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 600 --connect-timeout 15 \
-            -o "$DEB" "https://deb.debian.org/debian/pool/main/l/linux/$DEB"
+          echo "resolved: $DEB (pool base: ${POOL:-the mirror walk})"
+          if ! curl -fsSL --retry 1 --retry-all-errors --retry-delay 5 \
+                --max-time 240 --connect-timeout 10 \
+                -o "$DEB" "${POOL:-https://deb.debian.org/debian}/pool/main/l/linux/$DEB"; then
+            echo "the index mirror stalled on the deb - walking the full mirror list"
+            pool_fetch "pool/main/l/linux/$DEB" "$DEB"
+          fi
           dpkg -x "$DEB" pkg
           KVER=$(find pkg/lib/modules -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | head -1)
           VMLINUZ=$(find pkg/boot -name "vmlinuz-$KVER" | head -1)
