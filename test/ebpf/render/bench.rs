@@ -568,11 +568,15 @@ fn steady_state_frame_composition_allocates_zero() {
     // the pool's win is locked — reverting it trips this pin, as does
     // any regression that raises every frame past the ceiling. The
     // named remainder (each a stage-3 reopen, the NIGHT-blade-16
-    // staged ladder): the footer's owned-Vec builders, the detail
-    // tree's owned-Vec contracts, and the ranked board's Vec. A
-    // change that closes a named site LOWERS the floor (and should,
-    // in the same commit that closes it).
-    const FLOOR: usize = 130;
+    // staged ladder): the footer's owned-Vec builders (the ranked
+    // board's Vec is the focus view's, outside this pin's window)
+    // and the detail tree's holders' walk scratch (the outer Vec
+    // plus one Vec per holder, a handful of events). Z11 stage 3's
+    // first half (the detail tree's line composition rides pooled
+    // rows now) measured 100 on the same box; its quiet count sits
+    // at 86. A change that closes a named site LOWERS the floor
+    // (and should, in the same commit that closes it).
+    const FLOOR: usize = 110;
     // The measured number on the record: every run prints the quiet
     // count, so the floor's own trend is visible in the battery's
     // output (night-frontier-Z11's ladder law — a closed site LOWERS

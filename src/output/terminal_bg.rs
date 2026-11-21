@@ -104,13 +104,6 @@ fn terminal_bg_at(stored: Option<(u8, u8, u8)>, cap: ColorCapability) -> Option<
 /// 6x6x6 cube (the rails' nearest-match); shallow depths paint
 /// nothing — a 16-color slot cannot represent an arbitrary grey.
 #[cfg(feature = "ebpf")]
-#[cfg(test)]
-pub(crate) fn terminal_bg_escape() -> String {
-    let mut out = String::new();
-    push_terminal_bg_escape(&mut out);
-    out
-}
-
 /// The into-twin of [`terminal_bg_escape`] (night-frontier-Z11, the
 /// frame render's allocation ladder stage 2): the same bytes into a
 /// caller-owned buffer — the border wrap keeps one retained buffer

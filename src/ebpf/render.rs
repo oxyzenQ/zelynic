@@ -222,9 +222,7 @@ pub(crate) use depth_traffic::traffic_focus;
 
 pub(crate) use session::{SessionAcc, SessionState};
 
-pub(crate) use detail::{
-    comm_from_label, detail_lines, full_detail_lines, label_with_count, retrans_row_figure,
-};
+pub(crate) use detail::{comm_from_label, full_detail_lines, label_with_count, retrans_row_figure};
 
 // NIGHT-engrave-5: the grid line is every zelynic table's border
 // family — the status and list-apps report tables borrow the monitor's
