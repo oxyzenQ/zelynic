@@ -1,21 +1,31 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
 # SPDX-License-Identifier: AGPL-3.0-only OR Commercial
-"""CI runtime caps (night-zen-2; docs/RULES.md "CI Runtime Caps" is
-the rule's home).
+"""CI runtime law (night-zen-2 caps; night-fly-1 ceiling + schedule
+law, 2026-11-22 — docs/RULES.md "CI Runtime Caps" is the rule's home).
 
-Every workflow job must declare a timeout-minutes cap, and no cap may
-sit below the sanctioned floor: an uncapped job hangs to the platform
-default (hours) instead of failing loudly, and a too-tight cap kills
-honest work on runner jitter rather than on real failures. The floor
-governs only how tight a cap may never be; heavy lanes keep their
-larger, deliberate ceilings (the supermassive batteries ride 40-60).
+Three laws, one gate:
+
+1. Every workflow job must declare a timeout-minutes cap — an uncapped
+   job hangs to the platform default (hours) instead of failing
+   loudly.
+2. No cap may sit below the sanctioned floor (a too-tight cap kills
+   honest work on runner jitter rather than on real failures) or
+   above the sanctioned ceiling (a job that runs past the ceiling is
+   the hang shape the owner outlawed: the nightly kani tier burned
+   its full 300-minute cap and died cancelled with zero verdicts).
+   Publish- and maintenance-critical lanes are exempt from the
+   ceiling by the law's own exception — they still carry the floor.
+3. No test lane rides a schedule: every test is trigger-by-commit on
+   main. Only the law's exception workflows (release, reproducible,
+   maintenance, crates-io) may keep a `schedule:` trigger.
 
 The parser is deliberately dependency-free (the estate's other
 workflow gate, check-actions-pins.sh, reads the same files with plain
 tools): jobs are the two-space indented keys under `jobs:`, each
 job's block ends at the next two-space key or the first dedent, and
-the cap is the job block's `timeout-minutes:` line. The tree's
+the cap is the job block's `timeout-minutes:` line; a schedule
+trigger is the two-space `schedule:` key under `on:`. The tree's
 yamllint config holds the workflows to that shape.
 """
 
@@ -28,10 +38,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 WF_DIR = ROOT / ".github" / "workflows"
 MIN_CAP = 10
+MAX_CAP = 15
+# The night-fly-1 exception: publish- and maintenance-critical lanes
+# keep their larger caps and (where they had one) their schedule.
+EXEMPT_WORKFLOWS = {
+    "release.yml",
+    "reproducible.yml",
+    "maintenance.yml",
+    "crates-io.yml",
+}
 
 JOBS_RE = re.compile(r"^jobs:\s*$")
 JOB_RE = re.compile(r"^  ([A-Za-z0-9_-]+):\s*$")
 CAP_RE = re.compile(r"^\s+timeout-minutes:\s*(\d+)\s*$", re.MULTILINE)
+SCHEDULE_RE = re.compile(r"^  schedule:\s*$", re.MULTILINE)
 
 
 def parse_jobs(text: str) -> dict[str, str]:
@@ -68,8 +88,10 @@ def parse_jobs(text: str) -> dict[str, str]:
 def main() -> int:
     failures: list[str] = []
     rows: list[str] = []
+    schedule_rows: list[str] = []
     for wf in sorted(WF_DIR.glob("*.yml")):
-        jobs = parse_jobs(wf.read_text(encoding="utf-8"))
+        text = wf.read_text(encoding="utf-8")
+        jobs = parse_jobs(text)
         if not jobs:
             failures.append(f"{wf.name}: no jobs parsed — parser evidence needed")
             continue
@@ -84,15 +106,30 @@ def main() -> int:
                 failures.append(
                     f"{wf.name}: job '{name}' cap {cap}m sits below the sanctioned floor {MIN_CAP}m"
                 )
+            elif cap > MAX_CAP and wf.name not in EXEMPT_WORKFLOWS:
+                failures.append(
+                    f"{wf.name}: job '{name}' cap {cap}m exceeds the sanctioned ceiling "
+                    f"{MAX_CAP}m (the night-fly-1 law: micro-split the lane)"
+                )
+        if SCHEDULE_RE.search(text) and wf.name not in EXEMPT_WORKFLOWS:
+            schedule_rows.append(f"  {wf.name}")
+            failures.append(
+                f"{wf.name}: a test lane rides a schedule — the night-fly-1 law "
+                f"trigger-by-commit on main only (drop the schedule: block)"
+            )
     print("\n".join(rows))
+    if schedule_rows:
+        print("\nscheduled workflows (the exempt set only):")
+        print("\n".join(schedule_rows))
     if failures:
-        print(f"\nFAIL: {len(failures)} runtime-cap violation(s):")
+        print(f"\nFAIL: {len(failures)} runtime-law violation(s):")
         for f in failures:
             print(f"  - {f}")
         return 1
     print(
         f"\nOK: {len(rows)} jobs across the estate, every one capped, "
-        f"no cap below the {MIN_CAP}-minute floor"
+        f"no cap below the {MIN_CAP}-minute floor, no cap above the {MAX_CAP}-minute "
+        f"ceiling outside the exempt set, no schedule on a test lane"
     )
     return 0
 
