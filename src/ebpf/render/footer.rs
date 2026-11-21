@@ -76,14 +76,13 @@
 use std::time::Duration;
 
 use super::{
-    FrameGeometry, SessionAcc, comm_from_label, format_uptime, label_with_count, pooled_line,
-    rate_bps_wide,
+    FrameGeometry, SessionAcc, comm_from_label, label_with_count, pooled_line, rate_bps_wide,
 };
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
-use crate::ebpf::limiter::{format_bytes, format_bytes_wide, format_count};
+use crate::ebpf::limiter::format_count_into;
 use crate::output::theme;
-use crate::output::{ColorCapability, brand, capability, grey, signature_footer};
+use crate::output::{ColorCapability, brand_open, capability, grey_open, reset, signature_footer};
 
 /// Top chrome above the table: the title bar, the NIGHT-boost-14
 /// breathing gap below it, the column header, and the purple grid
@@ -380,18 +379,31 @@ impl FooterCensus {
 /// owner pointed it, the focused section's header lane.
 #[must_use]
 pub(super) fn status_line(interval: Duration) -> String {
-    let realtime = if interval.as_secs() >= 1 {
-        format!("{}s realtime", interval.as_secs())
+    let mut out = String::new();
+    status_line_into(interval, &mut out);
+    out
+}
+
+/// The into-twin of [`status_line`] (night-frontier-Z11): the same
+/// bytes into a caller-owned buffer — the realtime figure writes
+/// via `write!`, the theme name is a `&'static str`, no owned
+/// Strings.
+pub(super) fn status_line_into(interval: Duration, out: &mut String) {
+    use std::fmt::Write as _;
+    out.clear();
+    out.push_str("  ");
+    out.push_str(grey_open());
+    if interval.as_secs() >= 1 {
+        let _ = write!(out, "{}s realtime", interval.as_secs());
     } else {
-        format!("{:.1}s realtime", interval.as_secs_f64())
-    };
-    format!(
-        "  {}",
-        grey(&format!(
-            "{realtime} - theme {} - q quit - t theme - ↑↓ scroll - ←→ section",
-            crate::output::theme::active().name()
-        ))
-    )
+        let _ = write!(out, "{:.1}s realtime", interval.as_secs_f64());
+    }
+    let _ = write!(
+        out,
+        " - theme {} - q quit - t theme - ↑↓ scroll - ←→ section",
+        crate::output::theme::active().name()
+    );
+    out.push_str(reset());
 }
 
 /// A session rate figure for the footer's census paragraph
@@ -400,8 +412,12 @@ pub(super) fn status_line(interval: Duration) -> String {
 /// `format_rate`'s "BLOCKED": that is the limiter's policy verdict,
 /// and the observer does not judge, it measures (the table's rate
 /// cells render em dashes for the same reason).
-fn session_rate(bps: u64) -> String {
-    format!("{}/s", format_bytes(bps))
+/// The into-twin of [`session_rate`] (night-frontier-Z11): the same
+/// bytes into a caller-owned buffer, `format_bytes_into` carrying
+/// the SI ladder.
+fn push_session_rate(out: &mut String, bps: u64) {
+    crate::ebpf::limiter::format_bytes_into(bps, out);
+    out.push_str("/s");
 }
 
 /// Assemble the engraved footer (NIGHT-boost-14; re-cut by
@@ -449,7 +465,19 @@ pub(super) fn build_grip_footer(
     if tier != FooterTier::Tiny
         && let Some(name) = census.top_proc_name.as_deref()
     {
-        footer.push(format!("  {} {}", grey("top consumer is"), brand(name)));
+        // night-frontier-Z11: the headline writes into a pooled row
+        // - the grey lead and the brand name append around the
+        // resets, no owned Strings.
+        let mut line = pooled_line();
+        line.push_str("  ");
+        line.push_str(grey_open());
+        line.push_str("top consumer is");
+        line.push_str(reset());
+        line.push(' ');
+        line.push_str(brand_open());
+        line.push_str(name);
+        line.push_str(reset());
+        footer.push(line);
     }
     // The census (Full/Compact): the session's packets and the
     // board's cgroup count, one flat grey line — the frame's scale.
@@ -458,25 +486,34 @@ pub(super) fn build_grip_footer(
     // stays "24 packets", the eight-hour "2244843 packets" reads
     // "2.2M packets" — no raw u64 ever explodes the line again.
     if matches!(tier, FooterTier::Full | FooterTier::Compact) {
-        footer.push(format!(
-            "  {}",
-            grey(&format!(
-                "{} packets + {} cgroups",
-                format_count(census.packets),
-                format_count(census.cgroups as u64)
-            ))
-        ));
+        // night-frontier-Z11: the census row writes into a pooled
+        // row, the counts via format_count_into.
+        let mut line = pooled_line();
+        line.push_str("  ");
+        line.push_str(grey_open());
+        format_count_into(census.packets, &mut line);
+        line.push_str(" packets + ");
+        format_count_into(census.cgroups as u64, &mut line);
+        line.push_str(" cgroups");
+        line.push_str(reset());
+        footer.push(line);
     }
     // The owner's NIGHT-engrave-3 census row: the session's whole
     // story in one flat grey line — the usage horizon and the grand
     // total ALONE (the two per-frame rates retired at the owner's
     // "only total consume bandwidth" call: `= 10gb`, never the old
     // `2kb/s 2kb/s 100mb` tail). Rides every tier.
-    footer.push(grey(&format!(
-        "  total usage internet in {} = {}",
-        format_uptime(census.uptime),
-        format_bytes_wide(census.grand)
-    )));
+    // night-frontier-Z11: the total row writes into a pooled row,
+    // the uptime and the grand total via their into-twins.
+    let mut line = pooled_line();
+    line.push_str("  ");
+    line.push_str(grey_open());
+    line.push_str("total usage internet in ");
+    super::format_uptime_into(census.uptime, &mut line);
+    line.push_str(" = ");
+    crate::ebpf::limiter::format_bytes_wide_into(census.grand, &mut line);
+    line.push_str(reset());
+    footer.push(line);
     // The deep legend (night-netrunner-4, --deep, the netrunner-3
     // design's section 4.3): when the figure family is live and the
     // footer holds the Full tier, one grey line joins the census
@@ -485,7 +522,14 @@ pub(super) fn build_grip_footer(
     // space to explain them). Compact/Minimal/Tiny drop it: the tier
     // ladder's own degradation.
     if deep && tier == FooterTier::Full {
-        footer.push(grey(&format!("  {}", super::deep::footer_legend_line())));
+        // night-frontier-Z11: pooled row, the legend's own String
+        // appended (deep-only, the ranked frame never runs it).
+        let mut line = pooled_line();
+        line.push_str("  ");
+        line.push_str(grey_open());
+        line.push_str(&super::deep::footer_legend_line());
+        line.push_str(reset());
+        footer.push(line);
     }
     // The NIGHT-engrave-6 speed pair (Full/Compact — the census
     // family; Minimal is survival height, where the total row alone
@@ -510,16 +554,26 @@ pub(super) fn build_grip_footer(
     // read a `max dl = 1.1 MB/s` against a 100 KB/s policy and
     // asked why — the label now answers before the question forms.
     if matches!(tier, FooterTier::Full | FooterTier::Compact) {
-        footer.push(grey(&format!(
-            "  peak arrival dl | ul = {} | {}",
-            session_rate(census.peak_dl),
-            session_rate(census.peak_ul)
-        )));
-        footer.push(grey(&format!(
-            "  avg arrival dl | ul = {} | {}",
-            session_rate(rate_bps_wide(census.dl, census.uptime)),
-            session_rate(rate_bps_wide(census.ul, census.uptime))
-        )));
+        // night-frontier-Z11: the speed pair writes into pooled
+        // rows via the session-rate twin.
+        let mut line = pooled_line();
+        line.push_str("  ");
+        line.push_str(grey_open());
+        line.push_str("peak arrival dl | ul = ");
+        push_session_rate(&mut line, census.peak_dl);
+        line.push_str(" | ");
+        push_session_rate(&mut line, census.peak_ul);
+        line.push_str(reset());
+        footer.push(line);
+        let mut line = pooled_line();
+        line.push_str("  ");
+        line.push_str(grey_open());
+        line.push_str("avg arrival dl | ul = ");
+        push_session_rate(&mut line, rate_bps_wide(census.dl, census.uptime));
+        line.push_str(" | ");
+        push_session_rate(&mut line, rate_bps_wide(census.ul, census.uptime));
+        line.push_str(reset());
+        footer.push(line);
     }
     // The actionable line (Full/Compact): the owner's exact
     // engrave-4 wording — `limit target with 'sudo zelynic s x
@@ -533,31 +587,55 @@ pub(super) fn build_grip_footer(
     if matches!(tier, FooterTier::Full | FooterTier::Compact)
         && let Some(name) = census.top_proc_name.as_deref()
     {
-        footer.push(format!(
-            "  {} {}",
-            grey("limit target with"),
-            brand(&format!("'sudo zelynic s {name} {SUGGESTED_LIMIT}'"))
-        ));
+        // night-frontier-Z11: the actionable line writes into a
+        // pooled row, the command string appended piecewise.
+        let mut line = pooled_line();
+        line.push_str("  ");
+        line.push_str(grey_open());
+        line.push_str("limit target with");
+        line.push_str(reset());
+        line.push(' ');
+        line.push_str(brand_open());
+        line.push_str("'sudo zelynic s ");
+        line.push_str(name);
+        line.push(' ');
+        line.push_str(SUGGESTED_LIMIT);
+        line.push('\'');
+        line.push_str(reset());
+        footer.push(line);
     }
     if census.identities_unresolved {
-        footer.push(format!(
-            "  {}",
-            grey("(identities unresolved — labels show raw cgroup IDs)")
-        ));
+        // night-frontier-Z11: pooled row, the note's own bytes.
+        let mut line = pooled_line();
+        line.push_str("  ");
+        line.push_str(grey_open());
+        line.push_str("(identities unresolved — labels show raw cgroup IDs)");
+        line.push_str(reset());
+        footer.push(line);
     }
     if tier == FooterTier::Full {
         footer.push(String::new());
     }
     // The status line (NIGHT-engrave-2) rides EVERY tier — and since
     // the engrave-3 title trim it is the legend's only home.
-    footer.push(status_line(interval));
+    // night-frontier-Z11: the legend row writes into a pooled row
+    // (the status_line_into twin).
+    let mut line = pooled_line();
+    status_line_into(interval, &mut line);
+    footer.push(line);
     // The owner's NIGHT-engrave-3 gap: one blank line of air above
     // the copyright — the build stamp lands as its own quiet
     // paragraph, never the status line's continuation.
     if matches!(tier, FooterTier::Full | FooterTier::Compact) {
         footer.push(String::new());
     }
-    footer.push(format!("  {}", signature_footer()));
+    // night-frontier-Z11: pooled row, the engraving's own String
+    // appended (its internals are the output layer's identity seat,
+    // their own later stage).
+    let mut line = pooled_line();
+    line.push_str("  ");
+    line.push_str(&signature_footer());
+    footer.push(line);
     footer
 }
 

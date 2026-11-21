@@ -448,19 +448,29 @@ pub(crate) fn rate_bps_wide(delta_bytes: u128, interval: std::time::Duration) ->
 /// terminal one by construction.
 #[must_use]
 pub(crate) fn format_uptime(elapsed: std::time::Duration) -> String {
+    let mut out = String::new();
+    format_uptime_into(elapsed, &mut out);
+    out
+}
+
+/// The into-twin of [`format_uptime`] (night-frontier-Z11, the
+/// footer's allocation ladder): the same bytes into a caller-owned
+/// buffer, `write!` carrying the same formatting.
+pub(crate) fn format_uptime_into(elapsed: std::time::Duration, out: &mut String) {
+    use std::fmt::Write as _;
     let secs = elapsed.as_secs();
     let days = secs / 86_400;
     let hours = (secs % 86_400) / 3_600;
     let mins = (secs % 3_600) / 60;
     let rem_secs = secs % 60;
     if days > 0 {
-        format!("{days}d:{hours}h")
+        let _ = write!(out, "{days}d:{hours}h");
     } else if hours > 0 {
-        format!("{hours}h:{mins}m")
+        let _ = write!(out, "{hours}h:{mins}m");
     } else if mins > 0 {
-        format!("{mins}m:{rem_secs}s")
+        let _ = write!(out, "{mins}m:{rem_secs}s");
     } else {
-        format!("{rem_secs}s")
+        let _ = write!(out, "{rem_secs}s");
     }
 }
 
