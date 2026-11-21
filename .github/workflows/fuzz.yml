@@ -50,23 +50,27 @@
 # corpus stays out of git (fuzz/.gitignore); the seeds are the lane's
 # definition.
 #
-# The weekly deep session: the same three targets run for 15 minutes
-# each every Monday 10:07 WIB (03:07 UTC) - the continuous 60s net
-# cannot buy this depth. The corpus cache restores the accumulated
-# corpus under the same restore-keys, so the deep session and the push
-# sessions grow one asset; a scheduled run and a push on the same ref
-# share the concurrency group, the newer run wins (the estate shape).
+# The deep session rides the dispatch button now, not a clock (the
+# night-fly-1 law: no schedule on test lanes): a manual dispatch with
+# the deep input runs the same three targets for 600 seconds each -
+# the continuous 60s net cannot buy this depth, and 600s keeps the
+# leg inside the estate's 15-minute ceiling with its setup included.
+# The corpus cache restores the accumulated corpus under the same
+# restore-keys, so the deep session and the push sessions grow one
+# asset; a dispatched run and a push on the same ref share the
+# concurrency group, the newer run wins (the estate shape).
 
 name: zelynic - Fuzz
 
 "on":
   push:
   pull_request:
-  schedule:
-    # The weekly deep session: Monday 10:07 WIB (03:07 UTC) — the
-    # owner's 10 o'clock morning, one clock for every scheduled
-    # workflow (night-consistent-1).
-    - cron: "7 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      deep:
+        description: "Deep session: 600s per target instead of the 60s push net"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -82,11 +86,13 @@ env:
 
 jobs:
   fuzz:
-    # The budget rides the event (the Fuzz step's table): 60s on
-    # push and PR, 900s on the weekly deep session.
+    # The budget rides the trigger (the Fuzz step's table): 60s on
+    # push and PR, 600s on the dispatched deep session (the old 900s
+    # weekly shape exceeded the estate's 15-minute ceiling once the
+    # schedule retired - 600s + setup fits with headroom).
     name: cargo fuzz ${{ matrix.target }}
     runs-on: ubuntu-26.04
-    timeout-minutes: 35
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -161,13 +167,13 @@ jobs:
       - name: Fuzz
         run: |
           # The budget table: 60s on every push and pull request (the
-          # regression net), 900s on the weekly deep session (the
+          # regression net), 600s on the dispatched deep session (the
           # corpus keeps growing between runs either way).
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            BUDGET=900
+          if [ "${{ inputs.deep }}" = "true" ]; then
+            BUDGET=600
           else
             BUDGET=60
           fi
-          echo "fuzz budget: ${BUDGET}s (event: ${{ github.event_name }})"
+          echo "fuzz budget: ${BUDGET}s (event: ${{ github.event_name }}, deep: ${{ inputs.deep }})"
           cargo fuzz run ${{ matrix.target }} \
             -- -max_total_time="${BUDGET}" -rss_limit_mb=4096 -timeout=25

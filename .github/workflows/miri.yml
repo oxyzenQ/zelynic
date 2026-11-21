@@ -50,11 +50,6 @@ on:
   # lane carries.
   push:
   pull_request:
-  schedule:
-    # Sunday 10:07 WIB (03:07 UTC) — picks up the week's commits in
-    # one shot, the cosmostrix cadence (night-consistent-1 moves the
-    # clock to the owner's 10 o'clock morning).
-    - cron: '7 3 * * 0'
   # Manual trigger from the Actions tab.
   workflow_dispatch:
 
@@ -85,21 +80,24 @@ jobs:
     # zejtron night-dinner-6 containment law): sized against the
     # measured record, not inherited — 2026-10-26 measured both lanes
     # (dormant + ebpf, 95 tests, 0 violations) at ~5.3 min interpreted
-    # on an 8-core host; a 2-core runner compiles the same graph
-    # ~2-3x slower, so the CI-shape estimate is ~10-16 min and 40 is
-    # the ~2.5-4x boundary. Not a speed claim — the line a future
-    # burden test (a docs full-text scan, an unbounded render loop —
-    # the sibling's 33-minute hang shape) dies loudly against
-    # instead of hanging the runner. The admission law that keeps
-    # such tests out of the audited families lives in
-    # scripts/lib/miri.sh's header; the escape hatch for a genuine
-    # whole-suite probe is `./scripts/build.sh miri --full` (local).
+    # on an 8-core host; the hosted record since then reads 5.8-10.6
+    # min across eight push runs, inside the ~10-16 min CI-shape
+    # estimate the 2026-10-26 note projected. The night-fly-1 law
+    # (2026-11-22) caps every job at the 15-minute estate ceiling, so
+    # 15 replaces the old 40: above the measured max, at the law's
+    # line, and still the boundary a future burden test (a docs
+    # full-text scan, an unbounded render loop — the sibling's
+    # 33-minute hang shape) dies loudly against instead of hanging
+    # the runner. The admission law that keeps such tests out of the
+    # audited families lives in scripts/lib/miri.sh's header; the
+    # escape hatch for a genuine whole-suite probe is
+    # `./scripts/build.sh miri --full` (local, no CI cap involved).
     # night-dragon-maintenance-4 added the STRUCTURAL half: the lane
     # walks pass --tests (the doctest lane never interprets — the
     # docs/burden class cannot re-enter by shape) and each lane runs
     # under its own 900s coreutils budget, so the containment also
     # holds on a local run where this job-level cap does not reach.
-    timeout-minutes: 40
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
