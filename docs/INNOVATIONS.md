@@ -716,10 +716,10 @@ a dedicated detached package, `proofs/` — the ebpf crate's own
 detachment shape, so the instruments never enter the root manifest's
 dependency graph — whose harnesses compile the SAME law files the
 kernel object builds (the fuzz harnesses' #[path] include law: a law
-the proofs verify is a law the datapath runs). Two instruments, two
-lanes (.github/workflows/proofs.yml on every push, capped at 15
-minutes wall; .github/workflows/proofs-night.yml — the solver-bound
-tier, nightly plus workflow_dispatch), three honest tiers:
+the proofs verify is a law the datapath runs). Two instruments, one
+per-push lane (.github/workflows/proofs.yml on every push, capped at
+15 minutes wall — the estate ceiling the night-fly-1 law enforces on
+every CI job), three honest tiers:
 
 - **The for-all tier (kani, bounded model checking).** Each harness
   turns a named law into a machine-checked theorem over ALL inputs
@@ -739,14 +739,18 @@ tier, nightly plus workflow_dispatch), three honest tiers:
   [0, NS_PER_DAY) plus the unknown-kind enforcement posture). Four
   theorems sit behind nonlinear multiply/divide circuits (the
   refill overflow guard, the hostile-state enforce totality, the
-  ring stamp law, the bounded key) and carry the night lane's full
-  budget as their verdict vehicle (proofs-night.yml: one matrix job
-  per harness, 300 minutes each) — the sandbox census measured
-  them unfinished at ten minutes and undecided under every SMT
-  backend, and the hosted per-push run measured the tier cancelled
-  at 59m44s still inside its first harness; the owner's 15-minute
-  per-push cap moved the tier off the push, the decision recorded
-  in the lane headers. The rate-domain assumption the heavy
+  ring stamp law, the bounded key) and stand RETIRED from CI by the
+  night-fly-1 law: the sandbox census measured them unfinished at
+  ten minutes and undecided under every SMT backend, the hosted
+  per-push run was cancelled at 59m44s still inside its first
+  harness, and their night vehicle's single scheduled fire
+  (proofs-night.yml, run 44896512098) burned its full 300-minute
+  cap and died cancelled with zero solver verdicts — the 15-minute
+  ceiling is now estate law, and a budget the ceiling can never
+  afford is not a verdict vehicle. The theorem statements stay
+  wired in the proofs sources; the tier returns the day its
+  verdict fits the ceiling (lemma decomposition, or per-loop
+  unwinds on a toolchain that carries them). The rate-domain assumption the heavy
   theorems carry is the system's own ceiling (MAX_RATE, the parse
   family's refusal line) — the theorems quantify over the reachable
   policy domain, stated in the harness, never hidden.
@@ -785,8 +789,9 @@ stable-only) and `cargo kani --lib` per harness (the for-all tier's
 decidable half, the pinned kani release) — the proofs.yml workflow
 runs both on every push, one invocation per harness so a verdict is
 never lost to a sibling's budget, capped at 15 minutes wall; the four
-solver-bound theorems ride proofs-night.yml's nightly matrix with the
-full 300-minute budget, one harness per job. A red is a
+solver-bound theorems stand retired from CI (their night vehicle
+burned 300.6 minutes cancelled with zero verdicts on its single
+scheduled fire — see the for-all tier above). A red is a
 counterexample or an undecided theorem, never a skip — and the third
 seat on the proofs checks list, the loom-census absence guard, runs
 no harness at all: it re-reads the census basis out of the tree and
