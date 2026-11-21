@@ -295,6 +295,16 @@ pub(crate) fn handle_eagle_eyes_depth(
 
     super::ensure_root()?;
 
+    // night-ux-orion-1: the depth report's load phase - the kernel
+    // maps' walks, the identity ladder, the enforcement open - is
+    // the estate's big-data load scenario, and a silent walk reads
+    // as a hang. The loading lane arms here (the DNA helix past the
+    // 100ms lazy threshold; the focus window's own announce takes
+    // over the narration below, the erase landing first so the
+    // announce prints from a clean line). A fast attach never draws
+    // - the fast path's stderr stays byte for byte silent.
+    let loader = crate::output::Loader::arm("loading the kernel maps", crate::output::Style::Helix);
+
     // One walk each feeds every target: the majority-vote identity
     // map (the name ladder's first rung), the connection census, and
     // the pinned policy maps. NIGHT-blade-5: when enforcement is
@@ -320,6 +330,9 @@ pub(crate) fn handle_eagle_eyes_depth(
     // hung); stdout stays byte-clean for both output modes. A failed
     // window degrades to the basic socket census with the reason on
     // the report — never a fabricated zero-traffic window.
+    // The loading lane's erase lands BEFORE the announce: the
+    // window's own narration takes over from column zero.
+    loader.finish();
     eprintln_safe!(
         "{}",
         grey(&format!(

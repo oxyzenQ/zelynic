@@ -260,7 +260,14 @@ fn report_json(report: &CapabilityReport) -> String {
 
 /// Run capability detection and print report.
 pub fn run_doctor(json: bool) -> Result<()> {
+    // night-ux-orion-1: the readiness sweep is the estate's third
+    // named scenario (back-to-back capability probes) - the loading
+    // lane arms around it, and a fast probe's stderr stays byte for
+    // byte silent (the lazy threshold's own law).
+    let loader =
+        crate::output::Loader::arm("running readiness checks", crate::output::Style::Helix);
     let report = detect();
+    loader.finish();
     if json {
         // NIGHT-boost-3: the unified compact writer — same single-line
         // contract as status and list-apps. S1: the document is

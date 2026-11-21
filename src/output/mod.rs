@@ -281,6 +281,8 @@ pub mod verbose;
 pub(crate) mod spinner;
 #[cfg(feature = "ebpf")]
 pub(crate) use spinner::Spinner;
+// night-ux-orion-1: the loading lane's machine and its style seat.
+pub(crate) use spinner::{Loader, Style};
 
 #[cfg(feature = "ebpf")]
 pub use color::{brand_open, grey_open, hot_open, ok_open, paint_in_place, warn_open};

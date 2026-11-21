@@ -156,6 +156,14 @@ pub fn check_update(current_version: &str) -> Result<(), String> {
         return Ok(());
     }
 
+    // night-ux-orion-1: the fetch is the estate's named slow-path
+    // scenario - a 15s network load that used to sit silent reads as
+    // a hang. The loading lane arms around it (the DNA helix past
+    // the 100ms lazy threshold, the ASCII floor without color or
+    // Unicode), and the erase lands before the verdict prints. A
+    // fast mirror response never draws - the fast path's stderr
+    // stays byte for byte silent.
+    let loader = crate::output::Loader::arm("checking for updates", crate::output::Style::Helix);
     let output = Command::new("curl")
         .args([
             "--silent",
@@ -177,6 +185,10 @@ pub fn check_update(current_version: &str) -> Result<(), String> {
                 format!("failed to run curl: {e}")
             }
         })?;
+    // The verdict prints from a clean line: the erase lands before
+    // any status word does (an early return above routes through the
+    // Drop guard's same erase).
+    loader.finish();
 
     if !output.status.success() {
         // Infra failure (DNS, timeout, refused): no exchange
