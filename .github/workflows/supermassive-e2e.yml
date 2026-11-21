@@ -680,12 +680,34 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/stage/archlts && cd /tmp/stage/archlts
-          IDX=$(curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 300 --connect-timeout 15 \
-            https://archive.archlinux.org/packages/l/linux-lts/)
+          # night-solid-defense-1 (the zejtron kernel-floor law, ported):
+          # the archive is a single canonical source - no third-party
+          # mirror carries the /packages tree (the 2026-11-21 outage
+          # audit probed the whole estate: none exists) - so the fix is
+          # not a fake mirror walk but bounded economics plus evidence:
+          # two tight attempts, then the DNS-vs-host diagnosis names the
+          # outage class. The dead-host case now costs under two
+          # minutes and its log says why, instead of seven blind
+          # connect retries burning five and a half minutes into a bare
+          # exit 28.
+          arch_diagnose() {
+            echo "diagnosing the outage class:"
+            getent hosts archive.archlinux.org >/dev/null 2>&1 \
+              && echo "  evidence: the local resolver answers for archive.archlinux.org" \
+              || echo "  evidence: the local resolver has no answer for archive.archlinux.org"
+            timeout 15 curl -s 'https://1.1.1.1/dns-query?name=archive.archlinux.org&type=A' \
+                -H 'accept: application/dns-json' | grep -q '"data"' \
+              && echo "  evidence: the public resolver (1.1.1.1) holds A records for the name" \
+              || echo "  evidence: the public resolver (1.1.1.1) has no A answer either"
+            echo "  verdict: resolver answers + connect dead = host-side outage of archive.archlinux.org"
+            echo "           - not a code regression; rerun the lane when the archive returns"
+          }
+          IDX=$(curl -fsSL --retry 1 --retry-all-errors --retry-delay 5 \
+            --max-time 60 --connect-timeout 10 \
+            https://archive.archlinux.org/packages/l/linux-lts/ || true)
           if test -z "$IDX"; then
-            echo "FAIL: the Arch archive index resolved nothing - restructure?"
-            curl -fsSL --retry 6 --retry-all-errors \
-              https://archive.archlinux.org/packages/l/linux-lts/ | head -40 || true
+            echo "FAIL: the Arch archive index resolved nothing after the bounded walk"
+            arch_diagnose
             exit 1
           fi
           PKG=$(echo "$IDX" | grep -oE 'linux-lts-6\.6\.[0-9]+-[0-9]+-x86_64\.pkg\.tar\.zst' \
@@ -696,8 +718,12 @@ jobs:
             exit 1
           fi
           echo "resolved: $PKG"
-          curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 600 --connect-timeout 15 \
-            -o "$PKG" "https://archive.archlinux.org/packages/l/linux-lts/$PKG"
+          curl -fsSL --retry 1 --retry-all-errors --retry-delay 5 \
+            --max-time 240 --connect-timeout 10 \
+            -o "$PKG" "https://archive.archlinux.org/packages/l/linux-lts/$PKG" \
+            || { echo "FAIL: the package download died - same evidence walk:"
+                 arch_diagnose
+                 exit 1; }
           tar --zstd -xf "$PKG"
           VMLINUZ=$(find usr/lib/modules -maxdepth 2 -name 'vmlinuz*' | head -1)
           if test -z "$VMLINUZ"; then
