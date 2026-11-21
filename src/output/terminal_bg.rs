@@ -112,8 +112,8 @@ fn terminal_bg_at(stored: Option<(u8, u8, u8)>, cap: ColorCapability) -> Option<
 #[cfg(feature = "ebpf")]
 pub(crate) fn push_terminal_bg_escape(out: &mut String) {
     use std::fmt::Write as _;
-    match terminal_bg() {
-        Some((r, g, b)) => match capability() {
+    if let Some((r, g, b)) = terminal_bg() {
+        match capability() {
             ColorCapability::TrueColor => {
                 let _ = write!(out, "\x1b[48;2;{r};{g};{b}m");
             }
@@ -123,8 +123,7 @@ pub(crate) fn push_terminal_bg_escape(out: &mut String) {
                 let _ = write!(out, "\x1b[48;5;{idx}m");
             }
             _ => {}
-        },
-        None => {}
+        }
     }
 }
 

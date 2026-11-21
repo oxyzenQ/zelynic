@@ -227,6 +227,7 @@ pub fn format_rate_exact(bps: u64) -> String {
 /// 999.9 QB the exact count renders uncapped (u128::MAX is
 /// "340282366.9 QB"). Every OTHER surface keeps [`format_bytes`]:
 /// u64 IS the kernel map figures' truth. Examples: 1e21 → "1.0 ZB".
+#[cfg(test)]
 pub fn format_bytes_wide(bytes: u128) -> String {
     let mut out = String::new();
     format_bytes_wide_into(bytes, &mut out);

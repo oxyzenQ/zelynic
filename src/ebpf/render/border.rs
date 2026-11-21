@@ -324,146 +324,20 @@ pub(super) fn push_rail_escape(
     }
 }
 
-/// Fit one composed row to the border's content width: escape
-/// sequences are invisible (copied through whole, never cut
-/// mid-sequence), visible glyphs count against the budget by their
-/// RENDERED width (NIGHT-lts-1: CJK/fullwidth glyphs paint two
-/// columns per char — counting chars let a five-ideograph comm
-/// paint twice its budget and dent the right rail), an overlong
-/// row is cut at the boundary (a reset lands when a color was left
-/// open), and a short row pads with spaces — the right rail stays
-/// one straight edge whatever the content did.
 #[cfg(test)]
-fn fit(row: &str, width: usize) -> String {
-    let mut out = String::with_capacity(row.len() + width);
-    let mut visible = 0usize;
-    let mut seen_escape = false;
-    let mut it = row.chars();
-    while let Some(c) = it.next() {
-        if c == '\x1b' {
-            seen_escape = true;
-            out.push(c);
-            for n in it.by_ref() {
-                out.push(n);
-                if n == 'm' {
-                    break;
-                }
-            }
-            continue;
-        }
-        // The ASCII fast path inlined at the call site (the harness
-        // runs the dev profile, where a per-char cross-module call
-        // is a real frame — the bench showed it as measurable
-        // render-throughput cost; the boundary constant is
-        // char_width's own, kept in step by its pins).
-        let cw = if (c as u32) < 0x0300 {
-            1
-        } else {
-            crate::output::char_width(c)
-        };
-        if visible + cw > width {
-            break;
-        }
-        out.push(c);
-        visible += cw;
-    }
-    if seen_escape && !out.ends_with(RESET) {
-        out.push_str(RESET);
-    }
-    if visible < width {
-        out.push_str(&" ".repeat(width - visible));
-    }
-    out
-}
-
-// night-frontier-Z11 (stage 2): the wrap's retained buffers — the
-// terminal background escape, the per-row left rail prefix, and the
-// reset+bg splice string each ride a module-local scratch instead of
-// owning fresh Strings per row. The frame line pool's own
-// discipline at module scale: warm by the second frame, zero heap
-// events in steady state.
-thread_local! {
-    static BG: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
-    static LEFT: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
-    static SPLICE: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
-}
-
-/// Fit one composed row to the border's content width, IN PLACE
-/// (night-frontier-Z11): the into-twin of [`fit`] — the same walk
-/// (escapes copied whole, glyphs counted at their rendered width,
-/// the boundary cut, the open color closed, the short row padded),
-/// writing into the caller's buffer so the pooled row keeps its
-/// capacity across frames. The cut lands on a visible glyph (never
-/// mid-escape), exactly where [`fit`]'s fresh-string walk stopped
-/// copying.
-fn fit_in_place_border(buf: &mut String, width: usize) {
-    let mut visible = 0usize;
-    let mut seen_escape = false;
-    let mut cut: Option<usize> = None;
-    let mut it = buf.char_indices();
-    while let Some((idx, c)) = it.next() {
-        if c == '\x1b' {
-            seen_escape = true;
-            for (_i2, n) in it.by_ref() {
-                if n == 'm' {
-                    break;
-                }
-            }
-            continue;
-        }
-        // The ASCII fast path inlined at the call site (the same
-        // boundary constant [`fit`] inlines; the harness runs the dev
-        // profile, where a per-char cross-module call is a real
-        // frame).
-        let cw = if (c as u32) < 0x0300 {
-            1
-        } else {
-            crate::output::char_width(c)
-        };
-        if visible + cw > width {
-            cut = Some(idx);
-            break;
-        }
-        visible += cw;
-    }
-    if let Some(idx) = cut {
-        buf.truncate(idx);
-    }
-    if seen_escape && !buf.ends_with(RESET) {
-        buf.push_str(RESET);
-    }
-    while visible < width {
-        buf.push(' ');
-        visible += 1;
-    }
-}
-
-/// The background re-open splice, IN PLACE: every inner RESET gains
-/// the background back after it (NIGHT-boost-26's
-/// `content.replace(RESET, RESET+bg)`, without the owned String the
-/// replace built per row). The replacement bytes ride the module's
-/// retained splice scratch; the range splices shift bytes inside the
-/// warm row buffer.
-fn splice_bg_reopens(buf: &mut String, bg: &str) {
-    SPLICE.with(|cell| {
-        let mut repl = cell.borrow_mut();
-        let mut pos = 0usize;
-        while let Some(found) = buf[pos..].find(RESET) {
-            let at = pos + found;
-            repl.clear();
-            repl.push_str(RESET);
-            repl.push_str(bg);
-            buf.replace_range(at..at + RESET.len(), &repl);
-            pos = at + RESET.len() + bg.len();
-        }
-    });
-}
-
+use super::border_fit::fit;
 /// Wrap the composed frame in its borders. Row 0 is the title bar —
 /// [`super::title_bar`] already renders its rounded corners spanning
 /// the full width (the top border), so it passes through untouched.
 /// Every row below flanks its fitted content with the gradient
 /// rails, and the closing row lands last, in the bright anchor.
+use super::border_fit::{fit_in_place_border, splice_bg_reopens};
+
+thread_local! {
+    static BG: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
+    static LEFT: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
+}
+
 pub(super) fn wrap(lines: &mut Vec<String>, width: usize) {
     if lines.is_empty() {
         return;
@@ -506,10 +380,10 @@ pub(super) fn wrap(lines: &mut Vec<String>, width: usize) {
         // The pass-through row's inset + background, inserted in place
         // (the owned lead String's format! was another named site).
         if bg.is_empty() {
-            lines[0].insert_str(0, " ");
+            lines[0].insert(0, ' ');
         } else {
-            lines[0].insert_str(0, &bg);
-            lines[0].insert_str(0, " ");
+            lines[0].insert_str(0, bg);
+            lines[0].insert(0, ' ');
         }
         for (i, line) in lines.iter_mut().enumerate().skip(1) {
             // night-frontier-Z11: the composition happens IN the pooled
@@ -533,7 +407,7 @@ pub(super) fn wrap(lines: &mut Vec<String>, width: usize) {
             // emptiness exactly as the replace did.
             let raw_escaped = row.contains('\x1b');
             if !bg.is_empty() && raw_escaped {
-                splice_bg_reopens(&mut row, &bg);
+                splice_bg_reopens(&mut row, bg);
             }
             // The left rail: inset + background + rail color + the rail
             // glyph, spliced ahead of the content from the retained
@@ -595,7 +469,7 @@ pub(super) fn wrap(lines: &mut Vec<String>, width: usize) {
         // carries its own column escape); the flat rungs open with the
         // bright anchor exactly as they always have.
         closing.push(' ');
-        closing.push_str(&bg);
+        closing.push_str(bg);
         if !swept {
             push_rail_escape(&mut closing, theme.brand_rgb(), theme, cap);
         }

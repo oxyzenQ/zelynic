@@ -42,6 +42,26 @@ v80.0.0
 
 ### Added
 
+- **night-frontier-Z11: the zero-heap frame ladder — the render
+  composition's remaining heap events closed stage by stage, every
+  landing pinned by the counting allocator.** The floor pin measured
+  164 heap events per frame after Z4's pool (249 pre-pool); Z11's
+  three stages took it to 34: stage 1 (the title bar, the swept
+  bar, the grid lines, the rail escapes, and the sweep memo's
+  clone path ride into-twins and pooled rows), stage 2 (the border
+  wrap composes IN the pooled rows — fit in place, the background
+  splice in place, the rails through the escape twin — the closing
+  row and the background escape on retained buffers), stage 3 (the
+  detail tree's lines and every footer row push pooled rows; the
+  grey and brand brackets carry their static opens and resets).
+  The floor lowered 240 → 200 → 130 → 110 → 50 with each closing
+  commit, byte parity held (204 render pins green, a new drift
+  guard holds the in-place fit against the reference fit over a
+  hostile row set), and the owner's A/B read back byte-identical
+  visuals (bytes/frame 1919.0 on both sides; emit, gini, entropy,
+  dirty cells all inside window noise) with the allocation floor
+  4.8x lower.
+
 - **night-frontier-Z9: the verifier budget ledger — the enforcement
   estate's verifier cost is a pinned contract, not folklore.** The new
   census-and-gate battery

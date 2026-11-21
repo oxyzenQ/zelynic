@@ -61,10 +61,11 @@ mod zombie;
 mod wiring;
 // Re-export public types/functions for external use (the
 // parse/format LOC-cap splits kept this surface unchanged).
+#[cfg(test)]
+pub use format::format_bytes_wide;
 pub use format::{
-    default_burst, format_bytes, format_bytes_exact, format_bytes_into, format_bytes_wide,
-    format_bytes_wide_into, format_count, format_count_into, format_rate, format_rate_exact,
-    monotonic_ns, terminal_width,
+    default_burst, format_bytes, format_bytes_exact, format_bytes_into, format_bytes_wide_into,
+    format_count, format_count_into, format_rate, format_rate_exact, monotonic_ns, terminal_width,
 };
 pub use parse::{
     parse_focus_window, parse_monitor_interval, parse_rate, parse_time_duration, validate_rate,

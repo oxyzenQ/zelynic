@@ -381,6 +381,9 @@ fn full_frame_wears_the_border() {
 /// receives changed shape without a pin catching it).
 #[test]
 fn fit_in_place_border_matches_the_reference_fit() {
+    // NON_LATIN_FIXTURE: the CJK row below is runtime width-measurement
+    // coverage (the two-column ideograph the fit walk must count), the
+    // title.rs narrow-ladder pin's own precedent.
     let rows = [
         "plain ascii row",
         "\x1b[38;2;1;2;3mcolored row\x1b[0m with tail",
