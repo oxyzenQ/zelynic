@@ -241,6 +241,46 @@ Hosted (the API record, not estimates):
   2026-11-29 03:00 UTC (10:00 WIB), the verdict greets the dragon
   with the week's first coffee.
 
+## Continuation (same night, commit a84a50d): the bounded walk and the outage verdict
+
+The outage outlived the record — probes hours apart still read the
+archive dead — so the named cache lever stayed a lever (it needs its
+own signed round), and the leg shipped the smaller honest fix
+instead. Three things, all measured:
+
+- The substitute-source question is closed with evidence, not
+  assumption: the third-party estate carries no
+  `/packages/l/linux-lts` tree (every archive-path shape probed 404
+  at tuna, sjtug, ustc, zju, kernel.org's edge, osbeck, mit, and
+  rackspace; the official mirror API lists no mirror serving the
+  archive), the Internet Archive's per-package collection
+  (`archlinux_pkg_linux-lts`) tops out at linux-lts 3.10.43, and its
+  full-snapshot item (`archlinuxarchive`) carries no package tree —
+  archive.archlinux.org is the one canonical history source, exactly
+  what Find 3 read from the core index (6.18.64 and nothing older).
+- The fetch walks bounded now (a84a50d): two tight attempts
+  (connect-timeout 10, max-time 60 for the index, 240 for the
+  package) replaced the seven blind retries, and on failure the
+  DNS-vs-host diagnosis speaks. The live run 44947108301 measured
+  it: 25 seconds from step entry to a verdict that names the class
+  (`resolver answers + connect dead = host-side outage of
+  archive.archlinux.org ... not a code regression; rerun the lane
+  when the archive returns`), against the five-and-a-half-minute
+  bare exit 28 this same outage produced the night before.
+- The verdict machinery itself re-proved on the host, not only in
+  CI: the fixture battery rode the live advisory DB. Scenario B
+  held the lane (time 0.1.45 under its exact pin survives the
+  sweep — RUSTSEC-2020-0071, the per-finding `::error` CALL OWNER
+  annotation, exit 1). Scenario A's clearing printed both cleared
+  rows whole (chrono 0.4.19 and the transitive time 0.1.45 under
+  RUSTSEC-2020-0159, the `::warning` notices, exit 0). The
+  fail-closed class fired twice on scanner-unreadable inputs. And
+  the live DB added one unscripted proof: the sweep's own move
+  (chrono 0.4.45) carries RUSTSEC-2026-0543 (unmaintained), the
+  post-pass flagged it and held the lane — an unmaintained advisory
+  has no version fix, so the verdict's refusal is the contract
+  working, not the fixture failing.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

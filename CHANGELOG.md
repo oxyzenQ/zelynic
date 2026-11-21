@@ -46,6 +46,37 @@ v80.0.0
 
 ### Added
 
+- **night-solid-defense-1: the maintenance lane becomes AXP1-ZnQ, the
+  security supply-chain sentinel — and the E2E floor-kernel leg learns
+  to name its outage.** The Sunday 10:00 WIB lane wraps the dependency
+  sweep in the supply-chain verdict
+  (`scripts/ci/supplychain-verdict.sh`): a pre-pass scans every
+  committed lockfile against the live RustSec advisory DB, the sweep
+  runs, and the post-pass speaks the owner's two scenarios — fixable
+  findings stay green with a loud `::warning` (the fix ships in the
+  same run), findings that survive the sweep fail hard with per-finding
+  `::error` CALL OWNER annotations and gate the commit lane (nothing
+  ships while a dangerous dep has no automatic update path); the
+  scanner is pinned exactly like the audit lane (cargo-audit 0.22.2,
+  `--locked`) and every unreadable scanner shape fails closed. The
+  `scan_only` dispatch input is the owner's red button (the whole
+  verdict, nothing ships), and the GPG expiry monitor joined the same
+  Sunday clock with an empty-success guard. Both scenarios proven live
+  on the host against the real advisory DB (scenario B: time 0.1.45
+  under RUSTSEC-2020-0071 held the lane, exit 1; scenario A: chrono
+  0.4.19 under RUSTSEC-2020-0159 cleared by the sweep with both rows
+  printed, exit 0; the swept-to chrono 0.4.45's own RUSTSEC-2026-0543
+  unmaintained flag proved the refusal contract). The 2026-11-21
+  archive.archlinux.org host outage (global, hours-long, the
+  substitute-source audit measured every mirror and Internet Archive
+  collection empty of the 6.6 tree) reddened the E2E Arch floor leg;
+  the fetch now walks bounded (two tight attempts, connect-timeout 10,
+  max-time 60/240) and on failure prints the DNS-vs-host verdict —
+  25 seconds to `host-side outage ... not a code regression` in run
+  44947108301, against five and a half minutes of blind exit 28 the
+  night before. Details in
+  [docs/audits/NIGHT_SOLID_DEFENSE_1_AXP1_ZNQ_SENTINEL_2026-11-22.md](docs/audits/NIGHT_SOLID_DEFENSE_1_AXP1_ZNQ_SENTINEL_2026-11-22.md).
+
 - **night-frontier-Z11: the zero-heap frame ladder — the render
   composition's remaining heap events closed stage by stage, every
   landing pinned by the counting allocator.** The floor pin measured
