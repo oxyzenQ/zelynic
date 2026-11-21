@@ -395,7 +395,9 @@ pub fn brand_bold(msg: &str) -> String {
 /// The into-twin of [`brand_bold`] (night-frontier-Z11, the frame
 /// render's allocation ladder): the same bytes into a caller-owned
 /// buffer — the frame path's flat brand wraps stop owning a fresh
-/// String per row. The multi-line debug guard rides along.
+/// String per row. The multi-line debug guard rides along. The
+/// ebpf gate is the render tree's own (its only callers).
+#[cfg(feature = "ebpf")]
 pub fn brand_bold_into(out: &mut String, msg: &str) {
     debug_assert!(
         !msg.contains('\n'),

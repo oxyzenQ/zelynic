@@ -64,9 +64,11 @@ pub(crate) mod chroma;
 // with one NIGHT-boost-20 exception: the eagle-eyes border gradient
 // interpolates the ACTIVE theme's brand RGB per row, so it borrows
 // the capability probe (never escapes: it builds its own ramp).
-pub use color::{
-    brand, brand_bold, brand_bold_into, error, error_bold, ok, ok_bold, reset, warn_bold,
-};
+pub use color::{brand, brand_bold, error, error_bold, ok, ok_bold, warn_bold};
+// night-frontier-Z11: the frame render's into-twin faces - the ebpf
+// tree's own (the plain CLI build carries no callers).
+#[cfg(feature = "ebpf")]
+pub use color::{brand_bold_into, reset};
 // `suggestion` rides the ebpf gate its call sites wear (display.rs stale
 // lines, recover.rs action lines — the NIGHT-dinner-12 white tier): the
 // dormant lane's strict build (-D warnings) counts the ungated re-export
