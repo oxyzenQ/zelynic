@@ -32,7 +32,7 @@
 # minutes.
 #
 # The twelfth harness, daily_margin_erodes_monotonically_for_all_inputs,
-# stays wired out of BOTH lanes by signed census verdict: its
+# stays wired out of the per-push lane by signed census verdict: its
 # constant-modulo circuit was measured undecided under every backend,
 # so the sampled tier carries the margin law (the harness doc comment
 # and the Z6 audit hold the record — a hunt that flags it a gap is

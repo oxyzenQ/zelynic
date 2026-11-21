@@ -200,13 +200,14 @@ fn window_domain_is_total_for_all_inputs() {
 /// active set, never grow it — for every (position, window, margin)
 /// triple in the u64 domain.
 ///
-/// Wired out of both CI lanes by signed census verdict: the
+/// Wired out of CI by signed census verdict: the
 /// constant-modulo circuit was measured undecided under every
 /// backend, so the sampled tier carries this law until one does.
-/// The harness never runs in proofs.yml or proofs-night.yml (the
-/// lane headers hold the record); it executes only on a direct
+/// The harness never runs in proofs.yml (the lane header holds the
+/// record — the night vehicle proofs-night.yml retired whole in
+/// night-fly-1); it executes only on a direct
 /// `cargo kani --lib --harness` call. A hunt that flags its absence
-/// from the lanes is re-reading a decision, not finding a gap.
+/// from the lane is re-reading a decision, not finding a gap.
 #[kani::proof]
 fn daily_margin_erodes_monotonically_for_all_inputs() {
     let secs: u64 = kani::any();
