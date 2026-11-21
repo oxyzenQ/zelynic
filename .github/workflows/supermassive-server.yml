@@ -90,7 +90,7 @@ jobs:
     # The cloud-image boot + proof is ~3-5 min on a hosted runner once
     # the image is cached; the budget is for the cold download and the
     # one retry a flaky mirror may owe.
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin

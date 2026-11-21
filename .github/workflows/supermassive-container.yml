@@ -104,7 +104,7 @@ jobs:
   docker-e2e:
     name: Container E2E - docker (native)
     runs-on: ubuntu-26.04
-    timeout-minutes: 25
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
         with:
@@ -189,7 +189,7 @@ jobs:
   k8s-e2e:
     name: Container E2E - k8s (kind)
     runs-on: ubuntu-26.04
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
         with:
@@ -321,7 +321,7 @@ jobs:
   netns-e2e:
     name: Container E2E - netns (native)
     runs-on: ubuntu-26.04
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
         with:
@@ -407,7 +407,7 @@ jobs:
   iface-e2e:
     name: Container E2E - iface (native)
     runs-on: ubuntu-26.04
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
         with:

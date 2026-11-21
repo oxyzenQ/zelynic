@@ -79,7 +79,7 @@ jobs:
     # into a terminal and get the same gate locally.
     name: build.sh check-all -q
     runs-on: ubuntu-26.04
-    timeout-minutes: 40
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
         with:
@@ -247,7 +247,7 @@ jobs:
         # surprise; the shape stays one line from the next span leg.
         os: [ubuntu-26.04]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 40
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
         with:
@@ -402,7 +402,7 @@ jobs:
   musl-arm64:
     name: Musl Static ARM64 (native alias)
     runs-on: ubuntu-26.04-arm
-    timeout-minutes: 40
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
         with:
@@ -509,7 +509,7 @@ jobs:
         # (actions/runner-images#14748) can surprise anyone.
         os: [ubuntu-26.04]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
         with:
