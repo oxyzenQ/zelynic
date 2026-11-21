@@ -242,14 +242,32 @@ fn push_swept_bar(out: &mut String, glyphs: &str, text: Option<(usize, usize)>, 
             match seg {
                 Some((_s, open)) if open == g => {}
                 Some((s, open)) => {
-                    super::sweep::push_sweep_run(out, open, s, col - s, width, theme, Some(anchor), cap);
+                    super::sweep::push_sweep_run(
+                        out,
+                        open,
+                        s,
+                        col - s,
+                        width,
+                        theme,
+                        Some(anchor),
+                        cap,
+                    );
                     seg = Some((col, g));
                 }
                 None => seg = Some((col, g)),
             }
         } else {
             if let Some((s, open)) = seg.take() {
-                super::sweep::push_sweep_run(out, open, s, col - s, width, theme, Some(anchor), cap);
+                super::sweep::push_sweep_run(
+                    out,
+                    open,
+                    s,
+                    col - s,
+                    width,
+                    theme,
+                    Some(anchor),
+                    cap,
+                );
             }
             // The label's chars and the bare spaces paint nothing
             // here — the open SGR's bold brand colors the label

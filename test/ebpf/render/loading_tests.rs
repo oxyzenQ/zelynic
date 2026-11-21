@@ -13,8 +13,8 @@
 use super::*;
 // The bar's owned face (night-frontier-Z11: the module itself rides
 // the title_bar_into twin now, so the pin names its own import).
-use crate::ebpf::render::title_bar;
 use crate::ebpf::render::ScrollState;
+use crate::ebpf::render::title_bar;
 
 /// Both frames the morph pin compares carry the status line, whose
 /// theme slot follows the process-global theme — other pins
