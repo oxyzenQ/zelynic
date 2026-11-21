@@ -264,12 +264,16 @@ jobs:
           set -euo pipefail
           echo "===== PHASE 1.5: DEPTH HISTOGRAM (sampled, log2 buckets) ====="
           CGID=$(stat -c '%i' /sys/fs/cgroup/zverify)
-          echo "--- apply the limit (the v34 enforce hooks record) ---"
-          sudo zelynic s "cg:${CGID}" 100kb
-          echo "--- generate traffic (thousands of packets; several 1/1024 samples) ---"
-          sudo bash -c \
-            'echo $$ > /sys/fs/cgroup/zverify/cgroup.procs; \
-             exec ip netns exec rtt curl -s --max-time 15 -o /dev/null http://10.200.0.1:8000/payload.bin' || true
+          echo "--- line the path up first (the leg B netem 300ms must go: at that RTT the adaptive window itself caps the wire near 100KB/s, no matter the applied rate) ---"
+          sudo ip netns exec rtt tc qdisc del dev veth-rtt-ns root || true
+          echo "--- apply the limit (the v34 enforce hooks record; 2mb keeps the phase bounded while the sampler needs the volume) ---"
+          sudo zelynic s "cg:${CGID}" 2mb
+          echo "--- generate traffic (the tick is every 2^10-th packet PER CPU and GRO hands the hook ~2.5KB skbs, so the phase moves tens of MB: >= 10k skbs to place >= 10 samples per CPU path; the former single 15s curl at 100kb moved 1.86MB in 737 skbs, under one tick, zero samples deterministic) ---"
+          for i in 1 2; do
+            sudo bash -c \
+              'echo $$ > /sys/fs/cgroup/zverify/cgroup.procs; \
+               exec ip netns exec rtt curl -s --max-time 15 -o /dev/null http://10.200.0.1:8000/payload.bin' || true
+          done
           echo "--- the depth report's histogram block ---"
           sudo zelynic ee --depth "cg:${CGID}" --print-json | python3 -c '
           import json, sys
