@@ -458,8 +458,10 @@ itself.
 Never renamed, never re-cased — verbatim by nature (the audit
 leaves them exactly as their owners wrote them):
 
-- the GPG signing identity `Rezky Cahya Sahputra (cosmic dragon)` —
-  real-world key data, already lowercase
+- the GPG signing identities `rezky_nightky (oxyzenQ)
+  <oxyzenQ@proton.me>` (the primary UID) and `Rezky Cahya Sahputra
+  (cosmic dragon) <130107241+oxyzenQ@users.noreply.github.com>` (the
+  aka UID) — real-world key data, verbatim
 - cosmostrix's own artifacts quoted verbatim: the workflow name
   "Cosmic Dragon Guard - Release", the retired zelynic `-V` literal
   `Architecture: Cosmic Dragon (pure eBPF)` (byte-exact history)

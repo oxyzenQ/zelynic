@@ -32,7 +32,9 @@ the cosmostrix releases**. One key, one identity, both projects:
 users who already verified cosmostrix artifacts import nothing new.
 The signing subkeys rotate on a bounded hygiene cycle; the keyserver
 always carries the current set — trust it over any list printed here.
-UID: `Rezky Cahya Sahputra (cosmic dragon)
+UIDs (primary first, the keyserver's list order):
+`rezky_nightky (oxyzenQ) <oxyzenQ@proton.me>`,
+`Rezky Cahya Sahputra (cosmic dragon)
 <130107241+oxyzenQ@users.noreply.github.com>`.
 
 ### Verify the signature
@@ -45,8 +47,14 @@ UID: `Rezky Cahya Sahputra (cosmic dragon)
 gpg --verify zelynic-vX.Y.Z-linux-amd64-v3-musl.tar.gz.asc
 ```
 
-Expected output contains:
-`gpg: Good signature from "Rezky Cahya Sahputra (cosmic dragon) ..."`.
+Expected output contains (the primary UID owns the `Good signature`
+line, the second UID rides the `aka` line):
+
+```text
+gpg: Good signature from "rezky_nightky (oxyzenQ) <oxyzenQ@proton.me>" [ultimate]
+gpg:                 aka "Rezky Cahya Sahputra (cosmic dragon) <130107241+oxyzenQ@users.noreply.github.com>" [ultimate]
+```
+
 A `Good signature` line confirms authenticity. The
 `WARNING: This key is not certified with a trusted signature` notice
 is normal for first-time imports — verify the fingerprint matches
