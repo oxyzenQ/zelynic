@@ -60,10 +60,13 @@ generator's invisibility assertion pins the longest printable run
 across all masked words at 3, below strings(1)'s four-byte floor):
 
 - D0: the full-life manifest ("Pure eBPF builtin — Official Build by
-  rezky_nightky (oxyzenQ) 2026") and the dormant manifest ("eBPF
-  dormant — ...") — TWO manifests because the claims discipline (QA.md)
-  is real: a dormant build must not claim objects it does not carry,
-  and the anchor seals both lanes so a patched claim breaks on either.
+  rezky_nightky (oxyzenQ)" — 63 UTF-8 bytes today; the audit-date
+  truths still carried a trailing " 2026" year slot, removed by
+  night-ux-orion-3, see the amendment below) and the dormant manifest
+  ("eBPF dormant — ...", 58 bytes today) — TWO manifests because the
+  claims discipline (QA.md) is real: a dormant build must not claim
+  objects it does not carry, and the anchor seals both lanes so a
+  patched claim breaks on either.
 - D1: the authors string ("rezky_nightky (oxyzenQ)").
 - D2: the FNV-1a 64-bit fingerprints, const-evaluated at compile time
   directly from the masked words — the plaintext never exists as a
@@ -140,6 +143,27 @@ threat — and it closes it: there is nothing greppable to find, and a
 rebrand that rewrites the visible branding still ships constants it
 does not recognize, materializing the original owner. The legal layer
 (NOTICE, TRADEMARK.md, AGPL) is the backstop.
+
+## Amendment — night-ux-orion-3 (the manifests go yearless)
+
+2026-11-21. The owner ruled the trailing year in the materialized
+Signature line a wrong format (a year belongs at the front of the
+copyright line, never dangling after the identity) and ordered it
+removed from every output surface. The rotation ran through the
+generator, per its own law (edit the truths, re-run, paste — never
+hand-edit the words): the truths dropped the " 2026" suffix, the
+masked words regenerated (one tail word changed per manifest), the
+fingerprints and the blake3 anchor recomputed over the new clear
+bytes. The full-life manifest is now 63 bytes (fp 247d2835ac8bde6a,
+8 words), the dormant 58 bytes (fp d8bb2b18d03d2a40, 8 words); the
+authors layer is untouched (43 bytes, fp 66771e5f273b9cae). The new
+anchor is b3:acf8e138aae172fb2974448eb34fa19fce29909d5755b2c2dca2a611e862e657.
+Consequence, honest: zelynic's manifest fingerprint no longer matches
+zylaxion's (the sibling still carries the year) until that estate
+rotates to the same yearless shape — the pre-amendment note above
+about byte-identity with the sibling describes the audit-date state.
+The strings-invisibility contract held through the rotation (the
+generator's longest-printable-run assertion stayed at 3).
 
 <!-- ZELYNIC-DISCLAIMER -->
 <!--

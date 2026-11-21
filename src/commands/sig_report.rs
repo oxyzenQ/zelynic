@@ -216,14 +216,16 @@ pub(crate) fn sig_report() -> (String, SigVerdict) {
     let view = provenance_view();
 
     // D0: the lane-honest manifest materialized and carries the
-    // identity shape (marker + identity + year).
+    // identity shape (marker + identity, yearless since
+    // night-ux-orion-3).
     let identity = identity_of(&view.manifest);
     let d0_shape_ok = !identity.is_empty();
 
     // D1: the authors layer materialized and binds to the identity.
-    // identity_of now renders the clean core (the manifest's year slot
-    // stripped), so the binding compares against it directly - the
-    // inline year strip was a second, drift-prone copy of that law.
+    // identity_of renders the clean core (the defensive trailing-year
+    // strip never fires on the yearless truths), so the binding
+    // compares against it directly - the inline year strip was a
+    // second, drift-prone copy of that law.
     let binding_ok = !identity.is_empty() && view.authors.starts_with(&identity);
 
     // D2: the cryptographic anchor (already recomputed in the same

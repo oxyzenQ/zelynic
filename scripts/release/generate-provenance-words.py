@@ -57,8 +57,8 @@ Usage:
 
 # The provenance truths. Byte-level truth: UTF-8 (the em dash is three
 # bytes, E2 80 94, and every layer below operates on bytes, not chars).
-MANIFEST_FULL = "Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ) 2026"
-MANIFEST_DORMANT = "eBPF dormant — Official Build by rezky_nightky (oxyzenQ) 2026"
+MANIFEST_FULL = "Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)"
+MANIFEST_DORMANT = "eBPF dormant — Official Build by rezky_nightky (oxyzenQ)"
 AUTHORS = "rezky_nightky (oxyzenQ) <oxyzenQ@proton.me>"
 
 # Per-layer seeds. Decoys with no external meaning; rotating them is a

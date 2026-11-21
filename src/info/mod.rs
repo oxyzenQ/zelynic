@@ -187,8 +187,8 @@ fn version_body() -> String {
 /// Per-app network rate limiter and traffic monitor for Linux. Pure eBPF. Boring and silent.
 /// Build: pro-linux-amd64-v3-musl (ad36a81)
 /// Build-time: 2026-09-18 01:30Z
-/// Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ) 2026
-/// Depth-matrix: fp=a60dfb6a39745f34 status=verified anchor=b3:dbcbb0eb... layers=d0:masked-words,d1:masked-words,d2:dual-fingerprint,d3:blake3-anchor
+/// Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)
+/// Depth-matrix: fp=247d2835ac8bde6a status=verified anchor=b3:acf8e138... layers=d0:masked-words,d1:masked-words,d2:dual-fingerprint,d3:blake3-anchor
 /// Copyright (c) 2025-2026 rezky_nightky (oxyzenQ)
 /// License: AGPL-3.0-only OR Commercial
 /// Source: https://github.com/oxyzenQ/zelynic
@@ -373,10 +373,12 @@ mod tests {
                 _ => "Pure eBPF builtin",
             }
         );
-        // The materialized manifest carries the owner identity and the
-        // year (the runtime surface the masked layers exist to feed).
+        // The materialized manifest carries the owner identity, yearless
+        // since night-ux-orion-3 (a year belongs at the front of the
+        // Copyright line, never dangling after the identity — the
+        // runtime surface the masked layers exist to feed).
         assert!(
-            expected.ends_with("Official Build by rezky_nightky (oxyzenQ) 2026"),
+            expected.ends_with("Official Build by rezky_nightky (oxyzenQ)"),
             "the materialized manifest must end with the owner identity: {expected}"
         );
     }
