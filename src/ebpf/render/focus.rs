@@ -138,7 +138,11 @@ pub fn render_eagle_focus(
     // one column inside the terminal — so wrap's leading inset
     // lands the corners one column from each edge.
     let mut bar = pooled_line();
-    title_bar_into(&title_core, super::border::frame_width(full_width), &mut bar);
+    title_bar_into(
+        &title_core,
+        super::border::frame_width(full_width),
+        &mut bar,
+    );
     lines.push(bar);
 
     // The breathing gap (NIGHT-boost-14): same air under the title
