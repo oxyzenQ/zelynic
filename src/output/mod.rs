@@ -277,12 +277,18 @@ pub mod verbose;
 // window, and the dormant (--no-default-features) lane must not
 // compile dead code — CI's workflow-level RUSTFLAGS -D warnings
 // turns that into a hard error the local gate never sees.
+// night-ux-orion-1: the loading lane's machine and its style seat —
+// the doctor's plain-build sweep rides it too, so the module is
+// ungated (std only; the capture spinner below keeps its own gate —
+// its one consumer is the ebpf-gated eagle depth window, and the
+// dormant (--no-default-features) lane must not compile dead code,
+// the same CI -D warnings law).
+pub(crate) mod loading;
+pub(crate) use loading::{Loader, Style};
 #[cfg(feature = "ebpf")]
 pub(crate) mod spinner;
 #[cfg(feature = "ebpf")]
 pub(crate) use spinner::Spinner;
-// night-ux-orion-1: the loading lane's machine and its style seat.
-pub(crate) use spinner::{Loader, Style};
 
 #[cfg(feature = "ebpf")]
 pub use color::{brand_open, grey_open, hot_open, ok_open, paint_in_place, warn_open};
