@@ -64,7 +64,7 @@ AUTHORS = "rezky_nightky (oxyzenQ) <oxyzenQ@proton.me>"
 # Per-layer seeds. Decoys with no external meaning; rotating them is a
 # supported operation (re-run this tool, paste the new block). All three
 # must differ so the layers never produce identical .rodata bytes.
-# SEED_AUTHORS rotation (night-pro-1): the then-57-byte gmail
+# SEED_AUTHORS rotation (night-pro-1): the then-57-byte retired
 # contact-address authors truth under the retired 0x8F62_D3B1_47E9_A208
 # seed masked into a 5-byte printable ASCII run, breaking the
 # strings-invisibility contract below; the rotated seed holds the
