@@ -581,9 +581,12 @@ fn steady_state_frame_composition_allocates_zero() {
     // 249 pre-pool — and 30 after Z13 stage 4a, the holders' walk
     // scratch closed: the outer Vec, the per-holder endpoint Vecs,
     // and the ranked copy all ride the capacity-warm HOLDER_WALK
-    // index buffer now). A change that closes a named site LOWERS the
+    // index buffer now — and 27 after stage 4b, the signature
+    // engraving's static seat (the footer's push_str reads a
+    // &'static str; the per-frame format! and brand wrap are gone).
+    // A change that closes a named site LOWERS the
     // floor (and should, in the same commit that closes it).
-    const FLOOR: usize = 34;
+    const FLOOR: usize = 30;
     // The measured number on the record: every run prints the quiet
     // count, so the floor's own trend is visible in the battery's
     // output (night-frontier-Z11's ladder law — a closed site LOWERS
