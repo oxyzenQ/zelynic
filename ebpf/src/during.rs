@@ -181,6 +181,17 @@ pub fn wall_of_day_ns(wall_ns: u64) -> u64 {
 /// never reach this function (the caller dispatches on kind), but
 /// the function stays total for any (secs, start_s, end_s) it is
 /// handed — the pin family holds that.
+///
+/// night-frontier-Z12 (the for-all completion): the comparator core
+/// is extracted so the margin-erosion theorem quantifies over THIS
+/// function — the pure three-comparison law the solver decides
+/// for-all — while the day reduction (the two mod circuits) composes
+/// it with the clock. A pure move: the verdict arithmetic is
+/// bit-identical, the helper is #[inline(always)] in both trees, and
+/// the kani margin harness quantifies over the extracted shape
+/// because a relation through TWO recomputed mod chains is the
+/// circuit class the pinned solver generation cannot decide (the Z12
+/// census holds the measurements).
 #[inline(always)]
 pub fn daily_active(secs: u64, start_s: u32, end_s: u32, margin_ns: u64) -> bool {
     let start = u64::from(start_s).saturating_mul(1_000_000_000);
@@ -192,6 +203,20 @@ pub fn daily_active(secs: u64, start_s: u32, end_s: u32, margin_ns: u64) -> bool
         return false;
     }
     let rel = secs.wrapping_sub(start) % NS_PER_DAY;
+    daily_active_rel(rel, len, margin_ns)
+}
+
+/// The extracted margin comparator (night-frontier-Z12): the pure
+/// erosion law the for-all tier proves — active(rel, len, m) means
+/// the instant sits inside the window AND outside both margin edges.
+/// Wider margins only shrink the active set: `rel >= m` and
+/// `len - rel > m` both tighten as m grows, so a wider margin's
+/// active instant is always the narrower margin's active instant.
+/// The subtraction cannot underflow (rel < len is conjunct one —
+/// the caller's ordering guarantees `len - rel >= 1` on the paths
+/// the third conjunct evaluates).
+#[inline(always)]
+pub fn daily_active_rel(rel: u64, len: u64, margin_ns: u64) -> bool {
     rel < len && rel >= margin_ns && len - rel > margin_ns
 }
 

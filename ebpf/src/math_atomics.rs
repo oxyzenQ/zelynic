@@ -185,15 +185,30 @@ pub fn book_rescue(stats: &mut LimiterStats, pkt_len: u32) {
 ///
 /// Contract: `rate_bps > 0` and `burst_bytes <= MAX_ENFORCABLE_BURST`
 /// (the security-3 trust boundary — guaranteed by every caller; the
-/// guard below protects the division for standalone use).
+/// guard below keeps the standalone path defined for any input).
 ///
 ///  * fill-detect: once the true refill reaches 2x burst, the bucket
-///    caps at burst anyway — skip the multiply, credit burst, reset
-///    the fraction (matching the cap branch in enforce). Not an
-///    optimization alone but the OVERFLOW GUARD: the exact branch
-///    only runs while `elapsed < fill_ns`, and
-///    `fill_ns * rate == 2 * burst * NS_PER_SEC` bounds the product
-///    by construction.
+///    caps at burst anyway — credit burst, reset the fraction
+///    (matching the cap branch in enforce). Not an optimization
+///    alone but the OVERFLOW GUARD. night-frontier-Z12 moved the
+///    guard's compare to the PRODUCT side of the threshold — the
+///    predicate the contract always stated ("the exact arithmetic
+///    runs only while `elapsed x rate < 2 x burst x NS_PER_SEC`"),
+///    now the literal code — via a split-multiply form that is
+///    bit-exact against the division-era shape for EVERY input:
+///    the BPF ISA has no 128-bit multiply, and both a checked and a
+///    saturating multiply lower to the `__multi3` compiler-rt
+///    helper the aya loader cannot relocate (the prebuilt-parity
+///    gate caught the first Z12 draft on exactly that symbol). The
+///    split form computes the SAME product from two multiplies
+///    whose operands the one-second cap bounds under 2^62, detects
+///    the overflow bit with a shift-carry compare, and assembles
+///    the exact product on the fitting side — no symbolic division
+///    in the object (a 64-bit division left the per-packet refill
+///    path with this restructure), no relocation the loader cannot
+///    serve, and no derivation-through-a-division obligation for
+///    the for-all tier (the inversion class the pre-Z12 shape died
+///    behind; the Z12 census holds the measurements).
 #[inline(always)]
 pub fn refill_credits(
     rate_bps: u64,
@@ -211,14 +226,37 @@ pub fn refill_credits(
     if rate_bps == 0 || elapsed == 0 {
         return (0, healthy_frac);
     }
-    let fill_ns = (2 * burst_bytes * NS_PER_SEC) / rate_bps;
-    if elapsed >= fill_ns {
+    // The fill-detect threshold: the true refill at or past 2x burst
+    // is the cap branch's answer regardless of the exact figure. The
+    // burst contract (<= MAX_ENFORCABLE_BURST) keeps the product
+    // representable by construction; the Z12 theorem quantifies over
+    // exactly that contract.
+    let threshold = 2 * burst_bytes * NS_PER_SEC;
+    // The product, assembled bit-exactly (see the docs above):
+    // rate = hi << 32 | lo, so elapsed x rate =
+    // (elapsed x hi) << 32 + elapsed x lo, and each multiply's
+    // operands are bounded by the one-second cap — elapsed < 2^30,
+    // each half < 2^32 — so each product stays under 2^62. The
+    // overflow bit of the sum is the shift-carry compare: the true
+    // product is q x 2^32 + low, and it reaches 2^64 exactly when
+    // q reaches 2^32.
+    let hi = rate_bps >> 32;
+    let lo = rate_bps & 0xFFFF_FFFF;
+    let p1 = elapsed * hi;
+    let p2 = elapsed * lo;
+    let q = p1 + (p2 >> 32);
+    if q >= 1u64 << 32 {
+        // The product overflowed u64: past the threshold by the burst
+        // contract (threshold <= u64::MAX), the fill branch's answer.
+        return (burst_bytes, 0);
+    }
+    let product = (q << 32) | (p2 & 0xFFFF_FFFF);
+    if product >= threshold {
         // Refill >= 2x burst: the cap in enforce makes the exact
         // value irrelevant — burst is the answer (the overflow
         // guard; see the function docs).
         return (burst_bytes, 0);
     }
-    let product = elapsed * rate_bps;
     let mut whole = product / NS_PER_SEC;
     let mut new_frac = product % NS_PER_SEC;
     // Accumulate the fractional remainder. If it overflows
