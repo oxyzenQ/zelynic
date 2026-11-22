@@ -1304,6 +1304,80 @@ its levers unchanged), and the Z12 census's probe record — which
 algebra this solver generation decides — is the next maintainer's
 map for every future harness.
 
+## night-frontier-Z13 — the subprogram census (D11) and the zero-heap completion (D12)
+
+### D11 — the bpf2bpf subprogram census: the rung the mirror named is already landed
+
+The hole: the mirror's deferred entry (and the Z6 audit beside it) carried
+two unmeasured sentences — "the B2B subprogram shape cannot dedup on a
+loader that ships no func_info", and a reopen condition "the hand-rolled
+loader ships program func_info (BTF-driven B2B dedup — real verifier
+headroom for any future enforcer lane)". Both date from the raw-syscall
+loader era; nothing in the tree counted the subprogram population of the
+two embedded objects, and nothing recorded whether program func_info rides
+the load path. A verifier rung proposed on unmeasured premises is exactly
+the shape the estate's honesty law refuses — so Z13 measures before it
+builds (the ACK-clock census precedent, Z7's D4).
+
+The instrument (`scripts/supermassive/verifier-subprogram-census.py`): a
+raw ELF/BTF walk of both embedded objects — BTF_FUNC kinds with linkage,
+.BTF.ext func_info records, every call instruction (opcode 0x85) split by
+its src_reg spelling, and the R_BPF_64_32 call relocations (the bpf-linker
+on-disk spelling of a not-yet-relocated b2b call: opcode 0x85, imm -1, the
+target arriving through the reloc; the loader rewrites it to
+BPF_PSEUDO_CALL with the callee's byte offset at BPF_PROG_LOAD time). No
+kernel needed; the objects are the parity-gated bytes both lanes embed
+(ebpf-prebuilt/manifest.toml + scripts/gates/check-prebuilt-parity.sh).
+
+The measured population (the v80.4.0 objects, the night-frontier-Z12
+build):
+
+- `zelynic-limiter.o`: 10 BTF_FUNC kinds — the four estate programs
+  (enforce_dl cgroup_skb/ingress, enforce_ul cgroup_skb/egress,
+  zelynic_pace and zelynic_recwn sockops) plus ONE user subprogram:
+  `hist_record` (static linkage, .text+0, 292 insns), and the five
+  compiler builtins (memcpy, memmove, memset, bcmp, memcmp). 30 b2b call
+  sites, all in the two enforcers: 1 x hist_record + 14 x memset per
+  enforcer, every one reloc-backed.
+- `zelynic-observer.o`: 7 BTF_FUNC kinds — observe_egress and
+  observe_ingress plus the same five builtins; ZERO b2b call sites and
+  zero relocs (the dead rung by measurement on the observer side).
+
+And the load-path proof (the sentence the audits got wrong): the loader is
+not the raw-syscall walker of the Z6 era — it is aya 0.16
+(`EbpfLoader::load`, src/ebpf/limiter/mod.rs), and aya-obj 0.6 parses the
+objects' .BTF.ext func_info (the obj.rs Program struct carries
+func_info/func_info_rec_size, filtered to the program's own section), then
+aya fills them into the BPF_PROG_LOAD attributes (aya programs/mod.rs:
+`func_info: func_info.clone()` into the load attr). Program func_info
+ships on EVERY load — measured 116 B covering all ten limiter functions,
+84 B all seven observer functions.
+
+The verdict, three parts:
+
+1. The rung "ship program func_info (BTF-driven B2B dedup)" is NOT A RUNG
+   ANYMORE: it is the load path's standing reality. The mirror's reopen
+   condition is satisfied-today and retires as a condition (the mirror
+   stays deferred — its remaining conditions, the walk-cost ceiling and
+   the in-process observer surface, are untouched).
+2. The Z9 verifier budget ledger's armed numbers (enforce_dl 666635 /
+   enforce_ul 706129, the night-frontier-Z12 raise, supermassive run
+   45001505055) are measured ON THIS load path — they already carry
+   whatever B2B dedup the kernel applies to the shipped func_info and the
+   30 call sites. No hidden headroom is unlocked by "shipping func_info";
+   it ships.
+3. The census is the map for the future rung that DOES exist: the estate's
+   b2b machinery (one static subprogram, one shared callee class, both
+   enforcers calling it) is present and Z9-measurable — a future enforcer
+   lane that wants the callee-once walk shape (the mirror's walk-cost
+   condition) can lean on this shape and price it through the budget
+   ledger. The observer's census is the honest zero: nothing to dedup
+   there.
+
+The mirror's ledger correction rides this census (the stale loader
+sentence and the satisfied reopen condition are rewritten in the deferred
+entry, with this section as their proof).
+
 ## The Quota Saver — the Workload-Conditional Claim
 
 The fourteenth, fifteenth, and sixteenth entries above (RECWN, ECN,
@@ -1562,21 +1636,26 @@ that already exist, a minor bump, never a major.
   ("BPF program is too large. Processed 1000001 insn"); the clz
   law (four instructions) still tipped the walk — the enforcer's
   budget is FULL, pre-existing, and any tail addition multiplies
-  the widest state set; and the B2B subprogram shape cannot dedup
-  on a loader that ships no func_info (the callee explored per
-  caller state, the walk worse). The observer reframe measured
+  the widest state set; and the B2B subprogram shape's dedup premise
+  is resolved by measurement (night-frontier-Z13, D11): the loader
+  today is aya, it ships program func_info on every load, and the
+  objects carry a live b2b shape (hist_record, the compiler's
+  memset) — the Z6-era "ships no func_info" premise no longer
+  describes the tree. The observer reframe measured
   worse still: the observer's maps are session-scoped in-process
   (the lazy camera pins nothing), so a one-shot depth read can
   never see them — publishing them would need pins, which would
   change the observer's session model. Deferred because the
   estate's honesty law prices a lane that cannot be read live as a
-  gimmick. Reopens when: the hand-rolled loader ships program
-  func_info (BTF-driven B2B dedup — real verifier headroom for any
-  future enforcer lane), or a walk-cost optimization frees the
+  gimmick. Reopens when: a walk-cost optimization frees the
   enforcer's ceiling (now measurable: the Z9 verifier budget ledger
-  prices the estate's programs and gates their growth), or the
+  prices the estate's programs and gates their growth — and the Z13
+  census proves the b2b subprogram shape and the shipped func_info
+  such a lane would lean on already exist), or the
   monitor gains an in-process surface that reads its own live
-  observer handle.
+  observer handle. (The Z6-era loader condition — shipping program
+  func_info — measured as already-satisfied: aya 0.16 ships it on
+  every load; retired as a condition, not a blocker.)
 
 - **Bypass three-way reconciliation (night-frontier-Z8, D6 — the low
   rung).** The ask: cross the three instruments the tree already

@@ -6,9 +6,10 @@
 //! read-side fold/bounds laws -- every one rootless-pinned by
 //! selfcost_core_tests.rs beside it. This is the DEFERRED-BY-VERDICT
 //! landing's preserved asset: the laws are proven and ready, and the
-//! day a live lane exists (the loader ships func_info so a B2B
-//! subprogram gets its own verifier budget, or a walk-cost
-//! optimization frees the enforcer's ceiling), the kernel half is a
+//! day a live lane exists (the night-frontier-Z13 census measured the
+//! loader's func_info already shipping -- the b2b shape is present;
+//! the open blockers are the enforcer's walk-cost ceiling and the
+//! observer's session-scoped maps), the kernel half is a
 //! #[path] wiring away -- the whole story rides INNOVATIONS.md's
 //! deferred entry and the Z6 audit record.
 //!
