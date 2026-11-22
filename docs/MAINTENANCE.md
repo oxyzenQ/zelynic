@@ -85,23 +85,32 @@ Miri lane ran 8m42s to `[OK] Miri verification PASSED (121 tests, 0 fail,
 439537ms)`). Rerun — or read the newer push's runs — before
 investigating.
 
-### Reds that name their outage (the bounded arch leg, night-solid-defense-1)
+### The 6.6 family leg's source (the bounded arch leg, night-solid-defense-1)
 
-One push-lane red is a diagnosed external outage, not something a rerun
-can manufacture green: the supermassive-e2e Arch 6.6 floor-kernel fetch
-rides archive.archlinux.org — the one canonical source for the retained
-6.6 packages (the substitute-source audit measured the estate empty:
-mirrors serve linux-lts at 6.18 only, the Internet Archive collections
-carry the package's history only to 3.10.43 and a snapshot item with no
-package tree). Since a84a50d the fetch walks two tight attempts and, on
-failure, prints the DNS-vs-host verdict — `resolver answers + connect
-dead = host-side outage of archive.archlinux.org ... not a code
-regression; rerun the lane when the archive returns` — inside ~25
-seconds, where the old shape burned five and a half minutes into a bare
-exit 28. Read the verdict lines, confirm the host is back in any
-browser, rerun the failed job when it is; the red is the honest report,
-the coverage stays whole (the other four kernel families boot and prove
-their shards around it).
+The 2026-11-21 archive.archlinux.org outage taught the lane two things
+in one evening. First the bounded-walk shape (a84a50d): two tight
+attempts, then the DNS-vs-host verdict inside ~25 seconds —
+`resolver answers + connect dead = host-side outage ... not a code
+regression` — where the old shape burned five and a half minutes into
+a bare exit 28. Then, when the same single-host outage stayed dead
+half a day and reddened run 44948181973 again, the structural lesson:
+a single-host source has no business carrying a family leg alone. The
+owner's call swapped the leg's source: the 6.6 family now rides
+Alpine's linux-lts — the v3.20 branch, whose linux-lts IS 6.6.y
+(3.21 and later carry 6.12; edge carries the mainline) — served by
+the Fastly-anycast dl-cdn plus three probed official mirrors with the
+first answer winning, so no single host can redden the leg again.
+The APKv2 container opens with python3's own tarfile (the container
+is a plain concatenation of gzip members, the data member last;
+proven end to end on the real linux-lts-6.6.142-r0 package), the
+modules ride gz-compressed and the stage gunzips them into the layout
+the init's insmod chain walks, and the config (`boot/config-<kver>`)
+confirms `CONFIG_VIRTIO_NET=m` with `CONFIG_MODULE_SIG_FORCE` off.
+The bounded-walk law stays: every fetch carries tight retries, and a
+failing mirror names itself in the log. The red-reading guidance from
+the outage remains for every leg that still names a single source:
+the red is the honest report, the coverage stays whole (the other
+four kernel families boot and prove their shards around it).
 
 ## 3. The prebuilt eBPF lane (the one ritual with a hard rule)
 
