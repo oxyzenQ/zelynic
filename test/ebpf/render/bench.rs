@@ -578,9 +578,12 @@ fn steady_state_frame_composition_allocates_zero() {
     // pooled row now) and the detail tree's line composition; the
     // quiet count measured 34 on the same box (86 after stage 3a,
     // 100 after stage 2, 150 after stage 1, 164 after Z4's pool,
-    // 249 pre-pool). A change that closes a named site LOWERS the
+    // 249 pre-pool — and 30 after Z13 stage 4a, the holders' walk
+    // scratch closed: the outer Vec, the per-holder endpoint Vecs,
+    // and the ranked copy all ride the capacity-warm HOLDER_WALK
+    // index buffer now). A change that closes a named site LOWERS the
     // floor (and should, in the same commit that closes it).
-    const FLOOR: usize = 50;
+    const FLOOR: usize = 34;
     // The measured number on the record: every run prints the quiet
     // count, so the floor's own trend is visible in the battery's
     // output (night-frontier-Z11's ladder law — a closed site LOWERS
