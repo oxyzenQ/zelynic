@@ -198,7 +198,7 @@ line.
 ### Next (Phase W5 — Production Hardening)
 
 - [x] Cross-distro testing — 6 distros verified (see CROSS_DISTRO_RESULTS.md)
-- [ ] Kernel version testing (5.13 retired-floor, 5.15 floor, 6.12, 6.18+ verified; 6.1/6.6 LTS pending)
+- [x] Kernel version testing (the family span closed at night-kernel-matrix-1: 5.15 floor, 6.1 LTS, 6.6 LTS, 6.8 GA, and the dynamically resolved latest all boot live on every push — run 44163461435 was the first full-green; the 6.6 leg now rides Alpine's CDN-backed linux-lts, night-solid-defense-1)
 - [x] Stress test: `scripts/supermassive/supermassive-test.sh` (NIGHT-master-2, renamed from brutal-stress-test in NIGHT-improve-11; retired the legacy `scripts/stress-test.sh`)
 - [x] Benchmark: `scripts/bench/benchmarking.sh` (CPU/memory overhead — see PERFORMANCE.md)
 - [x] Layer 4: `--print-json` output for tooling integration
