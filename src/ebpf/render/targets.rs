@@ -92,3 +92,43 @@ pub(super) fn resolve_targets(
     }
     (ids, unresolved)
 }
+
+/// The watched set's stack capacity (night-frontier-Z13 stage 5c):
+/// the id lane resolves into a fixed stack buffer — 64 watched ids
+/// on the frame stack. A spec naming MORE than this rides the owned
+/// path below (the pathological shape pays the allocation the
+/// steady shapes no longer do), so behavior is identical for every
+/// shape; the buffer only moves where the allocation was.
+pub(super) const WATCH_STACK_CAP: usize = 64;
+
+/// Is this spec the id lane's stack shape? Every token a bare
+/// cgroup id — the monitor's positional TARGETS watch (the focus
+/// view's reach and the numeric ranked watch) — with room in the
+/// buffer. Name and container tokens carry their own resolver cost
+/// (the matcher's scratch, the miss notes) and ride the owned path.
+pub(super) fn spec_is_stack_capable(tokens: &[Target]) -> bool {
+    tokens.len() <= WATCH_STACK_CAP && tokens.iter().all(|t| matches!(t, Target::CgroupId(_)))
+}
+
+/// The stack-form of [`resolve_targets`] (night-frontier-Z13 stage
+/// 5c): the SAME id lane — token order, the dedup guard, verbatim
+/// ids — written into the caller's fixed buffer; the per-frame
+/// `Vec` the owned path pushes is the event this form removes.
+/// Returns the written count. Call only behind
+/// [`spec_is_stack_capable`]; the unresolved half is empty by
+/// construction for the id lane (a numeric token never matches
+/// nothing — it watches verbatim, the resolver's own law).
+pub(super) fn resolve_targets_stack(buf: &mut [u32; WATCH_STACK_CAP], tokens: &[Target]) -> usize {
+    let mut len = 0usize;
+    for token in tokens {
+        if let Target::CgroupId(id) = token {
+            // The dedup guard, verbatim (the owned path's contains
+            // law): a repeated token is one watch, never two rows.
+            if !buf[..len].contains(id) {
+                buf[len] = *id;
+                len += 1;
+            }
+        }
+    }
+    len
+}

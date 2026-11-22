@@ -127,10 +127,21 @@ pub fn format_bytes_into(bytes: u64, out: &mut String) {
 /// units consistent with `parse_rate` and `format_bytes`.
 /// Examples: 100_000 → "100.0 KB/s", 1_000_000 → "1.0 MB/s"
 pub fn format_rate(bps: u64) -> String {
+    let mut out = String::new();
+    format_rate_into(bps, &mut out);
+    out
+}
+
+/// The pooled twin of [`format_rate`] (night-frontier-Z13 stage 5c):
+/// the same bytes into a caller-owned String — the frame pool's row
+/// cells consume this form. The owned form is this twin's first
+/// consumer, not a second ladder to drift.
+pub fn format_rate_into(bps: u64, out: &mut String) {
     if bps == 0 {
-        "BLOCKED".to_string()
+        out.push_str("BLOCKED");
     } else {
-        format!("{}/s", format_bytes(bps))
+        format_bytes_into(bps, out);
+        out.push_str("/s");
     }
 }
 

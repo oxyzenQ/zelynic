@@ -152,7 +152,29 @@ pub(super) fn render_eagle_eyes_at(
     // section 7.
     session.retire_dead(identity, summary);
 
-    let (ids, unresolved) = resolve_targets(tokens, identity);
+    // night-frontier-Z13 stage 5c: the id lane resolves into the
+    // frame's STACK buffer — the per-frame Vec (and the growth events
+    // behind it) was the focus frame's last resolver event, and the
+    // ranked numeric watch paid it too. Name-shaped and oversized
+    // specs ride the owned path unchanged (their matcher scratch is
+    // the resolver's own named lane, a different target shape — the
+    // pins hold the numeric steady shapes).
+    let mut watch_buf = [0u32; super::targets::WATCH_STACK_CAP];
+    let owned_ids: Vec<u32>;
+    let owned_unresolved: Vec<String>;
+    let unresolved: &[String];
+    let ids: &[u32] = if super::targets::spec_is_stack_capable(tokens) {
+        let n = super::targets::resolve_targets_stack(&mut watch_buf, tokens);
+        owned_unresolved = Vec::new();
+        unresolved = &owned_unresolved;
+        &watch_buf[..n]
+    } else {
+        let (ids_v, unres_v) = resolve_targets(tokens, identity);
+        owned_ids = ids_v;
+        owned_unresolved = unres_v;
+        unresolved = &owned_unresolved;
+        &owned_ids
+    };
 
     // The session peaks (NIGHT-engrave-6): one more fold pass over
     // the same summary, noting the watched set's aggregate into the
@@ -169,7 +191,7 @@ pub(super) fn render_eagle_eyes_at(
     session.note_frame(
         summary,
         span,
-        if tokens.is_empty() { None } else { Some(&ids) },
+        if tokens.is_empty() { None } else { Some(ids) },
     );
 
     // Single token, single cgroup: the focus view (own border inset).
@@ -224,7 +246,7 @@ pub(super) fn render_eagle_eyes_at(
 
     // A watched name with no live cgroup says so — the empty-table
     // lie is exactly what the discovery stage must not tell.
-    for name in &unresolved {
+    for name in unresolved {
         super::push_pooled(
             lines,
             format_args!("   no app named '{name}' — see 'zelynic list-apps'"),
@@ -249,7 +271,7 @@ pub(super) fn render_eagle_eyes_at(
         board,
         identity,
         summary,
-        (!tokens.is_empty()).then_some(&ids),
+        (!tokens.is_empty()).then_some(ids),
     );
 
     // Empty-board honesty: before the first packet (or for a watched
@@ -341,11 +363,7 @@ pub(super) fn render_eagle_eyes_at(
     // own minimum (chrome plus one data row). Below that line the
     // degradation is the old behavior by design: the table is the
     // primary view, and a frame too short for both keeps it.
-    let panel_filter: Option<&[u32]> = if tokens.is_empty() {
-        None
-    } else {
-        Some(&ids[..])
-    };
+    let panel_filter: Option<&[u32]> = if tokens.is_empty() { None } else { Some(ids) };
     let panel_floor = if !view_rows(baseline, panel_filter).is_empty()
         && footer_start.saturating_sub(lines.len()) >= (TOP_CHROME - 1) + PANEL_FLOOR
     {

@@ -10,7 +10,10 @@
 //! from a capacity-warm thread-local buffer (references cannot ride
 //! a thread-local cell, indices can), re-iterating the holders in
 //! their refresh order, so the block composes with zero heap events
-//! in steady state.
+//! in steady state. The focus view's tree rides the same machinery
+//! (night-frontier-Z13 stage 5a): the uncapped full-detail block
+//! composes into its own retained scratch with pooled rows, the
+//! fresh Vec per frame gone.
 
 use std::cell::RefCell;
 
@@ -26,6 +29,12 @@ thread_local! {
     /// Indices (u32), not references: a thread-local cell cannot
     /// carry borrows of the caller's map, but it can carry numbers.
     static HOLDER_WALK: RefCell<Vec<u32>> = const { RefCell::new(Vec::new()) };
+
+    /// The focus tree's retained scratch (night-frontier-Z13 stage
+    /// 5a): the uncapped full-detail block composes here per frame
+    /// and its pooled rows MOVE into the frame — the scratch keeps
+    /// its capacity, the per-frame fresh Vec is gone.
+    static FOCUS_TREE: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
 }
 
 /// The index twin of [`rank_endpoints_by_bytes`] (night-frontier-Z13
@@ -106,8 +115,7 @@ fn push_endpoint_text(
 /// stage 4a: no per-holder Vec) — the single-endpoint case takes the
 /// scratch's first (and only) displayable index, the multi case the
 /// bytes-ranked ones, the same bytes the owned twin formats.
-/// The owned [`eagle_holder_lines`] stays for [`full_detail_lines`]
-/// (the focus view's tree).
+/// The owned [`eagle_holder_lines`] stays for the pins.
 fn push_eagle_holder_lines(
     lines: &mut Vec<String>,
     proc: &ProcessDetail,
@@ -262,4 +270,148 @@ pub(crate) fn push_detail_lines(
         line.push_str(" more socket-holding processes");
         lines.push(line);
     }
+}
+
+/// The into-twin of [`full_detail_lines`] (night-frontier-Z13 stage
+/// 5a): the focus view's UNCAPPED tree — every socket-holding
+/// process, each of its displayable endpoints an indented child
+/// line, the endpoints ranked bytes-desc (`rank_endpoint_indices`,
+/// the same law the owned twin reads) — pushed as pooled rows into
+/// the caller's scratch. The same walk scratch ([`HOLDER_WALK`])
+/// serves the indices, so the per-holder endpoint Vec the owned
+/// twin still builds for the pins costs the frame nothing. The deep
+/// suffix rides the endpoint twin (owned String, deep=true focus
+/// episodes only; the steady default pays nothing).
+pub(crate) fn push_full_detail_lines(
+    lines: &mut Vec<String>,
+    conns: Option<&ConnectionMap>,
+    cgroup_id: u32,
+    window: Duration,
+    deep: bool,
+) {
+    let Some(conns) = conns else {
+        return;
+    };
+    let Some(detail) = conns.get(cgroup_id) else {
+        return;
+    };
+    if detail.socket_holders.is_empty() {
+        return;
+    }
+    // The header (the owned twin's bytes: the SI-laddered process
+    // count inside the parenthetical).
+    let mut line = super::pool::pooled_line();
+    line.push_str("  processes with sockets (");
+    crate::ebpf::limiter::format_count_into(detail.total_procs as u64, &mut line);
+    line.push_str(" total processes):");
+    lines.push(line);
+    for proc in &detail.socket_holders {
+        // The walk runs INSIDE the scratch borrow (push_detail_lines'
+        // own law): moving the buffer out would hand the walk's warm
+        // capacity back to the allocator on every holder.
+        HOLDER_WALK.with(|cell| {
+            let mut indices = cell.borrow_mut();
+            indices.clear();
+            indices.extend(
+                proc.sockets
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, s)| is_displayable(s))
+                    .map(|(i, _)| i as u32),
+            );
+            if indices.is_empty() {
+                return;
+            }
+            rank_endpoint_indices(&proc.sockets, &mut indices, Some(conns));
+            if indices.len() == 1 {
+                // The inline shape: one endpoint, no header row.
+                let mut line = super::pool::pooled_line();
+                {
+                    use std::fmt::Write as _;
+                    let _ = write!(line, "  \u{2514} {} ({}) \u{2192} ", proc.comm, proc.pid);
+                }
+                push_endpoint_text(
+                    &mut line,
+                    &proc.sockets[indices[0] as usize],
+                    Some(conns),
+                    window,
+                    deep,
+                );
+                lines.push(line);
+                return;
+            }
+            // The header-plus-children shape: the socket count rides
+            // the header (a truncated expansion still says its scale).
+            let mut line = super::pool::pooled_line();
+            {
+                use std::fmt::Write as _;
+                let _ = write!(line, "  \u{2514} {} ({}) ", proc.comm, proc.pid);
+            }
+            crate::ebpf::limiter::format_count_into(indices.len() as u64, &mut line);
+            line.push_str(" sockets:");
+            lines.push(line);
+            let last = indices.len() - 1;
+            for (i, socket_idx) in indices.iter().enumerate() {
+                let branch = if i == last { "\u{2514}" } else { "\u{251c}" };
+                let mut line = super::pool::pooled_line();
+                {
+                    use std::fmt::Write as _;
+                    let _ = write!(line, "      {branch} ");
+                }
+                push_endpoint_text(
+                    &mut line,
+                    &proc.sockets[*socket_idx as usize],
+                    Some(conns),
+                    window,
+                    deep,
+                );
+                lines.push(line);
+            }
+        });
+    }
+}
+
+/// The focus view's per-frame tree composition (night-frontier-Z13
+/// stage 5a): the uncapped block composes into the retained
+/// [`FOCUS_TREE`] scratch and its pooled rows MOVE into the frame —
+/// the caller's vector gains the block, the scratch keeps its
+/// capacity. The room law is the focus renderer's own (the adaptive
+/// compact: an honest "+N more hidden" note, degenerate heights drop
+/// the block) and it runs INSIDE the scratch borrow — every dropped
+/// row hands its buffer BACK to the pool (dropping a pooled row
+/// starved the warm capacity and made the next frame pay a fresh
+/// allocation, the stage-4c starvation lesson).
+pub(crate) fn push_focus_tree(
+    lines: &mut Vec<String>,
+    conns: Option<&ConnectionMap>,
+    cgroup_id: u32,
+    window: Duration,
+    deep: bool,
+    room: usize,
+) {
+    FOCUS_TREE.with(|cell| {
+        let mut details = cell.borrow_mut();
+        details.clear();
+        push_full_detail_lines(&mut details, conns, cgroup_id, window, deep);
+        if details.len() > room {
+            if room == 0 {
+                for line in details.drain(..) {
+                    super::pool::recycle_line(line);
+                }
+            } else {
+                let hidden = details.len() - (room - 1);
+                for line in details.drain(room - 1..) {
+                    super::pool::recycle_line(line);
+                }
+                let mut note = super::pool::pooled_line();
+                note.push_str("  \u{2514} +");
+                crate::ebpf::limiter::format_count_into(hidden as u64, &mut note);
+                note.push_str(" more hidden \u{2014} raise the window");
+                details.push(note);
+            }
+        }
+        for line in details.drain(..) {
+            lines.push(line);
+        }
+    });
 }

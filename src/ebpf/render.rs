@@ -135,9 +135,13 @@ mod alloc_lens;
 
 mod pool;
 pub(crate) use pool::{
-    format_rate_or_dash, grey_trim, pooled_line, push_pooled, recycle_frame_lines, recycle_line,
-    write_rate_or_dash,
+    grey_trim, pooled_line, push_pooled, recycle_frame_lines, recycle_line, write_rate_or_dash,
 };
+// night-frontier-Z13 stage 5b: the owned rate's one-shot face lost
+// its last frame caller (the focus block composes through the
+// writer now) — the form stays for the render pins only.
+#[cfg(test)]
+pub(crate) use pool::format_rate_or_dash;
 /// Render one eagle-eyes frame (NIGHT-improve-2: line-building — the
 /// caller submits the vector to the diff-based screen engine, which
 /// emits only the rows that changed).
@@ -225,7 +229,7 @@ pub(crate) use depth_traffic::traffic_focus;
 
 pub(crate) use session::{SessionAcc, SessionState};
 
-pub(crate) use detail::{full_detail_lines, label_with_count, retrans_row_figure};
+pub(crate) use detail::retrans_row_figure;
 
 // NIGHT-engrave-5: the grid line is every zelynic table's border
 // family — the status and list-apps report tables borrow the monitor's
