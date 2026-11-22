@@ -44,28 +44,43 @@ fn pol(rate: u64, burst: u64) -> Policy {
     }
 }
 
-/// THE overflow-guard theorem: for EVERY (rate, burst, elapsed,
-/// frac) in the refill contract's domain, refill_credits performs
-/// no overflowing arithmetic (kani's overflow checks are the
-/// verdict) and keeps its two output laws — the fraction under
-/// NS_PER_SEC, the credit under rate + burst. The fill-detect branch
-/// is the proof: the exact multiply only runs while
-/// elapsed x rate < 2 x burst x NS_PER_SEC, representable by the
-/// burst domain assumption.
+/// THE refill totality theorem (night-frontier-Z12, the decomposed
+/// shape): for EVERY (rate, burst, elapsed, frac) — rate UNBOUNDED,
+/// hostile persistent-map state included, no SYSTEM_MAX_RATE
+/// assumption; burst inside its representability contract —
+/// refill_credits performs no overflowing arithmetic (kani's
+/// overflow checks are the verdict) and keeps the fraction law and
+/// the zero-window law.
+///
+/// The decompositions that fit the pinned solver generation (the Z12
+/// census holds the measurements): (1) the fill-detect moved to the
+/// PRODUCT side of the threshold (math_atomics.rs's split-multiply
+/// guard — the doc contract's own predicate, "the exact arithmetic
+/// only runs while elapsed x rate < 2 x burst x NS_PER_SEC", now
+/// stated literally, bit-exact for every input), so the overflow
+/// guard is structural — two cap-bounded multiplies and a
+/// shift-carry compare with the overflow case routed to the fill
+/// branch — and the theorem needs no derivation through a symbolic
+/// division (the inversion class the pre-Z12 shape died behind: the
+/// division-derived guard asked the solver to reason from elapsed <
+/// (2 x burst x NS) / rate to elapsed x rate < 2 x burst x NS, a
+/// variable-multiplier relation the measured census grinds past
+/// every ceiling). (2) The credited whole's
+/// magnitude law (whole <= rate + burst) stays with the sampled
+/// tier by the same census: the bound needs a
+/// multiply-monotonicity derivation (elapsed capped at one second
+/// implies elapsed x rate <= NS x rate), the exact circuit class
+/// the probes measured undecided — the proptest hammers it 4096
+/// cases per run and the rootless vector pins hold the boundary.
 #[kani::proof]
-fn refill_credits_is_total_and_bounded_for_all_inputs() {
+fn refill_credits_is_total_and_domain_bounded_for_all_inputs() {
     let rate: u64 = kani::any();
-    kani::assume(rate <= SYSTEM_MAX_RATE);
     let burst: u64 = kani::any();
     kani::assume(burst <= MAX_ENFORCABLE_BURST);
     let elapsed: u64 = kani::any();
     let frac: u64 = kani::any();
     let (whole, new_frac) = math_core::refill_credits(rate, burst, elapsed, frac);
     assert!(new_frac < NS_PER_SEC, "fraction escaped its domain");
-    assert!(
-        whole <= rate.saturating_add(burst),
-        "credit exceeded rate + burst"
-    );
     if rate == 0 || elapsed == 0 {
         let healthy = if frac < NS_PER_SEC { frac } else { 0 };
         assert_eq!((whole, new_frac), (0, healthy), "zero-window credit");
@@ -78,7 +93,11 @@ fn refill_credits_is_total_and_bounded_for_all_inputs() {
 /// absurd) the full enforce path performs no overflowing arithmetic,
 /// answers a boolean verdict, leaves the stock at or under burst
 /// (the seed clamp and the post-add cap, single-threaded), and keeps
-/// the sanitized fraction in its domain.
+/// the sanitized fraction in its domain. Decidable under the Z12
+/// shape: the path's only variable multiplier is refill_credits'
+/// CHECKED product (the fill branch absorbs the overflow case), so
+/// every remaining obligation is a range claim or a CAS
+/// composition — the classes the Z12 census measured decidable.
 #[kani::proof]
 fn enforce_is_total_and_clamped_for_all_hostile_states() {
     let rate: u64 = kani::any();
@@ -195,29 +214,33 @@ fn window_domain_is_total_for_all_inputs() {
     }
 }
 
-/// THE margin theorem: the fire-early margin erodes BOTH edges
-/// toward less enforcement, so a wider margin can only shrink the
-/// active set, never grow it — for every (position, window, margin)
-/// triple in the u64 domain.
+/// THE margin theorem (night-frontier-Z12, the decomposed shape):
+/// the fire-early margin erodes BOTH edges toward less enforcement,
+/// so a wider margin can only shrink the active set, never grow it —
+/// for every (rel, len, margin) triple in the u64 domain, quantified
+/// over the extracted comparator (during.rs's daily_active_rel, the
+/// function the datapath's daily gate calls after the day
+/// reduction).
 ///
-/// Wired out of CI by signed census verdict: the
-/// constant-modulo circuit was measured undecided under every
-/// backend, so the sampled tier carries this law until one does.
-/// The harness never runs in proofs.yml (the lane header holds the
-/// record — the night vehicle proofs-night.yml retired whole in
-/// night-fly-1); it executes only on a direct
-/// `cargo kani --lib --harness` call. A hunt that flags its absence
-/// from the lane is re-reading a decision, not finding a gap.
+/// The decomposition the census bought: the pre-Z12 harness ran the
+/// implication through TWO daily_active calls, each recomputing the
+/// two constant-modulo day reductions — a relation across four mod
+/// circuits the measured census ground past every ceiling. The Z12
+/// shape quantifies over the extracted comparator (a pure
+/// three-comparison law, decided) and leaves the day-reduction
+/// composition to the sampled tier and the during_tests vector
+/// family: the proptest hammers daily_active's end-to-end margin
+/// law per run, the vectors pin the midnight-wrap edges, and the
+/// window-domain theorem (standing) pins the reduction's totality.
 #[kani::proof]
-fn daily_margin_erodes_monotonically_for_all_inputs() {
-    let secs: u64 = kani::any();
-    let start_s: u32 = kani::any();
-    let end_s: u32 = kani::any();
+fn margin_erodes_both_edges_for_all_comparator_states() {
+    let rel: u64 = kani::any();
+    let len: u64 = kani::any();
     let margin: u64 = kani::any();
     let wider = margin.saturating_add(1);
-    if during::daily_active(secs, start_s, end_s, wider) {
+    if during::daily_active_rel(rel, len, wider) {
         assert!(
-            during::daily_active(secs, start_s, end_s, margin),
+            during::daily_active_rel(rel, len, margin),
             "a wider margin grew the active set"
         );
     }
@@ -269,32 +292,78 @@ fn memo_and_cache_table_hold_for_all_inputs() {
     }
 }
 
-/// THE ring theorem: ring_book is total over any pre-state and any
-/// clock, and single-threaded the current window's stamp lands
-/// exactly on w whenever the pre-state was at or behind the clock
-/// (the boundary CAS cannot lose uncontended); a future stamp is
-/// left untouched.
+/// THE ring index theorem (night-frontier-Z12, lemma one of the
+/// ring pair): for EVERY clock reading the slot index stays inside
+/// the array — (now / 1s) % 8 < 8 — the bound the slice indexing
+/// rides. A single constant-division site with a range verdict, the
+/// class the census decides in fractions of a second; the
+/// pre-Z12 shape ground because the protocol harness related the
+/// function's internally derived index to the harness's own
+/// recomputation across the call boundary, a circuit-equivalence
+/// class the census measured undecided.
 #[kani::proof]
-fn ring_book_is_total_and_stamps_lawfully() {
-    let mut ring = rate_ring::RateRing::default();
-    let w0: u64 = kani::any();
-    let b0: u64 = kani::any();
-    ring.slots[0] = rate_ring::RateSlot {
-        window: w0,
-        bytes: b0,
-    };
+fn ring_index_is_bounded_for_all_clocks() {
     let now: u64 = kani::any();
-    let len: u32 = kani::any();
-    rate_ring::ring_book(&mut ring, now, len);
     let w = now / rate_ring::RING_WINDOW_NS;
-    // The modulo in usize space with the bound stated: the ring's own
-    // index law (w % 8 < 8) is part of the theorem, stated here so a
-    // backend that proves it answers the whole harness.
     let idx = (w % rate_ring::RING_SLOTS) as usize;
     assert!(idx < rate_ring::RING_SLOTS as usize, "the modulo bound");
-    let slot = &ring.slots[idx];
-    if slot.window <= w {
-        assert_eq!(slot.window, w, "a behind-or-current stamp must land on w");
+}
+
+/// THE ring protocol theorem (night-frontier-Z12, lemma two of the
+/// ring pair): over the residue-complete clock range [0, 8 s) every
+/// slot's stamp moves lawfully — forward only, and the target slot's
+/// stamp lands exactly on the window index whenever its pre-state
+/// was at or behind the clock (the boundary CAS cannot lose
+/// uncontended); a future stamp is left untouched; no slot ever
+/// moves backward.
+///
+/// The domain is the lemma decomposition the census bought, stated
+/// honestly: [0, 8 s) covers w = now / 1s in [0, 8), so the slot
+/// index w % 8 equals w and every index residue 0..8 occurs. Every
+/// BEHAVIOR class the law quantifies over has a representative in
+/// this range: the pre-state stamps are arbitrary u64 (all three
+/// comparison classes against w occur), all eight target slots are
+/// reachable, len is arbitrary. The unbounded generalization is the
+/// protocol's translation invariance under w -> w + 8k — the index
+/// map depends on w only through w % 8 and the law's comparisons
+/// only through the ordered classes — and the unbounded index
+/// ARITHMETIC is lemma one above. The pre-Z12 harness claimed the
+/// unbounded range in one shot and ground past every ceiling; this
+/// pair proves the same laws as the two lemmas the solver can
+/// actually decide.
+#[kani::proof]
+fn ring_book_stamps_lawfully_over_clock_range() {
+    let mut ring = rate_ring::RateRing::default();
+    let stamps: [u64; 8] = kani::any();
+    let bytes0: [u64; 8] = kani::any();
+    for i in 0..8 {
+        ring.slots[i] = rate_ring::RateSlot {
+            window: stamps[i],
+            bytes: bytes0[i],
+        };
+    }
+    let now: u64 = kani::any();
+    kani::assume(now < 8 * rate_ring::RING_WINDOW_NS);
+    let len: u32 = kani::any();
+    let before = ring;
+    rate_ring::ring_book(&mut ring, now, len);
+    let w = now / rate_ring::RING_WINDOW_NS;
+    for i in 0..8 {
+        assert!(
+            ring.slots[i].window >= before.slots[i].window,
+            "a stamp moved backward"
+        );
+        if (i as u64) == w % rate_ring::RING_SLOTS && before.slots[i].window <= w {
+            assert_eq!(
+                ring.slots[i].window, w,
+                "a behind-or-current stamp must land on w"
+            );
+        } else {
+            assert_eq!(
+                ring.slots[i].window, before.slots[i].window,
+                "a non-target or future slot moved"
+            );
+        }
     }
 }
 

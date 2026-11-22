@@ -22,21 +22,27 @@
 # (run 44896512098, 2026-11-21) burned its full 300-minute cap and
 # died CANCELLED with not one solver verdict printed — 300.6 minutes
 # of runner for zero findings is the fatal shape the ceiling law
-# exists to prevent. The four theorem statements stay wired in the
-# proofs sources; the sampled tier, the loom census, the golden
-# vectors, and the six decidable kani theorems below carry the
-# per-push conformance evidence. The tier returns the day its
-# verdict fits the ceiling: lemma decomposition, or per-loop unwinds
-# on a toolchain that carries them — a proof-shape change with its
-# own signed round, then a matrix of one-harness jobs inside 15
-# minutes.
+# exists to prevent. night-frontier-Z12 (2026-11-22) is the tier's
+# RETURN, the proof-shape change the law itself named: lemma
+# decomposition. The five wired-out theorems were re-born as
+# decidable shapes — the fill-detect moved to the product side of
+# the threshold (the split-multiply restructure, the doc
+# contract's own predicate), the ring law split into the index
+# lemma plus the residue-complete clock-range protocol law, the
+# margin law quantified over the extracted comparator
+# (during.rs's daily_active_rel) — and the lane now carries twelve
+# theorems as one-harness matrix jobs, each inside the ceiling. The
+# Z12 census holds the measurements: every pre-Z12 shape ground
+# past every ceiling (the division-inversion and
+# multiply-monotonicity circuit classes); every Z12 shape decides
+# in seconds on the 2-CPU sandbox, the conservative bound against
+# the hosted runners.
 #
-# The twelfth harness, daily_margin_erodes_monotonically_for_all_inputs,
-# stays wired out of the per-push lane by signed census verdict: its
-# constant-modulo circuit was measured undecided under every backend,
-# so the sampled tier carries the margin law (the harness doc comment
-# and the Z6 audit hold the record — a hunt that flags it a gap is
-# re-reading a decision, not finding one).
+# The Z10 emission conformance theorem (night-frontier-Z10 rung 2)
+# stays out by signed census: its engine-heap circuits OOM the 4 GB
+# sandbox at every measured domain size (the record rides the
+# harness doc and INNOVATIONS.md's D8 entry) — a hunt that flags
+# its absence is re-reading that decision, not finding a gap.
 #
 # Three jobs, one checks list (proofs/ — the detached nested package,
 # the ebpf crate's own detachment shape; the root manifest's
@@ -53,17 +59,17 @@
 #    beside the sampled emission law (the no-corruption theorem's
 #    per-push half).
 #  * kani:        bounded model checking under the pinned kani release
-#    — the for-all tier's decidable half. Six theorems decide in
-#    minutes (the decision tables, the ladders, the memo word, the
-#    hint state machine, the window domain, the consume sufficiency
-#    pair); one invocation per harness so a verdict is never lost to
-#    a sibling's budget. The Z10 emission conformance theorem
-#    (night-frontier-Z10 rung 2) is deliberately NOT in this list:
-#    the census measured its engine-heap circuits out of memory on
-#    the 4 GB sandbox at four domain sizes (the record rides the
-#    harness doc and INNOVATIONS.md's D8 entry), so it rides the
-#    night lane's 300-minute matrix — a hunt that flags its absence
-#    here is re-reading that decision, not finding a gap.
+#    — the for-all tier, twelve theorems strong since night-frontier-
+#    Z12: the six original decidable laws (the decision tables, the
+#    ladders, the memo word, the hint state machine, the window
+#    domain, the consume sufficiency pair) plus the Z12 rebirths
+#    (the refill totality over an UNBOUNDED hostile rate, the full
+#    hostile-state enforce path, the ring index lemma and the
+#    residue-complete ring protocol law, the margin erosion over the
+#    extracted comparator, the bounded flow-key collector) — one
+#    harness per matrix job so a verdict is never lost to a
+#    sibling's budget and a grind can never starve a sibling's
+#    verdict.
 #  * loom-census: the signed census verdict's standing absence guard
 #    — a per-push scan that fails the day the census basis moves (a
 #    location-backed atomic lands outside the kernel crate's access
@@ -153,7 +159,7 @@ jobs:
         run: cd proofs && cargo test --locked
 
   kani:
-    name: Kani bounded model checking (6 decidable theorems, all inputs)
+    name: Kani bounded model checking (${{ matrix.harness }})
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     env:
@@ -164,6 +170,27 @@ jobs:
       # crate: the clean tree verifies under the flag, a planted unused
       # variable fails the build naming the lint (exit 101).
       RUSTFLAGS: "-D warnings"
+    # The for-all tier as a matrix of one-harness jobs (the return
+    # shape the header records): a grind can never starve a sibling's
+    # verdict, and every theorem's ceiling is the estate's own.
+    strategy:
+      fail-fast: false
+      matrix:
+        harness:
+          # The six original decidable theorems (Z6).
+          - consume_sufficiency_is_decisive_for_all_inputs
+          - bucket_ladders_are_bounded_and_exact_for_all_inputs
+          - hint_learn_holds_its_state_machine_for_all_sightings
+          - memo_and_cache_table_hold_for_all_inputs
+          - share_note_keeps_its_word_laws_for_all_inputs
+          - window_domain_is_total_for_all_inputs
+          # The night-frontier-Z12 rebirths (lemma decomposition).
+          - refill_credits_is_total_and_domain_bounded_for_all_inputs
+          - enforce_is_total_and_clamped_for_all_hostile_states
+          - ring_index_is_bounded_for_all_clocks
+          - ring_book_stamps_lawfully_over_clock_range
+          - margin_erodes_both_edges_for_all_comparator_states
+          - flow_key_bounded_is_total_for_all_window_shapes
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7, NIGHT-hunt-20 SHA pin
@@ -203,20 +230,13 @@ jobs:
           key: proofs-kani-${{ runner.os }}-${{ hashFiles('proofs/Cargo.lock') }}
           restore-keys: proofs-kani-${{ runner.os }}-
 
-      # The decidable tier: six theorems, minutes each. One invocation
-      # per harness so a verdict is never lost to a sibling's budget.
-      - name: For-all theorems (the decidable tier)
-        run: |
-          cd proofs
-          for h in \
-            consume_sufficiency_is_decisive_for_all_inputs \
-            bucket_ladders_are_bounded_and_exact_for_all_inputs \
-            hint_learn_holds_its_state_machine_for_all_sightings \
-            memo_and_cache_table_hold_for_all_inputs \
-            share_note_keeps_its_word_laws_for_all_inputs \
-            window_domain_is_total_for_all_inputs; do
-            cargo kani --lib --harness "$h"
-          done
+      # One harness per job (the matrix shape): the verdict is this
+      # job's own, a grind can never starve a sibling's, and each
+      # theorem's ceiling is the estate's own.
+      - name: For-all theorem (one harness, one job)
+        env:
+          HARNESS: ${{ matrix.harness }}
+        run: cd proofs && cargo kani --lib --harness "$HARNESS"
 
   loom-census:
     name: Loom concurrency census (absence guard, signed verdict)

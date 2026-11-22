@@ -498,3 +498,38 @@ fn refill_credits_carry_is_exact() {
     assert_eq!(whole, 1);
     assert_eq!(frac, 999_998_000);
 }
+
+// ── night-frontier-Z12: the product-side fill-detect boundary pins ─────────
+// The guard's compare lives on the product side now (the bit-exact
+// split-multiply guard, threshold 2 x burst x NS_PER_SEC); these vectors
+// hold the window edges the division-era shape derived through fill_ns.
+
+#[test]
+fn refill_credits_fill_detect_lands_on_the_threshold_edges() {
+    // Exactly AT the threshold: the true refill reaches 2x burst — the
+    // fill branch answers (the equality is the boundary).
+    assert_eq!(refill_credits(2, 1, 1_000_000_000, 0), (1, 0));
+    // One nanosecond short: the exact branch, the true refill.
+    assert_eq!(refill_credits(2, 1, 999_999_999, 0), (1, 999_999_998));
+    // The product overflows u64 (rate unbounded, hostile map state):
+    // the split-multiply guard routes the overflow case to the fill
+    // branch.
+    assert_eq!(refill_credits(u64::MAX, 1, 1_000_000_000, 0), (1, 0));
+}
+
+#[test]
+fn refill_credits_division_boundary_window_pins_the_product_shape() {
+    // The one-window class the Z12 doc names: elapsed ==
+    // floor(threshold / rate) with threshold % rate != 0. The
+    // division-era shape credited the cap value here; the product
+    // shape credits the TRUE refill — and the window is reachable
+    // only while 2 x burst <= rate, so the caller's cap branch lands
+    // both shapes on the same stock. rate = 1_500_000_001, burst = 1:
+    // threshold 2e9, floor = 1 ns, remainder 499_999_999 != 0.
+    assert_eq!(refill_credits(1_500_000_001, 1, 1, 0), (1, 500_000_001));
+    // The same class at rate = 1_999_999_999 (remainder 1): the exact
+    // branch answers 1 whole byte and bank 999_999_999.
+    assert_eq!(refill_credits(1_999_999_999, 1, 1, 0), (1, 999_999_999));
+    // Zero-remainder boundaries agree across the shapes (no delta).
+    assert_eq!(refill_credits(2_000_000_000, 1, 1, 0), (1, 0));
+}
