@@ -584,17 +584,30 @@ fn steady_state_frame_composition_allocates_zero() {
     // index buffer now — and 27 after stage 4b, the signature
     // engraving's static seat (the footer's push_str reads a
     // &'static str; the per-frame format! and brand wrap are gone).
-    // A change that closes a named site LOWERS the
-    // floor (and should, in the same commit that closes it).
-    const FLOOR: usize = 30;
+    // Z13 stage 4c closed the REST of the walk: the board composes
+    // in the session's own scratch and filters in place, the footer
+    // assembles into its retained block with the headline name
+    // resolving into a warm buffer, the per-row detail block rides
+    // its retained scratch (every dropped row handed back to the
+    // pool — the grey_trim swap and the scroll note included), the
+    // panel docks from its retained block, the blank pad rows pop
+    // the pool instead of growing zero-capacity strings under the
+    // wrap, and the pool's fresh carve covers the steady row shapes.
+    // The quiet count measured 0: the composition half of the render
+    // loop allocates NOTHING in steady state — the floor is the
+    // zero it always climbed toward. A change that closes a named
+    // site LOWERS the floor (and should, in the same commit that
+    // closes it); a change that RAISES it trips the pin.
+    const FLOOR: usize = 0;
     // The measured number on the record: every run prints the quiet
     // count, so the floor's own trend is visible in the battery's
     // output (night-frontier-Z11's ladder law — a closed site LOWERS
     // this number, and the print is its receipt).
     eprintln!("steady-state frame allocations: quietest of 32 frames = {quiet} (floor {FLOOR})");
-    assert!(
-        quiet <= FLOOR,
+    assert_eq!(
+        quiet, FLOOR,
         "steady-state frame allocations: the quietest of 32 frames allocated {quiet} \
-         (floor {FLOOR}) — the pool's floor regressed past the pre-pool era"
+         (floor {FLOOR}) — the composition's zero-heap law regressed: some frame \
+         allocated, and the pin holds the zero the ladder climbed to"
     );
 }

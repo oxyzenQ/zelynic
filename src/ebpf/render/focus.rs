@@ -62,23 +62,26 @@ pub(super) fn window_active(summary: &CounterSummary) -> std::collections::HashS
 /// active set builds only on a miss, the belt's happy-path-zero
 /// cost); the frame-level pin in the eagle filter pins carries the
 /// verdict's three shapes.
-pub(super) fn board_rows(
-    ranked: Vec<(u32, SessionAcc)>,
+///
+/// night-frontier-Z13 stage 4c: the filters run IN PLACE — the
+/// eagle frame composes its board in the session's capacity-warm
+/// scratch and retains here, so the filter's own collect per frame
+/// is gone. The active window stays lazily computed: it is only
+/// built when an identity-unknown row must consult it.
+pub(super) fn board_rows_in_place(
+    board: &mut Vec<(u32, SessionAcc)>,
     identity: &IdentityMap,
     summary: &CounterSummary,
     watched: Option<&[u32]>,
-) -> Vec<(u32, SessionAcc)> {
+) {
     let mut active = None;
-    ranked
-        .into_iter()
-        .filter(|(id, _)| {
-            identity.get(*id).is_some()
-                || active
-                    .get_or_insert_with(|| window_active(summary))
-                    .contains(id)
-        })
-        .filter(|(id, _)| watched.is_none_or(|ids| ids.contains(id)))
-        .collect()
+    board.retain(|(id, _)| {
+        identity.get(*id).is_some()
+            || active
+                .get_or_insert_with(|| window_active(summary))
+                .contains(id)
+    });
+    board.retain(|(id, _)| watched.is_none_or(|ids| ids.contains(id)));
 }
 
 /// Render the focus frame for one cgroup.

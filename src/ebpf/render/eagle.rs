@@ -58,16 +58,40 @@ use super::baseline_panel::{PANEL_FLOOR, render_panel, view_rows};
 use super::border;
 use super::eagle_row::render_eagle_row;
 use super::footer::{
-    FooterCensus, TOP_CHROME, build_grip_footer, grid_line_into, plan_footer_tier,
+    FooterCensus, TOP_CHROME, build_grip_footer_into, grid_line_into, plan_footer_tier,
 };
-use super::scroll::{ScrollState, Section, scroll_note};
+use super::scroll::{ScrollState, Section};
 use super::{
-    FrameGeometry, SessionState, focus::board_rows, focus::render_eagle_focus, plan_eagle_columns,
-    pooled_line, rate_bps, title_bar_into,
+    FrameGeometry, SessionState, focus::board_rows_in_place, focus::render_eagle_focus,
+    plan_eagle_columns, pooled_line, rate_bps, title_bar_into,
 };
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::Target;
+
+use std::cell::RefCell;
+
+thread_local! {
+    /// The footer block scratch (night-frontier-Z13 stage 4c): the
+    /// engraved footer assembles into this capacity-warm buffer, whose
+    /// rows land at the pin and return to the line pool with the
+    /// frame — the fresh Vec per frame is gone.
+    static FOOTER_BLOCK: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    /// The headline name scratch (night-frontier-Z13 stage 4c): the
+    /// champion's consumer name resolves into this capacity-warm
+    /// buffer and the footer reads it as a &str — the census's owned
+    /// Option<String> per frame is gone.
+    static TOP_NAME: RefCell<String> = const { RefCell::new(String::new()) };
+    /// The per-row detail block scratch (night-frontier-Z13 stage
+    /// 4c): each cgroup's detail lines compose into this capacity-warm
+    /// buffer; append moves the pooled rows into the frame and the
+    /// buffer's capacity survives for the next row.
+    static DETAIL_BLOCK: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    /// The baseline panel scratch (night-frontier-Z13 stage 4c): the
+    /// panel renders into this capacity-warm buffer and docks into
+    /// the frame — the fresh Vec per frame is gone.
+    static PANEL_BLOCK: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+}
 use crate::ebpf::loader::CounterSummary;
 
 /// Columns the rank furniture occupies between the shared gutter
@@ -192,8 +216,11 @@ pub(super) fn render_eagle_eyes_at(
     super::recycle_line(title_core);
 
     // The breathing gap (NIGHT-boost-14): one blank line of air —
-    // the header used to sit too near the brand.
-    lines.push(String::new());
+    // the header used to sit too near the brand. night-frontier-Z13
+    // stage 4c: the gap row rides the pool — a fresh String::new()
+    // carried zero capacity, so the border wrap grew it from scratch
+    // every frame (six heap events the walk could see).
+    lines.push(super::pooled_line());
 
     // A watched name with no live cgroup says so — the empty-table
     // lie is exactly what the discovery stage must not tell.
@@ -209,9 +236,17 @@ pub(super) fn render_eagle_eyes_at(
     // idle apps entirely); the board filter (NIGHT-hunt-Z1's dead-
     // transient belt composed with the watched-set narrowing) lives
     // in focus.rs beside its active-set helper, pinned at the frame
-    // level in the eagle filter pins.
-    let board = board_rows(
-        session.ranked(),
+    // level in the eagle filter pins. night-frontier-Z13 stage 4c:
+    // the board composes in the session's capacity-warm scratch and
+    // the filters retain in place — the per-frame collect plus the
+    // filter's own collect are gone. The session reads this frame
+    // still needs (the emptiness, the peaks) hoist above the mutable
+    // board borrow.
+    let empty = session.is_empty();
+    let peaks = session.peaks();
+    let board = session.ranked_board();
+    board_rows_in_place(
+        board,
         identity,
         summary,
         (!tokens.is_empty()).then_some(&ids),
@@ -221,7 +256,7 @@ pub(super) fn render_eagle_eyes_at(
     // set that never talked) the frame says so, keeping the title and
     // pinned footer; once traffic HAS been seen this branch is dead
     // (the board holds every live row; transients retire).
-    if session.is_empty() {
+    if empty {
         super::push_pooled(lines, format_args!("   waiting for traffic…"));
     } else if !tokens.is_empty() && board.is_empty() {
         super::push_pooled(
@@ -246,15 +281,52 @@ pub(super) fn render_eagle_eyes_at(
     // census gathers itself from the live board since
     // NIGHT-engrave-4 (footer data, gathered where it renders); the
     // session peaks ride along since NIGHT-engrave-6.
-    let footer = build_grip_footer(
-        &FooterCensus::gather(tier, &board, identity, conns, uptime, session.peaks()),
-        geo,
-        interval,
-        deep,
-    );
+    // night-frontier-Z13 stage 4c: the whole assembly runs INSIDE
+    // the frame's retained blocks — the headline's name resolves
+    // into the capacity-warm TOP_NAME buffer (the champion's
+    // busiest process comm, then the identity's own comm, then the
+    // raw cg: label — the same fallback order the census carried,
+    // byte for byte, zero heap events) and the rows compose into
+    // the capacity-warm FOOTER_BLOCK, whose length pins the frame.
+    let footer_len = TOP_NAME.with(|name_cell| {
+        let mut name = name_cell.borrow_mut();
+        name.clear();
+        let mut resolved = false;
+        if let Some((cgroup_id, _)) = board.first() {
+            let cgroup_id = *cgroup_id;
+            if let Some(cm) = conns
+                && let Some(proc) = super::rank::top_consumer(cm, cgroup_id)
+            {
+                name.push_str(&proc.comm);
+                resolved = true;
+            }
+            if !resolved
+                && let Some(record) = identity.get(cgroup_id)
+                && record.comm != "unknown"
+                && !record.comm.is_empty()
+            {
+                name.push_str(&record.comm);
+                resolved = true;
+            }
+            if !resolved {
+                // The raw label — the identity-honest name the old
+                // fallback landed on (the unresolved cg: id, or the
+                // unknown-comm record's parenthesized label).
+                identity.write_label(cgroup_id, &mut name);
+                resolved = true;
+            }
+        }
+        let top_name = resolved.then(|| name.as_str());
+        let census = FooterCensus::gather(tier, board, identity, uptime, peaks);
+        FOOTER_BLOCK.with(|cell| {
+            let mut footer = cell.borrow_mut();
+            build_grip_footer_into(&mut footer, &census, geo, interval, deep, top_name);
+            footer.len()
+        })
+    });
     // The pin line: the footer's measured length fixes where the
     // frame's content must stop.
-    let footer_start = geo.height.saturating_sub(footer.len());
+    let footer_start = geo.height.saturating_sub(footer_len);
 
     // night-improve-72: the panel floor. The table's budget used to
     // run all the way to the footer pin — a board rich enough to
@@ -291,7 +363,7 @@ pub(super) fn render_eagle_eyes_at(
     // right-aligned over their columns, and the grid below renders
     // purple too (NIGHT-boost-14) — one border family.
     let table_room = table_floor.saturating_sub(lines.len());
-    let show_table = !session.is_empty() && (tokens.is_empty() || !board.is_empty());
+    let show_table = !empty && (tokens.is_empty() || !board.is_empty());
     // The table needs room for its own chrome (header + grid) plus at
     // least one data row; below that the footer carries the story.
     if show_table && table_room >= TOP_CHROME - 1 {
@@ -349,100 +421,133 @@ pub(super) fn render_eagle_eyes_at(
             // to drift), each line trimmed to the frame width above
             // it, so a long process/endpoint string can never wrap
             // the frame or shift the pinned footer.
-            let mut details = Vec::new();
-            if cols.show_total {
-                // night-frontier-Z11: the detail block pushes pooled
-                // rows (the push_detail_lines twin) — the per-cgroup
-                // owned Vec<String> of fresh Strings was the named
-                // site; the grey trim below stays per line.
-                super::detail::push_detail_lines(&mut details, conns, *cgroup_id, span);
+            // night-frontier-Z13 stage 4c: the block composes into
+            // the retained DETAIL_BLOCK scratch — the fresh Vec per
+            // cgroup per frame is gone; append moves the pooled rows
+            // into the frame and the scratch keeps its capacity. The
+            // trim and the truncation paths hand their dropped rows
+            // BACK to the pool (dropping a pooled row starved the
+            // warm capacity and made the next frame pay fresh
+            // allocations — the starvation the walk's own count
+            // could never see).
+            enum RowVerdict {
+                Break,
+                Render,
             }
-            for line in &mut details {
-                // The pooled trim-and-grey (night-frontier-Z4): one
-                // warm scratch per line, the same bytes the old
-                // chain returned, minus its Strings.
-                super::grey_trim(line, None, geo.width);
-            }
-            // The deep line (night-netrunner-4, --deep): ONE grey
-            // line after the detail tree — the hungriest endpoint's
-            // rtt ± jitter and the window's retransmit share, or the
-            // protocol tag. Rides the same row budget the details
-            // ride (need grows by one when present); the deep line
-            // hides below the same show_total boundary that hides
-            // detail lines, and the champion trim below drops it
-            // FIRST (detail first, deep figures first to go — the
-            // sacrifice ladder's order, the audit's own).
-            // night-engrave-1-ee: the line INDENTS to the detail
-            // tree's first level (the block's own four columns)
-            // BEFORE the width trim — the figures sit under the
-            // sockets they summarize; at column 0 the same line read
-            // as the next row's opening (the owner's eagle-eyes find).
-            let mut deep_line = if deep && cols.show_total {
-                super::deep::row_deep_line(conns, *cgroup_id)
-            } else {
-                None
-            };
-            if let Some(line) = deep_line.as_mut() {
-                // The pooled indent-trim-grey (night-frontier-Z4):
-                // the indent rides the same scratch, the same bytes
-                // the old chain returned, minus its Strings.
-                super::grey_trim(line, Some("    "), geo.width);
-            }
-            let need = 1 + details.len() + usize::from(deep_line.is_some());
-            if used + need > row_room {
-                if emitted == 0 {
-                    // The champion always shows (NIGHT-boost-5): trim
-                    // its own detail to what the window can hold —
-                    // the deep line yields first (the ladder's
-                    // order), then the detail lines.
-                    let room = row_room.saturating_sub(1);
-                    if room == 0 {
-                        deep_line = None;
-                        details.clear();
-                    } else {
-                        if room < need {
-                            deep_line = None;
-                        }
-                        details.truncate(room.min(details.len()));
-                    }
-                } else {
-                    break;
+            let row_verdict = DETAIL_BLOCK.with(|cell| {
+                let mut details = cell.borrow_mut();
+                details.clear();
+                if cols.show_total {
+                    // night-frontier-Z11: the detail block pushes pooled
+                    // rows (the push_detail_lines twin) — the per-cgroup
+                    // owned Vec<String> of fresh Strings was the named
+                    // site; the grey trim below stays per line.
+                    super::detail::push_detail_lines(&mut details, conns, *cgroup_id, span);
                 }
-            }
-            // This frame's deltas for the rates (a quiet app renders
-            // em dashes — it stays on the board with its totals).
-            // The denominator is the MEASURED span (NIGHT-lts-3),
-            // not the nominal cadence — see the render entry doc.
-            let delta = summary.cgroups.iter().find(|c| c.cgroup_id == *cgroup_id);
-            let dl_rate = delta.map(|c| rate_bps(c.ingress_bytes, span)).unwrap_or(0);
-            let ul_rate = delta.map(|c| rate_bps(c.bytes, span)).unwrap_or(0);
+                for line in &mut *details {
+                    // The pooled trim-and-grey (night-frontier-Z4): one
+                    // warm scratch per line, the same bytes the old
+                    // chain returned, minus its Strings.
+                    super::grey_trim(line, None, geo.width);
+                }
+                // The deep line (night-netrunner-4, --deep): ONE grey
+                // line after the detail tree — the hungriest endpoint's
+                // rtt ± jitter and the window's retransmit share, or the
+                // protocol tag. Rides the same row budget the details
+                // ride (need grows by one when present); the deep line
+                // hides below the same show_total boundary that hides
+                // detail lines, and the champion trim below drops it
+                // FIRST (detail first, deep figures first to go — the
+                // sacrifice ladder's order, the audit's own).
+                // night-engrave-1-ee: the line INDENTS to the detail
+                // tree's first level (the block's own four columns)
+                // BEFORE the width trim — the figures sit under the
+                // sockets they summarize; at column 0 the same line read
+                // as the next row's opening (the owner's eagle-eyes find).
+                let mut deep_line = if deep && cols.show_total {
+                    super::deep::row_deep_line(conns, *cgroup_id)
+                } else {
+                    None
+                };
+                if let Some(line) = deep_line.as_mut() {
+                    // The pooled indent-trim-grey (night-frontier-Z4):
+                    // the indent rides the same scratch, the same bytes
+                    // the old chain returned, minus its Strings.
+                    super::grey_trim(line, Some("    "), geo.width);
+                }
+                let need = 1 + details.len() + usize::from(deep_line.is_some());
+                if used + need > row_room {
+                    if emitted == 0 {
+                        // The champion always shows (NIGHT-boost-5): trim
+                        // its own detail to what the window can hold —
+                        // the deep line yields first (the ladder's
+                        // order), then the detail lines.
+                        let room = row_room.saturating_sub(1);
+                        if room == 0 {
+                            if let Some(line) = deep_line.take() {
+                                super::recycle_line(line);
+                            }
+                            for line in details.drain(..) {
+                                super::recycle_line(line);
+                            }
+                        } else {
+                            if room < need
+                                && let Some(line) = deep_line.take()
+                            {
+                                super::recycle_line(line);
+                            }
+                            let keep = room.min(details.len());
+                            for line in details.drain(keep..) {
+                                super::recycle_line(line);
+                            }
+                        }
+                    } else {
+                        // The over-budget row's composed block returns
+                        // to the pool wholesale — the whole-block drop
+                        // starved the warm capacity every frame.
+                        for line in details.drain(..) {
+                            super::recycle_line(line);
+                        }
+                        return RowVerdict::Break;
+                    }
+                }
+                // This frame's deltas for the rates (a quiet app renders
+                // em dashes — it stays on the board with its totals).
+                // The denominator is the MEASURED span (NIGHT-lts-3),
+                // not the nominal cadence — see the render entry doc.
+                let delta = summary.cgroups.iter().find(|c| c.cgroup_id == *cgroup_id);
+                let dl_rate = delta.map(|c| rate_bps(c.ingress_bytes, span)).unwrap_or(0);
+                let ul_rate = delta.map(|c| rate_bps(c.bytes, span)).unwrap_or(0);
 
-            let shown_details = details.len();
-            let deep_shown = deep_line.is_some();
-            // The row's retrans window (night-netrunner-4): the
-            // walk-to-walk TCP truth, or absence (the em dash) when
-            // the row holds no measured window.
-            let retrans = super::retrans_row_figure(conns, *cgroup_id);
-            render_eagle_row(
-                lines,
-                *cgroup_id,
-                *acc,
-                dl_rate,
-                ul_rate,
-                retrans,
-                identity,
-                conns,
-                &cols,
-                i + 1,
-            );
-            for line in details {
-                lines.push(line);
+                let shown_details = details.len();
+                let deep_shown = deep_line.is_some();
+                // The row's retrans window (night-netrunner-4): the
+                // walk-to-walk TCP truth, or absence (the em dash) when
+                // the row holds no measured window.
+                let retrans = super::retrans_row_figure(conns, *cgroup_id);
+                render_eagle_row(
+                    lines,
+                    *cgroup_id,
+                    *acc,
+                    dl_rate,
+                    ul_rate,
+                    retrans,
+                    identity,
+                    conns,
+                    &cols,
+                    i + 1,
+                );
+                lines.append(&mut details);
+                if let Some(line) = deep_line {
+                    lines.push(line);
+                }
+                used += 1 + shown_details + usize::from(deep_shown);
+                emitted += 1;
+                RowVerdict::Render
+            });
+            if matches!(row_verdict, RowVerdict::Break) {
+                break;
             }
-            if let Some(line) = deep_line {
-                lines.push(line);
-            }
-            used += 1 + shown_details + usize::from(deep_shown);
-            emitted += 1;
         }
         // night-improve-58: the scroll-position note replaces the
         // old "raise the window" advice — the owner's whole point:
@@ -457,16 +562,24 @@ pub(super) fn render_eagle_eyes_at(
         // caught this very shape).
         let above = offset;
         let below = board.len().saturating_sub(offset + emitted);
-        if let Some(note) = scroll_note(above, below) {
+        // night-frontier-Z13 stage 4c: the note composes into the
+        // pooled scratch directly (the write_scroll_note twin) — the
+        // owned Option<String> per frame is gone.
+        if above > 0 || below > 0 {
             if emitted > 0 && lines.len() >= table_floor {
-                lines.pop();
+                // night-frontier-Z13 stage 4c: the popped row returns
+                // to the pool — dropping it starved the warm capacity
+                // and made the next frame pay fresh allocations.
+                if let Some(line) = lines.pop() {
+                    super::recycle_line(line);
+                }
             }
             // The pooled grey note (night-frontier-Z4): the leading
             // spaces ride OUTSIDE the paint (the same bytes the old
             // format!("   {}", grey(&note)) produced), the grey
             // paints onto its own warm scratch.
             let mut greyed = super::pooled_line();
-            greyed.push_str(&note);
+            super::scroll::write_scroll_note(above, below, &mut greyed);
             crate::output::paint_in_place(&mut greyed, crate::output::grey_open());
             super::push_pooled(lines, format_args!("   {greyed}"));
             super::recycle_line(greyed);
@@ -495,23 +608,30 @@ pub(super) fn render_eagle_eyes_at(
     // quiet board still gives the panel the frame's slack, a full
     // one still gives it the withheld five.
     let panel_room = footer_start.saturating_sub(lines.len());
-    let mut panel: Vec<String> = Vec::new();
-    render_panel(
-        &mut panel,
-        baseline,
-        identity,
-        panel_filter,
-        panel_room,
-        geo.width,
-        scroll,
-    );
-    // The dock (NIGHT-engrave-10): pad to the panel's floor, then
-    // land the block — the pin below tops the frame off.
-    let panel_at = footer_start.saturating_sub(panel.len());
-    while lines.len() < panel_at {
-        lines.push(String::new());
-    }
-    lines.extend(panel);
+    PANEL_BLOCK.with(|cell| {
+        let mut panel = cell.borrow_mut();
+        panel.clear();
+        render_panel(
+            &mut panel,
+            baseline,
+            identity,
+            panel_filter,
+            panel_room,
+            geo.width,
+            scroll,
+        );
+        // The dock (NIGHT-engrave-10): pad to the panel's floor, then
+        // land the block — the pin below tops the frame off. The pad
+        // rows ride the pool (night-frontier-Z13 stage 4c: a fresh
+        // String::new() carried zero capacity and the wrap grew it
+        // every frame), and the append moves the pooled rows while
+        // the scratch keeps its capacity.
+        let panel_at = footer_start.saturating_sub(panel.len());
+        while lines.len() < panel_at {
+            lines.push(super::pooled_line());
+        }
+        lines.append(&mut panel);
+    });
 
     // ── The pin (NIGHT-boost-14) ──────────────────────────────────
     //
@@ -521,12 +641,23 @@ pub(super) fn render_eagle_eyes_at(
     // the pin outranks the lowest table rows (popped from the end —
     // the least important ranks go first, never the footer).
     while lines.len() > footer_start {
-        lines.pop();
+        // night-frontier-Z13 stage 4c: the popped row returns to the
+        // pool (the over-height frame's sacrifice rows keep their
+        // warm capacity for the next frame).
+        if let Some(line) = lines.pop() {
+            super::recycle_line(line);
+        }
     }
     while lines.len() < footer_start {
-        lines.push(String::new());
+        lines.push(super::pooled_line());
     }
-    lines.extend(footer);
+    // The footer's rows land from their retained block (night-
+    // frontier-Z13 stage 4c): append moves the pooled rows and keeps
+    // the block warm for the next frame.
+    FOOTER_BLOCK.with(|cell| {
+        let mut footer = cell.borrow_mut();
+        lines.append(&mut footer);
+    });
     border::wrap(lines, full_width);
 }
 

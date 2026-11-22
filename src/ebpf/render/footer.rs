@@ -75,9 +75,8 @@
 
 use std::time::Duration;
 
-pub(super) use super::footer_grip::build_grip_footer;
-use super::{SessionAcc, comm_from_label, label_with_count};
-use crate::ebpf::connections::ConnectionMap;
+use super::SessionAcc;
+pub(super) use super::footer_grip::{build_grip_footer, build_grip_footer_into};
 use crate::ebpf::identity::IdentityMap;
 use crate::output::theme;
 use crate::output::{ColorCapability, capability, grey_open, reset};
@@ -270,10 +269,6 @@ pub(super) struct FooterCensus {
     /// How many cgroups the board carries (the frame's own story:
     /// filtered frames count their filtered board).
     pub cgroups: usize,
-    /// The rank-1 cgroup's display name (the autodetect's pick);
-    /// None only when the board is empty — an idle frame has no
-    /// consumer to headline.
-    pub top_proc_name: Option<String>,
     /// The rare identities-unresolved note rides along.
     pub identities_unresolved: bool,
     /// The monitor's session uptime (NIGHT-boost-17; folded into the
@@ -293,29 +288,20 @@ impl FooterCensus {
     /// (NIGHT-engrave-6) — RATES at fold since NIGHT-hunt-38, ready
     /// to render with no conversion.
     #[must_use]
+    // night-frontier-Z13 stage 4c moved the name resolution out of the
+    // census: the rank-1 consumer's display name resolves at the render
+    // call site into a capacity-warm buffer and reaches the footer as a
+    // &str parameter — the census's owned Option<String> per frame is
+    // gone (the old top_proc_name field and its clone-per-frame). The
+    // connection map left with it: the census's figures are pure board
+    // sums, so the conns parameter went too.
     pub(super) fn gather(
         tier: FooterTier,
         board: &[(u32, SessionAcc)],
         identity: &IdentityMap,
-        conns: Option<&ConnectionMap>,
         uptime: Duration,
         peaks: (u64, u64),
     ) -> Self {
-        // Top consumer (the NIGHT-hunt-8 autodetect, restored):
-        // when socket detail is available, name the busiest process
-        // INSIDE the champion cgroup — "top consumer is curl"
-        // instead of "alacritty". Since NIGHT-dinner-6 "busiest" is
-        // byte-ranked (rank::top_consumer over the per-socket join),
-        // the walk order standing when the join has no figures.
-        // Fallback chain: the label's comm, then the raw label itself
-        // (the headline never goes dark over an identity miss).
-        let top_proc_name = board.first().map(|(cgroup_id, _)| {
-            conns
-                .and_then(|cm| super::rank::top_consumer(cm, *cgroup_id))
-                .map(|p| p.comm.clone())
-                .or_else(|| comm_from_label(&label_with_count(identity, conns, *cgroup_id)))
-                .unwrap_or_else(|| label_with_count(identity, conns, *cgroup_id))
-        });
         // The census (footer honesty, NIGHT-hunt-15 lineage): every
         // candidate counts, not just the rows the window budget
         // could show — and since NIGHT-engrave-4 every figure on the
@@ -350,7 +336,6 @@ impl FooterCensus {
             peak_ul: peaks.1,
             packets,
             cgroups: board.len(),
-            top_proc_name,
             identities_unresolved: identity.is_empty(),
             uptime,
         }

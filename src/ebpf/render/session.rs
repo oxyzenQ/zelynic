@@ -175,6 +175,11 @@ const RETIRE_GRACE_FRAMES: u32 = 3;
 #[derive(Debug, Default)]
 pub(crate) struct SessionState {
     acc: HashMap<u32, SessionAcc>,
+    /// The ranked board scratch (night-frontier-Z13 stage 4c): the
+    /// leaderboard's capacity-warm buffer — `ranked_board` composes
+    /// into it per frame and the ranked frame reads it as a slice,
+    /// so the per-frame collect + sort allocation is gone.
+    ranked_board: Vec<(u32, SessionAcc)>,
     /// The session's peak per-frame download RATE in B/s (the
     /// watched set's aggregate, NIGHT-engrave-6; NIGHT-hunt-38 —
     /// tracked as a RATE at fold time, the delta divided by the
@@ -372,11 +377,31 @@ impl SessionState {
     /// The ranked leaderboard: accumulated totals, heaviest first,
     /// ties broken by cgroup ID (HashMap iteration order is random —
     /// the board must not reshuffle between frames on a tie).
+    /// Pins-only accessor since night-frontier-Z13 stage 4c: the
+    /// ranked frame composes into the session's own scratch board
+    /// (`ranked_board`), so the owned Vec form serves the pins now.
+    #[cfg(test)]
     #[must_use]
     pub(crate) fn ranked(&self) -> Vec<(u32, SessionAcc)> {
         let mut board: Vec<(u32, SessionAcc)> = self.acc.iter().map(|(&id, &a)| (id, a)).collect();
         board.sort_by(|a, b| b.1.total().cmp(&a.1.total()).then_with(|| a.0.cmp(&b.0)));
         board
+    }
+
+    /// The ranked leaderboard into the session's own scratch board
+    /// (night-frontier-Z13 stage 4c): the same ordering law as
+    /// [`Self::ranked`] — accumulated totals heaviest first, ties
+    /// broken by cgroup id — composed in the capacity-warm buffer the
+    /// session carries across frames, so the ranked frame's board
+    /// walk performs zero heap events in steady state. The caller
+    /// must be done with the board before the next session call.
+    pub(crate) fn ranked_board(&mut self) -> &mut Vec<(u32, SessionAcc)> {
+        self.ranked_board.clear();
+        self.ranked_board
+            .extend(self.acc.iter().map(|(&id, &a)| (id, a)));
+        self.ranked_board
+            .sort_by(|a, b| b.1.total().cmp(&a.1.total()).then_with(|| a.0.cmp(&b.0)));
+        &mut self.ranked_board
     }
 
     /// Whether any traffic has been seen since the monitor started.

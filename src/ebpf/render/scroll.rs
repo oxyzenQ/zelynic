@@ -169,11 +169,31 @@ impl ScrollState {
 /// clean). One spelling for both sections (the one-canonical-word
 /// law): the counts vary, the advice never does.
 pub(crate) fn scroll_note(above: usize, below: usize) -> Option<String> {
+    if above == 0 && below == 0 {
+        return None;
+    }
+    let mut out = String::new();
+    write_scroll_note(above, below, &mut out);
+    Some(out)
+}
+
+/// The into-twin of [`scroll_note`] (night-frontier-Z13 stage 4c):
+/// the same bytes into a caller-owned buffer — the frame's pooled
+/// scratch consumes this form, so the owned Option<String> per frame
+/// is gone. The (0, 0) case writes nothing: the caller gates on it.
+pub(crate) fn write_scroll_note(above: usize, below: usize, out: &mut String) {
+    use std::fmt::Write as _;
     match (above, below) {
-        (0, 0) => None,
-        (0, below) => Some(format!("(+{below} more — ↑↓ scroll)")),
-        (above, 0) => Some(format!("(-{above} above — ↑↓ scroll)")),
-        (above, below) => Some(format!("(-{above} above · +{below} more — ↑↓ scroll)")),
+        (0, 0) => {}
+        (0, below) => {
+            let _ = write!(out, "(+{below} more — ↑↓ scroll)");
+        }
+        (above, 0) => {
+            let _ = write!(out, "(-{above} above — ↑↓ scroll)");
+        }
+        (above, below) => {
+            let _ = write!(out, "(-{above} above · +{below} more — ↑↓ scroll)");
+        }
     }
 }
 

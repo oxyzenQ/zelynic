@@ -31,7 +31,14 @@ thread_local! {
 pub(crate) fn pooled_line() -> String {
     let mut line = LINE_POOL
         .with(|p| p.borrow_mut().pop())
-        .unwrap_or_else(|| String::with_capacity(96));
+        // The fresh-carve capacity (night-frontier-Z13 stage 4c): the
+        // frame's steady rows run well past 96 bytes once the border
+        // wrap's inset, background, and rails land — a 96-byte carve
+        // grew EVERY frame (the closing row's per-frame realloc was
+        // the walk's last visible event). 192 covers the steady row
+        // shapes; the recycle ceiling (POOL_LINE_CAP) still retires
+        // the pathological ones.
+        .unwrap_or_else(|| String::with_capacity(192));
     line.clear();
     line
 }
@@ -133,5 +140,10 @@ pub(crate) fn grey_trim(line: &mut String, indent: Option<&str>, w: usize) {
     fitted.push_str(&*line);
     fit_in_place(&mut fitted, w);
     paint_in_place(&mut fitted, grey_open());
-    *line = fitted;
+    // night-frontier-Z13 stage 4c: the OLD buffer returns to the pool
+    // — a bare replace dropped it, and every dropped pooled buffer
+    // starved the warm capacity by one (the next frame's pop paid a
+    // fresh allocation the walk could see).
+    let old = std::mem::replace(line, fitted);
+    recycle_line(old);
 }
