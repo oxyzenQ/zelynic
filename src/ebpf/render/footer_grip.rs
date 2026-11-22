@@ -41,15 +41,40 @@ fn push_session_rate(out: &mut String, bps: u64) {
 /// not the nominal interval the beat scheduler only approximates),
 /// so the builder renders the stored peaks directly and a later
 /// frame's span jitter can never restate a historical peak.
+///
+/// `top_name` is the rank-1 consumer's display name (night-frontier-
+/// Z13 stage 4c: resolved at the render call site into a warm buffer,
+/// reaching the builder as a &str — the census's owned Option<String>
+/// per frame is gone). The two headline reads (the consumer line and
+/// the actionable command) read this param.
 #[must_use]
 pub(super) fn build_grip_footer(
     census: &FooterCensus,
     geo: FrameGeometry,
     interval: Duration,
     deep: bool,
+    top_name: Option<&str>,
 ) -> Vec<String> {
+    let mut footer: Vec<String> = Vec::with_capacity(census.tier.lines());
+    build_grip_footer_into(&mut footer, census, geo, interval, deep, top_name);
+    footer
+}
+
+/// The into-twin of [`build_grip_footer`] (night-frontier-Z13 stage
+/// 4c): the same bytes into the caller's capacity-warm buffer — the
+/// eagle frame's retained footer block consumes this form, so the
+/// fresh Vec per frame is gone. `footer` is cleared first: the
+/// builder owns the whole block.
+pub(super) fn build_grip_footer_into(
+    footer: &mut Vec<String>,
+    census: &FooterCensus,
+    geo: FrameGeometry,
+    interval: Duration,
+    deep: bool,
+    top_name: Option<&str>,
+) {
+    footer.clear();
     let tier = census.tier;
-    let mut footer: Vec<String> = Vec::with_capacity(tier.lines());
     // Tiny drops the roof: at survival height every row the frame
     // can spare becomes a data row.
     if tier != FooterTier::Tiny {
@@ -65,7 +90,7 @@ pub(super) fn build_grip_footer(
     // thing in the footer, the hint to act on). Rides every tier
     // down to Minimal; Tiny has no room for headlines.
     if tier != FooterTier::Tiny
-        && let Some(name) = census.top_proc_name.as_deref()
+        && let Some(name) = top_name
     {
         // night-frontier-Z11: the headline writes into a pooled row
         // - the grey lead and the brand name append around the
@@ -187,7 +212,7 @@ pub(super) fn build_grip_footer(
     // name in the brand tier — the frame's two living accents, the
     // thing to read and the thing to act on.
     if matches!(tier, FooterTier::Full | FooterTier::Compact)
-        && let Some(name) = census.top_proc_name.as_deref()
+        && let Some(name) = top_name
     {
         // night-frontier-Z11: the actionable line writes into a
         // pooled row, the command string appended piecewise.
@@ -216,7 +241,10 @@ pub(super) fn build_grip_footer(
         footer.push(line);
     }
     if tier == FooterTier::Full {
-        footer.push(String::new());
+        // night-frontier-Z13 stage 4c: the gap row rides the pool — a
+        // fresh String::new() forced the border wrap to grow it from
+        // zero capacity every frame.
+        footer.push(pooled_line());
     }
     // The status line (NIGHT-engrave-2) rides EVERY tier — and since
     // the engrave-3 title trim it is the legend's only home.
@@ -229,14 +257,15 @@ pub(super) fn build_grip_footer(
     // the copyright — the build stamp lands as its own quiet
     // paragraph, never the status line's continuation.
     if matches!(tier, FooterTier::Full | FooterTier::Compact) {
-        footer.push(String::new());
+        // night-frontier-Z13 stage 4c: the gap row rides the pool (the
+        // zero-capacity growth the wrap paid per frame is gone).
+        footer.push(pooled_line());
     }
     // night-frontier-Z11: pooled row, the engraving's own String
     // appended (its internals are the output layer's identity seat,
     // their own later stage).
     let mut line = pooled_line();
     line.push_str("  ");
-    line.push_str(&signature_footer());
+    line.push_str(signature_footer());
     footer.push(line);
-    footer
 }

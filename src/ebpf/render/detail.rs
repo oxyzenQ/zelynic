@@ -90,11 +90,15 @@ pub(crate) fn write_label_with_count(
 }
 
 /// Extract the primary comm from a label, tolerating the "+N" suffix
-/// (used by the top-consumer autodetect, NIGHT-hunt-8 lineage,
-/// restored by NIGHT-engrave-4): `cg:73386 (alacritty +3)` yields
-/// `alacritty`. Labels without a parenthesized comm (the raw
-/// `cg:73386` of an unresolved identity) yield None — the caller
-/// falls back to the whole label, the identity-honest name.
+/// (the top-consumer autodetect's extraction law, NIGHT-hunt-8
+/// lineage): `cg:73386 (alacritty +3)` yields `alacritty`. Labels
+/// without a parenthesized comm (the raw `cg:73386` of an unresolved
+/// identity) yield None — the caller falls back to the whole label,
+/// the identity-honest name. Test-tree law since night-frontier-Z13
+/// stage 4c: the footer's headline resolves the comm from the
+/// identity record directly now, so the extraction lives on only in
+/// the pins that hold its shape.
+#[cfg(test)]
 #[must_use]
 pub(crate) fn comm_from_label(label: &str) -> Option<String> {
     let inner = label.split('(').nth(1)?.strip_suffix(')')?;

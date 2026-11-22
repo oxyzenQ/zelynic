@@ -86,11 +86,10 @@ pub(crate) fn loading_frame(interval: Duration, geo: FrameGeometry) -> Vec<Strin
         peak_ul: 0,
         packets: 0,
         cgroups: 0,
-        top_proc_name: None,
         identities_unresolved: false,
         uptime: Duration::ZERO,
     };
-    let footer = build_grip_footer(&census, geo, interval, false);
+    let footer = build_grip_footer(&census, geo, interval, false, None);
 
     // The pin: the footer lands at the bottom of the frame, blank
     // padding absorbing the middle — the same pin math the eagle

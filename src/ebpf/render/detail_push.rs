@@ -41,8 +41,8 @@ fn rank_endpoint_indices(
     conns: Option<&ConnectionMap>,
 ) {
     indices.sort_by_key(|&i| {
-        let total = socket_bytes_of(&sockets[i as usize], conns)
-            .map_or(0, |b| b.dl.saturating_add(b.ul));
+        let total =
+            socket_bytes_of(&sockets[i as usize], conns).map_or(0, |b| b.dl.saturating_add(b.ul));
         std::cmp::Reverse(total)
     });
 }
@@ -149,7 +149,13 @@ fn push_eagle_holder_lines(
             use std::fmt::Write as _;
             let _ = write!(line, "        {branch} ");
         }
-        push_endpoint_text(&mut line, &sockets[*socket_idx as usize], conns, window, deep);
+        push_endpoint_text(
+            &mut line,
+            &sockets[*socket_idx as usize],
+            conns,
+            window,
+            deep,
+        );
         lines.push(line);
     }
 }
