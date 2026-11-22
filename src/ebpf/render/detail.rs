@@ -26,9 +26,15 @@ use crate::ebpf::connections::{ConnectionMap, Proto, SocketInfo};
 #[cfg(test)]
 use crate::ebpf::connections::ProcessDetail;
 use crate::ebpf::identity::IdentityMap;
-use crate::ebpf::limiter::{format_count, format_rate};
+use crate::ebpf::limiter::format_rate;
+// night-frontier-Z13 stages 5a/5b: the owned formatters the frames
+// composed with ride the cfg(test) twins now — the imports ride the
+// same gate their callers do.
+#[cfg(test)]
+use crate::ebpf::limiter::format_count;
 use crate::ebpf::loader::SocketBytes;
 
+#[cfg(test)]
 use std::time::Duration;
 
 /// Total detail lines one eagle-eyes row may grow (NIGHT-boost-21):
@@ -54,6 +60,10 @@ pub(super) const ENDPOINT_SHOWN: usize = 2;
 /// the detail lines name the actual inhabitants. The count rides
 /// the SI compact ladder (NIGHT-engrave-7): a long-lived cgroup
 /// hosting thousands of PIDs reads `+2.4K`, never a raw explosion.
+/// night-frontier-Z13 stage 5b: the frame composes through
+/// `write_label_with_count` — the owned form stays for the pins
+/// (cfg(test), the `detail_lines` discipline).
+#[cfg(test)]
 #[must_use]
 pub(crate) fn label_with_count(
     identity: &IdentityMap,
@@ -155,6 +165,10 @@ pub(crate) fn comm_from_label(label: &str) -> Option<String> {
 /// (six spellings, one call). A v6 socket's line reads its family
 /// at the tag now (`tcp6 [2001:db8::1]:443 [busy]`), not only
 /// through the bracketed remote.
+/// night-frontier-Z13 stage 5a: the frames compose through the
+/// endpoint twin (`push_endpoint_text`) — the owned form stays for
+/// the pins (cfg(test), the `detail_lines` discipline).
+#[cfg(test)]
 fn endpoint_text(
     socket: &SocketInfo,
     conns: Option<&ConnectionMap>,
@@ -339,6 +353,10 @@ pub(crate) fn is_displayable(socket: &SocketInfo) -> bool {
 /// the answer behind two quiet walk-first endpoints without it —
 /// truncation without ranking buries the very endpoint the owner
 /// opened the tree to find.
+/// night-frontier-Z13 stage 5a: the frames rank through the index
+/// twin (`rank_endpoint_indices`) — the owned form stays for the
+/// pins (cfg(test), the `detail_lines` discipline).
+#[cfg(test)]
 pub(super) fn rank_endpoints_by_bytes(
     endpoints: &mut [&SocketInfo],
     conns: Option<&ConnectionMap>,
@@ -477,6 +495,11 @@ pub(crate) fn detail_lines(
 /// endpoint first (the 2.4 promise: "the focus view could rank
 /// endpoints within a cgroup"); byteless endpoints keep the walk's
 /// established-first order behind them.
+/// night-frontier-Z13 stage 5a: the focus view composes through
+/// `push_focus_tree` (the retained-scratch pooled-row twin) — the
+/// owned form stays for the pins (cfg(test), the `detail_lines`
+/// discipline: the oracle the pooled bytes are held against).
+#[cfg(test)]
 #[must_use]
 pub(crate) fn full_detail_lines(
     conns: Option<&ConnectionMap>,

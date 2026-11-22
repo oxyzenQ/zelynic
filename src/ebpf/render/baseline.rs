@@ -80,14 +80,20 @@
 
 use std::collections::HashMap;
 
+use super::{pooled_line, recycle_line};
 use crate::ebpf::identity::IdentityMap;
-use crate::ebpf::limiter::format_rate;
+use crate::ebpf::limiter::format_rate_into;
 use crate::ebpf::limiter::monotonic_ns;
 use crate::ebpf::limiter::rate_ring::{
     RATE_RING_SLOTS, RATE_RING_WINDOW_NS, RateRingRaw, read_pinned_rings, ring_series,
 };
 use crate::ebpf::loader::CounterSummary;
-use crate::output::{grey, warn};
+use crate::output::{grey_open, reset, warn_open};
+
+/// The focus row's key column (night-frontier-Z13 stage 5c): the
+/// prefix the pooled row opens with, its length the empty-body
+/// probe reads.
+const BASELINE_ROW_PREFIX: &str = "  baseline  ";
 
 // ── The constants (every figure a pinned contract) ─────────────────
 
@@ -444,55 +450,103 @@ impl BaselineLane {
 
 // ── The phrase vocabulary (pure) ────────────────────────────────────
 
-/// One direction's rendered figure. The zero special case is
-/// deliberate: the limiter's formatter renders 0 as BLOCKED (a zero
-/// limit's verdict wording), but this lane's zero is LEARNED QUIET
-/// — idle since the lens opened is steady at zero, not blocked; the
-/// two contexts disagree about zero on purpose.
-fn rate_figure(bps: u64) -> String {
+/// One direction's rendered figure, into the caller's buffer
+/// (night-frontier-Z13 stage 5c): the zero special case is
+/// deliberate — the limiter's formatter renders 0 as BLOCKED (a
+/// zero limit's verdict wording), but this lane's zero is LEARNED
+/// QUIET — idle since the lens opened is steady at zero, not
+/// blocked; the two contexts disagree about zero on purpose. The
+/// same bytes the owned twin formats, no owned String per figure.
+fn push_rate_figure(out: &mut String, bps: u64) {
     if bps == 0 {
-        "0 B/s".to_string()
+        out.push_str("0 B/s");
     } else {
-        format_rate(bps)
+        format_rate_into(bps, out);
     }
 }
 
-/// One direction's rendered phrase. Learning grey, steady plain,
+/// One direction's rendered phrase, into the caller's buffer
+/// (night-frontier-Z13 stage 5c): learning grey, steady plain,
 /// departures warn — the flag color the estate's warn family owns.
-fn phrase(word: Option<BaselineWord>) -> String {
+/// The same bytes the owned twin formats, painted onto the pooled
+/// row's own buffer — no owned String per word per frame.
+fn push_phrase(out: &mut String, word: Option<BaselineWord>) {
+    use std::fmt::Write as _;
     match word {
-        None => String::new(),
+        None => {}
         Some(BaselineWord::Learning { samples }) => {
-            grey(&format!("learning {}/{}", samples, BASELINE_MIN_SAMPLES))
+            out.push_str(grey_open());
+            let _ = write!(out, "learning {samples}/{}", BASELINE_MIN_SAMPLES);
+            out.push_str(reset());
         }
-        Some(BaselineWord::Steady { bps }) => format!("steady {}", rate_figure(bps)),
+        Some(BaselineWord::Steady { bps }) => {
+            out.push_str("steady ");
+            push_rate_figure(out, bps);
+        }
         Some(BaselineWord::Above { percent, base }) => {
-            let figure = match percent {
-                Some(p) => format!("+{p}% "),
-                None => String::new(),
-            };
-            warn(&format!("above {figure}(base {})", rate_figure(base)))
+            out.push_str(warn_open());
+            out.push_str("above ");
+            if let Some(p) = percent {
+                let _ = write!(out, "+{p}% ");
+            }
+            out.push_str("(base ");
+            push_rate_figure(out, base);
+            out.push(')');
+            out.push_str(reset());
         }
         Some(BaselineWord::Below { percent, base }) => {
-            let figure = match percent {
-                Some(p) => format!("-{p}% "),
-                None => String::new(),
-            };
-            warn(&format!("below {figure}(base {})", rate_figure(base)))
+            out.push_str(warn_open());
+            out.push_str("below ");
+            if let Some(p) = percent {
+                let _ = write!(out, "-{p}% ");
+            }
+            out.push_str("(base ");
+            push_rate_figure(out, base);
+            out.push(')');
+            out.push_str(reset());
         }
     }
+}
+
+/// Both directions on one line into the caller's buffer, ` · `
+/// between when both render (night-frontier-Z13 stage 5c).
+pub(super) fn push_pair_phrase(
+    out: &mut String,
+    dl: Option<BaselineWord>,
+    ul: Option<BaselineWord>,
+) {
+    match (dl.is_none(), ul.is_none()) {
+        (true, true) => {}
+        (false, true) => push_phrase(out, dl),
+        (true, false) => push_phrase(out, ul),
+        (false, false) => {
+            push_phrase(out, dl);
+            out.push_str(" \u{b7} ");
+            push_phrase(out, ul);
+        }
+    }
+}
+
+/// The owned phrase faces: the pins' oracle since night-frontier-Z13
+/// stage 5c — the frames compose through the push twins, the
+/// `detail_lines` discipline (the cfg(test) modules hold the bytes).
+/// One direction's rendered phrase. Learning grey, steady plain,
+/// departures warn — the flag color the estate's warn family owns.
+#[cfg(test)]
+fn phrase(word: Option<BaselineWord>) -> String {
+    let mut out = String::new();
+    push_phrase(&mut out, word);
+    out
 }
 
 /// Both directions on one line, ` · ` between when both render.
+/// The ranked panel's body face — the focus row composes through
+/// [`push_pair_phrase`] now; this form moves behind cfg(test) when
+/// the panel takes the into-twin (stage 5d).
 pub(super) fn pair_phrase(dl: Option<BaselineWord>, ul: Option<BaselineWord>) -> String {
-    let dl_phrase = phrase(dl);
-    let ul_phrase = phrase(ul);
-    match (dl.is_none(), ul.is_none()) {
-        (true, true) => String::new(),
-        (false, true) => dl_phrase,
-        (true, false) => ul_phrase,
-        (false, false) => format!("{dl_phrase} · {ul_phrase}"),
-    }
+    let mut out = String::new();
+    push_pair_phrase(&mut out, dl, ul);
+    out
 }
 
 // ── The renderers (no I/O — the render tree's contract) ────────────
@@ -501,11 +555,23 @@ pub(super) fn pair_phrase(dl: Option<BaselineWord>, ul: Option<BaselineWord>) ->
 /// to the key/value block after `lifetime` (the same column the
 /// block's keys align on). Rendered from the LANE, not the frame's
 /// summary — a quiet frame still renders the ring's last windows.
+/// night-frontier-Z13 stage 5c: the row composes into a pooled row
+/// through the phrase twins — the owned pair (the grey/warn wraps'
+/// Strings, the body format!, the row format!) allocated three to
+/// five heap events per frame the lens held a word, and the lens
+/// holds words on every learned policy root.
 pub(crate) fn render_focus_row(lines: &mut Vec<String>, lane: &BaselineLane, cgroup_id: u32) {
     if let Some((dl, ul)) = lane.focus_pair(cgroup_id) {
-        let body = pair_phrase(dl, ul);
-        if !body.is_empty() {
-            lines.push(format!("  baseline  {body}"));
+        let mut row = pooled_line();
+        row.push_str(BASELINE_ROW_PREFIX);
+        push_pair_phrase(&mut row, dl, ul);
+        // The empty-body law the owned twin held (both directions
+        // absent — no row): the bare prefix recycles back, the pool
+        // keeps its warm capacity (the stage-4c starvation lesson).
+        if row.len() > BASELINE_ROW_PREFIX.len() {
+            lines.push(row);
+        } else {
+            recycle_line(row);
         }
     }
 }

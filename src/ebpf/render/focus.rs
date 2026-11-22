@@ -23,17 +23,14 @@
 use std::time::Duration;
 
 use super::baseline::{BaselineLane, render_focus_row};
-use super::footer::status_line;
-use super::{
-    FrameGeometry, SessionAcc, format_rate_or_dash, format_uptime, label_with_count, pooled_line,
-    rate_bps, title_bar_into,
-};
+use super::footer::status_line_into;
+use super::{FrameGeometry, SessionAcc, format_uptime_into, pooled_line, rate_bps, title_bar_into};
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
-use crate::ebpf::limiter::format_bytes;
-use crate::ebpf::limiter::format_count;
+use crate::ebpf::limiter::format_bytes_into;
+use crate::ebpf::limiter::format_count_into;
 use crate::ebpf::loader::CounterSummary;
-use crate::output::{grey, signature_footer};
+use crate::output::{grey_open, reset, signature_footer};
 
 /// The window's active cgroup ids — the movers, and only the
 /// movers (a zero-delta id is absent by construction). Built
@@ -147,10 +144,20 @@ pub fn render_eagle_focus(
         &mut bar,
     );
     lines.push(bar);
+    // night-frontier-Z13 stage 5c: the scratch returns to the pool —
+    // the ranked frame's composition already recycles it (the same
+    // twin call), and the focus frame's balance was EXACT: every slot
+    // the frame popped was returned except this one, so the closing
+    // row's pop starved every frame (one fresh carve plus one growth
+    // realloc, the lens's own two-event receipt). One recycle, zero.
+    super::pool::recycle_line(title_core);
 
     // The breathing gap (NIGHT-boost-14): same air under the title
-    // as the ranked frame — one composition, two views.
-    lines.push(String::new());
+    // as the ranked frame — one composition, two views. The blank
+    // row pops the pool (night-frontier-Z13 stage 5b): the wrap's
+    // rails grow a fresh zero-capacity String, the stage-4c
+    // blank-row lesson the ranked frame already paid for.
+    lines.push(pooled_line());
 
     // Overhead the fixed frame claims: title, gap, the six key/value
     // rows (the five observer rows plus the baseline row EAGLE EYES
@@ -163,10 +170,17 @@ pub fn render_eagle_focus(
     const FOCUS_CHROME: usize = 13;
 
     if let Some(c) = summary.cgroups.iter().find(|c| c.cgroup_id == cgroup_id) {
-        lines.push(format!(
-            "  process   {}",
-            label_with_count(identity, conns, cgroup_id)
-        ));
+        // The key/value block (night-frontier-Z13 stage 5b): pooled
+        // rows composed with the into-twin formatters — byte for
+        // byte the rows format! carried, minus the owned Strings
+        // (the label's write twin, the byte and count ladders'
+        // into-forms, and the em-dash rate's writer). The into-twin
+        // family existed for the ranked frame; the focus block is
+        // its next consumer.
+        let mut row = pooled_line();
+        row.push_str("  process   ");
+        super::detail::write_label_with_count(identity, conns, cgroup_id, &mut row);
+        lines.push(row);
         // The parens figures ride the count ladder (NIGHT-improve-51,
         // the mitigate-1 audit's finding A): the per-poll packet
         // deltas are display figures, and a raw u64 explodes the row
@@ -175,31 +189,41 @@ pub fn render_eagle_focus(
         // 60s/148.8Mpps interval is 9 digits. The ladder keeps every
         // small figure EXACT ("(5)", the fresh-frame shape) and
         // compacts only where the raw figure stops being readable.
-        lines.push(format!(
-            "  download  {} ({})",
-            format_bytes(c.ingress_bytes),
-            format_count(c.ingress_packets)
-        ));
-        lines.push(format!(
-            "  upload    {} ({})",
-            format_bytes(c.bytes),
-            format_count(c.packets)
-        ));
-        lines.push(format!(
-            "  rate      {}",
-            format_rate_or_dash(rate_bps(c.ingress_bytes.saturating_add(c.bytes), span,))
-        ));
-        lines.push(format!(
-            "  lifetime  {}",
-            // Both lifetime counters (improve-13 precision): the ingress
-            // map's cumulative download + the egress map's cumulative
-            // upload — one horizon, since attach. The old sum mixed a
-            // per-poll download delta in, so the row shrank frame over
-            // frame on a 1s refresh. Saturating (NIGHT-boost-16): the
-            // two lifetime legs are kernel u64 counters — their sum
-            // must read as saturation, not panic or wrap.
-            format_bytes(c.ingress_total_bytes.saturating_add(c.total_bytes))
-        ));
+        let mut row = pooled_line();
+        row.push_str("  download  ");
+        format_bytes_into(c.ingress_bytes, &mut row);
+        row.push_str(" (");
+        format_count_into(c.ingress_packets, &mut row);
+        row.push(')');
+        lines.push(row);
+        let mut row = pooled_line();
+        row.push_str("  upload    ");
+        format_bytes_into(c.bytes, &mut row);
+        row.push_str(" (");
+        format_count_into(c.packets, &mut row);
+        row.push(')');
+        lines.push(row);
+        let mut row = pooled_line();
+        row.push_str("  rate      ");
+        super::pool::write_rate_or_dash(
+            &mut row,
+            rate_bps(c.ingress_bytes.saturating_add(c.bytes), span),
+        );
+        lines.push(row);
+        let mut row = pooled_line();
+        row.push_str("  lifetime  ");
+        // Both lifetime counters (improve-13 precision): the ingress
+        // map's cumulative download + the egress map's cumulative
+        // upload — one horizon, since attach. The old sum mixed a
+        // per-poll download delta in, so the row shrank frame over
+        // frame on a 1s refresh. Saturating (NIGHT-boost-16): the
+        // two lifetime legs are kernel u64 counters — their sum
+        // must read as saturation, not panic or wrap.
+        format_bytes_into(
+            c.ingress_total_bytes.saturating_add(c.total_bytes),
+            &mut row,
+        );
+        lines.push(row);
 
         // EAGLE EYES V2 (NIGHT-improve-1a): the baseline row joins
         // the key/value block after `lifetime`. Rendered from the
@@ -222,25 +246,20 @@ pub fn render_eagle_focus(
         // and retrans share, UDP the [encrypted/quic] tag, raw the
         // [no l4 truth] one (the focus view is where an operator
         // dissects one app; it is where the full family belongs).
-        let mut details = super::full_detail_lines(conns, cgroup_id, span, deep);
+        // night-frontier-Z13 stage 5a: the tree composes into the
+        // retained FOCUS_TREE scratch (push_focus_tree) — the fresh
+        // Vec per frame and every owned format! row are gone, the
+        // room law runs inside the scratch borrow, and every dropped
+        // row hands its buffer back to the pool.
         let room = geo.height.saturating_sub(FOCUS_CHROME);
-        if details.len() > room {
-            if room == 0 {
-                details.clear();
-            } else {
-                let hidden = details.len() - (room - 1);
-                details.truncate(room - 1);
-                details.push(format!(
-                    "  └ +{} more hidden — raise the window",
-                    format_count(hidden as u64)
-                ));
-            }
-        }
-        for line in details {
-            lines.push(line);
-        }
+        super::detail_push::push_focus_tree(lines, conns, cgroup_id, span, deep, room);
     } else {
-        lines.push(format!("  no traffic for cg:{cgroup_id} since last check"));
+        let mut row = pooled_line();
+        {
+            use std::fmt::Write as _;
+            let _ = write!(row, "  no traffic for cg:{cgroup_id} since last check");
+        }
+        lines.push(row);
         // The baseline row rides the quiet branch too (EAGLE EYES
         // V2): the ring lens is independent of the observer poll —
         // eight seconds of delivered shape survive a frame the
@@ -257,12 +276,20 @@ pub fn render_eagle_focus(
     // and the uptime line (NIGHT-boost-17) stays the frame's last row.
     let footer_len = 5;
     while lines.len() + footer_len < geo.height {
-        lines.push(String::new());
+        // The pad rows pop the pool (stage 5b): same blank-row law
+        // as the breathing gap.
+        lines.push(pooled_line());
     }
     if lines.len() + footer_len <= geo.height {
-        lines.push(String::new());
-        lines.push(status_line(interval));
-        lines.push(String::new());
+        lines.push(pooled_line());
+        // The status line rides its into-twin (night-frontier-Z11,
+        // the footer's ladder — the focus frame is its next
+        // consumer): the realtime figure writes via write!, the
+        // theme name is a &'static str, no owned String.
+        let mut row = pooled_line();
+        status_line_into(interval, &mut row);
+        lines.push(row);
+        lines.push(pooled_line());
         // night-frontier-Z13 stage 4b: the engraving rides its static
         // seat now — the row is pooled and the push_str pair reads the
         // &'static str (the format!'s owned String and the brand's
@@ -271,10 +298,17 @@ pub fn render_eagle_focus(
         line.push_str("  ");
         line.push_str(signature_footer());
         lines.push(line);
-        lines.push(format!(
-            "  {}",
-            grey(&format!("uptime {}", format_uptime(uptime)))
-        ));
+        // The uptime row composes in place (stage 5b): the grey wrap
+        // is the open/reset pair around the SAME bytes the format!
+        // chain carried, painted onto the pooled row — the owned
+        // format!/grey pair (three Strings per frame) is gone.
+        let mut row = pooled_line();
+        row.push_str("  ");
+        row.push_str(grey_open());
+        row.push_str("uptime ");
+        format_uptime_into(uptime, &mut row);
+        row.push_str(reset());
+        lines.push(row);
     }
     super::border::wrap(lines, full_width);
 }

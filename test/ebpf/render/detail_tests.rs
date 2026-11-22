@@ -312,6 +312,45 @@ fn full_detail_lines_tree() {
     assert!(full_detail_lines(Some(&conns), 1234, WINDOW, false).is_empty());
 }
 
+/// Twin parity (night-frontier-Z13 stage 5a): the pooled composer the
+/// focus frame renders through produces BYTE-IDENTICAL rows to the
+/// owned oracle above — the same fixture, the same window, the same
+/// deep flag, held line for line. The owned form stays the pins'
+/// oracle (the `detail_lines` discipline); this pin is the reason it
+/// does.
+#[test]
+fn focus_tree_pooled_matches_owned_oracle() {
+    let (conns, _) = fixture();
+
+    let owned = full_detail_lines(Some(&conns), 7001, WINDOW, false);
+    let mut pooled: Vec<String> = Vec::new();
+    super::super::detail_push::push_full_detail_lines(
+        &mut pooled,
+        Some(&conns),
+        7001,
+        WINDOW,
+        false,
+    );
+    assert_eq!(
+        owned, pooled,
+        "the focus tree's pooled rows drifted from the owned oracle's bytes"
+    );
+
+    // The degradation shapes ride the twin too.
+    let mut pooled: Vec<String> = Vec::new();
+    super::super::detail_push::push_full_detail_lines(&mut pooled, None, 7001, WINDOW, false);
+    assert!(pooled.is_empty());
+    let mut pooled: Vec<String> = Vec::new();
+    super::super::detail_push::push_full_detail_lines(
+        &mut pooled,
+        Some(&conns),
+        1234,
+        WINDOW,
+        false,
+    );
+    assert!(pooled.is_empty());
+}
+
 /// A three-endpoint holder (NIGHT-boost-21): the eagle view caps the
 /// children at two while the header's count carries the scale; the
 /// focus view shows all three with the last child closing the tree.

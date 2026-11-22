@@ -108,7 +108,10 @@ pub(crate) fn push_pooled(lines: &mut Vec<String>, args: std::fmt::Arguments<'_>
 }
 
 /// Like [`crate::ebpf::render::write_rate_or_dash`] but owning — the
-/// one-shot callers' face of the same bytes.
+/// one-shot callers' face of the same bytes. night-frontier-Z13
+/// stage 5b: the focus block composes through the writer, and the
+/// owned face stays for the render pins (cfg(test)).
+#[cfg(test)]
 pub(crate) fn format_rate_or_dash(bps: u64) -> String {
     let mut out = String::new();
     write_rate_or_dash(&mut out, bps);

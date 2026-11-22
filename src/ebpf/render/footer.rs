@@ -360,17 +360,14 @@ impl FooterCensus {
 /// gutter marker, not this legend row), so the legend carries its
 /// improve-58 spelling back; the `=>` glyph now lives where the
 /// owner pointed it, the focused section's header lane.
-#[must_use]
-pub(super) fn status_line(interval: Duration) -> String {
-    let mut out = String::new();
-    status_line_into(interval, &mut out);
-    out
-}
-
-/// The into-twin of [`status_line`] (night-frontier-Z11): the same
-/// bytes into a caller-owned buffer — the realtime figure writes
-/// via `write!`, the theme name is a `&'static str`, no owned
-/// Strings.
+/// night-frontier-Z13 stage 5b: the owned one-shot face retired —
+/// the focus frame composes through the into-twin (its doc's
+/// consumer list named the focus frame next), and no caller reads
+/// the owned form anymore.
+/// The legend's into-form (night-frontier-Z11): the same bytes the
+/// retired one-shot twin carried, into a caller-owned buffer — the
+/// realtime figure writes via `write!`, the theme name is a
+/// `&'static str`, no owned Strings.
 pub(super) fn status_line_into(interval: Duration, out: &mut String) {
     use std::fmt::Write as _;
     out.clear();

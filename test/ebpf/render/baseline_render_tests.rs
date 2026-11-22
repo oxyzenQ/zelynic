@@ -13,7 +13,10 @@ use super::*;
 use crate::ebpf::identity::ProcessIdentity;
 use crate::ebpf::limiter::rate_ring::RATE_RING_WINDOW_NS;
 use crate::ebpf::render::ScrollState;
-use crate::output::brand;
+// night-frontier-Z13 stage 5c: the phrase pins read the owned color
+// wrappers directly — the frame composes through the paint twins,
+// so the wrappers' imports moved here with their oracle readers.
+use crate::output::{brand, grey, warn};
 
 // ── Fixtures (the fold sibling's shapes, self-contained — the
 // Pattern C single-test-tree rule: every #[path] tree carries its
