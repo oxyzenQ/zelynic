@@ -128,7 +128,14 @@ so the 1-vCPU low-spec envelope's overhead ratio carries both an
 inflated floor and wide window drift (attempt 1's own sustain row
 drifted 16% to 71% across windows). The 30% tripwire stays untouched
 for every kernel, and the rerun-before-investigating law is the
-response for this leg's overhead row.
+response. The class is the ENVELOPE's, not one kernel's: the same
+overhead row on the noble 6.8 GA kernel swung -6.9% (run 44985065504)
+to +44.7% (run 44988650234, 0 packets dropped) across pushes, and
+bookworm's sustain row flaked once the same evening - the 1-vCPU
+low-spec envelope shares its core with the runner's co-tenants, so
+window throughput drifts by tens of points between runs; a lane that
+reds on the depth suite's ratio or drift rows reruns before any
+investigation.
 
 ## 3. The prebuilt eBPF lane (the one ritual with a hard rule)
 
