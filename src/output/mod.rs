@@ -228,18 +228,28 @@ pub fn field(label: &str, value: &str) -> String {
 /// column-width contract.
 #[must_use]
 #[cfg(feature = "ebpf")] // every flagship surface lives under the ebpf graph
-pub fn signature_footer() -> String {
-    color::brand(&format!(
-        // night-signature-advanced-1: the engraving materializes from
-        // the masked provenance layers — the former plaintext
-        // "by oxyzenQ" literal was a greppable identity seat in every
-        // artifact. night-pro-1: the compact identity core, not the
-        // contact-addressed authors string.
-        "v{} ({}) by {}",
-        env!("CARGO_PKG_VERSION"),
-        option_env!("GIT_HASH").unwrap_or("unknown"),
-        crate::info::materialized_identity_core()
-    ))
+pub fn signature_footer() -> &'static str {
+    // night-frontier-Z13 stage 4b: the engraving is process-constant
+    // (the version, the build stamp, and the materialized identity
+    // core never change once materialized), so it materializes ONCE
+    // into a static seat and every frame's footer push_str reads it.
+    // The engraving's per-frame format! + brand heap events are gone:
+    // the output layer's identity seat was the last per-frame
+    // allocation the footer's pooled row still paid.
+    static SIGNATURE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    SIGNATURE.get_or_init(|| {
+        color::brand(&format!(
+            // night-signature-advanced-1: the engraving materializes from
+            // the masked provenance layers — the former plaintext
+            // "by oxyzenQ" literal was a greppable identity seat in every
+            // artifact. night-pro-1: the compact identity core, not the
+            // contact-addressed authors string.
+            "v{} ({}) by {}",
+            env!("CARGO_PKG_VERSION"),
+            option_env!("GIT_HASH").unwrap_or("unknown"),
+            crate::info::materialized_identity_core()
+        ))
+    })
 }
 
 #[cfg(test)]

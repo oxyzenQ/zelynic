@@ -260,7 +260,14 @@ pub fn render_eagle_focus(
         lines.push(String::new());
         lines.push(status_line(interval));
         lines.push(String::new());
-        lines.push(format!("  {}", signature_footer()));
+        // night-frontier-Z13 stage 4b: the engraving rides its static
+        // seat now — the row is pooled and the push_str pair reads the
+        // &'static str (the format!'s owned String and the brand's
+        // wrap were the two heap events this line paid per frame).
+        let mut line = pooled_line();
+        line.push_str("  ");
+        line.push_str(signature_footer());
+        lines.push(line);
         lines.push(format!(
             "  {}",
             grey(&format!("uptime {}", format_uptime(uptime)))
