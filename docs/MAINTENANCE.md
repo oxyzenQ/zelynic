@@ -112,6 +112,24 @@ the outage remains for every leg that still names a single source:
 the red is the honest report, the coverage stays whole (the other
 four kernel families boot and prove their shards around it).
 
+The first Alpine run (44985065504, commit 6d5b348) closed the row and
+named its flake class: the stage leg resolved linux-lts-6.6.142-r0
+and both shards booted clean (kernel 6.6.142-0-lts, the `6.6.*`
+family witness, the kernel surfaces, and the virtio egress all PASS),
+but the fast lane's overhead row read +34.7% — red — while the same
+row on the same run's other five kernels sat inside -16.5% .. +13.4%.
+The rerun landed +5.5%, green, and the run closed 14/14 (50 checks
+green on the commit). The class: Alpine's build is hardened where
+Ubuntu and Debian are not — `CONFIG_INIT_ON_ALLOC_DEFAULT_ON=y`
+(every allocation zeroed), `CONFIG_HARDENED_USERCOPY=y`,
+`CONFIG_DEBUG_LIST=y`, `CONFIG_RANDOMIZE_KSTACK_OFFSET_DEFAULT=y`,
+`CONFIG_HZ=300`, read from the shipped `boot/config-6.6.142-0-lts` —
+so the 1-vCPU low-spec envelope's overhead ratio carries both an
+inflated floor and wide window drift (attempt 1's own sustain row
+drifted 16% to 71% across windows). The 30% tripwire stays untouched
+for every kernel, and the rerun-before-investigating law is the
+response for this leg's overhead row.
+
 ## 3. The prebuilt eBPF lane (the one ritual with a hard rule)
 
 After **any** change under `ebpf/`, the same task must also refresh the

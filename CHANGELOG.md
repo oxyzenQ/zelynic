@@ -102,7 +102,17 @@ v80.0.0
   script also caught the pipefail trap before CI paid for it: the
   index verdict is a plain case match, never a piped grep -q, whose
   early exit SIGPIPEs the echo feeding it (exit 141) and would have
-  read every healthy mirror as failed.
+  read every healthy mirror as failed. The first Alpine run
+  (44985065504) closed the family leg green end to end — the stage
+  resolved linux-lts-6.6.142-r0, both Alpine shards booted (kernel
+  6.6.142-0-lts, the 6.6.* witness PASS, the virtio egress PASS), and
+  the commit closed 50 checks green after one honest rerun: the fast
+  lane's overhead row read +34.7% (red) against the other five
+  kernels' -16.5%..+13.4% band on the same run, the rerun landed
+  +5.5%, and the flake class is named in MAINTENANCE.md — Alpine's
+  hardened build (CONFIG_INIT_ON_ALLOC_DEFAULT_ON=y and friends, read
+  from the shipped config) inflates the 1-vCPU envelope's ratio
+  floor; the 30% tripwire stays untouched for every kernel.
 
 - **night-frontier-Z11: the zero-heap frame ladder — the render
   composition's remaining heap events closed stage by stage, every
