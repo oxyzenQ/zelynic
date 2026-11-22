@@ -179,12 +179,12 @@ Check: `stat -fc %T /sys/fs/cgroup` should return `cgroup2fs`.
 - [x] 7.0 (Ubuntu 26.04)
 - [x] 7.1 (CachyOS VM)
 - [x] 6.1 LTS (the bookworm leg boots the newest 6.1.0-ABI Debian kernel in the KVM micro-VM on every push; first record: run 44163461435 — fast + surface green)
-- [x] 6.6 LTS (the archlts leg boots the newest 6.6.y Arch LTS kernel in the KVM micro-VM on every push; first record: run 44163461435 — fast + surface green)
+- [x] 6.6 LTS (the alpinelts leg boots the newest 6.6.y Alpine LTS kernel in the KVM micro-VM on every push; the leg booted Arch's 6.6 first — run 44163461435 — and the source swapped to Alpine v3.20's CDN-backed linux-lts after the 2026-11-21 archive outage, the family unchanged)
 - [x] 6.8 (the noble leg boots the newest 6.8.0-ABI Ubuntu 24.04 GA kernel in the KVM micro-VM on every push — the family's only live surface since night-runner-2 retired it from the hosted fleet; first record: run 44163461435 — fast + surface green)
 
 The rows are no longer paper debts: night-kernel-matrix-1 grew the
 e2e lane from two kernel envelopes to five (jammy floor, noble 6.8 GA,
-Debian bookworm 6.1 LTS, Arch LTS 6.6, and the archive's dynamically
+Debian bookworm 6.1 LTS, Alpine LTS 6.6, and Ubuntu's dynamically
 resolved latest), every leg running the same fast/surface shard pair
 the floor rode. The host fleet is night-runner-2's ubuntu-26.04 — the
 guest kernel is the leg's own variable, resolved inside its family

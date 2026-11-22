@@ -139,7 +139,7 @@ fi
 # The family witness (night-kernel-matrix-1, the kernel-matrix legs):
 # the cmdline names the family the leg claims to boot
 # (zelynic-kernel-glob=6.8.* on the noble leg, 6.1.* on bookworm,
-# 6.6.* on the Arch LTS leg, 5.15.* on the floor) — uname -r must
+# 6.6.* on the Alpine LTS leg, 5.15.* on the floor) — uname -r must
 # match it, so a resolver drift fails LOUDLY here instead of quietly
 # testing the wrong kernel and filing a runtime record for a family
 # that never ran. The dynamic best leg names no glob and rides the
@@ -182,7 +182,7 @@ fi
 KVER=$(uname -r)
 KMOD="/lib/modules/$KVER/kernel"
 # The module chain, dependency order, failures LOUD (the kernel-matrix
-# legs' lesson: Debian and Arch ship virtio and virtio_ring as MODULES
+# legs' lesson: Debian and Alpine ship virtio and virtio_ring as MODULES
 # where Ubuntu builds them in — virtio_net.ko's insmod dies with
 # Unknown symbol unless the transport pair loads first, and the old
 # silent `2>/dev/null || true` chain left the egress red with no

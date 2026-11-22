@@ -16,7 +16,7 @@
 # the release-tier v3 payload and EVERY kernel envelope's initramfs
 # ONCE (night-kernel-matrix-1 grew the pair into the family matrix -
 # the jammy 5.15.0 floor, the noble 6.8 GA, the Debian bookworm 6.1
-# LTS, the Arch LTS 6.6 line, and the archive's dynamically resolved
+# LTS, the Alpine LTS 6.6 line, and Ubuntu's dynamically resolved
 # latest, nothing pinned), uploads them as artifacts, and every
 # per-push shard boots the SAME initramfs naming its slice on the
 # kernel cmdline (zelynic-suite=, scripts/ci/e2e-init.sh reads it
@@ -155,8 +155,8 @@ jobs:
   # The x86 stage job is the lane's only build: the release-tier v3
   # payload plus EVERY kernel envelope (night-kernel-matrix-1 grew
   # the pair into the family matrix: the jammy 5.15.0 floor deb, the
-  # archive's dynamically resolved latest, the noble 6.8 GA, the
-  # Debian bookworm 6.1 LTS, and the Arch LTS 6.6 line), each packed
+  # dynamically resolved Ubuntu latest, the noble 6.8 GA, the
+  # Debian bookworm 6.1 LTS, and the Alpine LTS 6.6 line), each packed
   # with the SAME userland into its own initramfs (the rootfs draws
   # from ubuntu:24.04, the guest tooling's ABI - python3, nft,
   # bpftool - nothing the static musl payload depends on). The
@@ -664,128 +664,184 @@ jobs:
             *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET - no usable virtio-net driver on this kernel"; exit 1 ;;
           esac
 
-      # The Arch LTS 6.6 leg (the 6.6 LTS family the BTF matrix
-      # measured, from the same source the measurement rode - the
-      # versioned archive at archive.archlinux.org, whose flat index
-      # names every retained linux-lts build; the newest 6.6.y wins
-      # via sort -V, the LTS family anchor excluding the rolling
-      # mainline builds). The pkg.tar.zst opens with tar --zstd; the
-      # vmlinuz rides usr/lib/modules/<ver>/vmlinuz (the same member
-      # the BTF matrix's pin table extracted). The config-or-evidence
-      # walk: when the package carries its config the =y/=m read
-      # comes from it; when it does not, the virtio_net module file's
-      # own presence or absence is the verdict, printed as evidence -
-      # an assumption never silently rides.
-      - name: Fetch the Arch LTS 6.6 kernel (the 6.6 family leg)
+      # The Alpine LTS 6.6 leg (the 6.6 LTS family the BTF matrix
+      # measured, now from the source the owner swapped in after the
+      # 2026-11-21 archive.archlinux.org outage reddened the lane half
+      # a day on a single-host source: Alpine's linux-lts IS the 6.6
+      # LTS family - the v3.20 branch carries it while 3.21 and later
+      # moved to 6.12 - served by the Fastly-anycast dl-cdn plus three
+      # probed official mirrors, first answer wins, so no single host
+      # can redden the leg again). The branch pin is the family
+      # anchor, not a version pin: the newest linux-lts-6.6.y wins via
+      # sort -V, and the tree stays on the CDN as a frozen snapshot
+      # after the branch's own EOL. The APKv2 container is a plain
+      # concatenation of gzip members - signature, control, data - so
+      # the walk decompresses them in order and the LAST member is the
+      # filesystem tar, extracted with python3's own tarfile (no
+      # apk-tools on the runner, no third-party dependency). The
+      # modules ride gz-compressed - the stage gunzips them into the
+      # layout the init's insmod chain walks. The config-or-evidence
+      # walk, proven on the real linux-lts-6.6.142-r0 package: the
+      # config ships at boot/config-<kver>, CONFIG_VIRTIO_NET=m,
+      # CONFIG_MODULE_SIG_FORCE off - Alpine's own signed modules
+      # verify against the built-in keyring and insmod loads clean.
+      - name: Fetch the Alpine LTS 6.6 kernel (the 6.6 family leg)
         run: |
           set -euo pipefail
-          mkdir -p /tmp/stage/archlts && cd /tmp/stage/archlts
-          # night-solid-defense-1 (the zejtron kernel-floor law, ported):
-          # the archive is a single canonical source - no third-party
-          # mirror carries the /packages tree (the 2026-11-21 outage
-          # audit probed the whole estate: none exists) - so the fix is
-          # not a fake mirror walk but bounded economics plus evidence:
-          # two tight attempts, then the DNS-vs-host diagnosis names the
-          # outage class. The dead-host case now costs under two
-          # minutes and its log says why, instead of seven blind
-          # connect retries burning five and a half minutes into a bare
-          # exit 28.
-          arch_diagnose() {
-            echo "diagnosing the outage class:"
-            getent hosts archive.archlinux.org >/dev/null 2>&1 \
-              && echo "  evidence: the local resolver answers for archive.archlinux.org" \
-              || echo "  evidence: the local resolver has no answer for archive.archlinux.org"
-            timeout 15 curl -s 'https://1.1.1.1/dns-query?name=archive.archlinux.org&type=A' \
-                -H 'accept: application/dns-json' | grep -q '"data"' \
-              && echo "  evidence: the public resolver (1.1.1.1) holds A records for the name" \
-              || echo "  evidence: the public resolver (1.1.1.1) has no A answer either"
-            echo "  verdict: resolver answers + connect dead = host-side outage of archive.archlinux.org"
-            echo "           - not a code regression; rerun the lane when the archive returns"
+          mkdir -p /tmp/stage/alpinelts && cd /tmp/stage/alpinelts
+          MIRRORS=(
+            "https://dl-cdn.alpinelinux.org/alpine"
+            "https://mirrors.edge.kernel.org/alpine"
+            "https://mirror.clarkson.edu/alpine"
+            "https://mirror.leaseweb.com/alpine"
+          )
+          pool_fetch() {
+            local rel="$1" out="$2" m
+            for m in "${MIRRORS[@]}"; do
+              echo "fetch: $m/$rel"
+              if curl -fsSL --retry 1 --retry-all-errors --retry-delay 5 \
+                  --max-time 240 --connect-timeout 10 \
+                  ${out:+-o "$out"} "$m/$rel"; then
+                echo "mirror OK: $m"
+                return 0
+              fi
+              echo "mirror failed: $m - trying the next"
+            done
+            return 1
           }
-          IDX=$(curl -fsSL --retry 1 --retry-all-errors --retry-delay 5 \
-            --max-time 60 --connect-timeout 10 \
-            https://archive.archlinux.org/packages/l/linux-lts/ || true)
+          IDX=""
+          POOL=""
+          for m in "${MIRRORS[@]}"; do
+            # The index verdict is a plain case match, never a piped
+            # grep -q: under pipefail, grep's early exit closes the
+            # pipe and echo dies of SIGPIPE (exit 141) on the megabyte
+            # listing - the healthy mirror would read as failed. The
+            # command substitution carries || IDX='' so a curl that
+            # dies does not trip set -e either.
+            IDX=$(curl -fsSL --retry 1 --retry-all-errors --retry-delay 5 \
+                --max-time 60 --connect-timeout 10 "$m/v3.20/main/x86_64/") || IDX=""
+            case "$IDX" in
+              *linux-lts-6.6*)
+                echo "index OK via $m"
+                POOL="$m"
+                break
+                ;;
+              *)
+                IDX=""
+                echo "mirror failed: $m - trying the next"
+                ;;
+            esac
+          done
           if test -z "$IDX"; then
-            echo "FAIL: the Arch archive index resolved nothing after the bounded walk"
-            arch_diagnose
+            echo "FAIL: the Alpine v3.20 index resolved nothing on every mirror - restructure?"
+            curl -fsSL --retry 1 --connect-timeout 10 \
+              https://dl-cdn.alpinelinux.org/alpine/v3.20/main/x86_64/ | head -40 || true
             exit 1
           fi
-          PKG=$(echo "$IDX" | grep -oE 'linux-lts-6\.6\.[0-9]+-[0-9]+-x86_64\.pkg\.tar\.zst' \
-            | sort -V | tail -1 || true)
+          PKG=$(echo "$IDX" | grep -oE 'linux-lts-6\.6\.[0-9]+-r[0-9]+\.apk' \
+            | sort -uV | tail -1 || true)
           if test -z "$PKG"; then
-            echo "FAIL: no linux-lts-6.6.*-x86_64.pkg.tar.zst in the Arch archive - index evidence:"
-            echo "$IDX" | grep -oE 'linux-lts-6\.[0-9]+[^"]*\.pkg\.tar\.zst' | sort -V | tail -10 || true
+            echo "FAIL: no linux-lts-6.6.*.apk in the Alpine v3.20 index - index evidence:"
+            echo "$IDX" | grep -oE 'linux-lts-6[^"]*\.apk' | sort -uV | tail -10 || true
             exit 1
           fi
-          echo "resolved: $PKG"
-          curl -fsSL --retry 1 --retry-all-errors --retry-delay 5 \
-            --max-time 240 --connect-timeout 10 \
-            -o "$PKG" "https://archive.archlinux.org/packages/l/linux-lts/$PKG" \
-            || { echo "FAIL: the package download died - same evidence walk:"
-                 arch_diagnose
-                 exit 1; }
-          tar --zstd -xf "$PKG"
-          VMLINUZ=$(find usr/lib/modules -maxdepth 2 -name 'vmlinuz*' | head -1)
+          echo "resolved: $PKG (pool base: $POOL)"
+          if ! pool_fetch "v3.20/main/x86_64/$PKG" "$PKG"; then
+            echo "FAIL: the package download died on every mirror"
+            exit 1
+          fi
+          # The APKv2 data member: the LAST gzip member of the
+          # container, a plain tar of the filesystem. The walk is
+          # sequential multi-member gzip - deterministic, no length
+          # framing, no apk-tools - and a member that will not
+          # terminate cleanly fails LOUDLY with the member count.
+          python3 - "$PKG" <<'PYEOF'
+          import io, sys, tarfile, zlib
+          data = open(sys.argv[1], "rb").read()
+          rest, members, last = data, 0, None
+          while rest:
+              d = zlib.decompressobj(wbits=31)
+              out = d.decompress(rest)
+              try:
+                  out += d.flush()
+              except zlib.error:
+                  pass
+              if not d.eof:
+                  print(f"FAIL: gzip member {members + 1} did not terminate cleanly")
+                  sys.exit(1)
+              members += 1
+              last = out
+              rest = d.unused_data
+          if last is None or members < 2:
+              print(f"FAIL: the walk found {members} members - no data member to extract")
+              sys.exit(1)
+          print(f"apk walk: {members} members, the data member carries {len(last)} bytes")
+          with tarfile.open(fileobj=io.BytesIO(last), mode="r:") as tar:
+              tar.extractall(path="pkg", filter="data")
+          print("extracted: pkg/")
+          PYEOF
+          VMLINUZ=$(find pkg/boot -maxdepth 1 -name 'vmlinuz-*' | head -1)
           if test -z "$VMLINUZ"; then
-            echo "FAIL: no vmlinuz under usr/lib/modules - the package tree:"
-            find . -maxdepth 4 \( -type d -o -name 'vmlinuz*' \) | head -20 || true
+            echo "FAIL: no vmlinuz in pkg/boot - the extracted tree:"
+            find pkg -maxdepth 2 | head -20 || true
             exit 1
           fi
-          cp "$VMLINUZ" /tmp/stage/archlts/vmlinuz-floor
-          echo "kernel: $(du -h /tmp/stage/archlts/vmlinuz-floor | cut -f1) at /tmp/stage/archlts/vmlinuz-floor"
-          KVER=$(find usr/lib/modules -mindepth 1 -maxdepth 1 -type d \
+          cp "$VMLINUZ" /tmp/stage/alpinelts/vmlinuz-floor
+          echo "kernel: $(du -h /tmp/stage/alpinelts/vmlinuz-floor | cut -f1) at /tmp/stage/alpinelts/vmlinuz-floor"
+          KVER=$(find pkg/lib/modules -mindepth 1 -maxdepth 1 -type d \
             -not -name build -not -name extramodules -printf '%f\n' | head -1)
           if test -z "$KVER"; then
-            echo "FAIL: no usr/lib/modules/<ver> inside the package - extracted contents:"
-            ls usr/lib/modules 2>/dev/null || ls -la usr/lib || true
+            echo "FAIL: no pkg/lib/modules/<ver> inside the package - extracted contents:"
+            ls pkg/lib/modules 2>/dev/null || ls -la pkg || true
             exit 1
           fi
           echo "resolved KVER: $KVER"
           CFG=""
-          for c in "usr/lib/modules/$KVER/config" "boot/config-$KVER"; do
+          for c in "pkg/boot/config-$KVER" "pkg/lib/modules/$KVER/config"; do
             test -f "$c" && CFG="$c" && break
           done
-          VIRTIO_KO=$(find "usr/lib/modules/$KVER" -name 'virtio_net.ko*' 2>/dev/null | head -1)
+          VIRTIO_KO=$(find "pkg/lib/modules/$KVER" -name 'virtio_net.ko*' 2>/dev/null | head -1)
           if test -n "$CFG"; then
             VNET=$(sed -n 's/^CONFIG_VIRTIO_NET=\(.*\)$/\1/p' "$CFG")
           elif test -n "$VIRTIO_KO"; then
             echo "config file absent from the package - module-file evidence decides"
             VNET=m
           else
-            echo "config file absent, no virtio_net.ko* in usr/lib/modules/$KVER:"
+            echo "config file absent, no virtio_net.ko* in pkg/lib/modules/$KVER:"
             echo "  the driver is built-in (=y), evidence above"
             VNET=y
           fi
           case "$VNET" in
             y)  echo "virtio_net built-in (=y) - no modules to stage" ;;
-            m)  STG="/tmp/stage/archlts/virtio-mods/lib/modules/$KVER/kernel"
+            m)  STG="/tmp/stage/alpinelts/virtio-mods/lib/modules/$KVER/kernel"
                 mkdir -p "$STG/net/core" "$STG/drivers/net"
                 stage_mod() {
                   mod=$1; dir=$2
-                  SRC=$(find "usr/lib/modules/$KVER/kernel/$dir" -maxdepth 1 -name "$mod.ko*" 2>/dev/null | head -1)
+                  SRC=$(find "pkg/lib/modules/$KVER/kernel/$dir" -maxdepth 1 -name "$mod.ko*" 2>/dev/null | head -1)
                   test -n "$SRC" || {
                     echo "FAIL: $mod.ko* absent from the package tree (config or evidence says =m)"
                     exit 1
                   }
                   case "$SRC" in
-                    *.zst) zstd -dc "$SRC" > "$STG/$dir/$mod.ko" ;;
+                    *.gz)  gunzip -dc "$SRC" > "$STG/$dir/$mod.ko" ;;
                     *)     cp "$SRC" "$STG/$dir/$mod.ko" ;;
                   esac
                 }
                 stage_mod failover net/core
                 stage_mod net_failover drivers/net
                 stage_mod virtio_net drivers/net
-                # The transport pair, optional: Arch may build virtio
-                # and virtio_ring as modules too - virtio_net.ko needs
-                # them loaded first or its insmod dies Unknown symbol;
-                # built-in ships no .ko and the stage skips it.
+                # The transport pair: Alpine builds virtio and
+                # virtio_ring as modules (the 6.6.142 evidence) -
+                # virtio_net.ko needs them loaded first or its insmod
+                # dies Unknown symbol; the init's chain walks the same
+                # order and skips whatever the package does not ship.
                 stage_opt() {
                   mod=$1; dir=$2
-                  SRC=$(find "usr/lib/modules/$KVER/kernel/$dir" -maxdepth 1 -name "$mod.ko*" 2>/dev/null | head -1)
+                  SRC=$(find "pkg/lib/modules/$KVER/kernel/$dir" -maxdepth 1 -name "$mod.ko*" 2>/dev/null | head -1)
                   test -n "$SRC" || return 0
                   mkdir -p "$STG/$dir"
                   case "$SRC" in
-                    *.zst) zstd -dc "$SRC" > "$STG/$dir/$mod.ko" ;;
+                    *.gz)  gunzip -dc "$SRC" > "$STG/$dir/$mod.ko" ;;
                     *)     cp "$SRC" "$STG/$dir/$mod.ko" ;;
                   esac
                 }
@@ -794,14 +850,8 @@ jobs:
                 stage_opt virtio_pci_legacy_dev drivers/virtio
                 stage_opt virtio_pci_modern_dev drivers/virtio
                 stage_opt virtio_pci drivers/virtio
-                stage_opt virtio_pci_legacy_dev drivers/virtio
-                stage_opt virtio_pci_modern_dev drivers/virtio
-                stage_opt virtio_pci drivers/virtio
-                stage_opt virtio_pci_legacy_dev drivers/virtio
-                stage_opt virtio_pci_modern_dev drivers/virtio
-                stage_opt virtio_pci drivers/virtio
-                echo "staged virtio modules: $(du -sh /tmp/stage/archlts/virtio-mods | cut -f1)"
-                echo "  at /tmp/stage/archlts/virtio-mods" ;;
+                echo "staged virtio modules: $(du -sh /tmp/stage/alpinelts/virtio-mods | cut -f1)"
+                echo "  at /tmp/stage/alpinelts/virtio-mods" ;;
             *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET - no usable virtio-net driver on this kernel"; exit 1 ;;
           esac
 
@@ -895,13 +945,13 @@ jobs:
             ( cd rootfs && sudo find . -print0 | sudo cpio --null -o -H newc ) | gzip -1 > initrd.gz
             echo "initramfs: $(du -h initrd.gz | cut -f1)"
             # The sweep: the artifact carries the boot pair only.
-            rm -rf rootfs rootfs.tar pkg mods ./*.deb ./*.pkg.tar.zst
+            rm -rf rootfs rootfs.tar pkg mods ./*.deb ./*.pkg.tar.zst ./*.apk
           }
           assemble /tmp/stage/jammy
           assemble /tmp/stage/best
           assemble /tmp/stage/noble
           assemble /tmp/stage/bookworm
-          assemble /tmp/stage/archlts
+          assemble /tmp/stage/alpinelts
 
       - name: Upload the jammy floor micro-VM bundle
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7, NIGHT-hunt-20 SHA pin
@@ -931,11 +981,11 @@ jobs:
           path: /tmp/stage/bookworm
           retention-days: 3
 
-      - name: Upload the Arch LTS 6.6 micro-VM bundle
+      - name: Upload the Alpine LTS 6.6 micro-VM bundle
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7, NIGHT-hunt-20 SHA pin
         with:
-          name: e2e-vm-archlts
-          path: /tmp/stage/archlts
+          name: e2e-vm-alpinelts
+          path: /tmp/stage/alpinelts
           retention-days: 3
 
   # ── the arm64 stage: the payload once, on the arm silicon ───────────
@@ -1044,13 +1094,13 @@ jobs:
             shard: surface
             kglob: "6.1.*"
             vm_timeout: 720
-          - title: supermassive e2e - fast lane (nonroot + limiter depth, the Arch LTS 6.6 kernel)
-            profile: archlts
+          - title: supermassive e2e - fast lane (nonroot + limiter depth, the Alpine LTS 6.6 kernel)
+            profile: alpinelts
             shard: fast
             kglob: "6.6.*"
             vm_timeout: 600
-          - title: supermassive e2e - surface lane (smoke + quota A/B, the Arch LTS 6.6 kernel)
-            profile: archlts
+          - title: supermassive e2e - surface lane (smoke + quota A/B, the Alpine LTS 6.6 kernel)
+            profile: alpinelts
             shard: surface
             kglob: "6.6.*"
             vm_timeout: 720

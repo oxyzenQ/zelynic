@@ -77,6 +77,33 @@ v80.0.0
   night before. Details in
   [docs/audits/NIGHT_SOLID_DEFENSE_1_AXP1_ZNQ_SENTINEL_2026-11-22.md](docs/audits/NIGHT_SOLID_DEFENSE_1_AXP1_ZNQ_SENTINEL_2026-11-22.md).
 
+- **night-solid-defense-1: the 6.6 family leg's source swaps to the
+  Alpine CDN — the single-host archive loses its last CI ride.** The
+  owner's call after the same archive.archlinux.org outage the bounded
+  walk diagnosed kept the lane red half a day: the archlts envelope is
+  now the alpinelts envelope (the same 6.6 LTS family the BTF matrix
+  measured, nothing re-anchored, the `6.6.*` kglob witness and the
+  fast/surface shard pair unchanged). The branch pin is Alpine v3.20 —
+  its linux-lts IS 6.6.y (3.21 and later carry 6.12; edge carries the
+  mainline) — and the source is the Fastly-anycast dl-cdn plus three
+  probed official mirrors, first answer wins, so no single host can
+  redden the leg again; the newest linux-lts-6.6.y still wins via
+  sort -V and the tree stays on the CDN as a frozen snapshot after the
+  branch's own EOL. The APKv2 container opens with python3's own
+  tarfile (a plain concatenation of gzip members, the data member
+  last; no apk-tools, no third-party dependency), proven end to end on
+  the real linux-lts-6.6.142-r0 package before the commit: vmlinuz at
+  boot/vmlinuz-lts (11M), the config at boot/config-<kver> reading
+  CONFIG_VIRTIO_NET=m, CONFIG_NET_FAILOVER=m, CONFIG_FAILOVER=m with
+  CONFIG_MODULE_SIG_FORCE off (Alpine's own signed modules verify
+  against the built-in keyring), and the full virtio transport pair
+  riding gz-compressed — the stage gunzips them into the layout the
+  init's insmod chain walks. The local dry-run of the exact step
+  script also caught the pipefail trap before CI paid for it: the
+  index verdict is a plain case match, never a piped grep -q, whose
+  early exit SIGPIPEs the echo feeding it (exit 141) and would have
+  read every healthy mirror as failed.
+
 - **night-frontier-Z11: the zero-heap frame ladder — the render
   composition's remaining heap events closed stage by stage, every
   landing pinned by the counting allocator.** The floor pin measured
