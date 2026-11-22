@@ -665,6 +665,6 @@ jobs:
       - name: Harden DNS (the poisoned-resolver defense)
         uses: ./.github/actions/harden-dns
       - name: Review the dependency delta
-        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0, NIGHT-hunt-20 SHA pin
+        uses: actions/dependency-review-action@bbc44d14a204704ccc493733616cd1e93a0321ec # v5.0.1, NIGHT-hunt-20 SHA pin
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}

@@ -114,6 +114,21 @@ v80.0.0
   from the shipped config) inflates the 1-vCPU envelope's ratio
   floor; the 30% tripwire stays untouched for every kernel.
 
+- **night-depth-cleanup-1A-1: the master depth-cleaning pass — the
+  docs read the tree as it is, told once.** The kernel-matrix
+  residual closed where it was stale (QA.md's v11.x answer and
+  COSMIC_DRAGON_ARCHITECTURE's Phase W5 ledger claimed the 6.1/6.6
+  LTS rows pending — both closed at night-kernel-matrix-1 with the
+  first full-green run 44163461435, and the 6.6 leg's Alpine source
+  named once); the estate's own actions-version sweep healed the one
+  stale CI pin (dependency-review-action v4.9.0 -> v5.0.1, the
+  commit gate's advisory); the mechanical layer measured clean: 405
+  relative links across 149 live md files all resolve, and the
+  commented-out-code scan reads zero blocks across scripts/ and src/
+  (the lesson comments carrying run IDs are evidence, not cruft —
+  untouched). The archive-era files stay frozen history, excluded
+  by design.
+
 - **night-frontier-Z11: the zero-heap frame ladder — the render
   composition's remaining heap events closed stage by stage, every
   landing pinned by the counting allocator.** The floor pin measured

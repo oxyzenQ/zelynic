@@ -551,8 +551,11 @@ performance, and bug fixes over feature expansion" — no new
 features unless critical for security or compatibility; the release
 cadence is "when needed"). The honest answer has three parts:
 
-- **What v11.x will keep doing**: kernel-compatibility widening
-  (6.1/6.6 LTS verification is the one open roadmap row), the
+- **What v11.x will keep doing**: kernel-compatibility deepening on
+  the verified matrix (the 6.1 and 6.6 LTS rows closed at
+  night-kernel-matrix-1 — run 44163461435 — and the five-envelope
+  kernel span now boots live on every push, the 6.6 LTS leg on
+  Alpine's CDN-backed linux-lts since night-solid-defense-1), the
   nightly eBPF toolchain pin riding forward with its
   bpf-linker pairing, and hardening passes like dinner-18 —
   the tree is at "ready for server and desktop LTS" precisely
