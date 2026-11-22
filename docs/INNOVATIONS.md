@@ -739,7 +739,7 @@ every CI job), three honest tiers:
   [0, NS_PER_DAY) plus the unknown-kind enforcement posture). Four
   theorems sit behind nonlinear multiply/divide circuits (the
   refill overflow guard, the hostile-state enforce totality, the
-  ring stamp law, the bounded key) and stand RETIRED from CI by the
+  ring stamp law, the bounded key) and stood RETIRED from CI by the
   night-fly-1 law: the sandbox census measured them unfinished at
   ten minutes and undecided under every SMT backend, the hosted
   per-push run was cancelled at 59m44s still inside its first
@@ -747,20 +747,29 @@ every CI job), three honest tiers:
   (proofs-night.yml, run 44896512098) burned its full 300-minute
   cap and died cancelled with zero solver verdicts — the 15-minute
   ceiling is now estate law, and a budget the ceiling can never
-  afford is not a verdict vehicle. The theorem statements stay
-  wired in the proofs sources; the tier returns the day its
-  verdict fits the ceiling (lemma decomposition, or per-loop
-  unwinds on a toolchain that carries them). The rate-domain assumption the heavy
-  theorems carry is the system's own ceiling (MAX_RATE, the parse
-  family's refusal line) — the theorems quantify over the reachable
-  policy domain, stated in the harness, never hidden.
+  afford is not a verdict vehicle. The return condition the record
+  named — a proof-shape change that fits the ceiling — is exactly
+  what night-frontier-Z12 delivered: all five wired-out statements
+  (the four above plus the margin-erosion monotonicity) are standing
+  solver verdicts again, stronger than their pre-retirement forms,
+  and the tier carries twelve theorems as one-harness matrix jobs
+  (the Z12 section below holds the record). The rate-domain note the
+  heavy theorems carried — the system's own ceiling (MAX_RATE, the
+  parse family's refusal line) as the quantifier's bound — is
+  RETIRED WITH THEM: the Z12 refill and enforce theorems quantify
+  over the FULL u64 rate domain, hostile persistent-map state
+  included, no assumption beyond the burst contract the kernel side
+  sanitizes for itself.
 - **The sampled tier (proptest, 4096 shrinkable cases per law).**
   Every law the for-all tier covers plus the ones the solvers
   cannot yet decide: the aggregate replace words, the tail's
-  worst-8 contract, the margin-erosion monotonicity (the u64
-  constant-modulo circuit no backend decides — the sampled tier
-  carries it until one does), the flow key's determinism half, the
-  DRR take laws, the rate-ring stamp law. The instrument's first
+  worst-8 contract, the margin-erosion monotonicity end-to-end
+  through daily_active (the Z12 comparator lemma carries the
+  for-all half; the day-reduction composition and the credited
+  whole's magnitude law — whole <= rate + burst, the
+  multiply-monotonicity derivation the Z12 census measured
+  undecided — ride the sampler), the flow key's determinism half,
+  the DRR take laws, the rate-ring stamp law. The instrument's first
   real catch is itself the record: the fraction sanitize-on-read
   law's counterexample (shrunk to rate=0, frac=NS_PER_SEC) sharpened
   the property from "stored fraction is healthy" to the exact
@@ -1192,6 +1201,102 @@ earns: the composition half of the render loop runs at a measured
 34 heap events per frame (down 86% from the pre-pool era), with the
 pin holding every landing and the named remainder staged for the
 next session.
+
+## night-frontier-Z12 — the for-all completion (D10, the lemma decomposition)
+
+The proof layer's own record named the lever ("the tier returns the
+day its verdict fits the ceiling — lemma decomposition") and the Z12
+depth is its execution, measured first. The census re-ran every
+wired-out harness solo on the pinned kani 0.68.0 and, for the first
+time, ISOLATED the wall instead of recording a timeout: the shapes
+that grind are (1) division-inversion derivations (from
+`elapsed < threshold / rate` conclude `elapsed x rate < threshold` —
+the refill guard's pre-Z12 obligation), (2) multiply-monotonicity
+relations (`elapsed <= NS` implies `elapsed x rate <= NS x rate`),
+and (3) function-boundary arithmetic equalities (the harness's
+recomputed mod/div chain against the function's internal one). The
+shapes that decide in fractions of a second: constant div/mod chains
+with CSE, constant-multiplier range claims over bounded symbolics,
+single-site range bounds, and pure comparison implications. One
+batch-measurement artifact fell out immediately: the bounded flow-key
+collector decides in 0.2s solo — its pre-Z12 retirement was the
+batch's cost, not its own.
+
+**The rebirths, one per wall class:**
+
+- **refill_credits — the split-multiply guard (the overflow-guard
+  theorem, stronger than pre-retirement).** The fill-detect compare
+  moved to the PRODUCT side of the threshold — the predicate the
+  function's own contract always stated ("the exact arithmetic runs
+  only while `elapsed x rate < 2 x burst x NS_PER_SEC`"), now the
+  literal code: rate splits into its 32-bit halves, the one-second
+  cap bounds both multiplies under 2^62, a shift-carry compare reads
+  the overflow bit (the true product is `q x 2^32 + low`, and it
+  reaches 2^64 exactly when `q` reaches 2^32), and the fitting side
+  assembles the exact product. The shape is BIT-EXACT against the
+  division-era form for every input — hostile rate, hostile burst,
+  every boundary — so the boundary-window delta class the first
+  draft carried does not exist. Two hard finds rode the landing: the
+  prebuilt-parity gate caught the first draft's `checked_mul`
+  lowering to the `__multi3` compiler-rt helper the aya loader
+  cannot relocate (the gate's own find, the fail-closed arm working),
+  and the split form is the gate-clean answer. The dividend: the
+  per-packet refill path drops a symbolic 64-bit division from the
+  BPF object, and the theorem's rate quantifier drops the
+  SYSTEM_MAX_RATE assumption — for ALL u64 rates, the hostile
+  persistent-map state included. The credited whole's magnitude law
+  (`whole <= rate + burst`) stays with the sampled tier by
+  measurement (wall class 2), the boundary vectors
+  (`refill_credits_fill_detect_lands_on_the_threshold_edges`,
+  `refill_credits_division_boundary_window_pins_the_product_shape`)
+  hold the edges, and the Z9 verifier-budget ledger expects the
+  division's exit as a recorded ratchet at the next supermassive
+  census.
+- **enforce — the hostile-state totality (the deepest statement in
+  the tier).** The full verdict path (security-3 seed clamp, the
+  window-ownership CAS, the refill, the lts-8 consume retry, the
+  booking) now decides in 4.5s on the 2-CPU sandbox: with the refill
+  guard structural, every remaining obligation is a range claim or a
+  single-threaded CAS composition. The theorem keeps its full assert
+  set — the boolean verdict, the burst cap on the stock, the
+  sanitize-on-read fraction law — and quantifies over the same
+  unbounded rate domain.
+- **the ring law — two lemmas, honestly split.** Lemma one: the
+  unbounded index bound (`(now / 1s) % 8 < 8`, for all clocks). Lemma
+  two: the stamp protocol over the residue-complete clock range
+  [0, 8s) — every index residue and every stamp-vs-window comparison
+  class occurs there, the pre-states are arbitrary u64, and the
+  protocol's translation invariance under `w -> w + 8k` generalizes;
+  the harness states the domain reduction instead of hiding it, and
+  it UPGRADES the pre-Z12 claim while it is there: all eight slots
+  carry symbolic pre-states, and the no-backward law plus the
+  untouched-slot law ride beside the stamp law.
+- **the margin law — the extracted comparator.** `daily_active_rel`
+  (a pure move out of `daily_active`, both trees compile it) is the
+  three-comparison erosion law the for-all tier proves over every
+  (rel, len, margin) triple; the day-reduction composition stays
+  with the sampled tier and the during_tests vectors because the
+  definitional link across two recomputed mod chains is wall class 3.
+- **the bounded flow-key collector — re-armed as measured.**
+
+**The lane**: proofs.yml carries TWELVE theorems now, as the matrix
+of one-harness jobs the return condition always named — one verdict
+per job, a grind can never starve a sibling's, every ceiling the
+estate's own. The measured verdicts (2-CPU sandbox, the conservative
+bound against the hosted runners): refill 1.5s, enforce 4.5s, ring
+0.02s + 1.2s, margin 0.1s, flow-key 0.2s, the six standing theorems
+unchanged (0.02–0.5s each). The tier table: twelve solver verdicts
+per push, rootless, no assumptions hidden.
+
+**Why never-done**: no per-app bandwidth limiter in this class ships
+a machine-checked totality theorem over its verdict path — and none
+ships one over the FULL hostile-state domain the persistent maps can
+carry. The honest residue is named, not hidden: the credited whole's
+magnitude law rides the sampler (wall class 2), the Z10 emission
+conformance seat stays stood-down (the engine-heap circuit class,
+its levers unchanged), and the Z12 census's probe record — which
+algebra this solver generation decides — is the next maintainer's
+map for every future harness.
 
 ## The Quota Saver — the Workload-Conditional Claim
 

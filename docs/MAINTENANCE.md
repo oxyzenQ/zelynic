@@ -53,7 +53,7 @@ Rotation procedures:
 Plus the push-time guards (not scheduled, but part of the posture):
 `gate-keepers.yml` wholesale on every push and PR, `ci.yml`,
 `supermassive.yml`, `supermassive-container.yml`, `audit.yml`,
-`miri.yml`, `codeql.yml`, `fuzz.yml`, `proofs.yml` (night-frontier-Z6: the proofs package's per-push for-all and property lanes, capped at 15 minutes wall) and `supermassive-verify.yml` (the privileged runtime verification lane, riding every push at its measured 7.2 minutes since night-fly-1 retired its nightly clock; the solver-bound night tier proofs-night.yml retired whole the same day — its single scheduled fire burned 300.6 minutes cancelled with zero solver verdicts), and the three-arm
+`miri.yml`, `codeql.yml`, `fuzz.yml`, `proofs.yml` (night-frontier-Z6: the proofs package's per-push for-all and property lanes, capped at 15 minutes wall; since night-frontier-Z12 the for-all tier is a twelve-theorem matrix of one-harness jobs) and `supermassive-verify.yml` (the privileged runtime verification lane, riding every push at its measured 7.2 minutes since night-fly-1 retired its nightly clock; the solver-bound night tier proofs-night.yml retired whole the same day — its single scheduled fire burned 300.6 minutes cancelled with zero solver verdicts — and Z12 made the per-push tier strong enough that no night vehicle is missed), and the three-arm
 prebuilt-parity enforcement
 (NIGHT-dinner-1 — commit time, publish time, release time). Since
 the owner's unfiltered-CI simplification
