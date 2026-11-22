@@ -1249,9 +1249,15 @@ batch's cost, not its own.
   measurement (wall class 2), the boundary vectors
   (`refill_credits_fill_detect_lands_on_the_threshold_edges`,
   `refill_credits_division_boundary_window_pins_the_product_shape`)
-  hold the edges, and the Z9 verifier-budget ledger expects the
-  division's exit as a recorded ratchet at the next supermassive
-  census.
+  hold the edges. The verifier budget's verdict was measured, not
+  guessed: the first draft predicted a walk ratchet (a division out
+  of the path seemed smaller to explore) and the Z9 census measured
+  the OPPOSITE — the overflow branch and the product reassembly
+  widened the explored walk by +2506/+2287 states on enforce_dl/ul
+  (+0.35 percent), the growth law raised both budgets in the same
+  commit and named the reason, and the trade is the honest one: a
+  small verified-state price for a guard that carries no symbolic
+  division and no loader-unrelocatable helper.
 - **enforce — the hostile-state totality (the deepest statement in
   the tier).** The full verdict path (security-3 seed clamp, the
   window-ownership CAS, the refill, the lts-8 consume retry, the
