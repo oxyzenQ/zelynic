@@ -419,11 +419,44 @@ before committing lands it under `RUNNER_TEMP`, never in-tree; and
 a `git add` in a bot lane stages an explicit path list, never a
 glob.
 
-## 8. Cadence summary
+## 8. Field-evidence harvesting (the standing sensor)
+
+The owner's daily use is the one instrument the sandbox cannot
+fabricate: a KVM leg has no opinion about a real browser session's
+histogram drift, and a witnessed bypass miss is by definition
+unscripted. The full ritual — the watch table, the five-field
+entry format, the graduation rule — lives in
+[FIELD_EVIDENCE.md](FIELD_EVIDENCE.md); this seat records only the
+trigger discipline:
+
+- **An anomaly in daily use** (a verdict band that reads oddly, a
+  counter disagreeing with the wire, a session the surfaces cannot
+  explain, a teardown that fails) → one entry in the log, the same
+  day, five fields. The expensive part of evidence is writing it
+  down late or never.
+- **A workload class change** (a new heavy app becomes routine,
+  the link changes, a sync client joins the machine) → one
+  `scripts/bench/quota-saver-ab.sh` run (the wire shape of the
+  class) and one `scripts/bench/ee-resource-bench.sh` run (the
+  monitor's own cost on the new load). Both refuse loudly when a
+  prerequisite is missing and clean up after themselves.
+- **Never on a clock.** The two deferred items the sensor serves
+  (the emit-on-change histogram, the bypass three-way) reopen on
+  evidence, and evidence piles only if it is booked.
+
+The precedent that prices the ritual: the 2026-11-09 live readings
+retired two bookings (36.8x and ~25x over) after every automated
+instrument had blessed them — daily use is the retirement door no
+harness replaces (the booking law,
+[CLAIMS_VERIFICATION.md](CLAIMS_VERIFICATION.md)).
+
+## 9. Cadence summary
 
 | Every | Do |
 |-------|----|
 | push | nothing manual — the gate battery runs itself |
+| when daily use surprises | one [FIELD_EVIDENCE.md](FIELD_EVIDENCE.md) entry, the same day (§8) |
+| when a workload class changes | one `quota-saver-ab.sh` + one `ee-resource-bench.sh` run; a surprising figure is itself an entry (§8) |
 | weekly (Sun) | read the AXP1-ZnQ sentinel verdict (`maintenance.yml`) + the CodeQL and security-audit results; rotate the GPG subkey if the 30-day warning fired |
 | monthly | skim `git log -- docs/` for purpose drift; re-run `./scripts/gate-keepers.sh` once on the dev machine (re-arms the commit hook if the clone moved) |
 | per release | the §4 routine; the §3 ritual whenever `ebpf/` moved in the cycle |
