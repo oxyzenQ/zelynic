@@ -48,7 +48,7 @@ question well, and this page says which.
 
 | Doc | Covers |
 |-----|--------|
-| [CLAIMS_VERIFICATION.md](CLAIMS_VERIFICATION.md) | The ledger: every public claim maps to the mechanism that verifies it |
+| [CLAIMS_VERIFICATION.md](CLAIMS_VERIFICATION.md) | The ledger: every public claim maps to the mechanism that verifies it — opening with the booking law (night-frontier-Z16, D16): the three-part test every number must pass (the physics it owns, the conservative pole, the retirement door), the v29/v30 masterclass on display, and the six enforcement seats |
 | [THREAT_MODEL.md](THREAT_MODEL.md) | The honest threat model: the one-paragraph verdict (application-layer bypass resistance, not host-level security — root is assumed trustworthy), what holds (userspace evasion, per-process spoofing, connection escapes) and what falls (root, kernel, hardware) |
 | [SAFETY_ANALYSIS.md](SAFETY_ANALYSIS.md) | Malware-question analysis, crash behavior, pin cleanup, recovery |
 | [STABILITY.md](STABILITY.md) | The dated nightly eBPF toolchain pin and the LTS reasoning |
