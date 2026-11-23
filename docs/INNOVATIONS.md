@@ -1782,6 +1782,98 @@ line. The two disciplines are one habit: measure before believing,
 re-measure before re-believing, and record the number with the
 name of the run that produced it.
 
+## night-frontier-Z16 — the field sensor (D15) and the booking law (D16)
+
+Two disciplines that are not engineering: one turns the owner's
+daily use into a standing instrument, the other names the claim
+process as the estate's sellable asset. Both are documentation of
+work the tree has already done — the harvesting backfilled from
+the record, the law codified from retirements already kept — which
+is exactly what makes them honest: nothing here is promised, only
+recorded.
+
+### D15 — the field sensor: field-evidence harvesting made durable
+
+The estate's two most valuable deferred items wait on field
+evidence, not code: the emit-on-change histogram (-9000m) reopens
+on "field measurements across real traffic shapes", and the bypass
+three-way (D6) reopens on "a user-reported bypass class the
+interface-only delta demonstrably cannot see". The sandbox cannot
+fabricate either — a KVM leg has no opinion about a real browser
+session's histogram drift, and a witnessed miss is by definition
+unscripted — so the only honest source is the owner's own machine
+in daily use. The sensor was always free and always running; what
+it never had was a ledger, so the evidence evaporated at 2 a.m.
+and the reopen conditions' corpus stayed empty by bookkeeping, not
+by absence.
+
+[FIELD_EVIDENCE.md](FIELD_EVIDENCE.md) is that ledger: the watch
+table (the two reopen conditions quoted verbatim from this page's
+deferred rows — the conditions stay owned here, the log owns only
+the evidence), the five-field entry format (date, observation,
+instrument, home, disposition), the harvest protocol (record the
+anomaly the same day; run the existing harnesses —
+`quota-saver-ab.sh`, `ee-resource-bench.sh` — when a workload
+class changes, never on a clock), and the graduation rule (an
+entry satisfies a watch target by a dated update to the deferred
+row naming the entries — the same pattern the Z14 mirror update
+set — and the reopen itself stays the owner's call).
+
+The founding entries E1-E5 are backfilled from the record the tree
+already carries, and they are the proof the format works: the
+2026-10-07 live bug-hunt session (four finds, four closures), the
+2026-10-28 blocked teardown (the `__pycache__` class), the
+2026-11-06 bounded-pair ~0% finding (the workload condition of the
+whole quota-saver claim), the 2026-11-07 campaign day (the
+five-rate curve, the 200kb-on-Brave session that made the bypass
+audit name its band, the floor-bound window), and the 2026-11-09
+masterclass — the owner's live readings that retired two bookings
+at 36.8x and ~25x over, caught by daily use after every mechanism
+the estate had blessed them. That last entry is the sensor's
+calibration: field evidence is not a nice-to-have beside the
+harnesses; it is the instrument that has caught what the harnesses
+missed.
+
+### D16 — the booking law: the claim process named as the asset
+
+The claims ledger maps every public claim to the mechanism that
+verifies it; what it never wrote down is the door every row passes
+through first. [CLAIMS_VERIFICATION.md](CLAIMS_VERIFICATION.md)'s
+booking-law section is that door, codified from the masterclass:
+every number the estate publishes must carry the physics it owns
+(the named mechanism a reader can derive, not "the formula looked
+conservative"), the conservative pole (errs LOW, never high — and
+when the honest booking is zero, zero ships), and the retirement
+door (the named instrument whose reading kills it, with the
+promise to run it). The v28 pair each named a conservative pole
+and each over-claimed an order of magnitude anyway — the law's
+lesson is that a pole is not a decoration, it is a contract, and
+the audit that breaks it is an asset.
+
+The law's six enforcement seats are all real, runnable, and
+CI-enforced — the append-only layout walk (retired words read zero
+at pinned offsets forever), the one-for-one booking pins (the sole
+live counterfactual books exactly the delivered marks, never a
+modeled multiple), the render-contract pins (the total is the live
+booking alone, the honest "(est., counterfactual)" label), the
+wire-truth door (the A/B harness — the booked number is never the
+claimed saving), the dated-immutable record gate (retirements stay
+on display, indexed), and the golden-vector ratification law. The
+section's close names the commercial truth the owner's licensing
+conversations already price: what a buyer buys is not the binary
+but the claim process that survives its own audit — the ledger,
+the dated-immutable trail, the vectors, and two graves on display.
+A vendor with no graves has either no audits or no honesty.
+
+**Why never-done**: no limiter in this class runs a standing
+field-evidence ledger for its deferred items (most estates never
+name their deferred items at all, so their reopen conditions can
+never be satisfied — only abandoned), and none publishes a claim
+law whose graves are the proof it is enforced. The two disciplines
+are one posture: the evidence that would reopen a deferred item is
+harvested before it is needed, and the numbers that survive are
+the ones that can be killed.
+
 ## The Quota Saver — the Workload-Conditional Claim
 
 The fourteenth, fifteenth, and sixteenth entries above (RECWN, ECN,
@@ -1789,8 +1881,10 @@ pacing) save quota by three different physics — the clamp holds what
 the sender CAN send, the CE mark makes the sender back off, the
 pacer spaces the departure — and the Layer 4 telemetry (schema v28)
 books each lane's saving by the physics it actually owns. The
-formulas are the empirical math the telemetry fills; every one is
-pinned by rootless unit tests and read live by the probes.
+formulas are the empirical math the telemetry fills — one live
+(the ECN one-for-one) and two retired with their graves pinned the
+same way — every one held by rootless unit tests and read live by
+the probes.
 
 **The formulas.**
 
@@ -2028,7 +2122,13 @@ that already exist, a minor bump, never a major.
   something — and a mis-tuned threshold fails both ways at once:
   silence on a real drift, or the same periodic flood wearing a
   smarter hat. Reopens when: field measurements across real traffic
-  shapes exist to tune the threshold honestly.
+  shapes exist to tune the threshold honestly. (Watched since
+  2026-11-24, night-frontier-Z16, D15: the reopen condition now has
+  a standing instrument — the field sensor's log
+  ([FIELD_EVIDENCE.md](FIELD_EVIDENCE.md)), whose traffic-shape watch
+  records depth-histogram reads across real workload classes; the
+  condition is judged against the log's accumulated entries when a
+  graduation is proposed, and the reopen stays the owner's call.)
 
 - **The mirror — zelynic publishing its own per-packet tax
   (night-frontier-Z6).** The ask: the datapath's own verdict-path
@@ -2088,7 +2188,13 @@ that already exist, a minor bump, never a major.
   evidence exists of a bypass class the delta misses, and a marginal
   deepening built without a witnessed miss is innovation for its own
   sake. Reopens when: a user-reported bypass class lands that the
-  interface-only delta demonstrably cannot see.
+  interface-only delta demonstrably cannot see. (Watched since
+  2026-11-24, night-frontier-Z16, D15: the reopen condition now has
+  a standing instrument — the field sensor's log
+  ([FIELD_EVIDENCE.md](FIELD_EVIDENCE.md)), whose witnessed-miss watch
+  books the bypass-audit windows and session invisibilities daily
+  use surfaces; the graduation names the entries, and the reopen
+  stays the owner's call.)
 
 ## Reading order for a new maintainer
 
