@@ -134,6 +134,17 @@ mod bench;
 #[path = "../../test/ebpf/render/alloc_lens.rs"]
 mod alloc_lens;
 
+#[cfg(test)]
+// night-frontier-Z13-6: the floor and focus pins take their own
+// files at the 600-LOC owner cap — the bench module's split, one
+// file per contract, wired with the same Pattern-C discipline.
+#[path = "../../test/ebpf/render/bench_floor.rs"]
+mod bench_floor;
+
+#[cfg(test)]
+#[path = "../../test/ebpf/render/bench_focus.rs"]
+mod bench_focus;
+
 
 mod pool;
 pub(crate) use pool::{
