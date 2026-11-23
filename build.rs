@@ -62,6 +62,12 @@ fn main() {
     // that compiled this binary plus the profile facts — lives in
     // build/identity.rs (the 600-line split; a pure move).
     identity::stamp_identity();
+
+    // NIGHT-solid-defense-2: the D5 commit-signature stamp — the
+    // build's own answer to "is the commit this binary claims
+    // actually signed by the pinned maintainer key?" (see
+    // build/gpg.rs for the stamp grammar).
+    gpg::stamp_commit_signature();
 }
 
 ///
@@ -415,6 +421,8 @@ fn delete_damaged_artifact(release_dir: &std::path::Path, name: &str) {
 mod blake3;
 #[path = "build/flags.rs"]
 mod flags;
+#[path = "build/gpg.rs"]
+mod gpg;
 #[path = "build/identity.rs"]
 mod identity;
 #[path = "build/prebuilt.rs"]

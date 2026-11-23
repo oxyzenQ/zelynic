@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
 // SPDX-License-Identifier: AGPL-3.0-only OR Commercial
 
-//! The `sig` command surface — the five-depth signature report
-//! (night-signature-advanced-1; D4 added by night-depth-hardening-Z2).
+//! The `sig` command surface — the six-depth signature report
+//! (night-signature-advanced-1; D4 added by night-depth-hardening-Z2,
+//! D5 by night-solid-defense-2).
 //!
 //! The owner runs sibling tools across the fleet (zejtron and
 //! cosmostrix print the same depth-ladder shape), so `zelynic sig`
@@ -26,14 +27,25 @@
 //!       seal: D0-D2 prove the ownership claim, D3 the whole image,
 //!       D4 the ring-0 payload specifically — the most sensitive asset
 //!       in the binary, running in kernel space.
+//!   D5  commit-signature — the commit the binary claims is GPG-
+//!       signed by the PINNED maintainer key, verified at build time
+//!       against the repo's own pinned public key in an isolated
+//!       keyring (night-solid-defense-2; the policy lives in
+//!       [`sig_commit_sig`]). This is the row that binds the provenance
+//!       claim to the release channel: with the maintainer key verified
+//!       out-of-band and releases cut from signed tags, D5 closes the
+//!       key → tag → commit → binary chain — the binary swapped on the
+//!       wire can no longer replay its claims unanswered.
 //!
 //! Numbering note (the cosmostrix contract, kept verbatim): the
 //! D0-D3 depth rows are the VERIFICATION depths the sibling tools
 //! share; D4 is zelynic's own fifth row (the eBPF estate has no
-//! sibling counterpart to verify). The `-V` Depth-matrix line's
-//! d0:-d3: tokens are the four STORAGE layers (masked manifests,
-//! masked authors, FNV fingerprints, blake3 anchor) — a different
-//! axis, and the object-digest stamps ride no -V token: they are
+//! sibling counterpart to verify) and D5 its sixth (the commit
+//! binding, the supply-chain layer no sibling carries yet). The
+//! `-V` Depth-matrix line's d0:-d3: tokens are the four STORAGE
+//! layers (masked manifests, masked authors, FNV fingerprints,
+//! blake3 anchor) — a different axis, and the object-digest stamps
+//! and the commit-signature stamp ride no -V token: they are
 //! build-time seals reported through this ladder. The two numbering
 //! systems are documented here so a reader never has to guess which
 //! axis a `D2` refers to.
@@ -41,9 +53,10 @@
 //! The first three depths are the `-V` Depth-matrix line rendered per
 //! depth; they reuse [`provenance_view`]'s single pass (the invariant
 //! documented in `src/info/signature.rs` — the report shows exactly
-//! the bytes the integrity folds verify). D3 and D4 are exclusive to
-//! this command: D3 reads the whole image and D4 hashes the embedded
-//! kernel objects, and neither belongs on the `-V` path.
+//! the bytes the integrity folds verify). D3, D4 and D5 are exclusive
+//! to this command: D3 reads the whole image, D4 hashes the embedded
+//! kernel objects, D5 reports the build-time commit-signature
+//! verdict, and none of the three belongs on the `-V` path.
 //!
 //! # Honest limits of D3
 //!
@@ -70,8 +83,12 @@ use std::io::Read;
 // The provenance lane's surface functions ride info's pub(crate)
 // re-exports (the modules themselves stay private to info — one
 // import point per the tree's visibility discipline).
-use crate::info::{build_hash, build_time, identity_of, manifest_fingerprint, provenance_view};
+use crate::info::{
+    build_hash, build_time, identity_of, manifest_fingerprint, provenance_view, vcs_commit_sig,
+};
 use crate::output::brand_bold;
+
+use super::sig_commit_sig::commit_signature_verdict;
 
 /// Verdict of the depth ladder.
 #[derive(Debug, PartialEq, Eq)]
@@ -200,15 +217,15 @@ fn object_integrity() -> (bool, String) {
     )
 }
 
-/// Run the five-depth ladder and render the full report block.
+/// Run the six-depth ladder and render the full report block.
 ///
 /// The banner is the one colored line — brand purple, bold, the
 /// doctor/update banner tier (the owner's purple mark: the signature
 /// IS the brand mark, NIGHT-hunt-5's engraving law) — and the depth
 /// rows stay plain so the text greps cleanly
-/// (`zelynic sig | grep "D2 anchor-integrity"`). The text is stable by
+/// (`zelynic sig | grep "D5 commit-signature"`). The text is stable by
 /// contract (tests pin its shape, like the `-V` report): boxed header,
-/// four depth rows, an identity field block, then the verdict.
+/// six depth rows, an identity field block, then the verdict.
 /// Computing the verdict is separated from printing so tests can hold
 /// the text without capturing stdout.
 #[must_use]
@@ -242,6 +259,12 @@ pub(crate) fn sig_report() -> (String, SigVerdict) {
     // runtime re-hash is the binary auditing its own ring-0 payload.
     let (objects_ok, objects_detail) = object_integrity();
 
+    // D5: the commit-signature binding (night-solid-defense-2). The
+    // stamp is the build's own verified verdict over the claimed
+    // commit; the policy (pinned fingerprint, honest sentences for
+    // every state) lives in sig_commit_sig.rs.
+    let (sig_ok, sig_detail) = commit_signature_verdict(vcs_commit_sig(), build_hash());
+
     let rows = [
         DepthRow {
             name: "runtime-identity",
@@ -270,6 +293,11 @@ pub(crate) fn sig_report() -> (String, SigVerdict) {
             name: "object-integrity",
             passed: objects_ok,
             detail: objects_detail,
+        },
+        DepthRow {
+            name: "commit-signature",
+            passed: sig_ok,
+            detail: sig_detail,
         },
     ];
 
@@ -342,21 +370,45 @@ pub(crate) fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::sig_commit_sig::PINNED_MAINTAINER_KEY_FPR;
 
     #[test]
-    fn pristine_build_reports_authentic_five_of_five() {
+    fn pristine_build_reports_the_stamped_signature_truth() {
         let (text, verdict) = sig_report();
-        assert_eq!(verdict, SigVerdict::Authentic);
-        assert!(
-            text.contains("SIGNATURE: AUTHENTIC (5/5 depths verified)"),
-            "{text}"
-        );
+        // The ladder's honesty law (night-solid-defense-2): the D5
+        // row reports the BUILD's own verified verdict, so a tree on
+        // an unsigned main reads FAIL "no GPG signature" (5/6) and
+        // a tree whose HEAD is signed by the pinned maintainer key
+        // reads AUTHENTIC 6/6 — both are the pristine truth for
+        // their build, and the report must never claim otherwise.
+        let stamp = crate::info::vcs_commit_sig();
+        let sig_verified = stamp
+            .strip_prefix("verified:")
+            .is_some_and(|fpr| fpr == PINNED_MAINTAINER_KEY_FPR);
+        if sig_verified {
+            assert_eq!(verdict, SigVerdict::Authentic, "{text}");
+            assert!(
+                text.contains("SIGNATURE: AUTHENTIC (6/6 depths verified)"),
+                "{text}"
+            );
+        } else {
+            assert_eq!(verdict, SigVerdict::Tampered, "{text}");
+            let d5 = text
+                .lines()
+                .find(|line| line.starts_with("D5 commit-signature"))
+                .unwrap_or_else(|| panic!("the D5 row must exist:\n{text}"));
+            assert!(
+                d5.contains(" FAIL "),
+                "an unstamped-truth build must fail D5 by name:\n{text}"
+            );
+        }
         for row in [
             "D0 runtime-identity",
             "D1 embedded-marker",
             "D2 anchor-integrity",
             "D3 binary-self-hash",
             "D4 object-integrity",
+            "D5 commit-signature",
         ] {
             assert!(text.contains(row), "missing depth row {row}:\n{text}");
         }
