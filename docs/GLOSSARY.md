@@ -371,6 +371,14 @@ first-time reader, and this page pays it once, up front.
 - **Verdict bands**: the baseline lane's departure rule — ±50% AND
   a 4 KiB floor per window, two consecutive windows before a flag
   renders; every figure pinned.
+- **The booking law**: the three-part test every number this
+  estate publishes must pass — the physics it owns, the
+  conservative pole (errs LOW, never high), and the retirement
+  door (the instrument whose reading kills it) — codified after
+  the v29/v30 retirements; its enforcement seats and the
+  masterclass precedent live in
+  [CLAIMS_VERIFICATION.md](CLAIMS_VERIFICATION.md)'s booking-law
+  section.
 
 <!-- ZELYNIC-DISCLAIMER -->
 <!--

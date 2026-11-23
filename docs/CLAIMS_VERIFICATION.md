@@ -33,6 +33,82 @@ row ships without one. The mechanisms come in three strengths:
 - **CI** — a workflow surface that enforces the claim on every push
   or release.
 
+## The booking law (how a number earns its row)
+
+The ledger below maps claims to mechanisms; this law is the door
+every row passes through first. It was written the hard way — two
+bookings passed every mechanism this estate had and still erred
+high by an order of magnitude, and only the owner's own daily-use
+readings caught them (the precedent below). A number zelynic
+publishes — a booked counter, a claimed saving, a measured
+percentage — must carry all three parts or it does not ship:
+
+- **The physics it owns.** The named mechanism that makes the
+  number true, stated so a reader can derive it. `bytes_saved_by_ecn`
+  owns one-for-one with delivered CE marks: a marked byte is a
+  byte that never becomes a loss-and-retransmission pair, and a
+  dropped byte bills twice on a metered link — so 1:1 IS the
+  claim, not a modeling choice. A number whose physics is "the
+  formula looked conservative" owns nothing.
+- **The conservative pole.** The direction the number errs when
+  it must err: LOW, never high. Every estimate in this estate
+  names its pole; an estimate with no pole is untuned, and untuned
+  estimates err high — the v28 formulas each called themselves
+  conservative and each over-claimed (36.8x and ~25x) because
+  their counterfactuals assumed workloads the wire never ran.
+  When the honest booking is zero (a pacer reschedules bytes, it
+  does not remove them), zero is the number that ships.
+- **The retirement door.** The named instrument whose reading
+  kills the number, and the promise to run it. A number that
+  cannot be killed cannot be checked. The doors here are the
+  harnesses and pins in the seat table below — and the field
+  sensor ([FIELD_EVIDENCE.md](FIELD_EVIDENCE.md)) is the door no
+  harness replaces: daily use is what actually caught both
+  retirements.
+
+**The precedent (the masterclass, kept on display).** Schema v28
+booked two counterfactual savings. The EDT headroom formula
+(`rate x elapsed - uploaded`, idle gap capped at one second)
+booked 744.6 MB for a `brave` at 500kb against a 20 MB
+doc-formula prediction — 36.8x over — and 1.8x over for a
+`python3` at 300kb; retired at v29 (night-quota-audit). The RECWN
+window-law estimate (`(allowed / clamped) x (default - clamped)`,
+the 128 KiB "default" pinned as the errs-low pole) booked 165 MB
+against a strict fill-bounded recomputation of ~6.5 MB — ~25x
+over — with the owner's `ss -tip` reading proving all three
+hidden assumptions false (autotuned rcv_wnd 48-78 KB across 11
+connections, one at the clamp, the sockets app-limited); retired
+at v30 (night-recvn-audit). Both retirements kept neat graves:
+the words stay at their pinned offsets reading zero, the estimate
+functions came out of the display layer, the lanes' enforcement is
+untouched, and the lanes' real wire effect moved to the only
+instrument that can measure it — the A/B harness. The lesson the
+law codifies: a booking that errs high is not a rounding problem,
+it is a broken claim, and the audit that finds it is an asset,
+not an embarrassment.
+
+**The law's enforcement seats** (every door below is real,
+runnable, and CI-enforced — the law is not prose about honesty;
+it is the list of checks that make honesty cheap):
+
+| Seat | What it pins | Where it runs |
+|---|---|---|
+| The append-only layout + retired-words-read-zero | A retired booking stays at its offset reading zero forever; the row never shrinks or forks | `test/ebpf/limiter/schema_layout_tests.rs` (the five-era version walk, every push) |
+| The one-for-one booking law | The sole live counterfactual booking books exactly the delivered marks' bytes, never a modeled multiple | `test/ebpf/limiter/ecn_tests.rs` (`book_rescue` pins, every push) |
+| The render contract | `bytes_saved_total` is the live booking alone, retired keys read zero, the human line carries the honest "(est., counterfactual)" label | `test/ebpf/display_json_quota_tests.rs` + the display pins (every push) |
+| The wire-truth door | The booked number is never the claimed saving; the wire saving is the A/B harness's read off interface deltas | `scripts/bench/quota-saver-ab.sh` (the owner-runnable harness; the physics page's §8 is its record) |
+| The dated-immutable record | Every audit is dated, immutable, and indexed; retirements stay on display, never edited away | `scripts/gates/check-audits-index.sh` (every push) + the frozen CHANGELOG law |
+| The behavior attestation | Output changes are release-note events, ratified by frozen vectors | [GOLDEN_VECTORS.md](GOLDEN_VECTORS.md) (the ratification law) |
+
+**What the buyer buys.** For acquisition or licensing, the
+sellable asset is not the binary — binaries rebuild — but the
+claim process that survives its own audit: this ledger, the
+dated-immutable audit trail, the golden vectors, and two
+retirements on display rather than hidden. A number that passes
+the three-part test can be trusted in a contract; a vendor with
+no graves has either no audits or no honesty, and a buyer who has
+ever been burned knows which is worse.
+
 ## The five headline claims (the proof harness)
 
 | # | Claim | LIVE row (proof-claims) | PIN / CI |
