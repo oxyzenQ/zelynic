@@ -343,8 +343,11 @@ verification that the commit the binary claims is GPG-signed by the
 same pinned maintainer key this document publishes (the repo carries
 the public key at `assets/gpg/maintainer-47A50AEF4B65AAC2.asc` with
 the fingerprint single-sourced in
-`assets/gpg/pinned-maintainer-fpr.txt`; build.rs verifies against it
-in an isolated throwaway keyring, never the building user's). The
+`assets/gpg/pinned-maintainer-fpr.txt`, both files' bytes pinned by
+the assets BLAKE3 sidecar — `b3sum -c assets/signature.b3sum` at the
+repo root names a swapped key or fingerprint before import; build.rs
+verifies against it in an isolated throwaway keyring, never the
+building user's). The
 camera the artifact plants is the camera its build pinned — an
 object patched inside the artifact fails the depth by name and the
 verdict goes TAMPERED (exit 1). A one-byte-flip tamper test runs
