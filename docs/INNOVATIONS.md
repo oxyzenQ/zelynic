@@ -1133,7 +1133,8 @@ lever lands.
 Z4's allocation lens named the frame's remaining heap events and
 staged them; Z11 closes the ladder's stages and pins every landing.
 The floor pin (`steady_state_frame_composition_allocates_zero`,
-test/ebpf/render/bench.rs) measures the QUIETEST of 32 busy frames
+test/ebpf/render/bench_floor.rs since the Z13-8 split) measures the
+QUIETEST of 32 busy frames
 through a counting global allocator; its ceiling lowers in the same
 commit that closes a named site — the ladder's own ratchet. The
 measured floor, one line per stage, all on the same glibc dev box
@@ -1377,6 +1378,59 @@ The verdict, three parts:
 The mirror's ledger correction rides this census (the stale loader
 sentence and the satisfied reopen condition are rewritten in the deferred
 entry, with this section as their proof).
+
+### D12 — the zero-heap completion: the lens ceiling reaches zero, and the focus view too
+
+The Z11 ladder stopped at 34 heap events per frame with the remainder
+named — the detail tree's walk scratch, the signature engraving's
+internals, the focus view's own tree. Z13 closes every named site,
+measured phase by phase with the lens, each site named before it died:
+
+- **stage 4a** (night-frontier-Z13-2, 19da5d2): the detail tree's
+  holders' walk reads its endpoints through the capacity-warm
+  HOLDER_WALK index buffer — the outer Vec plus one Vec per holder
+  plus the ranked `to_vec` copy per multi-socket holder are gone.
+- **stage 4b** (night-frontier-Z13-3, 4fbd782): the signature
+  engraving materializes once into a `OnceLock<String>` and returns
+  `&'static str` — process-constant bytes never re-format per frame.
+  The ladder's ratchet: 34 -> 30 -> 27.
+- **stage 4c** (night-frontier-Z13-4, d289db8): the composition's
+  remaining events close whole — the board composes in the session's
+  own warm scratch, the engraved footer assembles into the retained
+  FOOTER_BLOCK with the champion's name resolving into the warm
+  TOP_NAME buffer, the per-row detail block rides the retained
+  DETAIL_BLOCK scratch, the scroll note composes into the pooled
+  scratch, and every blank pad row pops the pool (a fresh
+  `String::new()` carried zero capacity and the border wrap grew it
+  six heap events per row). Every dropped row — the champion trim,
+  the over-budget break, the scroll-note pop — hands its buffer BACK
+  to the pool: dropping a pooled row starved the warm capacity and
+  made the next frame pay a fresh allocation the walk could see. The
+  measured quiet count: 27 -> 0, `FLOOR = 0` as an `assert_eq`.
+- **stage 5** (night-frontier-Z13-5, 52f797b): the lens extends to
+  the single-cgroup focus view — the uncapped full-detail tree composes
+  as pooled rows through the SAME HOLDER_WALK scratch (5a, 114 -> 85),
+  the key/value chrome rides the into-twin family with the blanks
+  popping the pool (5b, 85 -> 7), the id lane resolves into the
+  frame's STACK buffer and the baseline phrases compose through the
+  pooled twins (5c, 7 -> 2), and the last two events were the walk's
+  receipt, not a site: the focus title scratch was dropped without
+  returning to the pool, the balance was EXACT, and the closing row's
+  pop starved every frame — one recycle, zero.
+
+The claim this closes: **a full-duty terminal monitor whose
+steady-state frame allocates zero bytes — the ranked board and the
+single-cgroup focus view alike — machine-pinned in CI with a counting
+allocator ratchet**. The pins read `quietest of 32 frames = 0
+(floor 0)` on both frames; the htop/tmux/vim class allocates per
+frame. The honest residue stays named: the claim covers the
+composition half and the focus walk (the diff engine's half was
+already zero, NIGHT-blade-16), the fixtures' assembly sits OUTSIDE
+every lens window, and the owned twins that remain do so behind
+`cfg(test)` for the oracle pins. The pins' homes after the Z13-8
+split: `test/ebpf/render/bench_floor.rs` (the ranked frame) and
+test/ebpf/render/bench_focus.rs (the focus view) — one file per
+contract, the A/B harness staying in bench.rs.
 
 ## The Quota Saver — the Workload-Conditional Claim
 

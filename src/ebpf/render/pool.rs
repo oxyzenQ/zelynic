@@ -8,7 +8,7 @@
 //! capacity-warm strings, the loop returns the spent ones, and the
 //! steady-state live frame performs zero heap events. The diff
 //! engine's own zero-alloc law (NIGHT-blade-16) covers the other half;
-//! the allocation pin in test/ebpf/render/bench.rs holds the floor
+//! the allocation pin in test/ebpf/render/bench_floor.rs holds the floor
 //! end to end.
 
 use std::cell::RefCell;
