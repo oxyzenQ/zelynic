@@ -178,15 +178,30 @@ fn steady_state_frame_composition_allocates_zero() {
         recycle_frame_lines(&mut lines);
     }
 
-    // Measured: 32 busy frames, each one a closed lens window. The
-    // lens's counter is GLOBAL, so the battery's parallel tests leak
-    // allocations into a window (the musl twin read 394 worst where
-    // the quiet count was ~172 — contamination only ADDS). The honest
-    // statistic is the QUIETEST frame: a contamination-free window
-    // reads the composition's own count, and a real regression raises
-    // EVERY frame including the quietest one.
+    // Measured: busy frames, each one a closed lens window, walked
+    // until a contamination-free window proves the composition's own
+    // count. The lens's counter is GLOBAL, so the battery's parallel
+    // tests leak allocations into a window (the musl twin read 394
+    // worst where the quiet count was ~172 — contamination only
+    // ADDS). The honest statistic is the QUIETEST frame: a
+    // contamination-free window reads the composition's own count,
+    // and a real regression raises EVERY frame including the
+    // quietest one. night-frontier-Z13-12: the original walk sampled
+    // 32 windows and the musl twin's battery landed a run where ALL
+    // 32 saw foreign events (quietest = 3 on a loaded runner, the
+    // pins reading zero on every uncontaminated lane) — the walk
+    // keeps STEPPING now, bounded at 4096 busy windows, and stops at
+    // the first contamination-free one. A real regression never reads
+    // the zero its floor demands, so the assert keeps its power; the
+    // scheduler lottery is out of the verdict's way.
+    // The patience budget: 4096 busy windows bound the walk (each is
+    // microseconds; the battery never feels it — the point is that an
+    // all-contaminated 32-window sample, a scheduling artifact, does
+    // not fail the pin).
+    const QUIET_WALK: u64 = 4096;
     let mut quiet = usize::MAX;
-    for frame in 12..44 {
+    let mut walked = 0usize;
+    for frame in 12..12 + QUIET_WALK {
         let summary = summary_for(frame, &mut dl_totals, &mut ul_totals);
         let before = alloc_lens::count();
         render_eagle_eyes(
@@ -209,10 +224,16 @@ fn steady_state_frame_composition_allocates_zero() {
         if allocs < quiet {
             quiet = allocs;
         }
+        walked += 1;
+        if quiet == FLOOR {
+            // The zero is proven: one window carried no foreign event
+            // and no composition event. The walk stops here.
+            break;
+        }
     }
     // The floor pin (night-frontier-Z4, stage 1; Z11 stages 1-2
-    // lower): the QUIETEST of the 32 busy frames must stay under FLOOR
-    // heap events. The observed quiet counts on the glibc dev box:
+    // lower): the QUIETEST of the walked busy frames must stay under
+    // FLOOR heap events. The observed quiet counts on the glibc dev box:
     // 249 pre-pool, 164 after Z4's pool (~172 musl), 150 after Z11
     // stage 1 (the title bar, the grid lines, the sweep memo's clone
     // path, and the rail escapes ride into-twins), 100 after stage 2
@@ -260,11 +281,14 @@ fn steady_state_frame_composition_allocates_zero() {
     // count, so the floor's own trend is visible in the battery's
     // output (night-frontier-Z11's ladder law — a closed site LOWERS
     // this number, and the print is its receipt).
-    eprintln!("steady-state frame allocations: quietest of 32 frames = {quiet} (floor {FLOOR})");
+    eprintln!(
+        "steady-state frame allocations: quietest of {walked} walked frames = {quiet} (floor {FLOOR})"
+    );
     assert_eq!(
         quiet, FLOOR,
-        "steady-state frame allocations: the quietest of 32 frames allocated {quiet} \
-         (floor {FLOOR}) — the composition's zero-heap law regressed: some frame \
-         allocated, and the pin holds the zero the ladder climbed to"
+        "steady-state frame allocations: the quietest of {walked} walked frames allocated \
+         {quiet} (floor {FLOOR}) — the composition's zero-heap law regressed: every \
+         window the walk sampled, contamination-free ones included, allocated, and \
+         the pin holds the zero the ladder climbed to"
     );
 }
