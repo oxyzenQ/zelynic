@@ -102,6 +102,7 @@ mod detail;
 mod detail_push;
 mod eagle;
 mod eagle_row;
+mod eagle_table;
 mod focus;
 mod footer;
 mod footer_grip;
@@ -132,6 +133,7 @@ mod bench;
 // bench module's own wiring discipline).
 #[path = "../../test/ebpf/render/alloc_lens.rs"]
 mod alloc_lens;
+
 
 mod pool;
 pub(crate) use pool::{
