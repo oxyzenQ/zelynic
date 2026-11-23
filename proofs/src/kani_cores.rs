@@ -45,12 +45,14 @@ fn pol(rate: u64, burst: u64) -> Policy {
 }
 
 /// THE refill totality theorem (night-frontier-Z12, the decomposed
-/// shape): for EVERY (rate, burst, elapsed, frac) — rate UNBOUNDED,
-/// hostile persistent-map state included, no SYSTEM_MAX_RATE
-/// assumption; burst inside its representability contract —
-/// refill_credits performs no overflowing arithmetic (kani's
-/// overflow checks are the verdict) and keeps the fraction law and
-/// the zero-window law.
+/// shape; night-frontier-Z15, the magnitude law landed): for EVERY
+/// (rate, burst, elapsed, frac) — rate UNBOUNDED, hostile
+/// persistent-map state included, no SYSTEM_MAX_RATE assumption;
+/// burst inside its representability contract — refill_credits
+/// performs no overflowing arithmetic (kani's overflow checks are
+/// the verdict), keeps the fraction law, keeps the zero-window
+/// law, and keeps the credited whole's magnitude law (whole <=
+/// rate + burst, saturating) — all three output laws for-all.
 ///
 /// The decompositions that fit the pinned solver generation (the Z12
 /// census holds the measurements): (1) the fill-detect moved to the
@@ -65,13 +67,22 @@ fn pol(rate: u64, burst: u64) -> Policy {
 /// division-derived guard asked the solver to reason from elapsed <
 /// (2 x burst x NS) / rate to elapsed x rate < 2 x burst x NS, a
 /// variable-multiplier relation the measured census grinds past
-/// every ceiling). (2) The credited whole's
-/// magnitude law (whole <= rate + burst) stays with the sampled
-/// tier by the same census: the bound needs a
-/// multiply-monotonicity derivation (elapsed capped at one second
-/// implies elapsed x rate <= NS x rate), the exact circuit class
-/// the probes measured undecided — the proptest hammers it 4096
-/// cases per run and the rootless vector pins hold the boundary.
+/// every ceiling). (2) The credited whole's magnitude law
+/// (whole <= rate + burst) RODE the sampled tier from Z6 to Z14
+/// by the Z12 census's probe record — the multiply-monotonicity
+/// derivation class (elapsed capped at one second implies
+/// elapsed x rate <= NS x rate) measured undecided — and the Z15
+/// re-census measured the DIRECT obligation on the post-Z12 bytes
+/// deciding in 2.1 s solo, 2.5 s inside this standing harness (the
+/// Z12-era probes measured a neighboring derivation class, not the
+/// obligation itself; the split-multiply restructure had already
+/// removed the circuit the probes ground on). The Z12 lesson
+/// sharpened itself: a residue verdict is re-censused against the
+/// CURRENT bytes before it is believed, because a code change
+/// underneath a census can retire the wall without a sound. The
+/// sampled tier still hammers the law (4096 cases per run, the
+/// defense-in-depth shape) and the rootless boundary vectors hold
+/// the edges.
 #[kani::proof]
 fn refill_credits_is_total_and_domain_bounded_for_all_inputs() {
     let rate: u64 = kani::any();
@@ -81,6 +92,10 @@ fn refill_credits_is_total_and_domain_bounded_for_all_inputs() {
     let frac: u64 = kani::any();
     let (whole, new_frac) = math_core::refill_credits(rate, burst, elapsed, frac);
     assert!(new_frac < NS_PER_SEC, "fraction escaped its domain");
+    assert!(
+        whole <= rate.saturating_add(burst),
+        "the credited whole exceeded rate + burst"
+    );
     if rate == 0 || elapsed == 0 {
         let healthy = if frac < NS_PER_SEC { frac } else { 0 };
         assert_eq!((whole, new_frac), (0, healthy), "zero-window credit");
