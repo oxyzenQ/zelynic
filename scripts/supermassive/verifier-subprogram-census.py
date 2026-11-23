@@ -64,28 +64,28 @@ BTF_KIND_FUNC = 12
 BTF_KIND_FUNC_PROTO = 13
 
 BTF_KIND_TAIL = {
-    "int": 4,                      # btf_int
+    "int": 4,  # btf_int
     "ptr": 0,
-    "array": 12,                   # btf_array
-    "struct": 12,                  # btf_member, times vlen
-    "union": 12,                   # btf_member, times vlen
-    "enum": 8,                     # btf_enum, times vlen
+    "array": 12,  # btf_array
+    "struct": 12,  # btf_member, times vlen
+    "union": 12,  # btf_member, times vlen
+    "enum": 8,  # btf_enum, times vlen
     # btf_enum64 is 12 bytes (name_off, val_lo32, val_hi32).
     "fwd": 0,
     "typedef": 0,
     "volatile": 0,
     "const": 0,
     "restrict": 0,
-    "func": 0,                     # vlen carries linkage, no tail
+    "func": 0,  # vlen carries linkage, no tail
     # FUNC_PROTO: the btf_type union IS the return type (already inside the
     # 12-byte record); only the vlen btf_param entries (8 bytes each) trail.
-    "func_proto": 8,               # btf_param, times vlen
-    "var": 4,                      # btf_var
-    "datasec": 12,                 # btf_var_secinfo, times vlen
+    "func_proto": 8,  # btf_param, times vlen
+    "var": 4,  # btf_var
+    "datasec": 12,  # btf_var_secinfo, times vlen
     "float": 0,
     "decl_tag": 0,
     "type_tag": 0,
-    "enum64": 12,                  # btf_enum64, times vlen
+    "enum64": 12,  # btf_enum64, times vlen
 }
 
 BTF_MAGIC = 0xEB9F
@@ -163,7 +163,7 @@ def parse_btf(btf_bytes: bytes) -> dict:
     # (hdr_len), so the string table starts at hdr_len + str_off — NOT after
     # the type section (str_off already accounts for it).
     strings_base = hdr_len + str_off
-    str_blob = btf_bytes[strings_base:strings_base + str_len]
+    str_blob = btf_bytes[strings_base : strings_base + str_len]
 
     def string_at(name_off: int) -> str:
         end = str_blob.index(b"\x00", name_off)
@@ -187,16 +187,19 @@ def parse_btf(btf_bytes: bytes) -> dict:
             func_by_index[index + 1] = {
                 "name": string_at(name_off),
                 # vlen of FUNC carries the linkage (UAPI btf_func_linkage).
-                "linkage": {0: "static", 1: "global", 2: "extern"}.get(
-                    vlen, f"raw_{vlen}"),
+                "linkage": {0: "static", 1: "global", 2: "extern"}.get(vlen, f"raw_{vlen}"),
             }
         elif kind == BTF_KIND_FUNC_PROTO:
             func_protos += 1
         pos += 12 + kind_tail(kind, vlen, kind_flag)
         index += 1
-    return {"type_count": index, "kinds": kinds,
-            "func_by_index": func_by_index, "func_protos": func_protos,
-            "string_at": string_at}
+    return {
+        "type_count": index,
+        "kinds": kinds,
+        "func_by_index": func_by_index,
+        "func_protos": func_protos,
+        "string_at": string_at,
+    }
 
 
 def parse_func_info(ext_bytes: bytes, btf: dict) -> list:
@@ -226,10 +229,8 @@ def parse_func_info(ext_bytes: bytes, btf: dict) -> list:
         for _ in range(num_info):
             insn_off, type_id = struct.unpack_from("<II", ext_bytes, pos)
             pos += rec_size
-            names.append(func_by_index.get(type_id, {}).get(
-                "name", f"type_id_{type_id}"))
-        sections.append({"section": string_at(sec_name_off),
-                         "entries": num_info, "funcs": names})
+            names.append(func_by_index.get(type_id, {}).get("name", f"type_id_{type_id}"))
+        sections.append({"section": string_at(sec_name_off), "entries": num_info, "funcs": names})
     return sections
 
 
@@ -247,12 +248,14 @@ def census_object(path: Path) -> dict:
         if symtab is not None:
             for sym in symtab.iter_symbols():
                 if sym["st_info"]["type"] == "STT_FUNC":
-                    func_symbols.append({
-                        "name": sym.name,
-                        "section": str(sym["st_shndx"]),
-                        "value": sym["st_value"],
-                        "size": sym["st_size"],
-                    })
+                    func_symbols.append(
+                        {
+                            "name": sym.name,
+                            "section": str(sym["st_shndx"]),
+                            "value": sym["st_value"],
+                            "size": sym["st_size"],
+                        }
+                    )
 
         # Call instructions per PROGBITS code section: the bpf-linker
         # output keeps program code in .text (targets named by symbols).
@@ -261,15 +264,25 @@ def census_object(path: Path) -> dict:
             if section["sh_type"] != "SHT_PROGBITS":
                 continue
             name = section.name
-            if name.startswith((".rel", ".debug", ".BTF", ".comment", ".strtab",
-                                ".shstrtab", ".symtab", ".note", ".llvm")):
+            if name.startswith(
+                (
+                    ".rel",
+                    ".debug",
+                    ".BTF",
+                    ".comment",
+                    ".strtab",
+                    ".shstrtab",
+                    ".symtab",
+                    ".note",
+                    ".llvm",
+                )
+            ):
                 continue
             data = section.data()
             count = len(data) // 8
             if count == 0:
                 continue
-            per_section = {"section": name, "insns": count,
-                           "calls": {}, "pseudo_sites": []}
+            per_section = {"section": name, "insns": count, "calls": {}, "pseudo_sites": []}
             for i in range(count):
                 code = data[i * 8]
                 if code != BPF_OP_CALL:
@@ -280,11 +293,9 @@ def census_object(path: Path) -> dict:
                     meaning = RELOC_CALL_MEANING
                 else:
                     meaning = CALL_SRC_MEANING.get(src_reg, f"src_{src_reg}")
-                per_section["calls"][meaning] = \
-                    per_section["calls"].get(meaning, 0) + 1
+                per_section["calls"][meaning] = per_section["calls"].get(meaning, 0) + 1
                 if src_reg in (1, 2, 3) or meaning == RELOC_CALL_MEANING:
-                    per_section["pseudo_sites"].append(
-                        {"insn": i, "src": src_reg, "imm": imm})
+                    per_section["pseudo_sites"].append({"insn": i, "src": src_reg, "imm": imm})
             if per_section["calls"]:
                 calls.append(per_section)
 
@@ -292,8 +303,7 @@ def census_object(path: Path) -> dict:
         # STT_SECTION symbols carry no name: resolve them to their section
         # (the callee is whatever FUNC lives at section+0 in the object).
         b2b_relocs = []
-        section_names = {index: section.name
-                         for index, section in enumerate(elf.iter_sections())}
+        section_names = {index: section.name for index, section in enumerate(elf.iter_sections())}
         for section in elf.iter_sections():
             if section["sh_type"] not in ("SHT_REL", "SHT_RELA"):
                 continue
@@ -303,21 +313,25 @@ def census_object(path: Path) -> dict:
                     sym_idx = reloc["r_info_sym"]
                     if symtab is not None:
                         sym = symtab.get_symbol(sym_idx)
-                        sym_name = sym.name or \
-                            f"<{section_names.get(sym['st_shndx'], sym['st_shndx'])}+{sym['st_value']}>"
+                        sym_name = (
+                            sym.name
+                            or f"<{section_names.get(sym['st_shndx'], sym['st_shndx'])}+{sym['st_value']}>"
+                        )
                     else:
                         sym_name = f"sym_{sym_idx}"
-                    b2b_relocs.append({"section": target,
-                                       "offset": reloc["r_offset"],
-                                       "symbol": sym_name})
+                    b2b_relocs.append(
+                        {"section": target, "offset": reloc["r_offset"], "symbol": sym_name}
+                    )
 
         return {
             "object": path.name,
             "bytes": path.stat().st_size,
-            "btf": {"type_count": btf["type_count"],
-                    "kinds": btf["kinds"],
-                    "funcs": btf["func_by_index"],
-                    "func_protos": btf["func_protos"]},
+            "btf": {
+                "type_count": btf["type_count"],
+                "kinds": btf["kinds"],
+                "funcs": btf["func_by_index"],
+                "func_protos": btf["func_protos"],
+            },
             "func_info_sections": func_info,
             "func_symbols": func_symbols,
             "call_sections": calls,
@@ -329,8 +343,10 @@ def main() -> int:
     args = sys.argv[1:]
     if not args:
         root = Path(__file__).resolve().parents[2]
-        args = [str(root / "ebpf-prebuilt" / "zelynic-limiter.o"),
-                str(root / "ebpf-prebuilt" / "zelynic-observer.o")]
+        args = [
+            str(root / "ebpf-prebuilt" / "zelynic-limiter.o"),
+            str(root / "ebpf-prebuilt" / "zelynic-observer.o"),
+        ]
     report = []
     for arg in args:
         path = Path(arg)
@@ -340,42 +356,50 @@ def main() -> int:
         report.append(census_object(path))
     for entry in report:
         pseudo_calls = sum(
-            cs["calls"].get("pseudo_call_bpf2bpf", 0)
-            + cs["calls"].get(RELOC_CALL_MEANING, 0)
+            cs["calls"].get("pseudo_call_bpf2bpf", 0) + cs["calls"].get(RELOC_CALL_MEANING, 0)
             for cs in entry["call_sections"]
         )
         relocs = len(entry["r_bpf_64_32_relocs"])
         print("=" * 72)
         print(f"object              : {entry['object']} ({entry['bytes']} bytes)")
         print(f"BTF types           : {entry['btf']['type_count']}")
-        print(f"BTF_FUNC kinds      : {len(entry['btf']['funcs'])} "
-              f"(protos {entry['btf']['func_protos']})")
+        print(
+            f"BTF_FUNC kinds      : {len(entry['btf']['funcs'])} "
+            f"(protos {entry['btf']['func_protos']})"
+        )
         for index, func in sorted(entry["btf"]["funcs"].items()):
             print(f"    func[{index}]      : {func['name']} ({func['linkage']})")
         for fi in entry["func_info_sections"]:
-            print(f"func_info section    : {fi['section']} entries={fi['entries']} "
-                  f"funcs={','.join(fi['funcs']) or '-'}")
+            print(
+                f"func_info section    : {fi['section']} entries={fi['entries']} "
+                f"funcs={','.join(fi['funcs']) or '-'}"
+            )
         for sym in entry["func_symbols"]:
-            print(f"STT_FUNC symbol      : {sym['name']} section={sym['section']} "
-                  f"value={sym['value']} size={sym['size']}")
+            print(
+                f"STT_FUNC symbol      : {sym['name']} section={sym['section']} "
+                f"value={sym['value']} size={sym['size']}"
+            )
         for cs in entry["call_sections"]:
-            print(f"code section         : {cs['section']} insns={cs['insns']} "
-                  f"calls={cs['calls']}")
+            print(f"code section         : {cs['section']} insns={cs['insns']} calls={cs['calls']}")
             for site in cs["pseudo_sites"]:
-                print(f"    pseudo call site : insn={site['insn']} "
-                      f"src={site['src']} imm={site['imm']}")
+                print(
+                    f"    pseudo call site : insn={site['insn']} "
+                    f"src={site['src']} imm={site['imm']}"
+                )
         for reloc in entry["r_bpf_64_32_relocs"]:
-            print(f"R_BPF_64_32 reloc    : {reloc['section']}+{reloc['offset']} "
-                  f"-> {reloc['symbol']}")
-        verdict = ("bpf2bpf subprogram population: "
-                   f"{pseudo_calls} call sites (in-reloc + pseudo) "
-                   f"backed by {relocs} R_BPF_64_32 relocs")
+            print(
+                f"R_BPF_64_32 reloc    : {reloc['section']}+{reloc['offset']} -> {reloc['symbol']}"
+            )
+        verdict = (
+            "bpf2bpf subprogram population: "
+            f"{pseudo_calls} call sites (in-reloc + pseudo) "
+            f"backed by {relocs} R_BPF_64_32 relocs"
+        )
         if pseudo_calls == 0 and relocs == 0:
             verdict += " — ZERO subprogram shape (dead rung by measurement)"
         print(verdict)
     print("=" * 72)
-    print(json.dumps({"census": "verifier-subprogram-census",
-                      "objects": len(report)}, indent=2))
+    print(json.dumps({"census": "verifier-subprogram-census", "objects": len(report)}, indent=2))
     return 0
 
 
