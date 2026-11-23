@@ -145,7 +145,6 @@ mod bench_floor;
 #[path = "../../test/ebpf/render/bench_focus.rs"]
 mod bench_focus;
 
-
 mod pool;
 pub(crate) use pool::{
     grey_trim, pooled_line, push_pooled, recycle_frame_lines, recycle_line, write_rate_or_dash,
@@ -298,7 +297,6 @@ impl FrameGeometry {
 mod eagle_columns;
 
 pub(crate) use eagle_columns::{EagleColumns, plan_eagle_columns};
-
 
 /// Truncate a label to `w` DISPLAY columns, appending an ellipsis
 /// when truncation happens. NIGHT-lts-1: the budget counts rendered
