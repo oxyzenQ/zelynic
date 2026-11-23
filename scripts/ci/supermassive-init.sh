@@ -542,6 +542,22 @@ verifier | all)
 	else
 		note "verifier budget ledger - census + gate (verified_insns)" FAIL
 	fi
+	# night-frontier-Z14: the subprogram shape gate - the callee
+	# family the walk collapse rides (ring_verdict, ecn_rescue,
+	# quic_flow_key beside hist_record) is pinned in
+	# scripts/supermassive/verifier-subprogram-shape.json and
+	# asserted against the SHIPPED objects the repo snapshot
+	# carries: a re-inline (the #[inline(always)] regression) or
+	# a silent family change fails the battery before the walk
+	# budget can drift one commit at a time. Rootless by nature
+	# (a raw ELF/BTF walk, no kernel), it rides the verifier
+	# battery so the shape and the walk verdict share one lane.
+	if python3 scripts/supermassive/verifier-subprogram-census.py \
+		--assert; then
+		note "subprogram shape - callee family pinned (night-frontier-Z14)" PASS
+	else
+		note "subprogram shape - callee family pinned (night-frontier-Z14)" FAIL
+	fi
 	;;
 esac
 

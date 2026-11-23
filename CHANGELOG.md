@@ -46,6 +46,37 @@ v80.0.0
 
 ### Added
 
+- **night-frontier-Z14: the callee rung — the enforcer's verifier walk
+  collapsed 79-81 percent, and the subprogram shape that rides it is now
+  a pinned, gated contract.** The verdict path's duplicated tail family
+  (`ring_verdict` — every lane's return wrap, `ecn_rescue` — the two
+  drop tails, `quic_flow_key` — the 717-insn QUIC parser the per-socket
+  and flow lanes each carried whole) became bpf2bpf callees beside
+  hist_record, `#[inline(never)]`, single-word boundaries throughout.
+  Measured A/B on the same 7.3-generation kernel as the ledger's armed
+  pins (the local micro-VM instrument, baseline side reproducing the
+  armed numbers byte-exactly first): enforce_dl 666635 -> 141893,
+  enforce_ul 706129 -> 133020 verified_insns — 524742 / 573109 of
+  headroom freed — with the four programs outside the verdict path
+  exactly at their pins and each enforcer section shrinking ~4.67K ->
+  ~3.1K insns. The landing cost two load censuses and bought a kernel
+  truth now written where the next lane will read it: a bpf2bpf
+  argument or return must be a single machine word (a 16-byte
+  `Option<*mut>` argument crosses as a stack arg the subprogram ABI
+  refuses to read, and the `Option`-returning six-family shape was
+  refused at the get_stats_ptr site beside it; ecn_rescue's stats seat
+  rides a raw null-for-None pointer, the get-or-create trio stays
+  inline per the seat law). The supermassive verifier battery gained
+  the shape gate: the census script's `--assert` mode holds the four
+  user callees and the per-enforcer b2b call-site counts against
+  `scripts/supermassive/verifier-subprogram-shape.json`, so a re-inline
+  or a silent family change fails the battery before the walk budget
+  can drift — and the same pass fixed the census decoder's src_reg
+  nibble misread the direct-call spelling exposed. The deferred
+  mirror's walk-cost reopen condition is satisfied by measurement as
+  of this depth (the mirror itself stays deferred, owner's call).
+  Details in docs/INNOVATIONS.md's night-frontier-Z14 section.
+
 - **night-solid-defense-1: the maintenance lane becomes AXP1-ZnQ, the
   security supply-chain sentinel — and the E2E floor-kernel leg learns
   to name its outage.** The Sunday 10:00 WIB lane wraps the dependency

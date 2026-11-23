@@ -209,7 +209,13 @@ fn learn_hint(map: &LruHashMap<u64, u64>, key: &u64, len: u8) {
 /// unparsable, unconfirmed — hands the raw cookie back, which is
 /// exactly the key the lanes keyed on before this lane existed:
 /// the call can refine attribution, never degrade it.
-#[inline(always)]
+///
+/// night-frontier-Z14: the callee shape (two call sites — the
+/// per-socket lane and the DRR flow lane; a bpf2bpf callee priced
+/// once per distinct entry state by the verifier instead of one
+/// inlined copy per site — the same law enforce_helpers.rs's Z14
+/// block records, priced by the Z9 verifier budget ledger).
+#[inline(never)]
 pub(super) fn quic_flow_key(ctx: &SkBuffContext, cookie: u64, is_ingress: bool) -> u64 {
     // Read one: the IP header window. A read failure (truncated
     // head area, a nonlinear skb the helper refuses) is the cookie

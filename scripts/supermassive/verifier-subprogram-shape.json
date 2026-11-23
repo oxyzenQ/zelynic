@@ -1,0 +1,25 @@
+{
+ "objects": {
+  "zelynic-limiter.o": {
+   "b2b_sites": {
+    "cgroup_skb/egress": 14,
+    "cgroup_skb/ingress": 14,
+    "sockops": 0
+   },
+   "static_funcs": [
+    "ecn_rescue",
+    "hist_record",
+    "quic_flow_key",
+    "ring_verdict"
+   ]
+  },
+  "zelynic-observer.o": {
+   "b2b_sites": {
+    "cgroup_skb/egress": 0,
+    "cgroup_skb/ingress": 0
+   },
+   "static_funcs": []
+  }
+ },
+ "schema": 1
+}
