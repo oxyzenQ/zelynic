@@ -250,6 +250,18 @@ pub(crate) fn build_time() -> &'static str {
     option_env!("ZELYNIC_BUILD_TIME").unwrap_or("unknown")
 }
 
+/// The D5 commit-signature stamp (night-solid-defense-2): the
+/// build-time verdict on "does the commit this binary claims carry
+/// a GPG signature by the pinned maintainer key?" — verified by
+/// build/gpg.rs against the repo's pinned public key in an isolated
+/// keyring, `<state>[:<evidence-hex>]` grammar, consumed by the
+/// `sig` ladder's commit-signature row. "unstamped" is the
+/// fail-closed fallback (a build whose script never stamped can
+/// not claim a signature verdict — the D4 missing-stamp law).
+pub(crate) fn vcs_commit_sig() -> &'static str {
+    option_env!("ZELYNIC_VCS_COMMIT_SIG").unwrap_or("unstamped")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

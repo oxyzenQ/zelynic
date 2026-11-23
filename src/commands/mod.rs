@@ -60,6 +60,7 @@ pub(crate) mod target_grammar;
 // report is not an eBPF surface; a dormant build carries the same
 // masked identity and answers `sig` the same way (the original
 // cfg gate above belonged to strict_all and is restored there).
+pub(crate) mod sig_commit_sig;
 pub(crate) mod sig_report;
 #[cfg(feature = "ebpf")]
 pub(crate) mod strict_all;
@@ -389,9 +390,10 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
         }
 
         Some(Commands::Doctor) => crate::capabilities::run_doctor(cli.print_json),
-        // night-signature-advanced-1: the five-depth provenance
+        // night-signature-advanced-1: the six-depth provenance
         // report (subcommand only, no --sig spelling — the owner's
-        // call; the D4 object-integrity row is night-depth-hardening-Z2).
+        // call; the D4 object-integrity row is night-depth-hardening-Z2,
+        // the D5 commit-signature row is night-solid-defense-2).
         // Exits 1 itself on a tampered verdict.
         Some(Commands::Sig) => {
             // Prints the ladder itself and exits 1 on a tampered

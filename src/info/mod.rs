@@ -19,7 +19,7 @@ mod signature;
 
 pub use build::BuildInfo;
 pub use build::VERSION;
-pub(crate) use build::{build_hash, build_label, build_time};
+pub(crate) use build::{build_hash, build_label, build_time, vcs_commit_sig};
 pub(crate) use signature::{identity_of, manifest_fingerprint, provenance_view};
 // The materialized identity core feeds only the ebpf-gated engraving
 // footer (status stamp + eagle-eyes engraving) — a dormant build

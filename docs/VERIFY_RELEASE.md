@@ -333,15 +333,32 @@ vectors do NOT cover (live kernel behavior) is attested by the
 three proofs (artifact, behavior, kernel) compose into one
 attestation.
 
-The binary also seals itself: `zelynic sig` renders the five-depth
+The binary also seals itself: `zelynic sig` renders the six-depth
 ladder — D0-D3 over the masked provenance layers and the running
 image (night-signature-advanced-1), D4 object-integrity
 (night-depth-hardening-Z2) re-hashing the embedded eBPF kernel
-objects against the digests build.rs stamped into the binary. The
+objects against the digests build.rs stamped into the binary, and D5
+commit-signature (night-solid-defense-2) reporting the build-time
+verification that the commit the binary claims is GPG-signed by the
+same pinned maintainer key this document publishes (the repo carries
+the public key at `assets/gpg/maintainer-47A50AEF4B65AAC2.asc` with
+the fingerprint single-sourced in
+`assets/gpg/pinned-maintainer-fpr.txt`; build.rs verifies against it
+in an isolated throwaway keyring, never the building user's). The
 camera the artifact plants is the camera its build pinned — an
 object patched inside the artifact fails the depth by name and the
 verdict goes TAMPERED (exit 1). A one-byte-flip tamper test runs
 rootless in the CI test lane on every push.
+
+With D5 the channel chain closes end to end: verify the SIGNED TAG
+the release was cut from (`git tag -v v<version>` after importing
+the key above — releases are cut from annotated tags signed by the
+maintainer key), the tag names the commit, and the binary's own D5
+row proves it was built from a commit signed by that same key. Key
+→ tag → commit → binary: a binary swapped on the release channel
+can no longer replay its claims unanswered, because the swap breaks
+the D5 commit binding or the tag signature — one of the two must
+give.
 
 ## 6. Reproducible builds (D4)
 
