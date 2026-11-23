@@ -150,13 +150,31 @@ jobs:
           } > provenance.txt
           cat provenance.txt
 
+      # The artifact layout is EXPLICIT, not the uploader's
+      # least-common-ancestor heuristic: run 45207799656's verdict job
+      # unmasked the layer beneath the checkout fix - uploading two
+      # paths (the target-tree binary beside a root-level
+      # provenance.txt) roots the artifact at the WORKSPACE, so the
+      # download extracted alpha/target/x86_64-unknown-linux-musl/
+      # release/zelynic and the cmp step's alpha/zelynic never existed
+      # ("chmod: cannot access 'alpha/zelynic'"). D4 has never reached
+      # its cmp - every failure so far was structural, one layer per
+      # run. Staging the two files into one directory makes the
+      # artifact's contents exactly the two files the verdict reads,
+      # on every uploader generation.
+      - name: Stage the leg's payload
+        run: |
+          set -euo pipefail
+          mkdir -p leg-artifact
+          cp target/x86_64-unknown-linux-musl/release/zelynic leg-artifact/zelynic
+          cp provenance.txt leg-artifact/provenance.txt
+          ls -la leg-artifact/
+
       - name: Upload leg artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7, NIGHT-hunt-20 SHA pin
         with:
           name: reproducible-leg-${{ matrix.leg }}
-          path: |
-            target/x86_64-unknown-linux-musl/release/zelynic
-            provenance.txt
+          path: leg-artifact
           # The binary is the payload; retention mirrors the estate's
           # diagnostic artifacts, never the release channel.
           retention-days: 7
