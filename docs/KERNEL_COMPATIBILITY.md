@@ -178,6 +178,7 @@ Check: `stat -fc %T /sys/fs/cgroup` should return `cgroup2fs`.
 - [x] 6.19 (Fedora 44)
 - [x] 7.0 (Ubuntu 26.04)
 - [x] 7.1 (CachyOS VM)
+- [x] 7.3 (the supermassive battery's best-specs envelope boots the archive's dynamically-resolved latest kernel — 7.3.0-11-generic since the ledger's arming census, run 44595619920 — and every watched run since measured it green end to end: engine test, survival, rigs, and the verifier budget census that prices the walk ledger)
 - [x] 6.1 LTS (the bookworm leg boots the newest 6.1.0-ABI Debian kernel in the KVM micro-VM on every push; first record: run 44163461435 — fast + surface green)
 - [x] 6.6 LTS (the alpinelts leg boots the newest 6.6.y Alpine LTS kernel in the KVM micro-VM on every push; the leg booted Arch's 6.6 first — run 44163461435 — and the source swapped to Alpine v3.20's CDN-backed linux-lts after the 2026-11-21 archive outage, the family unchanged)
 - [x] 6.8 (the noble leg boots the newest 6.8.0-ABI Ubuntu 24.04 GA kernel in the KVM micro-VM on every push — the family's only live surface since night-runner-2 retired it from the hosted fleet; first record: run 44163461435 — fast + surface green)
@@ -198,6 +199,33 @@ the Arch package's real vmlinuz path (usr/lib/modules/<ver>/vmlinuz),
 and the virtio transport split — ring, virtio, the legacy_dev and
 modern_dev halves, virtio_pci — the init's insmod chain now loads in
 dependency order, loud when a module refuses.
+
+### The kernel-floor watch (the LTS pulse)
+
+The LTS span claim — runs on 5.15 through 7.x — is an ASSET the
+maintenance-mode contract keeps alive by watching, not by hoping
+(the "kernel compatibility" road is one of the three the README's
+fence names). The watch record, most recent first:
+
+- **2026-11-24 (night-frontier-Z15)** — mainline 7.4-rc3, stable
+  7.3.5 (kernel.org, 2026-11-17), and the LTS floor lines all
+  alive: 5.15.225 (2026-11-06) still in kernel.org's longterm list
+  — the documented floor remains a supported line, not an
+  archaeology one — with 6.1.192, 6.6.162, 6.12.119, and 6.18.65
+  beside it (6.12 and 6.18 LTS to end-2028). The span's both ends
+  are CI-proven on every push: the jammy 5.15.0 floor lane and the
+  best-specs 7.3.0-11-generic envelope (the row above). The BPF
+  token reopen condition (floor past 6.9 plus a measured-safe
+  rootless story) is unchanged: the kernel's delegation model
+  (bpffs delegate_cmds/maps/progs/attachs, 6.9) is stable, shipped
+  into Incus/LXD, and nothing in 7.3/7.4-rc moves either condition.
+  The ACK-clock census's rung table gained the two 6.15 facts (the
+  delack read side, the uapi sockopts) with all four reopen
+  conditions re-verified closed against master — the record rides
+  ACK_CLOCK_HYPOTHESIS.md section 7b. No ladder rung moved: the ten
+  rungs the objects consume all sit at or under the 5.15 floor, and
+  net-next through next-20261118 grew nothing the estate's lanes
+  consume above it.
 
 ### Hardware
 

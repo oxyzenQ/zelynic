@@ -1629,6 +1629,159 @@ kernel's subprogram ABI is one machine word wide at every
 crossing, and the estate now has that law written where the next
 lane will read it.
 
+## night-frontier-Z15 — the gigi census (D14): the magnitude law lands, the floor pulse is priced
+
+Two disciplines, one depth. The proof layer's lemma-decomposition
+craft (the "gigi theorem" — the obligation reformulated until the
+solver decides, one tooth at a time) ran its first full census over
+the two residues the tier carries; the kernel-floor watch (the LTS
+pulse) ran its first scheduled sweep and priced the event it found.
+Both products are measured, never guessed — the Z12 law, twice over.
+
+### D14a — the gigi census: the credited whole's magnitude law rises to for-all
+
+The census instrument: every candidate tooth a standalone harness
+over the REAL law bytes (the #[path] include discipline, unchanged),
+measured solo on the pinned kani 0.68.0 / CBMC 6.11.0, the 2-CPU
+4 GB census sandbox — the conservative bound against every hosted
+runner — under the 15-minute estate ceiling. The instrument was
+calibrated BOTH directions before any verdict was believed: a
+deliberately false bound on a constrained domain refutes in 0.10 s
+with a concrete counterexample (VERIFICATION FAILED, the red path
+proven live), and every decided verdict reproduced across runs.
+
+The measured teeth, residue one (the credited whole's magnitude
+law, `whole <= rate + burst`, the wall-class-2 record Z12 left):
+
+| the tooth | the shape | the verdict |
+|---|---|---|
+| the direct obligation | the law as written, solo harness | **DECIDES — 2.07 s, 17 VCCs, zero failures** |
+| the direct obligation, standing harness | the law added to the refill theorem | **DECIDES — 2.42-2.48 s, 31 VCCs** |
+| the composition lemma | teeth imply law, pure comparison | **DECIDES — 0.029 s** |
+| the threshold tooth | whole <= 2 x burst | UNDECIDED at the 570 s local ceiling |
+| the rate tooth | whole == burst or whole <= rate + 1 | UNDECIDED at the 570 s local ceiling |
+| the negative control | a deliberately false bound, constrained | refutes in 0.10 s (the calibration) |
+
+The headline is the inversion the discipline exists to catch: the
+record said the law was wall class 2 (multiply-monotonicity, "the
+exact circuit class the probes measured undecided") — and the
+DIRECT obligation on the post-Z12 bytes decides in two seconds.
+The Z12-era probes had measured the derivation CLASS (elapsed <= NS
+implies elapsed x rate <= NS x rate — two full symbolic
+multipliers, a genuine grind) and the residue verdict generalized
+from the neighboring class to the obligation. But the Z12
+split-multiply restructure had already replaced the obligation's
+own circuit — the product assembles from two cap-bounded
+multiplies and the solver never needs the monotonicity algebra at
+all. The Z12 lesson sharpened itself: a residue verdict is
+re-censused against the CURRENT bytes before it is believed,
+because a code change underneath a census can retire the wall
+without a sound. And the census's second inversion: the FACTORED
+teeth are harder for this solver generation than the assembled law
+(the threshold and rate teeth both grind past the local ceiling
+while the full obligation decides) — the inverse of the Z12
+experience, where only decomposition fit. The map for the next
+solver generation: the composition lemma (0.029 s) is the socket;
+a future release that decides a factored tooth plugs it in with
+zero further work.
+
+The landing: the standing refill theorem
+(`refill_credits_is_total_and_domain_bounded_for_all_inputs`) now
+carries ALL THREE output laws for-all — the fraction domain, the
+credited whole's magnitude, the zero-window credit — over the full
+unbounded u64 rate domain, hostile persistent-map state included.
+The assert rides the existing matrix job (no new CI seat, the
+twelve-harness tier shape unchanged, the refill theorem's content
+grown); the sampled twin keeps hammering the law 4096 cases per
+run (the defense-in-depth shape, two instruments one law); the
+rootless boundary vectors hold the edges as they always have. This
+is the deferred-value conversion the Z12 record priced: a residue
+rising to for-all is a theorem gained with zero churn — the
+proptest harness, the boundary vectors, and the law bytes are all
+exactly what they were; only the verdict tier moved.
+
+Residue two (the Z10 emission conformance seat): the per-path
+decomposition census measured three engine teeth — the idle
+fast-path law (identical frame at identical geometry answers zero
+bytes, no model application), the first-paint conformance (the
+reset path alone, the standing theorem's first half), and the
+batch law over the steady-state hop (one write per frame, no
+model) — plus three per-token model teeth (content-commit,
+erase-below, MoveTo). ALL of them exceed the census box: the
+engine teeth die in the kernel's OOM (the same class the
+2026-11-21 census recorded — the engine's symbolic heap, invariant
+to domain dimensions, now measured INVARIANT TO PATHS TOO: even
+the zero-byte idle path carries it), and the model teeth blow past
+the unwind and VCC budget in the Vec machinery (1980 VCCs after
+slicing, unfinished at the 300 s triage ceiling). The seat
+therefore STAYS stood down, by measurement, with its named levers
+unchanged — per-loop unwind annotations on a future toolchain
+generation, a behavior-preserving proof-friendly indexing form
+inside the engine, or the engine-side decomposition a future
+solver generation can afford. The watch that guards the tier's
+economics: the pinned kani 0.68.0 (2026-09-16) remains the LATEST
+release as of this census (2026-11-24) — no free solver
+generation arrived; the pin is current, and the next release is
+the census's next scheduled re-run.
+
+### D14b — the kernel-floor watch: the LTS pulse priced
+
+The maintenance-mode contract names "kernel compatibility" one of
+the three legal roads, and the watch is how that road is walked:
+net-next read as rung events, each event priced through the
+estate's own instruments. The first sweep (2026-11-24):
+
+- **The ledger ratchet (the priced event).** The Z14 callee rung
+  left the head envelope's walk budgets at the Z12 numbers with
+  the collapse measured beside them; the watched run
+  (45209186940, the Z14d commit's own CI) measured enforce_dl
+  141893 / enforce_ul 133020 against the 666635 / 706129 pins —
+  and the ratchet law's "encouraged follow-up" executed in Z15a:
+  both pins lowered to the measured numbers with the run named in
+  each row's history. The growth law now guards the COLLAPSED
+  shape — any future walk growth above a fifth of the old budget
+  fails the battery on every kernel envelope run. The other four
+  rows measured exactly at their pins and did not move.
+- **The rung facts that moved (recorded where they live).** The
+  ACK-clock census table gained the v6.15 facts —
+  `bpf_getsockopt(TCP_BPF_DELACK_MAX / TCP_BPF_RTO_MIN)` (the
+  delack knob's READ side, new since 6.15) and the
+  `TCP_DELACK_MAX_US` / `TCP_RTO_MIN_US` uapi sockopts — with all
+  four reopen conditions re-verified CLOSED against torvalds/master
+  (mainline 7.4-rc3): the 200 ms ceiling still binds both setter
+  arms, no per-ACK sock_ops callback exists, `bpf_tcp_send_ack`
+  remains unreachable from every func_proto table, and the BPF
+  setsockopt allow list still carries no QUICKACK-class member.
+  The record rides ACK_CLOCK_HYPOTHESIS.md section 7b — the
+  hypothesis's rejection is now a standing watch, not a snapshot.
+- **The LTS span asset (the claim kept alive).** kernel.org's
+  longterm list still carries 5.15 (5.15.225, 2026-11-06) — the
+  documented floor is a supported line, not archaeology — with
+  6.1 / 6.6 / 6.12 / 6.18 beside it and 7.3.5 stable / 7.4-rc3
+  mainline above. The span's both ends are CI-proven per push
+  (the jammy 5.15.0 floor lane; the best-specs envelope's
+  7.3.0-11-generic), and the compatibility matrix gained its 7.3
+  row — the dynamically-resolved latest kernel the supermassive
+  battery has been measuring green since the ledger's arming
+  census. The BPF token deferred entry carries its first dated
+  watch note: the delegation model is stable (Incus/LXD ship it),
+  neither reopen condition moved. The capability ladder itself did
+  not move — all ten rungs the objects consume sit at or under the
+  5.15 floor, and net-next through next-20261118 grew nothing the
+  lanes consume above it. The watch's own honest shape: most
+  sweeps find nothing, and the finding is the value — an LTS claim
+  that is re-verified against the moving kernel is an ASSET; one
+  that is merely old is a liability.
+
+**Why never-done**: no per-app bandwidth limiter in this class
+re-censuses its proof-layer residues against the current bytes
+(the residues most estates never name at all), and none prices its
+kernel-floor claims through its own watched-run ledger — the LTS
+span as a ratcheted, CI-proven contract rather than a marketing
+line. The two disciplines are one habit: measure before believing,
+re-measure before re-believing, and record the number with the
+name of the run that produced it.
+
 ## The Quota Saver — the Workload-Conditional Claim
 
 The fourteenth, fifteenth, and sixteenth entries above (RECWN, ECN,
@@ -1813,7 +1966,12 @@ that already exist, a minor bump, never a major.
   6.9 AND a rootless enforcement story is measured safe: attribution
   without privilege is already honest (the resolver tree proves it),
   but enforcement without privilege changes the security model this
-  tool ships with. Reopens when: both conditions hold.
+  tool ships with. Reopens when: both conditions hold. (Watched
+  2026-11-24, night-frontier-Z15: the delegation model — bpffs
+  delegate_cmds/maps/progs/attachs — is stable and shipping in
+  Incus/LXD, a Cilium BPF-token CFP is the loudest pending consumer,
+  and neither reopen condition moved on 7.3/7.4-rc; the next watch
+  rides the kernel-floor pulse, KERNEL_COMPATIBILITY.md.)
 
 - **Dive 3's sk_storage story family — socket CV, phase FSM, story
   export (night-frontier-Z3).** The ask: sk_storage carrying the

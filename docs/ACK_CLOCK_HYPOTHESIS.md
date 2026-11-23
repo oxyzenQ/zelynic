@@ -77,8 +77,9 @@ hypothesis.
 | Rung | The fact | Since | Verdict on the 5.15 floor |
 |---|---|---|---|
 | 1 | `bpf_setsockopt` reachable from a cgroup-scoped sock_ops program (the delivery vehicle every other rung needs) | 4.13 | MET — `sock_ops_func_proto` returns `bpf_sock_ops_setsockopt_proto` (net/core/filter.c:7501); the pace lane pins `SO_MAX_PACING_RATE` through it live |
-| 2 | `TCP_BPF_DELACK_MAX` — write the socket's max delayed-ACK timeout from BPF | 5.15 | PRESENT, INVERTED — the setter bounds the value to `[TCP_TIMEOUT_MIN, TCP_DELACK_MAX]` and stores `icsk_delack_max` (filter.c:4893-4898); the consumer clamps the ACK timer DOWN (`ato = min(ato, icsk_delack_max)`, tcp_output.c:3912) — the only writable direction is SOONER ACKs |
-| 3 | RAISE the delack ceiling beyond the kernel's own cap | — | ABSENT — the setter rejects `timeout > TCP_DELACK_MAX` (200 ms, tcp.h:131) at compile time; the kernel's shipped ceiling cannot be raised by BPF |
+| 2 | `TCP_BPF_DELACK_MAX` — write the socket's max delayed-ACK timeout from BPF | 5.15 (read side since 6.15) | PRESENT, INVERTED — the setter bounds the value to `[TCP_TIMEOUT_MIN, TCP_DELACK_MAX]` and stores `icsk_delack_max` (filter.c:4893-4898); the consumer clamps the ACK timer DOWN (`ato = min(ato, icsk_delack_max)`, tcp_output.c:3912) — the only writable direction is SOONER ACKs. The 6.15 merge window (2025-03's "tcp: add some RTO MIN and DELACK MAX {bpf_}set/getsockopt", Jason Xing) added the READ side: `bpf_getsockopt(TCP_BPF_DELACK_MAX / TCP_BPF_RTO_MIN)` returns the jiffies-to-usecs value (bpf_sol_tcp_getsockopt) — the knob is now readable from BPF, which changes no verdict here: a readable inverted lever is still inverted |
+| 2b | `TCP_DELACK_MAX_US` / `TCP_RTO_MIN_US` — the same knobs as regular uapi sockopts (setsockopt + getsockopt, non-BPF) | 6.15 | PRESENT, SAME CAP — `do_tcp_setsockopt` accepts `delack_max = usecs_to_jiffies(val)` only inside `[TCP_TIMEOUT_MIN, TCP_DELACK_MAX]` (tcp.c, the `TCP_DELACK_MAX_US` arm) — the 200 ms ceiling binds the plain sockopt exactly as it binds the BPF one. A userspace daemon could already set these per-socket without BPF; the ceiling the hypothesis needs is still compile-time |
+| 3 | RAISE the delack ceiling beyond the kernel's own cap | — | ABSENT on every kernel line through mainline 7.4-rc — the setter rejects `timeout > TCP_DELACK_MAX` (200 ms, tcp.h) at compile time in BOTH the BPF arm (bpf_sol_tcp_setsockopt) and the 6.15 uapi arm; the kernel's shipped ceiling cannot be raised by BPF or by setsockopt |
 | 4 | A per-ACK BPF callback (fires on ACK receipt or scheduling) | — | ABSENT — the v5.15 `bpf_sock_ops_cb_flags` enum carries RTO, RETRANS, STATE, RTT, and the header-option callbacks (bpf.h:5756+) — no ACK-schedule op |
 | 5 | An ACK-suppression primitive (silence the kernel's own ACKs, own the clock) | — | ABSENT — no cb flag or op suppresses kernel ACK emission; the delack timer is not BPF-interceptable |
 | 6 | `bpf_tcp_send_ack` (emit an ACK with a chosen rcv_nxt) | — | RESERVED, UNREACHABLE — the uapi table carries `FN(tcp_send_ack)` (bpf.h:4998) but NO func_proto set in v5.15 returns it (net/core/filter.c and net/ipv4/bpf_tcp_ca.c: zero matches) — no program type can call it on the floor |
@@ -170,6 +171,33 @@ delayed ACK under eBPF was implemented in the 2019 "Making the Linux
 TCP stack more extensible with eBPF" work (Tran et al.) by ADDING new
 eBPF callbacks to the kernel — the vanilla-floor gap the census
 records is the same gap the paper had to patch around.
+
+## 7b. The kernel-floor watch record (the LTS pulse)
+
+The maintenance-mode contract ("kernel compatibility" is one of the
+three legal roads) turns this census from a one-time snapshot into a
+watch: net-next commits that touch a rung are rung events, and each
+event is re-priced against the reopen conditions. The records, most
+recent first:
+
+- **2026-11-24 (night-frontier-Z15)** — the first scheduled watch.
+  The landscape read at mainline 7.4-rc3 / stable 7.3.5 (kernel.org,
+  2026-11-17) with the rung facts re-verified against torvalds/master
+  source directly: (a) the `TCP_DELACK_MAX` cap still binds both
+  setter arms — the BPF one (bpf_sol_tcp_setsockopt's `timeout >
+  TCP_DELACK_MAX → -EINVAL`) and the 6.15 uapi one — reopen
+  condition (a) CLOSED; (b) the sock_ops callback set still carries
+  only the RTO/RETRANS/STATE/RTT/header-option flags, no ACK-schedule
+  op — (b) CLOSED; (c) `bpf_tcp_send_ack` remains absent from every
+  func_proto table on master (the uapi table reservation unchanged
+  since the 5.15 census) — (c) CLOSED; (d) the BPF setsockopt allow
+  list is still `TCP_BPF_IW / SNDCWND_CLAMP / DELACK_MAX / RTO_MIN /
+  SOCK_OPS_CB_FLAGS` — no QUICKACK-class member — (d) CLOSED. The two
+  6.15 rung facts above (the read side, the uapi sockopts) are the
+  watch's first MOVES recorded into the table. Verdict: the
+  hypothesis stays closed, and the floor contract (5.15 → 7.3, CI's
+  best-specs envelope measuring 7.3.0-11-generic) stays alive on
+  both ends — the LTS span claim remains a priced asset, not a hope.
 
 ## 8. If a floor reopens it: experiment before code
 
