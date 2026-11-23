@@ -1134,9 +1134,14 @@ Z4's allocation lens named the frame's remaining heap events and
 staged them; Z11 closes the ladder's stages and pins every landing.
 The floor pin (`steady_state_frame_composition_allocates_zero`,
 test/ebpf/render/bench_floor.rs since the Z13-8 split) measures the
-QUIETEST of 32 busy frames
-through a counting global allocator; its ceiling lowers in the same
-commit that closes a named site — the ladder's own ratchet. The
+QUIETEST busy frame through a counting global allocator — the walk
+STEPS until a contamination-free window reads the composition's own
+count, bounded at 4096 busy frames (the lens's counter is process-
+wide, the battery's parallel tests leak into windows, and Z13-12's
+musl twin once contaminated every window of a 32-frame sample; a
+real regression raises every window including the clean ones, so the
+assert keeps its power). Its ceiling lowers in the same commit that
+closes a named site — the ladder's own ratchet. The
 measured floor, one line per stage, all on the same glibc dev box
 and the same fixture:
 
@@ -1421,8 +1426,11 @@ measured phase by phase with the lens, each site named before it died:
 The claim this closes: **a full-duty terminal monitor whose
 steady-state frame allocates zero bytes — the ranked board and the
 single-cgroup focus view alike — machine-pinned in CI with a counting
-allocator ratchet**. The pins read `quietest of 32 frames = 0
-(floor 0)` on both frames; the htop/tmux/vim class allocates per
+allocator ratchet**. The pins walk busy frames until a
+contamination-free window reads the zero — `quietest of N walked
+frames = 0 (floor 0)` on both frames, the scheduler lottery of the
+parallel battery's global counter out of the verdict (Z13-12); the
+htop/tmux/vim class allocates per
 frame. The honest residue stays named: the claim covers the
 composition half and the focus walk (the diff engine's half was
 already zero, NIGHT-blade-16), the fixtures' assembly sits OUTSIDE

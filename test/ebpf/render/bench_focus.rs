@@ -202,12 +202,18 @@ fn steady_state_focus_frame_allocates_zero() {
         recycle_frame_lines(&mut lines);
     }
 
-    // Measured: 32 busy frames, each one a closed lens window, the
+    // Measured: busy focus frames, each one a closed lens window, the
     // QUIETEST frame the statistic (the ranked pin's contamination
     // law — the counter is GLOBAL, the battery's parallel tests leak
-    // into a window, and a real regression raises EVERY frame).
+    // into a window, and a real regression raises EVERY frame). The
+    // Z13-12 patience law rides here too: the walk STEPS until a
+    // contamination-free window proves the zero, bounded at 4096 busy
+    // windows — the musl twin's scheduler once contaminated every one
+    // of a 32-window sample, and the lottery is out of the verdict.
+    const QUIET_WALK: u64 = 4096;
     let mut quiet = usize::MAX;
-    for frame in 12u64..44 {
+    let mut walked = 0usize;
+    for frame in 12u64..12 + QUIET_WALK {
         for holder in &mut conns.get_mut(CGROUP).unwrap().socket_holders {
             for (idx, s) in holder.sockets.iter_mut().enumerate() {
                 s.queued = (frame + idx as u64).is_multiple_of(3);
@@ -263,9 +269,15 @@ fn steady_state_focus_frame_allocates_zero() {
         if allocs < quiet {
             quiet = allocs;
         }
+        walked += 1;
+        if quiet == FLOOR {
+            // The zero is proven: one window carried no foreign event
+            // and no focus-view event. The walk stops here.
+            break;
+        }
     }
     // The floor pin (night-frontier-Z13 stage 5): the QUIETEST of
-    // the 32 busy focus frames must sit at FLOOR heap events. The
+    // the walked busy focus frames must sit at FLOOR heap events. The
     // observed quiet counts on the glibc dev box: 114 at the probe
     // (the fresh lens window), 85 after stage 5a (the focus tree's
     // retained scratch and its pooled rows), 7 after stage 5b (the
@@ -284,12 +296,13 @@ fn steady_state_focus_frame_allocates_zero() {
     // count, so the floor's own trend is visible in the battery's
     // output (the print is its receipt).
     eprintln!(
-        "steady-state FOCUS frame allocations: quietest of 32 frames = {quiet} (floor {FLOOR})"
+        "steady-state FOCUS frame allocations: quietest of {walked} walked frames = {quiet} (floor {FLOOR})"
     );
     assert_eq!(
         quiet, FLOOR,
-        "steady-state FOCUS frame allocations: the quietest of 32 frames allocated {quiet} \
-         (floor {FLOOR}) — the focus view's zero-heap law regressed: some frame \
-         allocated, and the pin holds the floor the ladder climbed to"
+        "steady-state FOCUS frame allocations: the quietest of {walked} walked frames \
+         allocated {quiet} (floor {FLOOR}) — the focus view's zero-heap law regressed: \
+         every window the walk sampled, contamination-free ones included, allocated, \
+         and the pin holds the floor the ladder climbed to"
     );
 }
