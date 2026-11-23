@@ -2625,6 +2625,62 @@ def stage_server_zombie_sweep():
     return ok == "PASS"
 
 
+def _hist_null_facts() -> str:
+    """The null-branch discriminator (run 45180990128's forensics): the
+    depth read's histogram section answers null on exactly two branches
+    — the pinned-schema gate (read_pinned_schema_version() !=
+    SCHEMA_VERSION_EXPECTED, src/ebpf/render/depth_json/hist.rs) or a
+    row absent from BOTH direction maps. A bare "answered null" note
+    cannot tell them apart, and the two need different owners: a stale
+    schema stamp is a load-path bug, a row absent after gigabytes of
+    traffic is a sampler bug. bpftool rides the VM (NIGHT-improve-48),
+    so this probe reads the kernel's own state and names the branch in
+    the note — the run's log becomes the measurement, the next failure
+    (if one lands) starts already bisected. Every fact degrades to
+    "unknown" silently: this is a diagnosis string, never a verdict."""
+    facts = []
+    bpftool = shutil.which("bpftool")
+    if bpftool is None:
+        return " (null-branch facts: bpftool absent)"
+    try:
+        p = subprocess.run(
+            [bpftool, "map", "dump", "pinned", "/sys/fs/bpf/zelynic/schema_version"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        stamp = "unreadable"
+        for line in p.stdout.splitlines():
+            if line.startswith("value:"):
+                hex_words = line.split()[1:]
+                if hex_words:
+                    stamp = hex_words[0]
+                break
+        facts.append(f"schema_stamp={stamp} (expected 23 = schema v35)")
+    except (OSError, subprocess.TimeoutExpired):
+        facts.append("schema_stamp=unknown")
+    for direction in ("dl", "ul"):
+        try:
+            p = subprocess.run(
+                [
+                    bpftool,
+                    "map",
+                    "dump",
+                    "pinned",
+                    f"/sys/fs/bpf/zelynic/depth_hist_{direction}",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            facts.append(f"hist_{direction}_rows=unknown")
+            continue
+        rows = p.stdout.count("key:")
+        facts.append(f"hist_{direction}_rows={rows}")
+    return " (null-branch facts: " + ", ".join(facts) + ")"
+
+
 def stage_server_histogram():
     """night-verify-1: the depth histogram's live proof — the leg
     INNOVATIONS #17 claimed but never shipped (the hunt found zero
@@ -2792,7 +2848,7 @@ def stage_server_histogram():
                 "FAIL",
                 f"{label}: histogram answered null after {got} bytes of bulk "
                 "loopback traffic (the honest absence held — the sampler "
-                "never recorded the traffic)",
+                "never recorded the traffic)" + _hist_null_facts(),
             )
             return None
         return hist

@@ -46,6 +46,35 @@ v80.0.0
 
 ### Added
 
+- **night-frontier-Z14a: the shakedown of the landing — the shape
+  gate's first CI red named its missing part, the D4 verdict job
+  learned its checkout seat, and the floor-kernel histogram red
+  became a bisectable measurement.** The Z14 commit's own CI run
+  (45180990128) fired the new shape gate for the first time and both
+  verifier lanes failed loud on `ModuleNotFoundError: No module named
+  'elftools'` — the census's pyelftools import was never in the
+  micro-VM rootfs's tools closure. The fix rides the rootfs assembly
+  (the distro's pure-Python `python3-pyelftools` package on the apt
+  line; no pip lane, no PEP 668 dance) and the census docstring now
+  names its own import contract. The same run's D4 byte-identity
+  verdict job (45185192449) died at step resolution before `cmp` ran
+  — the verify job consumed the local `./.github/actions/harden-dns`
+  composite without riding a checkout, one more member of the v80.2.0
+  frontier SEAT's class; the checkout step (full, pinned SHA,
+  credentials non-persistent) now precedes the composite, matching
+  supermassive-verify.yml's shape. The engine low lane's histogram
+  live proof answered null on the jammy 5.15.0 floor kernel; the
+  local instrument booted the run's own payload artifact five ways
+  (fresh attach, the `u --all` reload seam, the full engine battery
+  at SMP=2 and SMP=1) and every run answered PRESENT with growing
+  samples — sampler and read both alive on the kernel that reddened
+  CI — so the failure path now carries the null-branch discriminator
+  (`_hist_null_facts`): the pinned schema stamp and the per-direction
+  hist row counts, read through the VM's own bpftool, name the branch
+  (schema gate vs row-absent) in the note. The remaining CI-only
+  delta is KVM-speed packet volume; the next red, if one lands,
+  starts already bisected. Details in docs/INNOVATIONS.md's
+  night-frontier-Z14 section.
 - **night-frontier-Z14: the callee rung — the enforcer's verifier walk
   collapsed 79-81 percent, and the subprogram shape that rides it is now
   a pinned, gated contract.** The verdict path's duplicated tail family
