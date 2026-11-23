@@ -110,6 +110,15 @@ RELOC_CALL_MEANING = "reloc_call_bpf2bpf"
 # the relocatable spelling of a b2b call in a linked object.
 R_BPF_64_32 = 10
 
+# night-frontier-Z14: the compiler-builtins the toolchain emits into
+# .text beside the user subprograms (their population is codegen's,
+# not the estate's — the shape gate asserts USER callees only).
+BUILTIN_FUNCS = {"memcpy", "memmove", "memset", "bcmp", "memcmp"}
+
+# The shape gate's pinned file (beside this script, the Z9 ledger's
+# neighbor — one instruments the walk, the other the shape).
+SHAPE_FILE = Path(__file__).resolve().parent / "verifier-subprogram-shape.json"
+
 
 def kind_tail(kind: int, vlen: int, kind_flag: bool) -> int:
     """Tail size in bytes after struct btf_type for one type record."""
@@ -287,9 +296,16 @@ def census_object(path: Path) -> dict:
                 code = data[i * 8]
                 if code != BPF_OP_CALL:
                     continue
-                src_reg = data[i * 8 + 1] & 0x0F
+                # night-frontier-Z14: the src_reg is the HIGH nibble
+                # of the register byte ((src << 4) | dst) — the former
+                # `& 0x0F` read the DST, misclassifying every direct
+                # BPF_PSEUDO_CALL (src=1, imm>=0, the Z14 callee
+                # spelling) as a helper call. The Z13 baseline carried
+                # only reloc-pending sites, so the misread was
+                # invisible until the callee family landed.
+                src_reg = data[i * 8 + 1] >> 4
                 imm = struct.unpack_from("<i", data, i * 8 + 4)[0]
-                if imm == RELOC_CALL_IMM and src_reg == 0:
+                if imm == RELOC_CALL_IMM and src_reg == 1:
                     meaning = RELOC_CALL_MEANING
                 else:
                     meaning = CALL_SRC_MEANING.get(src_reg, f"src_{src_reg}")
@@ -339,8 +355,96 @@ def census_object(path: Path) -> dict:
         }
 
 
+def b2b_sites(entry: dict, section_name: str) -> int:
+    """One section's b2b call sites (direct pseudo calls + reloc-pending)."""
+    for cs in entry["call_sections"]:
+        if cs["section"] == section_name:
+            return cs["calls"].get("pseudo_call_bpf2bpf", 0) + cs["calls"].get(
+                RELOC_CALL_MEANING, 0
+            )
+    return -1  # the section itself is missing
+
+
+def user_static_funcs(entry: dict) -> list:
+    """The static USER subprogram names (builtins excluded)."""
+    return sorted(
+        f["name"]
+        for f in entry["btf"]["funcs"].values()
+        if f["linkage"] == "static" and f["name"] not in BUILTIN_FUNCS
+    )
+
+
+def assert_shape(report: list, shape: dict) -> int:
+    """night-frontier-Z14: the callee-family shape gate. The walk
+    collapse rides three user callees (ring_verdict, ecn_rescue,
+    quic_flow_key) beside hist_record; a future change that re-inlines
+    one (the #[inline(always)] regression) or silently grows the
+    family changes the BTF_FUNC population or the per-enforcer b2b
+    site counts, and THIS gate fails the battery instead of letting
+    the win evaporate one commit at a time. Additions fail too — the
+    shape file is the ratchet, a deliberate change updates it in the
+    same commit (the Z9 growth law's own discipline, one law over)."""
+    failures = []
+    objects = shape.get("objects", {})
+    for entry in report:
+        want = objects.get(entry["object"])
+        if want is None:
+            failures.append(f"{entry['object']}: no pinned shape row")
+            continue
+        got_funcs = user_static_funcs(entry)
+        want_funcs = sorted(want.get("static_funcs", []))
+        if got_funcs != want_funcs:
+            failures.append(
+                f"{entry['object']}: user static subprograms {got_funcs} != pinned {want_funcs}"
+            )
+        for sec_name, want_sites in want.get("b2b_sites", {}).items():
+            got = b2b_sites(entry, sec_name)
+            if got != want_sites:
+                failures.append(
+                    f"{entry['object']}/{sec_name}: b2b call sites {got} != pinned {want_sites}"
+                )
+    for name in sorted(set(objects) - {e["object"] for e in report}):
+        failures.append(f"{name}: pinned shape row but the object was not censused")
+    if failures:
+        for f in failures:
+            print(f"FAIL: subprogram shape: {f}")
+            print(f"::error::subprogram shape: {f}")
+        return 1
+    print("Z14: subprogram shape holds — user callees and b2b sites match the pinned shape")
+    print("::notice::subprogram shape holds (night-frontier-Z14)")
+    return 0
+
+
+def write_shape(report: list, path: Path) -> int:
+    """Pin the current shape (the refresh arm — run by hand, reviewed
+    by eye, committed with the change that shaped it)."""
+    objects = {}
+    for entry in report:
+        sites = {}
+        for cs in entry["call_sections"]:
+            if cs["section"].startswith(("cgroup_skb/", "sockops")):
+                sites[cs["section"]] = b2b_sites(entry, cs["section"])
+        objects[entry["object"]] = {
+            "static_funcs": user_static_funcs(entry),
+            "b2b_sites": sites,
+        }
+    path.write_text(
+        json.dumps({"schema": 1, "objects": objects}, indent=1, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    print(f"Z14: shape pinned to {path}")
+    return 0
+
+
 def main() -> int:
     args = sys.argv[1:]
+    mode = "census"
+    if args and args[0] == "--assert":
+        mode = "assert"
+        args = args[1:]
+    elif args and args[0] == "--pin-shape":
+        mode = "pin"
+        args = args[1:]
     if not args:
         root = Path(__file__).resolve().parents[2]
         args = [
@@ -400,6 +504,15 @@ def main() -> int:
         print(verdict)
     print("=" * 72)
     print(json.dumps({"census": "verifier-subprogram-census", "objects": len(report)}, indent=2))
+    if mode == "assert":
+        try:
+            shape = json.loads(SHAPE_FILE.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as e:
+            print(f"FAIL: subprogram shape: cannot read {SHAPE_FILE} ({e})")
+            return 1
+        return assert_shape(report, shape)
+    if mode == "pin":
+        return write_shape(report, SHAPE_FILE)
     return 0
 
 

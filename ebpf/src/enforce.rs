@@ -491,7 +491,15 @@ pub(crate) fn try_enforce(
         // The ECN-first rescue: a drop verdict asks the kernel for a
         // CE mark first; only a refusal (or a debt at its cap, or a
         // debt-map miss) lets the drop stand (private-research-4).
-        if verdict == 0 && ecn_rescue(ctx.as_ptr(), debt_map, &debt_key, pkt_len, stats_ptr) {
+        if verdict == 0
+            && ecn_rescue(
+                ctx.as_ptr(),
+                debt_map,
+                &debt_key,
+                pkt_len,
+                stats_ptr.unwrap_or_default(),
+            )
+        {
             return ring_verdict(1, rate_ring_map, &cgroup_id, now, pkt_len);
         }
         return ring_verdict(verdict, rate_ring_map, &cgroup_id, now, pkt_len);
@@ -573,7 +581,15 @@ pub(crate) fn try_enforce(
     // miss) lets the drop stand (private-research-4). The leaf-level
     // fairness shape is untouched — a marked packet never carries
     // leaf tokens, so the greedy-leaf bound rides exactly as before.
-    if verdict == 0 && ecn_rescue(ctx.as_ptr(), debt_map, &debt_key, pkt_len, stats_ptr) {
+    if verdict == 0
+        && ecn_rescue(
+            ctx.as_ptr(),
+            debt_map,
+            &debt_key,
+            pkt_len,
+            stats_ptr.unwrap_or_default(),
+        )
+    {
         return ring_verdict(1, rate_ring_map, &cgroup_id, now, pkt_len);
     }
     ring_verdict(verdict, rate_ring_map, &cgroup_id, now, pkt_len)

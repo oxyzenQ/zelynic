@@ -1378,7 +1378,9 @@ The verdict, three parts:
    lane that wants the callee-once walk shape (the mirror's walk-cost
    condition) can lean on this shape and price it through the budget
    ledger. The observer's census is the honest zero: nothing to dedup
-   there.
+   there. (The rung landed as night-frontier-Z14 — the callee family,
+   the walk collapse, and the two boundary laws the load census paid
+   for; see the Z14 section above.)
 
 The mirror's ledger correction rides this census (the stale loader
 sentence and the satisfied reopen condition are rewritten in the deferred
@@ -1439,6 +1441,130 @@ every lens window, and the owned twins that remain do so behind
 split: `test/ebpf/render/bench_floor.rs` (the ranked frame) and
 test/ebpf/render/bench_focus.rs (the focus view) — one file per
 contract, the A/B harness staying in bench.rs.
+
+## night-frontier-Z14 — the callee rung (D13): the enforcer's walk collapse
+
+The rung Z13's census named: the b2b machinery (one static
+subprogram, program func_info on every load) was present and
+Z9-measurable, the mirror's walk-cost reopen condition pointed at
+exactly this lever, and the Z12 lesson fixed the discipline — a
+walk change is guessed by nobody, the ledger decides. The move:
+the verdict path's DUPLICATED tail family — the code every
+enforcement lane carries a flattened copy of at each call site —
+becomes bpf2bpf callees, the shape hist_record has shipped since
+night-frontier-2B. An inlined copy is priced by the verifier's
+walk at every site it is flattened into, and the walk's state
+pruning can never merge two copies at different instruction
+addresses; a callee is one instruction range whose own frame keeps
+its stack writes out of the caller's compared state. The landed
+family: `ring_verdict` (every lane's return wrap — five sites),
+`ecn_rescue` (the group and DRR drop tails), and `quic_flow_key`
+(the 717-insn QUIC parser the per-socket and flow lanes each
+carried whole — two sites), all `#[inline(never)]` beside
+hist_record in the shipped objects.
+
+**The boundary law, measured twice before it was believed** (the
+Z14 load census, a local micro-VM instrument booting Debian's
+7.3.5 kernel — the same 7.3 generation the ledger's armed pins
+were priced on, reproducing the armed numbers byte-exactly on the
+baseline side before the change was judged): a bpf2bpf argument or
+return must be a SINGLE MACHINE WORD. The six-function family
+first tried was refused by the kernel's verifier twice, at two
+distinct boundaries — a 16-byte `Option<*mut>` argument crosses as
+a stack arg the subprogram ABI refuses to read ("invalid read from
+stack arg off 8", the ecn_rescue site), and the same shape carrying
+`Option<*mut>` RETURNS was refused at the get_stats_ptr site
+beside it (a register-invalidation verdict at the caller's
+post-call code). ecn_rescue's stats seat therefore rides a RAW
+pointer with null as the caller's None — the Option's own niche
+spelling, semantically identical, one word wide — and the
+get-or-create trio (`get_stats_ptr`, `get_bucket_ptr`,
+`get_debt_ptr`) stays inline per the seat law: their bodies are
+22-29 insns each (second-order walk beside the three big bodies),
+their `Option<*mut>` returns would cross the measured boundary
+law, and the call-site adaptation would churn enforce.rs against
+its 600-line cap. Single-site helpers stay inline for the same
+seat-law reason — a callee for a body reached once adds the call
+sequence without removing any duplicated walk. The full record
+lives in enforce_helpers.rs's Z14 block; the ABI law is the kind
+of kernel truth this tree records because it cost two load
+censuses to learn.
+
+**The A/B, same kernel both sides** (the local instrument's
+discipline: baseline objects first, armed-ledger reproduction
+confirmed, then the factored objects):
+
+| program | before (the armed pins) | after | the collapse |
+|---|---:|---:|---:|
+| enforce_dl | 666635 | 141893 | -79% |
+| enforce_ul | 706129 | 133020 | -81% |
+| zelynic_recwn | 139 | 139 | at pin |
+| zelynic_pace | 63 | 63 | at pin |
+| observe_egress | 70 | 70 | at pin |
+| observe_ingress | 70 | 70 | at pin |
+
+The enforcer's walk collapsed to a fifth of its armed budget —
+524742 / 573109 verified_insns of headroom freed — while the four
+programs outside the verdict path sit exactly at their pins
+(untouched, as designed: the observer's census stays the honest
+zero). The object tells the same story from the other side: each
+enforcer section shrank from ~4.67K to ~3.1K insns (the duplicated
+bodies now emitted once in .text), and the callee frames move each
+callee's init scratch off the enforcer's single 512-byte stack
+frame — headroom future enforcer lanes would otherwise eat first.
+The mechanism is the state-pruning one: the walk's re-exploration
+of the caller's branch tree no longer carries the inlined tails'
+stack writes in every compared state, and each callee body is
+priced per distinct entry state instead of per flattened site.
+The CI supermassive battery is the pinning authority for the
+ratchet (the census law's own rule: budgets move on watched-run
+numbers); the local numbers above are the A/B the decision rode,
+and the shape gate below holds the landed family against silent
+regression.
+
+**The shape gate** (the works-not-gimmick law, wired into the
+supermassive verifier battery): the census script gained the
+`--assert` mode and a pinned shape manifest
+(`scripts/supermassive/verifier-subprogram-shape.json`) — the four
+user static subprograms by name (hist_record, quic_flow_key,
+ring_verdict, ecn_rescue) and the per-enforcer b2b call-site
+counts (14 each: six reloc-pending beside eight direct
+BPF_PSEUDO_CALL spellings), so a future change that re-inlines a
+callee (the `#[inline(always)]` regression) or silently grows the
+family fails the battery before the walk budget can drift one
+commit at a time — the Z9 growth law's discipline, applied to the
+shape the walk rides. Additions fail too: the shape file is the
+ratchet, and a deliberate family change updates it in the same
+commit. The battery line rides
+`scripts/ci/supermassive-init.sh`'s verifier lane beside the
+budget census, so the shape and the walk verdict share one lane on
+every kernel envelope. The same census fixed its own decoder on
+the way (the Z13 instrument read the register byte's LOW nibble —
+the DST — for the call's src_reg, a misread invisible while the
+baseline carried only reloc-pending sites; the direct-call
+spelling the callee family introduced exposed it, and every direct
+BPF_PSEUDO_CALL is now counted in its own bucket).
+
+**The mirror's ledger correction**: the deferred mirror's first
+reopen condition — "a walk-cost optimization frees the enforcer's
+ceiling" — is satisfied by measurement as of this depth (the
+ledger's own ruler: enforce_dl/ul at 141893/133020 leave the
+walk under a fifth of the armed budgets, where the 32-branch
+ladder's census refusal once measured "Processed 1000001 insn"
+against a 666K base). The mirror itself stays deferred — its
+other conditions (the in-process observer surface) stand
+untouched — but the ceiling it names is no longer the wall it
+was; the deferred entry below carries the pointer.
+
+**Why never-done**: no per-app bandwidth limiter in this class
+ships its verdict path as priced bpf2bpf callees — and none
+carries the two-sided instrument that made the landing honest:
+a walk ledger (Z9) that pins the verifier's own cost, and now a
+shape gate that pins the codegen shape the walk rides. The
+lesson the load census bought is the entry's second product: the
+kernel's subprogram ABI is one machine word wide at every
+crossing, and the estate now has that law written where the next
+lane will read it.
 
 ## The Quota Saver — the Workload-Conditional Claim
 
@@ -1713,7 +1839,15 @@ that already exist, a minor bump, never a major.
   enforcer's ceiling (now measurable: the Z9 verifier budget ledger
   prices the estate's programs and gates their growth — and the Z13
   census proves the b2b subprogram shape and the shipped func_info
-  such a lane would lean on already exist), or the
+  such a lane would lean on already exist. UPDATE, night-frontier-Z14:
+  this condition's walk-cost half is now SATISFIED BY MEASUREMENT —
+  the callee rung collapsed the enforcer walks to 141893 / 133020
+  verified_insns on the 7.3-generation kernel, a fifth of the armed
+  budgets, where the mirror's census refusal once measured
+  "Processed 1000001 insn" against a 666K base; the walk room the
+  32-branch ladder lacked now exists. The mirror itself stays
+  deferred — the observer's in-process surface condition below is
+  untouched, and reopening is the owner's call), or the
   monitor gains an in-process surface that reads its own live
   observer handle. (The Z6-era loader condition — shipping program
   func_info — measured as already-satisfied: aya 0.16 ships it on

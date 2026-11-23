@@ -5,7 +5,47 @@
 // probes, the ring verdict, the ECN rescue pair, the window gate)
 // moved out of limiter.rs at the 600-line cap. The static map block stays
 // in the bin root; these reach them through crate:: (descendant
-// visibility), same #[inline(always] discipline as before.
+// visibility).
+//
+// night-frontier-Z14 — the callee shape for the duplicated tail
+// family. The helpers the verdict path calls from MORE THAN ONE
+// site ride #[inline(never)]: a bpf2bpf callee (the shape
+// hist_record has shipped since night-frontier-2B), not an inlined
+// copy per call site. The verifier's walk prices an inlined copy at
+// every flattened site — and its state pruning can never merge two
+// copies at different instruction addresses, while a callee's own
+// frame keeps its stack writes out of the caller's compared state.
+// The Z9 verifier budget ledger prices the trade: the landed
+// three-callee family (ring_verdict, ecn_rescue, and quic_flow_key
+// in quic_flow.rs) measured the enforcer's walk at 141893 / 133020
+// verified_insns on the 7.3-generation kernel — down from 666635 /
+// 706129, a 79-81 percent collapse, the ceiling the mirror's reopen
+// condition names as its walk-cost rung.
+//
+// The boundary law, measured twice before it was believed (the Z14
+// load census, kernel 7.3.5, the local VM instrument): a bpf2bpf
+// argument or return must be a SINGLE MACHINE WORD. A 16-byte
+// Option<*mut> argument crosses as a stack arg the kernel's
+// subprogram ABI refuses to read ("invalid read from stack arg off
+// 8"), and the six-family shape that still carried such boundaries
+// was refused at the get_stats_ptr site beside it. ecn_rescue's
+// stats seat therefore rides a RAW pointer with null as the
+// caller's None — the Option's own niche spelling, semantically
+// identical, one word wide.
+//
+// The seat law, so the family is not "completed" at the wrong
+// seat: the get-or-create trio (get_stats_ptr, get_bucket_ptr,
+// get_debt_ptr) stays #[inline(always)] — their bodies are 22-29
+// insns each (the marginal walk saving is second-order beside the
+// three big bodies), their Option<*mut> returns would cross the
+// single-word boundary law the load census measured, and the
+// call-site adaptation would churn enforce.rs against its 600-line
+// cap. Single-site helpers (window_gate, hist_sample_due,
+// get_ring_ptr inside the ring_verdict callee, the tiny
+// debt_key_for word-fold) stay inline — a callee for a body
+// reached once adds the call sequence without removing any
+// duplicated walk. The duplicated BIG bodies are the callee
+// family; nothing else.
 //
 use aya_ebpf::EbpfContext as _;
 use aya_ebpf::bindings::{__sk_buff, bpf_sock};
@@ -27,6 +67,11 @@ use crate::rate_ring::RateRing;
 use crate::rate_ring::RateSlot;
 use crate::rate_ring::ring_book;
 use crate::wall_clock_offset;
+/// Get or create the cgroup's stats row (the rate-0 block lane and
+/// the policed path's materialization are the two call sites —
+/// stays inline per the Z14 seat law: the Option<*mut> return
+/// would cross the single-word boundary law the load census
+/// measured, and the body is 29 insns).
 #[inline(always)]
 pub(crate) fn get_stats_ptr(cgroup_id: &u32) -> Option<*mut LimiterStats> {
     match cgroup_limiter_stats.get_ptr_mut(cgroup_id) {
@@ -65,6 +110,9 @@ pub(crate) fn get_stats_ptr(cgroup_id: &u32) -> Option<*mut LimiterStats> {
 /// or a corrupted pin) makes the relookup return None and the
 /// caller allows the packet (never drops on bookkeeping failure) —
 /// the same fail-open contract the C twin carried.
+/// night-frontier-Z14: stays inline per the seat law (the
+/// Option<*mut> return would cross the single-word boundary law;
+/// the body is 26 insns).
 #[inline(always)]
 pub(crate) fn get_bucket_ptr(
     map: &HashMap<u32, Bucket>,
@@ -122,7 +170,10 @@ pub(crate) fn get_ring_ptr(map: &HashMap<u32, RateRing>, key: &u32) -> Option<*m
 /// stays a one-line wrap and the ring can never reorder, mask, or
 /// invent a verdict: `ring_book` runs only on the allow path, after
 /// the kernel already decided.
-#[inline(always)]
+///
+/// night-frontier-Z14: the callee shape (five call sites — every
+/// lane's return wrap; the file header's Z14 block names the law).
+#[inline(never)]
 pub(crate) fn ring_verdict(
     verdict: i32,
     ring_map: &HashMap<u32, RateRing>,
@@ -217,6 +268,10 @@ pub(crate) fn debt_key_for(budget_key: u32) -> u64 {
 /// treats the miss as the leaf/socket lanes treat theirs: the
 /// packet drops — the debt is BUDGET, not bookkeeping, so the miss
 /// takes the safe verdict, never an unlimited pass.
+///
+/// night-frontier-Z14: stays inline per the seat law (the
+/// Option<*mut> return would cross the single-word boundary law;
+/// the body is 22 insns).
 #[inline(always)]
 pub(crate) fn get_debt_ptr(debt_map: &LruHashMap<u64, u64>, key: &u64) -> Option<*mut u64> {
     match debt_map.get_ptr_mut(key) {
@@ -244,13 +299,23 @@ pub(crate) fn get_debt_ptr(debt_map: &LruHashMap<u64, u64>, key: &u64) -> Option
 /// full-LRU class above) drops the same way. On success the
 /// caller's ring wrap books the delivered bytes exactly as any
 /// allowed packet's.
-#[inline(always)]
+///
+/// night-frontier-Z14: the callee shape (two call sites — the group
+/// and DRR drop tails; the file header's Z14 block names the law).
+/// The stats seat rides a RAW pointer (null = the caller's None):
+/// a 16-byte Option<*mut> argument would cross the bpf2bpf boundary
+/// as a stack arg, and the kernel's subprogram ABI carries arguments
+/// in r1-r5 only — the load census (Z14, kernel 7.3.5) measured the
+/// refusal first-hand ("invalid read from stack arg off 8"). The
+/// null-for-None spelling is the Option's own niche, so the two
+/// shapes are semantically identical.
+#[inline(never)]
 pub(crate) fn ecn_rescue(
     skb: *mut core::ffi::c_void,
     debt_map: &LruHashMap<u64, u64>,
     debt_key: &u64,
     pkt_len: u32,
-    stats_ptr: Option<*mut LimiterStats>,
+    stats_ptr: *mut LimiterStats,
 ) -> bool {
     // SAFETY: the helper call takes the program's own skb pointer
     // (the same contract bpf_skb_ecn_set_ce's signature note pins);
@@ -265,12 +330,13 @@ pub(crate) fn ecn_rescue(
     if !ecn::debt_charge(debt_ptr, pkt_len) {
         return false;
     }
-    if let Some(sp) = stats_ptr {
+    if !stats_ptr.is_null() {
         // SAFETY: the stats value pointer the budgeted lane handed
         // in is the same stable map value; its Option borrow was
         // consumed before this tail runs, so the exclusive deref
-        // aliases nothing.
-        book_rescue(unsafe { &mut *sp }, pkt_len);
+        // aliases nothing. The null spelling is the caller's None
+        // (the Z14 single-word boundary law above).
+        book_rescue(unsafe { &mut *stats_ptr }, pkt_len);
     }
     true
 }
