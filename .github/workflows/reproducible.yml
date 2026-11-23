@@ -167,6 +167,20 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
+      # The harden-dns composite below resolves against the checked-out
+      # WORKSPACE (the v80.2.0 frontier SEAT's lesson, release.yml's
+      # comment): a job that consumes a local `uses: ./.github/actions/...`
+      # rides a full checkout, and run 45185192449's verdict job died at
+      # step resolution — "Can't find 'action.yml' ... Did you forget to
+      # run actions/checkout" — before cmp ever ran. The downloads above
+      # are artifact-service traffic; the checkout is here for the local
+      # action resolution, nothing else.
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
       - name: Download leg alpha
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8, NIGHT-hunt-20 SHA pin
         with:
