@@ -610,7 +610,18 @@ jobs:
           # the knob the kernel resolvers already own absorbs.
           docker exec floor-rootfs apt-get -o Acquire::Retries=5 update -qq
           docker exec floor-rootfs apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
-            python3 iproute2 kmod curl nftables
+            python3 python3-pyelftools iproute2 kmod curl nftables
+          # python3-pyelftools (night-frontier-Z14, run 45180990128's
+          # lesson): the subprogram shape gate's census
+          # (scripts/supermassive/verifier-subprogram-census.py,
+          # the verifier battery's rootless ELF/BTF walk) imports
+          # pyelftools for its section/symbol/relocation walk. The
+          # package is pure Python, roughly a megabyte of site-packages
+          # — the RAM-resident rootfs pays it back in one gate that no
+          # longer fails on ModuleNotFoundError, and the distro package
+          # keeps the PEP 668 story out (no pip lane, no purge dance:
+          # apt installs it whole, the guest interpreter imports it
+          # plain).
           # bpftool (NIGHT-improve-48): Ubuntu ships no standalone
           # package — the binary lives inside the per-ABI linux-tools
           # debs, and the VM's kernel (the 5.15.0 floor or the
