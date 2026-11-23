@@ -63,6 +63,7 @@ question well, and this page says which.
 | [CROSS_DISTRO_RESULTS.md](CROSS_DISTRO_RESULTS.md) | Validation matrix across distributions and kernels |
 | [QUOTA_SAVER_PHYSICS.md](QUOTA_SAVER_PHYSICS.md) | The quota saver's physics page: why a dropped download is a purchase, not a saving — the four lanes and three physics behind RECWN, the formula and the measured curve, the eight losses no receiver can close, and the savings-to-rate guidance |
 | [ACK_CLOCK_HYPOTHESIS.md](ACK_CLOCK_HYPOTHESIS.md) | The ACK-clock hypothesis (night-frontier-Z7, D4 — the ninth lane, research note only): the one lever class the eight physics losses leave unowned, censused against the v5.15 sources rung by rung — the inflation direction is a signed NO with one verified inverted rung recorded (TCP_BPF_DELACK_MAX lowers the ceiling only), the reopen conditions named, experiment-before-code the reopen path |
+| [FIELD_EVIDENCE.md](FIELD_EVIDENCE.md) | The standing sensor's log (night-frontier-Z16, D15 — field-evidence harvesting): the owner's daily use as the instrument the sandbox cannot fabricate — the two watch targets (traffic-shape drift serving the emit-on-change histogram, the witnessed miss serving the bypass three-way), the five-field entry format, the founding entries backfilled from the record the tree already carries (the 2026-11-09 masterclass included), and the harvest/graduate ritual that keeps the deferred items' reopen conditions "ready" instead of "someday" |
 
 ## Research
 
