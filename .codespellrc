@@ -20,4 +20,9 @@ skip = ./.git,./target,./ebpf/target,./proofs/target,./fuzz/target,./assets,./Ca
 # cgroup_skb world, the nftables/iproute2 iif match) — the
 # night-skill-2 audit quotes the interface-blindness grep
 # 'ifindex|iif|oif' verbatim; it is kernel vocabulary, not a typo.
-ignore-words-list = ratatui,uptodate,hevy,statu,ect,iif,fpr
+# attachs is the kernel's own bpffs mount option token
+# (delegate_attachs, the BPF token delegation API since 6.9 — the
+# sibling of delegate_cmds/maps/progs) — the night-frontier-Z15
+# kernel-floor watch and the BPF token deferred entry quote the
+# four-option family verbatim; it is kernel vocabulary, not a typo.
+ignore-words-list = ratatui,uptodate,hevy,statu,ect,iif,fpr,attachs
