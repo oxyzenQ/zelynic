@@ -46,6 +46,48 @@ v80.0.0
 
 ### Added
 
+- **night-frontier-Z15: the gigi census and the floor pulse — the
+  credited whole's magnitude law rose to for-all, the verifier
+  budgets ratcheted onto the Z14 walk collapse, and the kernel-floor
+  watch became a standing record.** The lemma-decomposition census
+  re-measured the proof layer's two named residues solo on the
+  pinned kani 0.68.0 / CBMC 6.11.0 (2-CPU 4 GB sandbox, the
+  conservative bound), calibrated both directions before any verdict
+  was believed (a deliberately false bound refutes in 0.10 s with a
+  concrete counterexample): the credited whole's magnitude law
+  (`whole <= rate + burst`), recorded since Z12 as wall class 2 by
+  its probes, DECIDES as the direct obligation on the post-Z12
+  bytes — 2.07 s solo, 2.42 s inside the standing refill harness —
+  because the Z12 split-multiply restructure had already replaced
+  the circuit the probes ground on. The standing refill theorem now
+  carries all three output laws for-all (fraction domain, magnitude,
+  zero-window) over the full unbounded u64 rate domain; the sampled
+  twin keeps hammering (the defense-in-depth shape); the factored
+  teeth (threshold, rate) both grind past the local ceiling — the
+  inverse of the Z12 experience — and the composition lemma (0.029 s)
+  stays in the record as the socket a future solver generation plugs
+  into. The Z10 emission conformance seat stays stood down by
+  measurement: all three per-path engine teeth (idle, first-paint,
+  batch) die in the census box's OOM — the engine's symbolic heap is
+  invariant to paths too, even the zero-byte idle one. The pinned
+  kani 0.68.0 remains the latest release (checked 2026-11-24): no
+  free solver generation arrived. The kernel-floor watch's first
+  scheduled sweep: the head envelope's walk budgets ratcheted onto
+  the watched run's measurements (enforce_dl 666635 -> 141893,
+  enforce_ul 706129 -> 133020, run 45209186940 named in each row's
+  history — the growth law now guards the collapsed shape); the
+  ACK-clock census table gained the two v6.15 rung facts (the delack
+  read side, the TCP_DELACK_MAX_US / TCP_RTO_MIN_US uapi sockopts)
+  with all four reopen conditions re-verified closed against
+  mainline 7.4-rc3 source; the compatibility matrix gained its 7.3
+  row (the best-specs envelope's 7.3.0-11-generic, green since the
+  ledger's arming census); the LTS span stays CI-proven on both ends
+  with the 5.15 floor still a supported kernel.org longterm line
+  (5.15.225); the BPF token deferred entry carries its first dated
+  watch note; and the capability ladder did not move (all ten rungs
+  at or under the 5.15 floor, net-next through next-20261118 grew
+  nothing the lanes consume above it). Details in
+  docs/INNOVATIONS.md's night-frontier-Z15 section.
 - **night-frontier-Z14a: the shakedown of the landing — the shape
   gate's first CI red named its missing part, the D4 verdict job
   learned its checkout seat, and the floor-kernel histogram red
