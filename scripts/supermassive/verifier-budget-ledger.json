@@ -53,7 +53,7 @@
    "kernel_class": "uname -r not 5.15.* - the archive's latest kernel, resolved dynamically at run time (any kernel at or past v5.16 exposes the field)",
    "rows": {
     "enforce_dl": {
-     "budget": 666635,
+     "budget": 141893,
      "history": [
       {
        "kind": "pin",
@@ -66,11 +66,17 @@
        "value": 666635,
        "source": "the supermassive verifier budget run 45001505055 (the night-frontier-Z12 object, head envelope)",
        "reason": "the Z12 split-multiply guard moved the fill-detect compare to the product side of the threshold: the overflow branch and the product reassembly widened the verifier's explored walk by +2506 (enforce_dl) / +2287 (enforce_ul) states (+0.35 percent) - the honest price of a guard that carries no symbolic division; the per-packet runtime path drops the 64-bit division in exchange. The first Z12 draft predicted a ratchet; the census measured the opposite and the ledger corrects it."
+      },
+      {
+       "kind": "lower",
+       "value": 141893,
+       "source": "the supermassive verifier budget run 45209186940, job 137815814720 (the night-frontier-Z14d object da7a4d1, head envelope, kernel 7.3.0-11-generic, pair (13,15) honored, fill 232)",
+       "reason": "the Z14 callee rung's ratchet - the follow-up the walk collapse's own record named. The verdict path's duplicated tail family (ring_verdict, ecn_rescue, quic_flow_key) became bpf2bpf callees, so the verifier prices each callee body once instead of once per flattened call site: the watched run measured 141893 against the 666635 pin, 524742 states of headroom freed (-79 percent). The pin moves to the measured number; the growth law now guards the collapsed shape."
       }
      ]
     },
     "enforce_ul": {
-     "budget": 706129,
+     "budget": 133020,
      "history": [
       {
        "kind": "pin",
@@ -83,6 +89,12 @@
        "value": 706129,
        "source": "the supermassive verifier budget run 45001505055 (the night-frontier-Z12 object, head envelope)",
        "reason": "the Z12 split-multiply guard moved the fill-detect compare to the product side of the threshold: the overflow branch and the product reassembly widened the verifier's explored walk by +2506 (enforce_dl) / +2287 (enforce_ul) states (+0.35 percent) - the honest price of a guard that carries no symbolic division; the per-packet runtime path drops the 64-bit division in exchange. The first Z12 draft predicted a ratchet; the census measured the opposite and the ledger corrects it."
+      },
+      {
+       "kind": "lower",
+       "value": 133020,
+       "source": "the supermassive verifier budget run 45209186940, job 137815814720 (the night-frontier-Z14d object da7a4d1, head envelope, kernel 7.3.0-11-generic, pair (13,15) honored, fill 232)",
+       "reason": "the Z14 callee rung's ratchet - the follow-up the walk collapse's own record named. The verdict path's duplicated tail family (ring_verdict, ecn_rescue, quic_flow_key) became bpf2bpf callees, so the verifier prices each callee body once instead of once per flattened call site: the watched run measured 133020 against the 706129 pin, 573109 states of headroom freed (-81 percent). The pin moves to the measured number; the growth law now guards the collapsed shape."
       }
      ]
     },
