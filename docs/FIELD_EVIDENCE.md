@@ -144,7 +144,8 @@ window (tx shadow 0% / rx shadow 100%) that taught the clean line
 to say which gate held. Instruments: the A/B harness; the
 `--depth` bypass audit line on the owner's session. Homes:
 [QUOTA_SAVER_PHYSICS.md](QUOTA_SAVER_PHYSICS.md) §3/§7/§8;
-[USAGE.md](USAGE.md) §reading the bypass audit;
+[USAGE.md](USAGE.md) §eagle-eyes --depth (the bypass audit
+paragraph);
 `src/ebpf/render/bypass.rs`'s own record. Disposition: spawned
 night-ux-1 / night-ux-3 (landed 2026-11-07). The class: the
 surfaces' honesty laws were tuned by what the owner actually saw.
