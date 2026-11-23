@@ -96,7 +96,7 @@ pub(super) fn render_ranked_table(
     };
     // The identity span the header's title cell covers.
     let title_w = cols.label_w + RANK_SPAN;
-    super::eagle_row::render_eagle_header(lines, gutter, title_w, &cols);
+    super::eagle_row::render_eagle_header(lines, gutter, title_w, cols);
     // night-frontier-Z11: the grid writes into a pooled row (the
     // grid_line_into twin), the same ladder law the bar rides.
     let mut grid = pooled_line();
@@ -238,7 +238,7 @@ pub(super) fn render_ranked_table(
                 retrans,
                 identity,
                 conns,
-                &cols,
+                cols,
                 i + 1,
             );
             lines.append(&mut details);
