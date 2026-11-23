@@ -294,7 +294,7 @@ fn test_schema_version_constant() {
     // the hist maps entirely, and the version is the one gate
     // distinguishing "no samples yet" from "no such lane".
     // v35 (night-frontier-Z1, the histogram depth pack): the row
-    // grows IN PLACE — 512 → 832 bytes (the exact aggregates plus
+    // grows IN PLACE — 512 → 816 bytes (the exact aggregates plus
     // the eight tail story slots, no new map) — the forced reload
     // re-pins the full v35 map set.
     assert_eq!(SCHEMA_VERSION_EXPECTED, 35);
