@@ -1545,6 +1545,64 @@ baseline carried only reloc-pending sites; the direct-call
 spelling the callee family introduced exposed it, and every direct
 BPF_PSEUDO_CALL is now counted in its own bucket).
 
+**The gate's first CI firing, and the floor-kernel forensics it
+bought** (the shakedown the landing needed — every new gate earns
+its first red before its first green means anything): the Z14
+commit's own CI run (45180990128) fired the shape gate for the
+first time and the gate failed LOUD, exactly as designed — with
+`ModuleNotFoundError: No module named 'elftools'` on both verifier
+lanes. The census imports pyelftools for its section/symbol/
+relocation walk, and the micro-VM rootfs's tools closure
+(`python3 iproute2 kmod curl nftables`) never carried it; the
+gate's failure mode is loud by design (a shape gate that quietly
+skips itself on a missing import is a ratchet that cannot
+ratchet), so the fix belongs to the rootfs assembly: the
+distro's pure-Python `python3-pyelftools` package rides the apt
+line now (no pip lane, no PEP 668 dance), and the census
+docstring names its own import contract where the next reader
+looks. The same run's D4 byte-identity verdict job (45185192449)
+died before `cmp` ever ran — "Can't find 'action.yml' ... Did
+you forget to run actions/checkout" — one more member of the
+v80.2.0 frontier SEAT's class (a job consuming the local
+`./.github/actions/harden-dns` composite without riding a full
+checkout; the estate's own law, written in release.yml's seat
+comment, now holds everywhere by construction). Both fixes ride
+the workflow files, not the gates: the gates named their own
+missing parts, precisely.
+
+**The floor-kernel histogram forensics** (the same run's engine
+low lane — the honest unknown that stays an unknown): the
+histogram live proof failed on the jammy 5.15.0 floor kernel
+with the depth read's histogram answering null for the target
+row mid-traffic, after gigabytes of bulk loopback traffic —
+while the same commit's best-specs lane (newer kernel) answered
+`download size samples 3->634`, and the pre-Z14 floor run
+(b3bc25e) answered `430->431` on the same kernel, same battery,
+same payload lane. The depth read's histogram section answers
+null on exactly two branches (the pinned-schema gate at
+`src/ebpf/render/depth_json/hist.rs`, or the row absent from
+both direction maps), and the bare "answered null" note cannot
+tell them apart. The local instrument could not reproduce it:
+five independent floor-kernel runs of the exact CI payload
+binary (the run's own `supermassive-vm-low` artifact booted
+under TCG) — the fresh-attach shape, the `u --all` reload seam
+the zombie stage leaves, and the FULL engine battery twice
+(SMP=2 and SMP=1, matching the CI low lane's one-vCPU envelope)
+— every run answered PRESENT with growing samples (18->24
+across legs, 5->9, 6->15), the sampler and the read both alive
+on the kernel the CI red came from. The remaining delta is
+KVM-speed packet volume (27.8 GB per leg on CI vs 269 MB under
+TCG emulation), which no local instrument here reaches. So the
+failure path now carries the discriminator
+(`_hist_null_facts` in the battery): on a null, the note names
+the branch with the kernel's own facts — the pinned schema stamp
+and the per-direction hist row counts, read through the bpftool
+the VM already rides — turning the next red (if one lands) into
+a bisected measurement instead of a mystery. The census-first
+discipline, applied to a CI color: a walk change is guessed by
+nobody, and a red that cannot yet be explained is instrumented,
+never named away.
+
 **The mirror's ledger correction**: the deferred mirror's first
 reopen condition — "a walk-cost optimization frees the enforcer's
 ceiling" — is satisfied by measurement as of this depth (the
