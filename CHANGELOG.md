@@ -46,6 +46,47 @@ v80.0.0
 
 ### Added
 
+- **night-frontier-Z16: the field sensor and the booking law — the
+  owner's daily use became a standing instrument and the claim
+  process was named as the estate's sellable asset.** The two most
+  valuable deferred items wait on field evidence, not engineering:
+  the emit-on-change histogram reopens on real traffic-shape
+  measurements, the bypass three-way on a witnessed miss the
+  interface-only delta cannot name, and neither can be fabricated
+  in the sandbox — the only honest source is the owner's own
+  machine in daily use, the sensor that has always run for free
+  (the 2026-11-09 live readings that retired two bookings at 36.8x
+  and ~25x over came from a brave session and an ss -tip read,
+  after every automated instrument had blessed both formulas). What
+  the sensor never had is a ledger, so the evidence evaporated and
+  the reopen conditions stayed empty by bookkeeping. The new
+  docs/FIELD_EVIDENCE.md is that ledger: the watch table with both
+  reopen conditions quoted verbatim from the deferred ledger, the
+  five-field entry format, the harvest protocol (record the anomaly
+  the same day; run the existing harnesses when a workload class
+  changes, never on a clock; graduate by a dated update to the
+  deferred row, the reopen staying the owner's call), and the
+  founding entries E1-E5 backfilled from the record the tree
+  already carries (the 2026-10-07 live bug-hunt, the 2026-10-28
+  blocked teardown, the 2026-11-06 bounded-pair finding, the
+  2026-11-07 campaign day, the 2026-11-09 masterclass). The two
+  deferred rows gained their dated watch notes, MAINTENANCE.md
+  gained the ritual's trigger seat (section 8, the cadence summary
+  renumbered to 9), and the master index gained the row.
+  CLAIMS_VERIFICATION.md gained the booking law — the three-part
+  test every number must pass (the physics it owns, the
+  conservative pole errs LOW never high, the retirement door), the
+  masterclass precedent kept on display with its numbers, and the
+  six enforcement seats that make the law cheap to keep (the
+  append-only layout walk, the one-for-one booking pins, the render
+  contract, the wire-truth door, the dated-immutable record gate,
+  the golden-vector ratification law), closing on what the buyer
+  buys: not the binary but the claim process that survives its own
+  audit. The GLOSSARY decodes the law's term; INNOVATIONS.md
+  carries the Z16 section (D15/D16) with the why-never-done. No
+  code changed; every number in the new records is quoted from its
+  existing home. Details in docs/INNOVATIONS.md's night-frontier-Z16
+  section.
 - **night-frontier-Z15: the gigi census and the floor pulse — the
   credited whole's magnitude law rose to for-all, the verifier
   budgets ratcheted onto the Z14 walk collapse, and the kernel-floor
