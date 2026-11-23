@@ -42,6 +42,12 @@ Usage:
     python3 scripts/supermassive/verifier-subprogram-census.py \
         ebpf-prebuilt/zelynic-limiter.o ebpf-prebuilt/zelynic-observer.o
 
+Dependencies: pyelftools (the section/symbol/relocation walk; the BTF
+and .BTF.ext parsing below is hand-rolled, struct-for-struct). The CI
+rootfs assembly (supermassive.yml) installs python3-pyelftools for the
+guest interpreter; run 45180990128's verifier lanes failed this gate
+on ModuleNotFoundError before that line landed.
+
 Exit code 0 when the census completes (a census reports, it does not
 gate); any parse failure exits 2 with the reason.
 """
