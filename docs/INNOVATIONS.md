@@ -765,10 +765,10 @@ every CI job), three honest tiers:
   cannot yet decide: the aggregate replace words, the tail's
   worst-8 contract, the margin-erosion monotonicity end-to-end
   through daily_active (the Z12 comparator lemma carries the
-  for-all half; the day-reduction composition and the credited
-  whole's magnitude law — whole <= rate + burst, the
-  multiply-monotonicity derivation the Z12 census measured
-  undecided — ride the sampler), the flow key's determinism half,
+  for-all half; the day-reduction composition rides the sampler;
+  the credited whole's magnitude law rode it too until the Z15
+  re-census measured the direct obligation deciding — see the Z15
+  section), the flow key's determinism half,
   the DRR take laws, the rate-ring stamp law. The instrument's first
   real catch is itself the record: the fraction sanitize-on-read
   law's counterexample (shrunk to rate=0, frac=NS_PER_SEC) sharpened
@@ -1304,9 +1304,14 @@ per push, rootless, no assumptions hidden.
 a machine-checked totality theorem over its verdict path — and none
 ships one over the FULL hostile-state domain the persistent maps can
 carry. The honest residue is named, not hidden: the credited whole's
-magnitude law rides the sampler (wall class 2), the Z10 emission
+magnitude law rides the sampler (wall class 2) — UNTIL the Z15
+re-census measured the direct obligation on the post-Z12 bytes
+deciding and landed it in the standing refill theorem (see the Z15
+section; the Z12-era probes had measured a neighboring derivation
+class, not the obligation itself) — the Z10 emission
 conformance seat stays stood-down (the engine-heap circuit class,
-its levers unchanged), and the Z12 census's probe record — which
+its levers unchanged, re-confirmed by the Z15 per-path census), and
+the Z12 census's probe record — which
 algebra this solver generation decides — is the next maintainer's
 map for every future harness.
 

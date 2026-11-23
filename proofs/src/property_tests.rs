@@ -63,7 +63,12 @@ proptest! {
     /// by elapsed x rate with the elapsed cap at one second). The
     /// overflow guard is the point: burst up to MAX_ENFORCABLE_BURST
     /// keeps 2 x burst x NS_PER_SEC representable BY CONSTRUCTION —
-    /// the property hammers the whole domain, edges included.
+    /// the property hammers the whole domain, edges included. Since
+    /// night-frontier-Z15 the magnitude law rides the for-all tier
+    /// too (the Z15 re-census measured the direct obligation deciding
+    /// on the pinned release; kani_cores.rs's refill theorem carries
+    /// it); this sampled twin stays as the defense-in-depth shape —
+    /// two instruments, one law.
     #[test]
     fn refill_credits_total_and_bounded(
         rate in any::<u64>(),
