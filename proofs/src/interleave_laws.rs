@@ -3,7 +3,8 @@
 
 //! night-frontier-Z17: the property tier over the interleaving
 //! model — the sampled instruments that stand beside the kani
-//! theorems:
+//! theorems (the schedule sampler lives in its sibling
+//! interleave_sampler.rs, split here at the 600-line cap):
 //!
 //!  * THE FIDELITY HAMMERS: the refill, consume, and debt actors,
 //!    run with nothing interleaved, must reproduce the kernel
@@ -18,35 +19,43 @@
 //!    spend left (the failed zero-CAS class) and a dead credit a
 //!    racing draw landed (the in-flight class); the ledger held
 //!    throughout — the violation was the certification, never the
-//!    conservation. The gated form (the SHIPPED bytes since the
-//!    landing) refuses both certifications and converges by
-//!    re-fire — the close's sampled certificate beside the kani one.
+//!    conservation. The SHIPPED form since rung 8 (the
+//!    zeroed-verdict gate) refuses the spend class and converges,
+//!    and carries the in-flight class as its NAMED residual
+//!    (quantum-bounded — the two-word write window itself); the
+//!    QUIET form (rung 4's re-observing landing, the live lane's
+//!    falsification) refuses both classes — the unshippable
+//!    certificate beside the kani one.
 //!  * THE SCHEDULE SAMPLER: two actors, random verbs, an
-//!    adversarial bit stream — the full invariant asserted after
-//!    every micro-step of every sampled schedule (the gated belt's
-//!    family), and the ungated family's violation-class reach
-//!    counted (the falsification's statistical pin).
+//!    adversarial bit stream — the conservative invariant asserted
+//!    after every micro-step of every sampled schedule (the
+//!    shipped belt's family, the dead law counted and reported),
+//!    and the ungated family's violation-class reach
+//!    counted (the falsification's statistical pin) — the sibling
+//!    interleave_sampler.rs carries the instrument itself.
 
 use proptest::prelude::*;
 
 use crate::interleave_actors::{Actor, Verb};
 use crate::interleave_model::{Target, World};
+use crate::interleave_segments::{belt_stamp_quiet_seg, belt_zero_seg};
 use crate::math_core::{Bucket, Policy, refill_window, try_consume};
 
 // The reachable-ish sampled domains (the kani tier carries the
 // hostile domain; the sampler's job is breadth at the shapes real
-// traffic produces, plus the edges).
-const SAMPLED_MAX_RATE: u64 = 1_000_000_000_000;
-const SAMPLED_MAX_BURST: u64 = 100_000_000;
-const SAMPLED_MAX_STOCK: u64 = 1 << 40;
-const SAMPLED_MAX_CLOCK: u64 = 1 << 32;
-const ECN_DEBT_CAP: u64 = 65_536;
+// traffic produces, plus the edges). Shared with the sampler
+// sibling through the pub(crate) surface below.
+pub(crate) const SAMPLED_MAX_RATE: u64 = 1_000_000_000_000;
+pub(crate) const SAMPLED_MAX_BURST: u64 = 100_000_000;
+pub(crate) const SAMPLED_MAX_STOCK: u64 = 1 << 40;
+pub(crate) const SAMPLED_MAX_CLOCK: u64 = 1 << 32;
+pub(crate) const ECN_DEBT_CAP: u64 = 65_536;
 
 fn cases() -> ProptestConfig {
     ProptestConfig::with_cases(4096)
 }
 
-fn sampled_policy(rate: u64, burst: u64) -> Policy {
+pub(crate) fn sampled_policy(rate: u64, burst: u64) -> Policy {
     Policy {
         rate_bps: rate,
         burst_bytes: burst,
@@ -57,7 +66,7 @@ fn sampled_policy(rate: u64, burst: u64) -> Policy {
     }
 }
 
-fn bucket_of(tokens: u64, last: u64, frac: u64) -> Bucket {
+pub(crate) fn bucket_of(tokens: u64, last: u64, frac: u64) -> Bucket {
     Bucket {
         tokens,
         last_refill_ns: last,
@@ -259,13 +268,15 @@ fn legacy_belt_certifies_a_racing_draw_dead_credit() {
     assert!(w.ledger_ok());
 }
 
-/// THE CLOSE, both classes: the gated belt — the SHIPPED bytes
-/// since night-frontier-Z17's landing — refuses the certification
-/// and converges by re-fire: the same two interleavings, the
-/// gated stamp segment, and the dead stock ends at exactly zero
-/// through the belt's own convergence.
+/// THE CLOSE, class one, shipped: the gated belt — the SHIPPED
+/// bytes (the zeroed-verdict gate since Z17 rung 8) — refuses the
+/// racing spend's certification and converges by re-fire: the
+/// failed zeroing keeps the stamp stale, the next packet's belt
+/// re-fires, the zeroing now runs uncontended, and the dead stock
+/// ends at exactly zero. The stockpile-bounded class the finding
+/// filed is closed in the shipped bytes.
 #[test]
-fn gated_belt_refuses_and_converges_on_both_witness_classes() {
+fn shipped_belt_refuses_the_racing_spend_class_and_converges() {
     // Class one, gated: the failed zeroing keeps the stamp stale.
     let mut w = World::genesis(bucket_of(1 << 20, 123, 0), bucket_of(100, 0, 5), 0, 7, true);
     let mut belt = Actor::new(Verb::Belt { gated: true });
@@ -290,10 +301,94 @@ fn gated_belt_refuses_and_converges_on_both_witness_classes() {
     assert_eq!(w.dead, 0);
     assert_eq!(w.leaf.tokens, 0);
     assert!(w.laws_ok());
+}
 
-    // Class two, gated: the re-observation refuses the racing
+/// THE NAMED RESIDUAL, class two, shipped: the gated belt's
+/// verdict gate closes the stockpile-bounded class but prices the
+/// quantum-bounded one — a racing draw's in-flight credit that
+/// lands inside the belt's own read-to-write window is stamped
+/// current. The LEDGER holds throughout (the take is real budget,
+/// drawn under the live policy); the violation is the
+/// certification, bounded by exactly one armed take (the quantum
+/// here), the two-word atomicity floor the census names. The
+/// re-observing QUIET form refuses this class — and the live e2e
+/// lane priced that refusal (the census's rung-4 record).
+#[test]
+fn shipped_belt_certifies_the_racing_draw_class_the_named_residual() {
+    // Class two, gated: the verdict gate cannot see the in-flight
+    // credit that lands between the belt's read and its write.
+    let mut w = World::genesis(bucket_of(1 << 20, 123, 0), bucket_of(0, 0, 5), 0, 7, true);
+    let mut draw = Actor::new(Verb::Draw {
+        quantum: 4096,
+        learned: 0,
+        allowance: u64::MAX,
+        room: u64::MAX,
+        now: 1000,
+    });
+    assert!(!draw.advance(&mut w));
+    assert!(!draw.advance(&mut w));
+    assert!(!draw.advance(&mut w));
+    assert!(!draw.advance(&mut w));
+    let mut belt = Actor::new(Verb::Belt { gated: true });
+    assert!(!belt.advance(&mut w));
+    assert!(!belt.advance(&mut w));
+    assert!(!belt.advance(&mut w));
+    assert!(draw.advance(&mut w)); // the leaf credit lands (dead)
+    assert_eq!(w.dead, 4096);
+    assert!(!belt.advance(&mut w)); // the zero attempt (no-op read)
+    assert!(belt.advance(&mut w)); // the verdict gate stamps: the read
+    // was zero, the credit raced the write window — the residual.
+    assert_eq!(crate::math_core::gen_stamp_read(&w.leaf), 7);
+    assert!(!w.belt_dead_ok());
+    // The residual's own bound: exactly the armed take, not the
+    // stockpile — the pre-patch class certified any surviving
+    // remnant; this certifies one quantum.
+    assert_eq!(w.dead, 4096);
+    assert!(w.ledger_ok());
+    assert!(w.laws_ok_except_dead());
+}
+
+/// THE QUIET CERTIFICATE, both classes: the re-observing belt —
+/// rung 4's first landing, now the model-side form the live e2e
+/// lane priced — refuses BOTH certification classes and converges
+/// by re-fire: the re-observation re-reads the stock inside the
+/// stamp segment and refuses to certify a stock it did not watch
+/// empty. Unshippable under sustained delivery (the census's
+/// numbers), certified here: the full law the shipped bytes
+/// cannot carry.
+#[test]
+fn quiet_belt_refuses_and_converges_on_both_witness_classes() {
+    // Class one, quiet: the failed zeroing keeps the stamp stale,
+    // and the next belt converges the same way.
+    let mut w = World::genesis(bucket_of(1 << 20, 123, 0), bucket_of(100, 0, 5), 0, 7, true);
+    let gen_obs = w.g_live;
+    // pc0-pc2 by hand: the generation read, the stamp mismatch,
+    // the stale stock read (100).
+    let stale_obs = crate::math_core::tokens_read(&w.leaf);
+    assert_eq!(stale_obs, 100);
+    let mut consumer = Actor::new(Verb::Consume {
+        target: Target::Leaf,
+        want: 30,
+    });
+    consumer.run(&mut w);
+    // pc3: the zeroing CAS loses against the moved stock.
+    let zeroed = belt_zero_seg(&mut w, stale_obs);
+    assert!(!zeroed);
+    belt_stamp_quiet_seg(&mut w, gen_obs, zeroed);
+    assert_eq!(crate::math_core::gen_stamp_read(&w.leaf), 5);
+    assert!(w.belt_dead_ok());
+    // The convergence: the next episode runs uncontended.
+    let stale2 = crate::math_core::tokens_read(&w.leaf);
+    let zeroed2 = belt_zero_seg(&mut w, stale2);
+    belt_stamp_quiet_seg(&mut w, gen_obs, zeroed2);
+    assert_eq!(crate::math_core::gen_stamp_read(&w.leaf), 7);
+    assert_eq!(w.dead, 0);
+    assert!(w.laws_ok());
+
+    // Class two, quiet: the re-observation refuses the racing
     // credit's certification; the next belt zeroes it.
     let mut w2 = World::genesis(bucket_of(1 << 20, 123, 0), bucket_of(0, 0, 5), 0, 7, true);
+    let gen_obs2 = w2.g_live;
     let mut draw = Actor::new(Verb::Draw {
         quantum: 4096,
         learned: 0,
@@ -305,199 +400,23 @@ fn gated_belt_refuses_and_converges_on_both_witness_classes() {
     assert!(!draw.advance(&mut w2));
     assert!(!draw.advance(&mut w2));
     assert!(!draw.advance(&mut w2));
-    let mut belt2 = Actor::new(Verb::Belt { gated: true });
-    assert!(!belt2.advance(&mut w2));
-    assert!(!belt2.advance(&mut w2));
-    assert!(!belt2.advance(&mut w2));
+    // pc0-pc2: the empty stock read (0).
+    let stale_obs2 = crate::math_core::tokens_read(&w2.leaf);
+    assert_eq!(stale_obs2, 0);
     assert!(draw.advance(&mut w2)); // the leaf credit lands (dead)
     assert_eq!(w2.dead, 4096);
-    assert!(!belt2.advance(&mut w2)); // the zero attempt (no-op)
-    assert!(belt2.advance(&mut w2)); // the gated re-observation refuses
+    // pc3: the zero attempt (no-op — the read was zero).
+    let zeroed2 = belt_zero_seg(&mut w2, stale_obs2);
+    assert!(!zeroed2);
+    // pc4: the re-observation catches the raced credit and refuses.
+    belt_stamp_quiet_seg(&mut w2, gen_obs2, zeroed2 || stale_obs2 == 0);
     assert_eq!(crate::math_core::gen_stamp_read(&w2.leaf), 5);
     assert!(w2.belt_dead_ok());
-    let mut second2 = Actor::new(Verb::Belt { gated: true });
-    second2.run(&mut w2);
+    // The convergence: the next belt zeroes the refused credit.
+    let stale3 = crate::math_core::tokens_read(&w2.leaf);
+    let zeroed3 = belt_zero_seg(&mut w2, stale3);
+    belt_stamp_quiet_seg(&mut w2, gen_obs2, zeroed3);
     assert_eq!(crate::math_core::gen_stamp_read(&w2.leaf), 7);
     assert_eq!(w2.dead, 0);
     assert!(w2.laws_ok());
-}
-
-// ── The schedule sampler ───────────────────────────────────────────
-
-/// A small deterministic RNG (xorshift64*), seeded per schedule:
-/// the sampler's reproducibility is the fail-loud culture's own
-/// requirement — a red reruns identically, a witness replays.
-struct Rng(u64);
-
-impl Rng {
-    fn next_u64(&mut self) -> u64 {
-        let mut x = self.0;
-        x ^= x >> 12;
-        x ^= x << 25;
-        x ^= x >> 27;
-        self.0 = x;
-        x.wrapping_mul(0x2545_F491_4F6C_DD1D)
-    }
-    fn below(&mut self, n: u64) -> u64 {
-        if n == 0 { 0 } else { self.next_u64() % n }
-    }
-}
-
-fn random_verb(rng: &mut Rng, gated: bool) -> Verb {
-    match rng.below(8) {
-        0 => Verb::Refill {
-            pol: sampled_policy(
-                rng.below(SAMPLED_MAX_RATE / 1000 + 1),
-                rng.below(SAMPLED_MAX_BURST / 100 + 1),
-            ),
-            now: rng.below(SAMPLED_MAX_CLOCK),
-        },
-        1 | 2 => Verb::Consume {
-            target: if rng.below(2) == 0 {
-                Target::Pool
-            } else {
-                Target::Leaf
-            },
-            want: rng.below(65536) as u32,
-        },
-        3 => Verb::Draw {
-            quantum: rng.below(1 << 20),
-            learned: rng.below(24) as u16,
-            allowance: if rng.below(2) == 0 {
-                u64::MAX
-            } else {
-                rng.below(1 << 24)
-            },
-            room: if rng.below(2) == 0 {
-                u64::MAX
-            } else {
-                rng.below(1 << 24)
-            },
-            now: rng.below(SAMPLED_MAX_CLOCK),
-        },
-        4 => Verb::DebtCharge {
-            pkt_len: rng.below(65536) as u32,
-        },
-        5 => Verb::DebtPay {
-            target: if rng.below(2) == 0 {
-                Target::Pool
-            } else {
-                Target::Leaf
-            },
-        },
-        6 => Verb::Belt { gated },
-        _ => Verb::Mutate {
-            bump: 1 + rng.below(3),
-        },
-    }
-}
-
-/// Run one random two-actor schedule: two verb slots, an
-/// adversarial bit stream advancing one actor one micro-step at a
-/// time, a fresh verb spawned on completion. Returns the number
-/// of invariant violations seen (P4's dead law is the only
-/// candidate under the gated belt; the conservative family is
-/// asserted hard — any hit is a red, never a statistic).
-fn run_schedule(seed: u64, gated: bool) -> (usize, usize) {
-    let mut rng = Rng(seed | 1);
-    let pool = bucket_of(
-        rng.below(SAMPLED_MAX_STOCK),
-        rng.below(SAMPLED_MAX_CLOCK),
-        rng.below(1_000_000_000),
-    );
-    let g_live = rng.below(1 << 16);
-    let leaf_stamp = if rng.below(2) == 0 {
-        g_live
-    } else {
-        rng.below(1 << 16)
-    };
-    let mut w = World::genesis(
-        pool,
-        bucket_of(rng.below(1 << 20), rng.below(1 << 16), leaf_stamp),
-        rng.below(2 * ECN_DEBT_CAP),
-        g_live,
-        rng.below(8) != 0,
-    );
-    let mut slots: [Option<Actor>; 2] = [None, None];
-    let mut violations = 0;
-    let mut steps = 0;
-    while steps < 48 {
-        // Fill an empty slot (or run Init first when unborn).
-        let pick = rng.below(2) as usize;
-        if slots[pick].is_none() {
-            if !w.born && rng.below(4) == 0 {
-                slots[pick] = Some(Actor::new(Verb::Init));
-            } else {
-                slots[pick] = Some(Actor::new(random_verb(&mut rng, gated)));
-            }
-        }
-        let who = rng.below(2) as usize;
-        if let Some(actor) = slots[who].as_mut() {
-            actor.advance(&mut w);
-            steps += 1;
-            if actor.is_done() {
-                slots[who] = None;
-            }
-        }
-        // The conservative family is hard-asserted on every step.
-        assert!(
-            w.laws_ok_except_dead(),
-            "conservative invariant broken at step {} (seed {}): \
-             ledger={} debt_capped={} taint={} stamp_bounded={} frac_ok={}",
-            steps,
-            seed,
-            w.ledger_ok(),
-            w.debt_capped(),
-            w.taint_coherent(),
-            w.stamp_bounded(),
-            w.frac_ok(),
-        );
-        if !w.belt_dead_ok() {
-            violations += 1;
-        }
-    }
-    (violations, steps)
-}
-
-/// THE SCHEDULE SAMPLER, the shipped (gated) belt family: for
-/// every sampled schedule the FULL invariant holds after every
-/// micro-step — the ledger, the debt cap, the taint, the dead
-/// law, the stamp bound, the fraction domain, all six, all the
-/// way down.
-#[test]
-fn sampled_two_actor_schedules_preserve_the_full_laws() {
-    for seed in 1..=512u64 {
-        let (violations, _) = run_schedule(seed, true);
-        assert_eq!(
-            violations, 0,
-            "a gated-belt schedule reached a dead-law violation (seed {})",
-            seed
-        );
-    }
-}
-
-/// THE FALSIFICATION STATISTIC, the pre-patch (ungated) belt
-/// family: the ungated belt's violation class is REACHABLE under
-/// sampled schedules — the mechanical pin that the finding is real
-/// and not a hand-built story, and the record of what the gated
-/// landing removed from the shipped bytes. The count is reported,
-/// not asserted zero; the deterministic witness pins above carry
-/// the shape.
-#[test]
-fn sampled_ungated_schedules_reach_the_dead_stamp_violation() {
-    let mut schedules_with_violation = 0;
-    for seed in 1..=512u64 {
-        let (violations, _) = run_schedule(seed, false);
-        if violations > 0 {
-            schedules_with_violation += 1;
-        }
-    }
-    // The class must be reachable (the finding is real under the
-    // sampler's own breadth); a zero here means the model or the
-    // belt changed — re-read the witness pins before touching
-    // this bound.
-    assert!(
-        schedules_with_violation > 0,
-        "the ungated violation class vanished from the sampler"
-    );
 }

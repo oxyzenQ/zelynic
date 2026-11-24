@@ -79,6 +79,10 @@ mod kani_interleave;
 #[path = "interleave_laws.rs"]
 mod interleave_laws;
 
+#[cfg(test)]
+#[path = "interleave_sampler.rs"]
+mod interleave_sampler;
+
 // ── The instruments (each cfg-gated; see the module docs).
 
 #[cfg(test)]

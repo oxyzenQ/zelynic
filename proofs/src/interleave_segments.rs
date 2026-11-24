@@ -346,19 +346,42 @@ pub fn belt_stamp_ungated_seg(w: &mut World, gen_obs: u64) {
     }
 }
 
-/// Segment B2 (the GATED form — the SHIPPED bytes since
-/// night-frontier-Z17's gated landing, drr_flow.rs's leaf belt and
-/// cake_flow.rs's flow twin): the stamp write lands only when the
-/// zeroing actually succeeded or the stock read zero, and the stock
-/// re-observes zero — a failed zero keeps the stamp stale, so the
-/// next packet's belt re-fires and the zeroing converges (the leaf
-/// belt re-fires on every packet while the stamp mismatches,
-/// exactly the convergence the clamp family owns). The
-/// re-observation (`tokens_read == 0`) is inside the segment AND
-/// inside the kernel's own bytes; the residual real gap is the
-/// re-read-to-write window the research doc names honestly — the
-/// two-word atomicity floor, now as narrow as the form can make it.
+/// Segment B2 (the GATED form — the SHIPPED bytes since Z17 rung
+/// 8, the zeroed-verdict gate the live e2e lane re-shaped): the
+/// stamp write lands only when the zeroing actually succeeded or
+/// the stock read zero — a lost CAS never certifies the racing
+/// remnant it failed to zero, so the next packet's belt re-fires
+/// and the zeroing converges within one uncontended episode (the
+/// pre-patch convergence timing, which the live lane demands). The
+/// residual this form carries, stated: a racing draw's in-flight
+/// credit can land inside the belt's own read-to-write window and
+/// be stamped current — bounded by one armed take (the quantum),
+/// the two-word atomicity floor itself; P4 therefore rides the
+/// conservative tier for this form, the census recording the
+/// rung-4 landing's live falsification of the stricter shape.
 pub fn belt_stamp_gated_seg(w: &mut World, gen_obs: u64, zeroed: bool) {
+    if w.born && gen_stamp_read(&w.leaf) != gen_obs && zeroed {
+        gen_stamp_write(&mut w.leaf, gen_obs);
+    }
+}
+
+/// Segment B2 (the QUIET form — the re-observing close, rung 4's
+/// first landing, now the model-side certificate the live lane
+/// priced): the stamp write lands only when the zeroing succeeded
+/// or the stock read zero, AND the stock re-observes zero — the
+/// re-observation closes the belt's own write window, so this form
+/// carries the FULL law P4 and nothing else does. The live e2e
+/// lane falsified its throughput shape: under sustained delivery
+/// the stock moves through the re-observation, the belt keeps
+/// refusing to stamp, keeps re-firing, and keeps zeroing freshly
+/// drawn budget — the enforced rate rides the residue (jammy/noble
+/// sustain medians 56%/62% -> 11%/12%, the alpine non-binding
+/// overhead +51.9% with zero drops; the same lanes green on both
+/// the pre-patch and the zeroed-verdict objects). The form is
+/// sound, machine-checked here, and unshippable — the retirement
+/// door's record, kept as the certificate of what closing the
+/// window completely would cost.
+pub fn belt_stamp_quiet_seg(w: &mut World, gen_obs: u64, zeroed: bool) {
     if w.born && gen_stamp_read(&w.leaf) != gen_obs && zeroed && tokens_read(&w.leaf) == 0 {
         gen_stamp_write(&mut w.leaf, gen_obs);
     }
