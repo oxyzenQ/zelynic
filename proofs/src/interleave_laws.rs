@@ -11,13 +11,16 @@
 //!    thousands of shrinkable cases per run, the anti-gimmick
 //!    instrument under the for-all pins.
 //!  * THE BELT WITNESS PINS: the finding, reproduced
-//!    deterministically. The shipped (ungated) belt's stamp write
-//!    certifies a dead remnant a racing spend left (the failed
-//!    zero-CAS class) and a dead credit a racing draw landed (the
-//!    in-flight class); the ledger holds throughout — the
-//!    violation is the certification, never the conservation. The
-//!    gated form refuses both certifications and converges by
-//!    re-fire — the fix's sampled certificate beside the kani one.
+//!    deterministically against the PRE-PATCH (ungated) belt the
+//!    kernel shipped until night-frontier-Z17's gated landing —
+//!    the falsification record the patch's own rationale rides.
+//!    The ungated stamp write certified a dead remnant a racing
+//!    spend left (the failed zero-CAS class) and a dead credit a
+//!    racing draw landed (the in-flight class); the ledger held
+//!    throughout — the violation was the certification, never the
+//!    conservation. The gated form (the SHIPPED bytes since the
+//!    landing) refuses both certifications and converges by
+//!    re-fire — the close's sampled certificate beside the kani one.
 //!  * THE SCHEDULE SAMPLER: two actors, random verbs, an
 //!    adversarial bit stream — the full invariant asserted after
 //!    every micro-step of every sampled schedule (the gated belt's
@@ -169,17 +172,18 @@ proptest! {
 
 // ── The belt witness pins (the finding, deterministic) ─────────────
 
-/// THE FINDING, class one: the shipped belt's stamp write
-/// certifies a racing spend's dead remnant. The interleaving:
-/// the belt reads the stale stock, a consume verb runs whole
-/// between the read and the zeroing CAS, the CAS loses against
-/// the moved stock, and the unconditional stamp write lands a
-/// current stamp over the surviving remnant. The LEDGER holds
-/// throughout (the remnant is real budget, never minted) — the
-/// violation is the certification, exactly the class the gated
-/// form refuses.
+/// THE FINDING, class one — the pre-patch record: the ungated
+/// belt's stamp write certified a racing spend's dead remnant.
+/// The interleaving: the belt reads the stale stock, a consume
+/// verb runs whole between the read and the zeroing CAS, the CAS
+/// loses against the moved stock, and the unconditional stamp
+/// write lands a current stamp over the surviving remnant. The
+/// LEDGER holds throughout (the remnant is real budget, never
+/// minted) — the violation is the certification, exactly the
+/// class the gated form (the shipped bytes since the landing)
+/// refuses.
 #[test]
-fn shipped_belt_certifies_a_racing_spend_dead_remnant() {
+fn legacy_belt_certifies_a_racing_spend_dead_remnant() {
     let mut w = World::genesis(bucket_of(1 << 20, 123, 0), bucket_of(100, 0, 5), 0, 7, true);
     // Genesis coherence: stamp 5 against live generation 7 — the
     // whole stock is dead by the conservative split.
@@ -210,15 +214,16 @@ fn shipped_belt_certifies_a_racing_spend_dead_remnant() {
     assert!(w.ledger_ok());
 }
 
-/// THE FINDING, class two: the shipped belt's stamp write
-/// certifies a racing draw's dead credit. The interleaving: a
-/// draw arms its take (the pool CAS landed, the leaf credit
-/// pending), the belt runs against the stale-stamped empty leaf,
-/// the draw's credit lands between the belt's stale read and the
-/// stamp write, and the write certifies the freshly-landed dead
-/// credit. Again the ledger holds — the take is real budget.
+/// THE FINDING, class two — the pre-patch record: the ungated
+/// belt's stamp write certified a racing draw's dead credit. The
+/// interleaving: a draw arms its take (the pool CAS landed, the
+/// leaf credit pending), the belt runs against the stale-stamped
+/// empty leaf, the draw's credit lands between the belt's stale
+/// read and the stamp write, and the write certifies the
+/// freshly-landed dead credit. Again the ledger holds — the take
+/// is real budget.
 #[test]
-fn shipped_belt_certifies_a_racing_draw_dead_credit() {
+fn legacy_belt_certifies_a_racing_draw_dead_credit() {
     let mut w = World::genesis(bucket_of(1 << 20, 123, 0), bucket_of(0, 0, 5), 0, 7, true);
     assert_eq!(w.dead, 0);
     let mut draw = Actor::new(Verb::Draw {
@@ -254,10 +259,11 @@ fn shipped_belt_certifies_a_racing_draw_dead_credit() {
     assert!(w.ledger_ok());
 }
 
-/// THE CLOSE, both classes: the gated belt refuses the
-/// certification and converges by re-fire — the same two
-/// interleavings, the gated stamp segment, and the dead stock
-/// ends at exactly zero through the belt's own convergence.
+/// THE CLOSE, both classes: the gated belt — the SHIPPED bytes
+/// since night-frontier-Z17's landing — refuses the certification
+/// and converges by re-fire: the same two interleavings, the
+/// gated stamp segment, and the dead stock ends at exactly zero
+/// through the belt's own convergence.
 #[test]
 fn gated_belt_refuses_and_converges_on_both_witness_classes() {
     // Class one, gated: the failed zeroing keeps the stamp stale.
@@ -453,10 +459,11 @@ fn run_schedule(seed: u64, gated: bool) -> (usize, usize) {
     (violations, steps)
 }
 
-/// THE SCHEDULE SAMPLER, the gated belt family: for every sampled
-/// schedule the FULL invariant holds after every micro-step —
-/// the ledger, the debt cap, the taint, the dead law, the stamp
-/// bound, the fraction domain, all six, all the way down.
+/// THE SCHEDULE SAMPLER, the shipped (gated) belt family: for
+/// every sampled schedule the FULL invariant holds after every
+/// micro-step — the ledger, the debt cap, the taint, the dead
+/// law, the stamp bound, the fraction domain, all six, all the
+/// way down.
 #[test]
 fn sampled_two_actor_schedules_preserve_the_full_laws() {
     for seed in 1..=512u64 {
@@ -469,11 +476,13 @@ fn sampled_two_actor_schedules_preserve_the_full_laws() {
     }
 }
 
-/// THE FALSIFICATION STATISTIC, the shipped belt family: the
-/// ungated belt's violation class is REACHABLE under sampled
-/// schedules — the mechanical pin that the finding is real and
-/// not a hand-built story. The count is reported, not asserted
-/// zero; the deterministic witness pins above carry the shape.
+/// THE FALSIFICATION STATISTIC, the pre-patch (ungated) belt
+/// family: the ungated belt's violation class is REACHABLE under
+/// sampled schedules — the mechanical pin that the finding is real
+/// and not a hand-built story, and the record of what the gated
+/// landing removed from the shipped bytes. The count is reported,
+/// not asserted zero; the deterministic witness pins above carry
+/// the shape.
 #[test]
 fn sampled_ungated_schedules_reach_the_dead_stamp_violation() {
     let mut schedules_with_violation = 0;

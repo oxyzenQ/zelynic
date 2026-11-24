@@ -70,10 +70,11 @@
 //!    (credited or born while stamped stale).
 //!  * P4 (the belt's dead law): a leaf stamped with the live
 //!    generation holds zero dead tokens — the stale-quantum
-//!    belt's own promise. Carried by the gated-belt machine (the
-//!    re-observation close); the SHIPPED belt's stamp write cannot
-//!    satisfy it — the falsification is the finding the instrument
-//!    filed, and the gated machine is the fix's certificate.
+//!    belt's own promise. Carried by the gated belt machine —
+//!    the SHIPPED bytes since night-frontier-Z17's gated landing;
+//!    the pre-patch ungated write's falsification is the finding
+//!    the instrument filed, and the property tier's witnesses plus
+//!    the ungated family's sampler statistic remain as its record.
 //!  * P5 (the stamp bound): the leaf's generation stamp never
 //!    exceeds max(hostile-genesis, live generation) — no
 //!    inversion: belt writes only ever land a READING of the
@@ -303,8 +304,9 @@ impl World {
         self.born || tokens_read(&self.leaf) == 0
     }
 
-    /// The full invariant P minus P4 (the shipped belt's family —
-    /// the falsification the finding filed rides the research doc).
+    /// The full invariant P minus P4 (the PRE-PATCH (ungated) belt's
+    /// family — the falsification the finding filed rides the
+    /// research doc and the property tier's witness record).
     pub fn laws_ok_except_dead(&self) -> bool {
         self.ledger_ok()
             && self.debt_capped()
@@ -315,7 +317,8 @@ impl World {
             && self.absent_slot_ok()
     }
 
-    /// The full invariant P including P4 (the gated belt's family).
+    /// The full invariant P including P4 (the shipped, gated belt's
+    /// family since the gated landing).
     pub fn laws_ok(&self) -> bool {
         self.laws_ok_except_dead() && self.belt_dead_ok()
     }

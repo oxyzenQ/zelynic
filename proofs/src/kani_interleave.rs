@@ -44,23 +44,26 @@
 //! the induction hypothesis of the law it names — the honest
 //! posture the Z6 audit set.
 //!
-//! THE FINDING this instrument filed (the falsification the
-//! property tier pins and the research doc records): the SHIPPED
-//! belt's stamp write cannot preserve the dead law P4 — a racing
+//! THE FINDING this instrument filed, and its close (the
+//! research doc records both): the PRE-PATCH belt's unconditional
+//! stamp write could not preserve the dead law P4 — a racing
 //! spend's remnant or a racing draw's credit survives the failed
-//! zeroing and gets stamped current. The conservation ledger P1
-//! holds throughout (the surviving tokens are real budget, never
-//! minted); the violation is the belt's certification, exactly
-//! the class the gated stamp segment (the proposed close,
-//! model-side) repairs by refusing to certify an unzeroed stock —
-//! its own preservation theorem below is the fix's certificate.
+//! zeroing and got stamped current. The conservation ledger P1
+//! held throughout (the surviving tokens are real budget, never
+//! minted); the violation was the belt's certification. The
+//! gated stamp segment — the SHIPPED bytes since
+//! night-frontier-Z17's gated landing — refuses to certify an
+//! unzeroed stock, re-fires on the next packet, and converges; its
+//! preservation theorem below is the shipped machine's own
+//! certificate, and the property tier keeps the pre-patch
+//! witnesses as the falsification record.
 
 use crate::interleave_model::{Target, World};
 use crate::interleave_segments::{
-    belt_stamp_gated_seg, belt_stamp_seg, belt_zero_seg, consume_seg, debt_charge_seg,
-    debt_pay_forgive_seg, debt_pay_tokens_seg, draw_leaf_credit_seg, draw_pool_take_seg,
-    draw_rollback_seg, draw_stamp_seg, init_seg, mutate_seg, refill_cap_clamp, refill_credit,
-    refill_frac_write, refill_seed_clamp, refill_window_take,
+    belt_stamp_gated_seg, belt_zero_seg, consume_seg, debt_charge_seg, debt_pay_forgive_seg,
+    debt_pay_tokens_seg, draw_leaf_credit_seg, draw_pool_take_seg, draw_rollback_seg,
+    draw_stamp_seg, init_seg, mutate_seg, refill_cap_clamp, refill_credit, refill_frac_write,
+    refill_seed_clamp, refill_window_take,
 };
 use crate::math_core::{
     Bucket, MAX_ENFORCABLE_BURST, NS_PER_SEC, Policy, refill_window, try_consume,
@@ -449,46 +452,21 @@ fn every_debt_segment_preserves_the_laws_for_all_states() {
     assert!(w.laws_ok(), "a debt segment broke the invariant");
 }
 
-/// THE belt family's conservative preservation: for EVERY P-state
-/// and every belt segment in the SHIPPED machine (the zeroing CAS
-/// and the unconditional stamp write), the invariant holds EXCEPT
-/// the dead law P4 — the falsification the finding filed. The
-/// conservation ledger holds through the belt (the surviving
-/// remnant is real budget, never minted); what breaks is the
-/// certification: the stamp write lands a current stamp over a
-/// stock the failed zeroing left. The gated stamp segment below
-/// carries the law the shipped form cannot.
-#[kani::proof]
-fn every_shipped_belt_segment_preserves_the_conservative_laws_for_all_states() {
-    let mut w = any_world();
-    kani::assume(w.laws_ok());
-    let gen_obs: u64 = kani::any();
-    kani::assume(gen_obs <= w.g_live);
-    let stale_obs: u64 = kani::any();
-    let seg: u8 = kani::any();
-    match seg % 2 {
-        0 => {
-            let _ = belt_zero_seg(&mut w, stale_obs);
-        }
-        _ => belt_stamp_seg(&mut w, gen_obs),
-    }
-    assert!(
-        w.laws_ok_except_dead(),
-        "a shipped belt segment broke the conservative invariant"
-    );
-}
-
-/// THE gated belt's full preservation (the proposed close's
-/// certificate): for EVERY P-state and every gated-form belt
-/// segment (the zeroing CAS and the re-observing stamp write),
-/// the FULL invariant holds, the dead law included — the gated
-/// write refuses to certify a stock it did not zero, so the belt
-/// re-fires on the next packet and the zeroing converges. The
-/// real re-read-to-write gap is the two-word atomicity floor the
+/// THE belt family's full preservation — the SHIPPED machine
+/// since night-frontier-Z17's gated landing: for EVERY P-state and
+/// every belt segment (the zeroing CAS and the re-observing gated
+/// stamp write, the bytes drr_flow.rs's leaf belt and cake_flow.rs's
+/// flow twin now run), the FULL invariant holds, the dead law P4
+/// included — the gated write refuses to certify a stock it did
+/// not zero, so a lost zero keeps the stamp stale, the next
+/// packet's belt re-fires, and the zeroing converges. The residual
+/// re-read-to-write gap is the two-word atomicity floor the
 /// research doc names; inside the model's segment atomicity the
-/// law is exact.
+/// law is exact. The PRE-PATCH (ungated) belt's own family and its
+/// deterministic falsification witnesses ride the property tier —
+/// the finding's record, never a red harness here.
 #[kani::proof]
-fn every_gated_belt_segment_preserves_the_full_laws_for_all_states() {
+fn every_shipped_belt_segment_preserves_the_full_laws_for_all_states() {
     let mut w = any_world();
     kani::assume(w.laws_ok());
     let gen_obs: u64 = kani::any();
@@ -502,7 +480,7 @@ fn every_gated_belt_segment_preserves_the_full_laws_for_all_states() {
         }
         _ => belt_stamp_gated_seg(&mut w, gen_obs, zeroed),
     }
-    assert!(w.laws_ok(), "a gated belt segment broke the invariant");
+    assert!(w.laws_ok(), "a shipped belt segment broke the invariant");
 }
 
 /// THE mutation and init family's preservation: for EVERY P-state,

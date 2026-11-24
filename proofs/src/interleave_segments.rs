@@ -313,8 +313,11 @@ pub fn debt_pay_forgive_seg(w: &mut World, pay: u64, fresh_obs: u64) {
 /// burn lands with the zeroed stock (stale quanta leave without a
 /// delivery); the taint zeroes with the tokens it zeroed. A lost
 /// CAS (a racing spend or credit moved the stock between the
-/// actor's read and the CAS) leaves the stock untouched — the
-/// kernel's own discard, the exact shape the finding documents.
+/// actor's read and the CAS) leaves the stock untouched and hands
+/// its verdict to the stamp segment — since the gated landing the
+/// kernel's own bytes gate the stamp write on this verdict (the
+/// pre-patch bytes discarded it, the exact shape the finding
+/// documented).
 pub fn belt_zero_seg(w: &mut World, stale_obs: u64) -> bool {
     if !w.born {
         return false;
@@ -328,28 +331,33 @@ pub fn belt_zero_seg(w: &mut World, stale_obs: u64) -> bool {
     false
 }
 
-/// Segment B2 (the SHIPPED form): the stamp write. The kernel
-/// writes its observed generation unconditionally after the zero
-/// attempt — win or lose — which is the byte shape this segment
-/// mirrors (the fidelity to drr_flow.rs's six lines is stated,
-/// sampler-pinned; the machine cannot satisfy P4 in this form —
-/// the falsification is the finding, and the gated twin below is
-/// the proposed close's certificate).
-pub fn belt_stamp_seg(w: &mut World, gen_obs: u64) {
+/// Segment B2 (the UNGATED form — the PRE-PATCH shipped bytes until
+/// night-frontier-Z17's gated landing): the stamp write, landed
+/// unconditionally after the zero attempt — win or lose. Kept as
+/// the falsification family's machine, the finding's own record:
+/// the property tier's two deterministic witness pins break P4
+/// against it and the sampler counts the class reachable, so the
+/// record of WHY the kernel bytes changed stays machine-anchored.
+/// The machine cannot satisfy P4 in this form — the falsification
+/// IS the finding.
+pub fn belt_stamp_ungated_seg(w: &mut World, gen_obs: u64) {
     if w.born && gen_stamp_read(&w.leaf) != gen_obs {
         gen_stamp_write(&mut w.leaf, gen_obs);
     }
 }
 
-/// Segment B2 (the GATED form — the proposed close, model-side):
-/// the stamp write lands only when the zeroing actually succeeded
-/// or the stock read zero — a failed zero keeps the stamp stale,
-/// so the next packet's belt re-fires and the zeroing converges
-/// (the leaf belt re-fires on every packet while the stamp
-/// mismatches, exactly the convergence the clamp family owns).
-/// The re-observation (`tokens_read == 0`) is inside the segment,
-/// the model's atomicity; the real re-read-to-write gap is the
-/// two-word atomicity floor the finding names honestly.
+/// Segment B2 (the GATED form — the SHIPPED bytes since
+/// night-frontier-Z17's gated landing, drr_flow.rs's leaf belt and
+/// cake_flow.rs's flow twin): the stamp write lands only when the
+/// zeroing actually succeeded or the stock read zero, and the stock
+/// re-observes zero — a failed zero keeps the stamp stale, so the
+/// next packet's belt re-fires and the zeroing converges (the leaf
+/// belt re-fires on every packet while the stamp mismatches,
+/// exactly the convergence the clamp family owns). The
+/// re-observation (`tokens_read == 0`) is inside the segment AND
+/// inside the kernel's own bytes; the residual real gap is the
+/// re-read-to-write window the research doc names honestly — the
+/// two-word atomicity floor, now as narrow as the form can make it.
 pub fn belt_stamp_gated_seg(w: &mut World, gen_obs: u64, zeroed: bool) {
     if w.born && gen_stamp_read(&w.leaf) != gen_obs && zeroed && tokens_read(&w.leaf) == 0 {
         gen_stamp_write(&mut w.leaf, gen_obs);
