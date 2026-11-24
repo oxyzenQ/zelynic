@@ -46,6 +46,39 @@ mod hist_core;
 #[path = "../../ebpf/src/quic.rs"]
 mod quic_core;
 
+// night-frontier-Z17 (the interleaving theorem): the ECN debt core
+// joins the included law files — the debt pair is one of the five
+// interleaving verbs the two-CPU segment model drives, and the same
+// #[path] include law holds (the bytes the kernel object builds).
+#[path = "../../ebpf/src/ecn.rs"]
+mod ecn_core;
+
+// The two-CPU segment model over the dual-compiled primitives —
+// three files, one implementation, both instruments below it (the
+// vt_model precedent: the model is a law library, pinned by
+// conformance). The state layer (the World, the invariant laws,
+// the access twins), the segment layer (the five verbs' atomicity
+// units), and the actor layer (the micro-step coroutine
+// controllers — the honest scheduler's execution shape). The kani
+// tier proves the single-step preservation theorems (the induction
+// that carries every schedule length) plus the fidelity pins; the
+// property tier hammers the same fidelity per-push and samples
+// full coroutine-shaped schedules against the invariant.
+#[path = "interleave_actors.rs"]
+mod interleave_actors;
+#[path = "interleave_model.rs"]
+mod interleave_model;
+#[path = "interleave_segments.rs"]
+mod interleave_segments;
+
+#[cfg(kani)]
+#[path = "kani_interleave.rs"]
+mod kani_interleave;
+
+#[cfg(test)]
+#[path = "interleave_laws.rs"]
+mod interleave_laws;
+
 // ── The instruments (each cfg-gated; see the module docs).
 
 #[cfg(test)]
