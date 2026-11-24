@@ -300,16 +300,20 @@ pub(super) fn try_flow_draw(
 /// level down — the generation stamp's mismatch zeroes tokens drawn
 /// under a dead budget before this packet may spend). Split out so
 /// drr_flow's lane stays a readable sequence and the belt reads as
-/// the law it is; the CAS form keeps a concurrent consumer correct
-/// (its consume re-observes the zero and retries against the fresh
-/// state).
+/// the law it is; the CAS zeroing keeps a concurrent consumer
+/// correct (its consume re-observes the zero and retries against
+/// the fresh state), and the stamp write is GATED
+/// (night-frontier-Z17, the leaf belt's twin): the write lands only
+/// when the zeroing won — or the stock read zero — and the stock
+/// re-observes zero, so a failed zero keeps the stamp stale and the
+/// next packet's belt re-fires until the zeroing converges.
 #[inline(always)]
 pub(super) fn flow_belt(flow: &mut Bucket, generation: u64) {
     if gen_stamp_read(flow) != generation {
         let stale = tokens_read(flow);
-        if stale != 0 {
-            let _ = tokens_cas(flow, stale, 0);
+        let zeroed = stale == 0 || tokens_cas(flow, stale, 0);
+        if zeroed && tokens_read(flow) == 0 {
+            gen_stamp_write(flow, generation);
         }
-        gen_stamp_write(flow, generation);
     }
 }

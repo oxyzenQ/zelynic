@@ -220,16 +220,22 @@ pub(super) fn drr_flow(
     // The generation stamp: a leaf whose stamp mismatches the live
     // MMSPA generation holds quanta from a dead budget (a policy
     // mutation happened since its draw) — zero them before this
-    // packet may spend. The CAS form keeps a concurrent consumer
-    // correct: its consume re-observes the zero and retries against
-    // the fresh state.
+    // packet may spend. The stamp write is GATED
+    // (night-frontier-Z17, the interleaving theorem's finding closed
+    // at the kernel tier): the write lands only when the zeroing
+    // won — or the stock read zero — and the stock re-observes
+    // zero. A failed zero keeps the stamp stale, the next packet's
+    // belt re-fires, and the zeroing converges; the unconditional
+    // write it replaces certified a racing remnant as current
+    // budget (one belt episode, stockpile-bounded), exactly the
+    // class the re-observation refuses.
     let generation = current_generation() as u64;
     if gen_stamp_read(bkt) != generation {
         let stale = tokens_read(bkt);
-        if stale != 0 {
-            let _ = tokens_cas(bkt, stale, 0);
+        let zeroed = stale == 0 || tokens_cas(bkt, stale, 0);
+        if zeroed && tokens_read(bkt) == 0 {
+            gen_stamp_write(bkt, generation);
         }
-        gen_stamp_write(bkt, generation);
     }
 
     // 3. THE FLOW LANE (schema v20, CAKE-shaped isolation): an
