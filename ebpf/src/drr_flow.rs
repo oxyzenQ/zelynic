@@ -220,20 +220,28 @@ pub(super) fn drr_flow(
     // The generation stamp: a leaf whose stamp mismatches the live
     // MMSPA generation holds quanta from a dead budget (a policy
     // mutation happened since its draw) — zero them before this
-    // packet may spend. The stamp write is GATED
-    // (night-frontier-Z17, the interleaving theorem's finding closed
-    // at the kernel tier): the write lands only when the zeroing
-    // won — or the stock read zero — and the stock re-observes
-    // zero. A failed zero keeps the stamp stale, the next packet's
-    // belt re-fires, and the zeroing converges; the unconditional
-    // write it replaces certified a racing remnant as current
-    // budget (one belt episode, stockpile-bounded), exactly the
-    // class the re-observation refuses.
+    // packet may spend. The stamp write is GATED on the zeroing
+    // verdict (night-frontier-Z17's finding, closed at the kernel
+    // tier and re-shaped by the live lane): the write lands only
+    // when the zeroing CAS won or the stock already read zero — a
+    // lost CAS never certifies the racing remnant it failed to
+    // zero, so the next packet's belt re-fires and the zeroing
+    // converges within one uncontended episode. The re-observing
+    // form the rung first landed (write only when the stock also
+    // re-reads zero) was falsified by the estate's own live e2e
+    // lane: under sustained delivery the re-observation keeps
+    // refusing (the stock moves through the read), the belt never
+    // converges, and the enforced rate collapses — the record
+    // rides the census. The residual this form carries, named:
+    // a racing draw's in-flight credit can land inside the
+    // belt's own write window and be stamped current — bounded
+    // by one armed take (the quantum), the two-word atomicity
+    // floor itself.
     let generation = current_generation() as u64;
     if gen_stamp_read(bkt) != generation {
         let stale = tokens_read(bkt);
         let zeroed = stale == 0 || tokens_cas(bkt, stale, 0);
-        if zeroed && tokens_read(bkt) == 0 {
+        if zeroed {
             gen_stamp_write(bkt, generation);
         }
     }
