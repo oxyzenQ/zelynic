@@ -311,7 +311,6 @@ fn every_refill_seed_clamp_segment_preserves_the_laws_for_all_states() {
 #[kani::proof]
 fn every_refill_window_segment_preserves_the_laws_for_all_states() {
     let mut w = any_world();
-    let pol = any_policy();
     kani::assume(w.laws_ok());
     let last_obs: u64 = kani::any();
     let now: u64 = kani::any();
