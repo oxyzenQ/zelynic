@@ -36,7 +36,7 @@
 
 [package]
 name = "zelynic-fuzz"
-version = "0.0.0"
+version = "80.5.0-dragon.1"
 publish = false
 edition = "2024"
 
