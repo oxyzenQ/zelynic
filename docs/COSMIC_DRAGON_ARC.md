@@ -59,15 +59,15 @@ ledger is the quota saver's Layer 2, landed by night-spark-4:
 | 3 | CAKE-style flow isolation | v20 | `ebpf/src/cake_flow.rs:203` | `cake_tests.rs`, `cake_battery_tests.rs` |
 | 4 | Per-socket limiting | v15 | `ebpf/src/socket_flow.rs:174` | `policy_tests.rs` |
 | 5 | QUIC-aware attribution | v22 | `ebpf/src/quic.rs:458` | `quic_tests.rs` |
-| 6 | ECN-first policing | v19/v21/v26 | `ebpf/src/ecn.rs:146`, `enforce_helpers.rs:240` | `ecn_tests.rs`, `ecn_socket_tests.rs`, `ecn-probe.sh` |
+| 6 | ECN-first policing | v19/v21/v26 | `ebpf/src/ecn.rs:146`, `enforce_helpers.rs:245` | `ecn_tests.rs`, `ecn_socket_tests.rs`, `ecn-probe.sh` |
 | 7 | Guaranteed minimum (floor/ceil) | v24 | `ebpf/src/drr_guarantee.rs` | `drr_guarantee_tests.rs` |
-| 8 | In-kernel time-series ring | v14 | `ebpf/src/rate_ring.rs:142` | `rate_ring_tests.rs` |
+| 8 | In-kernel time-series ring | v14 | `ebpf/src/rate_ring.rs:98` | `rate_ring_tests.rs` |
 | 9 | Self-proving enforcement | — | `src/commands/probe.rs` | integration `smoke.rs`, `proof-claims.sh` |
 | 10 | Bypass detection (shadow) | — | `src/ebpf/bypass.rs:170` | depth JSON verdicts, depth harness |
 | 11 | Container-native resolution | — | `src/ebpf/identity/container/mod.rs:160` | `supermassive-test-v3.sh`, CI kind lane |
-| 12 | Atomic multi-target rollback | — | `src/ebpf/limiter/atomic.rs:74` | `atomic_tests.rs` |
-| 13 | Time-windowed policies | v23 | `ebpf/src/during.rs:216` | `during_tests.rs`, `during_user_tests.rs` |
-| 14 | RECWN receive-window control | v25 | `ebpf/src/recwn.rs:98`, `recwn_flow.rs:114` | `recwn_tests.rs`, `recwn-probe.sh` |
+| 12 | Atomic multi-target rollback | — | `src/ebpf/limiter/atomic.rs:152` | `atomic_tests.rs` |
+| 13 | Time-windowed policies | v23 | `ebpf/src/during.rs:219` | `during_tests.rs`, `during_user_tests.rs` |
+| 14 | RECWN receive-window control | v25 | `ebpf/src/recwn.rs:146`, `recwn_flow.rs:210` | `recwn_tests.rs`, `recwn-probe.sh` |
 
 Status of the audit behind this table: the first thirteen lived in
 code, doc, and pin at the 2026-11-03 depth audit (below); the
@@ -133,7 +133,7 @@ starts from evidence instead of folklore:
   length that is connection state (RFC 9000 negotiates it inside
   encrypted NEW_CONNECTION_ID frames), so the datapath learns the
   length from the handshake's own explicit bytes into the two
-  per-direction hint maps (`quic_flow.rs:116`, LRU 4096,
+  per-direction hint maps (`quic_flow.rs:117`, LRU 4096,
   conversation-keyed), confirmation-gated: the same nonzero length
   must survive a second long-header sighting before any short
   header keys on it (`hint_confirmed`, `quic.rs:169`). Every
@@ -144,10 +144,10 @@ starts from evidence instead of folklore:
   lane and the v20 CAKE flow lane key their buckets by CID; the
   hint maps are datapath-internal by design (userspace never opens
   them, `quic_flow.rs:113`). The stats ledger stays the four-u64
-  contract (`math.rs:220`, `types.rs:236`) — packets/bytes
+  contract (`math.rs:254`, `types.rs:236`) — packets/bytes
   allowed/dropped — so no counter names CID-attributed or
   CE-marked traffic; the monitor's UDP endpoint tagging
-  (`src/ebpf/render/detail.rs:89`) is the QUIC-adjacent surface.
+  (`src/ebpf/render/detail.rs:172`) is the QUIC-adjacent surface.
   That is the documented posture, and it is also the first thing
   the quota saver must grow (the quota gap, below).
 - **All fourteen scales green on Code/Doc/Test** — the table above
@@ -156,7 +156,7 @@ starts from evidence instead of folklore:
 - **One drift flagged at the audit, closed by night-spark-2**
   (kernel-side comment only): `ebpf/src/schema.rs`'s history
   comment skipped the v16 and v20 notes its userspace twin
-  carries (`src/ebpf/limiter/schema.rs:155` and `:271`). The
+  carries (`src/ebpf/limiter/schema_ledger.rs:148` and `:264`). The
   RECWN commit restored both notes beside its own v25 entry —
   the twin parity the schema pins hold, comment-deep too.
 
@@ -266,8 +266,8 @@ the owner's build order says so.
   DELIVERED CE-marked instead of dropped whenever the kernel
   helper `bpf_skb_ecn_set_ce` (ID 97) can set the codepoint on an
   ECT-capable packet — the cgroup lanes rescue at the drop verdict
-  (`enforce.rs:375`, `enforce.rs:458`), the per-socket lane
-  carries the same mark tail (`socket_flow.rs:286`) — and QUIC
+  (`enforce.rs:495`, `enforce.rs:585`), the per-socket lane
+  carries the same mark tail (`socket_flow.rs:288`) — and QUIC
   endpoints send ECT(0) by default (RFC 9000), so an RFC 9002
   stack reads the CE and backs off without a single lost
   datagram: the retransmit storm the drop lane teaches is
