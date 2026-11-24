@@ -81,28 +81,47 @@ v80.0.0
   spend's remnant or a racing draw's in-flight credit as
   current-budget tokens for one belt episode (stockpile-bounded;
   the conservation ledger held throughout — the violation was the
-  certification, never the conservation). THE GATED LANDING
-  closed it at the kernel tier (owner-approved rung 4, 2026-11-24):
-  drr_flow.rs's leaf belt and its cake_flow.rs flow_belt twin now
-  write the stamp only when the zeroing CAS won — or the stock
-  already read zero — and the stock re-observes zero; a failed
-  zero keeps the stamp stale, the next packet's belt re-fires,
-  and the zeroing converges. The hot-path object changed, so the
-  prebuilt lane regenerated through its one writer (the limiter
-  object re-staged at 926888 bytes, the tree pin re-pinned, the
-  parity gate green); the pre-patch witnesses remain in the
-  property tier as the falsification record. A second finding —
-  the mutation's catch-up corner — was closed by law precision
+  certification, never the conservation). THE CLOSE LANDED AND
+  WAS PRICED BY THE ESTATE'S OWN GATES: rung 4 (owner-approved
+  2026-11-24) shipped the re-observing gated belt — the stamp
+  write also requiring the stock to re-observe zero, carrying the
+  full dead law P4 with its own preservation theorem — and the
+  live e2e lanes went RED on the sustained-throughput rows the
+  model cannot see (value semantics has no contention physics):
+  the jammy sustain median 56% -> 11%, noble 62% -> 12%, the
+  alpine non-binding overhead +51.9% with zero drops — under
+  sustained delivery the stock moves through the re-observation,
+  the belt never converges, and it keeps zeroing freshly drawn
+  budget. Rung 8 re-shaped the shipped bytes the same day to the
+  ZEROED-VERDICT gate: the stamp lands when the zeroing CAS won
+  or the stock read zero, a lost CAS never certifies the racing
+  remnant it failed to zero, and the convergence restores the
+  pre-patch timing — the live lanes GREEN again (jammy sustain
+  median 83%, at or above the pre-patch numbers). The hot-path
+  object changed twice, so the prebuilt lane regenerated through
+  its one writer both times (the limiter re-staged at 925584
+  bytes, the tree pin re-pinned, the parity gate green); the
+  residual the shipped form carries is NAMED — a racing draw's
+  in-flight credit inside the belt's write window, bounded by
+  one armed take (the quantum), the two-word atomicity floor
+  itself — and the re-observing quiet form stays in the model as
+  the certified-but-unshippable certificate (the full close,
+  priced). The pre-patch witnesses remain in the property tier
+  as the falsification record. A second finding — the mutation's
+  catch-up corner — was closed by law precision
   (the stamp-provenance law P8), not a quiet assume. The
   fidelity tier's own census retired one lemma honestly (the
   forward-clock refill: two division pipelines the solver will
   not common-subexpress; the sampled tier carries it, the reopen
-  lever named). The theorem tier stands at thirteen theorems —
-  three fidelity pins plus ten preservation theorems, one Kani
-  matrix seat each — plus the one retirement; the boundaries the
-  claim carries are stated (the memory-ordering tier unchecked —
-  value semantics; the two-word belt atomicity floor narrowed to
-  the re-read-to-write window the shipped bytes actually carry).
+  lever named). The theorem tier stands at fourteen theorems —
+  three fidelity pins plus eleven preservation theorems (the
+  shipped belt's conservative family and the quiet belt's full
+  family riding beside each other, one Kani matrix seat each) —
+  plus the one retirement; the boundaries the claim carries are
+  stated (the memory-ordering tier unchecked — value semantics;
+  the live-throughput tier outside the model and caught by the
+  estate's own e2e lanes; the two-word belt atomicity floor
+  priced with the quantum-bounded residual named).
   Details in docs/INNOVATIONS.md's night-frontier-Z17 section and
   docs/research/NIGHT_Z17_INTERLEAVING_CENSUS.md.
 - **night-frontier-Z16: the field sensor and the booking law — the

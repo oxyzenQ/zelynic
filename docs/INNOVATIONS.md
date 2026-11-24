@@ -1964,27 +1964,44 @@ hand-built schedules — the PRE-PATCH record, kept as the
 falsification that drove the byte change), the sampler carries
 the statistical pin (the violation class is reachable under
 random schedules), and the GATED stamp segment — the six-line
-close, LANDED as the kernel's own bytes since the owner-approved
-rung 4 (2026-11-24: drr_flow.rs's leaf belt and cake_flow.rs's
-flow twin, the prebuilt lane regenerated through its one writer,
-the parity gate green) — refuses to certify an unzeroed stock,
-re-fires on the next packet, and converges: its own preservation
-theorem
-(`every_shipped_belt_segment_preserves_the_full_laws_for_all_states`)
-is the shipped machine's own certificate, and the two witness
-classes flip green under it. A second, smaller finding came from the law's own precision:
+close — refuses to certify an unzeroed stock and re-fires on the
+next packet. The close's own landing arc is the rung's second
+finding, and the estate's own gates wrote it: rung 4 (owner-approved,
+2026-11-24) landed the re-observing form — the stamp write also
+requiring the stock to re-observe zero, carrying the full law P4
+with its own preservation theorem — and the live e2e lanes went
+RED on the sustained-throughput rows the model cannot see: the
+jammy sustain median 56% -> 11%, noble 62% -> 12%, the alpine
+non-binding overhead +51.9% with zero drops — under sustained
+delivery the stock moves through the re-observation, the belt
+never converges, and it keeps zeroing freshly drawn budget. Rung 8
+re-shaped the shipped bytes the same day to the zeroed-verdict
+gate (the stamp lands when the zeroing CAS won or the stock read
+zero): the stockpile-bounded class stays closed (a lost CAS
+never certifies the remnant it failed to zero — the witness flips
+green), the convergence restores the pre-patch timing (the live
+lanes green again, the jammy sustain median 83%), and the form
+carries ONE named residual — a racing draw's in-flight credit
+inside the belt's write window, bounded by one armed take (the
+quantum), the two-word atomicity floor itself — with the
+conservative preservation theorem
+(`every_shipped_belt_segment_preserves_the_conservative_laws`) at
+the kani tier, while the re-observing QUIET form stands beside it
+as the certified-but-unshippable certificate
+(`every_quiet_belt_segment_preserves_the_full_laws`) — the full
+close, priced. A second, smaller finding came from the law's own precision:
 the single-step tier caught the mutation's catch-up corner (a
 hostile genesis stamp the live generation can land on, in the
 over-approximated pre-state space) — closed not by a quiet assume
 but by naming the stamp's provenance as law P8 (a stamp that ever
 moved is a belt write, at or under the live generation), the same
-honesty discipline the carve-outs above carry. The kernel byte
-change landed with this rung: the gated form is the SHIPPED form,
-and the honest claim since is the belt's zero claim holds for
-every schedule — the documented adversarial residual (one
-episode, stockpile-bounded) is removed from the bytes, the legacy
-witnesses and the ungated family's sampler statistic remaining as
-the record of what the landing removed.
+honesty discipline the carve-outs above carry. The honest claim
+since the re-shape: the belt's zero claim holds at quiescence for
+every schedule, the stockpile-bounded certification class is
+closed in the shipped bytes, and the quantum-bounded in-flight
+window remains — named, bounded, priced, and recorded (the
+legacy witnesses and the ungated family's sampler statistic kept
+as the falsification record).
 
 **Why never-done**: no limiter in this class — not the Cilium
 family, not the qdisc/sch_cake family, not any eBPF policer tool —
@@ -1995,10 +2012,13 @@ narrow and honest: the budget core (the words the conservation
 law rides) is proven for every schedule, not a sample — with its
 instruments' boundaries stated (the shaping words' documented
 slack, the memory-ordering tier unchecked, the two-word belt's
-atomicity floor named), its falsification on display, and its fix
-certificated before it landed — then landed as the kernel's own
-bytes, the prebuilt lane re-pinned behind it. Competitors cannot
-copy that claim without building the proof culture first.
+atomicity floor priced, the live-throughput tier outside the
+model and caught by the estate's own e2e lanes), its
+falsification on display, its first close falsified by its own
+gates and re-shaped the same day, and its final shape landed as
+the kernel's own bytes with the residual named — the prebuilt
+lane re-pinned behind every byte change. Competitors cannot copy
+that claim without building the proof culture first.
 
 ## The Quota Saver — the Workload-Conditional Claim
 
