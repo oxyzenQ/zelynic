@@ -46,6 +46,35 @@ v80.0.0
 
 ### Added
 
+- **night-depth-hardening-5: the walk-cost ledger sync — the growth
+  law's events named at every tier that speaks the numbers, the
+  ratchet executed, and the five-area LTS cross-check at the Z17
+  tree.** The verifier budget ledger's growth law is never silent,
+  but the Z17 raise (+88 dl, run 45370360921) lived only in the
+  ledger: the enforce_helpers.rs callee-shape comment still spoke
+  the Z14-era pair in the present tense, and no doc tier named the
+  event. The sync: the ul pin ratcheted to its measured 132960 (the
+  ratchet law's encouraged follow-up, run 45374359811 named in the
+  row's history), the source comment dated and re-paired (the
+  post-belt 141981 / 132960 with both runs named — the comment
+  names the events, the ledger owns the values), the census, D17,
+  and this file carrying the same sentence at their tiers. The
+  prebuilt lane re-pinned behind the comment edit through its one
+  writer with the section-level byte-identity proof landed in the
+  commit: .text, every program section, .BTF, .maps, and every
+  program relocation byte-identical — only the DWARF line-info
+  class moved (+8 file bytes of alignment over it), the observer
+  object byte-identical, the verifier prices untouched. The
+  five-area cross-check (stability, hygiene, optimization,
+  security, LTS) ran at the Z17 tree with every instrument the
+  seat can run: panic census zero over ebpf/src, the division
+  census intact, the determinism tier pinned by the hardening-1
+  compositional laws, the schedule ban and SHA-pin law verified
+  live, the audit records
+  NIGHT_DEPTH_HARDENING_5_WALK_COST_LEDGER_SYNC_AND_FIVE_AREA_AUDIT_2026-11-24.md,
+  NIGHT_ZEN_LTS_3_ALL_INFRA_AUDIT_2026-11-24.md, and
+  NIGHT_ZEN_LTS_2_SHARPEST_SKILL_AUDIT_2026-11-24.md carrying the
+  verdicts with the peak-skips named.
 - **night-frontier-Z17: the interleaving theorem (D17) — the budget
   core proven for every schedule, the finding the instrument
   filed, and the gated landing that closed it.** The estate's
@@ -107,7 +136,10 @@ v80.0.0
   itself — and the re-observing quiet form stays in the model as
   the certified-but-unshippable certificate (the full close,
   priced). The pre-patch witnesses remain in the property tier
-  as the falsification record. A second finding — the mutation's
+  as the falsification record. The budget gate priced the landed
+  bytes on the head envelope: the walk measured 141981 / 132960
+  verified_insns — the dl pin raised +88 per the growth law (run
+  45370360921), the honest price of the gated verdict. A second finding — the mutation's
   catch-up corner — was closed by law precision
   (the stamp-provenance law P8), not a quiet assume. The
   fidelity tier's own census retired one lemma honestly (the
