@@ -452,6 +452,32 @@ v80.0.0
 
 ### Fixed
 
+- **fix(packaging): the registry tarball carries the pinned
+  maintainer fingerprint the D5 lane includes — the first tag to
+  walk the publish lane would have died in the verification build.**
+  The missing-package-file class: `build/gpg.rs` and the runtime
+  attest policy `include_str!` the pinned fingerprint at compile
+  time (the D5 commit-signature stamp's single source of truth,
+  night-solid-defense-2), but the Cargo.toml include list — last
+  measured with `cargo package --list` before the trust anchors
+  landed — never carried `assets/gpg/pinned-maintainer-fpr.txt`.
+  Reproduced on this tree before the fix: `cargo package` died with
+  "could not compile `zelynic` (build script)" at the include site,
+  "failed to verify package tarball". The fingerprint now rides the
+  package (`cargo package --list` confirms the row; the full
+  verification build is green from the packed tarball), and the
+  include list carries the sync-duty comment naming the law: every
+  new `include_str!` under build/ or src/ joins the list, the way
+  the MSRV pin syncs. The armored public key deliberately stays a
+  repo-side lane: a registry tarball build has no HEAD to verify
+  and the D5 lane fail-closes to the honest no-vcs state — carrying
+  verifier material the tarball cannot use would be theater, not
+  security. The sweep's other half came back clean: the sig verdict
+  literal's consumers (the in-source 6/6 pin, the labs-exp binding
+  probe, the dated audit record) all speak the six-depth shape the
+  ladder prints, and the release lane's post-build gate carries no
+  depth-count grep to go stale.
+
 - **fix(ci): the verifier census keeps the pty master open through
   the observe pricing — the observer's two programs were priced
   after the session that owns them had died.** The census closed

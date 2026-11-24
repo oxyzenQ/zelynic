@@ -91,6 +91,22 @@ include = [
     # the registry tarball or a `cargo install` extract builds a
     # build.rs whose modules are absent.
     "build/*.rs",
+    # NIGHT-sig-parity-1B-2: build/gpg.rs holds a compile-time
+    # include_str! of the pinned maintainer fingerprint (the D5
+    # commit-signature stamp's single source of truth, shared with
+    # the runtime policy through the same include), so the file MUST
+    # ride the registry tarball — a cargo package / publish / install
+    # build from it dies with "couldn't read
+    # .../assets/gpg/pinned-maintainer-fpr.txt" otherwise (reproduced
+    # on this tree before the fix). The sync duty, named so it
+    # survives: every new include_str! under build/ or src/ needs its
+    # file on this list, the way the MSRV pin syncs. The armored
+    # public key (assets/gpg/maintainer-*.asc) deliberately stays a
+    # repo-side lane: a registry tarball build has no HEAD to verify
+    # and the D5 lane fail-closes to the honest no-vcs state, so
+    # carrying verifier material the tarball cannot use would be
+    # theater, not security.
+    "assets/gpg/pinned-maintainer-fpr.txt",
     "Cargo.toml",
     "Cargo.lock",
     "rust-toolchain.toml",
