@@ -256,8 +256,8 @@ bump_lock() {
 		{ print }
 	' "${lockf}" >"${tmp}"
 	after="$(lock_entry_versions "${names_regex}" "${tmp}")"
-	if [ "$(sort <<<"${before}" | cut -f1)" != "$(sort <<<"${after}" | cut -f1)" ] \
-		|| [ -n "$(awk -F'\t' -v want="${NEW_VERSION}" '$2 != want' <<<"${after}")" ]; then
+	if [ "$(sort <<<"${before}" | cut -f1)" != "$(sort <<<"${after}" | cut -f1)" ] ||
+		[ -n "$(awk -F'\t' -v want="${NEW_VERSION}" '$2 != want' <<<"${after}")" ]; then
 		rm -f "${tmp}"
 		echo -e "${RED}FAIL:${NC} ${label} the lock rewrite did not verify — the file was left as found, nothing kept." >&2
 		exit 1
@@ -560,9 +560,9 @@ validate_version "${NEW_VERSION}"
 # this pass.
 TOUCHED=()
 build_bump_sets
-CURRENT=$(current_version)
 # The bump set as one ERE of crate names — the lock graph walks it.
-names_regex="$(IFS='|'; echo "${BUMP_NAMES[*]}")"
+names_regex="$(printf '%s|' "${BUMP_NAMES[@]}")"
+names_regex="${names_regex%|}"
 
 # NIGHT-bump-1: the ledger pre-flight runs BEFORE the early exit and
 # BEFORE any file is mutated — a re-run at an already-bumped version
