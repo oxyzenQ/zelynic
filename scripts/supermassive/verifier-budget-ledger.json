@@ -53,7 +53,7 @@
    "kernel_class": "uname -r not 5.15.* - the archive's latest kernel, resolved dynamically at run time (any kernel at or past v5.16 exposes the field)",
    "rows": {
     "enforce_dl": {
-     "budget": 141893,
+     "budget": 141981,
      "history": [
       {
        "kind": "pin",
@@ -72,6 +72,12 @@
        "value": 141893,
        "source": "the supermassive verifier budget run 45209186940, job 137815814720 (the night-frontier-Z14d object da7a4d1, head envelope, kernel 7.3.0-11-generic, pair (13,15) honored, fill 232)",
        "reason": "the Z14 callee rung's ratchet - the follow-up the walk collapse's own record named. The verdict path's duplicated tail family (ring_verdict, ecn_rescue, quic_flow_key) became bpf2bpf callees, so the verifier prices each callee body once instead of once per flattened call site: the watched run measured 141893 against the 666635 pin, 524742 states of headroom freed (-79 percent). The pin moves to the measured number; the growth law now guards the collapsed shape."
+      },
+      {
+       "kind": "raise",
+       "value": 141981,
+       "source": "the supermassive verifier budget run 45370360921, job 138365035297 (the night-frontier-Z17 rung-8 object, ebpf tree pin e2ab7b4b, head envelope, kernel 7.3.0-11-generic, pair (13,15) honored, fill 232)",
+       "reason": "the Z17 gated belt's verdict gate - the closing shape of the interleaving theorem's finding 1. The stamp write in drr_flow.rs's leaf belt and cake_flow.rs's flow twin now gates on the zeroing verdict (the stale==0 short-circuit plus the zeroed branch replacing the unconditional write the pre-patch bytes carried), so the verifier's explored walk widened by +88 states (enforce_dl) - the honest price of refusing to certify a stock the zeroing CAS failed to zero. The upload lane measured 60 under its own pin (enforce_ul 132960 vs 133020), the direction asymmetry the two programs' inlining already carries, so only the download row raises."
       }
      ]
     },
