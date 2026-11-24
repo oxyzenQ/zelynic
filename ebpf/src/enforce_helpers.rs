@@ -18,9 +18,14 @@
 // The Z9 verifier budget ledger prices the trade: the landed
 // three-callee family (ring_verdict, ecn_rescue, and quic_flow_key
 // in quic_flow.rs) measured the enforcer's walk at 141893 / 133020
-// verified_insns on the 7.3-generation kernel — down from 666635 /
-// 706129, a 79-81 percent collapse, the ceiling the mirror's reopen
-// condition names as its walk-cost rung.
+// verified_insns on the 7.3-generation kernel (the Z14 callee rung's
+// ratchet, run 45209186940) — down from 666635 / 706129, a 79-81
+// percent collapse, the ceiling the mirror's reopen condition names
+// as its walk-cost rung. The Z17 gated belt's verdict gate re-priced
+// the walk at 141981 / 132960 (the dl row raised +88 per the growth
+// law, run 45370360921; the ul row ratcheted to the measured number,
+// run 45374359811) — the ledger's rows stay the canonical numbers;
+// this comment names the events, the ledger owns the values.
 //
 // The boundary law, measured twice before it was believed (the Z14
 // load census, kernel 7.3.5, the local VM instrument): a bpf2bpf
