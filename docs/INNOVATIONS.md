@@ -1874,6 +1874,123 @@ are one posture: the evidence that would reopen a deferred item is
 harvested before it is needed, and the numbers that survive are
 the ones that can be killed.
 
+## night-frontier-Z17 — the interleaving theorem (D17): the budget core proven for every schedule
+
+The estate's proof tier had twelve theorems strong, every one of
+them a single-threaded law: the refill totality, the clamp family
+over hostile state, the consume sufficiency, the ring pair, the
+margin erosion — all for-all over INPUTS, all silent over
+SCHEDULES. The SMP hammers hammered sample interleavings; the
+concurrency space itself — for every CPU interleaving of the CAS
+draw / refill / debt pay / generation belt / NOEXIST init on the
+same bucket, no corrupt state is reachable — stayed a sample
+class. This rung closes that: the budget core is now proven for
+every schedule, by a theorem shape the tier never had.
+
+### The physics
+
+`proofs/src/interleave_model.rs` + `interleave_segments.rs` +
+`interleave_actors.rs` build a two-CPU model whose scheduling unit
+is the SEGMENT — one observation phase plus at most one RMW/write,
+the granularity at which the kernel's verbs are actually
+preemptible (a volatile read feeding a later CAS is its own
+scheduling point: the stale-observation window is the race the
+boost-38 discipline exists to survive). Every segment calls the
+dual-compiled primitives themselves — tokens_cas, tokens_fetch_add,
+draw_stamp_take, gen_stamp_read/write, refill_credits, the debt
+pair — the same bytes the kernel object builds. Two restatements
+exist and are pinned, never hidden: the ecn word twins (private in
+the core, restated verbatim, fidelity-pinned) and the draw/belt
+program orders (the aya-touching halves, not includeable by the
+proofs package's core-only law — their sequencing is pinned by the
+segment bytes plus the sampler, the boundary stated in the model
+header). The anti-gimmick instrument is the FIDELITY PIN: for all
+inputs, each verb's actor run with nothing interleaved reproduces
+the kernel function's own final state exactly — a machine that
+restates instead of proving the bytes fails there, and the
+property tier hammers the same equivalence per-push (4096
+shrinkable cases per law, plus the chain pin — kernel == driver ==
+actor). The fidelity tier's own census retired one lemma with
+the record honest (the forward-clock refill lemma: two
+refill_credits division pipelines the solver will not
+common-subexpress; the backward-clock lemma stands verified, the
+forward rides the sampled tier) — the full census, the two
+findings, and the domain boundaries live in
+[docs/research/NIGHT_Z17_INTERLEAVING_CENSUS.md](research/NIGHT_Z17_INTERLEAVING_CENSUS.md).
+
+### The theorem
+
+The schedule space is unbounded, so the proof is INDUCTION, not
+enumeration: a corrupted reachable state implies a first
+invariant-failing segment from a P-satisfying state, so
+machine-checking that EVERY segment preserves P from EVERY
+P-state (kani::assume(P) — the induction hypothesis, stated) proves
+every interleaving of every length preserves P at every point.
+The single-step tier quantifies over a conservative
+over-approximation of the reachable schedule class (it admits
+orders no verb's program order produces — green covers the real
+coroutine schedules a priori), and the sampler exercises the
+coroutine-shaped schedules directly (two actors, an adversarial
+bit stream, the invariant asserted after every micro-step). The
+invariant P is the "no corrupt state" claim made checkable — six
+laws, the ledger the exact conservation move: the token stock
+accounted to the byte through every credit, burn, spend, pay, and
+draw half in flight; the debt word capped; the leaf's taint split
+exact; the belt's dead law; the stamp bound; the fraction domain.
+That ledger IS drr.rs's own headline — "DRR redistributes the
+budget, it cannot create one" — as a machine-checked law, and it
+is the no-lost-refill / no-debt-double-pay lemma pair the budget
+core never had at the for-all tier.
+
+### The finding the instrument filed
+
+The theorem tier did not just verify the shipped bytes — it
+falsified one of their claims, with a witness. The SHIPPED
+generation belt's stamp write is unconditional after its zeroing
+CAS: `let _ = tokens_cas(bkt, stale, 0); gen_stamp_write(...)`.
+Under an adversarial interleaving — a racing spend's remnant or a
+racing draw's in-flight credit moving the stock between the belt's
+read and its CAS — the zeroing loses, the discard swallows the
+failure, and the stamp write certifies a dead remnant as
+current-budget tokens: spendable forever, one belt episode wide,
+bounded by the leaf's stockpile. The conservation ledger holds
+throughout (the surviving tokens are real budget, never minted);
+the violation is the certification, not the conservation — exactly
+the class the belt exists to close. The witnesses are pinned
+deterministically in `interleave_laws.rs` (both classes, shrunk to
+hand-built schedules), the sampler carries the statistical pin
+(the violation class is reachable under random schedules), and the
+GATED stamp segment — the proposed six-line close, model-side —
+refuses to certify an unzeroed stock, re-fires on the next packet,
+and converges: its own preservation theorem
+(`every_gated_belt_segment_preserves_the_full_laws_for_all_states`)
+is the fix's certificate, and the two witness pins flip green under
+it. A second, smaller finding came from the law's own precision:
+the single-step tier caught the mutation's catch-up corner (a
+hostile genesis stamp the live generation can land on, in the
+over-approximated pre-state space) — closed not by a quiet assume
+but by naming the stamp's provenance as law P8 (a stamp that ever
+moved is a belt write, at or under the live generation), the same
+honesty discipline the carve-outs above carry. The kernel byte change itself rides the owner's prebuilt
+pipeline decision — the model, the witnesses, the certificate, and
+the patch shape are on file; the honest claim until it lands: the
+belt's zero claim holds at quiescence, with a documented
+adversarial residual (one episode, stockpile-bounded) the gated
+form removes.
+
+**Why never-done**: no limiter in this class — not the Cilium
+family, not the qdisc/sch_cake family, not any eBPF policer tool —
+publishes an exhaustive interleaving theorem for its kernel
+concurrency core. The industry standard is load testing and
+fuzzing: samples, forever samples. The claim this rung banks is
+narrow and honest: the budget core (the words the conservation
+law rides) is proven for every schedule, not a sample — with its
+instruments' boundaries stated (the shaping words' documented
+slack, the memory-ordering tier unchecked, the two-word belt's
+atomicity floor named), its falsification on display, and its fix
+certificated before it is applied. Competitors cannot copy that
+claim without building the proof culture first.
+
 ## The Quota Saver — the Workload-Conditional Claim
 
 The fourteenth, fifteenth, and sixteenth entries above (RECWN, ECN,
