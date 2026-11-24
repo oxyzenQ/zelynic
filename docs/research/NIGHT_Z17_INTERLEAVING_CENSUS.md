@@ -255,6 +255,13 @@ job — the estate's shape). The rung-8 sweep (the re-shaped tree,
 1.6-99.5 s; consume 36.0 s; draw 26.6 s; debt 104.4 s; the
 shipped belt 36.5 s; the quiet belt 28.9 s; mutate/init 2.5 s —
 every seat inside the 15-minute estate ceiling with wide margin.
+The CI tier priced the landed bytes on the head envelope: the
+enforcer's walk measured 141981 / 132960 verified_insns (kernel
+7.3.0-11-generic) — the dl pin raised +88 per the growth law (run
+45370360921, the gated verdict's honest price), the ul pin
+ratcheted to the measured number (run 45374359811, the ratchet
+law's encouraged follow-up); the ledger's histories carry both
+events, the numbers the ledger owns.
 
 ## The property tier (the sampled instruments, per-push)
 

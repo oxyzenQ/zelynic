@@ -1989,7 +1989,12 @@ conservative preservation theorem
 the kani tier, while the re-observing QUIET form stands beside it
 as the certified-but-unshippable certificate
 (`every_quiet_belt_segment_preserves_the_full_laws`) — the full
-close, priced. A second, smaller finding came from the law's own precision:
+close, priced. The estate's budget gate priced the landed shape on
+the head kernel: the enforcer's walk measured 141981 / 132960
+verified_insns — the dl row raised +88 per the growth law (run
+45370360921, the gated verdict's honest price), the ul row
+ratcheted to the measured number (run 45374359811), both histories
+named in the ledger. A second, smaller finding came from the law's own precision:
 the single-step tier caught the mutation's catch-up corner (a
 hostile genesis stamp the live generation can land on, in the
 over-approximated pre-state space) — closed not by a quiet assume
