@@ -1932,11 +1932,12 @@ orders no verb's program order produces — green covers the real
 coroutine schedules a priori), and the sampler exercises the
 coroutine-shaped schedules directly (two actors, an adversarial
 bit stream, the invariant asserted after every micro-step). The
-invariant P is the "no corrupt state" claim made checkable — six
+invariant P is the "no corrupt state" claim made checkable — eight
 laws, the ledger the exact conservation move: the token stock
 accounted to the byte through every credit, burn, spend, pay, and
 draw half in flight; the debt word capped; the leaf's taint split
-exact; the belt's dead law; the stamp bound; the fraction domain.
+exact; the belt's dead law; the stamp bound; the fraction domain;
+the absent slot; the stamp provenance.
 That ledger IS drr.rs's own headline — "DRR redistributes the
 budget, it cannot create one" — as a machine-checked law, and it
 is the no-lost-refill / no-debt-double-pay lemma pair the budget
@@ -1944,10 +1945,11 @@ core never had at the for-all tier.
 
 ### The finding the instrument filed
 
-The theorem tier did not just verify the shipped bytes — it
-falsified one of their claims, with a witness. The SHIPPED
-generation belt's stamp write is unconditional after its zeroing
-CAS: `let _ = tokens_cas(bkt, stale, 0); gen_stamp_write(...)`.
+The theorem tier did not just verify the bytes — it
+falsified one of the claims the kernel then shipped, with a
+witness. The pre-patch generation belt's stamp write was
+unconditional after its zeroing CAS: `let _ = tokens_cas(bkt,
+stale, 0); gen_stamp_write(...)`.
 Under an adversarial interleaving — a racing spend's remnant or a
 racing draw's in-flight credit moving the stock between the belt's
 read and its CAS — the zeroing loses, the discard swallows the
@@ -1958,25 +1960,31 @@ throughout (the surviving tokens are real budget, never minted);
 the violation is the certification, not the conservation — exactly
 the class the belt exists to close. The witnesses are pinned
 deterministically in `interleave_laws.rs` (both classes, shrunk to
-hand-built schedules), the sampler carries the statistical pin
-(the violation class is reachable under random schedules), and the
-GATED stamp segment — the proposed six-line close, model-side —
-refuses to certify an unzeroed stock, re-fires on the next packet,
-and converges: its own preservation theorem
-(`every_gated_belt_segment_preserves_the_full_laws_for_all_states`)
-is the fix's certificate, and the two witness pins flip green under
-it. A second, smaller finding came from the law's own precision:
+hand-built schedules — the PRE-PATCH record, kept as the
+falsification that drove the byte change), the sampler carries
+the statistical pin (the violation class is reachable under
+random schedules), and the GATED stamp segment — the six-line
+close, LANDED as the kernel's own bytes since the owner-approved
+rung 4 (2026-11-24: drr_flow.rs's leaf belt and cake_flow.rs's
+flow twin, the prebuilt lane regenerated through its one writer,
+the parity gate green) — refuses to certify an unzeroed stock,
+re-fires on the next packet, and converges: its own preservation
+theorem
+(`every_shipped_belt_segment_preserves_the_full_laws_for_all_states`)
+is the shipped machine's own certificate, and the two witness
+classes flip green under it. A second, smaller finding came from the law's own precision:
 the single-step tier caught the mutation's catch-up corner (a
 hostile genesis stamp the live generation can land on, in the
 over-approximated pre-state space) — closed not by a quiet assume
 but by naming the stamp's provenance as law P8 (a stamp that ever
 moved is a belt write, at or under the live generation), the same
-honesty discipline the carve-outs above carry. The kernel byte change itself rides the owner's prebuilt
-pipeline decision — the model, the witnesses, the certificate, and
-the patch shape are on file; the honest claim until it lands: the
-belt's zero claim holds at quiescence, with a documented
-adversarial residual (one episode, stockpile-bounded) the gated
-form removes.
+honesty discipline the carve-outs above carry. The kernel byte
+change landed with this rung: the gated form is the SHIPPED form,
+and the honest claim since is the belt's zero claim holds for
+every schedule — the documented adversarial residual (one
+episode, stockpile-bounded) is removed from the bytes, the legacy
+witnesses and the ungated family's sampler statistic remaining as
+the record of what the landing removed.
 
 **Why never-done**: no limiter in this class — not the Cilium
 family, not the qdisc/sch_cake family, not any eBPF policer tool —
@@ -1988,8 +1996,9 @@ law rides) is proven for every schedule, not a sample — with its
 instruments' boundaries stated (the shaping words' documented
 slack, the memory-ordering tier unchecked, the two-word belt's
 atomicity floor named), its falsification on display, and its fix
-certificated before it is applied. Competitors cannot copy that
-claim without building the proof culture first.
+certificated before it landed — then landed as the kernel's own
+bytes, the prebuilt lane re-pinned behind it. Competitors cannot
+copy that claim without building the proof culture first.
 
 ## The Quota Saver — the Workload-Conditional Claim
 
