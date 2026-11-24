@@ -44,26 +44,32 @@
 //! the induction hypothesis of the law it names — the honest
 //! posture the Z6 audit set.
 //!
-//! THE FINDING this instrument filed, and its close (the
-//! research doc records both): the PRE-PATCH belt's unconditional
-//! stamp write could not preserve the dead law P4 — a racing
-//! spend's remnant or a racing draw's credit survives the failed
-//! zeroing and got stamped current. The conservation ledger P1
-//! held throughout (the surviving tokens are real budget, never
-//! minted); the violation was the belt's certification. The
-//! gated stamp segment — the SHIPPED bytes since
-//! night-frontier-Z17's gated landing — refuses to certify an
-//! unzeroed stock, re-fires on the next packet, and converges; its
-//! preservation theorem below is the shipped machine's own
-//! certificate, and the property tier keeps the pre-patch
-//! witnesses as the falsification record.
+//! THE FINDING this instrument filed, its close, and the live
+//! lane's verdict on the close's first shape (the research doc
+//! records all three): the PRE-PATCH belt's unconditional stamp
+//! write could not preserve the dead law P4 — a racing spend's
+//! remnant or a racing draw's credit survives the failed zeroing
+//! and got stamped current, while the conservation ledger P1 held
+//! throughout (the violation was the belt's certification). The
+//! gated stamp segment — the SHIPPED bytes since rung 8 — gates the
+//! write on the zeroing verdict, closing the stockpile-bounded
+//! class; its named residual (a racing draw's in-flight take inside
+//! the belt's write window, quantum-bounded) keeps P4 at the
+//! conservative tier for the shipped form. The QUIET stamp segment
+//! — the re-observing close rung 4 first landed — carries the full
+//! law P4 for all states, and the live e2e lane falsified its
+//! throughput shape (the belt never converges under sustained
+//! delivery; the enforced rate collapses; the census carries the
+//! numbers), so it stands as the certified-but-unshippable form:
+//! the model-side record of what closing the window completely
+//! costs.
 
 use crate::interleave_model::{Target, World};
 use crate::interleave_segments::{
-    belt_stamp_gated_seg, belt_zero_seg, consume_seg, debt_charge_seg, debt_pay_forgive_seg,
-    debt_pay_tokens_seg, draw_leaf_credit_seg, draw_pool_take_seg, draw_rollback_seg,
-    draw_stamp_seg, init_seg, mutate_seg, refill_cap_clamp, refill_credit, refill_frac_write,
-    refill_seed_clamp, refill_window_take,
+    belt_stamp_gated_seg, belt_stamp_quiet_seg, belt_zero_seg, consume_seg, debt_charge_seg,
+    debt_pay_forgive_seg, debt_pay_tokens_seg, draw_leaf_credit_seg, draw_pool_take_seg,
+    draw_rollback_seg, draw_stamp_seg, init_seg, mutate_seg, refill_cap_clamp, refill_credit,
+    refill_frac_write, refill_seed_clamp, refill_window_take,
 };
 use crate::math_core::{
     Bucket, MAX_ENFORCABLE_BURST, NS_PER_SEC, Policy, refill_window, try_consume,
@@ -452,21 +458,24 @@ fn every_debt_segment_preserves_the_laws_for_all_states() {
     assert!(w.laws_ok(), "a debt segment broke the invariant");
 }
 
-/// THE belt family's full preservation — the SHIPPED machine
-/// since night-frontier-Z17's gated landing: for EVERY P-state and
-/// every belt segment (the zeroing CAS and the re-observing gated
-/// stamp write, the bytes drr_flow.rs's leaf belt and cake_flow.rs's
-/// flow twin now run), the FULL invariant holds, the dead law P4
-/// included — the gated write refuses to certify a stock it did
-/// not zero, so a lost zero keeps the stamp stale, the next
-/// packet's belt re-fires, and the zeroing converges. The residual
-/// re-read-to-write gap is the two-word atomicity floor the
-/// research doc names; inside the model's segment atomicity the
-/// law is exact. The PRE-PATCH (ungated) belt's own family and its
-/// deterministic falsification witnesses ride the property tier —
-/// the finding's record, never a red harness here.
+/// THE shipped belt's conservative preservation — the GATED
+/// machine since Z17 rung 8 (the zeroed-verdict gate the live e2e
+/// lane re-shaped): for EVERY P-state and every belt segment in the
+/// SHIPPED machine (the zeroing CAS and the verdict-gated stamp
+/// write, the bytes drr_flow.rs's leaf belt and cake_flow.rs's flow
+/// twin run), the invariant holds EXCEPT the dead law P4 — the
+/// NAMED residual: a racing draw's in-flight credit can land inside
+/// the belt's own read-to-write window and be stamped current,
+/// bounded by one armed take (the quantum), the two-word
+/// atomicity floor itself. The conservation ledger holds through
+/// the belt (the surviving tokens are real budget, never minted);
+/// what can break is exactly the certification, one quantum wide,
+/// never the conservation. The pre-patch (ungated) belt's own
+/// family and its deterministic witnesses ride the property tier —
+/// the finding's record; the QUIET form below carries the full law
+/// at the model tier the live lane priced.
 #[kani::proof]
-fn every_shipped_belt_segment_preserves_the_full_laws_for_all_states() {
+fn every_shipped_belt_segment_preserves_the_conservative_laws_for_all_states() {
     let mut w = any_world();
     kani::assume(w.laws_ok());
     let gen_obs: u64 = kani::any();
@@ -480,7 +489,42 @@ fn every_shipped_belt_segment_preserves_the_full_laws_for_all_states() {
         }
         _ => belt_stamp_gated_seg(&mut w, gen_obs, zeroed),
     }
-    assert!(w.laws_ok(), "a shipped belt segment broke the invariant");
+    assert!(
+        w.laws_ok_except_dead(),
+        "a shipped belt segment broke the conservative invariant"
+    );
+}
+
+/// THE quiet belt's full preservation (the re-observing close,
+/// certified and unshippable): for EVERY P-state and every
+/// quiet-form belt segment (the zeroing CAS and the re-observing
+/// stamp write), the FULL invariant holds, the dead law P4
+/// included — the re-observation closes the belt's own write
+/// window, refusing to certify any stock it did not itself watch
+/// empty. This is the form rung 4 landed as the shipped bytes, and
+/// the live e2e lane falsified its throughput shape (the census
+/// records the numbers): under sustained delivery the stock moves
+/// through the re-observation, the belt keeps refusing to stamp and
+/// keeps zeroing freshly drawn budget — sound law, unusable rate.
+/// The theorem stands as the model-side certificate of what the
+/// full close costs to ship; the shipped bytes carry the
+/// zeroed-verdict gate instead.
+#[kani::proof]
+fn every_quiet_belt_segment_preserves_the_full_laws_for_all_states() {
+    let mut w = any_world();
+    kani::assume(w.laws_ok());
+    let gen_obs: u64 = kani::any();
+    kani::assume(gen_obs <= w.g_live);
+    let stale_obs: u64 = kani::any();
+    let zeroed: bool = kani::any();
+    let seg: u8 = kani::any();
+    match seg % 2 {
+        0 => {
+            let _ = belt_zero_seg(&mut w, stale_obs);
+        }
+        _ => belt_stamp_quiet_seg(&mut w, gen_obs, zeroed),
+    }
+    assert!(w.laws_ok(), "a quiet belt segment broke the invariant");
 }
 
 /// THE mutation and init family's preservation: for EVERY P-state,
