@@ -23,7 +23,7 @@
 
 use crate::interleave_model::{Target, World};
 use crate::interleave_segments::{
-    belt_stamp_gated_seg, belt_stamp_seg, belt_zero_seg, consume_seg, debt_charge_seg,
+    belt_stamp_gated_seg, belt_stamp_ungated_seg, belt_zero_seg, consume_seg, debt_charge_seg,
     debt_pay_forgive_seg, debt_pay_tokens_seg, draw_leaf_credit_seg, draw_pool_take_seg,
     draw_rollback_seg, draw_stamp_seg, init_seg, mutate_seg, refill_cap_clamp, refill_credit,
     refill_frac_write, refill_seed_clamp, refill_window_take,
@@ -60,8 +60,11 @@ pub enum Verb {
     /// The ECN debt pay (debt_pay over the budget bucket and the
     /// debt word).
     DebtPay { target: Target },
-    /// The generation belt (drr_flow.rs's leaf belt); `gated`
-    /// selects the shipped or the proposed-close stamp form.
+    /// The generation belt (drr_flow.rs's leaf belt and its
+    /// cake_flow.rs flow twin); `gated` selects the stamp form —
+    /// the gated form is the SHIPPED bytes since night-frontier-Z17's
+    /// landing, the ungated form the pre-patch bytes the finding
+    /// falsified (the record the property tier keeps).
     Belt { gated: bool },
     /// The policy mutation (the live generation bump).
     Mutate { bump: u64 },
@@ -538,7 +541,7 @@ impl Actor {
         self.done
     }
 
-    // ── the leaf belt's program order (the six-line kernel shape) ──
+    // ── the leaf belt's program order (the gated kernel shape) ──
     fn advance_belt(&mut self, w: &mut World, gated: bool) -> bool {
         match self.pc {
             0 => {
@@ -567,11 +570,14 @@ impl Actor {
                 self.pc = 4;
             }
             4 => {
+                // The gated arm is the shipped bytes (the gated
+                // landing); the ungated arm is the pre-patch record
+                // the property tier falsifies against.
                 if gated {
                     let zeroed_or_empty = self.zeroed || self.stale_obs == 0;
                     belt_stamp_gated_seg(w, self.gen_obs, zeroed_or_empty);
                 } else {
-                    belt_stamp_seg(w, self.gen_obs);
+                    belt_stamp_ungated_seg(w, self.gen_obs);
                 }
                 self.done = true;
             }
