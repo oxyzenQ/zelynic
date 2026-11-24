@@ -169,25 +169,28 @@ Fidelity pins (for all inputs, nothing interleaved):
 1. `refill_actor_matches_kernel_refill_window_for_all_backward_clocks`
 2. `consume_actor_matches_kernel_try_consume_for_all_inputs`
 3. `debt_actors_match_kernel_debt_pair_for_all_inputs`
-   — retired: the forward-clock refill lemma (census above).
 
-Single-step preservation (for every P-state, every segment):
+Retired: the forward-clock refill lemma (the census above).
 
-4. `every_refill_seed_clamp_segment_preserves_the_laws_for_all_states`
-5. `every_refill_window_segment_preserves_the_laws_for_all_states`
-6. `every_refill_credit_segment_preserves_the_laws_for_all_states`
-7. `every_refill_cap_clamp_segment_preserves_the_laws_for_all_states`
-8. `every_refill_frac_write_segment_preserves_the_laws_for_all_states`
-9. `every_consume_segment_preserves_the_laws_for_all_states`
-10. `every_draw_segment_preserves_the_laws_for_all_states`
-11. `every_debt_segment_preserves_the_laws_for_all_states`
-12. `every_shipped_belt_segment_preserves_the_conservative_laws_for_all_states`
+Single-step preservation (for every P-state, every segment) —
+eleven theorems, the count the claim carries:
+
+1. `every_refill_seed_clamp_segment_preserves_the_laws_for_all_states`
+2. `every_refill_window_segment_preserves_the_laws_for_all_states`
+3. `every_refill_credit_segment_preserves_the_laws_for_all_states`
+4. `every_refill_cap_clamp_segment_preserves_the_laws_for_all_states`
+5. `every_refill_frac_write_segment_preserves_the_laws_for_all_states`
+6. `every_consume_segment_preserves_the_laws_for_all_states`
+7. `every_draw_segment_preserves_the_laws_for_all_states`
+8. `every_debt_segment_preserves_the_laws_for_all_states`
+9. `every_shipped_belt_segment_preserves_the_conservative_laws_for_all_states`
     (the shipped belt's family — P4 excluded, the finding's shape)
-13. `every_gated_belt_segment_preserves_the_full_laws_for_all_states`
+10. `every_gated_belt_segment_preserves_the_full_laws_for_all_states`
     (the gated close's certificate — the full family, P4 included)
-14. `every_mutate_and_init_segment_preserves_the_laws_for_all_states`
+11. `every_mutate_and_init_segment_preserves_the_laws_for_all_states`
 
-All fourteen verified on the sandbox (the loop's log is the
+The three fidelity pins plus the eleven preservation theorems —
+fourteen standing, verified on the sandbox (the loop's log is the
 record); every one rides its own CI matrix seat (one harness per
 job — the estate's shape).
 
