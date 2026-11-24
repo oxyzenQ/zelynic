@@ -15,16 +15,40 @@
 #   ./scripts/dev/version-to.sh                # Show current version
 #
 # Single source of truth: Cargo.toml
-# Files updated: Cargo.toml, Cargo.lock, ebpf/Cargo.toml,
-# ebpf/Cargo.lock (NIGHT-improve-67: the eBPF crate's version follows
-# the root crate's — its objects ship inside the binary, so a drifting
-# 0.1.0 label riding a v50 binary was a provenance hole. The version
-# change touches the ebpf/ tree, so the prebuilt lane's tree pin
-# notices it: NIGHT-improve-70 — when THIS script's own rewrite stales
-# the lane, the refresh runs in the same invocation
+# Files updated: EVERY tracked Cargo.toml that belongs to the zelynic
+# crate family, plus every tracked Cargo.lock that carries one of
+# those crates' [[package]] entries (NIGHT-bump-2: the bump set is
+# DETECTED, never listed — git enumerates the manifests, the [package]
+# blocks are parsed, and the graph falls out. The pre-autodetect
+# script carried the pairs it knew about as literals, and the owner's
+# v80.5.0-dragon.1 run proved the disease: zelynic-proofs rode 0.1.0
+# and zelynic-fuzz rode 0.0.0 beside a dragon.1 root — the exact
+# provenance-hole shape NIGHT-improve-67 closed for the ebpf crate,
+# reopened by every workspace the literal list never learned about.
+# The law now: the root crate rides by definition; every OTHER crate
+# named zelynic-* rides too, and a drifted one is healed, not
+# skipped; a manifest outside the family is reported at its own
+# version — never silently swept, never silently lost. The lock pass
+# rewrites every matching [[package]] entry in every tracked lock
+# (a future path dependency's cross-entry heals the same way), and
+# every rewrite is re-read and verified — a write this script cannot
+# verify is a write it does not keep. A fifth workspace joins the
+# bump with zero edits here.)
+# NIGHT-improve-70: the version change touches the ebpf/ tree, so the
+# prebuilt lane's tree pin notices it — when THIS script's own rewrite
+# stales the lane, the refresh runs in the same invocation
 # (./scripts/release/refresh-prebuilt.sh through the repo's validated
 # build pipeline — one command leaves a committable tree; a refresh
 # that cannot complete fails closed with the bootstrap recipe).
+# NIGHT-bump-2 (the reconcile law): "already at" no longer exits when
+# the match is partial — the early exit fires only when EVERY detected
+# surface carries the target. A re-run at an already-bumped root
+# still reaches the surfaces the old literal list never knew about
+# (the owner's exact recovery path), and the git-add recipe at the
+# bottom is DERIVED from what the run actually touched — the old
+# literal recipe was itself a stale literal: it named README.md on
+# runs that never rewrote it and never named the workspaces it did
+# not know about.
 # A lane already stale BEFORE the bump keeps the honest manual
 # verdict: this script auto-refreshes only the churn it created,
 # never a WIP it found. README.md is probed
@@ -79,17 +103,178 @@ cd "${SCRIPT_DIR}"
 # shellcheck source=scripts/lib/ux_palette.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/ux_palette.sh"
 
-# Read current version from Cargo.toml
-current_version() {
-	grep '^version = ' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/'
+# The [package] block parsers (NIGHT-bump-2): the version surface is
+# located by structure, not by file order — the first name/version
+# pair inside [package] is the crate's own, whatever the file's
+# layout. An empty result means the manifest carries no versioned
+# package (a virtual workspace root — no surface, no opinion).
+manifest_version_of() {
+	awk '
+		/^\[package\][[:space:]]*$/ { pkg=1; next }
+		/^\[/ { pkg=0 }
+		pkg && /^version = "[^"]+"/ {
+			sub(/^version = "/, ""); sub(/".*$/, ""); print; exit
+		}
+	' "$1"
 }
 
-# Read current version from ebpf/Cargo.toml (NIGHT-improve-67: the
-# eBPF crate rides the root's version; read its OWN current value
-# instead of assuming it matches the root — a drifted lane is exactly
-# the state this script exists to heal).
-ebpf_current_version() {
-	grep '^version = ' ebpf/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/'
+manifest_name_of() {
+	awk '
+		/^\[package\][[:space:]]*$/ { pkg=1; next }
+		/^\[/ { pkg=0 }
+		pkg && /^name = "[^"]+"/ {
+			sub(/^name = "/, ""); sub(/".*$/, ""); print; exit
+		}
+	' "$1"
+}
+
+# The crate graph, detected every run (NIGHT-bump-2): one
+# <path><TAB><name><TAB><version> row per versioned tracked manifest.
+# git ls-files enumerates — untracked trees, target/ output and
+# vendored junk can never enter the walk.
+manifest_rows() {
+	local f
+	while IFS= read -r f; do
+		printf '%s\t%s\t%s\n' "${f}" "$(manifest_name_of "${f}")" "$(manifest_version_of "${f}")"
+	done < <(git ls-files | grep -E '(^|/)Cargo\.toml$' | sort)
+}
+
+# Read current version from Cargo.toml (the [package] block — the
+# source of truth).
+current_version() {
+	manifest_version_of Cargo.toml
+}
+
+# The bump set, decided once per run (NIGHT-bump-2). Fills:
+#   BUMP_PATHS[i] / BUMP_NAMES[i] / BUMP_OLDS[i] — the surfaces that
+#   ride the root version: the root crate itself by definition, and
+#   every other crate whose name starts with "zelynic" (the
+#   provenance law NIGHT-improve-67 put on the ebpf crate, now
+#   repo-wide; a drifted one is healed, not skipped);
+#   SKIP_REPORTS[@] — the honest report lines for manifests left at
+#   their own version (a crate that is not a zelynic crate is never
+#   silently swept, and never silently lost).
+BUMP_PATHS=()
+BUMP_NAMES=()
+BUMP_OLDS=()
+SKIP_REPORTS=()
+build_bump_sets() {
+	local path name ver
+	while IFS=$'\t' read -r path name ver; do
+		if [ "${path}" = "Cargo.toml" ] || [[ "${name}" == zelynic* ]]; then
+			BUMP_PATHS+=("${path}")
+			BUMP_NAMES+=("${name}")
+			BUMP_OLDS+=("${ver}")
+		else
+			SKIP_REPORTS+=("$(printf '%-21s' "${path}") ${name} ${ver} — left at its own version (not a zelynic-* crate)")
+		fi
+	done < <(manifest_rows)
+	if [ "${#BUMP_PATHS[@]}" -eq 0 ]; then
+		echo -e "${RED}FAIL:${NC} no versioned Cargo.toml found in the tracked tree — the bump has no anchor." >&2
+		exit 1
+	fi
+}
+
+# One manifest lane: rewrite the [package] version inside its own
+# section (dependency version lines live in other sections and never
+# move), verify the WRITE TARGET before it lands (the ledger's
+# verification law, generalized: a write this script cannot verify
+# is a write it does not keep), and only then commit the file.
+# Returns 0 when the file changed, 1 when it already carried the
+# target.
+bump_manifest() {
+	local path="$1" name="$2" old="$3" label tmp now
+	label="$(printf '%-21s' "${path}")"
+	if [ "${old}" = "${NEW_VERSION}" ]; then
+		echo -e "  ${YELLOW}!${NC} ${label} ${name} already at v${NEW_VERSION}"
+		return 1
+	fi
+	tmp="$(mktemp)"
+	awk -v new="${NEW_VERSION}" '
+		/^\[package\][[:space:]]*$/ { pkg=1; print; next }
+		/^\[/ { pkg=0; print; next }
+		pkg && !done && /^version = "[^"]*"/ { sub(/"[^"]*"/, "\"" new "\""); done=1 }
+		{ print }
+	' "${path}" >"${tmp}"
+	now="$(manifest_version_of "${tmp}")"
+	if [ "${now}" != "${NEW_VERSION}" ]; then
+		rm -f "${tmp}"
+		echo -e "${RED}FAIL:${NC} ${label} the rewrite did not verify (expected ${NEW_VERSION}, read ${now:-nothing}) — the file was left as found, nothing kept." >&2
+		exit 1
+	fi
+	mv "${tmp}" "${path}"
+	echo -e "  ${GREEN}OK${NC} ${label} ${name} ${old} → ${NEW_VERSION}"
+	return 0
+}
+
+# The name<TAB>version rows a Cargo.lock carries for an ERE of
+# package names (the lock's own top-level version line sits outside
+# any [[package]] block and is never touched).
+lock_entry_versions() {
+	awk -v re="^(${1})$" '
+		/^\[\[package\]\]/ { inb=1; hit=0; next }
+		inb && /^name = "[^"]*"/ {
+			sub(/^name = "/, ""); sub(/".*$/, "")
+			name=$0
+			hit=(name ~ re) ? 1 : 0
+			next
+		}
+		inb && hit && /^version = "[^"]*"/ {
+			sub(/^version = "/, ""); sub(/".*$/, "")
+			print name "\t" $0
+		}
+	' "$2"
+}
+
+# One lock lane (NIGHT-bump-2): rewrite EVERY [[package]] entry whose
+# name rides the bump set — the crate's own workspace entry today, a
+# path dependency's cross-entry the day one appears — verify the
+# WRITE TARGET first (the entry set must survive and every entry must
+# read the target), and only then commit the file. Returns 0 when the
+# lock changed, 1 when it did not.
+bump_lock() {
+	local lockf="$1" names_regex="$2" label tmp before after moved already
+	label="$(printf '%-21s' "${lockf}")"
+	before="$(lock_entry_versions "${names_regex}" "${lockf}")"
+	if [ -z "${before}" ]; then
+		echo -e "  ${YELLOW}!${NC} ${label} no [[package]] entry rides the bump set here — nothing to rewrite"
+		return 1
+	fi
+	tmp="$(mktemp)"
+	awk -v re="^(${names_regex})$" -v new="${NEW_VERSION}" '
+		/^\[\[package\]\]/ { inb=1; hit=0; print; next }
+		inb && /^name = "[^"]*"/ {
+			print
+			sub(/^name = "/, ""); sub(/".*$/, "")
+			hit=($0 ~ re) ? 1 : 0
+			next
+		}
+		inb && hit && /^version = "[^"]*"/ {
+			sub(/"[^"]*"/, "\"" new "\"")
+			print; next
+		}
+		{ print }
+	' "${lockf}" >"${tmp}"
+	after="$(lock_entry_versions "${names_regex}" "${tmp}")"
+	if [ "$(sort <<<"${before}" | cut -f1)" != "$(sort <<<"${after}" | cut -f1)" ] \
+		|| [ -n "$(awk -F'\t' -v want="${NEW_VERSION}" '$2 != want' <<<"${after}")" ]; then
+		rm -f "${tmp}"
+		echo -e "${RED}FAIL:${NC} ${label} the lock rewrite did not verify — the file was left as found, nothing kept." >&2
+		exit 1
+	fi
+	mv "${tmp}" "${lockf}"
+	moved="$(awk -F'\t' 'NR==FNR { b[$1]=$2; next } { if ($1 in b && b[$1] != $2) printf "%s ", $1 }' \
+		<(printf '%s\n' "${before}") <(printf '%s\n' "${after}"))"
+	already="$(awk -F'\t' 'NR==FNR { b[$1]=$2; next } { if ($1 in b && b[$1] == $2) printf "%s ", $1 }' \
+		<(printf '%s\n' "${before}") <(printf '%s\n' "${after}"))"
+	if [ -n "${moved}" ]; then
+		echo -e "  ${GREEN}OK${NC} ${label} ${moved% } → ${NEW_VERSION}"
+		return 0
+	fi
+	if [ -n "${already}" ]; then
+		echo -e "  ${YELLOW}!${NC} ${label} ${already% } already at v${NEW_VERSION}"
+	fi
+	return 1
 }
 
 # Validate semver format
@@ -148,6 +333,7 @@ ledger_relocate_released_block() {
 		echo -e "${RED}FAIL:${NC} CHANGELOG.md      → the relocation did not verify (## [Released] still below ## [Unreleased]) — the file was left as found." >&2
 		exit 1
 	fi
+	LEDGER_MUTATED=true
 	echo -e "  ${GREEN}OK${NC} CHANGELOG.md        → ## [Released] relocated above ## [Unreleased] (the owner shape restored)"
 }
 
@@ -248,6 +434,7 @@ ledger_preflight() {
 		tmp="$(mktemp)"
 		grep -vxF "${ver}" CHANGELOG.md >"${tmp}"
 		mv "${tmp}" CHANGELOG.md
+		LEDGER_MUTATED=true
 		echo -e "  ${YELLOW}!${NC} CHANGELOG.md        → ${ver} recorded OUTSIDE ## [Released] (${total} line(s), ${inside} inside) — deleted; the verified splice below records it properly"
 	fi
 
@@ -307,6 +494,7 @@ ledger_preflight() {
 		echo -e "  ${YELLOW}!${NC} CHANGELOG.md        → no ## [Unreleased] anchor found — nothing to write"
 		return 0
 	fi
+	LEDGER_MUTATED=true
 	total="$(grep -cxF "${ver}" CHANGELOG.md || true)"
 	inside="$(sed -n '/^## \[Released\]$/,/^## \[Unreleased\]$/p' CHANGELOG.md | grep -cxF "${ver}" || true)"
 	local order_ok=true
@@ -340,6 +528,12 @@ if [ $# -eq 0 ]; then
 	echo -e "Current version: ${GREEN}v$(current_version)${NC}"
 	echo ""
 	echo "Usage: ./scripts/dev/version-to.sh v<VERSION> [--commit] [--force]"
+	echo ""
+	echo "Detected version surfaces (NIGHT-bump-2: the crate graph, not a literal list):"
+	build_bump_sets
+	for i in "${!BUMP_PATHS[@]}"; do
+		echo "  ${BUMP_PATHS[$i]}  ${BUMP_NAMES[$i]}  v${BUMP_OLDS[$i]}"
+	done
 	exit 0
 fi
 
@@ -360,52 +554,108 @@ for arg in "$@"; do
 done
 
 validate_version "${NEW_VERSION}"
+
+# NIGHT-bump-2: detect the crate graph BEFORE anything mutates — the
+# bump set, the drift verdict and the stranger reports all come from
+# this pass.
+TOUCHED=()
+build_bump_sets
 CURRENT=$(current_version)
-EBPF_CURRENT=$(ebpf_current_version)
+# The bump set as one ERE of crate names — the lock graph walks it.
+names_regex="$(IFS='|'; echo "${BUMP_NAMES[*]}")"
 
 # NIGHT-bump-1: the ledger pre-flight runs BEFORE the early exit and
 # BEFORE any file is mutated — a re-run at an already-bumped version
 # still repairs a broken ledger (the owner's v80.0.6 heal path), and
 # a downgrade refusal fires before Cargo.toml moves.
+LEDGER_MUTATED=false
 ledger_preflight "${NEW_VERSION}"
+if [ "${LEDGER_MUTATED}" = true ]; then
+	TOUCHED+=("CHANGELOG.md")
+fi
 
-if [ "${CURRENT}" = "${NEW_VERSION}" ] && [ "${EBPF_CURRENT}" = "${NEW_VERSION}" ]; then
-	if [ "${LEDGER_DONE}" = true ]; then
-		echo -e "${YELLOW}Already at v${NEW_VERSION} (root + ebpf) with the ledger line in ## [Released] — nothing to change.${NC}"
+# The stranger report (NIGHT-bump-2): a manifest outside the family
+# is visible on every run — never silently swept, never silently lost.
+if [ "${#SKIP_REPORTS[@]}" -gt 0 ]; then
+	echo -e "  ${YELLOW}!${NC} version surfaces outside the zelynic family (left alone, reported):"
+	for line in "${SKIP_REPORTS[@]}"; do
+		echo "      ${line}"
+	done
+	echo ""
+fi
+
+# The reconcile gate (NIGHT-bump-2): the early exit fires only when
+# EVERY detected surface already carries the target — a partial
+# match proceeds and the drifted surfaces heal below. A re-run at an
+# already-bumped root must still reach the workspaces the old
+# literal list never knew about.
+ALL_AT_TARGET=true
+for old in "${BUMP_OLDS[@]}"; do
+	if [ "${old}" != "${NEW_VERSION}" ]; then
+		ALL_AT_TARGET=false
+		break
+	fi
+done
+# The lock entries ride the same gate (NIGHT-bump-2): a lock whose
+# [[package]] entry drifted below the target reopens the run even
+# when every manifest already carries the version — the reconcile
+# law covers the lock graph, not just the manifests.
+if [ "${ALL_AT_TARGET}" = true ]; then
+	while IFS= read -r lockf; do
+		if [ -n "$(lock_entry_versions "${names_regex}" "${lockf}" | awk -F'\t' -v want="${NEW_VERSION}" '$2 != want')" ]; then
+			ALL_AT_TARGET=false
+			break
+		fi
+	done < <(git ls-files | grep -E '(^|/)Cargo\.lock$' | sort)
+fi
+if [ "${ALL_AT_TARGET}" = true ]; then
+	if [ "${LEDGER_MUTATED}" = true ]; then
+		echo -e "${YELLOW}Already at v${NEW_VERSION} across ${#BUMP_PATHS[@]} detected surface(s); the ledger was repaired — commit it:${NC}"
+		echo "next: git add CHANGELOG.md && git commit"
 	else
-		echo -e "${YELLOW}Already at v${NEW_VERSION} (root + ebpf), nothing to change.${NC}"
+		echo -e "${YELLOW}Already at v${NEW_VERSION} across ${#BUMP_PATHS[@]} detected surface(s) — nothing to change.${NC}"
 	fi
 	exit 0
 fi
 
-echo -e "Updating version: ${YELLOW}v${CURRENT}${NC} → ${GREEN}v${NEW_VERSION}${NC}"
+echo -e "Version surfaces riding → ${GREEN}v${NEW_VERSION}${NC}"
+for i in "${!BUMP_PATHS[@]}"; do
+	if [ "${BUMP_OLDS[$i]}" != "${NEW_VERSION}" ]; then
+		echo -e "  ${BUMP_PATHS[$i]} (${BUMP_NAMES[$i]}): ${YELLOW}v${BUMP_OLDS[$i]}${NC} → ${GREEN}v${NEW_VERSION}${NC}"
+	fi
+done
 echo ""
 
-# --- Update Cargo.toml (source of truth) ---
-# Only update the [package] version (line 1-10 of file), not dependency versions
-if [ "${CURRENT}" = "${NEW_VERSION}" ]; then
-	echo -e "  ${YELLOW}!${NC} Cargo.toml          → already at v${NEW_VERSION} (the ebpf lane alone drifted)"
-else
-	sed -i "0,/^version = \".*\"/s//version = \"${NEW_VERSION}\"/" Cargo.toml
-	echo -e "  ${GREEN}OK${NC} Cargo.toml          → ${NEW_VERSION}"
-fi
-
-# --- Update Cargo.lock (zelynic package entry only) ---
-# Cargo.lock has the form:
-#   [[package]]
-#   name = "zelynic"
-#   version = "OLD"
-# We update only the zelynic package version, NOT dependency versions
-# (those are the job of `cargo update`, not a version bump).
-if [ -f Cargo.lock ] && [ "${CURRENT}" != "${NEW_VERSION}" ]; then
-	sed -i -E "/^name = \"zelynic\"$/{n;s|^version = \"${CURRENT}\"|version = \"${NEW_VERSION}\"|;}" Cargo.lock
-	LOCK_VER="$(grep -A1 '^name = "zelynic"' Cargo.lock | grep '^version = "' | head -1 | sed -E 's/^version = "(.+)"/\1/')"
-	if [ "${LOCK_VER}" = "${NEW_VERSION}" ]; then
-		echo -e "  ${GREEN}OK${NC} Cargo.lock          → zelynic version = ${NEW_VERSION}"
-	else
-		echo -e "  ${YELLOW}!${NC} Cargo.lock          → expected ${NEW_VERSION}, got ${LOCK_VER} (run 'cargo update -p zelynic' to fix)"
+# --- The manifest lanes (NIGHT-bump-2) ---
+# Every detected surface rides; each rewrite is verified by reading
+# the write target back before it lands. Dependency version lines
+# live in their own sections and never move (those are the job of
+# `cargo update`, not a version bump). The ebpf/ churn THIS run
+# creates is what the prebuilt lane below answers for
+# (NIGHT-improve-70) — churn found before the run keeps the honest
+# manual verdict.
+EBPF_CHANGED=false
+for i in "${!BUMP_PATHS[@]}"; do
+	if bump_manifest "${BUMP_PATHS[$i]}" "${BUMP_NAMES[$i]}" "${BUMP_OLDS[$i]}"; then
+		TOUCHED+=("${BUMP_PATHS[$i]}")
+		if [[ "${BUMP_PATHS[$i]}" == ebpf/* ]]; then
+			EBPF_CHANGED=true
+		fi
 	fi
-fi
+done
+
+# --- The lock lanes (NIGHT-bump-2) ---
+# Every tracked Cargo.lock, every [[package]] entry whose name rides
+# the bump set: the crate's own workspace entry today, a path
+# dependency's cross-entry the day one appears. Dependency versions
+# (the whole rest of the lock) are the job of `cargo update`, not a
+# version bump.
+echo ""
+while IFS= read -r lockf; do
+	if bump_lock "${lockf}" "${names_regex}"; then
+		TOUCHED+=("${lockf}")
+	fi
+done < <(git ls-files | grep -E '(^|/)Cargo\.lock$' | sort)
 
 # --- Update README.md (probed first — NIGHT-hunt-32: the lane once ---
 # --- printed an unconditional OK while the README carried no badge, ---
@@ -421,6 +671,7 @@ if [ "${README_HITS:-0}" -gt 0 ]; then
 	sed -i -E "s|zelynic-v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?-x86_64|zelynic-v${NEW_VERSION}-x86_64|g" README.md
 	sed -i "s|Version: v.*|Version: v${NEW_VERSION}|" README.md
 	echo -e "  ${GREEN}OK${NC} README.md           → v${NEW_VERSION} (release URLs + versioned examples)"
+	TOUCHED+=("README.md")
 else
 	echo -e "  ${YELLOW}!${NC} README.md           → no version surface found (no release URL / versioned example / Version line) — nothing to rewrite"
 fi
@@ -439,32 +690,6 @@ echo -e "  ${GREEN}OK${NC} scripts/build.sh    → auto (reads from Cargo.toml)"
 # --- Binary reads from Cargo.toml via env!("CARGO_PKG_VERSION"), no update needed ---
 echo -e "  ${GREEN}OK${NC} Binary (zelynic)    → auto (reads from Cargo.toml)"
 
-# --- Update ebpf/Cargo.toml + ebpf/Cargo.lock (NIGHT-improve-67: the ---
-# --- eBPF crate rides the root's version) ---
-# The eBPF tree is pinned by ebpf-prebuilt/manifest.toml's tree hash,
-# so ANY version change here stales the prebuilt lane — the parity
-# verdict below reports it honestly and --commit refuses until
-# ./scripts/release/refresh-prebuilt.sh regenerates the lane. The
-# lock edit mirrors the root pair's shape: the name-anchored
-# zelynic-ebpf entry moves, dependency versions never do.
-EBPF_CHANGED=false
-if [ "${EBPF_CURRENT}" != "${NEW_VERSION}" ]; then
-	sed -i "0,/^version = \".*\"/s//version = \"${NEW_VERSION}\"/" ebpf/Cargo.toml
-	echo -e "  ${GREEN}OK${NC} ebpf/Cargo.toml     → ${NEW_VERSION}"
-	EBPF_CHANGED=true
-	if [ -f ebpf/Cargo.lock ]; then
-		sed -i -E "/^name = \"zelynic-ebpf\"$/{n;s|^version = \"${EBPF_CURRENT}\"|version = \"${NEW_VERSION}\"|;}" ebpf/Cargo.lock
-		EBPF_LOCK_VER="$(grep -A1 '^name = "zelynic-ebpf"' ebpf/Cargo.lock | grep '^version = "' | head -1 | sed -E 's/^version = "(.+)"/\1/')"
-		if [ "${EBPF_LOCK_VER}" = "${NEW_VERSION}" ]; then
-			echo -e "  ${GREEN}OK${NC} ebpf/Cargo.lock     → zelynic-ebpf version = ${NEW_VERSION}"
-		else
-			echo -e "  ${YELLOW}!${NC} ebpf/Cargo.lock     → expected ${NEW_VERSION}, got ${EBPF_LOCK_VER} (run 'cargo update --manifest-path ebpf/Cargo.toml -p zelynic-ebpf' inside ebpf/ to fix)"
-		fi
-	fi
-else
-	echo -e "  ${YELLOW}!${NC} ebpf/Cargo.toml     → already at v${NEW_VERSION}"
-fi
-
 # --- Prebuilt-lane refresh + parity verdict (NIGHT-improve-70) ---
 # The gate is the one implementation of the tree pin (refresh-
 # prebuilt.sh ends by running it; this script only READS its verdict —
@@ -479,13 +704,14 @@ if [ "${EBPF_CHANGED}" = true ] && ! bash scripts/gates/check-prebuilt-parity.sh
 	echo -e "  ${YELLOW}..${NC} ebpf-prebuilt/     → the version rewrite staled the lane's tree pin — auto-refreshing through the validated build pipeline"
 	if bash scripts/release/refresh-prebuilt.sh; then
 		echo -e "  ${GREEN}OK${NC} ebpf-prebuilt/     → lane regenerated in parity (commit ebpf/ + ebpf-prebuilt/ together)"
+		TOUCHED+=("ebpf-prebuilt/")
 	else
 		echo -e "${RED}FAIL:${NC} the prebuilt refresh did not complete — the tree is NOT committable in this state."
 		echo -e "  the refresh drives the eBPF build; its once-per-machine prerequisites:"
 		echo -e "    ./scripts/dev/bootstrap-ebpf.sh"
 		echo -e "  then finish the bump manually and commit the lane with its sources:"
 		echo -e "    ./scripts/release/refresh-prebuilt.sh"
-		echo -e "    git add Cargo.toml Cargo.lock README.md CHANGELOG.md ebpf/ ebpf-prebuilt/"
+		echo -e "    git add ${TOUCHED[*]} ebpf-prebuilt/"
 		exit 1
 	fi
 elif bash scripts/gates/check-prebuilt-parity.sh >/dev/null 2>&1; then
@@ -497,8 +723,10 @@ fi
 
 echo ""
 echo -e "${GREEN}Version updated to v${NEW_VERSION}${NC}"
-if [ "${EBPF_CHANGED}" = true ]; then
-	echo "next: git add Cargo.toml Cargo.lock README.md CHANGELOG.md ebpf/ ebpf-prebuilt/ && git commit"
+if [ "${#TOUCHED[@]}" -gt 0 ]; then
+	echo "next: git add ${TOUCHED[*]} && git commit"
+else
+	echo -e "${YELLOW}Nothing changed — every detected surface already carries v${NEW_VERSION}.${NC}"
 fi
 
 if [ "${COMMIT}" = true ]; then
@@ -514,11 +742,15 @@ if [ "${COMMIT}" = true ]; then
 	if ! bash scripts/gates/check-prebuilt-parity.sh >/dev/null 2>&1; then
 		echo -e "${RED}FAIL:${NC} refusing to commit — the prebuilt lane is stale (ebpf/ changed, ebpf-prebuilt/ has not)."
 		echo -e "  1. ./scripts/release/refresh-prebuilt.sh"
-		echo -e "  2. git add Cargo.toml Cargo.lock README.md CHANGELOG.md ebpf/Cargo.toml ebpf/Cargo.lock ebpf-prebuilt/"
+		echo -e "  2. git add ${TOUCHED[*]} ebpf-prebuilt/"
 		echo -e "  3. git commit -m \"release: v${NEW_VERSION}\""
 		exit 1
 	fi
-	git add Cargo.toml Cargo.lock README.md CHANGELOG.md ebpf/Cargo.toml ebpf/Cargo.lock ebpf-prebuilt/
+	if [ "${#TOUCHED[@]}" -eq 0 ]; then
+		echo -e "${YELLOW}Nothing to commit — every detected surface already carries v${NEW_VERSION}.${NC}"
+		exit 0
+	fi
+	git add "${TOUCHED[@]}"
 	git commit -m "release: v${NEW_VERSION}"
 	echo -e "${GREEN}OK Committed: release: v${NEW_VERSION}${NC}"
 fi
