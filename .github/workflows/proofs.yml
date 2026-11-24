@@ -59,17 +59,24 @@
 #    beside the sampled emission law (the no-corruption theorem's
 #    per-push half).
 #  * kani:        bounded model checking under the pinned kani release
-#    — the for-all tier, twelve theorems strong since night-frontier-
-#    Z12: the six original decidable laws (the decision tables, the
-#    ladders, the memo word, the hint state machine, the window
-#    domain, the consume sufficiency pair) plus the Z12 rebirths
-#    (the refill totality over an UNBOUNDED hostile rate, the full
-#    hostile-state enforce path, the ring index lemma and the
-#    residue-complete ring protocol law, the margin erosion over the
-#    extracted comparator, the bounded flow-key collector) — one
-#    harness per matrix job so a verdict is never lost to a
-#    sibling's budget and a grind can never starve a sibling's
-#    verdict.
+#    — the for-all tier, twenty-six theorems strong since night-
+#    frontier-Z17: the six original decidable laws (the decision
+#    tables, the ladders, the memo word, the hint state machine,
+#    the window domain, the consume sufficiency pair), the Z12
+#    rebirths (the refill totality over an UNBOUNDED hostile rate,
+#    the full hostile-state enforce path, the ring index lemma and
+#    the residue-complete ring protocol law, the margin erosion
+#    over the extracted comparator, the bounded flow-key
+#    collector), and the Z17 interleaving theorems (the three
+#    fidelity pins — the two-CPU segment model must reproduce the
+#    kernel functions' bytes for all inputs — plus the eleven
+#    single-step preservation theorems, the refill family split
+#    per segment, whose induction carries every schedule length;
+#    the forward-clock refill fidelity lemma is retired by
+#    census, the record riding the research doc) — one harness
+#    per matrix job so a
+#    verdict is never lost to a sibling's budget and a grind can
+#    never starve a sibling's verdict.
 #  * loom-census: the signed census verdict's standing absence guard
 #    — a per-push scan that fails the day the census basis moves (a
 #    location-backed atomic lands outside the kernel crate's access
@@ -120,7 +127,7 @@ env:
 
 jobs:
   property:
-    name: Proptest exhaustion (24 laws, 4096 cases each, stable, rootless)
+    name: Proptest exhaustion (27 laws, 4096 cases each, stable, rootless)
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     env:
@@ -191,6 +198,34 @@ jobs:
           - ring_book_stamps_lawfully_over_clock_range
           - margin_erodes_both_edges_for_all_comparator_states
           - flow_key_bounded_is_total_for_all_window_shapes
+          # The night-frontier-Z17 interleaving theorems (D17): the
+          # fidelity pins first (the anti-gimmick instrument — the
+          # machines must reproduce the kernel functions' bytes for
+          # all inputs), then the single-step preservation theorems
+          # (the induction that carries every schedule length).
+          # The shipped belt's conservative family rides beside the
+          # gated belt's full family — the pair IS the finding's
+          # shape: what the bytes prove, and what the gated close
+          # adds. The gated stamp's certificate
+          # (every_gated_belt_segment_preserves_the_full_laws) is
+          # the fix's model-side proof; the shipped belt's dead-law
+          # falsification is pinned in the property lane (the
+          # deterministic witnesses + the sampler's statistical pin),
+          # never as a red harness here.
+          - refill_actor_matches_kernel_refill_window_for_all_backward_clocks
+          - consume_actor_matches_kernel_try_consume_for_all_inputs
+          - debt_actors_match_kernel_debt_pair_for_all_inputs
+          - every_refill_seed_clamp_segment_preserves_the_laws_for_all_states
+          - every_refill_window_segment_preserves_the_laws_for_all_states
+          - every_refill_credit_segment_preserves_the_laws_for_all_states
+          - every_refill_cap_clamp_segment_preserves_the_laws_for_all_states
+          - every_refill_frac_write_segment_preserves_the_laws_for_all_states
+          - every_consume_segment_preserves_the_laws_for_all_states
+          - every_draw_segment_preserves_the_laws_for_all_states
+          - every_debt_segment_preserves_the_laws_for_all_states
+          - every_shipped_belt_segment_preserves_the_conservative_laws_for_all_states
+          - every_gated_belt_segment_preserves_the_full_laws_for_all_states
+          - every_mutate_and_init_segment_preserves_the_laws_for_all_states
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7, NIGHT-hunt-20 SHA pin
