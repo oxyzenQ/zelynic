@@ -41,11 +41,12 @@ interleaving of every length preserves P at every point.
 ## The invariant P (the "no corrupt state" claim, checkable)
 
 - P1 — the ledger: pool.tokens + leaf.tokens + inflight + spent
-  + paid + burned == pool0 + leaf0 + entered, exactly, in u128
-  (the band assume keeps the checker's own arithmetic total; the
-  real words' representability is each theorem's stated domain).
-  This is the no-lost-refill / no-debt-double-pay lemma pair the
-  budget core never had at the for-all tier.
+  plus paid plus burned equals pool0 + leaf0 + entered, exactly,
+  in u128 (the band assume keeps the checker's own arithmetic
+  total; the real words' representability is each theorem's
+  stated domain). This is the no-lost-refill /
+  no-debt-double-pay lemma pair the budget core never had at the
+  for-all tier.
 - P2 — the debt cap: the debt word never leaves
   [0, ECN_DEBT_CAP] (or its hostile genesis value, unread — the
   v6 sanitize family's posture one word over).
@@ -164,12 +165,14 @@ runners decide strictly faster shapes).
 ## The theorem tier as it stands (14 + 1 retired)
 
 Fidelity pins (for all inputs, nothing interleaved):
+
 1. `refill_actor_matches_kernel_refill_window_for_all_backward_clocks`
 2. `consume_actor_matches_kernel_try_consume_for_all_inputs`
 3. `debt_actors_match_kernel_debt_pair_for_all_inputs`
    — retired: the forward-clock refill lemma (census above).
 
 Single-step preservation (for every P-state, every segment):
+
 4. `every_refill_seed_clamp_segment_preserves_the_laws_for_all_states`
 5. `every_refill_window_segment_preserves_the_laws_for_all_states`
 6. `every_refill_credit_segment_preserves_the_laws_for_all_states`
