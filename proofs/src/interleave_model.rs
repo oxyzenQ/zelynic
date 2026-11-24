@@ -70,11 +70,16 @@
 //!    (credited or born while stamped stale).
 //!  * P4 (the belt's dead law): a leaf stamped with the live
 //!    generation holds zero dead tokens — the stale-quantum
-//!    belt's own promise. Carried by the gated belt machine —
-//!    the SHIPPED bytes since night-frontier-Z17's gated landing;
-//!    the pre-patch ungated write's falsification is the finding
-//!    the instrument filed, and the property tier's witnesses plus
-//!    the ungated family's sampler statistic remain as its record.
+//!    belt's own promise. Carried outright by the QUIET belt
+//!    machine (the re-observing close, certified and unshippable —
+//!    the live e2e lane priced its convergence); carried by the
+//!    shipped GATED machine at the conservative tier with one
+//!    NAMED residual (a racing draw's in-flight take inside the
+//!    belt's write window, quantum-bounded — the two-word
+//!    atomicity floor itself); the pre-patch ungated write's
+//!    falsification is the finding the instrument filed, and the
+//!    property tier's witnesses plus the ungated family's sampler
+//!    statistic remain as its record.
 //!  * P5 (the stamp bound): the leaf's generation stamp never
 //!    exceeds max(hostile-genesis, live generation) — no
 //!    inversion: belt writes only ever land a READING of the

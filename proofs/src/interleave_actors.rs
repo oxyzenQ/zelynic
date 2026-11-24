@@ -62,9 +62,12 @@ pub enum Verb {
     DebtPay { target: Target },
     /// The generation belt (drr_flow.rs's leaf belt and its
     /// cake_flow.rs flow twin); `gated` selects the stamp form —
-    /// the gated form is the SHIPPED bytes since night-frontier-Z17's
-    /// landing, the ungated form the pre-patch bytes the finding
-    /// falsified (the record the property tier keeps).
+    /// the gated form (the zeroed-verdict gate) is the SHIPPED
+    /// bytes since Z17 rung 8 (re-shaped by the live e2e lane from
+    /// rung 4's re-observing form, which the quiet segment keeps as
+    /// the model-side certificate), the ungated form the
+    /// pre-patch bytes the finding falsified (the record the
+    /// property tier keeps).
     Belt { gated: bool },
     /// The policy mutation (the live generation bump).
     Mutate { bump: u64 },
@@ -570,9 +573,11 @@ impl Actor {
                 self.pc = 4;
             }
             4 => {
-                // The gated arm is the shipped bytes (the gated
-                // landing); the ungated arm is the pre-patch record
-                // the property tier falsifies against.
+                // The gated arm is the shipped bytes (the
+                // zeroed-verdict gate, rung 8's re-shape); the
+                // ungated arm is the pre-patch record the property
+                // tier falsifies against. The quiet form's witness
+                // drives its segment directly.
                 if gated {
                     let zeroed_or_empty = self.zeroed || self.stale_obs == 0;
                     belt_stamp_gated_seg(w, self.gen_obs, zeroed_or_empty);
