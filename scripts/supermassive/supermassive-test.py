@@ -3447,7 +3447,19 @@ def test_upload(window, baseline):
 def test_download_only(window, baseline):
     """-d only: the download bucket is enforced while the upload
     direction carries no policy (NIGHT-improve-12: the -u twin had a
-    stage, the -d flag had none)."""
+    stage, the -d flag had none).
+
+    The 2026-11-25 best-musl desktop leg filed the row's own drift
+    class (47.6% measured against a 500kb policy, sibling legs
+    in-band on the byte-identical object), so the measured window now
+    rides the lib's one-sided patience the trickle-bound rows carry
+    (under re-samples, over fails now, three unders fail), the
+    cushion drains before the first sample, the verdict reads the
+    ledger delta across the window (the dinner-13 shape — the
+    cumulative-over-life read was the write-ahead trap), and the
+    re-sample boundary pays the banked burst back at line rate
+    (charger-core-2 rider L).
+    """
     name = "download (-d only): enforced"
     if baseline and baseline < 1e6:
         return record(name, "SKIP", "baseline too low")
@@ -3462,10 +3474,50 @@ def test_download_only(window, baseline):
     ):
         return record(name, "FAIL", f"policy row wrong: {entry}")
     time.sleep(0.5)
-    got = py_download(window)
+    # Cushion drain (the 2026-09-22 approved fix, the same discarded
+    # window the asymmetric row's buckets drain): a freshly attached
+    # bucket starts FULL — default_burst is 1 s of rate — so the first
+    # measured window reads rate * (1 + 1/window) and only the AIMD
+    # luck kept this row inside the band.
+    py_download(0.5)
+
+    # The measured window rides the lib's one-sided patience (the
+    # charger-core-1c trickle lesson — the treatment every
+    # trickle-bound row carries; this row was the last holdout). The
+    # 2026-11-25 best-musl desktop leg measured 47.6% here while the
+    # sibling legs read in-band on the byte-identical enforcement
+    # object — the starved-window class: the under side re-samples,
+    # the over side fails NOW (a real over-delivery is never retried
+    # away), three under-samples fail with every number attached.
+    # The verdict's source stays the ledger (the kernel's own
+    # admission count) but as the NIGHT-dinner-13 delta ACROSS the
+    # window — the cumulative-over-life read carried the write-ahead
+    # trap the asymmetric row's docstring documents (client 134.3%
+    # vs ledger 99.7% on the 2026-09-28 four-leg run) — and the
+    # client count remains the fallback for the window where the
+    # ledger row went absent.
+    def ledger_window():
+        before = (limit_entry(status_json(), CG.ids["a"]) or {}).get("bytes_allowed", 0)
+        got = py_download(window)
+        after = (limit_entry(status_json(), CG.ids["a"]) or {}).get("bytes_allowed", 0)
+        delta = after - before
+        return delta if delta > 0 else got
+
+    samples = lib.patient_rate_window(
+        ledger_window,
+        500_000,
+        window,
+        # charger-core-2 rider L: the re-sample boundary drain — a
+        # starved window banks up to one burst and the immediate
+        # re-sample returns it as a phantom over-delivery; pay the
+        # bank at line rate between samples (the 1a25f91
+        # starve-limited drain shape).
+        redrain=lambda: lib.drain_cushion(
+            lambda: py_download(4.0, "a", idle=0.5), lib.default_burst(500_000)
+        ),
+    )
     entry = limit_entry(status_json(), CG.ids["a"])
-    truth = (entry or {}).get("bytes_allowed", 0)
-    passed = band_check(name, (truth or got) / window, 500_000)
+    passed = band_check(name, samples[-1], 500_000)
     record(
         "download (-d only): kernel drops engaged",
         "PASS" if (entry or {}).get("packets_dropped", 0) > 0 else "FAIL",
