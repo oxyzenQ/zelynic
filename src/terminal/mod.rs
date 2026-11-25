@@ -289,7 +289,7 @@ fn run_loop<F: FnMut(&mut Vec<String>, InputAction)>(
     // A real resize still lands within one wake of the probe
     // reporting the new size.
     let mut last_geo = winsize();
-    // NIGHT-boost-32: the live background ask — one 8-byte query
+    // NIGHT-boost-32: the live background ask — one 7-byte query
     // per BG_ASK_INTERVAL, the answer absorbed by the input drain
     // (zero stall: a slow answer rides the stream, never a poll).
     // A changed answer parks in the theme layer and forces the
@@ -387,7 +387,7 @@ fn run_loop<F: FnMut(&mut Vec<String>, InputAction)>(
         }
 
         // NIGHT-boost-32: the live background ask rides after the
-        // beat — one best-effort 8-byte write; the answer, whenever
+        // beat — one best-effort 7-byte write; the answer, whenever
         // it lands, is absorbed by the next wake's drain. A silent
         // terminal costs only the write.
         if last_ask.elapsed() >= raw::BG_ASK_INTERVAL {

@@ -161,5 +161,3 @@ pub(crate) const SCHEMA_VERSION: u32 = 35;
 // map is pinned by name: policies must survive process exit, which
 // is the whole point of the /sys/fs/bpf/zelynic directory.
 // ---------------------------------------------------------------------------
-
-// ─ Download (ingress) maps ─

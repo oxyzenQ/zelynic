@@ -358,7 +358,8 @@ pub fn format_count_into(n: u64, out: &mut String) {
 
 /// Get terminal width in columns via the shared TIOCGWINSZ probe
 /// (the one canonical copy lives in the terminal layer,
-/// terminal/diff.rs — NIGHT-hunt-15). Falls back to 80 if detection
+/// terminal/raw.rs — NIGHT-hunt-15, resident there since the
+/// NIGHT-ultimate-2 cap split). Falls back to 80 if detection
 /// fails (piped output, no tty).
 pub fn terminal_width() -> usize {
     crate::terminal::winsize().map_or(80, |(cols, _)| cols as usize)

@@ -14,8 +14,9 @@ use crate::ebpf::limiter::format_count_into;
 use crate::output::{brand_open, grey_open, reset, signature_footer};
 use std::time::Duration;
 
-/// The into-twin of [`session_rate`] (night-frontier-Z11): the same
-/// bytes into a caller-owned buffer, `format_bytes_into` carrying
+/// The push-form of the session-rate line (night-frontier-Z11): the
+/// same bytes the pre-Z11 owned form built, into a caller-owned
+/// buffer, `format_bytes_into` carrying
 /// the SI ladder.
 fn push_session_rate(out: &mut String, bps: u64) {
     crate::ebpf::limiter::format_bytes_into(bps, out);

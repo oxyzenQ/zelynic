@@ -104,9 +104,10 @@ fn terminal_bg_at(stored: Option<(u8, u8, u8)>, cap: ColorCapability) -> Option<
 /// 6x6x6 cube (the rails' nearest-match); shallow depths paint
 /// nothing — a 16-color slot cannot represent an arbitrary grey.
 #[cfg(feature = "ebpf")]
-/// The into-twin of [`terminal_bg_escape`] (night-frontier-Z11, the
-/// frame render's allocation ladder stage 2): the same bytes into a
-/// caller-owned buffer — the border wrap keeps one retained buffer
+/// The push-form of the frame's background escape (night-frontier-Z11,
+/// the frame render's allocation ladder stage 2): the same bytes the
+/// pre-Z11 owned form built, into a caller-owned buffer — the border
+/// wrap keeps one retained buffer
 /// per frame instead of owning a fresh String per frame. `write!`
 /// into the String carries the same formatting `format!` ran.
 #[cfg(feature = "ebpf")]
@@ -127,9 +128,9 @@ pub(crate) fn push_terminal_bg_escape(out: &mut String) {
     }
 }
 
-/// Pure core of [`terminal_bg_escape`] (the emit/emit_at discipline):
-/// the escape for one triple at one depth, pinned without touching
-/// the process-global caches.
+/// The emit_at pure form (the emit/emit_at discipline): the escape
+/// for one triple at one depth, pinned without touching the
+/// process-global caches.
 #[cfg(any(test, feature = "ebpf"))]
 #[cfg(test)]
 fn terminal_bg_escape_at(bg: Option<(u8, u8, u8)>, cap: ColorCapability) -> String {

@@ -418,8 +418,9 @@ impl Limiter {
     /// Check whether the limiter's pinned state is fully operational.
     ///
     /// On the bpf_link estate (the 5.15.0 floor is 5.7+ by eight
-    /// minors): both program pins AND both link pins — the links are
-    /// what attach the programs to the cgroup, so a state without them
+    /// minors): all four program pins AND all four link pins — the
+    /// links are what attach the programs to the cgroup, so a state
+    /// without them
     /// enforces nothing. NIGHT-hunt-19 closed the silent-no-enforcement
     /// trap where the old program-pins-only check "reused" exactly that
     /// half-attached state. (The pre-5.7 legacy attach — programs

@@ -79,7 +79,8 @@ pub fn handle_recover() -> Result<()> {
         return Ok(());
     }
 
-    // Check if state is valid (all 4 critical pins present).
+    // Check if state is valid (all eight critical pins present: the
+    // four program pins and the four link pins).
     let is_valid = Limiter::is_pinned();
 
     if is_valid {
