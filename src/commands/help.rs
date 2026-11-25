@@ -85,10 +85,7 @@ pub(crate) fn print_help() {
     println_safe!("Rate-limit and monitor any app's network speed. Pure eBPF, no daemon.");
     println_safe!();
     println_safe!("{}", brand_bold("Usage:"));
-    println_safe!(
-        "  {}",
-        grey("zelynic <command> [target] [rate] [options]")
-    );
+    println_safe!("  {}", grey("zelynic <command> [target] [rate] [options]"));
     println_safe!();
     println_safe!("{}", brand_bold("Examples:"));
     println_safe!("  {}", ok("sudo zelynic strict brave 100kb"));

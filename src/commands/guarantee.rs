@@ -47,9 +47,9 @@
 // anyhow imports ride the same gate (a module-level unused import
 // breaks the no-default-features leg's -D warnings).
 #[cfg(feature = "ebpf")]
-use anyhow::{Result, bail};
-#[cfg(feature = "ebpf")]
 use crate::ebpf::limiter::format_rate;
+#[cfg(feature = "ebpf")]
+use anyhow::{Result, bail};
 
 // improve-40: the wording pins live under the single test/ tree
 // (cosmostrix Pattern C), #[path]-wired exactly like the rates
