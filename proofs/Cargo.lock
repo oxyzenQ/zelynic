@@ -436,7 +436,7 @@ dependencies = [
 
 [[package]]
 name = "zelynic-proofs"
-version = "80.5.0-dragon.1"
+version = "80.5.0-dragon.2"
 dependencies = [
  "proptest",
 ]

@@ -29,6 +29,7 @@ NIGHT-hunt-18's git-history-only call.
 
 ## [Released]
 
+v80.5.0-dragon.2
 v80.5.0-dragon.1
 v80.4.0
 v80.3.1
