@@ -51,6 +51,10 @@ pub(crate) fn print_flag_tables() {
         "-h, --help",
         "This end-to-end reference (usage, commands, examples)",
     );
+    // night-dragon-fly-3 (the battery's suggestion): the per-verb
+    // help surface is clap's own — the reference names it, so
+    // `zelynic strict -h` is discoverable from the top.
+    println_safe!("                   each verb carries its own: 'zelynic strict -h'");
     flag_row("  ", "-V, --version", "Version and build information");
     flag_row(
         "  ",
@@ -85,11 +89,17 @@ pub(crate) fn print_flag_tables() {
     flag_row(
         "  ",
         "--color-mode M",
-        "Force color depth: 0 mono, 16, 8/256 cube, 24/32 truecolor",
+        "Force color depth: 0 mono, 16, 8 or 256 (cube), 24 or 32 (truecolor)",
     );
     println_safe!(
         "                   (default auto-fallback; for terminals whose truecolor claim lies)"
     );
+    // night-dragon-fly-3: the NO_COLOR note rides the color section it
+    // belongs to (the battery's placement find — it used to sit under
+    // Rate formats, a screen away from the color controls a reader
+    // looks for). Still default prose: an environment variable, not a
+    // flag — the tier law's boundary (hunt-39).
+    println_safe!("                   Color output is always on — set NO_COLOR=1 to disable");
     println_safe!();
     println_safe!("{}", brand_bold("Rate formats:"));
     println_safe!("  500b    1kb    500kb    1mb    1gb    1tb    (lowercase only)");
@@ -100,9 +110,6 @@ pub(crate) fn print_flag_tables() {
     // mandate is ONE flag, same function, one line at the end of the
     // section that says exactly that.
     println_safe!("  Both bounds overridable with {}", grey("--force-this"));
-    // NO_COLOR=1 stays default prose: an environment variable, not
-    // a flag — the tier law's one deliberate boundary (hunt-39).
-    println_safe!("  Color output is always on — set NO_COLOR=1 to disable");
     println_safe!();
     // NIGHT-improve-45: the Pro mode section — the owner's ask:
     // every hidden and advanced flag documented COMPLETELY on the
@@ -166,9 +173,11 @@ pub(crate) fn print_flag_tables() {
         "--during DUR",
         "auto-expire: the limit tears itself down when the window",
     );
-    println_safe!("                   passes. Units: s, m, h, d, mn, y — min 1s, max 5y");
-    println_safe!("                   (20d = twenty days; months 30d, years 365d).");
-    println_safe!("                   Duration only, one shape, no schedules.");
+    println_safe!("                   passes. Units: s, m, h, d, mn, y — m is minutes, mn is");
+    println_safe!(
+        "                   months (2mn = two months; months 30d, years 365d) — min"
+    );
+    println_safe!("                   1s, max 5y. Duration only, one shape, no schedules.");
     // NIGHT-improve-52: the Pro mode block carried every flag's
     // spelling but ZERO runnable examples — the one discovery path
     // a user copies from was missing for the whole hidden family.
@@ -271,6 +280,16 @@ pub(crate) fn print_flag_tables() {
         "--interval SEC",
         "live monitor refresh: 1s..60s, default 1s.",
     );
+    // night-dragon-fly-3 (the battery's doc gap): --deep rides the
+    // per-command help alone since its landing — one row closes the
+    // root reference's gap (the Deep inspection section documents the
+    // eagle-eyes flag estate completely now).
+    flag_row(
+        "    ",
+        "--deep",
+        "deep figures on the live monitor: per-row rtt ± jitter and",
+    );
+    println_safe!("                   the retransmit share.");
 }
 
 /// One flag table row (NIGHT-hunt-39, the flag tier): the spelling —

@@ -59,6 +59,7 @@ fn test_help_lists_every_command() {
         "Rate formats:",
         "Pro mode:",
         "Examples:",
+        "Scripting and rescue:",
     ] {
         assert!(stdout.contains(section), "--help must carry {section}");
     }

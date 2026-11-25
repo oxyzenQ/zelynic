@@ -85,7 +85,10 @@ pub(crate) fn print_help() {
     println_safe!("Rate-limit and monitor any app's network speed. Pure eBPF, no daemon.");
     println_safe!();
     println_safe!("{}", brand_bold("Usage:"));
-    println_safe!("  {}", grey("zelynic <command> [target] [value] [options]"));
+    println_safe!(
+        "  {}",
+        grey("zelynic <command> [target] [rate] [options]")
+    );
     println_safe!();
     println_safe!("{}", brand_bold("Examples:"));
     println_safe!("  {}", ok("sudo zelynic strict brave 100kb"));
@@ -134,7 +137,7 @@ pub(crate) fn print_help() {
     );
     example(
         "per-connection cap (server)",
-        "sudo zelynic s nginx --per-socket 500kb",
+        "sudo zelynic s nginx 500kb --per-socket",
     );
     example(
         "a group sharing one rate",
@@ -199,6 +202,11 @@ pub(crate) fn print_help() {
     println_safe!();
     synopsis("zelynic status");
     println_safe!("    Show active limits and watchdog status.");
+    // night-dragon-fly-3 (the battery's own refusal): unprivileged
+    // status answers "root required" while list-apps degrades with an
+    // honest census warning — the reference names which of the two
+    // lanes needs the privilege, so the refusal is never a surprise.
+    println_safe!("    Needs root for the live counters — list-apps degrades without it.");
     // NIGHT-dinner-11: the owner read "allowed 3.4gb / dropped 4.4 mb"
     // as a mystery — the pair's semantics belong ON the surface he
     // was looking at, not only in docs/USAGE.md. night-ux-6: the
@@ -221,7 +229,7 @@ pub(crate) fn print_help() {
     // lighter — every pinned needle (the q-only quit key, --depth's
     // single spelling, the one-shot report inventory) rides tighter
     // prose, and the retired-vocabulary parentheticals stay gone.
-    println_safe!("    The unified live monitor (observe + top merged; 'ee' is the short");
+    println_safe!("    The unified live monitor ('ee' is the short");
     println_safe!("    alias). Apps ranked by session accumulation — rank 1 eats the");
     println_safe!("    internet right now; rows follow the terminal height, high to");
     println_safe!("    low. Exit with q (the only quit key).");
@@ -269,7 +277,7 @@ pub(crate) fn print_help() {
     println_safe!();
     synopsis("zelynic doctor");
     println_safe!(
-        "    Check host eBPF support and this binary's build facts — the flavor verdict leads, the BUILD block (version, commit, variant, rustc, profile) follows."
+        "    Check host eBPF support and this binary's build facts — the libc flavor verdict leads, the BUILD block (version, commit, variant, rustc, profile) follows."
     );
     println_safe!();
     // night-signature-advanced-1: the provenance surface joins the
@@ -350,6 +358,17 @@ pub(crate) fn print_help() {
     );
     println_safe!("                  cannot collide with the single ':' the cg: prefix and");
     println_safe!("                  the container URIs own");
+    // night-dragon-fly-3 (the battery's doc gap): eagle-eyes' target
+    // list rides its OWN separator — '/' — and the root reference
+    // never named it (the `eagle-eyes 12345/brave/firefox` example
+    // above was the only spelling of the grammar, undocumented). One
+    // row teaches it beside the '::' row it is easily confused with.
+    target_row(
+        "  ",
+        "<a>/<b>/<c>",
+        "list members for eagle-eyes — the '/' separator rides the",
+    );
+    println_safe!("                  monitor lane: mixed ids and names (12345/brave/firefox)");
     // NIGHT-dinner-11: the no-match contract rides the grammar
     // section — the forms above are what a target must resolve to,
     // and one that resolves to nothing is rejected, not soft-exited
@@ -369,7 +388,7 @@ pub(crate) fn print_help() {
     println_safe!("  • Fail-safe: BPF returns allow on any error path");
     println_safe!("  • One option lifts every guard: {}", grey("--force-this"));
     println_safe!();
-    println_safe!("{}", brand_bold("Examples:"));
+    println_safe!("{}", brand_bold("Scripting and rescue:"));
     // NIGHT-hunt-15: the command blocks above each carry their own
     // examples (NIGHT-improve-5) — this section holds ONLY the three
     // workflows whose blocks have no example lines, so every example
@@ -378,7 +397,10 @@ pub(crate) fn print_help() {
     // two-space indent. NIGHT-hunt-35: the 'u --all' pair died here —
     // improve-54 had already given the sweep its Pro mode example,
     // and one command teaches exactly once (the no-duplicate law
-    // restored after the merge drifted past it).
+    // restored after the merge drifted past it). night-dragon-fly-3:
+    // the section carries its own title now — the reference ends on
+    // its strongest section with the role named, not a second
+    // "Examples:" heading the top block already owns.
     println_safe!("  # Check what's limited (JSON for scripts)");
     println_safe!(
         "  {}",
