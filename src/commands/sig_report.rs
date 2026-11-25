@@ -70,7 +70,10 @@
 //!
 //! # Exit contract
 //!
-//! The report exits 1 on [`SigVerdict::Tampered`] — this tree's
+//! The report exits 1 on any non-Authentic verdict
+//! ([`SigVerdict::Tampered`] and, since night-dragon-fly-4,
+//! [`SigVerdict::Unsigned`] — the any-failed-depth contract names the
+//! exit, not the verdict class) — this tree's
 //! runtime-fatal code (clap usage errors exit 2, runtime failures exit
 //! 1; the sibling tools gate on their own code under the same law) —
 //! so a script can gate on the verdict without parsing the text. The
@@ -88,13 +91,19 @@ use crate::info::{
 };
 use crate::output::brand_bold;
 
-use super::sig_commit_sig::commit_signature_verdict;
+use super::sig_commit_sig::{commit_signature_state, commit_signature_verdict};
 
 /// Verdict of the depth ladder.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum SigVerdict {
     /// Every depth passed.
     Authentic,
+    /// The commit-signature depth is the ONE failure and its stamp
+    /// state is `unsigned` (night-dragon-fly-4): a missing GPG
+    /// binding is a missing provenance link, not a modification —
+    /// every integrity depth above verifies. Still exits 1 (the
+    /// documented any-failed-depth contract).
+    Unsigned,
     /// At least one depth failed; the report names which.
     Tampered,
 }
@@ -263,7 +272,9 @@ pub(crate) fn sig_report() -> (String, SigVerdict) {
     // stamp is the build's own verified verdict over the claimed
     // commit; the policy (pinned fingerprint, honest sentences for
     // every state) lives in sig_commit_sig.rs.
-    let (sig_ok, sig_detail) = commit_signature_verdict(vcs_commit_sig(), build_hash());
+    let sig_stamp = vcs_commit_sig();
+    let (sig_ok, sig_detail) = commit_signature_verdict(sig_stamp, build_hash());
+    let sig_state = commit_signature_state(sig_stamp);
 
     let rows = [
         DepthRow {
@@ -302,8 +313,19 @@ pub(crate) fn sig_report() -> (String, SigVerdict) {
     ];
 
     let depths_passed = rows.iter().filter(|r| r.passed).count();
+    // night-dragon-fly-4: the verdict splits the unsigned class out
+    // of TAMPERED — an unsigned commit is a missing provenance link,
+    // not a modification (the live battery's own find: a pristine
+    // local build read "SIGNATURE: TAMPERED" for a plain no-GPG
+    // commit). UNSIGNED fires only when the commit-signature depth
+    // is the ONE failure and the stamp state says `unsigned`; any
+    // integrity-depth failure, a foreign key, or a failed
+    // cryptographic check stays TAMPERED — those are tampering-class,
+    // not absent-provenance-class.
     let verdict = if depths_passed == rows.len() {
         SigVerdict::Authentic
+    } else if depths_passed + 1 == rows.len() && !sig_ok && sig_state == "unsigned" {
+        SigVerdict::Unsigned
     } else {
         SigVerdict::Tampered
     };
@@ -337,13 +359,23 @@ pub(crate) fn sig_report() -> (String, SigVerdict) {
     text.push('\n');
     text.push_str(&format!(
         "verdict: SIGNATURE: {} ({depths_passed}/{} depths verified)\n",
-        if verdict == SigVerdict::Authentic {
-            "AUTHENTIC"
-        } else {
-            "TAMPERED"
+        match verdict {
+            SigVerdict::Authentic => "AUTHENTIC",
+            SigVerdict::Unsigned => "UNSIGNED",
+            SigVerdict::Tampered => "TAMPERED",
         },
         rows.len()
     ));
+    // night-dragon-fly-4: the unsigned class carries its own note —
+    // the verdict names the missing link honestly, and the self-hash
+    // note below stays the closing line for every verdict.
+    if verdict == SigVerdict::Unsigned {
+        text.push_str(
+            "note: an unsigned commit is a missing provenance link, not a\n\
+             modification — every integrity depth above verifies; releases\n\
+             still bind to signed commits/tags.\n",
+        );
+    }
     text.push_str("note: the self-hash is a fingerprint to compare against a\n");
     // night-depth-infra-1: no trailing newline here — println_safe!
     // writes the terminal one itself, and the doubled byte this line
@@ -358,7 +390,7 @@ pub(crate) fn sig_report() -> (String, SigVerdict) {
 pub(crate) fn run() {
     let (text, verdict) = sig_report();
     println_safe!("{text}");
-    if verdict == SigVerdict::Tampered {
+    if verdict != SigVerdict::Authentic {
         // Flush the report before the hard exit: the verdict IS the
         // error surface, and a swallowed buffer would hide it.
         use std::io::Write;
@@ -392,7 +424,20 @@ mod tests {
                 "{text}"
             );
         } else {
-            assert_eq!(verdict, SigVerdict::Tampered, "{text}");
+            // night-dragon-fly-4: the verdict splits the unsigned
+            // class — a no-GPG build reads UNSIGNED (the missing
+            // provenance link, its own note line), every other
+            // failure state stays TAMPERED.
+            let state = commit_signature_state(stamp);
+            if state == "unsigned" {
+                assert_eq!(verdict, SigVerdict::Unsigned, "{text}");
+                assert!(
+                    text.contains("SIGNATURE: UNSIGNED (5/6 depths verified)"),
+                    "{text}"
+                );
+            } else {
+                assert_eq!(verdict, SigVerdict::Tampered, "{text}");
+            }
             let d5 = text
                 .lines()
                 .find(|line| line.starts_with("D5 commit-signature"))
@@ -514,7 +559,7 @@ mod tests {
         assert!(text.contains("commit      ") && text.contains("build-time  "));
         assert!(matches!(
             verdict,
-            SigVerdict::Authentic | SigVerdict::Tampered
+            SigVerdict::Authentic | SigVerdict::Unsigned | SigVerdict::Tampered
         ));
     }
 }

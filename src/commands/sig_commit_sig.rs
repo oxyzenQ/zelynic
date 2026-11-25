@@ -36,6 +36,20 @@
 pub(crate) const PINNED_MAINTAINER_KEY_FPR: &str =
     include_str!("../../assets/gpg/pinned-maintainer-fpr.txt");
 
+/// The stamp's own state word — the same first line
+/// [`commit_signature_verdict`] dispatches on, as a name. The report's
+/// verdict split reads it beside the `(passed, detail)` pair so the
+/// unsigned class (a missing GPG binding) is distinguishable from the
+/// tampering classes (wrong key, failed check) without string-matching
+/// the detail sentences (night-dragon-fly-4).
+#[must_use]
+pub(crate) fn commit_signature_state(stamp: &str) -> &str {
+    match stamp.split_once(':') {
+        Some((state, _)) => state,
+        None => stamp,
+    }
+}
+
 /// The D5 verdict: `(passed, detail)` for the sig ladder's
 /// commit-signature row. Every state of the build-time stamp maps to
 /// an honest sentence; only a verified match against the pinned

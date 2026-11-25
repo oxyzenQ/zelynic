@@ -552,8 +552,15 @@ pub(crate) fn provenance_view() -> ProvenanceView {
     } else {
         "tampered"
     };
+    // night-dragon-fly-4: the line names its own coverage — the -V
+    // matrix carries the RUNTIME-verifiable depths (d0-d3); d4 rides
+    // the object stamps and d5 the commit stamp, both rendered whole
+    // by `zelynic sig`. The hint appends AFTER the pinned layers
+    // suffix, so the line's leading shape stays byte-stable for the
+    // fingerprint-token parsers (signature_tests splits on the
+    // layers= field; smoke.rs pins the full shape).
     let depth_line = format!(
-        "Depth-matrix: fp={active_fp:016x} status={status} anchor=b3:{} layers=d0:masked-words,d1:masked-words,d2:dual-fingerprint,d3:blake3-anchor",
+        "Depth-matrix: fp={active_fp:016x} status={status} anchor=b3:{} layers=d0:masked-words,d1:masked-words,d2:dual-fingerprint,d3:blake3-anchor (runtime depths; d4/d5 ride zelynic sig)",
         hex32(&runtime_anchor)
     );
 
