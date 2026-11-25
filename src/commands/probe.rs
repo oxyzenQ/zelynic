@@ -150,6 +150,19 @@ pub(crate) fn run_enforcement_probe(
         teardown: false,
     };
 
+    // night-dragon-fly-1 (the loading law reaches the verify loop):
+    // the probe's machinery — the server spawn, the cgroup entry, the
+    // 3s measured window — is the apply path's longest silent stretch,
+    // so the loading lane arms here ("measuring the fresh limit", the
+    // DNA helix past the 100ms lazy threshold) and the Drop guard
+    // erases the line before the outcome's report lines print. The
+    // early stand-down lanes above never arm: a blocked policy (the
+    // drop ledger IS its verdict) exits inside the lazy threshold's
+    // silence. -v keeps the loader: the trace ends before the window
+    // opens, and the 3s window itself is silent either way.
+    let _loader =
+        crate::output::Loader::arm("measuring the fresh limit", crate::output::Style::Helix);
+
     // The target: first resolved cgroup id + its path (the probe
     // child nests under it; members first, the cgroupfs walk for a
     // memberless bed — identity::pathwalk, NIGHT-repair-1).

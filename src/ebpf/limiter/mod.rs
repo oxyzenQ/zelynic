@@ -133,6 +133,19 @@ impl Limiter {
     /// and the total attach cost.
     pub fn attach() -> Result<()> {
         let started = std::time::Instant::now();
+        // night-dragon-fly-1 (the loading law reaches the apply path):
+        // the cold attach is the CLI's longest silent stretch — the pin
+        // ladder plus the cgroup hooks measured 470-710ms on the live
+        // battery, far past the 100ms lazy threshold — so the loading
+        // lane arms around it here. With -v the [limiter] trace
+        // narrates every step, so the loader skips there: the trace IS
+        // the progress indicator. A warm reuse lands under the
+        // threshold and never draws (the fast path's stderr stays byte
+        // for byte silent), and the Drop guard erases the line before
+        // the caller's verdict prints on every early-return lane.
+        let _loader = (!crate::output::verbose::enabled()).then(|| {
+            crate::output::Loader::arm("attaching the cgroup hooks", crate::output::Style::Helix)
+        });
         // night-netrunner-2 (the Adaptive Orchestra): ONE probe, every
         // attach decision reads the struct. The refusal ladder (floor,
         // cgroup v2, root, then the hunt-28 bpffs preflight) is the
