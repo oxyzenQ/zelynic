@@ -107,15 +107,26 @@ fn handle_strict_single(
 ) -> Result<()> {
     use crate::ebpf::limiter::{Limiter, Target, parse_during};
 
-    // Input validation first (fail-fast, no privileges needed): rate
-    // strings and the dangerous-target blocklist are pure parsing, so
-    // a typo surfaces its did-you-mean tip before the root requirement
-    // — the same parse-before-execute contract clap applies to its own
-    // arguments (live root-machine smoke-run find).
+    // Input validation first (fail-fast, no privileges needed): the
+    // dangerous-target blocklist leads the ladder (night-dragon-fly-2,
+    // the battery's own find — `strict systemd` with no rate used to
+    // answer "No rate specified", the guard message hiding behind the
+    // typo-class error; the scarier refusal teaches first, so the user
+    // learns the target is hazardous before anything about rates).
+    // Rate strings are pure parsing, so a typo still surfaces its
+    // did-you-mean tip before the root requirement — the same
+    // parse-before-execute contract clap applies to its own arguments
+    // (live root-machine smoke-run find).
     //
     // NIGHT-improve-30: ONE flag carries both overrides — the former
     // `--allow-dangerous` (rate bounds) and `--force` (blocklist) are
     // the same "I know, force this" decision, so they parse as one.
+    // NIGHT-dinner-16: the single-target input boundary — an empty
+    // target dies HERE, before the blocklist and the root ask, the
+    // first rung of the validation ladder.
+    validate_single_target(target_str, "zelynic strict brave 100kb")?;
+    check_dangerous_target(target_str, force_this)?;
+
     let rates = resolve_rates(rate, download, upload, force_this)?;
 
     if rates.download.is_none() && rates.upload.is_none() {
@@ -142,13 +153,6 @@ fn handle_strict_single(
     // parse-before-execute ladder (a bad --during never burns a
     // privileged round-trip).
     let during_spec = during.map(parse_during).transpose()?;
-
-    // NIGHT-dinner-16: the single-target input boundary — an empty
-    // target dies HERE, before the blocklist and the root ask, the
-    // same ladder rung the rate check owns.
-    validate_single_target(target_str, "zelynic strict brave 100kb")?;
-
-    check_dangerous_target(target_str, force_this)?;
 
     super::ensure_root()?;
 
@@ -332,28 +336,13 @@ fn handle_strict_multi(
     use crate::ebpf::limiter::{Limiter, Target, parse_during};
 
     // Input validation first (fail-fast, no privileges needed) — same
-    // parse-before-execute ladder as handle_strict_single. NIGHT-improve-30:
-    // the unified --force-this override (rate bounds + blocklist).
-    let rates = resolve_rates(rate, download, upload, force_this)?;
-
-    if rates.download.is_none() && rates.upload.is_none() {
-        return Err(anyhow::anyhow!(
-            "No rate specified. Use positional rate or -d/-u options.\n\
-             Example: zelynic strict brave::curl 1mb"
-        ));
-    }
-
-    // improve-40 (schema v24) / improve-40-b: the bracket joins
-    // the multi's parse-first ladder — one flag, every member row
-    // carries it (the group's own contract, the --during shape);
-    // the per-direction spellings ride the same struct.
-    let bracket = super::guarantee::resolve_guarantee(bracket_flags, &rates, force_this, false)?;
-
-    // night-during (schema v23): the same parse-first ladder, the
-    // multi's own rung placement (after the rate family, before the
-    // target grammar — one input boundary, every refusal cheap).
-    let during_spec = during.map(parse_during).transpose()?;
-
+    // parse-before-execute ladder as handle_strict_single, with the
+    // dangerous-target guard leading it (night-dragon-fly-2: the
+    // battery's own find — the blocklist's refusal must never hide
+    // behind the typo-class "No rate specified" error, the scarier
+    // refusal teaches first). NIGHT-improve-30: the unified
+    // --force-this override (rate bounds + blocklist).
+    //
     // NIGHT-blade-18: the list is a grammar now, not a best-effort
     // scan — validate_multi_targets refuses the shapes that can only be
     // mistakes (empty members hid a dropped app; '/' or punctuation-only
@@ -375,6 +364,26 @@ fn handle_strict_multi(
     // policy write ever ran). Wording and refusal order are
     // byte-identical to the loop it replaces.
     check_dangerous_targets_multi(&segments, force_this)?;
+
+    let rates = resolve_rates(rate, download, upload, force_this)?;
+
+    if rates.download.is_none() && rates.upload.is_none() {
+        return Err(anyhow::anyhow!(
+            "No rate specified. Use positional rate or -d/-u options.\n\
+             Example: zelynic strict brave::curl 1mb"
+        ));
+    }
+
+    // improve-40 (schema v24) / improve-40-b: the bracket joins
+    // the multi's parse-first ladder — one flag, every member row
+    // carries it (the group's own contract, the --during shape);
+    // the per-direction spellings ride the same struct.
+    let bracket = super::guarantee::resolve_guarantee(bracket_flags, &rates, force_this, false)?;
+
+    // night-during (schema v23): the same parse-first ladder, the
+    // multi's own rung placement (after the rate family — one input
+    // boundary, every refusal cheap).
+    let during_spec = during.map(parse_during).transpose()?;
 
     let targets: Vec<Target> = segments
         .iter()
