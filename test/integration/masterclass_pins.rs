@@ -90,7 +90,7 @@ fn test_help_strict_flags_are_complete() {
         "Pro mode must document --no-test, got:\n{stdout}"
     );
     assert!(
-        stdout.contains("--per-socket 500kb"),
+        stdout.contains("500kb --per-socket"),
         "--help must show a per-socket example (the server shape's discovery path), got:\n{stdout}"
     );
 }
