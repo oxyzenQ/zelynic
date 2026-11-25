@@ -73,7 +73,11 @@ pub(crate) fn recycle_line(line: String) {
 /// The pooled twin of [`crate::output::fit_to_width`] for a WHOLE
 /// string, in place: the fast path keeps the string untouched (the
 /// same bytes fit returns), the truncation path cuts at the display
-/// boundary and appends the ellipsis.
+/// boundary and appends the ellipsis — on a word boundary when the
+/// line carries one (night-dragon-fly-6: the live battery caught the
+/// status footer clipping mid-word, "measured RTT <1ms (wi…"; labels
+/// keep their own mid-word law in truncate_label, this fit serves the
+/// prose detail lines only).
 pub(crate) fn fit_in_place(s: &mut String, w: usize) {
     if display_width(s) <= w {
         return;
@@ -92,7 +96,20 @@ pub(crate) fn fit_in_place(s: &mut String, w: usize) {
         }
         used += cw;
     }
+    // The word-boundary backing fires only when the cut landed
+    // MID-WORD: a cut that already sits at a space keeps its word
+    // (backing further would drop a word that fits), a single long
+    // word with no boundary keeps the character cut, and trailing
+    // whitespace goes before the ellipsis.
+    let mid_word = cut < s.len() && !s[..cut].ends_with(' ') && !s[cut..].starts_with(' ');
     s.truncate(cut);
+    if mid_word
+        && let Some(space) = s.rfind(' ')
+    {
+        s.truncate(space);
+    }
+    let trimmed = s.trim_end().len();
+    s.truncate(trimmed);
     s.push('…');
 }
 

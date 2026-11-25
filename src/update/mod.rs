@@ -145,10 +145,19 @@ pub fn check_update(current_version: &str) -> Result<(), String> {
             "{}",
             field(
                 "Status:",
+                // night-dragon-fly-6: the countdown floors, and the
+                // last minute reads "under a minute" — the old
+                // div_ceil read frozen at "60 minute(s)" for the
+                // whole first minute after a check (the live
+                // battery's find), a stuck-looking number.
                 &format!(
-                    "{} — the hourly window closes in {} minute(s)",
+                    "{} — the hourly window closes in {}",
                     warn_bold("throttled"),
-                    remaining.div_ceil(60)
+                    if remaining < 60 {
+                        "under a minute".to_string()
+                    } else {
+                        format!("{} minute(s)", remaining / 60)
+                    }
                 )
             )
         );
