@@ -48,6 +48,8 @@
 // breaks the no-default-features leg's -D warnings).
 #[cfg(feature = "ebpf")]
 use anyhow::{Result, bail};
+#[cfg(feature = "ebpf")]
+use crate::ebpf::limiter::format_rate;
 
 // improve-40: the wording pins live under the single test/ tree
 // (cosmostrix Pattern C), #[path]-wired exactly like the rates
@@ -218,8 +220,8 @@ pub(crate) fn resolve_guarantee(
                 "floor {} exceeds ceil {} on the {} row — a guarantee above the cap is a \
                  contradiction.\n\
                  The cap is the safety law; raise the ceiling or lower the floor.",
-                pair.floor_bps,
-                pair.ceil_bps,
+                format_rate(pair.floor_bps),
+                format_rate(pair.ceil_bps),
                 label
             );
         }
@@ -228,9 +230,9 @@ pub(crate) fn resolve_guarantee(
                 "ceil {} exceeds the {} rate {} — the pool refills at the rate, \
                  so a ceiling above it never binds.\n\
                  Raise the rate or lower the ceiling.",
-                pair.ceil_bps,
+                format_rate(pair.ceil_bps),
                 label,
-                rate
+                format_rate(rate)
             );
         }
         if pair.floor_bps != 0 && pair.floor_bps > rate {
@@ -240,9 +242,9 @@ pub(crate) fn resolve_guarantee(
                  Over-subscribed floors (many leaves, each floored) are the datapath's \
                  documented degradation; one leaf floored above its own pool is a \
                  mis-typed rate.",
-                pair.floor_bps,
+                format_rate(pair.floor_bps),
                 label,
-                rate
+                format_rate(rate)
             );
         }
     }
