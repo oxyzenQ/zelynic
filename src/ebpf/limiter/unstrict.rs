@@ -16,6 +16,16 @@ use super::policy_lines::policy_survivor_line;
 use super::reclaim::unstrict_partial_failure_line;
 use super::types::{Direction, Target};
 
+/// The removal's announce voice (night-dragon-fly-6): [`Announce::Verdict`]
+/// is the command path's own verb — the user typed unstrict, so the
+/// trace says Unstrict; [`Announce::Expired`] is the during sweep's —
+/// the CLI-is-the-daemon reaper removing an ended window announces the
+/// expiry itself, never a verb nobody typed.
+enum Announce {
+    Verdict,
+    Expired,
+}
+
 impl super::Limiter {
     /// Remove policy for a target (unstrict).
     ///
@@ -35,7 +45,7 @@ impl super::Limiter {
     /// entries — see [`Self::reclaim_cgroup_state`].
     pub fn unstrict(&mut self, target: &Target) -> Result<usize> {
         let cgroup_ids = self.resolve_target(target)?;
-        let removed = self.remove_ids(&cgroup_ids)?;
+        let removed = self.remove_ids(&cgroup_ids, Announce::Expired)?;
         // night-frontier-Z3: the identity pin dies with the policy it
         // describes — the by-URI sweep takes the recreated-identity
         // case (the pin's cgroup id differs from the current
@@ -72,7 +82,7 @@ impl super::Limiter {
         let mut removed = 0usize;
         let mut no_limits: Vec<String> = Vec::new();
         for (target, ids) in targets.iter().zip(ids_per_target) {
-            let n = self.remove_ids(&ids)?;
+            let n = self.remove_ids(&ids, Announce::Verdict)?;
             if n == 0 {
                 no_limits.push(target.label());
             }
@@ -95,7 +105,17 @@ impl super::Limiter {
     /// per-cgroup walk, the superseded capture, the failure ledger,
     /// the tail sweep — nothing moved but the resolve that used to
     /// sit above it.
-    fn remove_ids(&mut self, cgroup_ids: &[u32]) -> Result<usize> {
+    ///
+    /// night-dragon-fly-6 (the announce voice): the removal announces
+    /// itself in the voice of whoever asked for it. [`Announce::Verdict`]
+    /// is the command path's own verb ("Unstrict: ... limits removed" —
+    /// the user typed unstrict); [`Announce::Expired`] is the during
+    /// sweep's (the battery caught the reaper printing "Unstrict:"
+    /// lines inside a read-only `status` whose 30s window had just
+    /// passed — the expired row now announces ITSELF, "window expired:
+    /// ... — the limit lifted itself", in the trace grey, never a verb
+    /// nobody typed).
+    fn remove_ids(&mut self, cgroup_ids: &[u32], announce: Announce) -> Result<usize> {
         let mut removed = 0usize;
         let mut failed: Vec<String> = Vec::new();
         // The groups whose policies this removal takes (NIGHT-lts-7):
@@ -138,10 +158,14 @@ impl super::Limiter {
                         Direction::Upload => ul_gone = true,
                     },
                     Err(e) => {
+                        let voice = match announce {
+                            Announce::Verdict => "Unstrict:",
+                            Announce::Expired => "window sweep:",
+                        };
                         eprintln_safe!(
                             "{}",
                             crate::output::grey(&format!(
-                                "[limiter] Unstrict: cg:{cgroup_id} {} not removed: {e}",
+                                "[limiter] {voice} cg:{cgroup_id} {} not removed: {e}",
                                 direction.label()
                             ))
                         );
@@ -162,10 +186,28 @@ impl super::Limiter {
             }
 
             if found {
-                eprintln_safe!(
-                    "{}",
-                    crate::output::ok(&format!("[limiter] Unstrict: {label} — limits removed"))
-                );
+                match announce {
+                    Announce::Verdict => {
+                        eprintln_safe!(
+                            "{}",
+                            crate::output::ok(&format!(
+                                "[limiter] Unstrict: {label} — limits removed"
+                            ))
+                        );
+                    }
+                    Announce::Expired => {
+                        // The sweep's own voice, in the trace grey —
+                        // narration, never a verdict (the verbose
+                        // lane's tier law: a trace never reads as
+                        // green).
+                        eprintln_safe!(
+                            "{}",
+                            crate::output::grey(&format!(
+                                "[limiter] window expired: {label} — the limit lifted itself"
+                            ))
+                        );
+                    }
+                }
             }
         }
 
