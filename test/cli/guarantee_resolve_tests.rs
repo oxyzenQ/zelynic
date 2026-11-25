@@ -209,14 +209,8 @@ fn the_contradiction_is_rejected() {
     // The refusal names the numbers in the display grammar the surfaces
     // print (night-dragon-fly-8: the format_rate ladder, not the parse
     // layer's raw bps integers the old pins matched by substring).
-    assert!(
-        msg.contains("200.0 KB/s"),
-        "the floor's number: {msg}"
-    );
-    assert!(
-        msg.contains("100.0 KB/s"),
-        "the ceiling's number: {msg}"
-    );
+    assert!(msg.contains("200.0 KB/s"), "the floor's number: {msg}");
+    assert!(msg.contains("100.0 KB/s"), "the ceiling's number: {msg}");
     assert!(msg.contains("contradiction"), "the law named: {msg}");
 
     // The per-direction shape: a download floor above a download
