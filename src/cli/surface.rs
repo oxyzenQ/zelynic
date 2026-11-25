@@ -53,10 +53,13 @@ pub enum Commands {
         #[arg(short = 'u', long = "upload")]
         upload: Option<String>,
 
-        /// The fleet sweep (NIGHT-improve-54): limit EVERY user app
-        /// from list-apps at one rate — the former strict-all verb,
-        /// now a lane of this one (system apps stay behind
-        /// --force-this's guard by default).
+        /// The fleet sweep: limit EVERY user app from list-apps at
+        /// one rate — the former strict-all verb, now a lane of this
+        /// one (system apps stay behind --force-this's guard by
+        /// default).
+        ///
+        /// NIGHT-improve-54: the fleet sweep lane (the former
+        /// strict-all verb).
         #[arg(long = "all")]
         all: bool,
 
@@ -83,69 +86,82 @@ pub enum Commands {
         #[arg(long = "no-test")]
         no_test: bool,
 
-        /// Enforce per SOCKET, not per cgroup (charger-core-3b):
-        /// every connection gets its own bucket at the rate — the
-        /// server shape (one process, many sockets; the cgroup total
-        /// is rate x concurrent sockets, NOT rate). The single lane
-        /// only: a '::' list shares one group bucket, so the flag is
-        /// refused there (NIGHT-improve-53's routing law).
+        /// Enforce per SOCKET, not per cgroup: every connection
+        /// gets its own bucket at the rate — the server shape (one
+        /// process, many sockets; the cgroup total is rate x
+        /// concurrent sockets, NOT rate). The single lane only: a
+        /// '::' list shares one group bucket, so the flag is refused
+        /// there (the list lane's routing law).
+        ///
+        /// charger-core-3b: the per-socket enforcement shape.
+        /// NIGHT-improve-53: the list lane's routing law.
         #[arg(long = "per-socket")]
         per_socket: bool,
 
-        /// Auto-expire this row (night-during, schema v23; the
-        /// owner's duration-only revision): `--during 2h` — a
-        /// duration from the apply instant (units s, m, h, d, mn,
-        /// y; bounds 1s..5y). After the duration the row lifts
-        /// itself.
+        /// Auto-expire this row: `--during 2h` — a duration from
+        /// the apply instant (units s, m, h, d, mn, y; bounds
+        /// 1s..5y). After the duration the row lifts itself.
         ///
         /// The KERNEL decides when the window is over — no daemon,
         /// no cron; every zelynic visit re-stamps the clock bridge.
+        ///
+        /// night-during, schema v23: the owner's duration-only
+        /// revision.
         #[arg(long = "during", value_name = "DURATION")]
         during: Option<String>,
 
-        /// Per-LEAF guaranteed minimum (improve-40, schema v24):
-        /// every subprocess under the target is guaranteed at
-        /// least RATE of the shared budget — however greedy its
-        /// siblings. `--floor 100kb`
+        /// Per-LEAF guaranteed minimum: every subprocess under the
+        /// target is guaranteed at least RATE of the shared budget
+        /// — however greedy its siblings. `--floor 100kb`
         ///
         /// A PRIORITY, not a reservation: idle leaves lend their
         /// unspent share back (the pool's own accumulation is the
         /// lender). Over-subscribed floors degrade gracefully to
         /// the fair split (the pool never creates budget).
+        ///
+        /// improve-40, schema v24: the per-leaf bracket family.
         #[arg(long = "floor", value_name = "RATE")]
         floor: Option<String>,
 
-        /// Per-LEAF maximum (improve-40, schema v24): no subprocess
-        /// may exceed RATE even when its siblings are idle and the
-        /// pool is rich. `--ceil 300kb`
+        /// Per-LEAF maximum: no subprocess may exceed RATE even
+        /// when its siblings are idle and the pool is rich.
+        /// `--ceil 300kb`
         ///
         /// Binds even a lone subprocess (a cap that folds when
         /// siblings appear is not a cap); the banking bound
         /// tightens to the ceiling's own quantum.
+        ///
+        /// improve-40, schema v24: the per-leaf bracket family.
         #[arg(long = "ceil", value_name = "RATE")]
         ceil: Option<String>,
 
-        /// Per-DOWNLOAD spelling of --floor (improve-40-b, the
-        /// asymmetric link): `--floor-download 100kb` brackets
-        /// only the download row. `--floor` sets both; the two
-        /// spellings refuse together.
+        /// Per-DOWNLOAD spelling of --floor: `--floor-download
+        /// 100kb` brackets only the download row. `--floor` sets
+        /// both; the two spellings refuse together.
+        ///
+        /// improve-40-b: the asymmetric link spellings.
         #[arg(long = "floor-download", value_name = "RATE")]
         floor_download: Option<String>,
 
-        /// Per-UPLOAD spelling of --floor (improve-40-b):
-        /// `--floor-upload 50kb` brackets only the upload row.
+        /// Per-UPLOAD spelling of --floor: `--floor-upload 50kb`
+        /// brackets only the upload row.
+        ///
+        /// improve-40-b: the asymmetric link spellings.
         #[arg(long = "floor-upload", value_name = "RATE")]
         floor_upload: Option<String>,
 
-        /// Per-DOWNLOAD spelling of --ceil (improve-40-b, the
-        /// asymmetric link): `--ceil-download 300kb` caps only
-        /// the download row. `--ceil` caps both; the two
+        /// Per-DOWNLOAD spelling of --ceil: `--ceil-download 300kb`
+        /// caps only the download row. `--ceil` caps both; the two
         /// spellings refuse together.
+        ///
+        /// improve-40-b: the asymmetric link spellings.
         #[arg(long = "ceil-download", value_name = "RATE")]
         ceil_download: Option<String>,
 
-        /// Per-UPLOAD spelling of --ceil (improve-40-b):
-        /// `--ceil-upload 200kb` caps only the upload row.
+        /// Per-UPLOAD spelling of --ceil: `--ceil-upload 200kb`
+        /// caps only the upload row.
+        ///
+        /// improve-40-b: the asymmetric link spellings.
         #[arg(long = "ceil-upload", value_name = "RATE")]
         ceil_upload: Option<String>,
     },
@@ -174,22 +190,30 @@ pub enum Commands {
         #[arg(value_name = "TARGET", required_unless_present = "all")]
         target: Option<String>,
 
-        /// The fleet sweep (NIGHT-improve-54): block EVERY user app
-        /// from the internet — the former block-all verb, now a lane
-        /// of this one (system apps stay behind --force-this's guard
-        /// by default).
+        /// The fleet sweep: block EVERY user app from the internet
+        /// — the former block-all verb, now a lane of this one
+        /// (system apps stay behind --force-this's guard by
+        /// default).
+        ///
+        /// NIGHT-improve-54: the fleet sweep lane (the former
+        /// block-all verb).
         #[arg(long = "all")]
         all: bool,
 
         /// Force block on dangerous/system targets (root, systemd,
-        /// ...) — the improve-30 unified override spelling.
+        /// ...) — the unified override spelling.
+        ///
+        /// NIGHT-improve-30: the unified override spelling (the
+        /// former --allow-dangerous/--force pair).
         #[arg(long = "force-this")]
         force_this: bool,
 
-        /// Auto-expire the block (night-during, schema v23; the
-        /// owner's duration-only revision): a duration from the
-        /// apply instant (s m h d mn y, 1s..5y) — the block
-        /// lifts itself, no daemon.
+        /// Auto-expire the block: a duration from the apply instant
+        /// (s m h d mn y, 1s..5y) — the block lifts itself, no
+        /// daemon.
+        ///
+        /// night-during, schema v23: the owner's duration-only
+        /// revision.
         #[arg(long = "during", value_name = "DURATION")]
         during: Option<String>,
     },
@@ -219,9 +243,12 @@ pub enum Commands {
         #[arg(value_name = "TARGET", required_unless_present = "all")]
         target: Option<String>,
 
-        /// The emergency reset (NIGHT-improve-54): remove EVERY
-        /// limit on the machine — the former unstrict-all verb, now
-        /// a lane of this one (exits 0 on an already-clean system).
+        /// The emergency reset: remove EVERY limit on the machine
+        /// — the former unstrict-all verb, now a lane of this one
+        /// (exits 0 on an already-clean system).
+        ///
+        /// NIGHT-improve-54: the emergency reset lane (the former
+        /// unstrict-all verb).
         #[arg(long = "all")]
         all: bool,
     },
