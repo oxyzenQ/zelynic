@@ -199,17 +199,18 @@ command does anything:
 floor <= ceil <= rate
 ```
 
-Each rung has its own refusal, with the numbers you typed:
+Each rung has its own refusal, with the numbers you typed, in the same
+units the surfaces print:
 
 ```
-floor 100000 exceeds the download rate 50000 - the pool never refills
-that fast, so the guarantee could never bind.
+floor 100.0 KB/s exceeds the download rate 50.0 KB/s - the pool never
+refills that fast, so the guarantee could never bind.
 
-ceil 2000000 exceeds the upload rate 1000000 - the pool refills at
+ceil 2.0 MB/s exceeds the upload rate 1.0 MB/s - the pool refills at
 the rate, so a ceiling above it never binds.
 
-floor 500000 exceeds ceil 300000 on the download row - a guarantee
-above the cap is a contradiction.
+floor 500.0 KB/s exceeds ceil 300.0 KB/s on the download row - a
+guarantee above the cap is a contradiction.
 ```
 
 A floor above the rate is refused because a minimum guaranteed from a
