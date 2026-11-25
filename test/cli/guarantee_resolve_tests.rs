@@ -206,8 +206,17 @@ fn the_contradiction_is_rejected() {
     )
     .expect_err("floor above ceil");
     let msg = format!("{err:#}");
-    assert!(msg.contains("20000"), "the floor's number: {msg}");
-    assert!(msg.contains("10000"), "the ceiling's number: {msg}");
+    // The refusal names the numbers in the display grammar the surfaces
+    // print (night-dragon-fly-8: the format_rate ladder, not the parse
+    // layer's raw bps integers the old pins matched by substring).
+    assert!(
+        msg.contains("200.0 KB/s"),
+        "the floor's number: {msg}"
+    );
+    assert!(
+        msg.contains("100.0 KB/s"),
+        "the ceiling's number: {msg}"
+    );
     assert!(msg.contains("contradiction"), "the law named: {msg}");
 
     // The per-direction shape: a download floor above a download
