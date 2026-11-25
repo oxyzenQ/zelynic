@@ -406,15 +406,19 @@ mod tests {
             .filter(|l| l.contains("Depth-matrix: "))
             .count();
         assert_eq!(count, 1, "the Depth-matrix line must appear exactly once");
-        // Token order: fp, then status, then anchor, then layers.
+        // Token order: fp, then status, then anchor, then layers, then
+        // the runtime-coverage hint (night-dragon-fly-4: the -V line
+        // names that d4/d5 ride zelynic sig — appended AFTER the
+        // pinned layers suffix).
         let fp_pos = depth.find(" fp=").expect("fp token");
         let status_pos = depth.find(" status=").expect("status token");
         let anchor_pos = depth.find(" anchor=b3:").expect("anchor token");
         let layers_pos = depth.find(" layers=").expect("layers token");
         assert!(fp_pos < status_pos && status_pos < anchor_pos && anchor_pos < layers_pos);
-        assert!(depth.ends_with(
+        assert!(depth.contains(
             "layers=d0:masked-words,d1:masked-words,d2:dual-fingerprint,d3:blake3-anchor"
         ));
+        assert!(depth.ends_with("(runtime depths; d4/d5 ride zelynic sig)"));
     }
 
     /// night-signature-advanced-1 contract: the Copyright line carries

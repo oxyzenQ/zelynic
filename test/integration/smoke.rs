@@ -274,9 +274,10 @@ fn test_version() {
     assert!(
         depth.contains(" status=verified ")
             && depth.contains(" anchor=b3:")
-            && depth.ends_with(
+            && depth.contains(
                 "layers=d0:masked-words,d1:masked-words,d2:dual-fingerprint,d3:blake3-anchor"
-            ),
+            )
+            && depth.ends_with("(runtime depths; d4/d5 ride zelynic sig)"),
         "Depth-matrix line must carry the verified shape, got: {depth}"
     );
     assert!(
