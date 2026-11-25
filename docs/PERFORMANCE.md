@@ -105,6 +105,9 @@ refreshes identity. Write operations ~50-100ms faster.
 
 Added `kernel_supports_bpf_link()` check. On kernel < 5.7, falls back to
 legacy `bpf_prog_attach` instead of crashing on `bpf_link_create`.
+(Since night-netrunner-1 this fallback is GONE — one attach strategy,
+the bpf_link estate only: the 5.15.0 floor refuses the pre-5.7 shapes
+outright and no second code path exists to verify.)
 
 ## Performance Engine Audit (NIGHT-perf-1, 2026-09-24)
 
