@@ -25,9 +25,13 @@ that:
 
 ### BPF Programs (kernel)
 
-- Hooks `cgroup_skb/ingress` and `cgroup_skb/egress` on cgroup v2 root
-- Counts packets per cgroup (observer)
-- Enforces token-bucket rate limits per cgroup (limiter)
+- Six programs across two objects: the limiter object carries the
+  `cgroup_skb/egress` + `cgroup_skb/ingress` enforce pair (the
+  token-bucket rate limits per cgroup) plus the `sock_ops` pair
+  (`zelynic_recwn`, schema v25, and `zelynic_pace`, schema v27) that
+  writes the rate-shaped receive windows and pacing hints onto the
+  sockets; the observer object carries the `observe_egress` /
+  `observe_ingress` pair that counts packets per cgroup and per socket
 - **Returns 1 (allow)** on every error path — never blocks on failure
 
 ### Userspace (Rust binary)
@@ -295,20 +299,25 @@ zelynic is written in Rust, which provides:
 - **No unsafe code** in userspace outside the audited `unsafe`
   inventory (NIGHT-hunt-15: recounted from the drifted "six" to the
   real set, then consolidated in the same audit — the two separate
-  TIOCGWINSZ probes became one canonical terminal-layer probe,
-  leaving 9 blocks + 4 marker impls): `libc::flock` (lock.rs,
-  operation guard); two raw `bpf()` syscall wrappers plus
-  `libc::close` (bpf_syscall.rs — link create/pin/close);
-  `libc::clock_gettime` (format.rs); `libc::ioctl(TIOCGWINSZ)` ONCE
-  (terminal/raw.rs — the canonical probe since the NIGHT-ultimate-2
-  cap split of diff.rs: the limiter's
-  terminal_width and the render engine's per-frame geometry both
-  route through it); `libc::write` (terminal/raw.rs — the diff
-  engine's one write syscall per frame, the RawStdout writer); and `libc::statfs` twice
-  (capabilities/mod.rs — the doctor's real-bpffs mount check,
-  NIGHT-hunt-28). The four `unsafe impl aya::Pod` markers
-  (limiter/types.rs, loader.rs) are zero-code layout attestations for
-  map value types. All are standard POSIX calls with well-defined
+  TIOCGWINSZ probes became one canonical terminal-layer probe;
+  re-censused 2026-11-25 at 64 blocks + 8 marker impls): the terminal
+  reset estate (`terminal/guard.rs` 14, `term_reset/outer.rs` 14,
+  `term_reset/mod.rs` 10, `terminal/raw.rs` 8 — the raw-mode
+  enter/exit, the canonical TIOCGWINSZ probe, the OSC 11 asks, and
+  the diff engine's one write syscall per frame); the pidfd family
+  (`ebpf/connections/pidfd.rs` 8 — pidfd_open/send_signal/waitid
+  identity); the raw `bpf()` syscall wrappers plus `libc::close`
+  (`bpf_syscall.rs` 3 — link create/pin/close); `libc::flock`
+  (`lock.rs`, operation guard); `libc::clock_gettime`
+  (`limiter/format.rs`); `libc::statfs` twice
+  (`capabilities/bpffs.rs` — the doctor's real-bpffs mount check,
+  NIGHT-hunt-28, moved here from mod.rs at the NIGHT-improve-44
+  split); and the single-seat callers `terminal/hup.rs`,
+  `ebpf/identity/depth.rs`, and `commands/probe_role.rs`. The eight
+  `unsafe impl aya::Pod` markers (`limiter/types.rs` four,
+  `limiter/rate_ring.rs` two, `loader.rs`, `limiter/hist.rs`) are
+  zero-code layout attestations for map value types. All are standard
+  POSIX calls with well-defined
   semantics
 
 ### BPF program code:

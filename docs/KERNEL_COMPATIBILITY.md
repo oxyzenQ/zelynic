@@ -138,12 +138,21 @@ supermassive 5.15 floor micro-VM keeps pinned on every push.
 
 Standard BPF map types. Used for:
 
-- `watchdog_deadline` (ARRAY, 1 entry)
-- `schema_version` (ARRAY, 1 entry)
+- `watchdog_deadline` (ARRAY, 1 entry), `schema_version` (ARRAY, 1 entry), `wall_clock_offset` (ARRAY, 1 entry), `hist_zero_row` (ARRAY, 1 entry), `mmspa_generation` (ARRAY, 1 entry), `hist_sample_tick` (per-CPU ARRAY, 1 entry per CPU)
 - `cgroup_policy_dl/ul` (HASH, 1024 entries)
 - `cgroup_bucket_dl/ul` (HASH, 1024 entries)
 - `group_bucket_dl/ul` (HASH, 256 entries)
+- `policy_window` (HASH, 1024 entries)
 - `cgroup_limiter_stats` (HASH, 1024 entries)
+- `rate_ring_dl/ul` (HASH, 1024 entries)
+
+### `BPF_MAP_TYPE_LRU_HASH` + `BPF_MAP_TYPE_SK_STORAGE` — kernel 4.10+ / 5.2+ (both under the 5.15 floor)
+
+The aged and socket-bound families the observer, MMSPA, flow, DRR,
+RECWN, and pace estates ride. Used for:
+
+- the flow and state families (LRU_HASH, 4096 entries each unless noted): `cgroup_counters`/`cgroup_counters_ingress` and `socket_counters`/`socket_counters_ingress` (observer; the COUNTER/SOCKET_MAP_MAX_ENTRIES caps), `socket_bucket_dl/ul`, `flow_bucket_dl/ul`, `flow_ledger_dl/ul`, `flow_share_dl/ul`, `leaf_bucket_dl/ul`, `drr_pool_state_dl/ul`, `drr_leaf_state_dl/ul`, `mmspa_leaf_cache_dl/ul`, `quic_cid_hint_dl/ul`, `ecn_debt_dl/ul`, `depth_hist_dl/ul` (2048 entries)
+- the socket-bound hints (SK_STORAGE): `recwn_socket_hint` (schema v25), `pace_socket_hint` (schema v27)
 
 ### cgroup v2 — kernel 4.5+ (practical: 5.0+)
 
