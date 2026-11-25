@@ -11,6 +11,7 @@
 
 use anyhow::{Result, bail};
 
+use super::format::format_rate;
 use super::types::{MAX_RATE, MIN_RATE};
 
 /// Parse a time duration string. Formats: 1s, 3m, 10h, or plain number (seconds).
@@ -324,18 +325,18 @@ fn comma_reason(s: &str) -> Option<String> {
 pub fn validate_rate(rate_bps: u64) -> Result<()> {
     if rate_bps > 0 && rate_bps < MIN_RATE {
         bail!(
-            "Rate {} is below minimum ({} B/s = 1 KB/s, decimal SI).\n\
+            "Rate {} is below minimum ({}, decimal SI).\n\
              Use --force-this to override. To block traffic entirely, use 'zelynic block <target>'.",
-            rate_bps,
-            MIN_RATE
+            format_rate(rate_bps),
+            format_rate(MIN_RATE)
         );
     }
     if rate_bps > MAX_RATE {
         bail!(
-            "Rate {} is above maximum ({} B/s = 1 TB/s).\n\
+            "Rate {} is above maximum ({}, decimal SI).\n\
              Use --force-this to override.",
-            rate_bps,
-            MAX_RATE
+            format_rate(rate_bps),
+            format_rate(MAX_RATE)
         );
     }
     Ok(())
