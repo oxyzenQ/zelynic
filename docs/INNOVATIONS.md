@@ -798,9 +798,13 @@ stable-only) and `cargo kani --lib` per harness (the for-all tier's
 decidable half, the pinned kani release) — the proofs.yml workflow
 runs both on every push, one invocation per harness so a verdict is
 never lost to a sibling's budget, capped at 15 minutes wall; the four
-solver-bound theorems stand retired from CI (their night vehicle
+solver-bound theorems stood retired from CI at the lane's darkest
+hour (their night vehicle
 burned 300.6 minutes cancelled with zero verdicts on its single
-scheduled fire — see the for-all tier above). A red is a
+scheduled fire) — the night-frontier-Z12 lemma decomposition has
+since re-armed every one of them as a standing one-harness job, and
+the Z17 interleaving family grew the tier to twenty-six (see the
+sections below). A red is a
 counterexample or an undecided theorem, never a skip — and the third
 seat on the proofs checks list, the loom-census absence guard, runs
 no harness at all: it re-reads the census basis out of the tree and
