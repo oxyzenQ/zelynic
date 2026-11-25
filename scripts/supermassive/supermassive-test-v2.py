@@ -380,11 +380,19 @@ CLI_DEPTH_CASES = [
         "nonzero",
         "re-run without sudo",
     ),
+    # night-dragon-fly-5 retired the silent clap alias: the typo
+    # spelling now dies on the unknown-argument error with the
+    # '--check-update' redirect tip (the rescue vocabulary's own
+    # contract, the same shape every retired spelling answers by).
+    # The typo therefore never reaches the network surface at all —
+    # a stronger guarantee than the root refusal this row once
+    # pinned — so the pin moved with it; the VALID spelling's root
+    # gate is the case above.
     (
-        "--check-updated alias refuses root too",
+        "--check-updated spelling dies at the parser (the redirect tip names --check-update)",
         ["--check-updated"],
         "nonzero",
-        "re-run without sudo",
+        "--check-update",
     ),
     # ── flag typos: the suggestion engine answers (exit 2) ────────────
     ("--json gets the cross-tool vocabulary tip", ["--json"], "nonzero", "--print-json"),
