@@ -362,9 +362,13 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
     loop {}
 }
 
-// The license section must stay GPL: bpf_skb_cgroup_id is a GPL-only
-// helper, and the C twin declares GPL. A mismatch here would fail the
-// verifier at program load time on a real host.
+// The license section stays GPL for C-twin parity: the declared
+// license has been GPL since the bpf/limiter.bpf.c era, and the
+// dual-license contract keeps it so. (Verified against net/core/
+// filter.c: bpf_skb_cgroup_id is gpl_only = false — the old
+// "GPL-only helper" claim was stale; a mismatch would still fail the
+// verifier at load time on helpers that ARE gpl_only, so the section
+// is cheap insurance either way.)
 #[unsafe(no_mangle)]
 #[unsafe(link_section = "license")]
 static LICENSE: [u8; 4] = *b"GPL\0";

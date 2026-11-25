@@ -376,15 +376,6 @@ pub(super) fn rank_endpoints_by_bytes(
 /// (the focus view's own law, `rank_endpoints_by_bytes`) — the
 /// two-slot cap shows the hungriest endpoints, never two quiet
 /// walk-first ones with the eater hidden behind them.
-/// One process's eagle-eyes tree lines (NIGHT-boost-21): inline when
-/// it holds a single displayable endpoint, header plus capped
-/// children when more. The header carries the socket count, so a
-/// truncated expansion still says its scale. NIGHT-boost-26: each
-/// endpoint line carries its joined byte figures when the per-socket
-/// maps know them. NIGHT-hunt-38: the children RANK bytes-desc
-/// (the focus view's own law, `rank_endpoints_by_bytes`) — the
-/// two-slot cap shows the hungriest endpoints, never two quiet
-/// walk-first ones with the eater hidden behind them.
 #[cfg(test)]
 fn eagle_holder_lines(
     proc: &ProcessDetail,

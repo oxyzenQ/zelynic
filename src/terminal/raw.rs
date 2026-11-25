@@ -125,14 +125,14 @@ const OSC_REPLY_HEAD: &[u8] = b"\x1b]11;";
 const BG_ASK_PATIENCE: std::time::Duration = std::time::Duration::from_millis(500);
 
 /// The live ask's cadence (NIGHT-boost-32, fast since 34): one
-/// 8-byte query per interval, independent of the refresh interval
+/// 7-byte query per interval, independent of the refresh interval
 /// — a config reload follows within one ask whatever `--interval`
 /// runs. 250 ms, the NIGHT-boost-34 answer to "the background color
 /// is changed but slow": the follow latency budget is one cadence
 /// plus one 50 ms wake, so a terminal-side live reload (itself
 /// 100-500 ms of editor + terminal work) lands inside the same
 /// eyeblink the repaint composes in. The cost is 4 asks/second
-/// tail-ward — 32 B/s of queries out, a reply only when the color
+/// tail-ward — 28 B/s of queries out, a reply only when the color
 /// actually sits in flight — and a silent terminal (dumb, muxer
 /// without passthrough) pays only the writes, never a stall: the
 /// answer rides the input drain the 50 ms wake already owns. A
@@ -151,7 +151,7 @@ const BG_PARTIAL_CAP: usize = 64;
 /// Residual reply bytes are drained so the monitor loop never sees
 /// them as input.
 pub(crate) fn query_terminal_bg() -> Option<(u8, u8, u8)> {
-    // SAFETY: write(2) of the 8-byte OSC query on fd 1.
+    // SAFETY: write(2) of the 7-byte OSC query on fd 1.
     if unsafe { libc::write(1, OSC_QUERY.as_ptr().cast(), OSC_QUERY.len()) } < 0 {
         return None;
     }
@@ -197,7 +197,7 @@ pub(crate) fn query_terminal_bg() -> Option<(u8, u8, u8)> {
 // ── The live background follow (NIGHT-boost-32) ───────────────────────────
 //
 // [`BgAsk`] is the monitor loop's tracker: `send()` writes the
-// 8-byte query and arms the patience; `absorb()` takes every
+// 7-byte query and arms the patience; `absorb()` takes every
 // drained input chunk, consumes an OSC 11 answer when one rides
 // the stream (across chunks), and hands the leftover bytes back
 // for key classification. The answer color is returned to the
@@ -222,7 +222,7 @@ impl BgAsk {
         }
     }
 
-    /// Send one ask: the same 8-byte OSC 11 query the open path
+    /// Send one ask: the same 7-byte OSC 11 query the open path
     /// writes, best-effort on fd 1 (a dead sink surfaces through
     /// the frame emission's own check, never here). Re-arms the
     /// patience and restarts the partial — a late answer to a
@@ -230,7 +230,7 @@ impl BgAsk {
     pub(crate) fn send(&mut self) {
         self.partial.clear();
         self.deadline = Some(std::time::Instant::now() + BG_ASK_PATIENCE);
-        // SAFETY: write(2) of the 8-byte OSC query on fd 1,
+        // SAFETY: write(2) of the 7-byte OSC query on fd 1,
         // best-effort — the return value is deliberately ignored.
         unsafe {
             libc::write(1, OSC_QUERY.as_ptr().cast(), OSC_QUERY.len());

@@ -49,7 +49,7 @@ pub const MIN_RATE: u64 = 1000;
 pub const MAX_RATE: u64 = 1_000_000_000_000;
 
 /// BPF schema version. Must match `SCHEMA_VERSION` in
-/// `ebpf/src/bin/limiter.rs`.
+/// `ebpf/src/schema.rs`.
 ///
 /// The constant and its full version history live in the schema
 /// sibling (split at the NIGHT-private-research-2 v10 bump to hold

@@ -23,9 +23,11 @@
 //
 // THE GRAMMAR the owner approved, then REVISED to one shape
 // (night-during-7): the CLI's --during takes a duration only —
-// s m h d mn y, 1s floor, 10y ceiling (the CLI parses, this
-// core never sees a string). The window and date shapes the
-// first decision carried are GONE from the flag (refused at
+// s m h d mn y, 1s floor, 5y ceiling (night-improve-60 trimmed
+// the ceiling from the 10y the grammar shipped with; the CLI
+// parses, this core never sees a string). The window and date
+// shapes the first decision carried are GONE from the flag
+// (refused at
 // parse time, the wording naming the shape that replaced them)
 // but NOT from this core: the verdict below still honors every
 // kind a pinned row may carry — a DAILY row written by an older
