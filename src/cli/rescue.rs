@@ -148,6 +148,11 @@ const FLAG_VOCABULARY_RESCUES: &[(&str, &str)] = &[
     ("allow-dangerous", "--force-this"),
     ("info", "--depth"),
     ("no-probe", "--no-test"),
+    // night-dragon-fly-5: the former silent clap alias — now a
+    // retired spelling like the rest of the table, answered by the
+    // redirect tip instead of accepted without a note (the live
+    // battery's find).
+    ("check-updated", "--check-update"),
 ];
 
 /// The zelynic flag a typed name answers to by cross-tool vocabulary,

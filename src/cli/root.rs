@@ -77,7 +77,15 @@ pub struct Cli {
     /// so it must never ride root privileges — `update::check_update`
     /// refuses euid 0 with a "re-run without sudo" tip before any
     /// network I/O happens.
-    #[arg(long = "check-update", alias = "check-updated", global = false)]
+    ///
+    /// night-dragon-fly-5: the former `alias = "check-updated"` is
+    /// GONE — the typo spelling now dies on clap's unknown-argument
+    /// error and the rescue table (rescue.rs's vocabulary lane)
+    /// redirects it to `--check-update` with its own tip, the same
+    /// contract every retired spelling answers by. The silent alias
+    /// was the one flag that accepted a misspelling with no note at
+    /// all (the live battery's find).
+    #[arg(long = "check-update", global = false)]
     pub check_update: bool,
 
     /// Emergency terminal reset (rescue a broken terminal)
