@@ -352,7 +352,7 @@ sudo zelynic s brave::curl::pacman 1mb # the group lane: one shared rate
 - `--force-this`: the ONE safety override (NIGHT-improve-30 — the
   former `--allow-dangerous` and `--force` pair, unified): permits
   rates below 1kb (can effectively brick an app) AND limiting the
-  protected system blocklist (root, systemd, kthreadd, ... — 57
+  protected system blocklist (root, systemd, kthreadd, ... — 67
   names; see `--help`). The retired spellings are refused with a
   redirect tip. The blocklist match is FAMILY-aware
   (NIGHT-depthbore-1): a target that EXTENDS a listed name is guarded
@@ -1191,7 +1191,7 @@ the terminal keeps the space it has. Nothing to navigate beyond
 that, nothing to select, nothing to configure mid-session: watching
 is still reading, not playing. The moment you want to ACT on what
 the frame shows, that is another command in another terminal —
-`strict`, `block`, `rates` — the monitor's job is to show the data,
+`strict`, `block`, `unstrict` — the monitor's job is to show the data,
 the CLI's job is to move it, and the display never becomes the
 game.
 

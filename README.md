@@ -97,7 +97,7 @@ name for zelynic's entire architectural stack, indexed in
 | **Guaranteed fair share** | `--floor 100kb` / `--ceil 300kb`: every subprocess under the target is guaranteed a minimum and capped at a maximum — the floor a PRIORITY (an idle subprocess lends its share back; the pool itself is the lender), the ceiling binding even a lone subprocess. HTB's rate/ceil idiom in a pure eBPF policer (improve-40, schema v24). Per-direction spellings for the asymmetric link: `--floor-download` / `--ceil-upload` bracket one direction's rows only, one spelling per side (improve-40-b). |
 | **Self-expiring limits** | `--during 20d` — a duration from the apply instant (units s, m, h, d, mn, y; bounds 1s..5y): the KERNEL expires the row, no daemon, no cron, drift-free monotonic spans (NIGHT-during, schema v23; the window and date forms are gone — the owner's duration-only revision, rows written by older builds keep their promises). |
 | **RECWN receive-window control** | A policed cgroup's own sockets advertise a rate-shaped receive window (rate x max(measured srtt, 200 ms) — the 200 ms cadence floor extended by the socket's own measured RTT, clamped [2 x MSS, 1 MiB]) — remote TCP senders hold their in-flight bytes down BEFORE the link bills them, the quota saver's Layer 1 (night-spark-2, schema v25; the measured-RTT retune night-T-3, schema v31; the owner's coined name, deliberately not "RWND"). |
-| **Quota Saved telemetry — the workload-conditional quota saver** | The quota-saver lanes' work is BOOKED, not just enforced: `status --print-json` names `bytes_saved_total` with the `bytes_saved_by_edt` / `bytes_saved_by_ecn` / `bytes_saved_by_recwn` split (schema v28, night-spark-7; the EDT booking retired in v29 and the RECWN estimate retired in v30 — both words read zero, the sole live booking is the ECN one-for-one with the delivered marks; the math and the retirement records: docs/COSMIC_DRAGON_ARC.md's Layer 4 section), and the human table's `Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)` line renders it. |
+| **Quota Saved telemetry — the workload-conditional quota saver** | The quota-saver lanes' work is BOOKED, not just enforced: `status --print-json` names `bytes_saved_total` with the `bytes_saved_by_edt` / `bytes_saved_by_ecn` / `bytes_saved_by_recwn` split (schema v28, night-spark-7; the EDT booking retired in v29 and the RECWN estimate retired in v30 — both words read zero, the sole live booking is the ECN one-for-one with the delivered marks; the math and the retirement records: docs/COSMIC_DRAGON_ARC.md's Layer 4 section), and the human table's `Quota Saved: X (counterfactual estimate — the bytes the rate limit prevented; wire-measured savings: run scripts/bench/quota-saver-ab.sh)` line renders it, the layer split on the subordinate `(est.; EDT: Y, ECN: Z, RECWN: W)` line. |
 | **Pinned bpf_links** | Enforcement survives process exit — no daemon, no battery drain (RAM/CPU/IO measured live, not asserted: the proof harness's footprint claim). |
 | **Fractional precision** | 0.00% measured rate error, sub-byte token accumulation (reproduce: `sudo ./scripts/bench/proof-claims.sh`; math pins: test/ebpf/limiter/math_tests.rs). |
 | **Schema migration** | BPF struct changes auto-detected + auto-cleaned on upgrade. |
@@ -292,10 +292,12 @@ The Signature and Depth-matrix lines materialize at runtime from the
 masked provenance layers (night-signature-advanced-1): the ownership
 claim exists in the artifact only as opaque masked words —
 `strings` over the binary finds no identity — and `zelynic sig`
-renders the full five-depth verification report (D0-D3 the
+renders the full six-depth verification report (D0-D3 the
 sibling-tools ladder, D4 object-integrity the eBPF estate's own: the
 embedded kernel programs re-hashed against their build-time digest
-stamps, night-depth-hardening-Z2).
+stamps, night-depth-hardening-Z2, and D5 commit-signature: the
+claimed commit verified GPG-signed by the pinned maintainer key,
+night-solid-defense-2).
 
 A native build never clobbers `target/release/zelynic` — the separate
 profile names keep both binaries side by side. Note: a native binary
@@ -434,7 +436,8 @@ semantics, quit keys, and recipes: [docs/USAGE.md](docs/USAGE.md);
 `--help` is the single option reference.
 
 Global options work on every command: `-v/--verbose` (diagnostic trace),
-`--print-json`, `--help`, `-V/--version`, and `--check-update` — which
+`--print-json`, `--help`, and `-V/--version`. `--check-update` is
+deliberately top-level-only (it is not visible after a subcommand) and
 **refuses to run as root** (a plain network fetch must not ride sudo;
 full privilege matrix: [docs/SAFETY_ANALYSIS.md](docs/SAFETY_ANALYSIS.md)).
 
@@ -514,7 +517,7 @@ and the missing 1% fails closed and says so.**
 
 - **Rate bounds guard**: 1 KB/s..1 TB/s, `--force-this` overrides
 - **Fail-safe BPF**: returns "allow" on any error path (never blocks on failure)
-- **Dangerous target protection**: 57 system processes blocked by default
+- **Dangerous target protection**: 67 system processes blocked by default
   — the list ships in source (`src/commands/safety.rs`,
   `DANGEROUS_TARGETS`), and `--help` prints the count live from it, so
   the number cannot drift
@@ -1016,7 +1019,10 @@ and read live by the probes.
 - `bytes_saved_total` — the sum of the surviving lanes (ECN's
   one-for-one, plus the retired EDT and RECWN words reading zero),
   the number `status --print-json` carries and the human table
-  renders as `Quota Saved: X (EDT: Y, ECN: Z, RECWN: W)`.
+  renders as the `Quota Saved: X (counterfactual estimate — the bytes
+  the rate limit prevented; wire-measured savings: run
+  scripts/bench/quota-saver-ab.sh)` line with the
+  `(est.; EDT: Y, ECN: Z, RECWN: W)` split line beneath it.
 
 **The probe record.** The live proofs carry a saved row each, and
 the recorded runs read like this:
