@@ -174,9 +174,7 @@ pub(crate) fn print_flag_tables() {
         "auto-expire: the limit tears itself down when the window",
     );
     println_safe!("                   passes. Units: s, m, h, d, mn, y — m is minutes, mn is");
-    println_safe!(
-        "                   months (2mn = two months; months 30d, years 365d) — min"
-    );
+    println_safe!("                   months (2mn = two months; months 30d, years 365d) — min");
     println_safe!("                   1s, max 5y. Duration only, one shape, no schedules.");
     // NIGHT-improve-52: the Pro mode block carried every flag's
     // spelling but ZERO runnable examples — the one discovery path

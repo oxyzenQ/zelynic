@@ -103,9 +103,7 @@ pub(crate) fn fit_in_place(s: &mut String, w: usize) {
     // whitespace goes before the ellipsis.
     let mid_word = cut < s.len() && !s[..cut].ends_with(' ') && !s[cut..].starts_with(' ');
     s.truncate(cut);
-    if mid_word
-        && let Some(space) = s.rfind(' ')
-    {
+    if mid_word && let Some(space) = s.rfind(' ') {
         s.truncate(space);
     }
     let trimmed = s.trim_end().len();
