@@ -105,7 +105,7 @@ name for zelynic's entire architectural stack, indexed in
 | **Discovery workflow** | `zelynic eagle-eyes` (live box) finds bandwidth hogs — other limiters can't discover. |
 | **Box mode** | In-place refresh, clean exit, responsive layout; selection/copy physics documented in the [USAGE FAQ](docs/USAGE.md#faq) (NIGHT-hunt-7, improve-7/8). |
 | **Unified monitor** | `eagle-eyes` runs live until you press `q` — apps ranked by session accumulation, rows persist through quiet frames, rank 1 wears champion red (NIGHT-boost-5). |
-| **Diff-based rendering** | Only changed rows are emitted — one write syscall per frame, idle frames cost zero I/O (NIGHT-improve-2). |
+| **Diff-based rendering** | Only changed rows are emitted, batched into one buffered write per repaint; a repaint where nothing changed emits zero bytes from the diff engine (NIGHT-improve-2). The monitor's deliberate guard beat re-paints between refreshes — the anti-selection physics, separate from the diff path. |
 | **Refresh control** | `--interval 1s..60s` on `eagle-eyes`, live DOWNLOAD/UPLOAD rate columns plus a session TOTAL, and the footer's session speed pair — `peak arrival dl | ul` / `avg arrival dl | ul` per direction (NIGHT-engrave-6, arrival-labeled by NIGHT-private-research-7). |
 | **Eagle-eyes detail** | Monitor rows name the processes and endpoints INSIDE a cgroup — `curl (4012) -> 142.250.191.78:443` (NIGHT-hunt-8). |
 | **Depth traffic focus** | `ee <target> --depth` MEASURES a focus window (default 3s, `--focus 1s-30s`) and prints what moved per endpoint with the kernel's own window totals — movers ranked first (NIGHT-private-research-3). |

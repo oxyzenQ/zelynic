@@ -162,9 +162,10 @@ pub(super) fn get_flow_ptr(
                 // is full under 4096+ concurrent sockets in one leaf:
                 // re-look-up and ride the winner; a genuinely full
                 // LRU is the honest miss the caller treats the
-                // socket-lane way — the packet allows (a bookkeeping
-                // failure never drops), coarser attribution, never a
-                // silent unlimited pass.
+                // socket-lane way — this one packet rides through
+                // unpoliced (a bookkeeping failure never drops) with
+                // coarser attribution, while the leaf's own bucket
+                // keeps enforcing the row for everything else.
             }
             flow_map.get_ptr_mut(cookie)
         }

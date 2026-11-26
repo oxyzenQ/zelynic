@@ -209,10 +209,12 @@ construction — the change is kernel-side only) reads parity.
   HashSet would grow the structure the renderers read for nothing
   measurable.
 - `poll_and_summarize()` merges the ingress delta list into the
-  egress list with a linear `find` per cgroup (O(n*m), worst case
-  4096x4096 u32 comparisons per poll since the improve-31 raise).
-  Held: single-digit milliseconds at the absolute ceiling, one poll
-  per second, zero allocations to remove.
+  egress list through a u32 -> position index (O(n), the
+  NIGHT-think-like-light-years-3 fix: the linear find per cgroup was
+  O(n*m), ~8.4M comparisons at the 4096-entry map ceiling with both
+  maps full). Held: the vector's row order is byte-identical to the
+  linear merge it replaced (egress walk order, ingress-only rows
+  appended), one poll per second.
 - `read_stats_map()` iterates both counter maps fully per poll
   (~16 k syscalls/s at the 4096-cgroup ceiling the improve-31 raise
   bought; ~120/s on a desktop). Held: the documented Layer-1
