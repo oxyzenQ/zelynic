@@ -48,8 +48,12 @@ pub const DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
 /// call sites left, the dependency-audit discipline.)
 /// The dual-license disclosure (night-ux-orion-2): the SPDX OR
 /// expression, byte-identical with the estate reference's -V line.
-/// The release pipeline's strings probe greps the AGPL prefix, which
-/// stays contiguous inside this longer literal.
+/// The release pipeline's strings probe (release.yml's AVX-512
+/// legs) greps the FULL dual literal — night-cafe-4 upgraded the
+/// probe from the AGPL prefix so the release gate verifies the
+/// disclosure itself, not a prefix a lost "OR Commercial" would
+/// still satisfy — and the full line stays contiguous by this
+/// const's construction.
 const LICENSE_LINE: &str = "License: AGPL-3.0-only OR Commercial";
 
 // The `Signature:` line source (night-signature-advanced-1): the

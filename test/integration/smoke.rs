@@ -283,7 +283,7 @@ fn test_version() {
     assert!(
         stdout.contains("zelynic: v")
             && stdout.contains("Build: ")
-            && stdout.contains("License: AGPL-3.0-only")
+            && stdout.contains("License: AGPL-3.0-only OR Commercial")
             && stdout.contains("Source: https://github.com/oxyzenQ/zelynic"),
         "Version report must contain the full zelynic metadata, got:\n{stdout}"
     );
