@@ -141,8 +141,8 @@ fail-open bookkeeping misses, the pinned-frame allocation churn, and
 the guard-beat I/O floor — each with its cost spelled out, none
 hidden behind a wrong sentence anymore.
 
+<!-- ZELYNIC-DISCLAIMER -->
 <!--
-  ZELYNIC-DISCLAIMER
   Documentation Disclaimer — read before relying on any data point.
 
   This document may contain stale data, hardcoded counts, or outdated
