@@ -20,7 +20,11 @@
 #     --dry-run to read, --apply to heal — the healed pins are
 #     committed like any other change and this check re-reads them
 #     (the same version truth and the same honesty rules, one
-#     implementation; this script never duplicates that math)
+#     implementation; this script never duplicates that math).
+#     Since night-cafe-2 the gate carries an --apply seat of its own:
+#     the same sweep apply wrapped in this check's preflight honesty
+#     and a backup/restore fail-closed shell — one engine, two
+#     entry points.
 #
 # Advisory by default, and that is a design decision, not softness:
 # the prebuilt lane contract (check-commit-gate sections 1-2) fails
@@ -98,6 +102,7 @@
 #
 # Usage:
 #   bash scripts/gates/check-actions-pins.sh                # the check
+#   bash scripts/gates/check-actions-pins.sh --apply        # the heal seat
 #   bash scripts/gates/check-actions-pins.sh --refresh-cache # internal
 
 set -euo pipefail
@@ -112,6 +117,11 @@ cd "$REPO_ROOT"
 # network — so a cache hit (zero network) also costs zero probes.
 # shellcheck source=scripts/lib/github_token.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/github_token.sh"
+# night-cafe-2: the apply seat's closing line rides the brand palette
+# (scripts/lib/ux_palette.sh) — the same tier colors the sweep's
+# report uses, mono when piped.
+# shellcheck source=scripts/lib/ux_palette.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/ux_palette.sh"
 SWEEP_SCRIPT="scripts/ci/actions-version-sweep.sh"
 API_ROOT="https://api.github.com"
 DEFAULT_TTL=21600
@@ -147,6 +157,14 @@ auto: current exits 0 silent; a clean-behind verdict re-verifies
   cold, heals via the sweep's --apply, stages .github/workflows/,
   and fails the commit once for review (the re-commit reads the
   healed pins as current and stays silent).
+
+seats:
+  (no argument)     the commit-time read: preflight, then the
+                    sweep's dry-run under its budget, cached
+  --apply           the maintainer heal seat: the sweep's --apply
+                    under the heal budget, a fail-closed backup/
+                    restore shell, the sweep's report streamed
+                    unchanged
 
 tunables (env):
   ZELYNIC_ACTIONS_HEALTH_TTL       cache seconds (default 21600)
@@ -244,8 +262,11 @@ age_label() {
 # render_verdict <payload-file> <age-label> <mode>
 #   returns 0 = current, 1 = behind, 2 = indeterminate
 
-RE_HEAL='^SWEEP: ([^ ]+) \([^)]+\) — ([^ ,]+) -> ([^ ,]+)'
-RE_VERDICT='^sweep verdict: ([0-9]+) healed, ([0-9]+) kept, ([0-9]+) skipped'
+# night-cafe-2: the sweep's report lines carry the two-space surface
+# indent, so both regexes read optional leading whitespace — the
+# tokens after them are unchanged since NIGHT-improve-39.
+RE_HEAL='^[[:space:]]*SWEEP: ([^ ]+) \([^)]+\) — ([^ ,]+) -> ([^ ,]+)'
+RE_VERDICT='^[[:space:]]*sweep verdict: ([0-9]+) healed, ([0-9]+) kept, ([0-9]+) skipped'
 
 render_verdict() {
 	local payload="$1" label="$2" mode="$3"
@@ -568,7 +589,7 @@ auto_heal() {
 	heals="$(grep -c ' HEAL' "$heal_out" || true)"
 	heals="${heals:-0}"
 	applied=""
-	if grep -q '^sweep verdict:' "$heal_out"; then
+	if grep -q '^[[:space:]]*sweep verdict:' "$heal_out"; then
 		applied="verdict"
 	elif grep -q '^FAIL: tracked files outside' "$heal_out"; then
 		applied="guard"
@@ -591,6 +612,62 @@ auto_heal() {
 	else
 		heal_succeed
 	fi
+}
+
+# ── the on-demand apply seat (night-cafe-2) ────────────────────────────────
+#
+# `--apply` is the maintainer's heal seat riding the gate's own entry
+# point: the sweep's --apply runs under the heal budget, its report
+# streams unchanged (the zylaxion-parity UX — keep/skip lines, the
+# verdict, the healed note), and the shell around it carries this
+# check's honesty laws:
+#   - preflight first: an unreachable API or a sub-floor quota is an
+#     honest skip — nothing heals, nothing blocks;
+#   - fail closed: the workflows are backed up before the apply and
+#     restored byte-exact when the sweep dies mid-apply (a budget or
+#     network death must never leave a half-healed tree behind).
+# A current tree prints the all-current line; a partially sized-up
+# run (API unreachable mid-sweep) says so instead — only API-proven
+# pins ever move.
+
+apply_seat() {
+	local backup rc out heals
+	rc=0
+	preflight || rc=$?
+	if [ "$rc" -eq 1 ]; then
+		health "skipped — GitHub API unreachable (offline or blocked${PREFLIGHT_NOTE:+ — ${PREFLIGHT_NOTE}}); nothing healed"
+		exit 0
+	elif [ "$rc" -eq 2 ]; then
+		health "skipped — GitHub API quota below the ${QUOTA_FLOOR}-call sweep floor; nothing healed (retry after the quota resets)"
+		exit 0
+	fi
+	backup="$(mktemp -d /tmp/zelynic-apply-seat-backup.XXXXXX)"
+	cp .github/workflows/*.yml "$backup/"
+	out="$(mktemp /tmp/zelynic-apply-seat.XXXXXX)"
+	rc=0
+	timeout "$(heal_timeout_seconds)" bash "$SWEEP_SCRIPT" --apply >"$out" 2>&1 || rc=$?
+	if [ "$rc" -ne 0 ]; then
+		cp "$backup"/*.yml .github/workflows/
+		rm -rf "$backup"
+		if [ "$rc" -eq 124 ]; then
+			health "apply overran its $(heal_timeout_seconds)s budget — the pre-apply tree was restored, nothing healed"
+		else
+			health "apply refused or failed (the sweep exited ${rc}) — the pre-apply tree was restored, nothing healed"
+		fi
+		cat "$out"
+		rm -f "$out"
+		exit 1
+	fi
+	rm -rf "$backup"
+	cat "$out"
+	heals="$(sed -nE 's/^[[:space:]]*sweep verdict: ([0-9]+) healed,.*/\1/p' "$out" | head -n 1)"
+	if grep -Eq 'api unreachable|unresolvable' "$out"; then
+		health "some pins could not be sized up this run (API unreachable mid-sweep); only API-proven pins moved — rerun when the API answers"
+	elif [ -n "$heals" ] && [ "$heals" -eq 0 ]; then
+		echo "  ${UX_OK}all action pins current${UX_RESET}"
+	fi
+	rm -f "$out"
+	exit 0
 }
 
 # ── network pre-flight ─────────────────────────────────────────────────────
@@ -694,6 +771,7 @@ refresh_cache() {
 main() {
 	local mode hash epoch c_hash age payload rc
 	case "${1:-}" in
+	--apply) apply_seat ;;
 	--refresh-cache) refresh_cache ;;
 	-h | --help)
 		usage
@@ -701,7 +779,7 @@ main() {
 		;;
 	"") ;;
 	*)
-		echo "unknown argument: $1 (this gate takes none; --refresh-cache is internal)" >&2
+		echo "unknown argument: $1 (this gate takes --apply; --refresh-cache is internal)" >&2
 		exit 2
 		;;
 	esac
