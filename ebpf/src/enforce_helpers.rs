@@ -24,7 +24,11 @@
 // as its walk-cost rung. The Z17 gated belt's verdict gate re-priced
 // the walk at 141981 / 132960 (the dl row raised +88 per the growth
 // law, run 45370360921; the ul row ratcheted to the measured number,
-// run 45374359811) — the ledger's rows stay the canonical numbers;
+// run 45374359811). The night-arc-gems-1 masked-epoch compare
+// re-priced the walk at 142120 / 132835 (the dl row raised +139 per
+// the growth law, run 45787241225 — the honest price of a comparison
+// that survives the 2^28-epoch wrap; the ul row ratcheted to the
+// measured number) — the ledger's rows stay the canonical numbers;
 // this comment names the events, the ledger owns the values.
 //
 // The boundary law, measured twice before it was believed (the Z14

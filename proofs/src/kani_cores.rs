@@ -385,12 +385,18 @@ fn ring_book_stamps_lawfully_over_clock_range() {
 /// THE share-state theorem: the note step keeps the packed word's
 /// laws for every input — the epoch truncation, the running
 /// increment discipline, and the peak ratchet that never sits below
-/// the running count.
+/// the running count. The epoch laws ride the MASKED compare since
+/// night-arc-gems-1: the stored field is the counter masked to 28
+/// bits and the note step compares the counter masked the same way,
+/// so "rollover" means stored != now_epoch & 0x0FFF_FFFF — the raw
+/// counter beyond 2^28 epochs no longer reads as a rollover (the
+/// ~310-day fairness regression the fix closed).
 #[kani::proof]
 fn share_note_keeps_its_word_laws_for_all_inputs() {
     let word: u64 = kani::any();
     let now_epoch: u32 = kani::any();
     let drew: bool = kani::any();
+    let now_masked = now_epoch & 0x0FFF_FFFF;
     let stored = drr::pool_share_epoch(word);
     let old_running = drr::pool_share_running(word);
     let after = drr::pool_share_note(word, now_epoch, drew);
@@ -399,11 +405,11 @@ fn share_note_keeps_its_word_laws_for_all_inputs() {
         drr::pool_share_peak(after) >= running_out,
         "peak below running"
     );
-    if stored != now_epoch {
+    if stored != now_masked {
         assert_eq!(
             drr::pool_share_epoch(after),
-            now_epoch & 0x0FFF_FFFF,
-            "rollover epoch law"
+            now_masked,
+            "rollover epoch law (masked contract)"
         );
         assert_eq!(
             drr::pool_share_last(after),
@@ -411,7 +417,7 @@ fn share_note_keeps_its_word_laws_for_all_inputs() {
             "retired running into last"
         );
     }
-    if !drew && stored == now_epoch {
+    if !drew && stored == now_masked {
         let expected = old_running.saturating_add(1).min(0xFFF);
         assert_eq!(
             running_out, expected,
