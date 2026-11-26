@@ -48,6 +48,57 @@ v80.0.0
 
 ### Added
 
+- **night-arc-gems-1: the all-infra depth audit — one real latent
+  kernel bug fixed (the DRR share-epoch width mismatch), the render
+  claims corrected to their measured scope, and the datapath verdict
+  recorded.** The audit read the kernel datapath (ebpf/src, 30 files)
+  and the userspace hot paths end to end with the load-bearing
+  arithmetic re-derived at the cited lines
+  (docs/audits/NIGHT_ARC_GEMS_1_ALL_INFRA_DEPTH_AUDIT_2026-11-26.md).
+  The bug: `pool_share_note` compared the share word's stored epoch —
+  the counter masked to the field's 28 bits — against the raw u32
+  counter, so once boot-relative ktime passed 2^28 epochs of 100 ms
+  (~310.7 days of uptime) the comparison went forever-false: every
+  packet read as a rollover, running/last/peak collapsed to <= 1, and
+  the DRR fairness ledger silently turned itself off (the
+  K > 2 geometric-decay unfairness the dinner-28/repair-3/repair-4
+  machinery closes would return on every long-uptime host — no
+  over-allow, no crash, a silent fairness regression only). The field
+  comment's own horizon was wrong with it ("an 8.5 year horizon" is
+  the 1 s-epoch number; the true horizon at 100 ms epochs is 0.85
+  years). Fixed: the comparison masks the counter to the field's
+  width and the rollover writes the masked value; the decay cadence
+  keeps the raw counter on purpose (2^28 is a multiple of
+  PEAK_DECAY_EPOCHS, so is_multiple_of is invariant under the mask);
+  the ledger word's own 13.7-year full-width wrapping design is
+  untouched and was verified as such. The prebuilt lane was
+  regenerated through its one writer and passed the parity gate (the
+  structural ELF checks, the no-undefined-GLOBAL-symbols rule, the
+  manifest blake3 rows, and the ebpf/ tree pin). The datapath verdict:
+  the unlimited path genuinely lean (one helper, one tick, one policy
+  lookup, one memo lookup), the policed path a bounded straight-line
+  ~15-25-map-op pipeline with zero spinlocks and the verifier budget
+  accounted, every division const or count-guarded, the refill/BDP/ECN
+  arithmetic overflow-impossible by clamped construction or
+  drop-direction contained, every map LRU-capped, and the datapath
+  deterministic modulo documented monitor-class races. The userspace
+  verdict: the diff engine true as stated (shadow swap, linear byte
+  compares, run batching, one buffered write, no leak path); the two
+  headline render claims corrected to their measured scope —
+  README/USAGE/QA/PERFORMANCE now say the guard beat re-paints
+  deliberately between refreshes (the anti-selection physics,
+  separate from the diff path), the zero-alloc proof covers the
+  composition half and the diff engine at the empty-lane fixture with
+  the pinned-frame and name-target churn named as small, bounded, and
+  leak-free, and the poll merge row reflects its O(n) indexed reality
+  (NIGHT-think-like-light-years-3). Honest residuals named, not
+  hidden: the QUIC pre-parse on the policed path (an obvious early
+  protocol check, left for its own measured pass), the documented
+  fail-open bookkeeping misses (the cake_flow wording was the one
+  dishonest phrasing — reworded to say this one packet rides through
+  unpoliced while the leaf's bucket keeps enforcing), and the dense
+  host's /proc walk stall window.
+
 - **night-cafe-1: the live docs swept for stale claims — two
   dishonesty finds fixed, the rest verified true against the source.**
   The sweep: every command example in the visitor-facing docs

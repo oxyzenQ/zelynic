@@ -204,9 +204,11 @@ pub const fn leaf_inflight_bound(rate_bps: u64) -> u64 {
 //                           CURRENT epoch
 //   bits 24..35 : peak     — the decaying HIGH-WATER of drawees (the
 //                           allowance divisor source, repair-4)
-//   bits 36..63 : epoch    — now / DRR_WINDOW_MS, 28 bits (an 8.5
-//                           year horizon; the wrap fires one benign
-//                           rollover)
+//   bits 36..63 : epoch    — now / DRR_WINDOW_MS, 28 bits (a 0.85
+//                           year horizon at 100 ms epochs; the
+//                           comparison masks the counter to the
+//                           field's own width, so the wrap fires
+//                           every ~310 days and stays benign)
 //
 // A learned count of 0 (a cold pool, the first 100ms) keeps the
 // exact v13 shape — fair_draw_size(q, pool, 0) is draw_size by
@@ -310,7 +312,17 @@ pub const fn pool_share_note(word: u64, now_epoch: u32, leaf_drew_this_epoch: bo
     let mut running = pool_share_running(word);
     let mut last = pool_share_last(word);
     let mut peak = pool_share_peak(word);
-    if epoch != now_epoch {
+    // The stored epoch is the counter masked to the field's 28 bits
+    // (pool_share_pack), so the comparison masks the counter the
+    // same way. An unmasked compare went forever-false once the
+    // boot clock passed 2^28 epochs (~310 days of 100 ms epochs):
+    // every packet read as a rollover, running/last/peak collapsed
+    // to <= 1, and the fairness ledger silently turned itself off
+    // (night-arc-gems-1). The decay cadence below keeps the raw
+    // counter on purpose: 2^28 is a multiple of 8, so
+    // is_multiple_of(PEAK_DECAY_EPOCHS) is invariant under the mask.
+    let now_epoch_masked = now_epoch & 0x0FFF_FFFF;
+    if epoch != now_epoch_masked {
         last = running;
         if running > peak {
             peak = running;
@@ -319,7 +331,7 @@ pub const fn pool_share_note(word: u64, now_epoch: u32, leaf_drew_this_epoch: bo
             peak -= 1;
         }
         running = 0;
-        epoch = now_epoch & 0x0FFF_FFFF;
+        epoch = now_epoch_masked;
     }
     if !leaf_drew_this_epoch {
         running = running.saturating_add(1);

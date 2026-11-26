@@ -1796,9 +1796,13 @@ column, the same line every footer and note row starts on, instead
 of floating past the blank rank cell (NIGHT-engrave-4: the owner's
 "too distance from border"). Frames render through the
 diff-based engine (NIGHT-improve-2): only the rows that changed
-since the previous frame are written — one write syscall per frame,
-an unchanged frame costs zero I/O at every terminal height
-(NIGHT-improve-6), and the screen is never wiped or scrolled
+since the previous frame are written, batched into one buffered
+write per repaint (a large frame can degrade to a few writes when
+the pty takes partial writes), and a repaint where nothing changed
+emits zero bytes from the diff engine (NIGHT-improve-6). The
+monitor's deliberate guard beat re-paints the frame between refresh
+ticks — the anti-selection physics, not the diff path — and the
+screen is never wiped or scrolled
 mid-session (no flicker, no drift, no alt-screen scrollback side
 effects). Every table row carries the session-accumulated TOTAL,
 and the footer's total row sums the whole leaderboard — every

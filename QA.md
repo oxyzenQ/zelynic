@@ -146,9 +146,15 @@ exact point of truth** — not a userspace reconstruction of it:
 - **Attribution**: per-cgroup identity with per-socket resolution —
   the footer's "top consumer is curl" is the busiest process inside
   the champion cgroup, not a guess from a process list.
-- **No observer tax**: the render loop is zero-alloc (reused buffers
-  through the diff engine), so watching stays cheap under load — the
-  measurement does not distort the thing measured.
+- **No observer tax**: the render loop's composition half and diff
+  engine are zero-alloc (reused buffers, the counting-allocator
+  pin's proof shape), so watching stays cheap under load — the
+  measurement does not distort the thing measured. The pinned-frame
+  and name-target paths add small, bounded per-refresh allocation
+  churn outside that proof shape (no leak, no quadratic — the depth
+  audit's
+  docs/audits/NIGHT_ARC_GEMS_1_ALL_INFRA_DEPTH_AUDIT_2026-11-26.md
+  names the sites and the costs).
 
 The honest ceiling: this sharpness is bought with constraints —
 Linux-only, a modern kernel, and root/capabilities to program the
