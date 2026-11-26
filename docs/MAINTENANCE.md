@@ -261,7 +261,14 @@ binaries).
   prints exactly what a heal would move, `--apply` performs it,
   and the healed pins are committed like any other change (the
   hook re-reads the healed tree; the push rides the contributor's
-  own credentials). What the sweep refuses to touch (the
+  own credentials). Since night-cafe-2 the gate carries the same
+  heal seat on its own entry point:
+  `scripts/gates/check-actions-pins.sh --apply` wraps the sweep's
+  apply with the check's preflight honesty (an unreachable API or a
+  sub-floor quota is an honest skip, nothing heals) and a fail-closed
+  backup/restore shell (a mid-apply death restores the pre-apply
+  tree byte-exact), streaming the sweep's report unchanged. What the
+  sweep refuses to touch (the
   `@stable` pins, pins ahead of latest, non-version refs) is
   listed in the script's header with the reason for each rule.
   The honest trade: a quiet repository's pins age until the next

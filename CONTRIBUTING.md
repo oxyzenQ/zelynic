@@ -172,7 +172,9 @@ scripts/
                         (NIGHT-improve-39: reads every uses: pin
                         against upstream; --dry-run reports, --apply
                         heals; the commit-time health gate runs it
-                        read-only)
+                        read-only, and since night-cafe-2 the gate's
+                        --apply seat wraps this apply with preflight
+                        honesty and a fail-closed backup)
 
   depth/               — per-surface depth harnesses (root unless noted)
     crash-recovery-test.sh — `recover` on stale pins + crash cycles
@@ -226,7 +228,9 @@ scripts/
     check-actions-pins.sh — the commit-time actions-pin health gate
                         (NIGHT-improve-40: the sweep engine read-only
                         at commit time, advisory by default, strict an
-                        opt-in)
+                        opt-in; night-cafe-2 adds the on-demand --apply
+                        heal seat — the sweep's apply under the gate's
+                        preflight honesty and a fail-closed backup)
     check-commit-gate.sh — the pre-commit engine the hook shim runs
                         (sections 1-2 fail closed on the prebuilt
                         lane; section 3 is the advisory pin arm)

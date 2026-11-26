@@ -99,18 +99,32 @@ if [ -n "$GITHUB_TOKEN" ]; then
 	export GITHUB_TOKEN
 fi
 
+# night-cafe-2: the report rides the brand palette (scripts/lib/
+# ux_palette.sh) — the same tiers the CLI renders, at the depth the
+# terminal actually supports, plain text when piped, so the sweep's
+# table reads like every other script surface.
+# shellcheck source=scripts/lib/ux_palette.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/ux_palette.sh"
+
 API_ROOT="https://api.github.com"
 MODE="dry-run"
 
 # ── reporting ─────────────────────────────────────────────────────────────
+#
+# The report shape is the zylaxion-parity UX (night-cafe-2): two-space
+# indented lines, lowercase keep/skip labels in the tier colors, mono
+# when piped. The literal tokens the commit-time health check parses
+# stay: "SWEEP: repo (file:line) — cur -> new ... HEAL" heal notes and
+# the "sweep verdict: N healed, N kept, N skipped" line (its regexes
+# read the indented shape since night-cafe-2).
 
 HEALED=0
 KEPT=0
 SKIPPED=0
 
-note() { echo "SWEEP: $*"; }
-keep() { echo "KEEP:  $*"; }
-skip() { echo "SKIP:  $*"; }
+note() { echo "  SWEEP: $*"; }
+keep() { echo "  ${UX_OK}keep${UX_RESET}: $*"; }
+skip() { echo "  ${UX_WARN}skip${UX_RESET}: $*"; }
 
 usage() {
 	cat <<'EOF'
@@ -506,4 +520,11 @@ if [ "$MODE" = "apply" ] && [ "${#EDIT_FILE[@]}" -gt 0 ]; then
 fi
 
 echo ""
-echo "sweep verdict: ${HEALED} healed, ${KEPT} kept, ${SKIPPED} skipped (mode: ${MODE})"
+echo "  sweep verdict: ${HEALED} healed, ${KEPT} kept, ${SKIPPED} skipped (mode: ${MODE})"
+
+# night-cafe-2: the apply's closing line, the zylaxion-parity UX —
+# announced once, after guard_diff has proven the heal stayed inside
+# .github/workflows/ (a guard violation exits before this line).
+if [ "$MODE" = "apply" ] && [ "${#EDIT_FILE[@]}" -gt 0 ]; then
+	echo "  ${UX_OK}healed${UX_RESET}: ${HEALED} pin(s) rewritten in .github/workflows/ — review and commit"
+fi

@@ -48,6 +48,35 @@ v80.0.0
 
 ### Added
 
+- **night-cafe-2: the actions-pin heal seat rides the gate, and the
+  sweep's report speaks the brand palette.** The heal flow's UX now
+  matches the zylaxion reference byte-for-byte where the contracts
+  meet: `scripts/gates/check-actions-pins.sh --apply` is the
+  maintainer's on-demand heal seat on the gate's own entry point —
+  it runs the sweep's `--apply` (one engine, never a duplicated
+  math) under `ZELYNIC_ACTIONS_HEAL_TIMEOUT`, behind this check's
+  preflight honesty (an unreachable API or a sub-floor quota is an
+  honest skip, nothing heals, nothing blocks) and a fail-closed
+  backup/restore shell (a mid-apply death restores the pre-apply
+  tree byte-exact; a timeout and a guard refusal are named
+  distinctly in the note). The sweep's report carries the two-space
+  surface indent, lowercase keep/skip labels in the tier colors
+  (the brand palette, mono when piped), the indented verdict line,
+  and the apply's closing `healed: N pin(s) rewritten in
+  .github/workflows/ — review and commit` line after `guard_diff`
+  proves the heal stayed inside the workflow estate; a current tree
+  prints `all action pins current`. The commit-time health check's
+  parser regexes read the indented shape (optional leading
+  whitespace, tokens unchanged since NIGHT-improve-39), so the
+  auto-mode heal and the verdict math are untouched. Verified live
+  against the upstream API: the read is byte-identical across
+  repeat runs (determinism), the verdicts' kept pins sit exactly on
+  the latest release commits (independent resolution), a tampered
+  pin roundtrip detects, classifies, heals, and lands byte-identical
+  to HEAD, and a dirty tree is refused closed by `guard_diff` with
+  the tree restored. Docs (CONTRIBUTING.md, docs/MAINTENANCE.md)
+  name the seat where the flows are described.
+
 - **night-depth-hardening-5: the walk-cost ledger sync — the growth
   law's events named at every tier that speaks the numbers, the
   ratchet executed, and the five-area LTS cross-check at the Z17
