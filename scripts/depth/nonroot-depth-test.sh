@@ -181,7 +181,7 @@ expect "bare invocation prints reference" 0 "Commands:" -- "$BINARY"
 # expectation on both kernels).
 expect "--help exits 0 with reference" 0 "Commands:" "Global options:" -- "$BINARY" --help
 expect "-h short form matches --help" 0 "Commands:" -- "$BINARY" -h
-expect "--version report" 0 "Signature: Pure eBPF builtin" "License: AGPL-3.0-only" -- "$BINARY" --version
+expect "--version report" 0 "Signature: Pure eBPF builtin" "License: AGPL-3.0-only OR Commercial" -- "$BINARY" --version
 expect "-V short form" 0 "Signature: Pure eBPF builtin" -- "$BINARY" -V
 
 expect "doctor runs without root" 0 -- "$BINARY" doctor

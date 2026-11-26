@@ -468,7 +468,7 @@ jobs:
               if grep -aqF "rezky_nightky" "${BIN}"; then
                 echo "::error::Identity plaintext found in the artifact — the masking regressed"; exit 1
               fi
-              grep -aFq "License: AGPL-3.0-only" "${BIN}" \
+              grep -aFq "License: AGPL-3.0-only OR Commercial" "${BIN}" \
                 || { echo "::error::Expected embedded license literal"; exit 1; }
               # NIGHT-lts-9: the version literal (env!(CARGO_PKG_VERSION)
               # is a plain &str in the rodata) must match the tag — the

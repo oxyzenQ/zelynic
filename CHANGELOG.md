@@ -48,6 +48,32 @@ v80.0.0
 
 ### Added
 
+- **night-cafe-4: the dual-license verification estate now asserts
+  the disclosure itself, not a prefix of it.** The binary's `-V` /
+  version report already speaks the full "License: AGPL-3.0-only OR
+  Commercial" line (the NIGHT-blade-4 contiguous literal, the
+  NIGHT-ux-orion-2 dual disclosure), but three verifiers still
+  asserted the AGPL prefix — an assertion a lost "OR Commercial"
+  would have satisfied with a green run: the non-root depth suite's
+  --version expectation (scripts/depth/nonroot-depth-test.sh), the
+  integration smoke test's metadata assertion
+  (test/integration/smoke.rs), and release.yml's AVX-512 artifact
+  probe (the byte-level gate the v4 legs run where executing the
+  binary would SIGILL). All three now assert the full dual literal,
+  and the LICENSE_LINE comment's probe description was synced with
+  the tightened shape. Verified live on the pinned toolchain: the
+  built binary's version report prints the dual line, and the full
+  non-root depth suite runs 107/0 against the upgraded assertion.
+  The sweep that found the three also cleared the estate: NOTICE
+  already carries the dual disclosure (the Commercial License
+  pointer sits two lines under the AGPL line), docs/LICENSING_FAQ.md
+  and README.md narrate the dual license fully, and the doubled
+  SPDX header on the doc/manifest files is the header gate's own
+  contract (both identifier lines required within the first ten
+  lines) — a designed convention, not an ant. The audit records'
+  historical single-license quotes are frozen records of their
+  time and stay untouched.
+
 - **night-cafe-3: the build law — a warning is a failure, now on
   every build path, not only CI.** The workflows have led with
   `-D warnings` since the discipline landed (the workflow-level env,
