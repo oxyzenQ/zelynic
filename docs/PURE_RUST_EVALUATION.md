@@ -869,7 +869,7 @@ point at their in-tree counterparts.
 |---|---|---|
 | Default (`cargo build` / check-all / tests) | stable 1.98.1 pin | the dormant-mode contract, unchanged |
 | ebpf-feature builds (incl. clippy --all-features) | stable root + nested dated nightly | nightly entered only through build.rs, never the default path |
-| Direct ebpf work (`cd ebpf && cargo build`) | dated nightly pin | resolves from ebpf/rust-toolchain.toml |
+| Direct ebpf work (`cd ebpf && cargo build --release`) | dated nightly pin | resolves from ebpf/rust-toolchain.toml — release is the manifest's documented route; the dev-profile direct build is not a supported shape (at -O0 the enforce functions exceed the BPF stack limit) |
 | Prerequisites | rustup + bpf-linker 0.11.1 prebuilt | host install: ./scripts/dev/bootstrap-ebpf.sh (NIGHT-host-1); no clang, no system LLVM, no libbpf headers |
 
 The runtime A/B on a privileged host (swap objects, run the

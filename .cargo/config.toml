@@ -16,18 +16,25 @@
 # invocation. Direct cargo invocations (dev builds, the CI build
 # matrix, release builds) ride the machine-detected default above.
 [build]
-rustflags = ["-C", "codegen-units=1"]
+# night-cafe-3 (the owner's build law): EVERY build denies warnings —
+# a rustc warning is a failed build, locally exactly as in CI (the
+# workflows have led with "-D warnings" since the discipline landed).
+# The [target.*] blocks and every alias below repeat the flag because
+# target-level rustflags shadow build-level ones (the precedence note
+# above), so the law has to ride every route the graph compiles
+# through, not just the default one.
+rustflags = ["-C", "codegen-units=1", "-D", "warnings"]
 
 # Static binary configuration for the musl targets — the ONLY libc
 # shapes this project builds (night-dragon-maintenance-6: the gnu/
 # glibc packaging is retired; every shipped binary is fully static).
 [target.x86_64-unknown-linux-musl]
 linker = "rust-lld"
-rustflags = ["-C", "target-feature=+crt-static"]
+rustflags = ["-C", "target-feature=+crt-static", "-D", "warnings"]
 
 [target.aarch64-unknown-linux-musl]
 linker = "rust-lld"
-rustflags = ["-C", "target-feature=+crt-static"]
+rustflags = ["-C", "target-feature=+crt-static", "-D", "warnings"]
 
 # ── Native-CPU host build alias (cosmostrix pro-native
 # lineage) ────────────────────────────────────────────────────────────────
@@ -77,7 +84,7 @@ pro-native-musl = [
   "--config",
   "env.ZELYNIC_BUILD=\"local-pro-native-musl\"",
   "--config",
-  "target.x86_64-unknown-linux-musl.rustflags=[\"-C\",\"target-cpu=native\",\"-C\",\"target-feature=+crt-static\"]",
+  "target.x86_64-unknown-linux-musl.rustflags=[\"-C\",\"target-cpu=native\",\"-C\",\"target-feature=+crt-static\",\"-D\",\"warnings\"]",
   "--target",
   "x86_64-unknown-linux-musl",
 ]
@@ -117,7 +124,7 @@ pro-native-arm64-musl = [
   "--config",
   "env.ZELYNIC_BUILD=\"local-pro-native-arm64-musl\"",
   "--config",
-  "target.aarch64-unknown-linux-musl.rustflags=[\"-C\",\"target-cpu=native\",\"-C\",\"target-feature=+crt-static\"]",
+  "target.aarch64-unknown-linux-musl.rustflags=[\"-C\",\"target-cpu=native\",\"-C\",\"target-feature=+crt-static\",\"-D\",\"warnings\"]",
   "--target",
   "aarch64-unknown-linux-musl",
 ]
@@ -162,7 +169,7 @@ pro-linux-amd64-v3-musl = [
   "--config",
   "env.ZELYNIC_BUILD=\"local-pro-linux-amd64-v3-musl\"",
   "--config",
-  "target.x86_64-unknown-linux-musl.rustflags=[\"-C\",\"target-cpu=x86-64-v3\",\"-C\",\"target-feature=+crt-static\"]",
+  "target.x86_64-unknown-linux-musl.rustflags=[\"-C\",\"target-cpu=x86-64-v3\",\"-C\",\"target-feature=+crt-static\",\"-D\",\"warnings\"]",
   "--target",
   "x86_64-unknown-linux-musl",
 ]
@@ -175,7 +182,7 @@ pro-linux-amd64-v4-musl = [
   "--config",
   "env.ZELYNIC_BUILD=\"local-pro-linux-amd64-v4-musl\"",
   "--config",
-  "target.x86_64-unknown-linux-musl.rustflags=[\"-C\",\"target-cpu=x86-64-v4\",\"-C\",\"target-feature=+crt-static\"]",
+  "target.x86_64-unknown-linux-musl.rustflags=[\"-C\",\"target-cpu=x86-64-v4\",\"-C\",\"target-feature=+crt-static\",\"-D\",\"warnings\"]",
   "--target",
   "x86_64-unknown-linux-musl",
 ]

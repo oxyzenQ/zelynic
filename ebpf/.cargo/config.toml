@@ -43,11 +43,19 @@ target = "bpfel-unknown-none.json"
 # token bucket in ebpf/src/math.rs needs) only at cpu v3 — and v3
 # bytecode (alu32, kernel 5.1+) sits well inside the 5.13 verified
 # floor. This applies to direct builds with a clean environment
-# (cd ebpf && cargo build); when the parent build.rs drives this
-# build with an inherited RUSTFLAGS env (CI's "-D warnings"), env
-# shadows config — that path force-merges the same flag in
-# build.rs (force_bpf_v3_rustflags), so both routes agree.
-rustflags = ["-C", "target-cpu=v3", "-C", "debuginfo=2", "-C", "link-arg=--btf"]
+# (cd ebpf && cargo build --release — the manifest's documented
+# route; the dev-profile direct build is NOT a supported shape: at
+# -O0 the enforce functions' locals exceed the BPF stack limit, the
+# LLVM diagnostic fires before any lint matters, and the shipped
+# lane is the release cross-compile). When the parent build.rs
+# drives this build with an inherited RUSTFLAGS env (CI's and the
+# root config's "-D warnings"), env shadows config — that path
+# force-merges the same flag in build.rs (force_bpf_v3_rustflags),
+# so both routes agree. night-cafe-3 (the owner's build law): the
+# deny rides BOTH routes — the -D warnings below makes the direct
+# local release build fail on a warning exactly like the CI and
+# parent-env routes already do.
+rustflags = ["-C", "target-cpu=v3", "-C", "debuginfo=2", "-C", "link-arg=--btf", "-D", "warnings"]
 
 [unstable]
 build-std = ["core"]

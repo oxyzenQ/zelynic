@@ -158,12 +158,17 @@ setup_build_cache() {
 		log_warning "sccache not found. Install: cargo install sccache --locked"
 	fi
 
-	# Check for mold linker
+	# Check for mold linker. The -D warnings tail is the owner's
+	# build law (night-cafe-3): a set RUSTFLAGS env shadows every
+	# config rustflags, so the linker-arg exports would otherwise
+	# bypass the config's deny — appending it here LAST keeps the
+	# law on the build.sh lanes (last lint-spec wins in rustc, so
+	# a caller's -A warnings cannot re-enable them).
 	if command -v mold &>/dev/null; then
-		export RUSTFLAGS="${RUSTFLAGS:-} -C link-arg=-fuse-ld=mold"
+		export RUSTFLAGS="${RUSTFLAGS:-} -C link-arg=-fuse-ld=mold -D warnings"
 		log_success "mold linker enabled (faster linking)"
 	elif command -v lld &>/dev/null; then
-		export RUSTFLAGS="${RUSTFLAGS:-} -C link-arg=-fuse-ld=lld"
+		export RUSTFLAGS="${RUSTFLAGS:-} -C link-arg=-fuse-ld=lld -D warnings"
 		log_success "lld linker enabled"
 	else
 		log_warning "Fast linker not found (mold/lld)."

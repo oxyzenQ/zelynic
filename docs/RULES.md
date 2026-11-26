@@ -163,6 +163,30 @@ night-fly-1 audit record.
   fails the gate on any disagreement or on a channel alias, in either
   pin family.
 
+## Build Law — a warning is a failure
+
+- Every build denies rustc warnings (night-cafe-3, the owner's law:
+  any build that outputs a warning IS a failed build). The deny rides
+  every route the graph compiles through: `.cargo/config.toml`'s
+  `[build]` and both `[target.*]` musl blocks (target-level flags
+  shadow build-level ones, so the law repeats per route), all four
+  `pro-*` alias compositions, `ebpf/.cargo/config.toml` (the direct
+  local eBPF build), and `scripts/build.sh`'s linker exports (a set
+  RUSTFLAGS env shadows the config, so the linker-arg lane appends
+  the deny last — last lint-spec wins in rustc, a caller's `-A
+  warnings` cannot re-enable it).
+- CI has led with `-D warnings` since the discipline landed: the
+  workflow-level env, the clippy lanes (`-- -D warnings`), the alias
+  compositions, and the release matrix. The local paths now match
+  byte-for-byte: a warning fails a dev's `cargo build` exactly as it
+  fails CI.
+- clippy lints are the same law on their own lane: every clippy
+  invocation carries `-- -D warnings` (build.sh and CI agree).
+- A dependency crate that starts warning at a future toolchain bump
+  fails the build loudly — that is the law working, not a regression:
+  the estate either pins the crate or fixes forward, never builds
+  on a warning.
+
 ## Documentation Disclaimer
 
 - Every living `.md` file carries the stale-data disclaimer at the
