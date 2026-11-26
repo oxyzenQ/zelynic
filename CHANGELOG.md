@@ -48,6 +48,39 @@ v80.0.0
 
 ### Added
 
+- **night-cafe-1: the live docs swept for stale claims — two
+  dishonesty finds fixed, the rest verified true against the source.**
+  The sweep: every command example in the visitor-facing docs
+  (README.md, QA.md, CONTRIBUTING.md, GUIDE.md, USAGE.md, FAQ.md,
+  MAINTENANCE.md, RULES.md, SANDBOX.md, VERIFY_RELEASE.md,
+  KERNEL_COMPATIBILITY.md, CROSS_DISTRO_RESULTS.md) extracted and
+  diffed against the real CLI surface (src/cli/surface.rs +
+  src/main.rs); every prose-named flag checked the same way; every
+  `src/`/`scripts/`/`docs/` path the docs name checked for
+  existence; the numeric claims spot-checked against their sources.
+  Findings fixed: QA.md's surviving-process-exit answer still typed
+  the retired `ss` spelling as an executing example (the redirect
+  table refuses it with a successor tip — the honest example is
+  `s`, fixed); CONTRIBUTING.md's Project Structure map was stale
+  against the tree (strict.rs claimed the strict-all handler that
+  lives in strict_all.rs since the LOC-cap split, cleanup.rs
+  claimed the recover handler that lives in recover.rs, monitor.rs
+  claimed the list-apps handler that lives in list_apps.rs,
+  identity/ named a sanitize.rs that does not exist, and the cli/
+  and commands/ maps missed twelve and fifteen real files) — the
+  map rebuilt from each file's own module comment, every entry
+  verified. Verified true and left alone: all verbs, aliases, and
+  flags in live-doc examples match the surface; the retired
+  spellings appear only inside the documented redirect contract
+  (checked against src/cli/redirects.rs — the table is real); the
+  removal history (`man`, `completions`, `unblock`, `-i`, `--live`,
+  `--duration`, `--info`) is framed as history; the numeric claims
+  hold (6 direct dependencies, 51 lockfile crates, 67
+  DANGEROUS_TARGETS entries, MMSPA_MAX_DEPTH = 32, bpf-linker
+  0.11.1 pin, the depth JSON `targets` key, all seventeen referenced
+  harness and package scripts exist); the five flagged paths are
+  honest history frames or sibling-repo references, not dead ends.
+
 - **night-cafe-2: the actions-pin heal seat rides the gate, and the
   sweep's report speaks the brand palette.** The heal flow's UX now
   matches the zylaxion reference byte-for-byte where the contracts

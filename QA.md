@@ -332,7 +332,7 @@ alive.
 the two cgroup bpf_links are pinned under `/sys/fs/bpf/zelynic/`,
 and all nine maps ride `LIBBPF_PIN_BY_NAME`. A bpf_link is a kernel
 object — once created and pinned, the attachment it represents is
-kernel state, not process state. `zelynic ss brave 100kb` is a
+kernel state, not process state. `zelynic s brave 100kb` is a
 one-shot: load, pin, write policy, exit. The limit then runs for as
 long as the pins exist, through reboots of nothing except the
 machine itself (bpffs is wiped at boot — a documented non-goal of

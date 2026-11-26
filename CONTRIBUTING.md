@@ -59,54 +59,121 @@ only for registry tarballs, never as a silent local substitute.
 
 ```
 src/
-  main.rs              — entry point (the only file at src/ root)
+  main.rs              — entry point (the only Rust file at src/ root)
   cli/
     mod.rs             — CLI definition (clap) + brand clap styles
+    surface.rs         — the Commands enum: every subcommand, alias, and flag
+    root.rs            — the Cli struct: globals, version banner, help
+                          interception (the 600-line cap split, NIGHT-improve-44)
     ux.rs              — CLI UX contract: clap error bridge, help footer,
                           exit codes, rate/duration typo tips
+    argv.rs            — argv forensics: re-derives parser state the error lost
+    redirects.rs       — the retired-verb redirect tables (observe/top, the
+                          masterclass + sweep retirees, help)
+    rescue.rs          — the flag-rescue family (split from ux.rs, NIGHT-improve-42)
+    scope.rs           — the --print-json scope contract
+    styles.rs          — clap brand styling (cosmostrix contract, NIGHT-hunt-5)
     suggestion.rs      — suggestion engine (edit distance + case-insensitive
                           Jaro for flag rescue)
+    tips.rs            — value-suggestion tips (the rate/duration typo rescue)
+    json_error.rs      — the JSON error contract (one shape for every error)
   commands/
     mod.rs             — dispatchers + shared root/ebpf guards
+    target_grammar.rs  — the masterclass target grammar (the '::' list /
+                          URI lane router, NIGHT-improve-53)
+    strict.rs          — strict handlers (the single + group lanes)
+    strict_all.rs      — the strict --all sweep lane (night-during's LOC-cap split)
+    block.rs           — block handlers (single, group, and the --all sweep lane)
+    cleanup.rs         — unstrict handlers (single, group, and the --all reset)
+    guarantee.rs       — the --floor/--ceil bracket family (improve-40, schema v24)
+    rates.rs           — CLI rate-string resolution
+    safety.rs          — dangerous-target blocklist + guards
+    safety_id.rs       — the cgroup-ID door of the dangerous-target guard
+    monitor.rs         — status + eagle-eyes live-monitor handlers
+    list_apps.rs       — the list-apps discovery handler
+    eagle.rs           — the eagle-eyes --depth handler (NIGHT-master-1)
+    eagle_focus.rs     — the --depth traffic focus window
+    probe.rs           — the self-proving enforcement probe (charger-core-1-b)
+    probe_report.rs    — the probe's verdict family + output surface
+    probe_role.rs      — the probe's child roles (the server/client pair)
+    recover.rs         — the crash-recovery handler (`zelynic recover`)
+    sig_report.rs      — the `sig` command's six-depth signature report
+    sig_commit_sig.rs  — the D5 commit-signature policy (night-solid-defense-2)
     help.rs            — --help reference (single authority; the man
                           renderer was removed in NIGHT-hunt-12)
-    block.rs           — block-* handlers
-    cleanup.rs         — unstrict / unstrict-all / recover handlers
-    monitor.rs         — status / list-apps / eagle-eyes handlers
-    safety.rs          — dangerous-target blocklist + guards
-    strict.rs          — strict-single / strict-multi / strict-all handlers
-    rates.rs           — CLI rate-string resolution
+    help_flags.rs      — the --help reference's flag estate (NIGHT-hunt-39)
+    dispatch_common.rs — dispatch-shared surfaces (the apply-verb epilogue,
+                          NIGHT-improve-28; the 600-line cap split)
   ebpf/
-    mod.rs             — module exports
+    mod.rs             — module exports (the observer + limiter engine)
+    bpf_syscall.rs     — raw BPF syscall helpers (create + pin bpf_links)
+    bypass.rs          — the bypass-shadow audit core (the eyes)
+    connections.rs     — per-cgroup process + connection detail (NIGHT-hunt-8)
+      connections/     — the socket-table parsers (parse.rs), the per-PID
+                         pidfd state machine (pidfd.rs), the type
+                         contract (types.rs)
+    display.rs         — status display: human table + JSON output
+      display_json.rs  — the status JSON assembly (charger-core-3b split)
+      display_json_recwn.rs / display_json_ring.rs — the RECWN and
+                         rate-ring JSON families
+      display_lines.rs / display_order.rs / display_recwn.rs — the
+                         table renderers, the name-first row-order law,
+                         the RECWN line
+    embedded.rs        — aligned, build-validated embedding of both BPF
+                         objects (NIGHT-hunt-29/30)
+    helper_ladder.rs   — the per-helper capability ladder (night-frontier-Z5)
+    host_caps.rs       — the Adaptive Orchestra: one capability probe
+                         (night-netrunner-2)
+    kernel_floor.rs    — the kernel release floor (night-netrunner-1, the
+                         5.15 attach refusal)
+    loader.rs          — eBPF loader: load, attach, read cgroup counters
+      loader/delta.rs  — the observer's counter-delta family
+    lock.rs            — file-based lock against concurrent operations
+    pin.rs             — pin path constants + cleanup helpers
+    render.rs          — responsive render engine for eagle-eyes (NIGHT-hunt-7)
+      render/          — the eagle / detail / focus frame renderer estate
+    trace.rs           — verbose trace line formatters (the -v contract)
+    identity/
+      mod.rs           — identity mapping: cgroup IDs to names and users
+      name_walk.rs     — the one-walk name-set resolver (NIGHT-hunt-28)
+      pathwalk.rs      — the cgroup id-to-path resolver
+      tally.rs         — per-cgroup comm tally + majority-vote representative
+      drift.rs         — the identity drift alarm (the netns/iface STALE
+                         verdict, night-frontier-Z3)
+      depth.rs / depth_walk.rs — the per-pid deep facts for eagle-eyes
+                         --depth (NIGHT-master-1)
+      container/       — the docker:// k8s:// netns:// iface:// resolvers
     limiter/
       mod.rs           — Limiter struct + lifecycle (attach / open_pinned) + re-exports
       types.rs         — constants + BPF map structs + high-level API types
       schema.rs        — the BPF schema-version anchor + history (the
                          NIGHT-private-research-2 split; re-exported
                          through types.rs)
-      format.rs        — rate/duration parsing + formatting helpers
+      schema_ledger.rs — the schema-version ledger (the versioned record)
+      format.rs        — burst-size computation + rate formatting helpers
       parse.rs         — the value parsers (NIGHT-private-research-3 split)
-      policy.rs        — apply / resolve / write / delete policy operations
+      policy.rs        — policy operations + the sweep admission rule
+                         (NIGHT-hunt-27)
+      policy_write.rs / policy_lines.rs — the write surface + its
+                         verbose traces (NIGHT-hunt-9)
       stats.rs         — status printing + map readers + identity accessors
       reclaim.rs       — bucket/stats slot reclamation on unstrict/recover
-                         (the LTS budget, NIGHT-improve-10) + the
-                         u32-keyed map acquisition lanes
-      mmspa.rs         — the MMSPA leaf-cache flush every policy
-                         mutation runs (NIGHT-private-research-2)
-    identity/
-      mod.rs           — cgroup ID → process name resolution + the canonical
-                          /proc boundary helpers (pid_cgroup_id / pid_comm)
-      tally.rs         — majority-vote representative pick (per-cgroup comm tally)
-      sanitize.rs      — comm control-char sanitize (terminal-injection guard)
-    connections.rs     — per-cgroup process + socket detail (eagle eyes)
-      connections/parse.rs — /proc/net + fd-symlink parsers
-    render.rs          — responsive render engine for eagle-eyes (NIGHT-hunt-7)
-      render/          — eagle / detail / focus frame renderers
-    loader.rs          — observer BPF loader
-    embedded.rs        — aligned, build-validated embedding of both BPF
-                         objects (NIGHT-hunt-29/30)
-    display.rs         — traffic table rendering
-    bpf_syscall.rs     — raw bpf() syscall fallback
+                         (the LTS budget, NIGHT-improve-10)
+      lanes.rs         — the u32-keyed map acquisition lanes
+                         (the error-path audit, NIGHT-hunt-20)
+      mmspa.rs         — the MMSPA generation word + the leaf-cache flush
+                         every policy mutation runs (NIGHT-private-research-2)
+      atomic.rs        — the policy-mutation ledger (one mutation this invocation)
+      rate_ring.rs     — the one-second rate-ring windows
+      resolve.rs       — one name's matched (pid, cgroup) pairs
+      zombie.rs        — the zombie-root lens verdict (the ring's reading)
+      during.rs / during_map.rs / during_parse.rs — the self-expiring
+                         rows: the clock bridge, the monotonic span
+                         translation, the duration grammar (night-during,
+                         schema v23)
+      pace.rs          — the pacing sock_ops loader (the EDT lane, schema v27)
+      hist.rs          — the histogram bucket pin (HIST_BUCKETS, schema v35)
+      unstrict.rs      — the removal's announce voice (night-dragon-fly-6)
     lock.rs            — file lock (concurrency guard)
     pin.rs             — BPF pin cleanup
   capabilities/mod.rs  — eBPF support check (doctor)
