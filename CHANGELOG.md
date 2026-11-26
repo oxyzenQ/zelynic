@@ -48,6 +48,39 @@ v80.0.0
 
 ### Added
 
+- **night-cafe-3: the build law — a warning is a failure, now on
+  every build path, not only CI.** The workflows have led with
+  `-D warnings` since the discipline landed (the workflow-level env,
+  the clippy lanes, the alias compositions, the release matrix), but
+  the LOCAL routes could still print a warning and finish green: a
+  dev's plain `cargo build`, the musl targets, the four `pro-*`
+  alias compositions, the direct `cd ebpf && cargo build --release`, and the
+  build.sh lanes whose linker-arg RUSTFLAGS export shadows every
+  config rustflags. The law now rides every route: `.cargo/
+  config.toml`'s `[build]` and both `[target.*]` musl blocks and all
+  four aliases carry the deny (target-level flags shadow
+  build-level ones, so the law repeats per route — the config's own
+  precedence note said so and now also says why the law rides each),
+  `ebpf/.cargo/config.toml` carries it for the direct local build
+  (both routes agree, as the file's own comment documents),
+  `scripts/build.sh`'s mold/lld exports append the deny LAST (last
+  lint-spec wins in rustc, so a caller's `-A warnings` cannot
+  re-enable them), and docs/RULES.md gains the Build Law section
+  stating the whole map once. Verified live on the pinned toolchain:
+  the host-target check, the musl-target check, and the direct
+  `--release` eBPF build (the manifest's documented route) all
+  compile clean under the deny — the dependency graph carries zero
+  warnings at the pin, so the law fails nothing it should not and
+  will fail loudly the day anything (a dependency at a future
+  toolchain, a new lint) starts warning. One honest find named while
+  verifying, not fixed: the UNdocumented dev-profile direct eBPF
+  build fails at HEAD regardless of the law (at -O0 the enforce
+  functions' locals exceed the BPF stack limit — an LLVM diagnostic,
+  no lint involved; the shipped lane is the release cross-compile
+  and the manifest documents `--release` as the route) — the loose
+  "(cd ebpf && cargo build)" phrasings that could suggest otherwise
+  now name `--release`.
+
 - **night-arc-gems-1: the all-infra depth audit — one real latent
   kernel bug fixed (the DRR share-epoch width mismatch), the render
   claims corrected to their measured scope, and the datapath verdict
