@@ -541,6 +541,13 @@ jobs:
           # rides the same artifact lane (the AXP1-ZnQ refresher's
           # tested pool) — mirrored the same way, tombstones and all,
           # so the one weekly commit carries deps AND addresses.
+          # night-cafe-mclaren-2 rev 3: the catalog joins the lockfile
+          # lane's accepted artifact-freshness posture — the mirror is
+          # the validate job's checkout snapshot, so an owner catalog
+          # edit landing mid-validate is rebased by the weekly lane's
+          # design (the concurrency group and the Sunday cadence keep
+          # the window theoretical; the same posture the lockfile cp
+          # loop has always carried).
           if test -d "$lane_dir/repos-for-ci"; then
             rsync -a --delete "$lane_dir/repos-for-ci/" repos-for-ci/
           fi

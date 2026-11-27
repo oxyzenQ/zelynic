@@ -116,9 +116,33 @@ writes the survivors back. The write law:
   rewritten (a flaky runner probe must never erase the owner's pool)
   — the lane warns (`::warning::` in CI) and the note names CALL THE
   OWNER, the one critical the refresher escalates;
+- the duplicate-honesty law (rev 3): duplicate lines name ONE
+  address, so they get ONE probe and ONE shared verdict — a flaky
+  second read can never split the verdicts and write a zero-active
+  catalog past the guard;
+- the atomic-write law (rev 3): the rewrite lands through a
+  same-directory temp file and `os.replace` — a mid-write failure
+  can never leave the pool partial or empty for the diff gate to
+  ship;
 - idempotent: unchanged catalog, unchanged file — no write, no
   commit-note, no churn;
 - `--dry-run` reports the verdicts and writes nothing.
+
+The probe's own contract carries the rev-3 laws too: a malformed
+HTTP conversation (a garbage status line, an oversized header — the
+TLS-terminating-middlebox failure shape, `http.client.HTTPException`,
+which is not an `OSError` subclass) is a DOWN verdict with a narrated
+reason, never an escaped exception that could crash the caller's
+pool; a 2xx with no parsable `Date` header is STALE under the
+refresher's freshness contract (no witness, no PASS — alive-but-
+unwitnessed is the lie the catalog must not keep) while the resolver
+rides unchanged (freshness never blocks the pick); and the tcp kind
+refuses out-of-range ports as DOWN instead of letting the socket
+layer silently wrap them. The full law set is pinned by the nine-law
+local harness (`scripts/dev/axp1znq_edge_proof.py`: the stale
+refusal, the resolve-despite-age pick, the all-dead exit 1, the fresh
+survivor, the malformed-HTTP DOWN, the `--first` stdout purity, the
+index-404 DOWN, the witness law, and duplicate-honesty-atomic-write).
 
 ## The wiring (the Sunday cadence)
 
