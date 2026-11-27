@@ -430,6 +430,11 @@ impl BypassAuditJson {
         write_number(out, self.shadow_tx_percent);
         out.push_str(",\"shadow_rx_percent\":");
         write_number(out, self.shadow_rx_percent);
+        // night-cafe-1 (F9c): the floor gate rides TRAILING (the
+        // additive rule) — the quiet-window context the prose names
+        // and a raw percent pair needs to read honestly.
+        out.push_str(",\"quiet_window\":");
+        out.push_str(if self.quiet_window { "true" } else { "false" });
         out.push('}');
     }
 }

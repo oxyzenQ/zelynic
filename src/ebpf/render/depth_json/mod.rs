@@ -26,7 +26,9 @@
 //! indicator a scripted triage pipeline wants as a boolean instead
 //! of parsing the text report's marker.
 
-use crate::ebpf::bypass::{ShadowAudit, ShadowVerdict, shadow_percent};
+use crate::ebpf::bypass::{
+    SHADOW_RX_FLOOR_BYTES, SHADOW_TX_FLOOR_BYTES, ShadowAudit, ShadowVerdict, shadow_percent,
+};
 use crate::ebpf::identity::depth::ProcessFacts;
 use crate::ebpf::limiter::types::POLICY_FLAG_PER_SOCKET;
 use crate::ebpf::limiter::{LimiterStatsRaw, PolicyRaw};
@@ -279,6 +281,17 @@ pub struct BypassAuditJson {
     /// gate held, not that the percent was unseen.
     pub shadow_tx_percent: u64,
     pub shadow_rx_percent: u64,
+    /// night-cafe-1 (F9c): the floor gate the prose names — the
+    /// quiet-window context the raw percents need to read honestly.
+    /// A percent is a share of the interface's OWN window traffic;
+    /// on a quiet window (both shadows at-or-under their absolute
+    /// floors, the prose's "quiet window — under 1 MiB tx / 2 MiB
+    /// rx floor" basis) a 19%/15% swing is a small-denominator
+    /// artifact, not a signal, and the verdict's both-gates law
+    /// (flag only past share AND floor) is exactly what this boolean
+    /// tells a script. Derived from the same constants the verdict
+    /// computed from, never authoritative over the raw bytes.
+    pub quiet_window: bool,
 }
 
 /// The audit as JSON (None stays null — the window did not run, the
@@ -301,6 +314,7 @@ fn bypass_audit_json(audit: Option<&ShadowAudit>) -> Option<BypassAuditJson> {
         },
         shadow_tx_percent: shadow_percent(a.shadow_tx, a.nic_tx),
         shadow_rx_percent: shadow_percent(a.shadow_rx, a.nic_rx),
+        quiet_window: a.shadow_tx <= SHADOW_TX_FLOOR_BYTES && a.shadow_rx <= SHADOW_RX_FLOOR_BYTES,
     })
 }
 

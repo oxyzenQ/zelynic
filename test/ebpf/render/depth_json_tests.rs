@@ -220,6 +220,24 @@ fn json_carries_the_bypass_audit() {
         3,
     );
     assert_eq!(flagged.verdict, ShadowVerdict::BypassedTx);
+    // night-cafe-1 (F9c): the floor gate rides the document — the
+    // quiet-window context the prose names and a raw percent pair
+    // needs to read honestly. The clean window above (both shadows
+    // under their floors) reads true; this one (tx shadow past the
+    // floor) reads false — the additive trailing boolean, the
+    // verdict's both-gates law as one field.
+    let quiet_doc =
+        depth_doc_json(&[report_fixture(Enforcement::Unlimited)], &[], Some(&clean));
+    assert!(
+        quiet_doc.to_json().contains("\"quiet_window\":true"),
+        "a window under both floors is quiet"
+    );
+    assert!(
+        depth_doc_json(&[report_fixture(Enforcement::Unlimited)], &[], Some(&flagged))
+            .to_json()
+            .contains("\"quiet_window\":false"),
+        "a shadow past its floor is not a quiet window"
+    );
     let rx_flagged = shadow_audit(
         Some(NicTotals {
             tx_bytes: 0,
