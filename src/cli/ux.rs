@@ -305,6 +305,34 @@ fn subcommand_local_help(
     })
 }
 
+/// The enrichment chain both lanes consume (night-cafe-1): clap's
+/// own suggestions, the redirects, the hidden-vocabulary filter, and
+/// the dishonest escape hatch, in the bridge's canonical order — one
+/// chain, so the JSON error door (which reads the error after this
+/// fn returns) and the prose render cannot drift on the facts the
+/// contract promises ("the same facts the prose render carries").
+/// Returns whether a suggestion sits in the error's `SuggestedArg`
+/// seat AFTER the chain — the usage-regeneration trigger (F13: the
+/// rescue-injected suggestions join clap's own, so the same error
+/// class renders one usage form whichever engine attached the tip).
+fn enrich_error(
+    e: &mut clap::Error,
+    cmd: &mut clap::builder::Command,
+    argv: &[OsString],
+) -> bool {
+    enrich_unknown_arg_suggestion(e, cmd);
+    enrich_positional_overflow(e, cmd, argv);
+    enrich_removed_subcommand_redirect(e);
+    enrich_subcommand_flag_redirect(e, cmd);
+    // NIGHT-hunt-Z9: clap's typo engine suggests hidden internal
+    // roles (the probe pair) — the same engine the flag-side rescue
+    // already filters. Runs after the redirect enrichments so an
+    // exact removed-name successor (never hidden) keeps its seat.
+    drop_hidden_subcommand_suggestions(e, cmd);
+    drop_dishonest_escape_hatch(e, argv);
+    e.get(ContextKind::SuggestedArg).is_some()
+}
+
 /// Render a clap parse error in the canonical zelynic shape and exit.
 ///
 /// Every error kind: case-insensitive typo rescue first (including the
@@ -354,14 +382,6 @@ pub(crate) fn exit_clap_error(e: clap::Error) -> ! {
         }
         std::process::exit(0);
     }
-    // Night-netrunner-5, the JSON error contract door: the raw argv
-    // carried --print-json, so every usage and parse error renders as
-    // the contract object on stdout (exit 1) — before the prose
-    // enrichment chain, whose styled render and footer are furniture a
-    // JSON consumer cannot parse.
-    if super::argv::print_json_requested() {
-        super::json_error::exit_clap_json(&e);
-    }
     // Depth honesty (NIGHT-improve-73): the forced 16-color rung gets
     // the palette mapping (clap_styles_16) BEFORE any enrichment —
     // the subcommand-flag redirect bakes the `valid` style into its
@@ -376,22 +396,31 @@ pub(crate) fn exit_clap_error(e: clap::Error) -> ! {
     if remapped_16 {
         cmd = cmd.styles(crate::cli::clap_styles_16());
     }
-    // Captured BEFORE enrichment: only clap's OWN suggestion narrows
-    // the native usage (the parser adds the suggested flag to its
-    // matcher, and `create_usage_with_title(&used)` then renders it
-    // into the usage line as if it were required) — the suggestions
-    // this bridge injects afterwards never touch the matcher.
-    let native_usage_narrowed = e.get(ContextKind::SuggestedArg).is_some();
-    enrich_unknown_arg_suggestion(&mut e, &cmd);
-    enrich_positional_overflow(&mut e, &cmd, &argv);
-    enrich_removed_subcommand_redirect(&mut e);
-    enrich_subcommand_flag_redirect(&mut e, &cmd);
-    // NIGHT-hunt-Z9: clap's typo engine suggests hidden internal
-    // roles (the probe pair) — the same engine the flag-side rescue
-    // already filters. Runs after the redirect enrichments so an
-    // exact removed-name successor (never hidden) keeps its seat.
-    drop_hidden_subcommand_suggestions(&mut e, &cmd);
-    drop_dishonest_escape_hatch(&mut e, &argv);
+    // The enrichment chain, shared by BOTH lanes (the seam
+    // [`enrich_error`]): clap's own suggestions first, then the
+    // redirects, the hidden-vocabulary filter, and the dishonest
+    // escape hatch — the facts every render downstream consumes.
+    let usage_needs_regen = enrich_error(&mut e, &mut cmd, &argv);
+
+    // Night-netrunner-5, the JSON error contract door: the raw argv
+    // carried --print-json, so every usage and parse error renders as
+    // the contract object on stdout (exit 1). The door sits AFTER the
+    // enrichment chain, not before it (night-cafe-1, H1+H2): the
+    // contract promises "the same facts the prose render carries", and
+    // the facts are the chain's products — the removed-verb redirects
+    // (`snapshot` -> `status`), the flag rescues, the value tips —
+    // while the styled render and the footer stay prose-lane furniture
+    // a JSON consumer cannot parse. The old seat (before the chain)
+    // shipped clap's raw context: the redirect never rode (H1, the
+    // JSON lane answered `snapshot` with clap's fuzzy 's' while the
+    // prose lane named `status`), and the hidden-vocabulary filter
+    // never ran either (H2, `--print-json __probe-serve` leaked the
+    // probe pair as machine-readable tips — the exact leak class
+    // hunt-Z9 closed on the prose lane). One chain, both lanes; the
+    // door only skips the furniture.
+    if super::argv::print_json_requested() {
+        super::json_error::exit_clap_json(&e);
+    }
 
     // Usage context: the native usage is already the failing
     // command's own (clap renders the subcommand's usage for
@@ -401,8 +430,11 @@ pub(crate) fn exit_clap_error(e: clap::Error) -> ! {
     // that says nothing about the command that failed. Only the
     // narrowed usage is regenerated (from the failing command, by
     // walking argv the way the parser descends), and a missing
-    // usage context is filled the same way.
-    if remapped_16 || native_usage_narrowed || e.get(ContextKind::Usage).is_none() {
+    // usage context is filled the same way. The regeneration reads
+    // the POST-chain suggestion seat (night-cafe-1, F13): a
+    // rescue-injected suggestion joins clap's own, so the same error
+    // class renders ONE usage form whichever engine attached the tip.
+    if remapped_16 || usage_needs_regen || e.get(ContextKind::Usage).is_none() {
         let failing_token = match e.get(ContextKind::InvalidArg) {
             Some(ContextValue::String(s)) => Some(s.clone()),
             _ => None,
@@ -527,16 +559,13 @@ fn render_via_bridge(argv: &[&str]) -> String {
     let owned: Vec<std::ffi::OsString> = argv.iter().map(std::ffi::OsString::from).collect();
     // The test process runs in the Mono lane, so the 16-color remap
     // never fires here — the flag mirrors the bridge's condition and
-    // stays false under cargo test.
+    // stays false under cargo test. The enrichment chain rides the
+    // SAME seam the bridge calls (night-cafe-1: one chain, no mirror
+    // to drift), and the usage regeneration reads the POST-chain
+    // suggestion seat exactly like the bridge (F13).
     let remapped_16 = capability() == ColorCapability::Color16;
-    let native_usage_narrowed = err.get(ContextKind::SuggestedArg).is_some();
-    enrich_unknown_arg_suggestion(&mut err, &cmd);
-    enrich_positional_overflow(&mut err, &cmd, &owned);
-    enrich_removed_subcommand_redirect(&mut err);
-    enrich_subcommand_flag_redirect(&mut err, &cmd);
-    drop_hidden_subcommand_suggestions(&mut err, &cmd);
-    drop_dishonest_escape_hatch(&mut err, &owned);
-    if remapped_16 || native_usage_narrowed || err.get(ContextKind::Usage).is_none() {
+    let usage_needs_regen = enrich_error(&mut err, &mut cmd, &owned);
+    if remapped_16 || usage_needs_regen || err.get(ContextKind::Usage).is_none() {
         let failing_token = match err.get(ContextKind::InvalidArg) {
             Some(ContextValue::String(s)) => Some(s.clone()),
             _ => None,
