@@ -81,6 +81,15 @@ pub(crate) fn exit_clap_json(e: &clap::Error) -> ! {
 /// redirect), semicolon-joined when several survive. No suggestion
 /// means an empty tip: the contract never fabricates advice, the key
 /// stays present so a consumer can index both fields blindly.
+///
+/// The plural join (night-cafe-1, F4): clap's `Strings` suggestion
+/// lists carry ONE verdict split across N items — the prose render
+/// says the plural sentence once and quotes the candidates after it
+/// ("some similar subcommands exist: 's', 'unstrict', 'strict'"), so
+/// the contract renders the same shape instead of repeating the full
+/// singular sentence per item (the repetition that made C05's tip
+/// read three times). A one-item list keeps the singular sentence —
+/// clap's own wording for the case it fires alone.
 pub(crate) fn clap_parts(e: &clap::Error) -> (String, String) {
     let message = message_for_kind(e);
     let mut tips: Vec<String> = Vec::new();
@@ -88,22 +97,34 @@ pub(crate) fn clap_parts(e: &clap::Error) -> (String, String) {
         Some(ContextValue::String(s)) => {
             tips.push(format!("a similar argument exists: '{s}'"));
         }
-        Some(ContextValue::Strings(list)) => {
-            for s in list {
-                tips.push(format!("a similar argument exists: '{s}'"));
+        Some(ContextValue::Strings(list)) => match list.len() {
+            0 => {}
+            1 => tips.push(format!("a similar argument exists: '{}'", list[0])),
+            _ => {
+                let quoted: Vec<String> = list.iter().map(|s| format!("'{s}'")).collect();
+                tips.push(format!(
+                    "some similar arguments exist: {}",
+                    quoted.join(", ")
+                ));
             }
-        }
+        },
         _ => {}
     }
     match e.get(ContextKind::SuggestedSubcommand) {
         Some(ContextValue::String(s)) => {
             tips.push(format!("a similar subcommand exists: '{s}'"));
         }
-        Some(ContextValue::Strings(list)) => {
-            for s in list {
-                tips.push(format!("a similar subcommand exists: '{s}'"));
+        Some(ContextValue::Strings(list)) => match list.len() {
+            0 => {}
+            1 => tips.push(format!("a similar subcommand exists: '{}'", list[0])),
+            _ => {
+                let quoted: Vec<String> = list.iter().map(|s| format!("'{s}'")).collect();
+                tips.push(format!(
+                    "some similar subcommands exist: {}",
+                    quoted.join(", ")
+                ));
             }
-        }
+        },
         _ => {}
     }
     if let Some(ContextValue::String(s)) = e.get(ContextKind::SuggestedCommand) {

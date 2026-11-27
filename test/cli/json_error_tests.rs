@@ -127,3 +127,18 @@ fn a_real_invalid_value_keeps_its_verdict() {
         "a genuine bad value keeps the invalid-value verdict, got: '{message}'"
     );
 }
+
+/// night-cafe-1 (F4): clap's `Strings` suggestion lists carry ONE
+/// verdict split across N items — the prose render says the plural
+/// sentence once and quotes the candidates, so the contract tip
+/// renders the same shape instead of repeating the full singular
+/// sentence per item. Byte-parallel to the prose lane's D01 shape.
+#[test]
+fn suggestion_lists_render_the_plural_sentence_once() {
+    let (message, tip) = parts_of(&["zelynic", "strictt"]);
+    assert_eq!(message, "unrecognized subcommand 'strictt'");
+    assert_eq!(
+        tip, "some similar subcommands exist: 's', 'unstrict', 'strict'",
+        "the plural join mirrors the prose lane, got: '{tip}'"
+    );
+}
