@@ -48,6 +48,45 @@ v80.0.0
 
 ### Added
 
+- **night-cafe-mclaren-2 rev 3: the independent re-audit — the
+  engine holds at peak, and the ported bot gets its own hardening.**
+  The re-audit re-derived everything at the head twelve commits past
+  rev 2 (nothing inherited): the ground-truth battery fresh (check-all
+  exit 0, 1203 + 74 tests green, gate-keepers 28/0/0, the kernel
+  built from source in 14.5 s), the test-module-aware census
+  re-proving rev 2's safety claims line-exact (kernel panic surface
+  zero, production unwrap zero, the three named-invariant expects,
+  382 tracked Rust files / 107,620 LOC, zero 600-LOC-cap violations),
+  and a two-front deep hunt. The engine front found zero live
+  defects — memory orderings consistent, every bucket count a power
+  of two, every traffic-keyed map LRU-bounded, the render path
+  allocation-quiet per frame, all divisions guarded — and recorded
+  one new conservatism inconsistency (the monitor socket join's
+  saturating_sub vs the cgroup path's wrap-coherent discriminator:
+  undercount-only, one frame, self-heals). The bot front found the
+  audit's one live class A: `http.client.HTTPException` (verified
+  live — `BadStatusLine` is not an `OSError` subclass) escaped the
+  probe's except clauses, so a mirror answering a garbage status line
+  would have crashed the refresher's thread pool and failed the
+  Sunday lane — the exact flaky-mirror class the catalog exists to
+  absorb. Landed with it: the malformed-HTTP DOWN law; the atomic
+  catalog write (temp + `os.replace`, a mid-write failure can never
+  ship a partial pool past the diff gate); the duplicate-honesty law
+  (one address, one probe, one verdict — a DOWN-then-PASS flaky pair
+  can no longer bypass the never-empty guard into a zero-active
+  rewrite); the freshness-witness law (a 2xx with no parsable Date
+  header is STALE under the refresher's contract, the resolver's
+  pick-never-blocks law unchanged); the tcp port law (out-of-range is
+  DOWN, never a silent modulo wrap); and the DNS timeout honesty
+  note. The proof harness grew from four laws to nine — the
+  malformed-HTTP DOWN, the `--first` stdout purity, the index-404
+  DOWN, the witness law, and duplicate-honesty-atomic-write now ride
+  the same loopback battery — and all nine hold. The class C queue
+  carries forward (the four `// SAFETY:` comment gaps stay deferred
+  behind the prebuilt-parity churn cost, per the rev-2 judgment).
+  Details in
+  [docs/audits/NIGHT_CAFE_MCLAREN_2_REV3_DEPTH_REAUDIT_2026-11-28.md](docs/audits/NIGHT_CAFE_MCLAREN_2_REV3_DEPTH_REAUDIT_2026-11-28.md).
+
 - **night-learning-into-darkness-1: the AXP1-ZnQ address catalog —
   no CI lane marries a hardcoded server again.** The owner's
   bottleneck call (one hardcoded archive address means one bad hour
