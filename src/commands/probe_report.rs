@@ -292,13 +292,22 @@ pub(crate) fn report_lines(outcome: &ProbeOutcome) -> Vec<String> {
     // verify block names BOTH legs — the probe measured the one,
     // and the other is the lane its own acknowledgments rode (the
     // starvation note's subject, stated where the limits live).
+    // night-dragon-fly-1: the per-socket qualifier rides BOTH legs —
+    // the owner's R15 find read "(limit 1.0 MB/s per socket, upload
+    // 1.0 MB/s)" as if the upload leg escaped the per-connection
+    // shape. One shape, both legs named.
     let counter = outcome
         .counter_rate_bps
         .map(|r| {
             format!(
-                ", {} {}",
+                ", {} {}{}",
                 outcome.direction.opposite().label(),
-                format_rate_exact(r)
+                format_rate_exact(r),
+                if outcome.per_socket {
+                    " per socket"
+                } else {
+                    ""
+                }
             )
         })
         .unwrap_or_default();
