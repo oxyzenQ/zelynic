@@ -181,6 +181,9 @@ fn handle_strict_single(
     // a torn-down pin state.
     let target = Target::parse(target_str);
     let mut limiter;
+    // The resolved rows ride out of the apply block (night-cafe-1,
+    // F15): the epilogue names them after the probe's verdict gates.
+    let resolved_ids: Vec<u32>;
     {
         let _lock = crate::ebpf::lock::acquire()?;
 
@@ -189,7 +192,7 @@ fn handle_strict_single(
 
         // Open pinned maps and write policy.
         limiter = Limiter::open_pinned()?;
-        let applied = limiter.apply_single(
+        let (applied, ids) = limiter.apply_single(
             &target,
             &rates,
             per_socket,
@@ -198,6 +201,7 @@ fn handle_strict_single(
             &bracket,
             during_spec.as_ref(),
         )?;
+        resolved_ids = ids;
         if applied == 0 {
             // NIGHT-dinner-11: the no-match hard error — branded red
             // block + exit 1 (see commands::target_no_match_error), so
@@ -307,7 +311,20 @@ fn handle_strict_single(
     // NIGHT-improve-28: the de-noised success surface — green OK. +
     // the round-tripping unstrict form (the owner's pro contract; the
     // old two-line request-echo restatement lives in the history).
-    super::apply_success_epilogue(&format!("zelynic unstrict {target_str}"), "remove");
+    // night-cafe-1 (F15): the epilogue names the rows it just wrote —
+    // the resolved cgroups in the identity walk's own label form (the
+    // status vocabulary), the state-changing side's half of the
+    // naming asymmetry: `strict sleep` limiting the terminal's own
+    // cgroup used to print nothing but the typed spelling.
+    let labels: Vec<String> = resolved_ids
+        .iter()
+        .map(|id| limiter.cgroup_label(*id))
+        .collect();
+    super::apply_success_epilogue(
+        &format!("zelynic unstrict {target_str}"),
+        "remove",
+        &format!("limited {}", labels.join(", ")),
+    );
     if let Some(outcome) = &probe_outcome {
         for line in probe_report::report_lines(outcome) {
             eprintln_safe!("{line}");
@@ -500,7 +517,11 @@ fn handle_strict_multi(
     // 'zelynic unstrict brave::curl' does not split lists without
     // the '::' separator (the old suggestion was advice that could
     // not round-trip).
-    super::apply_success_epilogue(&format!("zelynic unstrict {targets_str}"), "remove");
+    super::apply_success_epilogue(
+        &format!("zelynic unstrict {targets_str}"),
+        "remove",
+        "",
+    );
     if let Some(outcome) = &probe_outcome {
         for line in probe_report::report_lines(outcome) {
             eprintln_safe!("{line}");

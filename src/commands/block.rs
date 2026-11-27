@@ -75,7 +75,7 @@ fn handle_block_single(target_str: &str, force_this: bool, during: Option<&str>)
     // policy drops everything at the verdict layer, before any
     // bucket lane is consulted — a per-socket bit would be dead
     // weight on a total block (charger-core-3b's scope call).
-    let applied = limiter.apply_single(
+    let (applied, resolved_ids) = limiter.apply_single(
         &target,
         &rates,
         false,
@@ -121,8 +121,18 @@ fn handle_block_single(target_str: &str, force_this: bool, during: Option<&str>)
 
     // NIGHT-improve-28: the de-noised success surface — green OK. +
     // the round-tripping unstrict form (block reverses as unstrict,
-    // the rates were zero either way).
-    super::apply_success_epilogue(&format!("zelynic unstrict {target_str}"), "restore access");
+    // the rates were zero either way). night-cafe-1 (F15): the
+    // epilogue names the rows it just wrote, the strict family's own
+    // contract one lane over.
+    let labels: Vec<String> = resolved_ids
+        .iter()
+        .map(|id| limiter.cgroup_label(*id))
+        .collect();
+    super::apply_success_epilogue(
+        &format!("zelynic unstrict {target_str}"),
+        "restore access",
+        &format!("blocked {}", labels.join(", ")),
+    );
     Ok(())
 }
 
@@ -214,7 +224,11 @@ fn handle_block_multi(targets_str: &str, force_this: bool, during: Option<&str>)
     // the old '<target>' placeholder was advice the user had to
     // re-assemble by hand, and the single lane does not split lists
     // without the '::' separator anyway.
-    super::apply_success_epilogue(&format!("zelynic unstrict {targets_str}"), "restore access");
+    super::apply_success_epilogue(
+        &format!("zelynic unstrict {targets_str}"),
+        "restore access",
+        "",
+    );
     Ok(())
 }
 
@@ -376,6 +390,6 @@ pub fn handle_block_all(force_this: bool, during: Option<&str>) -> Result<()> {
     // NIGHT-improve-28: the whole-system block reverses with the
     // sledgehammer — 'u --all' (the epilogue carries the green
     // OK. verdict and the follow-up commands).
-    super::apply_success_epilogue("zelynic u --all", "restore access");
+    super::apply_success_epilogue("zelynic u --all", "restore access", "");
     Ok(())
 }

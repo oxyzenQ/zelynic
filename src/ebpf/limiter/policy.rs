@@ -47,6 +47,13 @@ impl super::Limiter {
     /// rows carry — one pair per leg (the one-flag law's both-pairs
     /// when `--floor` set both, the per-direction spellings' single
     /// pair when they set one).
+    ///
+    /// Returns `(applied, resolved_cgroup_ids)` (night-cafe-1, F15):
+    /// the count as always, plus the cgroup ids the resolution
+    /// landed on — the apply epilogue's raw material for naming the
+    /// rows it just wrote (`cg:8981 (alacritty)`), the state-changing
+    /// side's half of the naming asymmetry. Empty ids ride the same
+    /// `applied == 0` no-match contract as before.
     pub fn apply_single(
         &mut self,
         target: &Target,
@@ -54,7 +61,7 @@ impl super::Limiter {
         per_socket: bool,
         bracket: &BracketSpec,
         during: Option<&DuringSpec>,
-    ) -> Result<usize> {
+    ) -> Result<(usize, Vec<u32>)> {
         // night-total-hardening-1: the apply-side liveness gate for a
         // DIRECT cgroup-id target — an id the cgroupfs census proves
         // absent can never match a socket (the zombie sweep's own
@@ -70,11 +77,11 @@ impl super::Limiter {
                 "limiter",
                 "cg:{id} names no live cgroup (the cgroupfs census) — refusing the direct target"
             );
-            return Ok(0);
+            return Ok((0, Vec::new()));
         }
         let (cgroup_ids, identity) = self.resolve_target_with_identity(target)?;
         if cgroup_ids.is_empty() {
-            return Ok(0);
+            return Ok((0, Vec::new()));
         }
 
         // night-during: the bridge stamps FIRST (a fresh daily row
@@ -170,7 +177,7 @@ impl super::Limiter {
             );
         }
 
-        Ok(applied)
+        Ok((applied, cgroup_ids))
     }
 
     /// The SWEEP twin (NIGHT-hunt-27, born strict-all / block-all): the

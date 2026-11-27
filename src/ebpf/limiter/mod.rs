@@ -124,6 +124,15 @@ pub struct Limiter {
 }
 
 impl Limiter {
+    /// The resolved row's display label (night-cafe-1, F15): the
+    /// identity walk's own `cg:<id> (<comm>)` form — the same
+    /// vocabulary `status` prints — so the apply epilogue can name
+    /// the cgroup it just wrote instead of only the spelling the
+    /// user typed. Read-only over the resolver's own cache; no walk.
+    pub fn cgroup_label(&self, cgroup_id: u32) -> String {
+        self.identity.label(cgroup_id)
+    }
+
     /// Load limiter BPF object and attach to cgroup v2 root (both ingress + egress).
     /// Programs AND links are pinned to /sys/fs/bpf/zelynic/ so they survive process exit.
     ///

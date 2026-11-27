@@ -8,7 +8,10 @@
 //! #[path]-wired from src/commands/mod.rs.
 //!
 //! The contract being pinned:
-//! 1. Two lines, exactly: the verdict and the follow-up.
+//! 1. Two lines without a resolved fact, exactly: the verdict and the
+//!    follow-up (night-cafe-1 F15: a non-empty `resolved_line` books
+//!    ONE grey fact line between them — the single lanes' resolved
+//!    cgroups; the multi/sweep lanes keep the two-line shape).
 //! 2. The verdict is "OK." — the affirmative-grammar word the owner
 //!    specced, not a restatement of the request ("Limiting 'X' to ..."
 //!    was the noise the owner cut; the request echo lives in the shell
@@ -31,7 +34,7 @@ use super::apply_success_lines;
 /// stderr is not a TTY): the exact two lines, wording pinned.
 #[test]
 fn epilogue_lines_pinned_mono() {
-    let lines = apply_success_lines("zelynic unstrict cg:48181", "remove");
+    let lines = apply_success_lines("zelynic unstrict cg:48181", "remove", "");
     assert_eq!(lines[0], "OK.");
     assert_eq!(
         lines[1],
@@ -39,11 +42,31 @@ fn epilogue_lines_pinned_mono() {
     );
 }
 
+/// night-cafe-1 (F15): the epilogue names the rows the apply just
+/// wrote — one grey fact line between the verdict and the follow-up,
+/// the identity walk's own `cg:<id> (<comm>)` form, the state-changing
+/// side's half of the naming asymmetry.
+#[test]
+fn epilogue_names_the_resolved_rows() {
+    let lines = apply_success_lines(
+        "zelynic unstrict sleep",
+        "remove",
+        "limited cg:8981 (alacritty)",
+    );
+    assert_eq!(lines.len(), 3, "verdict, the resolved fact, the follow-up");
+    assert_eq!(lines[0], "OK.");
+    assert_eq!(lines[1], "limited cg:8981 (alacritty)");
+    assert_eq!(
+        lines[2],
+        "Run 'zelynic unstrict sleep' to remove, or 'zelynic status' to check."
+    );
+}
+
 /// The block family's action phrase rides the same grammar — the
 /// wording is the contract each verb family reads identically.
 #[test]
 fn epilogue_restore_access_variant_pinned() {
-    let lines = apply_success_lines("zelynic u --all", "restore access");
+    let lines = apply_success_lines("zelynic u --all", "restore access", "");
     assert_eq!(lines[0], "OK.");
     assert_eq!(
         lines[1],
@@ -51,8 +74,10 @@ fn epilogue_restore_access_variant_pinned() {
     );
 }
 
-/// Exactly two lines — the epilogue can never regrow a third (the
-/// verbosity regression this task closed).
+/// Exactly two lines without a resolved fact — the epilogue can never
+/// regrow a third (the verbosity regression this task closed); the
+/// ONE sanctioned third line is the resolved-fact booking (F15, the
+/// pin above).
 #[test]
 fn epilogue_is_exactly_two_lines() {
     for (cmd, action) in [
@@ -64,7 +89,7 @@ fn epilogue_is_exactly_two_lines() {
         ("zelynic u --all", "restore access"),
     ] {
         assert_eq!(
-            apply_success_lines(cmd, action).len(),
+            apply_success_lines(cmd, action, "").len(),
             2,
             "the epilogue is the verdict + the follow-up, nothing else ({cmd})"
         );
@@ -88,7 +113,7 @@ fn epilogue_green_wraps_exactly_the_runnable_commands() {
         ("zelynic u --all", "remove"),
         ("zelynic unstrict brave", "restore access"),
     ] {
-        let lines = apply_success_lines(cmd, action);
+        let lines = apply_success_lines(cmd, action, "");
         let expected = format!(
             "Run '{}' to {action}, or '{}' to check.",
             crate::output::ok(cmd),

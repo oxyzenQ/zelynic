@@ -300,7 +300,7 @@ pub(crate) fn handle_strict_all(
     // a per-target unstrict — the old suggestion built
     // 'zelynic unstrict 3 apps', which is not a target at all.
     // NIGHT-improve-54: the sledgehammer is the --all lane now.
-    super::apply_success_epilogue("zelynic u --all", "remove");
+    super::apply_success_epilogue("zelynic u --all", "remove", "");
     if let Some(outcome) = &probe_outcome {
         for line in probe_report::report_lines(outcome) {
             eprintln_safe!("{line}");
