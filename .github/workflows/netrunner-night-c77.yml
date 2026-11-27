@@ -154,9 +154,24 @@ jobs:
       - name: Resolve the archive's latest kernel
         run: |
           set -euo pipefail
+          # AXP1-ZnQ (Architect's eXecution Protocol 1;
+          # night-learning-into-darkness-1): the archive base comes
+          # from the repos-for-ci catalog's failover walk
+          # (scripts/dev/axp1znq_resolve.py) - line 1 down, the lane
+          # moves on, the first address that answers is the one this
+          # seat uses; a catalog with no live address exits 1 and the
+          # step fails loud, never a dead default. The probe path is
+          # the noble InRelease index: the walk below reads the whole
+          # dists/ tree, and a mirror serving noble fresh serves the
+          # suites behind it.
+          MIRROR="$(python3 scripts/dev/axp1znq_resolve.py \
+            --file repos-for-ci/apt-mirrors.txt \
+            --probe-path dists/noble/InRelease \
+            --first)"
+          echo "AXP1-ZnQ archive base: ${MIRROR}"
           mkdir -p /tmp/stage/best && cd /tmp/stage/best
           SUITES=$(curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 300 --connect-timeout 15 \
-            http://archive.ubuntu.com/ubuntu/dists/ \
+            "${MIRROR}/dists/" \
             | grep -oE 'href="[a-z0-9]+/"' | cut -d'"' -f2 | tr -d '/' \
             | grep -v -- '-' | sort -u)
           if test -z "$SUITES"; then
@@ -166,7 +181,7 @@ jobs:
           echo "base suites: $(echo "$SUITES" | tr '\n' ' ')"
           RELEASES=$(for s in $SUITES; do
             rel=$(curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 300 --connect-timeout 15 \
-              "http://archive.ubuntu.com/ubuntu/dists/$s/Release")
+              "${MIRROR}/dists/$s/Release")
             d=$(echo "$rel" | sed -n 's/^Date: //p' | head -1)
             c=$(echo "$rel" | sed -n 's/^Codename: //p' | head -1)
             if test -n "$d" && test -n "$c"; then
@@ -181,8 +196,8 @@ jobs:
           echo "newest distinct codenames: $(echo "$DATED" | tr '\n' ' ')"
           {
             for s in $DATED; do
-              echo "deb http://archive.ubuntu.com/ubuntu/ $s main"
-              echo "deb http://archive.ubuntu.com/ubuntu/ $s-updates main"
+              echo "deb ${MIRROR}/ $s main"
+              echo "deb ${MIRROR}/ $s-updates main"
             done
           } | sudo tee /etc/apt/sources.list.d/latest-head.list >/dev/null
           sudo apt-get -o Acquire::Retries=5 update \
