@@ -365,7 +365,13 @@ pub fn depth_report_lines(reports: &[DepthReport], width: usize) -> Vec<String> 
         // the full words) and the exe cell marks deleted-on-disk
         // binaries with the kernel's own " (deleted)" suffix.
         lines.push(grid_line(width));
-        let widths = [7usize, 20, 6, 5, 2, 4, 7, 8];
+        // night-cafe-1 (F16): the rss cell is 8 columns —
+        // format_bytes' own display ceiling ("999.9 MB"), not 7. The
+        // 7-column cell truncated the one-decimal shape to
+        // "121.5 …": the unit — the fact the cell exists to carry —
+        // eaten by the padding law, an MB unreadable as MB. The exe
+        // column self-adjusts (it fits the remaining budget).
+        let widths = [7usize, 20, 6, 5, 2, 4, 8, 8];
         let lead = 2;
         let fixed = lead + widths.iter().sum::<usize>() + widths.len();
         let header_cells: Vec<String> =
