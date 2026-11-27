@@ -1086,7 +1086,13 @@ receive window, not saved bytes, night-ux-1):
 
 The object as a whole is honestly absent on the clean state (no
 pins), on stale-pin error objects, and on pre-v25 pinned objects —
-the additive-field rule every other status field rides.
+the additive-field rule every other status field rides. Index it
+defensively: a script must test `has("recwn_limits")` (jq:
+`.recwn_limits // empty`) before reaching into the object — the
+absence is the contract's own shape for "the lane is not planted",
+not an error, and a blind `.recwn_limits.enabled` dies on exactly
+the healthy states the absence law covers (night-dragon-fly-1's
+audit verdict, the owner-approved note).
 
 **Two response shapes.** `status --print-json` returns one of two
 top-level shapes, and a script that consumes both must branch on

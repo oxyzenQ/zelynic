@@ -134,7 +134,7 @@ Help surface map (main.rs:166-207): `--help` before `-V` before `--reset-termina
 | D56 | `--during 3min` | Exit 1 (runtime lane) + the during-grammar block: `unit 'min' is not in the grammar (s, m, h, d, mn, y — months are 'mn', 'm' is minutes)` with the grammar tip — NO near-miss tip: the during lane never joined the did-you-mean engine (during_parse.rs:128-135; rev-2 H11) | The rate lane's `tip: a similar value exists` appearing where it must not — or a fabricated repair |
 | D57 | `--during 0s` | Exit 1 — the floor refusal (`the floor is 1s — a shorter promise rounds to "not limited"`, during_parse.rs:153-158) | Bound wording |
 | D58 | `--during 6y` | Exit 1 — the ceiling refusal (`the ceiling is 5y — a longer promise is a forever-limit wearing a date`, during_parse.rs:144-152) | Bound wording |
-| D59 | `--during 30mn` | Unpromoted: the grammar passes (30mn = 30 months), so the verdict is the ROOT refusal (exit 1); under root the row applies (R17) and H3's acceptance-echo question is decided there | An unpromoted acceptance (state touched without privilege) |
+| D59 | `--during 30mn` | Unpromoted: the grammar passes (30mn = 30 months), so the verdict is the ROOT refusal (exit 1); under root the row applies (R17) and the acceptance echo names the promise — rev 5's window line: the instant the row lifts itself plus the operator's own spelling (H3 decided) | An unpromoted acceptance (state touched without privilege) |
 | D60/D61 | `s`, `s brave` | Exit 2 (clap missing-positional) / exit 1 (the runtime no-rate wording, strict.rs:132-137) | The lone-positional-is-RATE rule (surface.rs:43-49) colliding with the target-required rung |
 | D62 | `s brave 1mb -d 2mb` | NOT a refusal since night-hunt-Z9: the positional is parsed, then the stderr shadow note (`positional rate '1mb' ignored — -d/-u options take priority`) rides and -d applies; unpromoted exit 1 at the root rung (rates.rs:80-94) | The old conflict-refusal shape (the stale-doc trap rev 2 closed); the note landing on stdout |
 | D63 | `s brave 1mb --floor 100kb --floor-download 50kb` | Exit 1 — the runtime refuse-together wording (guarantee.rs:128+; no conflicts_with in the derive, so the law is the resolver's own) | A clap conflict at parse time |
@@ -213,7 +213,15 @@ per hypothesis is the decisive evidence.
   months (help_flags.rs:176-178); nothing in the captured surface
   shows the resolved window being echoed back at acceptance time.
   Case D59 (and the R17 row shape) decides whether the acceptance
-  output names the duration it resolved.
+  output names the duration it resolved. RESOLVED by
+  night-dragon-fly-1 rev 5: the apply epilogue echoes the promise —
+  one grey line, the resolved wall instant plus the operator's OWN
+  spelling ("window: lifts itself at 2029-03-24 18:17:00 UTC
+  (30mn)"), so a months promise reads as months the moment it
+  lands; the status JSON document's window object carries `during`
+  (the remaining lifetime, counting down) and `expires_at_utc`
+  (ISO-8601), and the human table's lifetime line keeps the live
+  countdown. D59/R17's expectation cell rides the new shape.
 - **H4 — the ignored-note's lane purity.** The note must ride stderr
   only, stdout and exit codes untouched (scope.rs:21-25). C09/C10
   plus B13/A06-A09 decide.

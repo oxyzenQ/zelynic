@@ -5,6 +5,14 @@
 
 # NIGHT-DRAGON-FLY-1 — CLI UX end-to-end audit verdict (capture of 2026-11-27)
 
+<!-- rev 4b (2026-11-27): the owner re-ran the 154-case battery on
+     d4b1a32 (build 17:47Z, kernel 6.18.65-1-cachyos-lts) and the
+     diff came back clean — every Class A cell flipped to its
+     documented expectation, every Class B fix verified live, and
+     three of this record's own Class C claims proved stale (already
+     closed before they were written; the re-measurement below owns
+     the correction). -->
+
 Source of truth: the owner's 154-case capture battery
 (`scripts/labs-exp/capture-cli-ux-e2e.sh`, run at 23:07-23:08 local on
 `nightpc`, kernel 6.18.65-1-cachyos-lts), diffed against the current
@@ -25,6 +33,25 @@ night-cafe-1 F-series that landed on `main` (`fe22fe0`), so a large
 slice of the captured defects is already fixed — and three defects
 were live on `main` even after that series. Those three are landed in
 rev 3.
+
+**The re-measurement (rev 4b, the d4b1a32 capture of 00:47 local):
+peak on every captured surface.** The owner rebuilt from current
+`main` and re-ran the whole battery; every Class A cell now reads its
+documented expectation — the machine docs carry the uncapped names
+(C03/R07: `polkit-kde-authentication-agent-1` verbatim), the plural
+tip collapses once (C05/C06), the unit ladder names the crime (D48:
+`unknown unit 'kib'`, D51: `unknown unit 'xb'`), the RECWN footer
+fits (D77/R04), `strict --help` keeps its paragraphs (B02), the
+color-mode error carries the canonical footer (D43), the per-socket
+refusals hold (D64/D65), both verify legs name the qualifier (R15:
+`per socket, upload 1.0 MB/s per socket`), and the focus bounds refuse
+hard (D73/D74). Determinism holds (G01/G02 byte-identical), the
+broken-pipe law holds (A05), the honesty stack holds (D55/D79's ledger
+proofs), the rescue lanes hold (R08/R19). What remains is exactly one
+real design surface — the --during visibility gap (Class C item 1,
+landed in rev 5) — plus the owner-side provenance action (D5: the
+commit carries no GPG signature; sign releases) and the two deliberate
+refusals below.
 
 ## Class A — stale-binary artifacts (already fixed on `main`, verify after rebuild)
 
@@ -84,35 +111,67 @@ test pin and a micro-commit:
 ## Class C — real gaps, owner decisions (not landed)
 
 These are design surfaces, not bugs; schema and contract changes are
-the owner's call:
+the owner's call. **The owner approved the queue on the rev 4b
+re-measurement, and rev 5 landed the live ones — the record below
+keeps the original classification with each item's outcome:**
 
 1. **A `--during` limit is invisible in `status`.** The apply report
    (R17/D59) never echoes the window the user just asked for, and the
    status table (D77/R04) plus the status JSON document (R05) carry no
    window/expiry field — a user who limits for 30mn cannot see when
-   the row lifts itself. Proposal: add the window to the limit entry
-   (`during` + `expires_at_utc`) and one status column; that is a
-   schema version bump (v34), so it waits for the owner's signature.
+   the row lifts itself. **LANDED in rev 5** (the owner's signature
+   arrived with the approval): the apply epilogue echoes the promise
+   (the resolved wall instant plus the operator's own spelling — H3,
+   the manual's acceptance-echo question, decided), and the status
+   JSON window object gains `during` (the remaining lifetime,
+   counting down) and `expires_at_utc` (ISO-8601). One correction the
+   landing surfaced: the audit's "schema version bump (v34)" label was
+   stale — the map schema had already reached v35 (night-frontier-Z1)
+   when the proposal was written, and the visibility work touches no
+   map byte, so no VERSION bump rides (an upgrade keeps every active
+   limit alive). The human table's lifetime line
+   (`window: until ... (X left)`, night-during schema v23) was
+   already live — the captures never caught a windowed row at status
+   time, which is why the gap read as table-wide.
 2. **`ee --depth` census table truncates a mid-value.** The RSS cell
    rendered `115.9 …` at the terminal's budget (R13) — the value's
    unit was eaten by the ellipsis. The JSON document carries the full
    `rss_kb`, so machine truth is intact; the table wants one more
-   column of headroom (or `115.9M` compact units).
+   column of headroom (or `115.9M` compact units). **ALREADY CLOSED —
+   this claim was stale when written:** night-cafe-1's F16 widened the
+   rss cell 7 → 8 columns (report.rs:368-374, `format_bytes`' own
+   display ceiling `999.9 MB`) before this record was composed; the
+   d4b1a32 capture's R13 renders every cell with its unit intact
+   (`124.4 MB`, `11.5 MB`, …). The old capture's truncation was the
+   pre-F16 binary.
 3. **`s -V` is a missing-positional error while `doctor -V` prints the
    version** (A10 vs A11). Clap-derived (TARGET is
    `required_unless_present`), low priority, cosmetic asymmetry only.
+   **ALREADY CLOSED — this claim was stale when written:**
+   night-cafe-1's F7 version door treats a verbatim `-V`/`--version`
+   riding a missing-positional death as a version REQUEST on every
+   verb (ux.rs, the help door's twin); the d4b1a32 capture's A10 and
+   A11 print the identical version report, exit 0.
 4. **`zelynic help` is refused** (A04) — `disable_help_subcommand =
    true` is deliberate (`root.rs:42`); noted here so the choice stays
-   a decision, not an accident.
+   a decision, not an accident. **Unchanged by design** — the d4b1a32
+   capture confirms the refusal and the tip.
 5. **Clap's did-you-mean suggests hidden internals** (`__probe-client`
    / `__probe-server` in C07). Harmless, but a private surface leaks
    through the suggestion lane; filtering hidden subcommands from
    `SuggestedSubcommand` is a one-spot change if the owner wants it.
+   **ALREADY CLOSED — this claim was stale when written:** the
+   hidden-vocabulary filter was hunt-Z9 (prose lane) and night-cafe-1
+   H2 (the JSON door — one chain, both lanes); the old capture's C07
+   leak was the pre-H2 binary (edb43d0). The d4b1a32 capture's C07
+   answers the honest empty tip, the manual's own pinned expectation.
 6. **`recwn_limits` appears in the status JSON only when the lane is
    planted** (absent in C02, present in R05). Deliberate
    (night-verify-final v33), but consumers should index it
    defensively; worth one sentence in docs/USAGE.md if the owner wants
-   the contract spelled out.
+   the contract spelled out. **LANDED in rev 5:** the USAGE.md RECWN
+   section now spells the defensive-index contract (`has(...)` /
+   `.recwn_limits // empty`) beside the absence law.
 
 ## What survived with distinction
 
@@ -150,8 +209,15 @@ these are the load-bearing walls the audit confirmed, not fixed:
 Rebuild from current `main`, re-run
 `sudo RUN_ROOT=1 ./scripts/labs-exp/capture-cli-ux-e2e.sh`, and expect
 the Class A cells plus R05/R07 (full labels), R15 (both legs) and
-D73/D74 (hard bounds refusals) to flip. The manual's D71-D74
-expectation cell is already updated to the new law.
+D73/D74 (hard bounds refusals) to flip. **The d4b1a32 capture (rev
+4b) confirmed every flip. The next battery's new expectation: R17/D59
+carry the rev 5 window echo — `window: lifts itself at <wall UTC>
+(<the operator's own spelling>)` between the resolved rows and the
+follow-up — and the first status --print-json captured with a live
+--during row shows the window object's `during` + `expires_at_utc`
+pair (the capture battery has never yet caught a windowed row at
+status time; that hole is the one blind spot the next run closes).**
+The manual's D59 cell and H3 hypothesis ride the new law.
 
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
