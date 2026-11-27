@@ -626,6 +626,73 @@ v80.0.0
 
 ### Fixed
 
+- **night-cafe-1: the approved CLI UX audit queue landed whole —
+  H1, H2, F1-F8, F9(c), F10, F12-F17 measured against the source and
+  closed, one micro-commit per finding.** The night-dragon-fly-1
+  battery found them; this pass verified each against the current
+  tree (two were already fixed: F3's battery capture and F11's
+  sudo-run guard), proved every one still open at runtime, and
+  shipped the fixes:
+  - **H1+H2 — one enrichment chain for both error lanes.** The JSON
+    contract door exited before the rescue chain while promising
+    "the same facts the prose render carries": `--print-json
+    snapshot` answered with clap's fuzzy 's' where the prose lane
+    named the redirect successor 'status', and `--print-json
+    __probe-serve` leaked `__probe-client`/`__probe-server` as
+    machine-readable tips (the leak class hunt-Z9 closed on the
+    prose lane). The chain is one seam both lanes consume; the JSON
+    door sits after it. F13 rides the same seam: D33/D34 render one
+    usage form.
+  - **F1 — the machine documents carry the uncapped name.** The
+    24-column display cap leaked into list-apps' JSON
+    ("polkit-kde-authenticati…" at census_complete:true); the
+    identity walk books the uncapped enriched name beside the
+    display one and both JSON writers carry it, with the resolution
+    walk matching both spellings.
+  - **F2 — the exact-spelling fence.** `--allow-dangerous` was
+    answered with `--all` (jaro 0.733 over the bar) while the
+    vocabulary table sat unread; exact beats fuzzy.
+  - **F4 — the JSON tip renders the plural sentence once** (the
+    prose lane's shape), not the singular sentence per item.
+  - **F5 — the target grammar refuses before the root ask**
+    (`s cg:`, `s cg:abc`, `s docker://` reached "root required").
+  - **F6 — the rate parser names the unit crime** ('1kib' answered
+    "expected digits before the decimal point"; now "unknown unit
+    'kib'" + the ladder, tip unchanged; the duration twin too).
+  - **F7 — the version door.** `zelynic s -V` died
+    MissingRequiredArgument (the global flag's every-level contract
+    broken exactly where a verb takes a required positional); a
+    verbatim -V/--version riding that death prints the report, exit
+    0 — the help door's twin.
+  - **F8 — the RECWN footer fits its budget whole.** R04/R12's
+    ellipsis ate "measured RTT …" at a real fleet; the compact voice
+    ("RECWN window: 40.0 KB · 48 policies · measured RTT 40ms (200ms
+    floor)") carries the same three facts in <=76 columns worst
+    case.
+  - **F9(c) — bypass_audit books the floor gate** as an additive
+    trailing `quiet_window` boolean (the prose's quiet-window basis;
+    F9(a)'s exit codes and F9(b)'s rate_ring absence law were
+    already measured/documented law).
+  - **F10 — the strict long help speaks operator English** (the
+    owner's voice call): the lineage codenames moved to code
+    comments, the example rails render line-per-line
+    (verbatim_doc_comment), zero codenames on the B02 surface.
+  - **F12 — the sweep refuses --per-socket** at the routing rung
+    (the flag rode nowhere: a silent no-op under root, the class the
+    estate's own law forbids); the --per-socket help states the
+    sweep's stance.
+  - **F14 — the color-mode grammar error ends with one footer** (the
+    one fatal path that ended without it).
+  - **F15 — the apply epilogue names the resolved rows**
+    ("limited cg:8981 (alacritty)" — R11's terminal-cgroup surprise
+    never repeats); the multi/sweep lanes keep the two-line shape.
+  - **F16 — the census rss cell carries its unit** (8 columns, the
+    formatter's own ceiling; "121.5 …" is gone).
+  - **F17 — the eagle-eyes slash collision gets its excuse** (kernel
+    threads named napi/phy0-0; watch them by cg:<id>).
+  All 1,272 unit/integration pins green; the battery's case catalog
+  and docs/USAGE.md updated so no doc pins a stale verdict.
+
 - **fix(packaging): the registry tarball carries the pinned
   maintainer fingerprint the D5 lane includes — the first tag to
   walk the publish lane would have died in the verification build.**
