@@ -27,6 +27,7 @@
 //! we fall back to raw `cg:{id}` labels. The BPF program is unaffected.
 
 use std::collections::HashMap;
+use std::fmt::Write as _;
 use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::time::{Duration, Instant};
