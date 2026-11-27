@@ -299,6 +299,19 @@ run_case D76 "$BIN" --check-update
 run_case D77 "$BIN" status
 run_case D78 "$BIN" list-apps
 run_case D79 "$BIN" s brave 1kb
+# Rev 2 (the drift sweep): the grammar rows the reference names but
+# the battery never probed - the container URI family, the valid list
+# forms, and the during-lane unit/fraction crimes (H11/H12 in the
+# manual). All unpromoted: the parse rungs fire before the root ask,
+# so a grammar rejection here is a real finding, and the root
+# refusal itself is the proof the grammar passed.
+run_case D80 "$BIN" s k8s://prod/web 1kb
+run_case D81 "$BIN" s netns://sandbox 1kb
+run_case D82 "$BIN" s iface://red 1kb
+run_case D83 "$BIN" s brave::steam 100kb
+run_case D84 "$BIN" s cg:1234::1245 100kb
+run_case D85 "$BIN" s brave 1kb --during 1h30m
+run_case D86 "$BIN" s brave 1kb --during 2.5h
 
 banner "SECTION F — the color, wrap and environment law"
 
