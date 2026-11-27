@@ -51,6 +51,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -134,6 +135,17 @@ def refresh_one(
     """Probe one catalog file; return the result record (and the new body)."""
     original = path.read_text(encoding="utf-8")
     entries = parse_catalog(original)
+    # The duplicate-honesty law (rev 3): duplicate lines name ONE
+    # address, so they get ONE probe and ONE shared verdict. Probing
+    # each copy separately could split the verdicts across a flaky
+    # second, and the rewrite maps lines back to entries by raw text -
+    # the first copy's verdict - so divergent copies could tombstone
+    # every line while the alive count believed otherwise, writing a
+    # zero-active catalog past the never-empty guard. One address, one
+    # verdict: the guard's invariant holds by construction.
+    unique_entries: dict = {}
+    for entry in entries:
+        unique_entries.setdefault(entry.raw, entry)
     banner = "AXP1-ZnQ (Architect's eXecution Protocol 1) refresher"
     if not entries:
         return {
@@ -145,7 +157,9 @@ def refresh_one(
             "summary": f"{banner}: {path.name} carries no active address - CALL THE OWNER",
         }
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=min(args.workers, len(entries))) as pool:
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=min(args.workers, len(unique_entries))
+    ) as pool:
         futures = {
             pool.submit(
                 probe_entry,
@@ -156,7 +170,7 @@ def refresh_one(
                 args.attempts,
                 args.max_age_days,
             ): entry
-            for entry in entries
+            for entry in unique_entries.values()
         }
         verdicts = {
             futures[future]: future.result() for future in concurrent.futures.as_completed(futures)
@@ -174,14 +188,15 @@ def refresh_one(
             "wrote": False,
             "warn": False,
             "summary": (
-                f"{banner}: {path.name} 0 alive of {len(entries)} probed "
-                f"({down} down, {stale} stale) - catalog untouched, CALL THE OWNER"
+                f"{banner}: {path.name} 0 alive of {len(unique_entries)} unique address(es) "
+                f"({len(entries)} lines) ({down} down, {stale} stale) - "
+                "catalog untouched, CALL THE OWNER"
             ),
         }
 
     new_lines = []
     for raw in original.splitlines():
-        entry = next((e for e in entries if e.raw == raw), None)
+        entry = unique_entries.get(raw)
         if entry is None:
             new_lines.append(raw)
             continue
@@ -195,7 +210,8 @@ def refresh_one(
 
     changed = new_text != original
     summary = (
-        f"{banner}: {path.name} {alive} alive, {down} down, {stale} stale "
+        f"{banner}: {path.name} {alive} alive of {len(unique_entries)} unique address(es) "
+        f"({len(entries)} lines), {down} down, {stale} stale "
         f"({'rewrote' if changed else 'no change'})"
     )
     warn = 0 < alive < args.min_lines
@@ -206,7 +222,19 @@ def refresh_one(
         )
     wrote = False
     if changed and not args.dry_run:
-        path.write_text(new_text, encoding="utf-8")
+        # The atomic-write law (rev 3): a truncate-then-write could
+        # leave the catalog partial or empty on a mid-write failure,
+        # and the diff gate would ship the wreckage - the exact pool
+        # erasure the never-empty guard exists to refuse. Temp file in
+        # the same directory, os.replace flips it in one step, the
+        # temp never survives a failure to haunt the diff.
+        tmp = path.with_name(f".{path.name}.tmp")
+        try:
+            tmp.write_text(new_text, encoding="utf-8")
+            os.replace(tmp, path)
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
         wrote = True
     return {
         "path": path,
