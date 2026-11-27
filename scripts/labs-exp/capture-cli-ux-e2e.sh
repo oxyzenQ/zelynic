@@ -40,6 +40,12 @@
 # Exit 0 when the battery ran to completion (case verdicts are the
 # analyzer's job, not the battery's), 1 on a broken setup.
 
+# shellcheck disable=SC2016,SC2317 # the eval lane's own contract:
+# run_sh receives the command as ONE single-quoted string (the case
+# ID and the command are the log's two axes) and eval expands it
+# later, so single-quote expansion notes and the reachability walk's
+# "unreachable" verdicts on eval-called helpers and the EXIT trap are
+# the design, not defects.
 set -u
 export PYTHONDONTWRITEBYTECODE=1
 
@@ -47,8 +53,8 @@ BIN="${ZELYNIC_BIN:-zelynic}"
 RUN_ROOT="${RUN_ROOT:-0}"
 
 if ! command -v "$BIN" >/dev/null 2>&1; then
-        echo "battery: binary '$BIN' not found on PATH; set ZELYNIC_BIN=/path/to/zelynic"
-        exit 1
+	echo "battery: binary '$BIN' not found on PATH; set ZELYNIC_BIN=/path/to/zelynic"
+	exit 1
 fi
 BIN_ABS="$(command -v "$BIN")"
 
@@ -62,13 +68,13 @@ BIN_ABS="$(command -v "$BIN")"
 # RUN_ROOT=1 is therefore never a supported shape: refuse, and say
 # which lane owns which cleanup.
 if [ "$(id -u)" = "0" ] && [ "$RUN_ROOT" != "1" ]; then
-        echo "battery: euid=0 without RUN_ROOT=1 — refusing to run."
-        echo "  The non-root lanes assume the root gate closes them; under sudo the"
-        echo "  apply cases (C09/D55/D59/D62/D64/D79) enforce for real and nothing in"
-        echo "  this battery tears the state down afterwards."
-        echo "  Re-run without sudo, or set RUN_ROOT=1 for the root lane, which owns"
-        echo "  its own unstrict --all cleanup at exit."
-        exit 1
+	echo "battery: euid=0 without RUN_ROOT=1 — refusing to run."
+	echo "  The non-root lanes assume the root gate closes them; under sudo the"
+	echo "  apply cases (C09/D55/D59/D62/D64/D79) enforce for real and nothing in"
+	echo "  this battery tears the state down afterwards."
+	echo "  Re-run without sudo, or set RUN_ROOT=1 for the root lane, which owns"
+	echo "  its own unstrict --all cleanup at exit."
+	exit 1
 fi
 
 WORK="$(mktemp -d)"
@@ -76,57 +82,58 @@ trap 'rm -rf "$WORK"' EXIT
 
 sleep_pid=""
 cleanup_root() {
-        if [ -n "$sleep_pid" ]; then
-                kill "$sleep_pid" 2>/dev/null || true
-        fi
-        if [ "${ROOT_ARMED:-0}" = "1" ]; then
-                sudo "$BIN_ABS" unstrict --all >/dev/null 2>&1 || true
-        fi
+	if [ -n "$sleep_pid" ]; then
+		kill "$sleep_pid" 2>/dev/null || true
+	fi
+	if [ "${ROOT_ARMED:-0}" = "1" ]; then
+		sudo "$BIN_ABS" unstrict --all >/dev/null 2>&1 || true
+	fi
 }
 trap cleanup_root EXIT
 
 CASES=0
 
 banner() {
-        printf '\n###############################################################################\n'
-        printf '## %s\n' "$1"
-        printf '###############################################################################\n'
+	printf '\n###############################################################################\n'
+	printf '## %s\n' "$1"
+	printf '###############################################################################\n'
 }
 
 emit_header() {
-        printf '\n===== [%s] %s =====\n' "$1" "$2"
+	printf '\n===== [%s] %s =====\n' "$1" "$2"
 }
 
 emit_body() {
-        local rc="$1"
-        CASES=$((CASES + 1))
-        printf -- '---- exit: %d ----\n' "$rc"
-        printf -- '---- stdout ----\n'
-        if [ -s "$WORK/out" ]; then cat "$WORK/out"; else echo "(empty)"; fi
-        printf -- '---- stderr ----\n'
-        if [ -s "$WORK/err" ]; then cat "$WORK/err"; else echo "(empty)"; fi
+	local rc="$1"
+	CASES=$((CASES + 1))
+	printf -- '---- exit: %d ----\n' "$rc"
+	printf -- '---- stdout ----\n'
+	if [ -s "$WORK/out" ]; then cat "$WORK/out"; else echo "(empty)"; fi
+	printf -- '---- stderr ----\n'
+	if [ -s "$WORK/err" ]; then cat "$WORK/err"; else echo "(empty)"; fi
 }
 
 run_case() {
-        local id="$1"; shift
-        emit_header "$id" "$*"
-        "$@" >"$WORK/out" 2>"$WORK/err"
-        local rc=$?
-        emit_body "$rc"
+	local id="$1"
+	shift
+	emit_header "$id" "$*"
+	"$@" >"$WORK/out" 2>"$WORK/err"
+	local rc=$?
+	emit_body "$rc"
 }
 
 run_sh() {
-        local id="$1"
-        local cmd="$2"
-        emit_header "$id" "$cmd"
-        eval "$cmd" >"$WORK/out" 2>"$WORK/err"
-        local rc=$?
-        emit_body "$rc"
+	local id="$1"
+	local cmd="$2"
+	emit_header "$id" "$cmd"
+	eval "$cmd" >"$WORK/out" 2>"$WORK/err"
+	local rc=$?
+	emit_body "$rc"
 }
 
 byhand() {
-        printf '\n----- BYHAND (run by hand, never automated) -----\n'
-        printf '%s\n' "$1"
+	printf '\n----- BYHAND (run by hand, never automated) -----\n'
+	printf '%s\n' "$1"
 }
 
 cat >"$WORK/json_shape.py" <<'PYEOF'
@@ -146,12 +153,12 @@ except Exception as exc:
 PYEOF
 
 json_shape() {
-        # $1 = file holding captured stdout; verdict appended to the case output.
-        if command -v python3 >/dev/null 2>&1; then
-                python3 "$WORK/json_shape.py" "$1"
-        else
-                echo "JSON-UNCHECKED (python3 not present on this machine)"
-        fi
+	# $1 = file holding captured stdout; verdict appended to the case output.
+	if command -v python3 >/dev/null 2>&1; then
+		python3 "$WORK/json_shape.py" "$1"
+	else
+		echo "JSON-UNCHECKED (python3 not present on this machine)"
+	fi
 }
 
 banner "SECTION E — environment and identity"
@@ -311,44 +318,44 @@ run_sh G02 '"$BIN" doctor --print-json > "$WORK/g02a" 2>/dev/null; a_rc=$?; slee
 banner "SECTION R — the root lane (RUN_ROOT=1 only)"
 
 if [ "$RUN_ROOT" != "1" ]; then
-        printf 'RUN_ROOT=0 — the root lane is SKIPPED. Re-run with RUN_ROOT=1 for the\n'
-        printf 'enforcement smoke (doctor, sig, status, list-apps, recover, and one\n'
-        printf 'strict/status/eagle-eyes/unstrict cycle against a spawned sleep).\n'
+	printf 'RUN_ROOT=0 — the root lane is SKIPPED. Re-run with RUN_ROOT=1 for the\n'
+	printf 'enforcement smoke (doctor, sig, status, list-apps, recover, and one\n'
+	printf 'strict/status/eagle-eyes/unstrict cycle against a spawned sleep).\n'
 else
-        if sudo -v 2>/dev/null; then
-                ROOT_ARMED=1
-                run_case R01 sudo "$BIN_ABS" --check-update
-                run_case R02 sudo "$BIN_ABS" doctor
-                run_case R03 sudo "$BIN_ABS" sig
-                run_case R04 sudo "$BIN_ABS" status
-                run_sh R05 'sudo "$BIN_ABS" status --print-json > "$WORK/r05"; bin_rc=$?; cat "$WORK/r05"; printf "binary exit: %s\n" "$bin_rc"; json_shape "$WORK/r05"'
-                run_case R06 sudo "$BIN_ABS" list-apps
-                run_sh R07 'sudo "$BIN_ABS" list-apps --print-json > "$WORK/r07"; bin_rc=$?; cat "$WORK/r07"; printf "binary exit: %s\n" "$bin_rc"; json_shape "$WORK/r07"'
-                run_case R08 sudo "$BIN_ABS" recover
-                run_case R09 sudo "$BIN_ABS" -v status
-                # printf -- : the audit's second find — the bare "---- ... ----"
-                # format died with "printf: --: invalid option" and the stderr
-                # header vanished from the log (the helper at the top of this
-                # script already guards the same strings with --).
-                run_sh R10 'sudo "$BIN_ABS" -v status --print-json > "$WORK/r10out" 2> "$WORK/r10err"; bin_rc=$?; printf -- "---- stdout ----\n"; cat "$WORK/r10out"; printf -- "---- stderr ----\n"; cat "$WORK/r10err"; printf "binary exit: %s\n" "$bin_rc"; json_shape "$WORK/r10out"'
-                printf '\n----- enforcement smoke: spawned target "sleep", full cleanup at exit -----\n'
-                sleep 300 &
-                sleep_pid=$!
-                run_case R11 sudo "$BIN_ABS" strict sleep 1mb
-                run_case R12 sudo "$BIN_ABS" status
-                run_case R13 sudo "$BIN_ABS" ee sleep --depth
-                run_sh R14 'sudo "$BIN_ABS" ee sleep --depth --print-json > "$WORK/r14"; bin_rc=$?; cat "$WORK/r14"; printf "binary exit: %s\n" "$bin_rc"; json_shape "$WORK/r14"'
-                run_case R15 sudo "$BIN_ABS" s sleep 1mb --per-socket
-                run_case R16 sudo "$BIN_ABS" u sleep
-                run_case R17 sudo "$BIN_ABS" s sleep 500kb --during 30s
-                run_case R18 sudo "$BIN_ABS" u sleep
-                run_case R19 sudo "$BIN_ABS" u sleep
-                run_sh R20 'sudo "$BIN_ABS" ee --focus 5s </dev/null'
-                byhand 'R21: sudo zelynic ee cg:<ID> --depth --focus 5s — pick <ID> from R06 output; the battery stays static, IDs move.'
-                byhand 'R22: sudo zelynic s --all 500kb then sudo zelynic u --all — the fleet sweep is destructive by definition; run only when you accept it.'
-        else
-                printf 'RUN_ROOT=1 but sudo could not authenticate — the root lane is SKIPPED.\n'
-        fi
+	if sudo -v 2>/dev/null; then
+		ROOT_ARMED=1
+		run_case R01 sudo "$BIN_ABS" --check-update
+		run_case R02 sudo "$BIN_ABS" doctor
+		run_case R03 sudo "$BIN_ABS" sig
+		run_case R04 sudo "$BIN_ABS" status
+		run_sh R05 'sudo "$BIN_ABS" status --print-json > "$WORK/r05"; bin_rc=$?; cat "$WORK/r05"; printf "binary exit: %s\n" "$bin_rc"; json_shape "$WORK/r05"'
+		run_case R06 sudo "$BIN_ABS" list-apps
+		run_sh R07 'sudo "$BIN_ABS" list-apps --print-json > "$WORK/r07"; bin_rc=$?; cat "$WORK/r07"; printf "binary exit: %s\n" "$bin_rc"; json_shape "$WORK/r07"'
+		run_case R08 sudo "$BIN_ABS" recover
+		run_case R09 sudo "$BIN_ABS" -v status
+		# printf -- : the audit's second find — the bare "---- ... ----"
+		# format died with "printf: --: invalid option" and the stderr
+		# header vanished from the log (the helper at the top of this
+		# script already guards the same strings with --).
+		run_sh R10 'sudo "$BIN_ABS" -v status --print-json > "$WORK/r10out" 2> "$WORK/r10err"; bin_rc=$?; printf -- "---- stdout ----\n"; cat "$WORK/r10out"; printf -- "---- stderr ----\n"; cat "$WORK/r10err"; printf "binary exit: %s\n" "$bin_rc"; json_shape "$WORK/r10out"'
+		printf '\n----- enforcement smoke: spawned target "sleep", full cleanup at exit -----\n'
+		sleep 300 &
+		sleep_pid=$!
+		run_case R11 sudo "$BIN_ABS" strict sleep 1mb
+		run_case R12 sudo "$BIN_ABS" status
+		run_case R13 sudo "$BIN_ABS" ee sleep --depth
+		run_sh R14 'sudo "$BIN_ABS" ee sleep --depth --print-json > "$WORK/r14"; bin_rc=$?; cat "$WORK/r14"; printf "binary exit: %s\n" "$bin_rc"; json_shape "$WORK/r14"'
+		run_case R15 sudo "$BIN_ABS" s sleep 1mb --per-socket
+		run_case R16 sudo "$BIN_ABS" u sleep
+		run_case R17 sudo "$BIN_ABS" s sleep 500kb --during 30s
+		run_case R18 sudo "$BIN_ABS" u sleep
+		run_case R19 sudo "$BIN_ABS" u sleep
+		run_sh R20 'sudo "$BIN_ABS" ee --focus 5s </dev/null'
+		byhand 'R21: sudo zelynic ee cg:<ID> --depth --focus 5s — pick <ID> from R06 output; the battery stays static, IDs move.'
+		byhand 'R22: sudo zelynic s --all 500kb then sudo zelynic u --all — the fleet sweep is destructive by definition; run only when you accept it.'
+	else
+		printf 'RUN_ROOT=1 but sudo could not authenticate — the root lane is SKIPPED.\n'
+	fi
 fi
 
 banner "BATTERY COMPLETE"

@@ -25,4 +25,8 @@ skip = ./.git,./target,./ebpf/target,./proofs/target,./fuzz/target,./assets,./Ca
 # sibling of delegate_cmds/maps/progs) — the night-frontier-Z15
 # kernel-floor watch and the BPF token deferred entry quote the
 # four-option family verbatim; it is kernel vocabulary, not a typo.
-ignore-words-list = ratatui,uptodate,hevy,statu,ect,iif,fpr,attachs
+# statuss and strictt are the same fixture class: the battery's
+# typo-rescue cases (D01-D03) — the case proves the suggestion engine
+# proposes the canonical verb for the near-miss, so the misspelling
+# itself must survive the spelling gate.
+ignore-words-list = ratatui,uptodate,hevy,statu,ect,iif,fpr,attachs,statuss,strictt
