@@ -58,7 +58,7 @@ fuzz_target!(|data: &[u8]| {
                 // harness to keep up with the exact contract it
                 // fuzzes - the same fail-closed posture the include
                 // law holds for the grammar bytes themselves.
-                let DuringSpec::Duration { ns } = during;
+                let DuringSpec::Duration { ns, raw } = during;
                 assert!(
                     ns >= DURING_MIN_NS,
                     "the parse accepted a duration under the 1s floor \
@@ -68,6 +68,17 @@ fuzz_target!(|data: &[u8]| {
                     ns <= DURING_MAX_NS,
                     "the parse accepted a duration over the 5y ceiling \
                      (input {spec:?}, ns {ns})"
+                );
+                // The rev 5 echo contract: the spec carries the
+                // operator's OWN spelling, trimmed verbatim — the
+                // apply epilogue repeats it beside the resolved
+                // instant, so a hostile input must never forge or
+                // mangle the words the echo would say back.
+                assert_eq!(
+                    raw,
+                    spec.trim(),
+                    "the raw spelling rides the trimmed input verbatim \
+                     (input {spec:?}, raw {raw:?})"
                 );
             }
             Err(_) => {
