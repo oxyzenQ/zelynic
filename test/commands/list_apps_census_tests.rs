@@ -71,7 +71,7 @@ fn list_apps_json_carries_the_full_census() {
     let identity = crate::ebpf::identity::IdentityMap::new();
     let entries = identity.all();
     let conns = crate::ebpf::connections::ConnectionMap::new();
-    let doc = list_apps_json(&entries, 142, 57, false, &conns);
+    let doc = list_apps_json(&entries, 142, 57, false, &conns, &identity);
     let json = doc;
     assert!(
         json.contains(r#""total":142"#),
@@ -106,7 +106,7 @@ fn list_apps_json_census_complete_reflects_privilege() {
     let identity = crate::ebpf::identity::IdentityMap::new();
     let entries = identity.all();
     let conns = crate::ebpf::connections::ConnectionMap::new();
-    let privileged = list_apps_json(&entries, 1, 1, true, &conns);
+    let privileged = list_apps_json(&entries, 1, 1, true, &conns, &identity);
     let json = privileged;
     assert!(
         json.contains(r#""census_complete":true"#),
@@ -114,10 +114,53 @@ fn list_apps_json_census_complete_reflects_privilege() {
     );
     // The unprivileged document keeps the same shape — the flag is
     // the only honesty surface the field owns.
-    let unprivileged = list_apps_json(&entries, 1, 0, false, &conns);
+    let unprivileged = list_apps_json(&entries, 1, 0, false, &conns, &identity);
     let json = unprivileged;
     assert!(
         json.contains(r#""census_complete":false"#),
         "the unprivileged document reports census_complete false"
+    );
+}
+
+/// night-cafe-1 (F1): the machine lane's name is the UNCAPPED
+/// enriched name when the display cap cut one. A cgroup whose
+/// representative is a >24-column argv[0] basename (the
+/// polkit-kde-authenticati… class) books its full name in the
+/// identity map's other half, and the document carries it verbatim —
+/// a script matching the full process name reads it from the JSON
+/// and the resolution walk accepts it back. A cgroup with no
+/// enriched-full name keeps the display comm's bytes unchanged.
+#[cfg(feature = "ebpf")]
+#[test]
+fn list_apps_json_carries_the_uncapped_name() {
+    use crate::ebpf::identity::ProcessIdentity;
+    let mut identity = crate::ebpf::identity::IdentityMap::new();
+    identity.insert(ProcessIdentity {
+        cgroup_id: 42,
+        uid: 1000,
+        comm: "polkit-kde-authenticati\u{2026}".to_string(),
+    });
+    identity.insert(ProcessIdentity {
+        cgroup_id: 43,
+        uid: 1000,
+        comm: "brave".to_string(),
+    });
+    identity.seed_full_name_for_tests(42, "polkit-kde-authentication-agent");
+    let short = identity.all().into_iter().filter(|e| e.cgroup_id == 43).collect::<Vec<_>>();
+    let capped = identity.all().into_iter().filter(|e| e.cgroup_id == 42).collect::<Vec<_>>();
+    let conns = crate::ebpf::connections::ConnectionMap::new();
+    let doc = list_apps_json(&capped, 1, 0, true, &conns, &identity);
+    assert!(
+        doc.contains("\"process\":\"polkit-kde-authentication-agent\""),
+        "the capped display artifact never rides the machine lane"
+    );
+    assert!(
+        !doc.contains('\u{2026}'),
+        "no ellipsis artifact survives into the document"
+    );
+    let doc = list_apps_json(&short, 1, 0, true, &conns, &identity);
+    assert!(
+        doc.contains("\"process\":\"brave\""),
+        "a name the cap never cut is unchanged"
     );
 }

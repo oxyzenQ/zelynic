@@ -13,19 +13,28 @@
 use std::collections::{HashMap, HashSet};
 use std::fs;
 
-use super::{pid_cgroup_id, pid_comm};
+use super::{pid_cgroup_id, pid_names};
 
 /// Resolve a SET of process names in ONE /proc walk: the answer to
 /// "a `::` list with a thousand names costs a thousand full
 /// /proc walks" (the group lane's pre-improve-50 cost, when the
 /// verb still spelled itself strict-multi). For every pid the walk reads exactly one comm
-/// through the canonical boundary (NIGHT-optimized-1 — `pid_comm`,
+/// through the canonical boundary (NIGHT-optimized-1 — `pid_names`,
 /// so a prctl-spoofed comm can never match one thing and display
 /// another); a pid whose comm matches a wanted name pays one more
 /// read (its cgroup, through the canonical `pid_cgroup_id` boundary
 /// the identity walk and connection walk share); every other pid
 /// costs nothing further. The walk therefore costs what ONE name's
 /// walk always cost, whatever N grows to.
+///
+/// The match set is BOTH name halves (night-cafe-1, F1): the display
+/// name (the capped label every prose cell prints) AND the uncapped
+/// enriched name when the display cap cut one — `strict
+/// polkit-kde-authentication-agent` (the name the JSON documents
+/// print, the name a script reads) resolves exactly like the display
+/// spelling does. A pid that matches registers under EVERY wanted
+/// spelling it matched, so both forms keep their own resolution
+/// evidence; the pairs are identical either way.
 ///
 /// Returns, per LOWERCASED name, the `(pid, cgroup_id)` pairs the
 /// walk accepted, in /proc order — the exact matched-pairs evidence
@@ -52,17 +61,30 @@ pub fn resolve_name_set(names: &[String]) -> HashMap<String, Vec<(u32, u32)>> {
         else {
             continue;
         };
-        let Some(comm) = pid_comm(pid) else {
+        let Some((comm, full)) = pid_names(pid) else {
             continue;
         };
         let comm_lower = comm.to_lowercase();
-        if !wanted.contains(&comm_lower) {
+        let full_lower = full.as_deref().map(|f| f.to_lowercase());
+        let keys: Vec<&str> = [
+            Some(comm_lower.as_str()),
+            full_lower.as_deref().filter(|f| *f != comm_lower.as_str()),
+        ]
+        .into_iter()
+        .flatten()
+        .filter(|k| wanted.contains(*k))
+        .collect();
+        if keys.is_empty() {
             continue;
         }
         let Some(cgroup_id) = pid_cgroup_id(pid) else {
             continue;
         };
-        out.entry(comm_lower).or_default().push((pid, cgroup_id));
+        for key in keys {
+            out.entry(key.to_string())
+                .or_default()
+                .push((pid, cgroup_id));
+        }
     }
     out
 }
