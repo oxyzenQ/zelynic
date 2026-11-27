@@ -293,6 +293,28 @@ jobs:
         shell: bash
         run: bash scripts/ci/sweep-cargo-workspaces.sh
 
+      # AXP1-ZnQ (Architect's eXecution Protocol 1), the address
+      # refresh (night-learning-into-darkness-1, ported from the
+      # zylaxion production line): the whole repos-for-ci catalog is
+      # re-probed AFTER the dependency update finishes — the owner's
+      # sequencing law, so the one weekly commit carries deps AND
+      # addresses. Alive AND fresh: the InRelease Date header is the
+      # freshness witness (the max-age law), survivors keep their
+      # authored order, the dead become dated tombstones, the
+      # 100-line cap prunes oldest dead first, and the never-empty
+      # guard refuses to erase the owner's pool. The refresher never
+      # blocks the ship lane: it exits 0 with its ::warning:: records,
+      # the red stays the verdict step's own law. The note lands in
+      # RUNNER_TEMP (never in the tree — the staging wall) and rides
+      # its own artifact to the commit job's message below.
+      - name: AXP1-ZnQ address refresh (repos-for-ci)
+        if: inputs.scan_only != true
+        run: |
+          python3 scripts/dev/axp1znq_refresh.py \
+            --root repos-for-ci \
+            --probe-path dists/noble/InRelease \
+            --note-file "${RUNNER_TEMP}/axp1-address-note.txt"
+
       # night-solid-defense-1, the verdict: it speaks on the swept
       # lane. Scenario A (fixable) — a loud notice, the job stays
       # green and the validated lane below ships the fix. Scenario B
@@ -334,7 +356,7 @@ jobs:
             bash scripts/release/refresh-prebuilt.sh
           fi
 
-      - name: Enforce dependency-only diff
+      - name: Enforce the dependency-and-catalog diff
         if: inputs.scan_only != true
         id: changes
         shell: bash
@@ -349,8 +371,11 @@ jobs:
           git diff --name-only | tee /tmp/changed-files.txt
           # night-zen-1: the sweep owns the lockfiles AND the prebuilt
           # lane its writer refreshed to match the swept ebpf/ tree.
-          if grep -vE '(^|/)Cargo\.lock$|^ebpf-prebuilt/' /tmp/changed-files.txt; then
-            echo "::error::Auto-update may only modify Cargo.lock files and the prebuilt lane"
+          # night-learning-into-darkness-1: the AXP1-ZnQ refresher
+          # owns the repos-for-ci catalog the same way — the one
+          # weekly commit may carry deps AND the tested address pool.
+          if grep -vE '(^|/)Cargo\.lock$|^ebpf-prebuilt/|^repos-for-ci/' /tmp/changed-files.txt; then
+            echo "::error::Auto-update may only modify Cargo.lock files, the prebuilt lane and the repos-for-ci catalog"
             exit 1
           fi
 
@@ -419,7 +444,21 @@ jobs:
             **/Cargo.lock
             !**/target/**
             ebpf-prebuilt/**
+            repos-for-ci/**
           if-no-files-found: error
+
+      # night-learning-into-darkness-1: the address refresh's commit
+      # note rides its own artifact (the refresher writes it only
+      # when a catalog moved — an unchanged catalog ships no note,
+      # so this step tolerates the absence and the commit body
+      # simply carries no address section that week).
+      - name: Upload the address refresh note
+        if: inputs.scan_only != true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          name: axp1-address-note
+          path: ${{ runner.temp }}/axp1-address-note.txt
+          if-no-files-found: ignore
 
   commit:
     name: Dependency sweep commit
@@ -466,6 +505,17 @@ jobs:
           name: validated-dependency-lane
           path: ${{ runner.temp }}/validated-dependency-lane
 
+      # night-learning-into-darkness-1: the address refresh's note is
+      # OPTIONAL cargo — an unchanged catalog shipped no note artifact,
+      # so this download carries continue-on-error and the commit body
+      # below simply has no address section that week.
+      - name: Download the address refresh note
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8, NIGHT-hunt-20 SHA pin
+        with:
+          name: axp1-address-note
+          path: ${{ runner.temp }}/axp1-note
+
       - name: Commit and push
         shell: bash
         run: |
@@ -486,6 +536,13 @@ jobs:
           if test -d "$lane_dir/ebpf-prebuilt"; then
             rsync -a --delete "$lane_dir/ebpf-prebuilt/" ebpf-prebuilt/
           fi
+          # night-learning-into-darkness-1: the repos-for-ci catalog
+          # rides the same artifact lane (the AXP1-ZnQ refresher's
+          # tested pool) — mirrored the same way, tombstones and all,
+          # so the one weekly commit carries deps AND addresses.
+          if test -d "$lane_dir/repos-for-ci"; then
+            rsync -a --delete "$lane_dir/repos-for-ci/" repos-for-ci/
+          fi
 
           if git diff --quiet; then
             echo "The validated dependency lane is already current"
@@ -495,8 +552,10 @@ jobs:
           git diff --name-only | tee /tmp/changed-files.txt
           # night-zen-1: the sweep owns the lockfiles AND the prebuilt
           # lane its writer refreshed — nothing else may ever appear.
-          if grep -vE '(^|/)Cargo\.lock$|^ebpf-prebuilt/' /tmp/changed-files.txt; then
-            echo "::error::Commit job may only modify Cargo.lock files and the prebuilt lane"
+          # night-learning-into-darkness-1: the repos-for-ci catalog
+          # joins the allowed set (the AXP1-ZnQ refresher's output).
+          if grep -vE '(^|/)Cargo\.lock$|^ebpf-prebuilt/|^repos-for-ci/' /tmp/changed-files.txt; then
+            echo "::error::Commit job may only modify Cargo.lock files, the prebuilt lane and the repos-for-ci catalog"
             exit 1
           fi
 
@@ -519,5 +578,17 @@ jobs:
           # locks it matches (the commit gate's pairing rule, explicit
           # path — never a glob); an unchanged lane adds as a no-op.
           git add ebpf-prebuilt
-          git commit -m "chore(deps): maintenance deps weekly"
+          # night-learning-into-darkness-1: the tested address pool
+          # stages the same way (explicit path — never a glob); an
+          # unchanged catalog adds as a no-op.
+          git add repos-for-ci
+          message="chore(deps): maintenance deps weekly"
+          # night-learning-into-darkness-1: when the AXP1-ZnQ
+          # (Architect's eXecution Protocol 1) address refresh moved a
+          # catalog, its note rides the commit body — the one weekly
+          # commit speaks both the dependency and the address verdicts.
+          if test -f "${RUNNER_TEMP}/axp1-note/axp1-address-note.txt"; then
+            message="${message}"$'\n\n'"$(cat "${RUNNER_TEMP}/axp1-note/axp1-address-note.txt")"
+          fi
+          git commit -m "${message}"
           git push origin main
