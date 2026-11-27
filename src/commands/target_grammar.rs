@@ -156,6 +156,24 @@ pub(crate) fn validate_multi_targets(targets_str: &str, example: &str) -> Result
                  them inside 32 bits"
             ));
         }
+        // night-cafe-1 (F5): the cg: prefix over a non-id can never
+        // name anything — no kernel comm carries the display prefix —
+        // so the member refuses here, the same grammar rung the
+        // numeric bound owns and the same refusal the single-target
+        // boundary teaches (both exits named, no late no-match behind
+        // the root gate). Container URIs need no twin here: the
+        // '/'-refusal above and the containers-do-not-ride-lists
+        // check already own every URI shape a list member can carry.
+        if let Some(rest) = seg.strip_prefix("cg:")
+            && (rest.is_empty() || rest.parse::<u32>().is_err())
+        {
+            return Err(anyhow::anyhow!(
+                "list member '{seg}' carries the cg: id prefix over a non-id — the \
+                 prefix names a cgroup id, never a process name\n  \
+                 tip: a process name takes no prefix; a cgroup id is cg:<number> \
+                 ('zelynic list-apps' prints live ids)"
+            ));
+        }
     }
 
     Ok(segments)

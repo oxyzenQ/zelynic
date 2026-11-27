@@ -242,6 +242,40 @@ pub(crate) fn validate_single_target(target_str: &str, example: &str) -> Result<
              tip: 'zelynic list-apps' prints live ids as cg:<number>"
         ));
     }
+    // night-cafe-1 (F5): the grammar rung owns the shapes that can
+    // never resolve — the same parse-before-execute law the rate
+    // family owns (a typo'd grammar surfaces its refusal before the
+    // root ask, never behind "root required").
+    //
+    // The cg: display prefix over a non-id: Target::parse deliberately
+    // keeps 'cg:brave' a NAME target (the prefix never rewrites one),
+    // but no kernel comm carries the display prefix — ':' never walks
+    // in a comm — so the spelling can only be a mistake. The refusal
+    // teaches both exits instead of dying as a late no-match behind
+    // the root gate.
+    if let Some(rest) = target_str.strip_prefix("cg:")
+        && (rest.is_empty() || rest.parse::<u32>().is_err())
+    {
+        return Err(anyhow::anyhow!(
+            "'{target_str}' carries the cg: id prefix over a non-id — the prefix names a cgroup id, never a process name\n  \
+             tip: a process name takes no prefix: {example}\n  \
+             tip: a cgroup id: cg:<number> ('zelynic list-apps' prints live ids)"
+        ));
+    }
+    // A container URI the grammar refuses: the scheme prefix proves
+    // the user meant a container, and a malformed one resolves to
+    // nothing (parse_container's None falls to the process-name lane,
+    // a guaranteed no-match). The refusal names the scheme's own
+    // law — the same block the apply's no-match lane carries, moved
+    // to the rung where it costs no privilege.
+    if let Some(reason) =
+        crate::ebpf::identity::container::malformed_uri_reason(target_str)
+    {
+        return Err(anyhow::anyhow!(
+            "malformed container URI '{target_str}' — {reason}\n  \
+             tip: the grammar: docker://<name>, k8s://<namespace>/<pod>, netns://<name>, iface://<name>"
+        ));
+    }
     Ok(())
 }
 

@@ -174,11 +174,15 @@ fn a_single_colon_member_is_the_old_grammar_refused() {
             "the refusal teaches the separator, got: {msg}"
         );
     }
-    // The cg: prefix stays legal inside a member — numeric or not,
-    // it is the prefix grammar's spelling (a non-numeric remainder
-    // keeps the single lane's graceful no-match class).
+    // The cg: prefix stays legal inside a member when it names an id;
+    // a non-numeric remainder is the grammar crime the single boundary
+    // owns (night-cafe-1, F5 — the old graceful no-match class refused
+    // at the privilege-free rung instead: no comm carries the display
+    // prefix, so the spelling can only be a mistake).
     assert!(validate_multi_targets("cg:48181::cg:48182", ex).is_ok());
-    assert!(validate_multi_targets("cg:brave::curl", ex).is_ok());
+    let err = validate_multi_targets("cg:brave::curl", ex)
+        .expect_err("a non-id cg: member must refuse at the grammar rung");
+    assert!(format!("{err}").contains("cg: id prefix over a non-id"));
 }
 
 /// NIGHT-hunt-30 (single is single, multi is multi), read through
@@ -256,4 +260,27 @@ fn numeric_member_past_u32_is_refused_with_the_bound() {
     // cg:-prefixed.
     assert!(validate_multi_targets("brave::48181", ex).is_ok());
     assert!(validate_multi_targets("brave::cg:48181", ex).is_ok());
+}
+
+/// night-cafe-1 (F5): the list grammar refuses the cg: prefix over a
+/// non-id — the same grammar rung the numeric bound owns, the same
+/// refusal the single boundary teaches.
+#[cfg(all(test, feature = "ebpf"))]
+#[test]
+fn list_grammar_refuses_non_id_cg_members() {
+    for bad in ["brave::cg:abc", "cg:abc::curl", "brave::cg:"] {
+        let err = validate_multi_targets(bad, "zelynic strict brave::curl::pacman 1mb")
+            .expect_err("a non-resolvable member must refuse");
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("cg: id prefix over a non-id"),
+            "the grammar crime is named for '{bad}': {msg}"
+        );
+    }
+    // Container URIs keep their own earlier refusals (they do not ride
+    // lists; a '/'-carrying member is refused as a name) — untouched.
+    for good in ["brave::curl", "cg:123::456"] {
+        validate_multi_targets(good, "zelynic strict brave::curl::pacman 1mb")
+            .unwrap_or_else(|e| panic!("'{good}' must pass: {e}"));
+    }
 }

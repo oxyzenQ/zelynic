@@ -137,6 +137,64 @@ pub fn parse_container(s: &str) -> Option<ContainerRef> {
     None
 }
 
+/// The malformed-URI diagnosis (night-cafe-1, F5): `Some(reason)`
+/// when the string carries a container scheme prefix but fails that
+/// scheme's grammar — the exact shapes [`parse_container`] returns
+/// None for while the PREFIX proves the user meant a container. The
+/// input boundary refuses these before the privilege ask (a
+/// malformed URI can never resolve: behind the root gate it dies as
+/// a late no-match on a process name no comm can carry — ':' never
+/// walks in a kernel comm). `None` when the string names no scheme
+/// at all: a process-name candidate, the pre-existing lane, never a
+/// grammar refusal.
+pub fn malformed_uri_reason(s: &str) -> Option<&'static str> {
+    let name_law = "the name carries no '/' or ':'";
+    if s.starts_with("docker://") {
+        let rest = &s["docker://".len()..];
+        return Some(if rest.is_empty() {
+            "the docker lane needs a container name"
+        } else if rest.contains('/') || rest.contains(':') {
+            name_law
+        } else {
+            return None;
+        });
+    }
+    if s.starts_with("k8s://") {
+        let rest = &s["k8s://".len()..];
+        let parts: Vec<&str> = rest.split('/').collect();
+        return Some(if rest.is_empty() {
+            "the k8s lane needs <namespace>/<pod>"
+        } else if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
+            "the k8s lane needs exactly one '/' — <namespace>/<pod>, both parts non-empty"
+        } else if rest.contains(':') {
+            name_law
+        } else {
+            return None;
+        });
+    }
+    if s.starts_with("netns://") {
+        let rest = &s["netns://".len()..];
+        return Some(if rest.is_empty() {
+            "the netns lane needs a namespace name"
+        } else if rest.contains('/') || rest.contains(':') {
+            name_law
+        } else {
+            return None;
+        });
+    }
+    if s.starts_with("iface://") {
+        let rest = &s["iface://".len()..];
+        return Some(if rest.is_empty() {
+            "the iface lane needs a VRF domain name"
+        } else if rest.contains('/') || rest.contains(':') {
+            name_law
+        } else {
+            return None;
+        });
+    }
+    None
+}
+
 /// The identity a lane pinned at resolution (night-frontier-Z3, the
 /// drift alarm's capture half) — the ONE fact a later read verifies
 /// with one stat(): the netns lane's handle inode, the iface lane's
