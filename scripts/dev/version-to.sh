@@ -15,8 +15,9 @@
 #   ./scripts/dev/version-to.sh                # Show current version
 #
 # Single source of truth: Cargo.toml
-# Files updated: EVERY tracked Cargo.toml that belongs to the zelynic
-# crate family, plus every tracked Cargo.lock that carries one of
+# Files updated: EVERY Cargo.toml — tracked or authored-but-
+# uncommitted — that belongs to the crate family, plus every
+# tracked-or-uncommitted Cargo.lock that carries one of
 # those crates' [[package]] entries (NIGHT-bump-2: the bump set is
 # DETECTED, never listed — git enumerates the manifests, the [package]
 # blocks are parsed, and the graph falls out. The pre-autodetect
@@ -26,14 +27,24 @@
 # provenance-hole shape NIGHT-improve-67 closed for the ebpf crate,
 # reopened by every workspace the literal list never learned about.
 # The law now: the root crate rides by definition; every OTHER crate
-# named zelynic-* rides too, and a drifted one is healed, not
-# skipped; a manifest outside the family is reported at its own
-# version — never silently swept, never silently lost. The lock pass
+# named after the root's own [package] name rides too (the family
+# prefix is DERIVED — night-cafe-mclaren-1 — never a stale literal),
+# and a drifted one is healed, not skipped; a manifest outside the
+# family is reported at its own version — never silently swept,
+# never silently lost. The lock pass
 # rewrites every matching [[package]] entry in every tracked lock
 # (a future path dependency's cross-entry heals the same way), and
 # every rewrite is re-read and verified — a write this script cannot
 # verify is a write it does not keep. A fifth workspace joins the
-# bump with zero edits here.)
+# bump with zero edits here. night-cafe-mclaren-1 completes the same
+# law for the walk itself: the family prefix is derived from the root
+# [package] name, and the enumeration adds the authored-but-
+# uncommitted tree (git ls-files --others --exclude-standard) — a
+# Cargo.toml born anywhere in the repo rides the bump before its
+# first git add; gitignored junk still can never enter. The
+# enforcement twin is scripts/gates/check-version-family-sync.sh,
+# which holds the same detected family to the root version at every
+# push.)
 # NIGHT-improve-70: the version change touches the ebpf/ tree, so the
 # prebuilt lane's tree pin notices it — when THIS script's own rewrite
 # stales the lane, the refresh runs in the same invocation
@@ -128,15 +139,28 @@ manifest_name_of() {
 	' "$1"
 }
 
+# The version walk (night-cafe-mclaren-1): the tracked tree PLUS the
+# authored-but-uncommitted tree, deduplicated, sorted — the one
+# enumeration every manifest and lock lane rides. A new workspace
+# joins the bump the moment it exists on disk, before its first git
+# add; gitignored trees (target/ output, vendored junk) still can
+# never enter (--exclude-standard). The [.] form keeps the dot
+# literal with no backslash-quoting dance.
+version_walk() {
+	{
+		git ls-files | grep -E "(^|/)${1//./[.]}$" || true
+		git ls-files --others --exclude-standard | grep -E "(^|/)${1//./[.]}$" || true
+	} | sort -u
+}
+
 # The crate graph, detected every run (NIGHT-bump-2): one
-# <path><TAB><name><TAB><version> row per versioned tracked manifest.
-# git ls-files enumerates — untracked trees, target/ output and
-# vendored junk can never enter the walk.
+# <path><TAB><name><TAB><version> row per versioned manifest — the
+# version_walk enumeration, parsed into rows.
 manifest_rows() {
 	local f
 	while IFS= read -r f; do
 		printf '%s\t%s\t%s\n' "${f}" "$(manifest_name_of "${f}")" "$(manifest_version_of "${f}")"
-	done < <(git ls-files | grep -E '(^|/)Cargo\.toml$' | sort)
+	done < <(version_walk Cargo.toml)
 }
 
 # Read current version from Cargo.toml (the [package] block — the
@@ -145,14 +169,27 @@ current_version() {
 	manifest_version_of Cargo.toml
 }
 
+# night-cafe-mclaren-1: the family prefix is the root crate's own
+# [package] name — DERIVED, never a literal. The pre-mclaren script
+# matched the "zelynic" prefix as a hard-coded string: a renamed root
+# or a ported script would have left that literal stale, the exact
+# disease NIGHT-bump-2 cured for the file list. The law now: the
+# family is whoever the root crate says it is.
+FAMILY_PREFIX="$(manifest_name_of Cargo.toml)"
+if [ -z "${FAMILY_PREFIX}" ]; then
+	echo -e "${RED}FAIL:${NC} the root Cargo.toml carries no [package] name — the family law has no anchor." >&2
+	exit 1
+fi
+
 # The bump set, decided once per run (NIGHT-bump-2). Fills:
 #   BUMP_PATHS[i] / BUMP_NAMES[i] / BUMP_OLDS[i] — the surfaces that
 #   ride the root version: the root crate itself by definition, and
-#   every other crate whose name starts with "zelynic" (the
-#   provenance law NIGHT-improve-67 put on the ebpf crate, now
-#   repo-wide; a drifted one is healed, not skipped);
+#   every other crate whose name starts with the root's own name
+#   (night-cafe-mclaren-1: derived, never a literal — the provenance
+#   law NIGHT-improve-67 put on the ebpf crate, now repo-wide; a
+#   drifted one is healed, not skipped);
 #   SKIP_REPORTS[@] — the honest report lines for manifests left at
-#   their own version (a crate that is not a zelynic crate is never
+#   their own version (a crate that is not a family crate is never
 #   silently swept, and never silently lost).
 BUMP_PATHS=()
 BUMP_NAMES=()
@@ -161,12 +198,12 @@ SKIP_REPORTS=()
 build_bump_sets() {
 	local path name ver
 	while IFS=$'\t' read -r path name ver; do
-		if [ "${path}" = "Cargo.toml" ] || [[ "${name}" == zelynic* ]]; then
+		if [ "${path}" = "Cargo.toml" ] || [[ "${name}" == "${FAMILY_PREFIX}"* ]]; then
 			BUMP_PATHS+=("${path}")
 			BUMP_NAMES+=("${name}")
 			BUMP_OLDS+=("${ver}")
 		else
-			SKIP_REPORTS+=("$(printf '%-21s' "${path}") ${name} ${ver} — left at its own version (not a zelynic-* crate)")
+			SKIP_REPORTS+=("$(printf '%-21s' "${path}") ${name} ${ver} — left at its own version (not a ${FAMILY_PREFIX}-* crate)")
 		fi
 	done < <(manifest_rows)
 	if [ "${#BUMP_PATHS[@]}" -eq 0 ]; then
@@ -577,7 +614,7 @@ fi
 # The stranger report (NIGHT-bump-2): a manifest outside the family
 # is visible on every run — never silently swept, never silently lost.
 if [ "${#SKIP_REPORTS[@]}" -gt 0 ]; then
-	echo -e "  ${YELLOW}!${NC} version surfaces outside the zelynic family (left alone, reported):"
+	echo -e "  ${YELLOW}!${NC} version surfaces outside the ${FAMILY_PREFIX} family (left alone, reported):"
 	for line in "${SKIP_REPORTS[@]}"; do
 		echo "      ${line}"
 	done
@@ -606,7 +643,7 @@ if [ "${ALL_AT_TARGET}" = true ]; then
 			ALL_AT_TARGET=false
 			break
 		fi
-	done < <(git ls-files | grep -E '(^|/)Cargo\.lock$' | sort)
+	done < <(version_walk Cargo.lock)
 fi
 if [ "${ALL_AT_TARGET}" = true ]; then
 	if [ "${LEDGER_MUTATED}" = true ]; then
@@ -655,7 +692,7 @@ while IFS= read -r lockf; do
 	if bump_lock "${lockf}" "${names_regex}"; then
 		TOUCHED+=("${lockf}")
 	fi
-done < <(git ls-files | grep -E '(^|/)Cargo\.lock$' | sort)
+done < <(version_walk Cargo.lock)
 
 # --- Update README.md (probed first — NIGHT-hunt-32: the lane once ---
 # --- printed an unconditional OK while the README carried no badge, ---
@@ -665,10 +702,10 @@ done < <(git ls-files | grep -E '(^|/)Cargo\.lock$' | sort)
 # less surface to keep honest on every bump). What remains rewrites
 # the surfaces that carry a real version: release/download URLs,
 # versioned tarball names, and Version lines.
-README_HITS="$(grep -cE 'releases/download/v[0-9]|zelynic-v[0-9]+\.[0-9]+|^Version: v[0-9]' README.md 2>/dev/null || true)"
+README_HITS="$(grep -cE "releases/download/v[0-9]|${FAMILY_PREFIX}-v[0-9]+\.[0-9]+|^Version: v[0-9]" README.md 2>/dev/null || true)"
 if [ "${README_HITS:-0}" -gt 0 ]; then
 	sed -i -E "s|releases/download/v[0-9]+\.[0-9]+\.[0-9]+|releases/download/v${NEW_VERSION}|g" README.md
-	sed -i -E "s|zelynic-v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?-x86_64|zelynic-v${NEW_VERSION}-x86_64|g" README.md
+	sed -i -E "s|${FAMILY_PREFIX}-v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?-x86_64|${FAMILY_PREFIX}-v${NEW_VERSION}-x86_64|g" README.md
 	sed -i "s|Version: v.*|Version: v${NEW_VERSION}|" README.md
 	echo -e "  ${GREEN}OK${NC} README.md           → v${NEW_VERSION} (release URLs + versioned examples)"
 	TOUCHED+=("README.md")
@@ -688,7 +725,7 @@ echo -e "  ${GREEN}OK${NC} CHANGELOG.md        → verified pre-flight (see the 
 echo -e "  ${GREEN}OK${NC} scripts/build.sh    → auto (reads from Cargo.toml)"
 
 # --- Binary reads from Cargo.toml via env!("CARGO_PKG_VERSION"), no update needed ---
-echo -e "  ${GREEN}OK${NC} Binary (zelynic)    → auto (reads from Cargo.toml)"
+echo -e "  ${GREEN}OK${NC} Binary (${FAMILY_PREFIX})    → auto (reads from Cargo.toml)"
 
 # --- Prebuilt-lane refresh + parity verdict (NIGHT-improve-70) ---
 # The gate is the one implementation of the tree pin (refresh-

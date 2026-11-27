@@ -10,9 +10,9 @@
 # lanes carry the same blind posture, so this lane is no longer the
 # lone unfiltered run, just the same law's original home).
 #
-# Checks performed by gate-keepers.sh (20 numbered sections; the
-# shell quad's four sub-checks count separately, so the summary
-# line prints 23 gates):
+# Checks performed by gate-keepers.sh (21 numbered sections, 17b
+# included; the shell quad's four sub-checks count separately, so
+# the summary line prints 24 gates):
 #   1.  Shell quad     - bash -n + shellcheck + shfmt -d + source
 #                        resolution on all .sh files
 #   2.  yamllint       - .github YAML (repo .yamllint config)

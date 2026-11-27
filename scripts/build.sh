@@ -393,6 +393,22 @@ run_version_anti_pattern_check() {
 	fi
 }
 
+run_version_family_sync_check() {
+	log_step "Checking crate-family version sync..."
+
+	if [ ! -f "scripts/gates/check-version-family-sync.sh" ]; then
+		log_error "scripts/gates/check-version-family-sync.sh not found"
+		return 1
+	fi
+
+	if bash scripts/gates/check-version-family-sync.sh; then
+		log_success "Version family sync passed"
+	else
+		log_error "Version family sync failed (heal with ./scripts/dev/version-to.sh <version>)"
+		return 1
+	fi
+}
+
 run_comprehensive_check() {
 	local failed=0
 
@@ -410,6 +426,7 @@ run_comprehensive_check() {
 	run_deny_check || failed=$((failed + 1))
 	run_policy_check || failed=$((failed + 1))
 	run_version_anti_pattern_check || failed=$((failed + 1))
+	run_version_family_sync_check || failed=$((failed + 1))
 
 	if [ "${QUIET:-0}" -eq 0 ]; then
 		echo ""

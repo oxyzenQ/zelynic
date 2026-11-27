@@ -832,6 +832,24 @@ else
 	skip "check-release-parity.sh not found — skipping"
 fi
 
+# ── 17b. Version Family Sync (night-cafe-mclaren-1) ─────────────────
+# The release lane's parity tripwire holds the ROOT Cargo.toml to the
+# tag; this gate holds the whole DETECTED crate family to the root —
+# every family manifest and every family [[package]] entry in every
+# tracked-or-uncommitted lock, wherever it lives. A drifted sibling
+# fails at push time with the heal recipe, never inside a release.
+header "Version Family Sync (check-version-family-sync.sh)"
+if [ -f scripts/gates/check-version-family-sync.sh ]; then
+	if bash scripts/gates/check-version-family-sync.sh 2>&1; then
+		info "version family sync: every detected family manifest and lock entry carries the root version"
+		PASS=$((PASS + 1))
+	else
+		fail "version family sync: a family manifest or lock entry drifted from the root version (heal with ./scripts/dev/version-to.sh)"
+	fi
+else
+	skip "check-version-family-sync.sh not found — skipping"
+fi
+
 # ── 18. Prebuilt eBPF Parity ─────────────────────────────────────────────────
 # The ebpf-prebuilt/ lane is what a plain `cargo install zelynic`
 # embeds (the full-featured registry build). The gate holds its three
