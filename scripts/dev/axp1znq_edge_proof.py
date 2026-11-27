@@ -13,6 +13,7 @@ header, then asserts the three verdict paths against real code:
 
 Run: python3 scripts/dev/axp1znq_edge_proof.py   (binds 127.0.0.1 only)
 """
+
 import http.server
 import subprocess
 import sys
@@ -47,10 +48,20 @@ class FrozenHandler(http.server.BaseHTTPRequestHandler):
 
 def run_resolver(catalog: Path, extra=()):
     return subprocess.run(
-        [sys.executable, str(REPO / "scripts/dev/axp1znq_resolve.py"),
-         "--file", str(catalog), "--attempts", "1", "--total-timeout", "4",
-         *extra],
-        capture_output=True, text=True, timeout=120,
+        [
+            sys.executable,
+            str(REPO / "scripts/dev/axp1znq_resolve.py"),
+            "--file",
+            str(catalog),
+            "--attempts",
+            "1",
+            "--total-timeout",
+            "4",
+            *extra,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
 
 
@@ -59,10 +70,20 @@ def run_refresher(catalog: Path, tmp_root: Path, extra=()):
     target = tmp_root / "repos-for-ci" / "edge.txt"
     target.write_text(catalog.read_text())
     return subprocess.run(
-        [sys.executable, str(REPO / "scripts/dev/axp1znq_refresh.py"),
-         "--root", str(tmp_root / "repos-for-ci"),
-         "--attempts", "1", "--total-timeout", "4", *extra],
-        capture_output=True, text=True, timeout=180,
+        [
+            sys.executable,
+            str(REPO / "scripts/dev/axp1znq_refresh.py"),
+            "--root",
+            str(tmp_root / "repos-for-ci"),
+            "--attempts",
+            "1",
+            "--total-timeout",
+            "4",
+            *extra,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=180,
     ), target
 
 
@@ -80,12 +101,14 @@ def main() -> int:
     #    escalates CALL THE OWNER.
     stale_catalog = tmp / "stale.txt"
     stale_catalog.write_text(f"http://127.0.0.1:{port}\n")
-    refresh, target = run_refresher(stale_catalog, tmp / "t1",
-                                    extra=["--max-age-days", "14"])
+    refresh, target = run_refresher(stale_catalog, tmp / "t1", extra=["--max-age-days", "14"])
     body = target.read_text()
-    ok = ("1 stale" in refresh.stdout and "CALL THE OWNER" in refresh.stdout
-          and body.lstrip().startswith("http")  # untouched, never erased
-          and "# down" not in body)
+    ok = (
+        "1 stale" in refresh.stdout
+        and "CALL THE OWNER" in refresh.stdout
+        and body.lstrip().startswith("http")  # untouched, never erased
+        and "# down" not in body
+    )
     print(f"TEST stale-refusal: {'PASS' if ok else 'FAIL'}")
     print(f"  refresher: {refresh.stdout.strip().splitlines()[-1:]}")
     if not ok:
@@ -114,10 +137,9 @@ def main() -> int:
     FrozenHandler.date = FRESH_DATE
     fresh_catalog = tmp / "fresh.txt"
     fresh_catalog.write_text(f"http://127.0.0.1:{port}\n")
-    refresh, target = run_refresher(fresh_catalog, tmp / "t4",
-                                    extra=["--max-age-days", "14"])
+    refresh, target = run_refresher(fresh_catalog, tmp / "t4", extra=["--max-age-days", "14"])
     body = target.read_text()
-    ok = ("1 alive" in refresh.stdout and body.lstrip().startswith("http"))
+    ok = "1 alive" in refresh.stdout and body.lstrip().startswith("http")
     print(f"TEST fresh-kept-as-survivor: {'PASS' if ok else 'FAIL'}")
     if not ok:
         failures.append("fresh survivor kept")
