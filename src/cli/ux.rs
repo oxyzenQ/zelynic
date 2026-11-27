@@ -64,7 +64,13 @@ pub(crate) use super::tips::{duration_tip, rate_tip};
 /// flag_row set on the reference. The span covers the spelling
 /// exactly; the quotes, prose, and period stay default, so piped
 /// output keeps its plain bytes (grey is capability-aware).
-fn help_footer() -> String {
+///
+/// night-cafe-1 (F14): `pub(crate)` — the main-side grammar lane
+/// (`--color-mode 99`'s authoritative check, exit 2) appends the same
+/// footer, closing the one fatal path that ended without it: the
+/// contract says every fatal CLI error ends with exactly one footer,
+/// and this lane is the check's own witness.
+pub(crate) fn help_footer() -> String {
     format!("For more information, try '{}'.", grey("--help"))
 }
 

@@ -151,6 +151,13 @@ fn try_main() -> Result<()> {
                     cli::json_error::exit_json(&reason, "");
                 }
                 output::eprintln_error_labeled(&reason);
+                // night-cafe-1 (F14): the footer contract — every
+                // fatal CLI error ends with exactly one canonical
+                // footer (ux.rs's own doc), and this exit-2 lane was
+                // the one path that ended without it. The JSON door
+                // above stays footer-less by its contract (the object
+                // is the whole surface).
+                eprintln_safe!("\n{}", cli::ux::help_footer());
                 std::process::exit(2);
             }
         }
