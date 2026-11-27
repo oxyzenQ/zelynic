@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+# SPDX-License-Identifier: AGPL-3.0-only OR Commercial
+#
+# AXP1-ZnQ (Architect's eXecution Protocol 1) - the repos-for-ci address
+# catalog (night-learning-into-darkness-1, ported from the zylaxion
+# production line). One candidate address per line, full https base
+# (no trailing slash); '#' comments occupy their own line. The CI
+# failover resolver walks this list top to bottom and uses the first
+# address that answers (scripts/dev/axp1znq_resolve.py; each apt seat
+# probes the suite it actually consumes, e.g. --probe-path
+# dists/jammy/InRelease on the jammy floor legs, dists/noble/InRelease
+# on the latest-head and noble legs); the Sunday 10:00 WIB maintenance
+# pass re-probes the whole list and writes back the survivors
+# (scripts/dev/axp1znq_refresh.py), so the pool stays a tested pool.
+# Authored order = the owner's trust ranking, canonical archive first.
+# The shipped seed was probe-verified: all 12 candidates answered the
+# noble InRelease GET with HTTP 200 and a fresh index (age 0d) from
+# the authoring sandbox on 2026-11-27, and the jammy InRelease probe
+# path was spot-checked on three lines the same day. A runner-region
+# difference is exactly what the weekly curation exists to reconcile:
+# an address the runner network cannot reach gets its dated tombstone
+# in the first Sunday pass, not a silent 403 hour.
+https://archive.ubuntu.com/ubuntu
+https://azure.archive.ubuntu.com/ubuntu
+https://mirrors.edge.kernel.org/ubuntu
+https://uk.archive.ubuntu.com/ubuntu
+https://mirrors.digitalocean.com/ubuntu
+https://ubuntu.osuosl.org/ubuntu
+https://mirror.us.leaseweb.net/ubuntu
+https://mirror.yandex.ru/ubuntu
+https://mirrors.aliyun.com/ubuntu
+https://mirrors.tuna.tsinghua.edu.cn/ubuntu
+https://ftp.jaist.ac.jp/pub/Linux/ubuntu
+https://mirrors.kernel.org/ubuntu
