@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
 # SPDX-License-Identifier: AGPL-3.0-only OR Commercial
-"""Local proof harness for the AXP1-ZnQ probe laws (night-learning-
+"""Local proof harness for the AXP1-ZnQ (Architect's eXecution
+Protocol 1) probe laws (night-learning-
 into-darkness-1). Serves a fake InRelease with a frozen 2020 Date
 header, then asserts the three verdict paths against real code:
 

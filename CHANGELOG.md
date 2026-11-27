@@ -48,6 +48,47 @@ v80.0.0
 
 ### Added
 
+- **night-learning-into-darkness-1: the AXP1-ZnQ address catalog —
+  no CI lane marries a hardcoded server again.** The owner's
+  bottleneck call (one hardcoded archive address means one bad hour
+  reddens lanes with nothing wrong of their own) lands as the
+  protocol's second half, ported byte-faithful from the zylaxion
+  production line: `repos-for-ci/apt-mirrors.txt`, the tested address
+  pool (12 Ubuntu mirrors, all 12 probe-verified HTTP 200 with a
+  fresh index from the authoring sandbox before landing, bounded by
+  the 10-100 active-line law, authored order = the owner's trust
+  ranking); the stdlib-only bot pair sharing one probe core — the
+  failover resolver `scripts/dev/axp1znq_resolve.py` (walk the
+  catalog top to bottom, line 1 down the lane moves on, the first
+  address that answers is the one the lane uses, no live address is
+  exit 1 — never a dead default) and the Sunday refresher
+  `scripts/dev/axp1znq_refresh.py` (concurrent re-probe, alive AND
+  fresh via the InRelease Date header max-age law, survivors keep
+  their authored order, dated tombstones, the 100-line cap pruning
+  oldest dead first, the min-lines floor warning, the never-empty
+  guard that never erases the owner's pool, idempotent writes,
+  `--dry-run`); the local proof harness `scripts/dev/
+  axp1znq_edge_proof.py` (a loopback InRelease with a harness-
+  controlled Date header walks the stale-refusal, resolve-despite-
+  age, all-dead-exit-1 and fresh-survivor laws — all four hold on
+  real code). All six apt seats over three workflows
+  (`netrunner-night-c77.yml`, `supermassive.yml`,
+  `supermassive-e2e.yml`) swap their hardcoded
+  archive.ubuntu.com addresses for the resolver call, each probing
+  the suite it actually consumes (jammy floor legs probe
+  `dists/jammy/InRelease`, the noble and latest-head walkers probe
+  `dists/noble/InRelease`); the Sunday 10:00 WIB sentinel runs the
+  refresher directly after the dependency update finishes (the
+  owner's sequencing law) and the one weekly commit now carries deps
+  AND addresses (the catalog rides the validated lane artifact, the
+  allowed-diff gates admit `repos-for-ci/`, the staging wall's
+  explicit-path law holds, the refresher's note rides the commit
+  body, and the `scan_only` red button skips the refresh whole). The
+  protocol's front door is [docs/AXP1-ZnQ.md](docs/AXP1-ZnQ.md) —
+  AXP1-ZnQ stands for Architect's eXecution Protocol 1, and every
+  mention across the docs, the workflows and the scripts carries the
+  expansion by the owner's standing law.
+
 - **night-dragon-fly-1 rev 5: the --during promise is now visible
   everywhere the state it governs is visible.** The battery's
   D59/R17 find: a user who limits for 30mn could not see when the
