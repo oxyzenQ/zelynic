@@ -268,9 +268,7 @@ pub(crate) fn validate_single_target(target_str: &str, example: &str) -> Result<
     // a guaranteed no-match). The refusal names the scheme's own
     // law — the same block the apply's no-match lane carries, moved
     // to the rung where it costs no privilege.
-    if let Some(reason) =
-        crate::ebpf::identity::container::malformed_uri_reason(target_str)
-    {
+    if let Some(reason) = crate::ebpf::identity::container::malformed_uri_reason(target_str) {
         return Err(anyhow::anyhow!(
             "malformed container URI '{target_str}' — {reason}\n  \
              tip: the grammar: docker://<name>, k8s://<namespace>/<pod>, netns://<name>, iface://<name>"

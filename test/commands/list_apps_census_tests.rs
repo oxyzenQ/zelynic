@@ -146,8 +146,16 @@ fn list_apps_json_carries_the_uncapped_name() {
         comm: "brave".to_string(),
     });
     identity.seed_full_name_for_tests(42, "polkit-kde-authentication-agent");
-    let short = identity.all().into_iter().filter(|e| e.cgroup_id == 43).collect::<Vec<_>>();
-    let capped = identity.all().into_iter().filter(|e| e.cgroup_id == 42).collect::<Vec<_>>();
+    let short = identity
+        .all()
+        .into_iter()
+        .filter(|e| e.cgroup_id == 43)
+        .collect::<Vec<_>>();
+    let capped = identity
+        .all()
+        .into_iter()
+        .filter(|e| e.cgroup_id == 42)
+        .collect::<Vec<_>>();
     let conns = crate::ebpf::connections::ConnectionMap::new();
     let doc = list_apps_json(&capped, 1, 0, true, &conns, &identity);
     assert!(

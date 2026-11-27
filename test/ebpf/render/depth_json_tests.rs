@@ -226,16 +226,19 @@ fn json_carries_the_bypass_audit() {
     // under their floors) reads true; this one (tx shadow past the
     // floor) reads false — the additive trailing boolean, the
     // verdict's both-gates law as one field.
-    let quiet_doc =
-        depth_doc_json(&[report_fixture(Enforcement::Unlimited)], &[], Some(&clean));
+    let quiet_doc = depth_doc_json(&[report_fixture(Enforcement::Unlimited)], &[], Some(&clean));
     assert!(
         quiet_doc.to_json().contains("\"quiet_window\":true"),
         "a window under both floors is quiet"
     );
     assert!(
-        depth_doc_json(&[report_fixture(Enforcement::Unlimited)], &[], Some(&flagged))
-            .to_json()
-            .contains("\"quiet_window\":false"),
+        depth_doc_json(
+            &[report_fixture(Enforcement::Unlimited)],
+            &[],
+            Some(&flagged)
+        )
+        .to_json()
+        .contains("\"quiet_window\":false"),
         "a shadow past its floor is not a quiet window"
     );
     let rx_flagged = shadow_audit(

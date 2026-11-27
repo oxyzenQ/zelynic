@@ -21,10 +21,8 @@ use super::types::{MAX_RATE, MIN_RATE};
 /// ladder rejected instead of a decimal-point sentence about a
 /// number that may never have had one.
 fn typed_unit_word(s: &str) -> String {
-    s.trim_start_matches(|c: char| {
-        c.is_ascii_digit() || c == '.' || c == '+' || c == '-'
-    })
-    .to_string()
+    s.trim_start_matches(|c: char| c.is_ascii_digit() || c == '.' || c == '+' || c == '-')
+        .to_string()
 }
 
 /// Parse a time duration string. Formats: 1s, 3m, 10h, or plain number (seconds).

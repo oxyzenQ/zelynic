@@ -201,9 +201,7 @@ fn list_apps_json(
         // (the resolution walk accepts it), never the display artifact
         // "polkit-kde-authenticati…". Short names carry no cap, so
         // the fallback is the same bytes.
-        let name = identity
-            .full_name(entry.cgroup_id)
-            .unwrap_or(&entry.comm);
+        let name = identity.full_name(entry.cgroup_id).unwrap_or(&entry.comm);
         out.push_str("{\"process\":");
         write_string(out, name);
         out.push_str(",\"cgroup_id\":");

@@ -517,11 +517,7 @@ fn handle_strict_multi(
     // 'zelynic unstrict brave::curl' does not split lists without
     // the '::' separator (the old suggestion was advice that could
     // not round-trip).
-    super::apply_success_epilogue(
-        &format!("zelynic unstrict {targets_str}"),
-        "remove",
-        "",
-    );
+    super::apply_success_epilogue(&format!("zelynic unstrict {targets_str}"), "remove", "");
     if let Some(outcome) = &probe_outcome {
         for line in probe_report::report_lines(outcome) {
             eprintln_safe!("{line}");
