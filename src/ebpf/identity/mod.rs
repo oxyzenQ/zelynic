@@ -364,6 +364,38 @@ impl IdentityMap {
         }
     }
 
+    /// The machine document's label (night-dragon-fly-1): the status
+    /// label's full-fidelity twin, for the JSON lane only. The human
+    /// label above rides the display-capped comm — its column budget
+    /// owns the cap — but the `status --print-json` limits[] label is
+    /// a machine field, and night-cafe-1 (F1) already ruled that the
+    /// machine documents carry the UNCAPPED enriched name a script
+    /// can match verbatim ("polkit-kde-authentication-agent-1", never
+    /// the display artifact "polkit-kde-authenticati…"). The status
+    /// lane was the surface F1 missed: list-apps and the eagle depth
+    /// report got the full_name door, the status label kept printing
+    /// the truncated comm into `jq '.limits[].label'`. This twin is
+    /// that door: `full_name(id).unwrap_or(comm)` when a live member
+    /// exists, the same `(no live member)` marker when the walk
+    /// vouches for nobody — byte-identical to `status_label` on
+    /// every short name, so only the cut names change bytes.
+    pub fn status_label_full(&self, cgroup_id: u32) -> String {
+        let mut out = String::new();
+        match self.get(cgroup_id) {
+            Some(id) if !id.comm.is_empty() => {
+                let name = self.full_name(cgroup_id).unwrap_or(&id.comm);
+                let _ = write!(out, "cg:{cgroup_id} ({name})");
+            }
+            _ => {
+                let _ = write!(out, "cg:{cgroup_id}");
+            }
+        }
+        if self.get(cgroup_id).is_none() {
+            out.push_str(" (no live member)");
+        }
+        out
+    }
+
     /// Number of cached identities.
     pub fn len(&self) -> usize {
         self.cache.len()
