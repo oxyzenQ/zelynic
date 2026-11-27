@@ -204,6 +204,13 @@ pub(crate) fn skipped_system_apps_note(comms: &[String]) -> String {
 #[path = "../../test/commands/safety_tests.rs"]
 mod tests;
 
+// night-cafe-1: the single-target grammar rung's pins split to their
+// own file at the 600-LOC cap (one theme, one file, the
+// target_grammar lineage).
+#[cfg(all(test, feature = "ebpf"))]
+#[path = "../../test/commands/single_target_tests.rs"]
+mod single_target_tests;
+
 /// NIGHT-dinner-16 (the verifier-lineage mandate): the single-target
 /// input boundary. An empty or whitespace-only target can only be a
 /// mistake — a live process's comm is never empty, so the /proc walk
