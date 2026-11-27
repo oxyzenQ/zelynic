@@ -399,3 +399,155 @@ JSON contract's exit clause is measured law now — and the fleet's
 own polish queue grew by two product findings and one instrument
 finding that only a real-machine accident could expose. Not yet
 peak; the queue above is the remaining distance.
+
+## The root-lane re-measurement: the run the queue asked for (12:43 run)
+
+Input: the owner's fourth capture — the FULL root lane (`RUN_ROOT=1`,
+147 cases, `BATTERY COMPLETE`, 46 s wall clock), binary
+`v80.5.0-dragon.2`, build `local-pro-linux-amd64-v3-musl (edb43d0)` —
+the same code as `de75d85` plus an empty `sign.txt` (the owner's
+signed test build), so every shared case stays byte-comparable. The
+invocation is exactly the one the queue asked for — and the one
+F11's guard exists to protect.
+
+### What this run settled
+
+- **F3 verified fixed (again).** `binary exit:` on every JSON
+  document case: C01 0, C02 0, C03 0, C04 1, F06 0, G02 0/0, R05 0,
+  R07 0, R10 0, R14 0.
+- **F9(a) holds by measurement at root:** C04 exits 1 with the error
+  document; C02/C03 exit 0.
+- **F9(b) measured for the first time.** At root, `rate_ring` rides
+  ONLY the rows with counters: 8 of 46 rows in R05, the same 8 in
+  R10; zero-traffic rows carry no key at all. The contract decision
+  remains (document the presence rule or always-emit), but the rule
+  itself is now measured fact, not inference.
+- **F11's trap was dodged by hand, not by the guard.** The owner used
+  the correct `RUN_ROOT=1` invocation — but the tree does NOT contain
+  the guard yet (the verdict commit was still local when this run
+  fired). The guard lands with the push of this document.
+- **The state ledger, honest.** The 12:18 accident's 46 cgroup
+  policies (92 total) were live through the whole run: doctor counted
+  48 pins, recover said "Orphans: none (92 policies across 46
+  cgroups, all live)" and named the lane, R19 counted "90 other
+  policies are still active" after the smoke cleaned itself. The
+  squeeze ate real traffic: brave 8106 allowed 49.3 MB / dropped
+  14.2 MB, 904 CE-marked packets, 1.2 MB quota saved; python3 3442
+  allowed 15.4 MB / dropped 4.4 MB. And RECWN's measured SRTT
+  ballooned to 2,117,000 us — 10.6x the 200 ms floor. Owner action
+  unchanged: `sudo zelynic u --all`.
+- **The smoke is clean, measured.** R16/R18 removed what R11/R15/R17
+  applied; R19 proves the zero state (exit 1, live context); the
+  banner's "full cleanup at exit" is truth, not aspiration.
+- **Determinism under the heaviest state yet.** G01 help sha
+  `92d47851…` byte-identical twice; G02 doctor JSON byte-identical
+  across a 1 s gap while 46 policies sat live. The byte law does not
+  blink under enforcement state.
+- **Stream discipline at root.** R10's stdout is one JSON document
+  with a single stderr note; R11/R15/R17 narrate on stderr only; R13's
+  focus note rides stderr; R20's TTY gate refuses piped stdout with
+  the `status --print-json` escape hatch.
+- **The self-proving apply holds at root:** R11 measured 3.9 MB in 3s
+  (1.3 MB/s) against a 4.0 MB budget with the ledger closing the loop
+  (3.9 MB admitted, 2.6 MB refused); R15 carried the token-bucket
+  note ("147.928 KB spent by the target's own history"); R17's
+  589.8 KB/s vs 500 KB/s stays inside the budget and says so; R13's
+  accounting is exact to the second decimal (39.93%).
+
+### The open findings, re-confirmed at edb43d0
+
+F1 (R07 `"process":"polkit-kde-authenticati…"`, the same ellipsis in
+R10/R14's `label`, with `census_complete:true`), F2 (D37 still tips
+`'--all'` for `--allow-dangerous`), F4 (C05 still repeats the
+singular clause three times), F5 (D67-D69 still reach the root-gate
+voice before the grammar rung), F6 (D48/D51 still blame the
+mantissa — with a correction to THIS document's own transcript: the
+parser says `got '1ki'` and `got '5.5x'`, not `got '1kib'` /
+`got '5.5xb'` as written above; dump 1 agrees byte-for-byte, the
+paraphrase was the audit's slip), F7 (A10 still renders
+`Usage: zelynic strict --version <TARGET> [RATE]`), F8 (four
+truncations this run — D77, R05, R09, R12 — and the root instance
+hides a diagnostic-grade value: "measured RTT 2…" was 2,117 ms),
+F9(c) (R14's raw 13%/0% shadows vs R13's prose floor note), F12
+(D64 re-enforced the fleet silently at 500kb under root — again),
+F13 (D33/D34: the same tip under two usage shapes), F14 (D43 still
+exits 2 bare, no footer).
+
+### F15 — MEDIUM (product, owner's call): the apply epilogue never names what it resolved
+
+R11 `strict sleep 1mb` resolved `sleep` to cg:8981 — the invoking
+terminal's own cgroup (app-Alacritty@…, 9 processes: alacritty, zsh,
+three sudos, bash, the battery's sleep, the probe itself) — limited
+it, said "OK.", and named nothing. The blast radius surfaced only
+because R13 inspected the target after the fact. unstrict DOES
+speak: `[limiter] Unstrict: cg:8981 (sudo) — limits removed`
+(src/ebpf/limiter/unstrict.rs:194). One family names the resolved
+target, the other stays silent — and the silent one is the one that
+CHANGES state. The pinned minimalism (src/commands/dispatch_common.rs,
+NIGHT-improve-28: "the request echo lives in the shell history, the
+enforced facts live in 'zelynic status'") explains the lean epilogue
+but not the asymmetry: a name that resolves to a shared cgroup
+(terminal, shell, session leader) shapes bystanders invisibly,
+including the caller's own lane. Fix candidates: the verify block
+names the resolved label ("resolved: cg:8981 (sudo) — 9 processes in
+scope"), or the minimal version — a self-limit note when the
+invoking process's own cgroup is the target. Owner's call on the
+voice; the asymmetry itself is the defect.
+
+### F16 — LOW (product): the depth census rss cell eats the unit
+
+R13's census row: `11569 alacritty … 121.5 … 26m:51s` — the rss
+column width is 7 (src/ebpf/render/report.rs:372, `widths[6]`) while
+`format_bytes` renders eight characters at 100 MB and above
+("121.5 MB"), so `pad_to_width` cuts the unit exactly when the
+magnitude matters (MB or GB?). "11.9 MB" (seven chars) survives;
+everything at 100 MB and above loses the unit. Fix: width 7 -> 8
+(the `started` column next door proves the row has the room) or the
+compact "121.5M" spelling.
+
+### F17 — LOW (doc pin): '/' lives inside kernel-thread names too
+
+R06 lists `napi/phy0-0` (cg:1, 232 processes) — a kernel thread whose
+comm carries the eagle-eyes list separator. src/commands/eagle.rs:89
+splits the TARGETS spec on every '/' and no spelling escapes it; the
+cg: prefix is the only route to such a target. The help's Target
+formats paragraph excuses the ':' collisions ("cannot collide with
+the single ':' the cg: prefix and the container URIs own") but says
+nothing about names that carry the monitor lane's own separator. One
+help line closes it: names containing '/' (kernel threads) ride the
+cg: prefix.
+
+### The updated queue (after the third measurement)
+
+1. F12 — the sweep's --per-socket refusal. This also unblocks the
+   battery: D64 automates what R22's own BYHAND law calls
+   destructive-by-definition; after the refusal lands, D64 is safe
+   to automate.
+2. F2 — the vocabulary-rescue authority fix.
+3. F4 — the JSON tip plural join.
+4. F1 — the uncapped name beside the capped one.
+5. F6 — the unknown-unit verdict.
+6. F5 — strict's pre-root target-spec parse + the per-socket help
+   line (jointly with F12's help half).
+7. F15 — the apply epilogue names the resolved target (owner's call
+   on the shape).
+8. F7 — the -V interception door.
+9. F8 — the RECWN footer wording (now carrying root-lane evidence).
+10. F16 — the rss cell width.
+11. F13/F14 — the usage-shape law and the footer lane.
+12. F17 — the help's separator-collision line.
+13. F9 — the remaining pins (rate_ring presence rule now measured;
+    bypass_audit floor context) — document or always-emit, once.
+14. F10 — the owner's voice decision on the long help (unchanged).
+
+### The verdict after the third measurement
+
+Unchanged in kind, sharper again. Every law the product claims held
+under the heaviest state this seat has measured — 46 live policies
+under the battery, determinism byte-identical, stream discipline
+intact at root, the smoke self-cleaning, the JSON exit clause
+honored. The queue grew by one MEDIUM with a live demonstration
+(the silent apply resolution), one display ambiguity, and one doc
+pin — all surgical, none kernel. Not yet peak; this queue is the
+remaining distance, and the owner's first step is one command:
+`sudo zelynic u --all`.
