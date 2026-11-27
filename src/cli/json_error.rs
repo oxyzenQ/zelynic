@@ -59,13 +59,16 @@ pub(crate) fn exit_json(message: &str, tip: &str) -> ! {
 
 /// The contract door for a clap usage/parse error.
 ///
-/// Called at the top of `cli::ux::exit_clap_error` when the raw argv
-/// carried `--print-json`, BEFORE the prose enrichment chain — a JSON
-/// consumer gets the machine shape, the styled render and the footer
-/// are prose-lane furniture. DisplayHelp/DisplayVersion never reach
-/// this module (both flags are disabled crate-wide; the curated
-/// reference and the subcommand local help print through their own
-/// doors with exit 0).
+/// Called by `cli::ux::exit_clap_error` when the raw argv carried
+/// `--print-json`, AFTER the enrichment chain (night-cafe-1, H1+H2:
+/// the chain is the facts both lanes consume — the removed-verb
+/// redirects, the flag rescues, the hidden-vocabulary filter — and
+/// the old pre-chain seat shipped clap's raw context instead, the
+/// lane drift the door existed to close). The styled render and the
+/// footer remain prose-lane furniture the door skips. DisplayHelp/
+/// DisplayVersion never reach this module (both flags are disabled
+/// crate-wide; the curated reference and the subcommand local help
+/// print through their own doors with exit 0).
 pub(crate) fn exit_clap_json(e: &clap::Error) -> ! {
     let (message, tip) = clap_parts(e);
     exit_json(&message, &tip)
