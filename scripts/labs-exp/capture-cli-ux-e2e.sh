@@ -27,9 +27,15 @@
 # Safety contract (default run): zero privilege, zero enforcement
 # state touched, zero network except the one `--check-update` case
 # (safe to run offline — its error chain is itself audit material).
-# The BYHAND block at the end lists the cases the battery refuses to
-# automate (the terminal reset that clears the screen, the fleet
-# sweeps, the live TUI frames) with the exact commands to run by hand.
+# The guard below enforces it: run under sudo without RUN_ROOT=1 and
+# the battery refuses, because the apply lanes (C09/D55/D59/D62/D64/
+# D79) assume the binary's root gate closes them — under euid=0 they
+# enforce for real and nothing tears the state down (the 2026-11-27
+# owner run measured a whole-fleet 500kb limit that outlived the
+# battery). The BYHAND block at the end lists the cases the battery
+# refuses to automate (the terminal reset that clears the screen,
+# the fleet sweeps, the live TUI frames) with the exact commands to
+# run by hand.
 #
 # Exit 0 when the battery ran to completion (case verdicts are the
 # analyzer's job, not the battery's), 1 on a broken setup.
@@ -45,6 +51,25 @@ if ! command -v "$BIN" >/dev/null 2>&1; then
         exit 1
 fi
 BIN_ABS="$(command -v "$BIN")"
+
+# The privilege guard (night-dragon-fly-1, the owner's own sudo run
+# find): the non-root battery's safety contract — zero enforcement
+# state touched — leans on the binary's root gate to keep the apply
+# cases inert. Under sudo the gate stands open, so C09/D55/D59/D62/
+# D64/D79 enforce for real and the battery exits leaving the state
+# behind (measured: a 45-cgroup fleet limit at 500kb that outlived
+# the run, cleanup rides RUN_ROOT=1's trap alone). euid=0 without
+# RUN_ROOT=1 is therefore never a supported shape: refuse, and say
+# which lane owns which cleanup.
+if [ "$(id -u)" = "0" ] && [ "$RUN_ROOT" != "1" ]; then
+        echo "battery: euid=0 without RUN_ROOT=1 — refusing to run."
+        echo "  The non-root lanes assume the root gate closes them; under sudo the"
+        echo "  apply cases (C09/D55/D59/D62/D64/D79) enforce for real and nothing in"
+        echo "  this battery tears the state down afterwards."
+        echo "  Re-run without sudo, or set RUN_ROOT=1 for the root lane, which owns"
+        echo "  its own unstrict --all cleanup at exit."
+        exit 1
+fi
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
