@@ -55,26 +55,44 @@ const LEGACY_STATE_FILE: &str = "/var/lib/zelynic/limits.json";
 /// verdict, line 2 the follow-up with both runnable commands wrapped
 /// in the green tier. Pure so the exact wording — including the
 /// 'or' the owner specced — is a contract, not an accident.
+///
+/// night-cafe-1 (F15): `resolved_line` books the rows the apply just
+/// wrote ("limited cg:8981 (alacritty)", grey — facts, not commands)
+/// between the verdict and the follow-up, the state-changing side's
+/// half of the naming asymmetry (status and unstrict name labels;
+/// the apply named only the typed spelling). Empty keeps the
+/// de-noised two-line contract — the multi/sweep lanes pass empty
+/// (their per-target naming is the probe report's job; a 45-cgroup
+/// roster re-print was the noise improve-30 cut).
 #[cfg(feature = "ebpf")]
 #[must_use]
-pub(crate) fn apply_success_lines(unstrict_cmd: &str, action: &str) -> [String; 2] {
-    [
-        crate::output::ok("OK."),
-        format!(
-            "Run '{}' to {action}, or '{}' to check.",
-            crate::output::ok(unstrict_cmd),
-            crate::output::ok("zelynic status")
-        ),
-    ]
+pub(crate) fn apply_success_lines(
+    unstrict_cmd: &str,
+    action: &str,
+    resolved_line: &str,
+) -> Vec<String> {
+    let mut lines = Vec::with_capacity(3);
+    lines.push(crate::output::ok("OK."));
+    if !resolved_line.is_empty() {
+        lines.push(crate::output::grey(resolved_line));
+    }
+    lines.push(format!(
+        "Run '{}' to {action}, or '{}' to check.",
+        crate::output::ok(unstrict_cmd),
+        crate::output::ok("zelynic status")
+    ));
+    lines
 }
 
 /// Print the apply-verb success epilogue (NIGHT-improve-28): green
 /// "OK." on its own line, then the follow-up commands in green —
 /// `action` names what the unstrict form does ("remove" for the
 /// strict family, "restore access" for the block family).
+/// `resolved_line` (night-cafe-1, F15) books the resolved rows the
+/// apply just wrote; empty keeps the two-line shape.
 #[cfg(feature = "ebpf")]
-pub(crate) fn apply_success_epilogue(unstrict_cmd: &str, action: &str) {
-    for line in apply_success_lines(unstrict_cmd, action) {
+pub(crate) fn apply_success_epilogue(unstrict_cmd: &str, action: &str, resolved_line: &str) {
+    for line in apply_success_lines(unstrict_cmd, action, resolved_line) {
         eprintln_safe!("{line}");
     }
 }
