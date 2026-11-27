@@ -5,10 +5,11 @@
 //! subordinate line's own pin family — split from display_tests.rs
 //! when night-verify-final's v33 measured shapes grew the wording
 //! pins past the 600-LOC owner cap (the sibling-split lineage, one
-//! family over). The wording contract ("RECWN window: <window>
-//! (binding across <N> download <policy/policies>; est./measured RTT
-//! <rtt>)" — the line says WHAT the number is, HOW MANY policies it
-//! binds, and WHICH rtt the derivation rode), the grey family, and
+//! family over). The wording contract ("RECWN window: <window> ·
+//! <N> <policy/policies> · est./measured RTT <rtt>" — the compact
+//! voice night-cafe-1 F8 landed: the same three facts inside every
+//! cut budget, the measured value never eaten by the frame law's
+//! ellipsis), the grey family, and
 //! the dormant silence when the lane shapes no window (the
 //! dormant-watchdog honesty).
 
@@ -24,8 +25,8 @@ fn recwn_line_pins_the_owner_wording_and_stays_silent_when_unshaping() {
             measured_srtt_us: None,
         })
         .unwrap(),
-        "  RECWN window: 20.0 KB (binding across 1 download policy; est. RTT 200ms)",
-        "the 100 kb/s policy's own line, wording and window"
+        "  RECWN window: 20.0 KB \u{b7} 1 policy \u{b7} est. RTT 200ms",
+        "the 100 kb/s policy's own line, wording and window (the compact voice, F8)"
     );
     assert_eq!(
         recwn_line(&RecwnLane {
@@ -35,7 +36,7 @@ fn recwn_line_pins_the_owner_wording_and_stays_silent_when_unshaping() {
             measured_srtt_us: None,
         })
         .unwrap(),
-        "  RECWN window: 1.0 MB (binding across 3 download policies; est. RTT 200ms)",
+        "  RECWN window: 1.0 MB \u{b7} 3 policies \u{b7} est. RTT 200ms",
         "the ceiling's own tier, the multi-policy plural"
     );
     // night-verify-final (schema v33): a binding policy whose stats
@@ -50,7 +51,7 @@ fn recwn_line_pins_the_owner_wording_and_stays_silent_when_unshaping() {
             measured_srtt_us: Some(300_104),
         })
         .unwrap(),
-        "  RECWN window: 30.0 KB (binding across 1 download policy; measured RTT 300ms)",
+        "  RECWN window: 30.0 KB \u{b7} 1 policy \u{b7} measured RTT 300ms",
         "the measured extension names its own rtt"
     );
     // night-frontier hardening (the live session's honesty pass):
@@ -68,7 +69,7 @@ fn recwn_line_pins_the_owner_wording_and_stays_silent_when_unshaping() {
             measured_srtt_us: Some(24_000),
         })
         .unwrap(),
-        "  RECWN window: 20.0 KB (binding across 1 download policy; measured RTT 24ms (window at the 200ms floor))",
+        "  RECWN window: 20.0 KB \u{b7} 1 policy \u{b7} measured RTT 24ms (200ms floor)",
         "the live-session shape: a real 24 ms sample the floor outshouted, named"
     );
     assert_eq!(
@@ -79,7 +80,7 @@ fn recwn_line_pins_the_owner_wording_and_stays_silent_when_unshaping() {
             measured_srtt_us: Some(102),
         })
         .unwrap(),
-        "  RECWN window: 20.0 KB (binding across 1 download policy; measured RTT <1ms (window at the 200ms floor))",
+        "  RECWN window: 20.0 KB \u{b7} 1 policy \u{b7} measured RTT <1ms (200ms floor)",
         "a sub-millisecond sample renders <1ms, never a fabricated 0"
     );
     // The dormant shapes: not planted, or planted with no window to
@@ -106,4 +107,31 @@ fn recwn_line_pins_the_owner_wording_and_stays_silent_when_unshaping() {
     // of the kernel core's 200 ms cadence estimate (the E2E-evidence
     // constant, ebpf/src/recwn.rs's doc owns the record).
     assert_eq!(RECWN_RTT_ESTIMATE_US, 200_000);
+}
+
+/// night-cafe-1 (F8): the line's worst case fits the owner's
+/// 80-column budget WHOLE — the old parenthetical voice ran past
+/// every cut budget at a real fleet (R04/R12: "measured RTT …" was
+/// exactly the payload the ellipsis ate). The compact voice carries
+/// the same three facts inside the budget, so the frame law never
+/// cuts the line that exists to name the measurement.
+#[test]
+fn recwn_line_worst_case_fits_the_80_column_budget() {
+    use crate::output::display_width;
+    let widest = recwn_line(&RecwnLane {
+        planted: true,
+        window_bytes: Some(999_950_000),
+        binding_policies: 1024,
+        measured_srtt_us: Some(102),
+    })
+    .expect("a planted lane with a window prints");
+    let width = display_width(&widest);
+    assert!(
+        width <= 80,
+        "the worst case fits the classic budget whole, got {width}: {widest}"
+    );
+    assert!(
+        widest.contains("measured RTT <1ms (200ms floor)"),
+        "the payload lands inside the budget, got: {widest}"
+    );
 }
