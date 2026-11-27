@@ -309,6 +309,35 @@ pub(crate) fn seed_forced_color_mode() {
     }
 }
 
+/// The version REQUEST predicate (night-cafe-1, F7): `-V`/`--version`
+/// parse at every level (the root's global flag, root.rs's own doc),
+/// but a verb with required positionals (strict, block, eagle-eyes)
+/// dies `MissingRequiredArgument` BEFORE main can read the parsed
+/// field — `zelynic s -V` rendered a usage error naming a
+/// `--version` flag the verb never declares, the documented
+/// every-level contract broken exactly where a verb takes a required
+/// positional. The help door's twin: the error is the
+/// missing-positional kind AND the raw argv carries the version
+/// token VERBATIM before any `--` (an escaped `-V` is a VALUE — the
+/// escape hatch turns every later token into one, the same
+/// no-proof-no-verdict law `subcommand_local_help` runs; a clustered
+/// short (`-vV`) is not a verbatim spelling and keeps the error).
+pub(crate) fn version_requested_in_argv(e: &clap::Error, argv: &[OsString]) -> bool {
+    if e.kind() != clap::error::ErrorKind::MissingRequiredArgument {
+        return false;
+    }
+    for arg in argv.iter().skip(1) {
+        if arg.as_os_str() == std::ffi::OsStr::new("--") {
+            return false; // nothing after -- is an option
+        }
+        match arg.to_str() {
+            Some("-V") | Some("--version") => return true,
+            _ => {}
+        }
+    }
+    false
+}
+
 // The argv-forensics pins live under the single test/ tree
 // (cosmostrix Pattern C), #[path]-wired exactly like the ux tests.
 #[cfg(test)]
