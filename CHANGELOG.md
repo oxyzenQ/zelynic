@@ -48,6 +48,34 @@ v80.0.0
 
 ### Added
 
+- **night-dragon-fly-1 rev 5: the --during promise is now visible
+  everywhere the state it governs is visible.** The battery's
+  D59/R17 find: a user who limits for 30mn could not see when the
+  row lifts itself — the apply report said nothing about the window,
+  and the status JSON document carried the window object but no
+  readable expiry. Three surfaces answer now: the apply epilogue
+  echoes the promise at the moment it is made ("window: lifts itself
+  at 2026-11-27 18:17:00 UTC (30mn)" — the operator's own spelling
+  of the duration beside the resolved instant, so a `30mn` promise
+  reads as 30 months the moment it lands; one grey line between the
+  resolved rows and the follow-up, present on the strict single,
+  list, and sweep lanes and the block single and list lanes, absent
+  on every --during-less apply so the pinned shapes keep their
+  bytes); the status JSON window object gains `during` (the
+  remaining lifetime in the flag's own compact grammar, counting
+  down against the document's snapshot instant, "0s" once expired)
+  and `expires_at_utc` (the end instant as ISO-8601, `jq`'s
+  `fromdateiso8601` parses it directly) on spans — daily windows
+  carry neither, no single expiry exists; and the human status
+  table's `window: until ... (X left)` lifetime line already kept
+  the live countdown (night-during, schema v23) — unchanged, the
+  echo and the document now speak its language. The wall-ns pair
+  stays the machine-precise form; the new fields ride the
+  additive contract (old consumers see the old shape). No map
+  layout changes and no schema VERSION bump: the pinned rows,
+  stats tails, and window rows are byte-identical, so an upgrade
+  keeps every active limit alive.
+
 - **night-cafe-4: the dual-license verification estate now asserts
   the disclosure itself, not a prefix of it.** The binary's `-V` /
   version report already speaks the full "License: AGPL-3.0-only OR

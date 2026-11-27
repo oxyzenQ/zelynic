@@ -17,8 +17,6 @@ use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::rate_ring::{RATE_RING_SLOTS, RingReads};
 use crate::ebpf::limiter::types::PolicyWindowRaw;
 use crate::ebpf::limiter::{LimiterStatsRaw, PolicyRaw, monotonic_ns, wall_now_ns};
-// wall_minus_mono/window_state: the window join's own vocabulary.
-use crate::ebpf::limiter::{wall_minus_mono, window_state};
 
 /// Print JSON status (for --print-json / scripting).
 ///
@@ -216,37 +214,6 @@ fn status_json(
     }
 }
 
-/// One row's window as JSON (night-during, schema v23 — the
-/// scripting surface): the kind, the STATE vocabulary the status
-/// pins own ("active" / "dormant" / "outside" / "expired"), and
-/// the shape's own fields — a span's WALL instants (ns since
-/// epoch, reconstructed through the same offset pair the twin
-/// uses; the monotonic deadlines a map row carries would be
-/// meaningless to a script and across reboots alike), a daily
-/// window's seconds-of-day pair.
-fn window_json(win: &PolicyWindowRaw, wall_now: u64, mono_now: u64) -> WindowJson {
-    let offset = wall_minus_mono(wall_now, mono_now);
-    let state = window_state(win, wall_now, mono_now);
-    match win.kind {
-        crate::ebpf::limiter::types::WINDOW_KIND_DAILY => WindowJson {
-            kind: "daily",
-            state,
-            start_wall_ns: None,
-            end_wall_ns: None,
-            start_s: Some(win.start_s),
-            end_s: Some(win.end_s),
-        },
-        _ => WindowJson {
-            kind: "span",
-            state,
-            start_wall_ns: Some(win.start_mono_ns.saturating_add(offset)),
-            end_wall_ns: Some(win.end_mono_ns.saturating_add(offset)),
-            start_s: None,
-            end_s: None,
-        },
-    }
-}
-
 /// The status document's writer law (S1, the hand-written lane): the
 /// shapes below are plain data — the derives are gone, and each
 /// `write_json` reproduces the exact wire contract the serde derive
@@ -257,8 +224,11 @@ fn window_json(win: &PolicyWindowRaw, wall_now: u64, mono_now: u64) -> WindowJso
 // night-verify-final (schema v33): the recwn_limits object's own
 // file (the display_lines discipline — the parent rode the 600-LOC
 // owner cap when the v33 field joined; the type is re-imported so
-// every existing path rides unchanged).
+// every existing path rides unchanged). night-dragon-fly-1 rev 5:
+// the limit-entry window object rides its own sibling the same way
+// (the visibility pair grew the parent past the cap again).
 use super::display_json_recwn::RecwnLimitsJson;
+use super::display_json_window::{WindowJson, window_json};
 
 impl StatusJson {
     fn write_json(&self, out: &mut String) {
@@ -383,37 +353,6 @@ impl LimitEntry {
     }
 }
 
-impl WindowJson {
-    fn write_json(&self, out: &mut String) {
-        use crate::json::write::{write_number, write_string};
-
-        out.push_str("{\"kind\":");
-        write_string(out, self.kind);
-        out.push_str(",\"state\":");
-        write_string(out, self.state);
-        // SPAN rides the wall instants, DAILY the seconds-of-day —
-        // the other pair is honestly absent (the derive's
-        // Option::is_none branches).
-        if let Some(start) = self.start_wall_ns {
-            out.push_str(",\"start_wall_ns\":");
-            write_number(out, start);
-        }
-        if let Some(end) = self.end_wall_ns {
-            out.push_str(",\"end_wall_ns\":");
-            write_number(out, end);
-        }
-        if let Some(start) = self.start_s {
-            out.push_str(",\"start_s\":");
-            write_number(out, start);
-        }
-        if let Some(end) = self.end_s {
-            out.push_str(",\"end_s\":");
-            write_number(out, end);
-        }
-        out.push('}');
-    }
-}
-
 #[derive(Debug, Clone)]
 struct LimitEntry {
     cgroup_id: u32,
@@ -495,24 +434,6 @@ struct LimitEntry {
     /// absent when the row carries none — the additive-field rule
     /// the rate_ring join set.
     window: Option<WindowJson>,
-}
-
-/// One row's window (see [`LimitEntry::window`]).
-#[derive(Debug, Clone)]
-struct WindowJson {
-    /// "span" or "daily".
-    kind: &'static str,
-    /// "active", "dormant", "outside", or "expired" (the state
-    /// vocabulary the status pins own).
-    state: &'static str,
-    /// SPAN: inclusive start, wall ns since epoch. DAILY: absent.
-    start_wall_ns: Option<u64>,
-    /// SPAN: exclusive end, wall ns since epoch. DAILY: absent.
-    end_wall_ns: Option<u64>,
-    /// DAILY: window start, seconds-of-day UTC. SPAN: absent.
-    start_s: Option<u32>,
-    /// DAILY: window end, seconds-of-day UTC. SPAN: absent.
-    end_s: Option<u32>,
 }
 
 #[derive(Debug, Clone)]

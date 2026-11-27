@@ -47,9 +47,14 @@ pub(super) const NS_PER_DAY: u64 = 86_400 * NS_PER_SEC;
 
 /// One parsed --during argument. The parse is PURE (no clock read)
 /// and yields ONLY the duration shape — the flag's one shape since
-/// the owner's duration-only revision. The restore lane's
-/// Span/Daily re-translation vocabulary went with the snapshot
-/// pair when NIGHT-improve-55 retired the feature whole (the
+/// the owner's duration-only revision. `raw` is the spelling the
+/// operator typed (night-dragon-fly-1 rev 5): the apply epilogue's
+/// window echo repeats the operator's own words beside the resolved
+/// instant, so a `30mn` acceptance reads as 30 MONTHS the moment it
+/// lands — the mn/months trap the grammar's refusals teach, made
+/// self-evident at acceptance time (the manual's H3 question). The
+/// restore lane's Span/Daily re-translation vocabulary went with the
+/// snapshot pair when NIGHT-improve-55 retired the feature whole (the
 /// legacy span/daily MAP rows an older build pinned are honored at
 /// the window_active/window_state level, never re-translated
 /// through this enum).
@@ -58,7 +63,27 @@ pub enum DuringSpec {
     /// `--during 2h` — from the apply instant; translated to a span
     /// at write time. The flag's only shape (the owner's
     /// duration-only revision).
-    Duration { ns: u64 },
+    Duration { ns: u64, raw: String },
+}
+
+impl DuringSpec {
+    /// The spec's duration in nanoseconds (night-dragon-fly-1 rev
+    /// 5: the apply epilogue's window echo and the JSON document's
+    /// `during` field read through this one door, so a future
+    /// grammar shape lands in one place).
+    pub fn duration_ns(&self) -> u64 {
+        match self {
+            DuringSpec::Duration { ns, .. } => *ns,
+        }
+    }
+
+    /// The spelling the operator typed (trimmed) — the window
+    /// echo's duration half, the operator's own words back.
+    pub fn raw_spelling(&self) -> &str {
+        match self {
+            DuringSpec::Duration { raw, .. } => raw,
+        }
+    }
 }
 
 /// The grammar error's did-you-mean block, shared by every parse
@@ -156,7 +181,10 @@ fn parse_duration(s: &str) -> Result<DuringSpec> {
              rounds to \"not limited\""
         );
     }
-    Ok(DuringSpec::Duration { ns })
+    Ok(DuringSpec::Duration {
+        ns,
+        raw: s.to_string(),
+    })
 }
 
 /// The inverse: civil date for days since epoch (Hinnant's

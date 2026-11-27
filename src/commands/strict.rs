@@ -320,10 +320,22 @@ fn handle_strict_single(
         .iter()
         .map(|id| limiter.cgroup_label(*id))
         .collect();
+    // The window echo (night-dragon-fly-1 rev 5): the --during promise
+    // named at the moment it is made — the row lifts itself at the
+    // echoed instant, the kernel tears it down, no status visit
+    // needed to learn when (the battery's D59/R17 find).
+    let window_line = during_spec.as_ref().map(|spec| {
+        crate::ebpf::display::window_apply_echo(
+            spec.duration_ns(),
+            spec.raw_spelling(),
+            crate::ebpf::limiter::wall_now_ns(),
+        )
+    });
     super::apply_success_epilogue(
         &format!("zelynic unstrict {target_str}"),
         "remove",
         &format!("limited {}", labels.join(", ")),
+        window_line.as_deref(),
     );
     if let Some(outcome) = &probe_outcome {
         for line in probe_report::report_lines(outcome) {
@@ -516,8 +528,22 @@ fn handle_strict_multi(
     // NIGHT-improve-28: the list form suggests the list unstrict —
     // 'zelynic unstrict brave::curl' does not split lists without
     // the '::' separator (the old suggestion was advice that could
-    // not round-trip).
-    super::apply_success_epilogue(&format!("zelynic unstrict {targets_str}"), "remove", "");
+    // not round-trip). The window echo rides the list lane too — one
+    // translated window covers every member (the group's own
+    // contract, the --during shape).
+    let window_line = during_spec.as_ref().map(|spec| {
+        crate::ebpf::display::window_apply_echo(
+            spec.duration_ns(),
+            spec.raw_spelling(),
+            crate::ebpf::limiter::wall_now_ns(),
+        )
+    });
+    super::apply_success_epilogue(
+        &format!("zelynic unstrict {targets_str}"),
+        "remove",
+        "",
+        window_line.as_deref(),
+    );
     if let Some(outcome) = &probe_outcome {
         for line in probe_report::report_lines(outcome) {
             eprintln_safe!("{line}");

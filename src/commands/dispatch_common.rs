@@ -70,11 +70,20 @@ pub(crate) fn apply_success_lines(
     unstrict_cmd: &str,
     action: &str,
     resolved_line: &str,
+    window_line: Option<&str>,
 ) -> Vec<String> {
-    let mut lines = Vec::with_capacity(3);
+    let mut lines = Vec::with_capacity(4);
     lines.push(crate::output::ok("OK."));
     if !resolved_line.is_empty() {
         lines.push(crate::output::grey(resolved_line));
+    }
+    // The window echo (night-dragon-fly-1 rev 5): the apply's own
+    // --during promise, named at the moment it is made — between the
+    // resolved rows and the follow-up, the property of the rows just
+    // written. Absent on every apply without --during: the three-line
+    // shapes the battery pins keep their bytes.
+    if let Some(line) = window_line {
+        lines.push(crate::output::grey(line));
     }
     lines.push(format!(
         "Run '{}' to {action}, or '{}' to check.",
@@ -89,10 +98,19 @@ pub(crate) fn apply_success_lines(
 /// `action` names what the unstrict form does ("remove" for the
 /// strict family, "restore access" for the block family).
 /// `resolved_line` (night-cafe-1, F15) books the resolved rows the
-/// apply just wrote; empty keeps the two-line shape.
+/// apply just wrote; empty keeps the two-line shape. `window_line`
+/// (night-dragon-fly-1 rev 5) books the apply's --during promise —
+/// the wall instant the row lifts itself and the duration, the one
+/// grey line between the rows and the follow-up; `None` on every
+/// apply without --during.
 #[cfg(feature = "ebpf")]
-pub(crate) fn apply_success_epilogue(unstrict_cmd: &str, action: &str, resolved_line: &str) {
-    for line in apply_success_lines(unstrict_cmd, action, resolved_line) {
+pub(crate) fn apply_success_epilogue(
+    unstrict_cmd: &str,
+    action: &str,
+    resolved_line: &str,
+    window_line: Option<&str>,
+) {
+    for line in apply_success_lines(unstrict_cmd, action, resolved_line, window_line) {
         eprintln_safe!("{line}");
     }
 }

@@ -22,6 +22,8 @@ mod display_json_recwn;
 #[cfg(feature = "ebpf")]
 mod display_json_ring;
 #[cfg(feature = "ebpf")]
+mod display_json_window;
+#[cfg(feature = "ebpf")]
 mod display_lines;
 // night-verify-final (schema v33): the RECWN lane's derivation and
 // line, split out of display.rs at the 600-LOC owner cap (the
