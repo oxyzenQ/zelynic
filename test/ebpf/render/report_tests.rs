@@ -560,3 +560,32 @@ fn hist_sentence_srtt_quantiles_stay_sub_second_honest() {
         "no srtt quantile may truncate to 0s, got: {line}"
     );
 }
+
+/// night-cafe-1 (F16): the rss cell renders format_bytes' full
+/// one-decimal shape — 8 columns, the formatter's own ceiling
+/// ("999.9 MB") — never the unit-eating "121.5 …" the 7-column cell
+/// produced. A cell that exists to carry a memory figure carries the
+/// unit too.
+#[test]
+fn census_rss_cell_carries_its_unit() {
+    let mut report = report_fixture(Enforcement::Unlimited);
+    // 121.5 MB = 121,500,000 bytes = 118,652 KiB (the walk's unit).
+    if let Some(p) = report.depth.procs.first_mut() {
+        p.rss_kb = 118_652;
+    }
+    let lines = depth_report_lines(&[report], 110);
+    let row = lines
+        .join("\n")
+        .lines()
+        .find(|l| l.contains("cat-test") && l.contains("binary"))
+        .expect("the census row renders")
+        .to_string();
+    assert!(
+        row.contains("121.5 MB"),
+        "the one-decimal shape and its unit ride whole, got: {row}"
+    );
+    assert!(
+        !row.contains("121.5 \u{2026}"),
+        "the unit is never eaten by the cell, got: {row}"
+    );
+}
