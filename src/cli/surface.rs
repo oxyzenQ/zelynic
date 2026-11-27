@@ -5,32 +5,41 @@ use clap::Subcommand;
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Limit an app's network speed — one target, a shared group, or
-    /// the whole fleet
+    // The operator-facing voice (night-cafe-1, F10 — the owner's
+    // call): the long help speaks plain operator English (the
+    // eagle-eyes surface's own voice) and the example rails keep
+    // their line structure (verbatim_doc_comment — clap no longer
+    // re-wraps the block into one paragraph). The lineage lives here
+    // and in docs/tests, never in the operator's terminal:
+    // NIGHT-improve-53 (the masterclass unification) made
+    // strict-single and strict-multi ONE verb — the single ':' stays
+    // INSIDE a target (the cg: display prefix, the container URIs
+    // docker://nginx and k8s://prod/web-abc), which is exactly why
+    // the list separator doubles it. NIGHT-improve-54 merged the
+    // strict-all verb into the --all lane.
+    /// Limit an app's network speed — one target, a shared group, or the whole fleet
     ///
-    /// NIGHT-improve-53 (the masterclass unification): strict-single
-    /// and strict-multi are ONE verb. The single ':' stays INSIDE a
-    /// target (the cg: display prefix, the container URIs
-    /// docker://nginx and k8s://prod/web-abc) — which is exactly why
-    /// the list separator doubles it. The target grammar picks the
-    /// lane:
-    /// - one target (brave, cg:73386, docker://nginx): the single
+    /// The target picks the lane:
+    ///
+    ///   one target (brave, cg:73386, docker://nginx) — the single
     ///   lane, --per-socket's per-connection shape included
-    /// - a '::' list (brave::steam::discord): the group lane — one
+    ///
+    ///   a '::' list (brave::steam::discord) — the group lane, one
     ///   shared bucket for every member
-    /// - --all (NIGHT-improve-54): the sweep lane — the former
-    ///   strict-all verb, every user app at one rate
+    ///
+    ///   --all — the sweep lane, every user app at one rate
     ///
     /// Examples:
-    ///   zelynic strict brave 100kb                    # both dl+ul = 100kb
-    ///   zelynic strict brave -d 100kb -u 500kb        # per-direction
-    ///   zelynic strict brave::steam::discord 100kb    # a group sharing one rate
-    ///   zelynic s cg:1234::1245 100kb                 # cgroup ids, list form
-    ///   zelynic s docker://nginx 100kb                # container target
-    ///   zelynic strict nginx 500kb --per-socket       # each connection 500kb
-    ///   zelynic s --all 500kb                         # the sweep (see Pro mode)
-    ///   zelynic s brave 100kb                         # short alias form
-    #[command(name = "strict", alias = "s")]
+    ///
+    ///   zelynic strict brave 100kb                   both dl+ul = 100kb
+    ///   zelynic strict brave -d 100kb -u 500kb       per-direction
+    ///   zelynic strict brave::steam::discord 100kb   a group sharing one rate
+    ///   zelynic s cg:1234::1245 100kb                cgroup ids, list form
+    ///   zelynic s docker://nginx 100kb               container target
+    ///   zelynic strict nginx 500kb --per-socket      each connection 500kb
+    ///   zelynic s --all 500kb                        the sweep
+    ///   zelynic s brave 100kb                        short alias form
+    #[command(name = "strict", alias = "s", verbatim_doc_comment)]
     Strict {
         /// Target: a process name (brave), cgroup ID (73386 or
         /// cg:73386 — the display prefix round-trips), or container
@@ -53,44 +62,46 @@ pub enum Commands {
         #[arg(short = 'u', long = "upload")]
         upload: Option<String>,
 
+        // NIGHT-improve-54 lineage: the fleet sweep lane (the former
+        // strict-all verb) — the codename stays in code, the help
+        // speaks operator English (the F10 voice law).
         /// The fleet sweep: limit EVERY user app from list-apps at
-        /// one rate — the former strict-all verb, now a lane of this
-        /// one (system apps stay behind --force-this's guard by
+        /// one rate (system apps stay behind --force-this's guard by
         /// default).
-        ///
-        /// NIGHT-improve-54: the fleet sweep lane (the former
-        /// strict-all verb).
         #[arg(long = "all")]
         all: bool,
 
+        // NIGHT-improve-30 lineage: the former --allow-dangerous
+        // (rate bounds) and --force (blocklist) pair is ONE flag —
+        // the codename stays in code, the help speaks operator
+        // English.
         /// Override every safety guard: rates below 1kb and the
-        /// dangerous/system target blocklist (root, systemd, ...)
-        ///
-        /// NIGHT-improve-30: the former `--allow-dangerous` (rate
-        /// bounds) and `--force` (blocklist) pair is ONE flag — one
-        /// spelling for "I know, force this".
+        /// dangerous/system target blocklist (root, systemd, ...).
+        /// The retired --allow-dangerous and --force spellings land
+        /// here — one spelling for "I know, force this".
         #[arg(long = "force-this")]
         force_this: bool,
 
+        // charger-core-1-b lineage (the self-proving enforcement);
+        // NIGHT-hunt-30 measured the parity find; NIGHT-improve-54
+        // renamed the flag --no-test (the former --no-probe spelling
+        // redirects here). The codenames stay in code.
         /// Skip the post-apply enforcement test
         ///
-        /// charger-core-1-b (the self-proving enforcement): the
-        /// apply is verified with a short measured loopback flow
+        /// The apply is verified with a short measured loopback flow
         /// (~3s, the VERIFIED verdict) — this flag keeps the
         /// apply-only shape for scripted use. The test rides every
-        /// lane (the list lane measures the first member —
-        /// NIGHT-hunt-30's parity find; the sweep measures the first
-        /// applied app, standing down honestly when saturated).
-        /// NIGHT-improve-54: the flag is --no-test (the former
-        /// --no-probe spelling redirects here).
+        /// lane (the list lane measures the first member; the sweep
+        /// measures the first applied app, standing down honestly
+        /// when saturated). The retired --no-probe spelling
+        /// redirects here.
         #[arg(long = "no-test")]
         no_test: bool,
 
-        // night-cafe-1 (F12): the sweep's refusal — the flag rides
-        // nowhere it cannot shape, never a silent no-op. The stance
-        // joins the operator-facing help below (the voice law F10
-        // lands: the lineage lives here, the help speaks operator
-        // English).
+        // charger-core-3b lineage: the per-socket enforcement shape.
+        // NIGHT-improve-53: the list lane's routing law. The voice
+        // law F10 lands: the lineage lives here, the help speaks
+        // operator English.
         /// Enforce per SOCKET, not per cgroup: every connection
         /// gets its own bucket at the rate — the server shape (one
         /// process, many sockets; the cgroup total is rate x
@@ -99,21 +110,17 @@ pub enum Commands {
         /// there (the list lane's routing law); the --all sweep is
         /// refused too — one group row per app, no per-connection
         /// shape fleet-wide.
-        ///
-        /// charger-core-3b: the per-socket enforcement shape.
-        /// NIGHT-improve-53: the list lane's routing law.
         #[arg(long = "per-socket")]
         per_socket: bool,
 
+        // night-during (schema v23) lineage: the owner's duration-only
+        // revision — the codename stays in code.
         /// Auto-expire this row: `--during 2h` — a duration from
         /// the apply instant (units s, m, h, d, mn, y; bounds
         /// 1s..5y). After the duration the row lifts itself.
         ///
         /// The KERNEL decides when the window is over — no daemon,
         /// no cron; every zelynic visit re-stamps the clock bridge.
-        ///
-        /// night-during, schema v23: the owner's duration-only
-        /// revision.
         #[arg(long = "during", value_name = "DURATION")]
         during: Option<String>,
 
@@ -124,9 +131,9 @@ pub enum Commands {
         /// A PRIORITY, not a reservation: idle leaves lend their
         /// unspent share back (the pool's own accumulation is the
         /// lender). Over-subscribed floors degrade gracefully to
+        // improve-40 (schema v24) lineage: the per-leaf bracket
+        // family — the codename stays in code (the F10 voice law).
         /// the fair split (the pool never creates budget).
-        ///
-        /// improve-40, schema v24: the per-leaf bracket family.
         #[arg(long = "floor", value_name = "RATE")]
         floor: Option<String>,
 
@@ -136,39 +143,36 @@ pub enum Commands {
         ///
         /// Binds even a lone subprocess (a cap that folds when
         /// siblings appear is not a cap); the banking bound
+        // improve-40 (schema v24) lineage: the per-leaf bracket
+        // family — the codename stays in code (the F10 voice law).
         /// tightens to the ceiling's own quantum.
-        ///
-        /// improve-40, schema v24: the per-leaf bracket family.
         #[arg(long = "ceil", value_name = "RATE")]
         ceil: Option<String>,
 
         /// Per-DOWNLOAD spelling of --floor: `--floor-download
         /// 100kb` brackets only the download row. `--floor` sets
         /// both; the two spellings refuse together.
-        ///
-        /// improve-40-b: the asymmetric link spellings.
+        // improve-40-b lineage: the asymmetric link spellings — the
+        // codename stays in code (the F10 voice law).
         #[arg(long = "floor-download", value_name = "RATE")]
         floor_download: Option<String>,
 
         /// Per-UPLOAD spelling of --floor: `--floor-upload 50kb`
         /// brackets only the upload row.
-        ///
-        /// improve-40-b: the asymmetric link spellings.
+        // improve-40-b lineage: the asymmetric link spellings.
         #[arg(long = "floor-upload", value_name = "RATE")]
         floor_upload: Option<String>,
 
         /// Per-DOWNLOAD spelling of --ceil: `--ceil-download 300kb`
         /// caps only the download row. `--ceil` caps both; the two
         /// spellings refuse together.
-        ///
-        /// improve-40-b: the asymmetric link spellings.
+        // improve-40-b lineage: the asymmetric link spellings.
         #[arg(long = "ceil-download", value_name = "RATE")]
         ceil_download: Option<String>,
 
         /// Per-UPLOAD spelling of --ceil: `--ceil-upload 200kb`
         /// caps only the upload row.
-        ///
-        /// improve-40-b: the asymmetric link spellings.
+        // improve-40-b lineage: the asymmetric link spellings.
         #[arg(long = "ceil-upload", value_name = "RATE")]
         ceil_upload: Option<String>,
     },
