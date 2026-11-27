@@ -51,7 +51,6 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
-import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -89,7 +88,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="active-address floor; below it the lane warns (0 disables)",
     )
     parser.add_argument("--attempts", type=int, default=2, help="probe attempts per address")
-    parser.add_argument("--connect-timeout", type=float, default=4.0, help="TCP-kind connect timeout s (HTTP probes ride the total timeout)")
+    parser.add_argument(
+        "--connect-timeout",
+        type=float,
+        default=4.0,
+        help="TCP-kind connect timeout s (HTTP probes ride the total timeout)",
+    )
     parser.add_argument("--total-timeout", type=float, default=15.0, help="whole-request timeout s")
     parser.add_argument("--workers", type=int, default=8, help="concurrent probes")
     parser.add_argument(
@@ -132,9 +136,14 @@ def refresh_one(
     entries = parse_catalog(original)
     banner = "AXP1-ZnQ (Architect's eXecution Protocol 1) refresher"
     if not entries:
-        return {"path": path, "changed": False, "critical": True, "wrote": False,
-                "warn": False,
-                "summary": f"{banner}: {path.name} carries no active address - CALL THE OWNER"}
+        return {
+            "path": path,
+            "changed": False,
+            "critical": True,
+            "wrote": False,
+            "warn": False,
+            "summary": f"{banner}: {path.name} carries no active address - CALL THE OWNER",
+        }
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=min(args.workers, len(entries))) as pool:
         futures = {
@@ -149,17 +158,26 @@ def refresh_one(
             ): entry
             for entry in entries
         }
-        verdicts = {futures[future]: future.result() for future in concurrent.futures.as_completed(futures)}
+        verdicts = {
+            futures[future]: future.result() for future in concurrent.futures.as_completed(futures)
+        }
 
     alive = sum(1 for r in verdicts.values() if r.verdict == VERDICT_PASS)
     stale = sum(1 for r in verdicts.values() if r.verdict not in (VERDICT_PASS, VERDICT_DOWN))
     down = sum(1 for r in verdicts.values() if r.verdict == VERDICT_DOWN)
 
     if alive == 0:
-        return {"path": path, "changed": False, "critical": True, "wrote": False,
-                "warn": False,
-                "summary": (f"{banner}: {path.name} 0 alive of {len(entries)} probed "
-                            f"({down} down, {stale} stale) - catalog untouched, CALL THE OWNER")}
+        return {
+            "path": path,
+            "changed": False,
+            "critical": True,
+            "wrote": False,
+            "warn": False,
+            "summary": (
+                f"{banner}: {path.name} 0 alive of {len(entries)} probed "
+                f"({down} down, {stale} stale) - catalog untouched, CALL THE OWNER"
+            ),
+        }
 
     new_lines = []
     for raw in original.splitlines():
@@ -190,8 +208,14 @@ def refresh_one(
     if changed and not args.dry_run:
         path.write_text(new_text, encoding="utf-8")
         wrote = True
-    return {"path": path, "changed": changed, "critical": False, "wrote": wrote,
-            "warn": warn, "summary": summary}
+    return {
+        "path": path,
+        "changed": changed,
+        "critical": False,
+        "wrote": wrote,
+        "warn": warn,
+        "summary": summary,
+    }
 
 
 def main() -> int:

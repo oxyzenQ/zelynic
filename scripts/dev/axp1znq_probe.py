@@ -44,8 +44,8 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
-from email.utils import parsedate_to_datetime
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import List, Optional
 
 VERDICT_PASS = "PASS"
