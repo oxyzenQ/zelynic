@@ -136,7 +136,12 @@ fn status_json(
             let split = (d.download != d.upload).then_some((d.download, d.upload));
             LimitEntry {
                 cgroup_id: d.cgroup_id,
-                label: identity.status_label(d.cgroup_id),
+                // night-dragon-fly-1: the machine field rides the
+                // full-fidelity twin (night-cafe-1 F1's law, extended
+                // to the surface F1 missed) — the uncapped enriched
+                // name a script matches verbatim; the human table
+                // keeps the display cap through status_label.
+                label: identity.status_label_full(d.cgroup_id),
                 download_bytes_per_sec: d.dl_bps,
                 upload_bytes_per_sec: d.ul_bps,
                 download_per_socket: d.dl_per_socket,
