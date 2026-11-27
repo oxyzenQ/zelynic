@@ -3,7 +3,8 @@
 
 # night-solid-defense-1 (the zejtron production line, ported): this
 # lane is the owner's security supply-chain sentinel — the AXP1-ZnQ
-# bot. Its default function is still the dependency sweep (the
+# (Architect's eXecution Protocol 1) bot. Its default function is
+# still the dependency sweep (the
 # night-zen-1/night-deps-1 walk), and wrapped around that sweep now
 # rides the supply-chain verdict
 # (scripts/ci/supplychain-verdict.sh): a pre-pass scans every

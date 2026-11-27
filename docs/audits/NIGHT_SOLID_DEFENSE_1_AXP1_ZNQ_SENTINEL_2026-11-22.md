@@ -8,7 +8,8 @@
 
 Date: 2026-11-22. Session scope: the owner's maintenance CI (whose
 default function is the dependency update) becomes a security
-supply-chain smart bot named **AXP1-ZnQ** — a Sunday-morning sentinel
+supply-chain smart bot named **AXP1-ZnQ** (Architect's eXecution
+Protocol 1) — a Sunday-morning sentinel
 that detects CVE-critical, vulnerable, unmaintained, unsound, and
 yanked dependencies, and separates the owner's two scenarios: the
 finding the sweep CAN fix (update now, the fix ships) and the finding

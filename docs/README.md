@@ -53,6 +53,7 @@ question well, and this page says which.
 | [SAFETY_ANALYSIS.md](SAFETY_ANALYSIS.md) | Malware-question analysis, crash behavior, pin cleanup, recovery |
 | [STABILITY.md](STABILITY.md) | The dated nightly eBPF toolchain pin and the LTS reasoning |
 | [DEPENDENCY_AUDIT.md](DEPENDENCY_AUDIT.md) | Supply-chain posture: why each dependency exists, deny.toml policy |
+| [AXP1-ZnQ.md](AXP1-ZnQ.md) | The maintenance bot's one protocol (AXP1-ZnQ — Architect's eXecution Protocol 1): no CI lane marries a hardcoded server again — the repos-for-ci tested address pool, the failover resolver the CI seats walk, the Sunday refresher's write law, and the wired seats |
 | [SANDBOX.md](SANDBOX.md) | The local KVM micro-VM for root testing without touching the host |
 
 ## Performance & Validation

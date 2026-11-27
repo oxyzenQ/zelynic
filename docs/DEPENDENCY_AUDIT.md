@@ -451,7 +451,8 @@ take a scan scope, not a level):
 
 Together with night-supply-1 the chain is: name tripwires (the nine
 bans), post-merge DB scans (all four lockfiles — per-push, plus the
-Sunday AXP1-ZnQ sentinel verdict that wraps the dependency sweep),
+Sunday AXP1-ZnQ (Architect's eXecution Protocol 1) sentinel verdict
+that wraps the dependency sweep),
 pre-merge delta review (every PR), and re-resolution defenses (yanked
 deny, wildcards deny). A repeat of the 2026-08-20 incident class now
 has to cross four independent gates, not one.
