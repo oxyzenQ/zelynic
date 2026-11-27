@@ -1,3 +1,8 @@
+<!--
+  SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+  SPDX-License-Identifier: AGPL-3.0-only OR Commercial
+-->
+
 # NIGHT-DRAGON-FLY-1 — CLI UX end-to-end audit verdict (capture of 2026-11-27)
 
 Source of truth: the owner's 154-case capture battery
@@ -147,3 +152,21 @@ Rebuild from current `main`, re-run
 the Class A cells plus R05/R07 (full labels), R15 (both legs) and
 D73/D74 (hard bounds refusals) to flip. The manual's D71-D74
 expectation cell is already updated to the new law.
+
+<!-- ZELYNIC-DISCLAIMER -->
+<!--
+  Documentation Disclaimer — read before relying on any data point.
+
+  This document may contain stale data, hardcoded counts, or outdated
+  file paths and symbol names. Maintainers update source code but may
+  forget to sync every doc — perfect sync across every .md file is a
+  known maintenance burden with diminishing returns.
+
+  Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
+  truth. Always cross-check against the actual source files before
+  relying on any specific number (target count, LOC, rate bound),
+  file path, function name, or config key.
+
+  If you find a discrepancy, please open a PR — the doc is wrong, not
+  the source.
+-->
