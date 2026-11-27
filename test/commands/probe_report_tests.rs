@@ -329,6 +329,32 @@ fn per_socket_probe_names_its_budget_kind() {
     );
 }
 
+/// night-dragon-fly-1 (the owner's R15 find): the per-socket
+/// qualifier rides BOTH legs of the direction line — the counter
+/// direction is the same per-connection shape, so "(limit 1.0 MB/s
+/// per socket, upload 1.0 MB/s)" can never again read as if the
+/// upload leg escaped the per-connection cap.
+#[test]
+fn per_socket_qualifier_rides_the_counter_leg_too() {
+    let mut o = outcome(
+        ProbeVerdict::Verified,
+        crate::ebpf::limiter::Direction::Download,
+        500_000,
+        1_500_000,
+        1_502_000,
+        0,
+    );
+    o.per_socket = true;
+    o.counter_rate_bps = Some(500_000);
+    let text = report_lines(&o).join("\n");
+    assert!(
+        text.contains(
+            "(limit 500.0 KB/s per socket, upload 500.0 KB/s per socket)"
+        ),
+        "both legs name the per-socket shape, got: {text}"
+    );
+}
+
 /// The outcome's fields ride whole: the report (this module) and the
 /// future JSON surface read exactly these numbers.
 #[test]
