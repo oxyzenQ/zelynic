@@ -144,7 +144,7 @@ Help surface map (main.rs:166-207): `--help` before `-V` before `--reset-termina
 | D67/D68 | `s cg:` / `s cg:abc` | The cgroup-grammar refusals at the privilege-free rung (F5 — measured law) | The display prefix round-trip law (help.rs:337-342) |
 | D69 | `s docker://` | The container-grammar refusal at the privilege-free rung (F5 — measured law) | Empty-name handling |
 | D70 | `ee ""` | The empty-targets rung | A live monitor launch on empty input |
-| D71-D74 | `ee --interval 0s` / `61s`, `--focus 0s` / `31s` | The bounds refusals (1s..60s live, 1s..30s depth window, surface.rs:317-328) | The bound wording; `--focus` on the live monitor printing its one stderr note (D75) |
+| D71-D74 | `ee --interval 0s` / `61s`, `--focus 0s` / `31s` | The bounds refusals on BOTH lanes (night-dragon-fly-1: `--focus` grammar-checks before the ignored-note on the live monitor too — parse.rs:151's sentence, exit 1; the D73/D74 find closed) | The bound wording; a VALID `--focus` on the live monitor printing its one stderr note (D75) |
 | D75 | `ee --focus 5s </dev/null` | The interactive gate's answer + the focus-ignored note | The note on stdout |
 | D76 | `--check-update` unpromoted | The release check runs; offline shows the error chain | The refusal wording requires sudo (root.rs:74-89) — captured again at R01 |
 | D77/D78 | `status` / `list-apps` unpromoted | The root-required refusal / the degraded census warning (help.rs:206) | The two rungs contradicting the reference |

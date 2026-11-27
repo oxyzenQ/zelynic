@@ -392,7 +392,20 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     // monitor needs no window (its frames ARE one).
                     // One stderr note, stdout and exit codes
                     // untouched (the ignored-note contract).
-                    if focus.is_some() {
+                    //
+                    // night-dragon-fly-1: the grammar check rides
+                    // FIRST — the owner's D73/D74 find walked
+                    // `--focus 0s` and `--focus 31s` through the
+                    // ignored-note as if they were valid windows.
+                    // The --interval law is the mirror: an
+                    // out-of-grammar value is a hard error (exit 1,
+                    // the same bounds sentence the --depth lane
+                    // answers with), while an in-grammar value keeps
+                    // the note and untouched stdout. A typo is never
+                    // silently absorbed — the tool refuses what it
+                    // would never honor anywhere else.
+                    if let Some(window) = focus.as_deref() {
+                        crate::ebpf::limiter::parse_focus_window(window)?;
                         eprintln_safe!(
                             "{}",
                             crate::output::warn_bold(
