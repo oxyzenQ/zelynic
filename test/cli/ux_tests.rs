@@ -658,7 +658,10 @@ fn version_door_fires_on_verbatim_tokens_at_required_positionals() {
         let owned: Vec<std::ffi::OsString> = argv.iter().map(std::ffi::OsString::from).collect();
         version_requested_in_argv(&err, &owned)
     };
-    assert!(mk(&["zelynic", "s", "-V"]), "the A10 shape is a version request");
+    assert!(
+        mk(&["zelynic", "s", "-V"]),
+        "the A10 shape is a version request"
+    );
     assert!(
         mk(&["zelynic", "strict", "--version"]),
         "the long spelling rides the same door"

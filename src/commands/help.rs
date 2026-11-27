@@ -372,7 +372,9 @@ pub(crate) fn print_help() {
     // only collision note on the surface. The escape is the same
     // round-trip the cg: row teaches: watch the thread by its id.
     println_safe!("                  a name carrying '/' (kernel threads: napi/phy0-0)");
-    println_safe!("                  cannot ride the list — watch it by its cg:<id> from list-apps");
+    println_safe!(
+        "                  cannot ride the list — watch it by its cg:<id> from list-apps"
+    );
     // NIGHT-dinner-11: the no-match contract rides the grammar
     // section — the forms above are what a target must resolve to,
     // and one that resolves to nothing is rejected, not soft-exited

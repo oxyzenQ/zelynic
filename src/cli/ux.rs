@@ -321,11 +321,7 @@ fn subcommand_local_help(
 /// seat AFTER the chain — the usage-regeneration trigger (F13: the
 /// rescue-injected suggestions join clap's own, so the same error
 /// class renders one usage form whichever engine attached the tip).
-fn enrich_error(
-    e: &mut clap::Error,
-    cmd: &mut clap::builder::Command,
-    argv: &[OsString],
-) -> bool {
+fn enrich_error(e: &mut clap::Error, cmd: &mut clap::builder::Command, argv: &[OsString]) -> bool {
     enrich_unknown_arg_suggestion(e, cmd);
     enrich_positional_overflow(e, cmd, argv);
     enrich_removed_subcommand_redirect(e);

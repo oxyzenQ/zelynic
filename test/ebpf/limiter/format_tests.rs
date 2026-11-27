@@ -587,10 +587,7 @@ fn test_parse_duration_unknown_unit_verdict_names_the_ladder() {
         mh.contains("unknown unit 'mh'"),
         "the unit crime is named, got: {mh}"
     );
-    assert!(
-        mh.contains("s, m, h"),
-        "the ladder is named, got: {mh}"
-    );
+    assert!(mh.contains("s, m, h"), "the ladder is named, got: {mh}");
     assert!(
         !mh.contains("expected digits"),
         "the wrong-layer sentence is gone, got: {mh}"

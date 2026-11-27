@@ -149,8 +149,7 @@ pub fn parse_container(s: &str) -> Option<ContainerRef> {
 /// grammar refusal.
 pub fn malformed_uri_reason(s: &str) -> Option<&'static str> {
     let name_law = "the name carries no '/' or ':'";
-    if s.starts_with("docker://") {
-        let rest = &s["docker://".len()..];
+    if let Some(rest) = s.strip_prefix("docker://") {
         return Some(if rest.is_empty() {
             "the docker lane needs a container name"
         } else if rest.contains('/') || rest.contains(':') {
@@ -159,8 +158,7 @@ pub fn malformed_uri_reason(s: &str) -> Option<&'static str> {
             return None;
         });
     }
-    if s.starts_with("k8s://") {
-        let rest = &s["k8s://".len()..];
+    if let Some(rest) = s.strip_prefix("k8s://") {
         let parts: Vec<&str> = rest.split('/').collect();
         return Some(if rest.is_empty() {
             "the k8s lane needs <namespace>/<pod>"
@@ -172,8 +170,7 @@ pub fn malformed_uri_reason(s: &str) -> Option<&'static str> {
             return None;
         });
     }
-    if s.starts_with("netns://") {
-        let rest = &s["netns://".len()..];
+    if let Some(rest) = s.strip_prefix("netns://") {
         return Some(if rest.is_empty() {
             "the netns lane needs a namespace name"
         } else if rest.contains('/') || rest.contains(':') {
@@ -182,8 +179,7 @@ pub fn malformed_uri_reason(s: &str) -> Option<&'static str> {
             return None;
         });
     }
-    if s.starts_with("iface://") {
-        let rest = &s["iface://".len()..];
+    if let Some(rest) = s.strip_prefix("iface://") {
         return Some(if rest.is_empty() {
             "the iface lane needs a VRF domain name"
         } else if rest.contains('/') || rest.contains(':') {
