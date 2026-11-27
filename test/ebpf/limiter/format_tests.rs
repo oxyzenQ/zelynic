@@ -536,3 +536,63 @@ fn test_parse_rate_internal_whitespace_is_refused_on_any_unit() {
         );
     }
 }
+
+/// night-cafe-1 (F6): a trailing-alpha residue after the unit strip
+/// is the UNIT's crime — the verdict names the unknown unit and the
+/// ladder, never "expected digits before the decimal point" about a
+/// number that never had one. The did-you-mean tip rides either way;
+/// pure number crimes keep the digit reason.
+#[test]
+fn test_parse_rate_unknown_unit_verdict_names_the_ladder() {
+    let kib = format!("{}", parse_rate("1kib").unwrap_err());
+    assert!(
+        kib.contains("unknown unit 'kib'"),
+        "the unit crime is named, got: {kib}"
+    );
+    assert!(
+        kib.contains("b, kb, mb, gb, tb"),
+        "the ladder is named, got: {kib}"
+    );
+    assert!(
+        !kib.contains("expected digits"),
+        "the wrong-layer sentence is gone, got: {kib}"
+    );
+    assert!(
+        kib.contains("a similar value exists: '1kb'"),
+        "the did-you-mean tip rides, got: {kib}"
+    );
+    let xb = format!("{}", parse_rate("5.5xb").unwrap_err());
+    assert!(
+        xb.contains("unknown unit 'xb'"),
+        "the fractional shape names its unit too, got: {xb}"
+    );
+    assert!(
+        xb.contains("a similar value exists: '5.5kb'"),
+        "the tip rides, got: {xb}"
+    );
+    // The pure number crimes keep the digit reason.
+    let dotted = format!("{}", parse_rate("5..5kb").unwrap_err());
+    assert!(
+        dotted.contains("Invalid number in rate"),
+        "a number crime keeps its verdict, got: {dotted}"
+    );
+}
+
+/// The duration lane's twin: '5mh' strips its 'h' and lands '5m' —
+/// the verdict names the unknown unit, never the decimal point.
+#[test]
+fn test_parse_duration_unknown_unit_verdict_names_the_ladder() {
+    let mh = format!("{}", parse_time_duration("5mh").unwrap_err());
+    assert!(
+        mh.contains("unknown unit 'mh'"),
+        "the unit crime is named, got: {mh}"
+    );
+    assert!(
+        mh.contains("s, m, h"),
+        "the ladder is named, got: {mh}"
+    );
+    assert!(
+        !mh.contains("expected digits"),
+        "the wrong-layer sentence is gone, got: {mh}"
+    );
+}

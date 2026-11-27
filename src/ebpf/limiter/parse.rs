@@ -14,6 +14,19 @@ use anyhow::{Result, bail};
 use super::format::format_rate;
 use super::types::{MAX_RATE, MIN_RATE};
 
+/// The typed unit word behind a trailing-alpha parse failure
+/// (night-cafe-1, F6): everything past the number grammar's own
+/// characters — '1kib' carries 'kib', '5.5xb' carries 'xb'. The
+/// unknown-unit verdict names it, so the reader learns WHICH word the
+/// ladder rejected instead of a decimal-point sentence about a
+/// number that may never have had one.
+fn typed_unit_word(s: &str) -> String {
+    s.trim_start_matches(|c: char| {
+        c.is_ascii_digit() || c == '.' || c == '+' || c == '-'
+    })
+    .to_string()
+}
+
 /// Parse a time duration string. Formats: 1s, 3m, 10h, or plain number (seconds).
 /// Returns duration in seconds. 0 = infinity.
 ///
@@ -55,7 +68,22 @@ pub fn parse_time_duration(s: &str) -> Result<u64> {
     let (mantissa, scale) = parse_decimal_scaled(num_part.trim()).map_err(|reason| {
         // Same typo rescue as the suffix branch: a near-miss unit
         // (`1kib` strips to number "1ki" + implied b) surfaces here.
-        let mut msg = format!("Invalid number in duration '{s}': {reason}");
+        // night-cafe-1 (F6): the residue carries trailing alpha —
+        // '5mh' strips its 'h' and lands '5m', '1kib' lands '1ki' —
+        // the crime is the UNIT, never the digits, so the verdict
+        // names the unknown unit and the grammar instead of a
+        // decimal-point sentence about a number that never had one.
+        // Pure number crimes ('5..5mb', '-5.5mb') keep the digit
+        // reason; the did-you-mean tip rides either way.
+        let msg = if num_part.chars().any(|c| c.is_ascii_alphabetic()) {
+            let unit = typed_unit_word(s);
+            format!(
+                "Invalid duration '{s}': unknown unit '{unit}' — the ladder is s, m, h (m is minutes; months are 'mn')"
+            )
+        } else {
+            format!("Invalid number in duration '{s}': {reason}")
+        };
+        let mut msg = msg;
         if let Some(tip) = crate::cli::ux::duration_tip(s) {
             msg.push_str(&tip);
         }
@@ -187,8 +215,24 @@ pub fn parse_rate(s: &str) -> Result<u64> {
     let (mantissa, scale) = parse_decimal_scaled(num_part.trim()).map_err(|reason| {
         // Same typo rescue as the suffix branch: a near-miss unit
         // like `1kib` strips its trailing 'b' and lands here with
-        // the unparsable number "1ki".
-        let mut msg = format!("Invalid number in rate '{s}': {reason}");
+        // the unparsable number "1ki". night-cafe-1 (F6): the
+        // residue carries trailing alpha — the crime is the UNIT
+        // ('kib' is not in the ladder), never the digits, so the
+        // verdict names the unknown unit and the grammar instead of
+        // "expected digits before the decimal point" (the decimal
+        // point may not even exist in what the user typed). Pure
+        // number crimes ('5..5mb', '-5.5mb') keep the digit reason;
+        // the did-you-mean tip rides either way (it already knows
+        // '1kb'/'5.5kb').
+        let msg = if num_part.chars().any(|c| c.is_ascii_alphabetic()) {
+            let unit = typed_unit_word(s);
+            format!(
+                "Invalid rate '{s}': unknown unit '{unit}' — the ladder is b, kb, mb, gb, tb (decimal SI)"
+            )
+        } else {
+            format!("Invalid number in rate '{s}': {reason}")
+        };
+        let mut msg = msg;
         if let Some(tip) = crate::cli::ux::rate_tip(s) {
             msg.push_str(&tip);
         }
