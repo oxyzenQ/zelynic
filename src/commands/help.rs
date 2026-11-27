@@ -366,6 +366,13 @@ pub(crate) fn print_help() {
         "list members for eagle-eyes — the '/' separator rides the",
     );
     println_safe!("                  monitor lane: mixed ids and names (12345/brave/firefox)");
+    // night-cafe-1 (F17, the R06 find): the separator collides with
+    // the one real name class that carries '/' — kernel threads
+    // (napi/phy0-0) — and the ':' collision's excuse above was the
+    // only collision note on the surface. The escape is the same
+    // round-trip the cg: row teaches: watch the thread by its id.
+    println_safe!("                  a name carrying '/' (kernel threads: napi/phy0-0)");
+    println_safe!("                  cannot ride the list — watch it by its cg:<id> from list-apps");
     // NIGHT-dinner-11: the no-match contract rides the grammar
     // section — the forms above are what a target must resolve to,
     // and one that resolves to nothing is rejected, not soft-exited

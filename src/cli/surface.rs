@@ -304,6 +304,10 @@ pub enum Commands {
     EagleEyes {
         /// Targets: app names or cgroup IDs, slash-separated
         /// (brave, 73386, cg:73386, 12345/brave/firefox)
+        ///
+        /// A name carrying '/' cannot ride the slash list — kernel
+        /// threads are named that way (napi/phy0-0) — so watch one by
+        /// its cg:<id> from list-apps.
         #[arg(value_name = "TARGETS")]
         targets: Option<String>,
 
