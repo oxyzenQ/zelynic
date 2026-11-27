@@ -135,6 +135,27 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                 // two-positional shape refused: a target beside
                 // --all is a lane confusion, whatever the values.
                 if all {
+                    // night-cafe-1 (F12): the sweep refuses --per-socket
+                    // at the routing rung — the flag rode this arm
+                    // NOWHERE before (handle_strict_all never carried
+                    // the param, the probe hard-coded the group shape),
+                    // so `s --all 500kb --per-socket` under root
+                    // enforced fleet-wide GROUP rows while the flag sat
+                    // silent: a no-op, the class the estate's own law
+                    // forbids ("never a silent no-op"). The list lane
+                    // refuses the same combination with a tip (D65's
+                    // routing law); the sweep rides the same law and
+                    // the same voice — one per-app group row is the
+                    // sweep's shape, the per-connection multiplication
+                    // is the single-target lane's.
+                    if per_socket {
+                        return Err(anyhow::anyhow!(
+                            "--per-socket is the single-target lane — the sweep writes one \
+                             group row per app\n  \
+                             tip: limit the one server app alone: zelynic s <app> <rate> \
+                             --per-socket"
+                        ));
+                    }
                     if let (Some(stray), Some(_)) = (target.as_deref(), rate.as_deref()) {
                         return Err(anyhow::anyhow!(
                             "--all sweeps every user app — it takes a rate, not a target\n  \

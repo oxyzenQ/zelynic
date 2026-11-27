@@ -86,12 +86,19 @@ pub enum Commands {
         #[arg(long = "no-test")]
         no_test: bool,
 
+        // night-cafe-1 (F12): the sweep's refusal — the flag rides
+        // nowhere it cannot shape, never a silent no-op. The stance
+        // joins the operator-facing help below (the voice law F10
+        // lands: the lineage lives here, the help speaks operator
+        // English).
         /// Enforce per SOCKET, not per cgroup: every connection
         /// gets its own bucket at the rate — the server shape (one
         /// process, many sockets; the cgroup total is rate x
         /// concurrent sockets, NOT rate). The single lane only: a
         /// '::' list shares one group bucket, so the flag is refused
-        /// there (the list lane's routing law).
+        /// there (the list lane's routing law); the --all sweep is
+        /// refused too — one group row per app, no per-connection
+        /// shape fleet-wide.
         ///
         /// charger-core-3b: the per-socket enforcement shape.
         /// NIGHT-improve-53: the list lane's routing law.
