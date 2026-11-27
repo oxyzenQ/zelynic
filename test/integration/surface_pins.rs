@@ -134,6 +134,31 @@ fn test_sweep_lanes_pin_the_all_routing() {
         "the sweep's input error must precede the root guard, got:\n{stderr}"
     );
 
+    // night-cafe-1 (F12): the sweep refuses --per-socket at the
+    // routing rung — the flag rode this arm nowhere before (the
+    // handler never carried it, the probe hard-coded the group
+    // shape), a silent no-op under root. The list lane's routing law
+    // (the scope call above) extends to the sweep: the refusal leads
+    // everything, never "root required".
+    let output = zelynic_cmd()
+        .args(["s", "--all", "500kb", "--per-socket"])
+        .output()
+        .expect("Failed to execute zelynic s --all 500kb --per-socket");
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("--per-socket is the single-target lane"),
+        "the sweep must refuse --per-socket, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("the sweep writes one group row per app"),
+        "the refusal names the sweep's shape, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("root required"),
+        "the scope refusal must precede the root guard, got:\n{stderr}"
+    );
+
     // The rate reinterpretation: `s --all 1MB` parks "1MB" in the
     // TARGET slot, and the sweep re-feeds it as the RATE — the rate
     // ladder's own refusal is the proof (an uppercase rate never
