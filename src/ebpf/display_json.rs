@@ -571,6 +571,14 @@ mod display_json_pacing_tests;
 #[path = "../../test/ebpf/display_json_quota_tests.rs"]
 mod display_json_quota_tests;
 
+// night-dragon-fly-1 (the F1 machine-fidelity law): the limits[]
+// label's uncapped-name pins, one family over the quota family (the
+// same LOC-cap split discipline — display_json_tests rode past 600
+// when this lane's pin joined it).
+#[cfg(test)]
+#[path = "../../test/ebpf/display_json_label_tests.rs"]
+mod display_json_label_tests;
+
 // night-spark-2 (RECWN, schema v25): the inert lane every legacy
 // status_json pin passes — the Default value IS the inert lane
 // (not planted, no window, no binding policies) — so the
