@@ -185,6 +185,19 @@ pub(crate) fn recwn_lane(
 /// when the lane shapes no window (not planted, or no download
 /// policy with a live rate) — the dormant-watchdog honesty: an
 /// unenforcing lane prints nothing.
+///
+/// night-cafe-1 (F8, the R04/R12 find): the old parenthetical voice
+/// ("(binding across 48 download policies; measured RTT …") ran
+/// ~95 columns at a 48-policy fleet, past every cut budget — the
+/// frame law's ellipsis ate exactly the payload the line exists to
+/// carry (the measured RTT, named honestly because the JSON reports
+/// the raw sample). The compact voice carries the same three facts —
+/// window, binding count, rtt — in ≤76 columns worst case, so the
+/// payload lands INSIDE every budget the frame law measures: the
+/// "·"-separated clauses ride one line whole, the floor clause
+/// "(200ms floor)" keeps the sub-floor honesty name (the measured
+/// sample the floor outshouted), and a sub-millisecond sample
+/// renders <1ms, never a fabricated 0.
 pub(crate) fn recwn_line(lane: &RecwnLane) -> Option<String> {
     // The belt the derivation already owns: an unplanted lane shapes
     // nothing, whatever a stale census might claim — silence, never
@@ -197,20 +210,15 @@ pub(crate) fn recwn_line(lane: &RecwnLane) -> Option<String> {
     // night-verify-final (schema v33): the rtt clause names the rtt
     // the WINDOW derived from — a binding policy whose high-water
     // tops the cadence floor prints the MEASURED srtt (the number
-    // the extension itself rode). night-frontier hardening (the
-    // live session's honesty pass): a measured sample the floor
-    // outshouted is no longer hidden under the est. name — the line
-    // names the measurement AND the floor law the window rode
-    // ("measured RTT 24ms (window at the 200ms floor)"), because
-    // the JSON already reports the raw sample
-    // (recwn_limits.measured_srtt_us) and a human "est." beside an
-    // existing measurement is the divergence the tool never prints.
-    // A sub-millisecond sample renders <1ms, never a fabricated 0.
-    // An unmeasured lane keeps the honest estimate name.
+    // the extension itself rode); a sub-floor sample keeps the floor
+    // law named (the JSON already reports the raw sample, and a
+    // human "est." beside an existing measurement is the divergence
+    // the tool never prints). An unmeasured lane keeps the honest
+    // estimate name.
     let floor_ms = u64::from(RECWN_RTT_ESTIMATE_US) / 1000;
-    let (rtt_label, rtt_words) = match lane.measured_srtt_us {
+    let rtt_clause = match lane.measured_srtt_us {
         Some(srtt) if srtt > u64::from(RECWN_RTT_ESTIMATE_US) => {
-            ("measured RTT", format!("{}ms", srtt / 1000))
+            format!("measured RTT {}ms", srtt / 1000)
         }
         Some(srtt) => {
             let value = if srtt / 1000 == 0 {
@@ -218,15 +226,12 @@ pub(crate) fn recwn_line(lane: &RecwnLane) -> Option<String> {
             } else {
                 format!("{}ms", srtt / 1000)
             };
-            (
-                "measured RTT",
-                format!("{value} (window at the {floor_ms}ms floor)"),
-            )
+            format!("measured RTT {value} ({floor_ms}ms floor)")
         }
-        None => ("est. RTT", format!("{floor_ms}ms")),
+        None => format!("est. RTT {floor_ms}ms"),
     };
     Some(grey(&format!(
-        "  RECWN window: {} (binding across {n} download {}; {rtt_label} {rtt_words})",
+        "  RECWN window: {} · {n} {} · {rtt_clause}",
         format_bytes(window),
         if n == 1 { "policy" } else { "policies" },
     )))
