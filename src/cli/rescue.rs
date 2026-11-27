@@ -64,12 +64,45 @@ pub(super) fn top_level_flag_rescue(typed: &str) -> Option<&'static str> {
 /// redirects to the top-level spelling (`check-update` parses at the
 /// ROOT only; a bare `--check-update` tip at subcommand position
 /// would point at a position where the flag still fails).
+///
+/// The exact-spelling fence (night-cafe-1, the D37 find): the Jaro
+/// duel below re-scores the ROOT pool only, so a subcommand-flag
+/// winner that cleared clap's bar survived it while an EXACT hit in
+/// the authority or vocabulary tables sat unread — `--allow-dangerous`
+/// (a retired spelling with a table row naming `--force-this`) was
+/// answered with `--all` (jaro_ci("allow-dangerous", "all") = 0.733,
+/// three shared chars over the bar): the fleet-wide flag offered as
+/// the answer to the force-override spelling, the misdirection the
+/// one-right-tip contract exists to prevent. Exact beats fuzzy, the
+/// same law [`super::ux`] applies when clap stays silent — the table
+/// wins first, the duel runs only for spellings no table owns.
 pub(super) fn rescue_shadowed_suggestion(e: &mut clap::Error, cmd: &clap::builder::Command) {
     let typed = match e.get(ContextKind::InvalidArg) {
         Some(ContextValue::String(s)) => s.trim_start_matches('-').to_string(),
         _ => return,
     };
     if typed.is_empty() {
+        return;
+    }
+    // The exact-spelling fence: an authority or vocabulary hit is an
+    // intent-certain answer — it replaces clap's fuzzy tip outright,
+    // dropping the escape-hatch rider the way every injecting rescue
+    // does (one tip, the right one). Only spellings NO table owns
+    // fall through to the Jaro duel.
+    if let Some(authority) = top_level_flag_rescue(&typed) {
+        e.remove(ContextKind::Suggested);
+        e.insert(
+            ContextKind::SuggestedArg,
+            ContextValue::String(authority.to_string()),
+        );
+        return;
+    }
+    if let Some(flag) = flag_vocabulary_rescue(&typed) {
+        e.remove(ContextKind::Suggested);
+        e.insert(
+            ContextKind::SuggestedArg,
+            ContextValue::String((*flag).to_string()),
+        );
         return;
     }
     let clap_tip = match e.get(ContextKind::SuggestedArg) {

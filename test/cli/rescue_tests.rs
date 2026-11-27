@@ -61,3 +61,24 @@ fn shadow_rescue_never_hijacks_subcommand_flag_typos() {
         "the root pool's own tip is unchanged, got:\n{root}"
     );
 }
+
+/// night-cafe-1 (the D37 find): an exact retired spelling in the
+/// vocabulary table outranks clap's fuzzy subcommand-pool tip. The
+/// duel below re-scores the ROOT pool only, so clap's `--all` (0.733
+/// on three shared chars) survived it and the fleet-wide flag was
+/// offered as the answer to the force-override spelling — the
+/// misdirection the exact-spelling fence closes. The tip names the
+/// vocabulary answer, never the fuzzy near-miss.
+#[cfg(feature = "ebpf")]
+#[test]
+fn exact_vocabulary_spelling_beats_claps_fuzzy_tip() {
+    let rendered = render_via_bridge(&["zelynic", "s", "brave", "1mb", "--allow-dangerous"]);
+    assert!(
+        rendered.contains("'--force-this'"),
+        "the vocabulary answer wins, got:\n{rendered}"
+    );
+    assert!(
+        !rendered.contains("'--all'"),
+        "the fleet-wide flag must never answer a force-override typo, got:\n{rendered}"
+    );
+}
