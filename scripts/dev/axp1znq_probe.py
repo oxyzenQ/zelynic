@@ -39,6 +39,7 @@ touches shared state.
 
 from __future__ import annotations
 
+import http.client
 import socket
 import time
 import urllib.error
@@ -130,7 +131,18 @@ def probe_http(
     Timeout honesty: urllib rides one socket timeout, so this probe
     runs on --total-timeout alone (connect and read share it); the
     --connect-timeout flag binds the TCP kind (probe_tcp), never this
-    path - the stdlib-only law keeps it that way.
+    path - the stdlib-only law keeps it that way. DNS resolution rides
+    the OS resolver's own timeout (getaddrinfo carries no stdlib
+    timeout): the socket timeout bounds connect and read only, and a
+    stalled resolver can add its own seconds on top - the honest
+    bound this script can promise starts after the name answers.
+
+    A malformed HTTP conversation (a garbage status line, an
+    oversized header line - the classic TLS-terminating middlebox
+    failure) raises http.client.HTTPException, which is NOT an
+    OSError subclass: the probe catches it explicitly and calls the
+    address DOWN, because the flaky-mirror class this catalog exists
+    to absorb must never crash the caller's pool.
     """
     url = target
     if probe_path:
@@ -148,6 +160,20 @@ def probe_http(
                 now = datetime.now(timezone.utc)
                 age = index_age_days(response.headers.get("Date", ""), now)
                 if 200 <= status < 300:
+                    if age is None and max_age_days is not None and probe_path:
+                        # The freshness witness law (rev 3): when the
+                        # caller asked for freshness over a real index
+                        # path, a 2xx with no parsable Date header is
+                        # STALE - alive-but-unwitnessed is exactly the
+                        # lie the catalog must not keep. No probe_path
+                        # (or no max_age_days, i.e. the resolver) keeps
+                        # the freshness contract out of effect.
+                        return ProbeResult(
+                            VERDICT_STALE,
+                            latency_ms,
+                            None,
+                            "no freshness witness (Date header missing or unparsable)",
+                        )
                     if age is not None and max_age_days is not None and age > max_age_days:
                         return ProbeResult(
                             VERDICT_STALE,
@@ -167,6 +193,13 @@ def probe_http(
         except (urllib.error.URLError, socket.timeout, OSError) as why:
             reason = getattr(why, "reason", why)
             last_detail = f"unreachable ({reason})" if reason else f"unreachable ({why})"
+        except http.client.HTTPException as why:
+            # BadStatusLine, LineTooLong and friends: a TLS-terminating
+            # middlebox or a broken mirror speaking non-HTTP. Not an
+            # OSError subclass - without this clause the exception
+            # would escape the probe, kill the refresher's thread pool
+            # and fail the Sunday lane (the rev-3 audit's live find).
+            last_detail = f"malformed HTTP conversation ({why})"
         except ValueError as why:
             return ProbeResult(VERDICT_DOWN, None, None, f"bad address ({why})")
         if attempt < attempts:
@@ -179,11 +212,21 @@ def probe_tcp(
     connect_timeout: float = 4.0,
     attempts: int = 2,
 ) -> ProbeResult:
-    """Probe one host:port address with a plain socket connect."""
+    """Probe one host:port address with a plain socket connect.
+
+    The tcp kind expects host:port with an IPv4 or hostname host; a
+    bracketed IPv6 literal is not parsed (it lands here as a garbage
+    split and DOWNs honestly - the documented limitation, no tcp line
+    ships in the catalog today). The port must be in 1-65535: an
+    out-of-range port is a bad address (DOWN), never a silent modulo
+    wrap that could PASS on the wrong port.
+    """
     host, _, port_text = target.rpartition(":")
     if not host or not port_text.isdigit():
         return ProbeResult(VERDICT_DOWN, None, None, f"bad host:port ({target})")
     port = int(port_text)
+    if not 1 <= port <= 65535:
+        return ProbeResult(VERDICT_DOWN, None, None, f"bad host:port ({target})")
     last_detail = "no attempt made"
     for attempt in range(1, max(1, attempts) + 1):
         started = time.perf_counter()
