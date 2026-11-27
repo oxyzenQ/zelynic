@@ -89,9 +89,16 @@ pub struct ProcessIdentity {
 ///
 /// Refreshed periodically to handle process churn. Build cost is O(nproc),
 /// paid once per TTL window.
+///
+/// The `full_names` side map (night-cafe-1, F1) books the UNCAPPED
+/// enriched name per cgroup — the display cap's other half. The
+/// prose surfaces read `cache` (every cell keeps its display law);
+/// the JSON writers consult [`IdentityMap::full_name`] so the machine
+/// documents carry the full process name a script can match verbatim.
 #[derive(Debug)]
 pub struct IdentityMap {
     cache: HashMap<u32, ProcessIdentity>,
+    full_names: HashMap<u32, String>,
     last_refresh: Option<Instant>,
     refresh_ttl: Duration,
 }
@@ -107,6 +114,7 @@ impl IdentityMap {
     pub fn new() -> Self {
         IdentityMap {
             cache: HashMap::new(),
+            full_names: HashMap::new(),
             last_refresh: None,
             refresh_ttl: Duration::from_secs(DEFAULT_REFRESH_TTL_SECS),
         }
@@ -117,9 +125,19 @@ impl IdentityMap {
     pub fn with_ttl(ttl: Duration) -> Self {
         IdentityMap {
             cache: HashMap::new(),
+            full_names: HashMap::new(),
             last_refresh: None,
             refresh_ttl: ttl,
         }
+    }
+
+    /// The uncapped enriched name a cgroup's representative carries,
+    /// when the display cap cut one (night-cafe-1, F1). The JSON
+    /// writers' door: `full_name(id).unwrap_or(comm)` is the name the
+    /// machine documents print. `None` = the display name IS the
+    /// whole name (no enrichment past the cap, nothing hidden).
+    pub fn full_name(&self, cgroup_id: u32) -> Option<&str> {
+        self.full_names.get(&cgroup_id).map(String::as_str)
     }
 
     /// Test seam: insert a synthetic identity directly.
@@ -131,6 +149,13 @@ impl IdentityMap {
     #[cfg(test)]
     pub fn insert(&mut self, id: ProcessIdentity) {
         self.cache.insert(id.cgroup_id, id);
+    }
+
+    /// Test seam: book the uncapped enriched name directly (the
+    /// refresh walk's F1 side-map, drivable without a live /proc).
+    #[cfg(test)]
+    pub fn seed_full_name_for_tests(&mut self, cgroup_id: u32, full: &str) {
+        self.full_names.insert(cgroup_id, full.to_string());
     }
 
     /// Force a full refresh: walk /proc to rebuild the reverse map.
@@ -153,11 +178,21 @@ impl IdentityMap {
     /// Returns the number of unique cgroups discovered.
     pub fn refresh(&mut self) -> usize {
         self.cache.clear();
+        self.full_names.clear();
 
         // cgroup_id → comm tally. Entries exist for every resolvable
         // cgroup even when no comm was readable (empty map), so the
         // alive-cgroup set stays complete for recover().
         let mut per_cgroup: HashMap<u32, HashMap<String, CommStat>> = HashMap::new();
+        // The uncapped enriched name per DISPLAY comm (night-cafe-1,
+        // F1): the walk books the second half beside the tally, and
+        // the representative's comm looks its full name up below.
+        // First-seen wins — two processes sharing one display comm
+        // but different long argv[0] basenames carry different fulls;
+        // the display comm is the map key the vote returns, and one
+        // deterministic full per display comm is no worse than the
+        // display-level ambiguity the cap already owns.
+        let mut full_by_comm: HashMap<String, String> = HashMap::new();
 
         let proc_entries = match fs::read_dir("/proc") {
             Ok(e) => e,
@@ -190,12 +225,17 @@ impl IdentityMap {
                 continue;
             };
 
-            // Read /proc/<pid>/comm for the tally. Sanitized at the
-            // boundary (NIGHT-cybersecurity-1): the label is attacker
-            // controllable via prctl, and it flows to every display
-            // surface — list-apps, observe/top, detail lines — as well
-            // as the majority-vote tally below.
-            let comm = pid_comm(pid).unwrap_or_default();
+            // Read /proc/<pid>/comm for the tally — both name halves
+            // in one boundary call (night-cafe-1, F1: the display cap
+            // and the uncapped enriched name it may hide). Sanitized
+            // at the boundary (NIGHT-cybersecurity-1): the label is
+            // attacker controllable via prctl, and it flows to every
+            // display surface — list-apps, observe/top, detail lines
+            // — as well as the majority-vote tally below.
+            let (comm, full) = pid_names(pid).unwrap_or_default();
+            if let Some(full) = full {
+                full_by_comm.entry(comm.clone()).or_insert(full);
+            }
 
             // Unreadable comm: count the cgroup as alive but never let a
             // blank name outvote real ones.
@@ -238,6 +278,13 @@ impl IdentityMap {
 
         for (cgroup_id, comm_stats) in per_cgroup {
             let (comm, uid) = pick_representative(&comm_stats).unwrap_or_default();
+            // The uncapped half rides the winning comm (night-cafe-1,
+            // F1): a cgroup whose representative name the display cap
+            // cut books its full name beside the identity, the JSON
+            // writers' verbatim-match source.
+            if let Some(full) = full_by_comm.get(&comm) {
+                self.full_names.insert(cgroup_id, full.clone());
+            }
             self.cache.insert(
                 cgroup_id,
                 ProcessIdentity {
@@ -395,6 +442,27 @@ pub fn pid_comm(pid: u32) -> Option<String> {
     Some(display_name(&comm, &cmdline))
 }
 
+/// The identity walk's BOTH name halves per pid (night-cafe-1, F1):
+/// the display name ([`pid_comm`], the capped label) and, when the
+/// display cap cut an enriched name, the UNCAPPED original — the
+/// pair the identity map books per cgroup so the machine surfaces
+/// (the JSON writers) can carry the full process name while every
+/// prose cell keeps its display law. One boundary, both halves: the
+/// two reads (comm, then cmdline only at the kernel cap) happen
+/// once, no caller re-walks for the second half.
+pub fn pid_names(pid: u32) -> Option<(String, Option<String>)> {
+    let comm = fs::read_to_string(format!("/proc/{pid}/comm"))
+        .ok()
+        .map(|s| sanitize_comm(s.trim()))?;
+    if comm.len() != 15 {
+        return Some((comm, None));
+    }
+    let cmdline = fs::read(format!("/proc/{pid}/cmdline"))
+        .ok()
+        .unwrap_or_default();
+    Some(enriched_name(&comm, &cmdline))
+}
+
 /// The display-name budget (NIGHT-engrave-7): process names cap at
 /// 24 columns, ellipsis included. Real offenders fit whole —
 /// `WebKitNetworkProcess` (20), `systemd-resolved` (16),
@@ -413,7 +481,21 @@ const DISPLAY_NAME_MAX: usize = 24;
 /// [`DISPLAY_NAME_MAX`] columns with an ellipsis. A short comm
 /// returns unchanged — only the cap can hide a name.
 fn display_name(comm: &str, cmdline: &[u8]) -> String {
+    enriched_name(comm, cmdline).0
+}
+
+/// The enrichment's BOTH halves (night-cafe-1, F1): the capped
+/// display name (the prose cell's own law, [`DISPLAY_NAME_MAX`]) and
+/// the UNCAPPED enriched name when the cap cut one — the name the
+/// machine surfaces carry (the JSON writers) so a script matching a
+/// full process name ("polkit-kde-authentication-agent") reads it
+/// verbatim from the document instead of the display artifact
+/// "polkit-kde-authenticati…". The second half is `Some` only when
+/// the display name is a capped prefix of a longer enriched name; a
+/// name that fits whole hides nothing and carries no duplicate.
+fn enriched_name(comm: &str, cmdline: &[u8]) -> (String, Option<String>) {
     let mut name = comm.to_string();
+    let mut uncapped = None;
     if let Some(full) = argv0_basename(cmdline) {
         // Prefix continuity: argv[0]'s basename must extend the
         // capped comm — same process, fuller name. A basename that
@@ -421,7 +503,8 @@ fn display_name(comm: &str, cmdline: &[u8]) -> String {
         // launcher) is a different string, and the cap's ambiguity
         // is not worth the swap.
         if full.starts_with(comm) && full.chars().count() > 15 {
-            name = full;
+            name = full.clone();
+            uncapped = Some(full);
         }
     }
     // The display cap: 24 columns, ellipsis occupying the last.
@@ -429,9 +512,9 @@ fn display_name(comm: &str, cmdline: &[u8]) -> String {
     if chars.len() > DISPLAY_NAME_MAX {
         let mut capped: String = chars[..DISPLAY_NAME_MAX - 1].iter().collect();
         capped.push('…');
-        return capped;
+        return (capped, uncapped);
     }
-    name
+    (name, None)
 }
 
 /// argv[0]'s basename from a raw `/proc/<pid>/cmdline` buffer

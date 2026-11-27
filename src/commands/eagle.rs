@@ -170,7 +170,16 @@ pub(crate) fn resolve_live_targets(
                 let name_lower = name.to_lowercase();
                 let mut matched = false;
                 for entry in identity.all() {
-                    if entry.comm.to_lowercase() == name_lower {
+                    // The match set is BOTH name halves (night-cafe-1,
+                    // F1): the display comm and the uncapped enriched
+                    // name when the display cap cut one — the name the
+                    // JSON documents print resolves here exactly like
+                    // the display spelling does.
+                    let hit = entry.comm.to_lowercase() == name_lower
+                        || identity
+                            .full_name(entry.cgroup_id)
+                            .is_some_and(|full| full.to_lowercase() == name_lower);
+                    if hit {
                         matched = true;
                         // The match verdict and the id collection are
                         // SEPARATE concerns: a duplicate token
@@ -448,7 +457,17 @@ pub(crate) fn handle_eagle_eyes_depth(
         for id in ids {
             let target = token.label();
             let facts = facts_by_id.get(&id).cloned().unwrap_or_default();
-            let comm = identity.get(id).map(|entry| entry.comm.clone());
+            let comm = identity.get(id).map(|entry| {
+                // The report's name carries the UNCAPPED enriched name
+                // when the display cap cut one (night-cafe-1, F1): the
+                // deep report's JSON `name` field and its prose header
+                // name the whole process, the display cells keep the
+                // cap law.
+                identity
+                    .full_name(entry.cgroup_id)
+                    .unwrap_or(&entry.comm)
+                    .to_string()
+            });
             let name = package_name(comm.as_deref(), facts.rel_path.as_deref());
             let enforcement = enforcement_join(policy_maps.as_ref().map(|(dl, ul)| (dl, ul)), id);
             // The ledger row only exists for cgroups the kernel has

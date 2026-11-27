@@ -247,3 +247,26 @@ fn test_argv0_basename_extracts_and_sanitizes() {
     // family dies here, same as comm).
     assert_eq!(argv0_basename(b"\x1bevil\0"), Some("?evil".to_string()));
 }
+
+#[test]
+fn test_enriched_name_books_the_uncapped_half() {
+    // night-cafe-1 (F1): the enrichment's BOTH halves — the capped
+    // display name (the prose cell's law, unchanged) and the UNCAPPED
+    // enriched name when the cap cut one (the JSON writers' verbatim
+    // source). A basename the cap cuts carries Some(full); a name
+    // that fits whole hides nothing and carries no duplicate.
+    let long = b"/opt/app/polkit-kde-authentication-agent\0";
+    let (display, full) = enriched_name("polkit-kde-auth", long);
+    assert_eq!(
+        display, "polkit-kde-authenticati\u{2026}",
+        "the display half keeps its cap law"
+    );
+    assert_eq!(
+        full.as_deref(),
+        Some("polkit-kde-authentication-agent"),
+        "the uncapped half carries the verbatim name"
+    );
+    let (display, full) = enriched_name("WebKitNetworkPr", b"WebKitNetworkProcess\0");
+    assert_eq!(display, "WebKitNetworkProcess");
+    assert_eq!(full, None, "a name the cap never cut hides nothing");
+}

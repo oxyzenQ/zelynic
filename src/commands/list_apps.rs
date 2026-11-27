@@ -96,6 +96,7 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
             socket_cgroups,
             nix::unistd::geteuid().is_root(),
             &conns,
+            &identity,
         );
         print_json(&json_doc);
         return Ok(());
@@ -170,6 +171,13 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
 /// improve-63 additive rule: older consumers parse the prefix
 /// untouched). Returns the compact document line, ready for
 /// [`crate::output::print_json`].
+///
+/// night-cafe-1 (F1): the `process` field carries the UNCAPPED
+/// enriched name when the display cap cut one — the same identity
+/// map's other half ([`crate::ebpf::identity::IdentityMap::full_name`])
+/// — so a script matching a full process name reads it verbatim and
+/// the resolution walk accepts it back; the prose table keeps its
+/// display law untouched.
 #[cfg(feature = "ebpf")]
 fn list_apps_json(
     entries: &[&crate::ebpf::identity::ProcessIdentity],
@@ -177,6 +185,7 @@ fn list_apps_json(
     socket_cgroups: usize,
     census_complete: bool,
     conns: &crate::ebpf::connections::ConnectionMap,
+    identity: &crate::ebpf::identity::IdentityMap,
 ) -> String {
     use crate::json::write::{write_array, write_bool, write_number, write_string};
 
@@ -186,8 +195,17 @@ fn list_apps_json(
     out.push_str(",\"apps\":");
     write_array(&mut out, entries.len(), |out, i| {
         let entry = entries[i];
+        // The machine lane's name is the UNCAPPED enriched name when
+        // the display cap cut one (night-cafe-1, F1): the document
+        // carries the full process name a script can match verbatim
+        // (the resolution walk accepts it), never the display artifact
+        // "polkit-kde-authenticati…". Short names carry no cap, so
+        // the fallback is the same bytes.
+        let name = identity
+            .full_name(entry.cgroup_id)
+            .unwrap_or(&entry.comm);
         out.push_str("{\"process\":");
-        write_string(out, &entry.comm);
+        write_string(out, name);
         out.push_str(",\"cgroup_id\":");
         write_number(out, entry.cgroup_id);
         out.push_str(",\"uid\":");
