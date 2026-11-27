@@ -204,9 +204,9 @@ ebpf/                   — the pure-Rust BPF source (aya-ebpf; NIGHT-improve-1
 
 scripts/
   build.sh             — check-all orchestration
-  gate-keepers.sh      — the wholesale non-code gates (20 numbered
+  gate-keepers.sh      — the wholesale non-code gates (21 numbered
                 sections; the shell quad's four sub-checks count
-                separately, so the summary prints 23 gates — run
+                separately, so the summary prints 24 gates — run
                 before every commit; the first run self-installs
                 .githooks/pre-commit — the commit-time gate,
                 NIGHT-dinner-1: prebuilt lane parity, plus the
@@ -269,7 +269,10 @@ scripts/
     bootstrap-ebpf.sh  — rootless eBPF toolchain bootstrap
     install-bpf-linker.sh — the pinned static bpf-linker installer
     rust-version-to.sh — one-command Rust toolchain bumper
-    version-to.sh      — Cargo.toml version bumper
+    version-to.sh      — one-command crate-family version bumper
+                (the family is detected from the root [package] name
+                — manifests + locks, tracked or uncommitted;
+                night-cafe-mclaren-1)
 
   gates/               — the gate-keepers sections, one file each
     check-headers.sh   — license header check (rs/c/h/py/sh/toml/yml/md)
@@ -291,6 +294,10 @@ scripts/
                         == build.rs == install/uninstall; NIGHT-lts-9)
     check-scripts-loc.sh — scripts LOC cap (1000, # LOC_EXEMPT: markers)
     check-version-anti-patterns.sh — no hardcoded version strings
+    check-version-family-sync.sh — crate-family version parity: every
+                        detected family manifest and lock [[package]]
+                        entry carries the root version, wherever it
+                        lives (night-cafe-mclaren-1)
     inject-disclaimer.sh — .md stale-data disclaimer (inject + --check)
     check-actions-pins.sh — the commit-time actions-pin health gate
                         (NIGHT-improve-40: the sweep engine read-only
@@ -436,8 +443,8 @@ shell's `NO_COLOR`/`CLICOLOR*`/`TERM` but passes under `env -i`,
 that is the test's bug, not your environment's — fix the pin, never
 the shell.
 
-`gate-keepers.sh` runs the 20 numbered non-code gate sections (the shell
-quad's four sub-checks count separately, so the summary line prints 23
+`gate-keepers.sh` runs the 21 numbered non-code gate sections (the shell
+quad's four sub-checks count separately, so the summary line prints 24
 gates) — the shell quad (bash -n + shellcheck + shfmt + source resolution) on shell scripts, yamllint + actionlint
 on workflows, TOML validation,
 codespell, markdownlint (NIGHT-improve-38, the docs tidying gate), SPDX license headers (check-headers.sh), file permission guard
