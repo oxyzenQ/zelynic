@@ -142,7 +142,11 @@ sudo zelynic s brave::curl::pacman 1mb # the group lane: one shared rate
   paste what `status` or eagle-eyes shows you), or a `::`-separated
   list for the group lane (`brave::curl::pacman`, `cg:1234::1245`)
   — see [the group lane](#strict--the-group-lane-one-shared-rate-for-several-apps)
-  below.
+  below. The grammar refuses its own mistake shapes at the
+  privilege-free rung (night-cafe-1, F5 — no sudo spent on a typo):
+  the `cg:` prefix over a non-id (`cg:abc`) and a container URI its
+  own scheme refuses (`docker://`, `k8s://prod`) die with the
+  grammar tip BEFORE the root ask.
 - The policy covers **the target's whole subtree** with ONE shared
   budget (NIGHT-private-research-2, MMSPA): every process that
   spawns under the target's cgroup — at any depth, born at any
@@ -171,8 +175,11 @@ sudo zelynic s brave::curl::pacman 1mb # the group lane: one shared rate
   paths) fall back to the cgroup's shared DRR budget, still
   policed. The lane rides the single lane only: a `::` list IS the
   shared-budget answer (one group bucket for every member — the two
-  shapes refuse together, before any parsing), and block needs no
-  bucket lane at all. `status` marks the rate cells (`500.0 KB/s
+  shapes refuse together, before any parsing), and the `--all` sweep
+  refuses it too — the sweep writes one group row per app, no
+  per-connection shape fleet-wide (both refusals name the runnable
+  single-target exit). Block needs no bucket lane at all. `status`
+  marks the rate cells (`500.0 KB/s
   /socket`) and the JSON carries `download_per_socket` /
   `upload_per_socket`; a policy mutation zeroes every socket's
   leftover tokens through the MMSPA generation belt, so a lowered
@@ -436,7 +443,13 @@ longer falsely drops an affordable packet.
 The command answers with the affirmative epilogue (NIGHT-improve-28):
 a green `OK.` and the follow-up commands in the same green tier —
 `Run 'zelynic unstrict brave' to remove, or 'zelynic status' to
-check.` The enforced facts (rates, policy counts — one policy per
+check.` Since night-cafe-1 (F15) the single-target lanes book one
+grey fact line between the two — the cgroup rows the apply just
+wrote, in the identity walk's own label form (`limited cg:8981
+(alacritty)`; block books `blocked ...`) — so a name that resolves
+to a shared cgroup (the `strict sleep` shape limiting a terminal's
+cgroup) names on screen what it limited. The enforced facts (rates,
+policy counts — one policy per
 direction per cgroup, so a name resolving to two cgroups counts four)
 live in `zelynic status`, not in the success echo.
 
@@ -1023,8 +1036,9 @@ Receive Window Control, the quota saver's Layer 1). A status report
 from a v25 object carries one more top-level key, `recwn_limits`,
 describing the receive-window lane that shapes a policed cgroup's
 own sockets (the sender-side slowdown; the human table prints it as
-its subordinate `RECWN window: 20.0 KB (binding across 1 download
-policy; est. RTT 200ms)` line — the line itself names the value a
+its subordinate `RECWN window: 20.0 KB · 1 policy · est. RTT 200ms`
+line — the compact voice night-cafe-1 (F8) landed, the same three
+facts inside every cut budget — the line itself names the value a
 receive window, not saved bytes, night-ux-1):
 
 - `recwn_limits.enabled` — `true` when a live download policy
@@ -1093,6 +1107,18 @@ jq 'if .error then "error: \(.error) — \(.hint)" else .limits[] end'
 The branch is on the document, not the exit code (both shapes exit
 0). This is honest, not a bug: a corrupt state should never render
 as a report that silently omits the corruption.
+
+The FATAL lane is its own contract (night-cafe-1, F9a — measured
+law): a document that cannot be built at all renders the error
+object `{"error":...,"tip":...}` on stdout with exit 1 — usage
+errors under `--print-json` (the clap door) and runtime refusals
+(the stale-pins chain, a malformed `--color-mode`) both ride it, and
+the degraded shapes are not that lane: `status`'s two clean-vs-error
+shapes above both exit 0, and list-apps' unprivileged census is a
+document WITH `"census_complete":false` (exit 0), the disclosure
+riding the flag and the stderr note, never a fabricated failure.
+One contract, exit 1 when there is no document to give, exit 0 when
+there is.
 
 NIGHT-private-research-3 (the compact-and-simple pass, the owner's
 directive): the breathing-gap filler lines retired on every report
@@ -1857,7 +1883,11 @@ means a cgroup ID (find one with `list-apps`), the `cg:18571`
 display prefix round-trips (NIGHT-boost-37 — a label copied off
 the table watches the cgroup it names), anything else a
 process name — and names watch ALL matching cgroups, the same
-whole-app semantics as strict/block. One target that resolves to a
+whole-app semantics as strict/block. The '/' separator owns one
+collision class a watcher must know (night-cafe-1, F17): a name
+carrying '/' — kernel threads are named that way (`napi/phy0-0`)
+— cannot ride the slash list; watch one by its `cg:<id>` from
+list-apps. One target that resolves to a
 single cgroup switches to the deep focus view: per-direction deltas,
 rate, lifetime totals (both lifetime counters summed — download and
 upload since attach, never a per-refresh delta), and every
@@ -2070,7 +2100,7 @@ can grep without running the full report.
 | Option | Effect |
 |------|--------|
 | `-h, --help` | The single end-to-end reference (commands, options, formats, examples). No separate man page exists — this is it. |
-| `-V, --version` | Version + build report (build label, hash, timestamp, lane-honest Signature). Parses at every level — after a subcommand's arguments too (NIGHT-boost-12). |
+| `-V, --version` | Version + build report (build label, hash, timestamp, lane-honest Signature). Parses at every level — after a subcommand's arguments too (NIGHT-boost-12), and the practice now matches the claim: a verbatim `-V`/`--version` typed where a verb still awaits its required positionals (`zelynic s -V`) is a version REQUEST — the report prints, exit 0, the command never runs (night-cafe-1, F7). |
 | `--check-update` | Checks the latest GitHub release. **Refuses to run as root** — it is a plain network fetch and must not ride sudo. Swarm-bounded (NIGHT-critical-infra-1): at most one completed network exchange per hour per user — a per-user runtime stamp (`$XDG_RUNTIME_DIR/zelynic-update.stamp`, `/tmp/.zelynic-update-<uid>` fallback) arms after a real exchange (success or HTTP error, never a DNS/timeout failure); an invocation inside the window prints the disclosed throttle verdict (remaining minutes, exit 0) instead of fetching. Remove the stamp to force a check. |
 | `-v, --verbose` | stderr diagnostic trace: target resolution (pids per cgroup), every policy write (rate + burst), BPF lifecycle (pin reuse, schema, link mode), plus loader-level eBPF debug — object size, kernel release, load/attach timings, and the loaded map inventory (id, type, key/value size, max_entries, the `bpftool` facts). JSON output stays clean. |
 | `--print-json` | Machine-readable output — the surface set is `status`, `list-apps`, `eagle-eyes --depth`, `doctor`: one compact JSON line each, the stable v11 scripting API (see the JSON reference below). Every other surface renders text (enforcement verbs, the live `eagle-eyes` monitor, `-h`, `-V`, `--check-update`), and the option never silently no-ops (NIGHT-boost-24, the depth report joined the set at NIGHT-master-1): on a surface that ignores it, exactly one stderr line notes `--print-json ignored (JSON surface: status, list-apps, eagle-eyes --depth, doctor)` — stdout and exit codes are untouched, so scripts stay clean. |
@@ -2685,6 +2715,13 @@ are churn, not drift.
 {"total":142,"apps":[{"process":"brave","cgroup_id":18571,"uid":1000,"processes":4,"sockets":9}],"socket_cgroups":57,"census_complete":true}
 ```
 
+The `process` field carries the FULL name (night-cafe-1, F1): the
+kernel caps a comm at 15 bytes and zelynic enriches it from argv[0],
+but the DISPLAY cap (24 columns) never leaks into the machine
+document — a >24-column name rides verbatim here (the display cell
+keeps the cap), and the name this field prints resolves verbatim as
+a strict/block target.
+
 `eagle-eyes <target> --depth --print-json` (NIGHT-master-1): one
 `targets[]` array — a report object per resolved cgroup, a
 `{"target":...,"error":...}` miss per name that resolved to nothing
@@ -2810,7 +2847,7 @@ report's `clamp bracket:` line is this object's own projection.
 
 `bypass_audit` (NIGHT-upgrade-charger-core-1-a) is the focus
 window's interface-vs-hooks shadow verdict, machine-scope:
-`{"window_secs":3,"nic_tx_bytes":...,"nic_rx_bytes":...,"bpf_tx_bytes":...,"bpf_rx_bytes":...,"shadow_tx_bytes":...,"shadow_rx_bytes":...,"verdict":"clean","shadow_tx_percent":2,"shadow_rx_percent":2}`
+`{"window_secs":3,"nic_tx_bytes":...,"nic_rx_bytes":...,"bpf_tx_bytes":...,"bpf_rx_bytes":...,"shadow_tx_bytes":...,"shadow_rx_bytes":...,"verdict":"clean","shadow_tx_percent":2,"shadow_rx_percent":2,"quiet_window":false}`
 with `verdict` one of `"clean"` / `"bypassed_tx"` / `"bypassed_rx"`
 / `"bypassed_both"` / `"unavailable"`, and `null` when no window
 ran — the same absence-vs-zero distinction every optional field
@@ -2818,7 +2855,15 @@ carries. night-verdict-closure-T3 (B4) appended the two
 `shadow_*_percent` fields (trailing, additive): the same
 whole-percent figures the text report's bypass section prints, so
 the human line's "tx shadow 16%, rx shadow 1%" is machine-checkable
-from the one document instead of re-derived. The raw bytes remain
+from the one document instead of re-derived. night-cafe-1 (F9c)
+appended `quiet_window` (trailing, additive): the floor gate the
+prose names — true when both shadows sit at-or-under their absolute
+floors (1 MiB tx / 2 MiB rx), the prose's "quiet window" basis. A
+percent is a share of the interface's OWN window traffic; a raw
+19%/15% pair beside `quiet_window:true` is a small-denominator
+artifact the verdict's both-gates law deliberately reads clean, and
+the same pair beside `false` reads against the band constants the
+verdict flags on. The raw bytes remain
 the authority; the percentages are the derived display form (0 when
 the interface moved nothing — a quiet window is clean, not a
 division by zero). The text section and this object come from the

@@ -551,3 +551,49 @@ honored. The queue grew by one MEDIUM with a live demonstration
 pin — all surgical, none kernel. Not yet peak; this queue is the
 remaining distance, and the owner's first step is one command:
 `sudo zelynic u --all`.
+
+
+## night-cafe-1: the approved queue verified and closed (same day)
+
+The owner approved the finding list; this pass verified every item
+against the current tree (source = truth), proved the open ones at
+runtime on a fresh build, and closed them — one micro-commit per
+finding, each with its own pins. Verdicts:
+
+- **Already fixed before this pass (verified, not re-touched):**
+  F3 (the battery records the BINARY's exit — `bin_rc` captured and
+  printed before json_shape runs; R10's `printf --` lands the
+  stderr headers) and F11 (the battery refuses euid=0 without
+  RUN_ROOT=1, naming which lane owns which cleanup).
+- **Closed this pass:** H1+H2 (one enrichment chain for both error
+  lanes — the JSON door sits after it; the probe pair and the
+  raw-fuzzy drift are gone from the machine lane; F13's one-usage
+  law rides the same seam), F1 (the uncapped name beside the
+  display-capped one; both JSON writers carry it; the resolution
+  walk matches both spellings), F2 (the exact-spelling fence —
+  D37 answers `--force-this`, never `--all`), F4 (the JSON tip
+  renders the plural sentence once), F5 (the grammar rung refuses
+  `cg:`-over-non-id and malformed container URIs before the root
+  ask — single boundary and list grammar), F6 (the unknown-unit
+  verdict names the crime on both the rate and duration lanes), F7
+  (the version door — `s -V` prints the report, exit 0), F8 (the
+  RECWN footer's compact voice fits the budget whole), F9(c)
+  (`bypass_audit.quiet_window` — the floor gate as an additive
+  boolean; F9(a)'s exit codes were already measured law and are now
+  documented, F9(b)'s absence law was already documented), F10
+  (B02 speaks operator English, verbatim example rails, zero
+  codenames measured on the surface), F12 (the sweep refuses
+  `--per-socket` at the routing rung; the help states the stance),
+  F14 (the color-mode grammar error ends with exactly one footer),
+  F15 (the apply epilogue names the resolved rows — `limited
+  cg:8981 (alacritty)`), F16 (the census rss cell is 8 columns —
+  the unit survives), F17 (the eagle-eyes slash collision gets its
+  excuse on both surfaces).
+- **The instruments:** 1,272 unit/integration pins green at every
+  commit; every fix carries its own pins; the battery's case
+  catalog (the MANUAL doc) re-pinned to the new expected verdicts
+  and docs/USAGE.md re-synced (the JSON process field, the fatal
+  exit-1 lane, bypass_audit's quiet_window, the per-socket sweep
+  refusal, the -V door, the grammar rung, the epilogue's resolved
+  line) so no doc pins a stale verdict. The next battery run diffs
+  reality against the re-pinned catalog.

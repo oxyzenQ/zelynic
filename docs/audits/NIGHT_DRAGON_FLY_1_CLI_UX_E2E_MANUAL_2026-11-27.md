@@ -78,14 +78,14 @@ the fleet sweeps, the live TUI frames) with the exact commands.
 | A04 | `zelynic help` | Usage error exit 2, one tip: `to see the reference, run 'zelynic --help'` (redirects.rs:132-171) | A second (fuzzy) tip beside the redirect — the override must remove it |
 | A05 | `--help \| head -3` | No panic; the writer swallows the broken pipe | Non-zero/141 exit surfacing from the pipe |
 | A06-A09 | `--print-json` with `-h`/`-V`/bare | The stderr honesty note BEFORE the text surface; stdout untouched (main.rs:164-166, ux.rs:344-356) | The note landing on stdout, or the exit code moving |
-| A10/A11 | `-V` after a subcommand | The banner prints, the command never runs (root.rs:64-72, global) | Any command execution before the banner |
+| A10/A11 | `-V` after a subcommand | The banner prints, the command never runs (root.rs:64-72, global) — measured law since night-cafe-1's version door (`s -V` on a required-positional verb prints the report, exit 0; F7) | Any command execution before the banner |
 | A12 | `--reset-terminal` | BYHAND only — silent, screen-clearing by design | — |
 
 ### B — the per-verb help doors
 
 | ID | Command | Expected | Watching for |
 |----|---------|----------|--------------|
-| B01-B12 | `<verb> -h` / `<verb> --help` for strict, block, unstrict, eagle-eyes, status, list-apps, doctor, sig, recover | clap's local help on stdout, exit 0 (ux.rs:254-306) | The local synopsis spelling `<TARGET> [RATE]` vs the curated reference's lowercase `<target> [rate]` (help.rs:120) — one grammar, two cases? |
+| B01-B12 | `<verb> -h` / `<verb> --help` for strict, block, unstrict, eagle-eyes, status, list-apps, doctor, sig, recover | clap's local help on stdout, exit 0 (ux.rs:254-306); B02 (strict) speaks operator English with verbatim example rails since night-cafe-1's F10 (zero lineage codenames on the surface) | The local synopsis spelling `<TARGET> [RATE]` vs the curated reference's lowercase `<target> [rate]` (help.rs:120) — one grammar, two cases? |
 | B13 | `strict -h --print-json` | The stderr note first, then the local help, exit 0 (ux.rs:344-356) | Note on stdout; exit code drift |
 
 ### C — the print-json contract
@@ -95,10 +95,10 @@ the fleet sweeps, the live TUI frames) with the exact commands.
 | C01 | `doctor --print-json` | One compact JSON document, stdout, exit 0 | Parse failure; multi-line wrapping |
 | C02/C03 | `status`/`list-apps --print-json` unpromoted | The runtime refusal as the JSON error object `{"error","tip"}`, stdout, exit 1 (main.rs:42-53) — or the documented degraded census for list-apps | Prose leaking onto the JSON lane; tip empty when advice exists |
 | C04 | `ee --depth --print-json` without a target | Usage-class error as the JSON object (argv pre-parse scan, argv.rs:210-237) | The prose usage block leaking |
-| C05 | `--print-json strictt` | `{"error":"unrecognized subcommand 'strictt'","tip":...}` exit 1 (json_error.rs:139-145) | Tip content vs D01 — see H1 |
-| C06 | `--print-json snapshot` | The retired-verb redirect does NOT run on the JSON lane (ux.rs:362 exits before ux.rs:387) — tip is clap's native fuzzy or empty | The lane drift — see H1 |
-| C07 | `--print-json __probe-serve` | The hidden-vocabulary filter does NOT run on the JSON lane (drop_hidden_subcommand_suggestions at ux.rs:393, after the door) | The hidden probe roles surfacing in a machine tip — see H2 |
-| C08 | `--print-json --verbos` | The JSON object; the flag rescues never ran (H1 family) | Tip vs D29 |
+| C05 | `--print-json strictt` | `{"error":"unrecognized subcommand 'strictt'","tip":"some similar subcommands exist: 's', 'unstrict', 'strict'"}` exit 1 — the plural join (F4) | Tip content vs D01 — byte-parallel since night-cafe-1 |
+| C06 | `--print-json snapshot` | The redirect rides since night-cafe-1 (H1 fixed): tip names the successor `status` — the same facts the prose render carries | Any drift re-appearing (the door moving back before the chain) |
+| C07 | `--print-json __probe-serve` | The hidden-vocabulary filter runs BEFORE the JSON door (H2 fixed): tip `""`, the honest dead end | The probe pair surfacing in a machine tip — the regression class |
+| C08 | `--print-json --verbos` | The JSON object carrying the rescue: tip names `--verbose` (H1 family fixed) | Tip vs D29 — parity |
 | C09 | `--print-json s brave 1kb` | stderr note `--print-json ignored (JSON surface: ...)` + the prose refusal; stdout clean, exit untouched (scope.rs, commands/mod.rs:99-101) | Note on stdout; exit drift — see H4 |
 | C10 | `--print-json sig` | Same note + the sig text report | Note wording listing sig as ignored |
 | C11 | `--print-json --color-mode 99` | `{"error": <grammar reason>, "tip": ""}` exit 1 (main.rs:150-152) | Prose render leaking; empty-tip key absent |
@@ -111,20 +111,20 @@ the fleet sweeps, the live TUI frames) with the exact commands.
 | D04-D28 | the full retired-spelling sweep: observe, top, eagle-eye, limit-all, la, strict-single, strict-multi, ss, sm, block-single, block-multi, bs, bm, unstrict-single, unstrict-multi, us, um, strict-all, sa, block-all, ba, unstrict-all, ua, snapshot, restore | Exit 2 with the redirect tip naming the successor verb or `verb --all` spelling (redirects.rs:45-89) | Any spelling whose tip names a dead or wrong successor |
 | D29/D30 | `--verbos`, `--VERBOS` | Exit 2, one tip `a similar argument exists: '--verbose'` (case-insensitive rescue, suggestion.rs:85-164) | Two tips (the escape hatch must be dropped, ux.rs:151) |
 | D31/D32 | `--json` at root and after `s` | The vocabulary rescue tip `--print-json` (rescue.rs:147) | Root-lane note: the flag itself is unknown; subcommand lane: same tip shape |
-| D33 | `s brave 1kb --check-updat` | The shadowed-suggestion rescue: `--check-update` must beat `--ceil-upload` (rescue.rs:67-115) | The subcommand pool shadowing the root flag — the improve-42 regression class |
+| D33 | `s brave 1kb --check-updat` | The shadowed-suggestion rescue: `--check-update` must beat `--ceil-upload` (rescue.rs:67-115); the usage line is the POST-chain form (F13: one usage per error class — byte-identical to D34's) | The subcommand pool shadowing the root flag — the improve-42 regression class |
 | D34 | `s brave 1kb --check-updated` | The top-level authority tip `zelynic --check-update` (rescue.rs:32-39) | A bare `--check-update` tip pointing at a position where it still fails |
 | D35 | `s brave 1kb --no-probe` | The vocabulary tip `--no-test` (rescue.rs:138-145) | Tip-less death (jaro 0.69 is under the bar by design) |
 | D36 | `ee brave --info` | The vocabulary tip `--depth` (rescue.rs:129-137) | Tip-less death |
-| D37 | `s brave 1mb --allow-dangerous` | The vocabulary tip `--force-this` (rescue.rs:127) | — |
+| D37 | `s brave 1mb --allow-dangerous` | The vocabulary tip `--force-this` (rescue.rs:127) — measured law since night-cafe-1's exact-spelling fence (clap's `--all` shadow, the D37 find, closed) | — |
 | D38 | `s brave 550kb -- -V` | The escape hatch is HONEST here (the probe re-parses the spliced argv, argv.rs:70-81): the tip stays | A rescue tip and the hatch both printing |
 | D39 | `s brave 550kb -- -i` | The hatch is DISHONEST (following it dies again): the tip must be dropped | The tip surviving — the boost-13 contract |
 | D40 | `ee brave electron` | Exit 2 + the grammar tip `targets are ONE slash-separated argument` (ux.rs:201-235) | No tip; the flag rescues firing on a bare word |
 | D41 | `ee brave/electron` | Parses; proceeds to the privilege or resolution rung | Parse rejection of the documented grammar |
 | D42 | `--color-mode` (no value) | Exit 2, `a value is required for '--color-mode' but none was supplied` (json_error.rs:163-175 wording, prose twin) | `invalid value ''` — the machine-facing lie class |
-| D43 | `--color-mode 99 doctor` | Exit 2 with the allowed grammar in the message (main.rs:142-155) | The allowed list wording vs the help table |
+| D43 | `--color-mode 99 doctor` | Exit 2 with the allowed grammar in the message AND exactly one canonical footer (F14 — the one fatal path that ended without it, closed) | The allowed list wording vs the help table |
 | D44 | `--color-mode 0 doctor` | doctor in mono — zero ESC bytes (the one-color law, NIGHT-improve-73) | ESC bytes anywhere in stdout or stderr |
 | D45-D47 | the 16-rung remap and the byte law | ESC bytes present, truecolor `38;2;` escapes ABSENT (clap_styles_16 remap, ux.rs:365-378) | RGB bytes surviving into the 16-rung render |
-| D48-D51 | `1kib`, `10mbps`, `1MB`, `5.5xb` | Exit 2 + `tip: a similar value exists: '1kb'` / `'10mb'` / `'1mb'` / `'5.5kb'` (tips.rs:50-89, the fractional split) | The number sliced at the dot (boost-15 class); comma-lane competition |
+| D48-D51 | `1kib`, `10mbps`, `1MB`, `5.5xb` | Exit 2 + the unknown-unit verdict naming the crime (`unknown unit 'kib' — the ladder is b, kb, mb, gb, tb`, F6) + `tip: a similar value exists: '1kb'` / `'10mb'` / `'1mb'` / `'5.5kb'` (tips.rs:50-89, the fractional split) | The wrong-layer digit sentence re-appearing; comma-lane competition |
 | D52 | `s brave 500b` | The min-rate guard refusal (< 1kb) | The guard's rung order vs privilege |
 | D53 | `s brave 0.9kb` | The min-rate guard refusal (900 < 1000) | Rounding drift |
 | D54 | `s brave 2tb` | The max-rate refusal (max 1tb) | The bound wording |
@@ -136,11 +136,11 @@ the fleet sweeps, the live TUI frames) with the exact commands.
 | D60/D61 | `s`, `s brave` | Exit 2 (missing positional) / the rate-missing runtime wording | The lone-positional-is-RATE rule (surface.rs:38-40) colliding with the target-required rung |
 | D62 | `s brave 1mb -d 2mb` | The both-rate + per-direction conflict refusal | Silent acceptance of one of the two |
 | D63 | `s brave 1mb --floor 100kb --floor-download 50kb` | The refuse-together wording (surface.rs:138-144) | A clap conflict missing at parse time (no conflicts_with in the derive) — refusal must come from the runtime law, wording audited |
-| D64 | `s --all 500kb --per-socket` | The sweep-lane refusal of per-socket | Silent acceptance |
+| D64 | `s --all 500kb --per-socket` | The sweep-lane refusal of per-socket — measured law since night-cafe-1's F12 (the flag rode nowhere: a silent no-op under root) | Silent acceptance |
 | D65 | `s brave::steam::curl 1mb --per-socket` | The list-lane refusal (surface.rs:89-99) | Silent acceptance |
 | D66 | `s "" 1kb` | The empty-target rung (the hardening-1 family) | A silent no-op |
-| D67/D68 | `s cg:` / `s cg:abc` | The cgroup-grammar refusals | The display prefix round-trip law (help.rs:337-342) |
-| D69 | `s docker://` | The container-grammar refusal | Empty-name handling |
+| D67/D68 | `s cg:` / `s cg:abc` | The cgroup-grammar refusals at the privilege-free rung (F5 — measured law) | The display prefix round-trip law (help.rs:337-342) |
+| D69 | `s docker://` | The container-grammar refusal at the privilege-free rung (F5 — measured law) | Empty-name handling |
 | D70 | `ee ""` | The empty-targets rung | A live monitor launch on empty input |
 | D71-D74 | `ee --interval 0s` / `61s`, `--focus 0s` / `31s` | The bounds refusals (1s..60s live, 1s..30s depth window, surface.rs:303-312) | The bound wording; `--focus` on the live monitor printing its one stderr note (D75) |
 | D75 | `ee --focus 5s </dev/null` | The interactive gate's answer + the focus-ignored note | The note on stdout |
@@ -184,21 +184,22 @@ Each hypothesis is grounded at a source line; the battery case named
 per hypothesis is the decisive evidence.
 
 - **H1 — the JSON error lane never runs the rescue chain.** The
-  contract door exits at src/cli/ux.rs:362 BEFORE the enrichment
-  chain at ux.rs:385-394, but json_error.rs:24-25 promises "the same
+  contract door exited BEFORE the enrichment
+  chain, but json_error.rs:24-25 promises "the same
   facts the prose render carries". Every retired spelling
   (C05/C06/C07 vs D04-D28), every flag rescue (C08 vs D29-D37), and
-  the hidden-vocabulary filter render differently per lane. Prose
-  parity claim vs byte reality — the honest fix is either running
-  the enrichments before the JSON split or narrowing the doc's
-  promise.
+  the hidden-vocabulary filter rendered differently per lane.
+  RESOLVED by night-cafe-1: the chain is one seam both lanes
+  consume; the JSON door sits after it (the render and the footer
+  stay prose furniture), C06/C08 carry the prose facts, and C07's
+  tip is the honest empty.
 - **H2 — the hidden probe roles can leak on the JSON lane.** The
-  prose lane drops hidden subcommand suggestions (redirects.rs:174,
-  wired at ux.rs:393); the JSON door exits at ux.rs:362 before that
-  filter. `zelynic --print-json __probe-serve` should render a tip
-  naming `__probe-server` — the exact leak class hunt-Z9 closed on
-  the prose lane, described there as teaching an "unauthenticated
-  loopback data blast". Case C07 decides.
+  prose lane drops hidden subcommand suggestions (redirects.rs:174);
+  the old JSON door exited before that
+  filter. RESOLVED by night-cafe-1: the filter runs before the JSON
+  door (one chain, both lanes), and `zelynic --print-json
+  __probe-serve` answers the honest empty tip — C07 decided, the
+  leak class stays closed on BOTH lanes.
 - **H3 — the `mn` months trap has no runtime echo.** 30mn is 30
   months (help_flags.rs:176-178); nothing in the captured surface
   shows the resolved window being echoed back at acceptance time.
