@@ -114,6 +114,7 @@ states ("a fuzzy suggestion for a removed name is overridden, never
 supplemented — one tip, the right one").
 
 ### F3 — HIGH: the battery under-reports the binary's exit codes (and
+
 two printf crashes)
 
 The JSON-document cases eval `"$BIN" ... > file; cat file;
@@ -142,6 +143,7 @@ singular prefix, then joins. Fix: plural verdict once, quoted list
 after — the prose lane's exact shape, contract-encoded.
 
 ### F5 — MEDIUM: the fail-fast ladder stops at the root gate for
+
 strict's target grammar
 
 `D67`-`D69` (`s cg: 1kb`, `s cg:abc 1kb`, `s docker:// 1kb`) reach
@@ -182,6 +184,7 @@ required positional. Fix: intercept `-V` the way `-h` is intercepted
 and let the manual validation the `--all` lane already needs own it.
 
 ### F8 — LOW: the status footer's fixed truncation swallows the
+
 measured RTT
 
 `R04`/`R12` at COLUMNS=88: "RECWN window: 40.0 KB (binding across 48
@@ -551,7 +554,6 @@ honored. The queue grew by one MEDIUM with a live demonstration
 pin — all surgical, none kernel. Not yet peak; this queue is the
 remaining distance, and the owner's first step is one command:
 `sudo zelynic u --all`.
-
 
 ## night-cafe-1: the approved queue verified and closed (same day)
 
