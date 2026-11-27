@@ -298,7 +298,10 @@ RATE_CASES = [
     ("1MB", "invalid rate", "uppercase rejected"),
     ("abc", "invalid rate", "non-numeric"),
     ("", "invalid rate", "empty string"),
-    ("1xb", "invalid number", "letters in numeric part"),
+    # night-cafe-1 (F6): the trailing-alpha shape is the UNIT's crime
+    # — 'xb' is not in the ladder — so the verdict names the unknown
+    # unit, not "invalid number" (a number the user never typed).
+    ("1xb", "unknown unit", "letters in the unit tail"),
     ("0.5kb", "below minimum", "below the 1kb floor"),
     ("500", "below minimum", "plain number below min"),
     ("2tb", "above maximum", "above the 1tb ceiling"),

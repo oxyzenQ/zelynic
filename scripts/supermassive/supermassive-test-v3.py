@@ -498,12 +498,16 @@ def test_container_help_surface():
 
 
 def test_container_privilege_gate():
-    """The privilege gate refuses container targets without root.
+    """The refusal ladder answers every container target shape without root.
 
-    Runs the refusal ladder: the gate answers "root required" on every
-    container target shape (well-formed and malformed) — the contract
-    is the INVARIANT (rc=1 + no panic + root-required wording), not the
-    exact string. As root, the rows run through the real-user drop
+    The well-formed shapes ride the privilege gate: root is checked
+    before the target parses, so the answer is the INVARIANT (rc=1 +
+    no panic + root-required wording), not the exact string. The
+    malformed shape is the grammar rung's own since night-cafe-1 (F5):
+    the scheme prefix proves the user meant a container, so the input
+    boundary refuses it BEFORE the root ask ('malformed container URI'
+    + the scheme's law) — a typo'd grammar costs no sudo round-trip.
+    As root, the rows run through the real-user drop
     lane (a dropped uid 65534 gets the same refusal a real user gets);
     only a host without setpriv skips (the gate cannot trigger as
     root, and no drop tool exists to become the user — stages 3 and 4
@@ -526,6 +530,9 @@ def test_container_privilege_gate():
     # gate refuses all of them identically (root is checked before the
     # target parses, so the URI's validity does not change the answer).
     cases = [(uri, "well-formed") for uri, _, _ in WELL_FORMED_URIS]
+    # The malformed shape rides the grammar rung (night-cafe-1, F5):
+    # its refusal wording is the malformed-container verdict, not the
+    # privilege gate's.
     cases.append(("docker://", "malformed (empty name)"))
     for uri, shape in cases:
         rc, output = _run_cli_case([STRICT_SINGLE, uri, VALID_RATE], as_user=as_user)
@@ -552,6 +559,25 @@ def test_container_privilege_gate():
                 f"{shape}: panic leaked past the privilege gate",
             )
             all_ok = False
+            continue
+        if shape.startswith("malformed"):
+            # The grammar rung owns the malformed shapes (F5): the
+            # refusal names the URI crime, the privilege gate never
+            # fires (the ask comes after the grammar — the whole
+            # point of the rung).
+            if "malformed container URI" not in output:
+                record(
+                    f"privilege gate: {uri} grammar wording",
+                    "FAIL",
+                    f"{shape}: rc={rc} but no malformed-container wording in output",
+                )
+                all_ok = False
+                continue
+            record(
+                f"privilege gate: {uri} grammar-refuses clean",
+                "PASS",
+                f"{shape}: rc={rc}, grammar-refused pre-root, no panic{lane_note}",
+            )
             continue
         if not ROOT_REQUIRED_RE.search(output):
             record(

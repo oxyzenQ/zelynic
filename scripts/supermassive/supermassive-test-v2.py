@@ -774,17 +774,19 @@ CLI_DEPTH_CASES = [
     # the no-match line is the plural multi form ('No cgroups found
     # for any target in ...'), so the wording pin could never hold.
     # The argv now matches the title: the single form with a
-    # non-numeric cg: remainder keeps the whole string as a process
-    # name (boost-37's graceful parse — never a silent rewrite) and
-    # prints the singular wording pinned here. NIGHT-dinner-11 moved
-    # every no-match to the hard-refusal class (exit 1, the branded
-    # error) — the multi miss stays covered by the shell-substitution
-    # case above.
+    # non-numeric cg: remainder. night-cafe-1 (F5) moved the shape's
+    # refusal UP the ladder: no kernel comm carries the display
+    # prefix, so the grammar rung refuses it BEFORE the root ask
+    # ('carries the cg: id prefix over a non-id', both exits taught) —
+    # the late no-match this pin rode is the pre-F5 shape. NIGHT-dinner-11
+    # moved every no-match to the hard-refusal class (exit 1, the
+    # branded error) — the multi miss stays covered by the
+    # shell-substitution case above.
     (
-        "cg prefix with a non-numeric remainder keeps the no-match contract",
+        "cg prefix with a non-numeric remainder refuses at the grammar rung",
         ["s", "cg:brave", "1mb"],
         "nonzero",
-        "No cgroup found",
+        "carries the cg: id prefix over a non-id",
     ),
 ]
 
