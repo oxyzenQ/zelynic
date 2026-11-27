@@ -34,7 +34,7 @@ use super::apply_success_lines;
 /// stderr is not a TTY): the exact two lines, wording pinned.
 #[test]
 fn epilogue_lines_pinned_mono() {
-    let lines = apply_success_lines("zelynic unstrict cg:48181", "remove", "");
+    let lines = apply_success_lines("zelynic unstrict cg:48181", "remove", "", None);
     assert_eq!(lines[0], "OK.");
     assert_eq!(
         lines[1],
@@ -52,6 +52,7 @@ fn epilogue_names_the_resolved_rows() {
         "zelynic unstrict sleep",
         "remove",
         "limited cg:8981 (alacritty)",
+        None,
     );
     assert_eq!(lines.len(), 3, "verdict, the resolved fact, the follow-up");
     assert_eq!(lines[0], "OK.");
@@ -66,7 +67,7 @@ fn epilogue_names_the_resolved_rows() {
 /// wording is the contract each verb family reads identically.
 #[test]
 fn epilogue_restore_access_variant_pinned() {
-    let lines = apply_success_lines("zelynic u --all", "restore access", "");
+    let lines = apply_success_lines("zelynic u --all", "restore access", "", None);
     assert_eq!(lines[0], "OK.");
     assert_eq!(
         lines[1],
@@ -76,8 +77,9 @@ fn epilogue_restore_access_variant_pinned() {
 
 /// Exactly two lines without a resolved fact — the epilogue can never
 /// regrow a third (the verbosity regression this task closed); the
-/// ONE sanctioned third line is the resolved-fact booking (F15, the
-/// pin above).
+/// sanctioned extras are exactly TWO: the resolved-fact booking (F15,
+/// the pin above) and the --during window echo (night-dragon-fly-1
+/// rev 5, the pin below) — each only when its fact exists.
 #[test]
 fn epilogue_is_exactly_two_lines() {
     for (cmd, action) in [
@@ -89,7 +91,7 @@ fn epilogue_is_exactly_two_lines() {
         ("zelynic u --all", "restore access"),
     ] {
         assert_eq!(
-            apply_success_lines(cmd, action, "").len(),
+            apply_success_lines(cmd, action, "", None).len(),
             2,
             "the epilogue is the verdict + the follow-up, nothing else ({cmd})"
         );
@@ -113,7 +115,7 @@ fn epilogue_green_wraps_exactly_the_runnable_commands() {
         ("zelynic u --all", "remove"),
         ("zelynic unstrict brave", "restore access"),
     ] {
-        let lines = apply_success_lines(cmd, action, "");
+        let lines = apply_success_lines(cmd, action, "", None);
         let expected = format!(
             "Run '{}' to {action}, or '{}' to check.",
             crate::output::ok(cmd),
@@ -126,4 +128,30 @@ fn epilogue_green_wraps_exactly_the_runnable_commands() {
             "the verdict rides the same green tier ({cmd})"
         );
     }
+}
+
+/// The window echo (night-dragon-fly-1 rev 5): a --during apply
+/// books ONE grey fact line between the resolved rows and the
+/// follow-up — the wall instant the row lifts itself plus the
+/// duration, the same facts the status table's lifetime line keeps
+/// current. Absent rides as None, never an empty string.
+#[test]
+fn epilogue_window_echo_rides_between_the_facts() {
+    let lines = apply_success_lines(
+        "zelynic unstrict sleep",
+        "remove",
+        "limited cg:8801 (sudo)",
+        Some("window: lifts itself at 2026-11-27 18:17:00 UTC (30m)"),
+    );
+    assert_eq!(lines.len(), 4, "verdict, rows, the window, the follow-up");
+    assert_eq!(lines[0], "OK.");
+    assert_eq!(lines[1], "limited cg:8801 (sudo)");
+    assert_eq!(
+        lines[2],
+        "window: lifts itself at 2026-11-27 18:17:00 UTC (30m)"
+    );
+    assert_eq!(
+        lines[3],
+        "Run 'zelynic unstrict sleep' to remove, or 'zelynic status' to check."
+    );
 }

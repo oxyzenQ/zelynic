@@ -300,7 +300,16 @@ pub(crate) fn handle_strict_all(
     // a per-target unstrict — the old suggestion built
     // 'zelynic unstrict 3 apps', which is not a target at all.
     // NIGHT-improve-54: the sledgehammer is the --all lane now.
-    super::apply_success_epilogue("zelynic u --all", "remove", "");
+    // The window echo rides the sweep too (night-dragon-fly-1 rev 5):
+    // one translated window covers every applied row.
+    let window_line = during_spec.as_ref().map(|spec| {
+        crate::ebpf::display::window_apply_echo(
+            spec.duration_ns(),
+            spec.raw_spelling(),
+            crate::ebpf::limiter::wall_now_ns(),
+        )
+    });
+    super::apply_success_epilogue("zelynic u --all", "remove", "", window_line.as_deref());
     if let Some(outcome) = &probe_outcome {
         for line in probe_report::report_lines(outcome) {
             eprintln_safe!("{line}");

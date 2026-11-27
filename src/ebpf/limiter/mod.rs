@@ -80,7 +80,9 @@ pub use types::{
 // snapshot/restore pair when NIGHT-improve-55 retired the feature
 // whole — nothing command-layer reaches into during's file format
 // anymore, so no re-export rides for it.
-pub use during::{dormancy_note, format_wall_utc, wall_minus_mono, wall_now_ns, window_state};
+pub use during::{
+    dormancy_note, format_wall_utc, format_wall_utc_iso, wall_minus_mono, wall_now_ns, window_state,
+};
 pub use during_parse::parse_during;
 
 pub use crate::ebpf::pin::{

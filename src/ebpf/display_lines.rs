@@ -397,6 +397,26 @@ pub(crate) fn window_lifetime_line(win: &PolicyWindowRaw, wall_now: u64, mono_no
     }
 }
 
+/// The apply epilogue's window echo (night-dragon-fly-1 rev 5, the
+/// owner-approved class C queue): the ONE line the apply report was
+/// missing. `--during` writes a row the KERNEL tears down, and the
+/// success surface said nothing about it — the battery's D59/R17
+/// find: a user who limits for 30mn cannot see when the row lifts
+/// itself without a status visit. The echo answers at the moment of
+/// the promise: the wall instant the span ends plus the operator's
+/// OWN spelling of the duration ("30mn" reads as 30 months beside a
+/// date two-plus years out — the mn/months trap made self-evident at
+/// acceptance time, the manual's H3 question answered by the surface
+/// it named). The same two facts the status table's
+/// `window: until ... (X left)` lifetime line keeps current. Pure:
+/// (duration, spelling, wall now) in, one grey line out.
+pub(crate) fn window_apply_echo(duration_ns: u64, raw: &str, wall_now: u64) -> String {
+    grey(&format!(
+        "window: lifts itself at {} ({raw})",
+        format_wall_utc(wall_now.saturating_add(duration_ns)),
+    ))
+}
+
 /// One row's guarantee line (pure, improve-40, schema v24;
 /// improve-40-b the per-direction shape): grey, the window lifetime
 /// line's own subordinate family — the bracket is per-subprocess

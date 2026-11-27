@@ -128,10 +128,21 @@ fn handle_block_single(target_str: &str, force_this: bool, during: Option<&str>)
         .iter()
         .map(|id| limiter.cgroup_label(*id))
         .collect();
+    // The window echo (night-dragon-fly-1 rev 5): the --during promise
+    // named at the moment it is made — the block lane's window is the
+    // same kernel-owned teardown the strict family rides.
+    let window_line = during_spec.as_ref().map(|spec| {
+        crate::ebpf::display::window_apply_echo(
+            spec.duration_ns(),
+            spec.raw_spelling(),
+            crate::ebpf::limiter::wall_now_ns(),
+        )
+    });
     super::apply_success_epilogue(
         &format!("zelynic unstrict {target_str}"),
         "restore access",
         &format!("blocked {}", labels.join(", ")),
+        window_line.as_deref(),
     );
     Ok(())
 }
@@ -223,11 +234,20 @@ fn handle_block_multi(targets_str: &str, force_this: bool, during: Option<&str>)
     // NIGHT-improve-28: the list form suggests the list unstrict —
     // the old '<target>' placeholder was advice the user had to
     // re-assemble by hand, and the single lane does not split lists
-    // without the '::' separator anyway.
+    // without the '::' separator anyway. The window echo rides the
+    // list lane too (night-dragon-fly-1 rev 5).
+    let window_line = during_spec.as_ref().map(|spec| {
+        crate::ebpf::display::window_apply_echo(
+            spec.duration_ns(),
+            spec.raw_spelling(),
+            crate::ebpf::limiter::wall_now_ns(),
+        )
+    });
     super::apply_success_epilogue(
         &format!("zelynic unstrict {targets_str}"),
         "restore access",
         "",
+        window_line.as_deref(),
     );
     Ok(())
 }
@@ -389,7 +409,9 @@ pub fn handle_block_all(force_this: bool, during: Option<&str>) -> Result<()> {
 
     // NIGHT-improve-28: the whole-system block reverses with the
     // sledgehammer — 'u --all' (the epilogue carries the green
-    // OK. verdict and the follow-up commands).
-    super::apply_success_epilogue("zelynic u --all", "restore access", "");
+    // OK. verdict and the follow-up commands). The sweep lane parses
+    // no --during, so the window echo is None here (None keeps the
+    // pinned two-line shape byte-stable).
+    super::apply_success_epilogue("zelynic u --all", "restore access", "", None);
     Ok(())
 }

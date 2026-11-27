@@ -71,7 +71,7 @@ pub fn wall_minus_mono(wall_ns: u64, mono_ns: u64) -> u64 {
 pub fn during_to_window(spec: &DuringSpec, mono_now_ns: u64) -> PolicyWindowRaw {
     let mut row = PolicyWindowRaw::default();
     match spec {
-        DuringSpec::Duration { ns } => {
+        DuringSpec::Duration { ns, raw: _ } => {
             row.kind = WINDOW_KIND_SPAN;
             row.start_mono_ns = mono_now_ns;
             row.end_mono_ns = mono_now_ns.saturating_add(*ns);
@@ -183,6 +183,25 @@ pub fn format_wall_utc(wall_ns: u64) -> String {
     let (y, m, d) = civil_from_days(days);
     format!(
         "{y:04}-{m:02}-{d:02} {:02}:{:02}:{:02} UTC",
+        sod / 3600,
+        (sod / 60) % 60,
+        sod % 60
+    )
+}
+
+/// The wire twin of [`format_wall_utc`]: ISO-8601 UTC
+/// ("YYYY-MM-DDTHH:MM:SSZ") — the shape `jq`'s `fromdateiso8601`
+/// parses without a custom recipe (night-dragon-fly-1 rev 5's
+/// `expires_at_utc` field). The human lifetime line keeps the
+/// spaced form; the machine document gets the parseable one. Same
+/// Hinnant pair, same pin law.
+pub fn format_wall_utc_iso(wall_ns: u64) -> String {
+    let secs = wall_ns / NS_PER_SEC;
+    let days = (secs / 86_400) as i64;
+    let sod = secs % 86_400;
+    let (y, m, d) = civil_from_days(days);
+    format!(
+        "{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z",
         sod / 3600,
         (sod / 60) % 60,
         sod % 60

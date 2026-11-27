@@ -2592,6 +2592,14 @@ different objects and own different clocks:
   the same pair the human table's `window: until ... (5h left)`
   line renders). The remaining lifetime is
   `end_wall_ns` minus now; nothing in `rate_ring` changes it.
+  Spans carry two readable echoes beside the raw pair
+  (night-dragon-fly-1 rev 5): `during` — the remaining lifetime in
+  the flag's own compact grammar (`"2h"`, counting down on every
+  status read, `"0s"` once expired; at apply-report time it is the
+  full duration the flag accepted) and `expires_at_utc` — the end
+  instant as ISO-8601 (`"2026-11-27T18:17:00Z"`), the shape `jq`'s
+  `fromdateiso8601` parses directly. Daily windows carry neither
+  (no single expiry exists — the keys are honestly absent).
 
 jq recipes for the two clocks (the seconds-left readout the human
 table prints, and the ring's average rate):
@@ -2602,6 +2610,13 @@ sudo zelynic status --print-json | jq '
   .limits[] | select(.window != null) |
   {label, kind: .window.kind, state: .window.state,
    seconds_left: ((.window.end_wall_ns / 1e9) - now | floor)}'
+
+# The same read through the rev 5 fields — no arithmetic, the
+# flag's own grammar and a parseable UTC instant.
+sudo zelynic status --print-json | jq '
+  .limits[] | select(.window.kind == "span") |
+  {label, during: .window.during,
+   expires: (.window.expires_at_utc | fromdateiso8601 | strftime("%Y-%m-%d %H:%M:%S UTC"))}'
 
 # Average delivered rate over the ring's own horizon, per direction.
 sudo zelynic status --print-json | jq '

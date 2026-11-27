@@ -82,7 +82,23 @@ fn window_json_pins_span_and_daily_shapes() {
     assert_eq!(win.state, "active");
     assert_eq!(win.start_wall_ns, Some(offset));
     assert_eq!(win.end_wall_ns, Some(wall + 3600 * 1_000_000_000));
+    // The rev 5 visibility pair (night-dragon-fly-1): the remaining
+    // lifetime in the flag's own grammar — the full duration at the
+    // apply instant, the snapshot's own mono clock — and the end
+    // instant as ISO-8601, `fromdateiso8601`'s exact shape.
+    assert_eq!(win.during.as_deref(), Some("1h"));
+    assert_eq!(win.expires_at_utc.as_deref(), Some("2026-10-06T13:00:00Z"));
     assert!(win.start_s.is_none() && win.end_s.is_none());
+
+    // The wire carries the pair (the hand-written writer's own
+    // branch — pinned through the parse lens, the S1 law).
+    let doc = crate::json::Value::parse_str(&json.to_json()).unwrap();
+    let win_doc = &doc["limits"][0]["window"];
+    assert_eq!(win_doc["during"].as_str(), Some("1h"));
+    assert_eq!(
+        win_doc["expires_at_utc"].as_str(),
+        Some("2026-10-06T13:00:00Z")
+    );
 
     let dl_daily = vec![(202u32, policy(5_000_000))];
     let json = status_json(
@@ -107,6 +123,9 @@ fn window_json_pins_span_and_daily_shapes() {
     assert_eq!(win.start_s, Some(22 * 3600));
     assert_eq!(win.end_s, Some(6 * 3600));
     assert!(win.start_wall_ns.is_none() && win.end_wall_ns.is_none());
+    // No single expiry exists on a daily window: the rev 5 pair is
+    // span-only (the honest absence — never a fabricated instant).
+    assert!(win.during.is_none() && win.expires_at_utc.is_none());
 
     // Absent windows stay absent (the additive-field rule).
     let json = status_json(

@@ -93,7 +93,7 @@ pub(crate) struct DisplayData {
 pub(crate) use super::display_lines::{
     StatusLineKind, active_limits_line, ce_marked_line, counters_footer_lines, frame_status_output,
     guarantee_line, list_apps_header_line, pacing_line, quota_saved_line, status_cells,
-    status_header_line, status_row_line, watchdog_line, window_lifetime_line,
+    status_header_line, status_row_line, watchdog_line, window_apply_echo, window_lifetime_line,
 };
 
 // night-verify-final (schema v33): the RECWN lane's derivation and
@@ -471,6 +471,14 @@ pub fn print_status(
 #[cfg(test)]
 #[path = "../../test/ebpf/display_tests.rs"]
 mod display_tests;
+
+// night-dragon-fly-1 rev 5: the window family's pins — the lifetime
+// line, the apply echo, and the census join — split from
+// display_tests.rs at the 600-LOC owner cap (the bracket sibling's
+// own lineage).
+#[cfg(test)]
+#[path = "../../test/ebpf/display_window_tests.rs"]
+mod display_window_tests;
 
 // improve-40-b: the per-direction bracket's read-surface pins,
 // split from display_tests.rs at the 500-LOC owner cap (the

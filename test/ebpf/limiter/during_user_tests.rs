@@ -52,7 +52,10 @@ fn duration_parses_every_unit() {
     ] {
         assert_eq!(
             parse_during(input).unwrap(),
-            DuringSpec::Duration { ns },
+            DuringSpec::Duration {
+                ns,
+                raw: input.to_string()
+            },
             "'{input}' must parse to {ns} ns"
         );
     }
@@ -60,17 +63,24 @@ fn duration_parses_every_unit() {
     assert_eq!(
         parse_during("20d").unwrap(),
         DuringSpec::Duration {
-            ns: 20 * NS_PER_DAY
+            ns: 20 * NS_PER_DAY,
+            raw: "20d".to_string()
         }
     );
     // Whitespace is trimmed (a shell-quoted sloppiness is not a
-    // grammar error).
+    // grammar error) — and the raw spelling rides the TRIMMED form.
     assert_eq!(
         parse_during(" 20d ").unwrap(),
         DuringSpec::Duration {
-            ns: 20 * NS_PER_DAY
+            ns: 20 * NS_PER_DAY,
+            raw: "20d".to_string()
         }
     );
+    // The rev 5 echo contract: the spec carries the operator's OWN
+    // spelling — a `30mn` acceptance can repeat the typed unit beside
+    // the resolved instant (the months trap, self-evident at apply
+    // time; the manual's H3 question).
+    assert_eq!(parse_during("30mn").unwrap().raw_spelling(), "30mn");
 }
 
 // ━━ The grammar: the shapes that are gone ━━
@@ -228,6 +238,7 @@ fn duration_translates_to_a_running_span() {
     let row = during_to_window(
         &DuringSpec::Duration {
             ns: 2 * 3600 * NS_PER_SEC,
+            raw: "2h".to_string(),
         },
         mono,
     );
