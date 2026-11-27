@@ -27,6 +27,12 @@
 
 use anyhow::Result;
 
+// The orphan census law (night-cafe-mclaren-2) rides the same
+// fixed-total-order discipline the render surfaces pin: a HashSet's
+// iteration order is per-process random, so every surface that
+// walks one into printed rows or delete work sorts first.
+use std::collections::HashSet;
+
 // The no-residue ladder the unstrict family owns (a verified zero
 // unpins; a read failure keeps the pins and warns) — recover runs
 // it after an orphan sweep that took the last policies.
@@ -173,7 +179,6 @@ pub fn handle_recover() -> Result<()> {
         let ul_policies = limiter.read_policies_public(crate::ebpf::limiter::Direction::Upload)?;
 
         // Collect all cgroup IDs that have policies.
-        use std::collections::HashSet;
         let mut policy_cgroup_ids: HashSet<u32> = HashSet::new();
         for (id, _) in &dl_policies {
             policy_cgroup_ids.insert(*id);
@@ -190,11 +195,7 @@ pub fn handle_recover() -> Result<()> {
             .map(|e| e.cgroup_id)
             .collect();
 
-        let orphan_ids: Vec<u32> = policy_cgroup_ids
-            .iter()
-            .filter(|id| !alive_ids.contains(id))
-            .copied()
-            .collect();
+        let orphan_ids = sorted_orphan_ids(&policy_cgroup_ids, &alive_ids);
 
         if orphan_ids.is_empty() {
             eprintln_safe!(
@@ -502,6 +503,28 @@ pub(crate) fn orphans_none_line(dl_policies: usize, ul_policies: usize, cgroups:
         cgroups,
         if cgroups == 1 { "" } else { "s" },
     )
+}
+
+/// The orphan census in its fixed total order (night-cafe-mclaren-2):
+/// ascending cgroup id. The candidate set is a `HashSet`, whose
+/// iteration order is per-process random — without the sort two
+/// identical machines could print the census rows (and replay the
+/// delete sweep that walks this same Vec) in different orders. The
+/// render surfaces pin the same law in src/ebpf/display_order.rs
+/// (name-then-id); bare numeric surfaces ride the plain ascending id.
+#[cfg(feature = "ebpf")]
+#[must_use]
+pub(crate) fn sorted_orphan_ids(
+    policy_cgroup_ids: &HashSet<u32>,
+    alive_ids: &HashSet<u32>,
+) -> Vec<u32> {
+    let mut orphans: Vec<u32> = policy_cgroup_ids
+        .iter()
+        .filter(|id| !alive_ids.contains(id))
+        .copied()
+        .collect();
+    orphans.sort_unstable();
+    orphans
 }
 
 // NIGHT-dinner-23: the count-honesty pins live under the single

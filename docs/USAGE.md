@@ -801,7 +801,12 @@ a "live" policy and read "nothing to recover" while stale rows
 waited for a manual unstrict. The window pass reaps what the clock
 says is dead (a `Windows: N expired row(s) swept` line names it),
 and the orphan census below counts only rows whose clock still
-stands — window-death first, crash-residue second.
+stands — window-death first, crash-residue second. The census rows
+and the sweep that follows walk one fixed total order — ascending
+cgroup id (night-cafe-mclaren-2): the candidate set is a `HashSet`,
+whose iteration order is per-process random, and the law pins the
+walk order anyway, so two identical machines print identical rows
+and replay identical deletes.
 
 NIGHT-master-4 (the honesty hardening): every verdict recover prints
 is VERIFIED. A failed policy-map read errors out (never a fabricated
