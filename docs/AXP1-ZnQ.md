@@ -1,5 +1,7 @@
-# SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
-# SPDX-License-Identifier: AGPL-3.0-only OR Commercial
+<!--
+  SPDX-FileCopyrightText: 2025-2026 rezky_nightky (oxyzenQ)
+  SPDX-License-Identifier: AGPL-3.0-only OR Commercial
+-->
 
 # AXP1-ZnQ (Architect's eXecution Protocol 1)
 
