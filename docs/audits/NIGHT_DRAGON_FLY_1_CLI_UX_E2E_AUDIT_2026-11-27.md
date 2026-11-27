@@ -24,7 +24,11 @@ that is rare in the wild. But three findings land on the JSON
 contract's own promise (machine-readability) and one lands on the
 audit instrument itself, and an LTS that ships those is not the LTS
 this project claims to be. All ten findings are surgical; none
-touches the kernel lane.
+touches the kernel lane. A same-day re-measurement with the fixed
+battery (the section at the bottom) verified F3's fixes in the
+field, resolved F9(a) by measurement, re-confirmed the eight
+still-open findings, and raised four new ones (F11-F14) — one on
+the instrument, one HIGH on the fleet sweep, two LOW wording laws.
 
 ## The laws that hold (measured, not assumed)
 
@@ -251,3 +255,147 @@ Each queue item is one micro-commit with its own battery re-run of
 the affected cases. The kernel lane stays untouched throughout; the
 10s benchmark A/B is not meaningful for wording-level fixes (pure
 display/parse strings) — the battery diff is the A/B for this lane.
+
+## Re-measurement: the fixed battery on the real machine (same day, 12:18 run)
+
+Input: the owner's third capture — the fixed battery (`4e97cbe`),
+non-root lane, 127 cases, `BATTERY COMPLETE`, binary still
+`v80.5.0-dragon.2 (de75d85)` (byte-identical to the first runs), now
+under COLUMNS=95 (a second wrap width) and — the decisive accident —
+invoked as `sudo ./capture-cli-ux-e2e.sh` without `RUN_ROOT=1`, so
+every case ran as euid=0 while the battery believed it was
+privilege-free. That accident is the audit's best teacher: it
+measured the root rungs of the JSON contract AND exposed a battery
+flaw of its own. Source stayed the truth; the new findings below
+were each verified in the tree before being written down.
+
+### What the re-measurement settled
+
+- **F3 verified fixed.** `binary exit:` lines appear on every JSON
+  document case: C01 0, C02 0, C03 0, C04 1, F06 0, G02 0/0. The
+  exit-code clause of the JSON contract is measured law now, not a
+  gap.
+- **F9(a) resolved by measurement.** C04 (eagle-eyes --depth
+  --print-json without a target) exits 1 with the error document —
+  the degradation lanes honor the contract's exit-1 clause; C02's
+  clean status exits 0. The remaining F9 items (rate_ring
+  optionality, bypass_audit floors) need the root lane
+  (`RUN_ROOT=1`), skipped in this run — the sudo invocation did NOT
+  arm it, which is exactly the trap F11 names.
+- **The eight still-open findings re-confirmed in the fresh dump:**
+  F1 (C03 ships `"polkit-kde-authenticati…"` and
+  `"drkonqi-coredump-proces…"` inside the machine document,
+  `census_complete:true`), F2 (D37 still answers
+  `--allow-dangerous` with `--all`), F4 (C05/C07 still repeat
+  `a similar subcommand exists:` per item), F5 (D67-D69 — under
+  root now, the grammar crimes surface as lookup-voice
+  "No cgroup found" verdicts; the grammar rung is skipped even with
+  the gate open), F6 (D48/D51 still blame the mantissa), F7 (A10
+  still dies `Usage: zelynic strict --version <TARGET> [RATE]`
+  while A11 prints the banner), F8 (D77 at COLUMNS=95 truncates the
+  same footer — `measured RTT…` eaten; the budget is fixed, not
+  terminal-relative), F10 (B02 still carries the lineage
+  codenames and the collapsed example rails).
+- **The laws that hold, again:** color law (D46 zero ESC bytes on
+  mono, D47 sixteen ESC bytes / zero truecolor escapes on the
+  16-rung), byte determinism (G01 help sha equal across runs; G02
+  doctor JSON byte-identical across runs even while 45 policies of
+  live enforcement state sat on the machine), stream discipline
+  (every apply narrates on stderr and leaves stdout document-only —
+  C09/D55/D59/D62/D64/D79/F05 all stdout-empty), the inclusive
+  1000b boundary with honest ledger proof (D55), the min/max guards
+  with their redirects (D52/D53/D54), the inverse privilege law
+  (D76 refuses the update check under root), 26 of 27 rescue lanes
+  landing the right successor (D01-D28, D31-D35, D40), the
+  empty-tip no-fabrication clause (C11), and the system guard's
+  honest skip note (D64: 25 system cgroups across 23 names named).
+
+### F11 — CRITICAL (the audit instrument): the non-root battery under sudo enforces for real and never tears down
+
+The owner's invocation (`sudo ./capture-cli-ux-e2e.sh`, no
+`RUN_ROOT=1`) opened every root gate while the battery still ran its
+non-root plan. The apply lanes crossed into live enforcement with no
+cleanup: C09 (`--print-json s brave 1kb`), D55 (1kb), D59 (30mn),
+D62 (2mb), D79 (1kb), F05 (1kb) each re-limited the live browser,
+and D64 (`s --all 500kb --per-socket`) swept the whole fleet —
+D77 measured 45 download + 45 upload policies on 45 user cgroups,
+D44 saw the pin count go 0 -> 48 inside one battery, and nothing in
+the non-root lane ever says `u --all` (the cleanup trap arms only
+under `ROOT_ARMED=1`, i.e. RUN_ROOT=1). The battery's own safety
+contract — "default run: zero enforcement state touched" — was
+broken by the most natural invocation an eBPF tool invites. Fix
+landed with this commit: an euid=0 / RUN_ROOT!=1 guard refuses the
+run and names which lane owns which cleanup. Owner side note: the
+state that run left behind is live until `sudo zelynic u --all`.
+
+### F12 — HIGH (product): the fleet sweep silently swallows `--per-socket`
+
+D64 (`s --all 500kb --per-socket`) exits 0, applies per-CGROUP
+policies to the fleet, warns nothing, and its verify line renders
+the per-cgroup shape — while the user asked for the per-connection
+shape. Source: the sweep dispatch (src/commands/mod.rs, the
+`handle_strict_all` call) never passes `per_socket`; the handler
+(src/commands/strict_all.rs) has no such parameter and never
+references it; the sweep's probe call hard-codes `false` (line
+278). This violates the house's own printed law — "a target that
+matches nothing is a hard error — never a silent no-op" — the same
+sin class the retired-verb redirects exist to prevent, and the
+list lane already refuses the flag with a tip (D65: "--per-socket
+is the single-target lane"). Fix: refuse the combination on the
+sweep with the D65-shaped tip (or implement the per-socket sweep —
+owner's call), and let the help's per-socket line state the sweep's
+stance, which also closes F5's help half.
+
+### F13 — LOW (product): the rescue lane renders two usage shapes for one error class
+
+D32/D34/D35/D36 render clap's usage-with-used
+(`zelynic strict <TARGET> <RATE>`, `zelynic eagle-eyes <TARGETS>`)
+while D33/D37/D38/D39 render the full regenerated form
+(`zelynic strict [OPTIONS] [TARGET] [RATE]`) — and D33 vs D34 carry
+the SAME tip (`zelynic --check-update`) under two different usage
+lines. Mechanism verified in source (src/cli/ux.rs, the usage
+context block + src/cli/argv.rs `failing_command_usage`): clap's
+native usage is kept when it exists and was not narrowed; it is
+regenerated when clap's own suggestion narrowed it (the suggested
+flag reads as if required) or when the context is missing. The
+mechanism is deliberate and documented — the operator-visible
+result is still one error class wearing two shapes. Fix: one shape
+law (always regenerate, or keep the native line and regenerate only
+the narrowed case), pinned in the usage tests.
+
+### F14 — LOW (product): the color-mode fatal lane exits bare, against the footer's own contract
+
+D43 (`--color-mode 99 doctor`) prints the verdict line and exits 2
+with no `For more information, try '--help'.` footer and no usage —
+while src/cli/ux.rs's contract comment says every fatal CLI error
+ends with exactly one footer. The exit-code asymmetry itself is
+documented in source (src/main.rs:143-156: the JSON lane exits 1,
+"the prose lane keeps its own 2" — C11 measured it), so only the
+footer gap is a defect. Fix: append the canonical footer on that
+lane, or scope the ux.rs comment to the clap bridge.
+
+### The updated queue
+
+1. F11 — battery guard (landed with this commit; the owner should
+   also run `sudo zelynic u --all` once to clear the 12:18 run's
+   live state).
+2. F12 — the sweep's --per-socket refusal (or implementation).
+3. F2 — the vocabulary-rescue authority fix (unchanged).
+4. F4 — the JSON tip plural join (unchanged).
+5. F1 — the uncapped name beside the capped one (unchanged).
+6. F6 — the unknown-unit verdict (unchanged).
+7. F5 — strict's pre-root target-spec parse + the per-socket/help
+   line (now jointly with F12).
+8. F7 — the `-V` interception door (unchanged).
+9. F8 — the RECWN footer wording (unchanged).
+10. F13/F14 — the two usage-shape law and the footer lane (new,
+    one-liners each).
+11. F9 — the remaining pins need a RUN_ROOT=1 run with the guarded
+    battery; F10 — the owner's voice decision (unchanged).
+
+Verdict after the re-measurement: unchanged in kind, sharper in
+fact. The product's skeleton still holds every law it claims, the
+JSON contract's exit clause is measured law now — and the fleet's
+own polish queue grew by two product findings and one instrument
+finding that only a real-machine accident could expose. Not yet
+peak; the queue above is the remaining distance.
