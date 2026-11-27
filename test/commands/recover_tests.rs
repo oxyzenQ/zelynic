@@ -11,7 +11,7 @@
 //! counts and nouns are plain text by construction, so they pin the
 //! contract deterministically under every theme and color depth.
 
-use super::orphans_none_line;
+use super::{orphans_none_line, sorted_orphan_ids};
 
 /// The mislabel case the audit found: two dl+ul policies on ONE
 /// cgroup. The old line printed the CGROUP count under the POLICY
@@ -65,5 +65,40 @@ fn none_verdict_names_the_empty_skeleton() {
     assert!(
         !line.contains("across"),
         "the across phrasing belongs to the counted arm only, got: {line}"
+    );
+}
+
+/// night-cafe-mclaren-2: the orphan census is a fixed total order —
+/// ascending cgroup id regardless of the candidate set's per-process
+/// iteration order, for the printed rows AND the delete sweep that
+/// walks the same Vec (two identical machines must replay identical
+/// deletes; the render surfaces pin the same law in
+/// src/ebpf/display_order.rs).
+#[test]
+fn orphan_ids_ride_the_ascending_id_law() {
+    use std::collections::HashSet;
+
+    let policies: HashSet<u32> = [7, 3, 41, 15, 8].into_iter().collect();
+    let alive: HashSet<u32> = [8, 3].into_iter().collect();
+    let orphans = sorted_orphan_ids(&policies, &alive);
+    assert_eq!(
+        orphans,
+        vec![7, 15, 41],
+        "3 and 8 are alive; the rest walk ascending"
+    );
+    // Same inputs, same order — the determinism law, not a happy
+    // accident of one process's hash seed.
+    let again = sorted_orphan_ids(&policies, &alive);
+    assert_eq!(orphans, again, "one input, one order, every process");
+
+    // Nothing pinned: the census is empty, the sweep walks nothing.
+    let none = sorted_orphan_ids(&HashSet::new(), &HashSet::new());
+    assert!(none.is_empty(), "an empty candidate set is an empty census");
+
+    // Every id alive: the census is empty before the sweep starts.
+    let all_alive = sorted_orphan_ids(&policies, &policies);
+    assert!(
+        all_alive.is_empty(),
+        "every id alive must yield an empty census"
     );
 }
