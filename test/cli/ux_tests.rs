@@ -641,3 +641,41 @@ fn json_lane_carries_the_flag_rescue() {
         "the JSON tip carries the rescue, got: '{tip}'"
     );
 }
+
+// ── The version door (night-cafe-1, F7) ─────────────────────────────
+
+/// `-V`/`--version` parse at every level (the global flag's own doc),
+/// but a verb with required positionals died MissingRequiredArgument
+/// before main could read the field — `zelynic s -V` rendered a usage
+/// error naming a --version flag the verb never declares. The door's
+/// predicate: the missing-positional kind AND the verbatim token
+/// before any `--`.
+#[test]
+fn version_door_fires_on_verbatim_tokens_at_required_positionals() {
+    use clap::Parser;
+    let mk = |argv: &[&str]| {
+        let err = Cli::try_parse_from(argv).expect_err("must fail");
+        let owned: Vec<std::ffi::OsString> = argv.iter().map(std::ffi::OsString::from).collect();
+        version_requested_in_argv(&err, &owned)
+    };
+    assert!(mk(&["zelynic", "s", "-V"]), "the A10 shape is a version request");
+    assert!(
+        mk(&["zelynic", "strict", "--version"]),
+        "the long spelling rides the same door"
+    );
+    assert!(
+        mk(&["zelynic", "-V", "strict"]),
+        "the token before the verb is still a request"
+    );
+    assert!(
+        !mk(&["zelynic", "s", "brave", "550kb", "--", "-V"]),
+        "an escaped -V is a VALUE — the escape hatch owns that lane"
+    );
+    assert!(
+        !mk(&["zelynic", "strict"]),
+        "a missing positional without the token stays a usage error"
+    );
+    // The wrong error kind never fires the door: an unknown flag with
+    // -V elsewhere is a typo death, not a request.
+    assert!(!mk(&["zelynic", "--verbos", "-V"]));
+}
