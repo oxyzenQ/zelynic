@@ -348,9 +348,7 @@ fn per_socket_qualifier_rides_the_counter_leg_too() {
     o.counter_rate_bps = Some(500_000);
     let text = report_lines(&o).join("\n");
     assert!(
-        text.contains(
-            "(limit 500.0 KB/s per socket, upload 500.0 KB/s per socket)"
-        ),
+        text.contains("(limit 500.0 KB/s per socket, upload 500.0 KB/s per socket)"),
         "both legs name the per-socket shape, got: {text}"
     );
 }
