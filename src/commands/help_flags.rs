@@ -239,8 +239,9 @@ pub(crate) fn print_flag_tables() {
         "skips the post-apply verification loop (scripted use;",
     );
     println_safe!(
-        "                   the former {} spelling redirects here).",
-        grey("--no-probe")
+        "                   the retired {} spelling errors with a tip; use {}).",
+        grey("--no-probe"),
+        grey("--no-test")
     );
     example(
         "scripted apply, no verification loop",

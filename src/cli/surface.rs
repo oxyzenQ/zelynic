@@ -77,15 +77,17 @@ pub enum Commands {
         // English.
         /// Override every safety guard: rates below 1kb and the
         /// dangerous/system target blocklist (root, systemd, ...).
-        /// The retired --allow-dangerous and --force spellings land
-        /// here — one spelling for "I know, force this".
+        /// The retired --allow-dangerous and --force spellings error
+        /// with a tip naming --force-this — one spelling for "I know,
+        /// force this".
         #[arg(long = "force-this")]
         force_this: bool,
 
         // charger-core-1-b lineage (the self-proving enforcement);
         // NIGHT-hunt-30 measured the parity find; NIGHT-improve-54
         // renamed the flag --no-test (the former --no-probe spelling
-        // redirects here). The codenames stay in code.
+        // is retired — it errors with a tip naming the new spelling).
+        // The codenames stay in code.
         /// Skip the post-apply enforcement test
         ///
         /// The apply is verified with a short measured loopback flow
@@ -93,8 +95,8 @@ pub enum Commands {
         /// apply-only shape for scripted use. The test rides every
         /// lane (the list lane measures the first member; the sweep
         /// measures the first applied app, standing down honestly
-        /// when saturated). The retired --no-probe spelling
-        /// redirects here.
+        /// when saturated). The retired --no-probe spelling errors
+        /// with a tip naming --no-test.
         #[arg(long = "no-test")]
         no_test: bool,
 
@@ -188,15 +190,22 @@ pub enum Commands {
     /// NIGHT-improve-54: --all is the sweep lane (the former
     /// block-all verb) — every user app blocked at once.
     ///
+    /// Targets ride the same grammar strict carries: the single lane
+    /// accepts a container reference (docker://nginx,
+    /// k8s://prod/web-abc, netns://sandbox, iface://red) exactly
+    /// like strict's apply — the container gets its own block.
+    ///
     /// Examples:
     ///   zelynic block brave
     ///   zelynic block brave::curl::pacman
+    ///   zelynic b docker://nginx               # container target
     ///   zelynic b --all                        # the sweep (see Pro mode)
     ///   zelynic b brave
     #[command(name = "block", alias = "b")]
     Block {
-        /// Target: a process name, cgroup ID (cg: prefix accepted)
-        /// — or a '::'-separated list (brave::curl::pacman). Omit it
+        /// Target: a process name, cgroup ID (cg: prefix accepted),
+        /// or container reference (docker://nginx) — or a
+        /// '::'-separated list (brave::curl::pacman). Omit it
         /// only on the --all sweep (which takes no target at all).
         #[arg(value_name = "TARGET", required_unless_present = "all")]
         target: Option<String>,
@@ -272,11 +281,13 @@ pub enum Commands {
     #[command(name = "recover")]
     Recover,
 
-    /// Show active limits and watchdog status
+    /// Show active limits and watchdog status (--print-json for the
+    /// JSON line)
     #[command(name = "status")]
     Status,
 
-    /// List apps with their cgroup IDs
+    /// List apps with their cgroup IDs (--print-json for the JSON
+    /// line)
     #[command(name = "list-apps")]
     ListApps,
 
@@ -347,7 +358,8 @@ pub enum Commands {
         deep: bool,
     },
 
-    /// Check host eBPF support and this binary's build facts.
+    /// Check host eBPF support and this binary's build facts
+    /// (--print-json for the JSON line).
     ///
     /// The flavor verdict (full-life / half-life) and the eBPF lane
     /// lead; since night-improve-66 the BUILD block follows —
