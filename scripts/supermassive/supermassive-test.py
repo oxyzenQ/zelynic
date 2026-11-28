@@ -7107,12 +7107,13 @@ def stage_realnet_restore():
     # signal this probe exists to catch.
     if not baseline:
         bps = got / REALNET_BASE_WINDOW if got else 0.0
+        worker_note = f"worker: {err}; " if got is None else ""
         return record(
             name,
             "SKIP",
-            f"the endpoint died under the probe (re-measured baseline "
-            f"0 B/s; restore read {fmt_bps(bps)}) — no comparison "
-            "exists; the next hunt starts from the numbers",
+            f"the endpoint died under the probe ({worker_note}"
+            f"re-measured baseline 0 B/s; restore read {fmt_bps(bps)}) — "
+            "no comparison exists; the next hunt starts from the numbers",
         )
     if got is None:
         return record(name, "FAIL", f"worker failed: {err}")
