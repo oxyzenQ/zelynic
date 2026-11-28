@@ -554,13 +554,26 @@ pub(crate) fn provenance_view() -> ProvenanceView {
     };
     // night-dragon-fly-4: the line names its own coverage — the -V
     // matrix carries the RUNTIME-verifiable depths (d0-d3); d4 rides
-    // the object stamps and d5 the commit stamp, both rendered whole
-    // by `zelynic sig`. The hint appends AFTER the pinned layers
-    // suffix, so the line's leading shape stays byte-stable for the
-    // fingerprint-token parsers (signature_tests splits on the
-    // layers= field; smoke.rs pins the full shape).
+    // the object stamps, rendered whole by `zelynic sig`.
+    // night-focus-1 (P1, the honesty fix): the d5 verdict joins the
+    // line as its own field — the bare state word build/gpg.rs
+    // stamped at build time (`verified:<fpr>` renders as `verified`;
+    // the evidence fpr stays in the `sig` report's D5 row). Without
+    // it, status=verified read as a full-provenance pass while `sig`
+    // exited 1 on an unsigned commit — a script parsing this one line
+    // believed the whole ladder green. The field appends AFTER the
+    // pinned layers suffix, so the line's leading shape stays
+    // byte-stable for the fingerprint-token parsers (signature_tests
+    // splits on the layers= field; smoke.rs pins the full shape):
+    // `status=` covers the runtime depths (d0-d3) only, `commit-sig=`
+    // is the d5 build-time verdict, and a script gating on FULL
+    // provenance checks BOTH fields.
+    let commit_sig = super::build::vcs_commit_sig()
+        .split(':')
+        .next()
+        .unwrap_or("unstamped");
     let depth_line = format!(
-        "Depth-matrix: fp={active_fp:016x} status={status} anchor=b3:{} layers=d0:masked-words,d1:masked-words,d2:dual-fingerprint,d3:blake3-anchor (runtime depths; d4/d5 ride zelynic sig)",
+        "Depth-matrix: fp={active_fp:016x} status={status} anchor=b3:{} layers=d0:masked-words,d1:masked-words,d2:dual-fingerprint,d3:blake3-anchor (runtime depths; d4 rides zelynic sig) commit-sig={commit_sig}",
         hex32(&runtime_anchor)
     );
 

@@ -192,7 +192,7 @@ fn version_body() -> String {
 /// Build: pro-linux-amd64-v3-musl (ad36a81)
 /// Build-time: 2026-09-18 01:30Z
 /// Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)
-/// Depth-matrix: fp=247d2835ac8bde6a status=verified anchor=b3:acf8e138... layers=d0:masked-words,d1:masked-words,d2:dual-fingerprint,d3:blake3-anchor
+/// Depth-matrix: fp=247d2835ac8bde6a status=verified anchor=b3:acf8e138... layers=d0:masked-words,d1:masked-words,d2:dual-fingerprint,d3:blake3-anchor (runtime depths; d4 rides zelynic sig) commit-sig=verified
 /// Copyright (c) 2025-2026 rezky_nightky (oxyzenQ)
 /// License: AGPL-3.0-only OR Commercial
 /// Source: https://github.com/oxyzenQ/zelynic
@@ -411,18 +411,40 @@ mod tests {
             .count();
         assert_eq!(count, 1, "the Depth-matrix line must appear exactly once");
         // Token order: fp, then status, then anchor, then layers, then
-        // the runtime-coverage hint (night-dragon-fly-4: the -V line
-        // names that d4/d5 ride zelynic sig — appended AFTER the
-        // pinned layers suffix).
+        // the runtime-coverage hint, then the d5 commit-signature
+        // state (night-focus-1: the field appends AFTER the pinned
+        // layers suffix, so the line's leading shape stays
+        // byte-stable for the token parsers).
         let fp_pos = depth.find(" fp=").expect("fp token");
         let status_pos = depth.find(" status=").expect("status token");
         let anchor_pos = depth.find(" anchor=b3:").expect("anchor token");
         let layers_pos = depth.find(" layers=").expect("layers token");
-        assert!(fp_pos < status_pos && status_pos < anchor_pos && anchor_pos < layers_pos);
+        let commit_sig_pos = depth.find(" commit-sig=").expect("commit-sig token");
+        assert!(
+            fp_pos < status_pos
+                && status_pos < anchor_pos
+                && anchor_pos < layers_pos
+                && layers_pos < commit_sig_pos
+        );
         assert!(depth.contains(
             "layers=d0:masked-words,d1:masked-words,d2:dual-fingerprint,d3:blake3-anchor"
         ));
-        assert!(depth.ends_with("(runtime depths; d4/d5 ride zelynic sig)"));
+        // The d5 field carries ONE bare stamp word — build/gpg.rs's
+        // states, never the evidence fpr. The pin takes the FIELD
+        // SHAPE, not one environment's value: a maintainer-signed
+        // HEAD stamps commit-sig=verified, an unsigned research HEAD
+        // stamps commit-sig=unsigned — both must pass here.
+        let commit_sig = &depth[commit_sig_pos + " commit-sig=".len()..];
+        assert!(
+            !commit_sig.is_empty()
+                && !commit_sig.contains(' ')
+                && !commit_sig.contains(':'),
+            "the d5 field carries one bare state word: {commit_sig}"
+        );
+        assert!(
+            depth.starts_with("Depth-matrix: fp=") && !depth.starts_with("Depth-matrix: commit-sig="),
+            "the leading shape stays byte-stable: {depth}"
+        );
     }
 
     /// night-signature-advanced-1 contract: the Copyright line carries

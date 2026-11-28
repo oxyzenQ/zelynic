@@ -301,4 +301,27 @@ fn provenance_view_shape_is_stable() {
         fp.chars()
             .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
     );
+    // night-focus-1 (P1): the d5 commit-signature verdict rides the
+    // same line as its own field — the bare stamp word (the evidence
+    // fpr stays in the `sig` report's D5 row), one of the states
+    // build/gpg.rs stamps. A script gating on FULL provenance reads
+    // this field beside `status=`, never instead of it.
+    let commit_sig = depth
+        .split(" commit-sig=")
+        .nth(1)
+        .expect("commit-sig field present");
+    assert!(
+        [
+            "verified",
+            "wrong-key",
+            "no-key",
+            "bad-signature",
+            "unsigned",
+            "no-vcs",
+            "unavailable",
+            "unstamped",
+        ]
+        .contains(&commit_sig),
+        "commit-sig carries a bare stamp state word, got: {commit_sig}"
+    );
 }
