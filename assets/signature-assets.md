@@ -22,8 +22,9 @@ over the tracked bytes at night-dragon-maintenance-X1 time, 2026-11-02;
 the two `assets/gpg/` anchors joined the signed set on 2026-11-23 as
 the night-solid-defense-2 follow-up, same tool, same tracked-bytes
 rule; the logo row refreshed on 2026-11-28 when the final rounded
-`z.png` artwork (the tools.md roundrectangle pass over the picked
-master) replaced the original-2026 logo file wholesale. The
+artwork (the tools.md roundrectangle pass over the picked master)
+landed as `assets/zelynic-original-logo-2026.png` and the interim
+`z.png` name left the tracked set. The
 machine-readable sidecar is
 [signature.b3sum](signature.b3sum), kept in `b3sum -c`
 format so the check below is the whole protocol.
@@ -39,7 +40,7 @@ format so the check below is the whole protocol.
 | assets/qr/bitcoin.png | 575 | `09ec09fcdc4815e23373cb266bb120aa4e1af140fb9d598e117d05478a791b47` |
 | assets/qr/ethereum.png | 591 | `4eb520de0fe258d2c82ba07ccba8d9e48bafc63904d022a83cc42b59d1ed2ac7` |
 | assets/qr/solana.png | 595 | `bca56b0a454daf06ff2d57fe401719553e28733e73479de2652a0740a9e87d1a` |
-| assets/z.png | 1,311,465 | `98545ef7a973f4a7b01cb17b6bdb41fdad473dbe15d0ef177172a0dbdbedb63b` |
+| assets/zelynic-original-logo-2026.png | 1,311,465 | `98545ef7a973f4a7b01cb17b6bdb41fdad473dbe15d0ef177172a0dbdbedb63b` |
 
 `assets/tools.md` and this file are documentation, not artifacts, so
 they stay outside the signed set — and the sidecar can never cover
