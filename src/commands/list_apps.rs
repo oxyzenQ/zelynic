@@ -35,6 +35,15 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
     let mut identity = IdentityMap::new();
     let count = identity.refresh();
 
+    // night-focus-1 (P3): the same verbose honesty status carries —
+    // this lane is a census read (one /proc walk, one table), there
+    // is no target-resolution/policy-write/BPF-lifecycle trail to
+    // trace, so -v states that once on stderr instead of rendering
+    // output byte-identical to a non-verbose run.
+    crate::output::verbose::vlog_line!(
+        "verbose: nothing to trace on this lane (list-apps is a query surface)"
+    );
+
     // One /proc walk feeds both maps: identities + socket detail.
     let mut conns = ConnectionMap::new();
     let socket_cgroups = conns.refresh();

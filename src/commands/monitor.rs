@@ -16,6 +16,16 @@ pub fn handle_status(json: bool) -> Result<()> {
 
     super::ensure_root()?;
 
+    // night-focus-1 (P3): the -v contract names a diagnostic trace —
+    // target resolution, policy writes, the BPF lifecycle. None of
+    // that exists on this query lane (read-only map loads only), so
+    // the flag answers with the house one-stderr-line honesty the
+    // ignored notes carry instead of rendering output byte-identical
+    // to a non-verbose run.
+    crate::output::verbose::vlog_line!(
+        "verbose: nothing to trace on this lane (status is a query surface)"
+    );
+
     if !pin_dir_has_files() {
         if json {
             // S1: the hand-written lane — the clean verdict is a
