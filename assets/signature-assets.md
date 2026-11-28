@@ -39,7 +39,7 @@ format so the check below is the whole protocol.
 | assets/qr/bitcoin.png | 575 | `09ec09fcdc4815e23373cb266bb120aa4e1af140fb9d598e117d05478a791b47` |
 | assets/qr/ethereum.png | 591 | `4eb520de0fe258d2c82ba07ccba8d9e48bafc63904d022a83cc42b59d1ed2ac7` |
 | assets/qr/solana.png | 595 | `bca56b0a454daf06ff2d57fe401719553e28733e73479de2652a0740a9e87d1a` |
-| assets/z.png | 1,437,313 | `e93920594b47efacd81c8d68552897e414a643b1ee69371d9b87e7367539cb34` |
+| assets/z.png | 1,311,465 | `98545ef7a973f4a7b01cb17b6bdb41fdad473dbe15d0ef177172a0dbdbedb63b` |
 
 `assets/tools.md` and this file are documentation, not artifacts, so
 they stay outside the signed set — and the sidecar can never cover
