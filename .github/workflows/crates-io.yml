@@ -54,6 +54,12 @@
 #     re-run), the job skips the upload instead of failing.
 #   - --locked: the published dependency set is exactly the tagged
 #     Cargo.lock, the same tree every other CI job validated.
+#   - The registry tarball's byte count is its own gate before any
+#     upload: ci.yml's package_size job (night-cafe-mclaren-5, the
+#     cosmostrix NIGHT-CAFE-MCLAREN-5 lineage) runs
+#     scripts/gates/check-package-size.sh on every push - an
+#     over-cap .crate fails CI in about a minute instead of dying
+#     at the registry with HTTP 413 Payload Too Large.
 #
 # Dependency version policy: actions are SHA-pinned (NIGHT-hunt-20,
 # same pins as ci.yml — zelynic's posture is stronger than the

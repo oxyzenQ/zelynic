@@ -219,6 +219,42 @@ jobs:
   # debug and pro builds, so the nightly pin + bpf-linker
   # mirror the other compile jobs.
   #
+  # night-cafe-mclaren-5 (the cosmostrix NIGHT-CAFE-MCLAREN-5
+  # lineage, 2026-11-28): the registry upload size is a hard
+  # external contract - crates.io refuses an oversized .crate with
+  # HTTP 413 Payload Too Large (max upload 10485760), and the
+  # sibling estate's dragon.2 publish died on exactly that answer
+  # because no gate measured the tarball. The packaging gate builds
+  # the real .crate (metadata + packaging only, no verify build) and
+  # asserts the byte count against the documented server cap, so the
+  # refusal class fails here in about a minute instead of in the
+  # crates-io publish job. Own job rather than a step in `check`:
+  # cargo package needs the toolchain and the network index, and a
+  # dedicated timeout keeps the fail-fast shape of the other lanes.
+  package_size:
+    name: bash scripts/gates/check-package-size.sh
+    runs-on: ubuntu-26.04
+    # night-cafe-mclaren-5 follow-up (the wholesale runtime-cap law):
+    # the sanctioned floor is 10 minutes per job - a 5-minute cap sits
+    # below it and kills the gate on a cold runner. Packaging measures
+    # ~1 minute warm; the 10-minute seat is the floor, not a budget.
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
+        with:
+          # GITHUB_TOKEN hardening: the token never persists into the
+          # workspace's .git/config (the estate-wide rule).
+          persist-credentials: false
+      - name: Harden DNS (the poisoned-resolver defense)
+        uses: ./.github/actions/harden-dns
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+      - name: Verify the .crate stays under the crates.io upload cap
+        run: bash scripts/gates/check-package-size.sh
+
   # NIGHT-boost-2: the plain `cargo build --release` verify is
   # retired — no release package ever shipped that shape. The
   # verification now compiles the three musl pro profiles (native,

@@ -49,6 +49,45 @@ v80.0.0
 
 ### Added
 
+- **night-cafe-mclaren-5: the registry tarball gets its own CI gate
+  (the 413 refusal class fails in CI now, not at crates.io), and the
+  README media re-homes on absolute GitHub raw URLs.** The sibling
+  estate's v100.1.3-dragon.2 publish died in 1m36s on `HTTP 413
+  Payload Too Large` (max upload 10,485,760 bytes): a 9.2 MB
+  showcase webp rode the tarball while every existing gate measured
+  everything except the package itself. zelynic ships the same live
+  registry surface (23 published versions) with no gate on its own
+  tarball — include-mode curation is not a size contract, because
+  the heaviest ship-set members only ever grow (the shipped
+  CHANGELOG is ~316 KB and every release adds to it, USAGE ~198 KB,
+  INNOVATIONS ~139 KB, the two ebpf-prebuilt objects ~1 MB) and one
+  include-line mistake would have ridden silently past the wholesale
+  suite into an irreversible upload. The new 20th gate
+  (scripts/gates/check-package-size.sh, ported from the cosmostrix
+  lineage after that port was itself third-party verified end to
+  end) builds the real .crate with `cargo package --locked
+  --no-verify` and asserts its byte count against the documented
+  server cap — equality fails too, headroom is the contract, and a
+  dirty tree is refused explicitly (a size verdict over a tree that
+  will never publish is a lie; the reference inferred the refusal
+  from cargo's failure, this port asserts it with a real git check).
+  It is wired as its own package_size job in ci.yml (SHA-pinned
+  actions, harden-dns, the repo's RUST_VERSION, a 5-minute timeout)
+  because cargo package needs the toolchain and the network index;
+  the crates-io ci_gate already waits for the whole ci.yml run on
+  the tagged SHA, so an over-cap tarball now fails CI in about a
+  minute instead of dying in the publish job. Measured on this tree
+  at port time: zelynic-80.5.0-dragon.3.crate = 2,003,951 bytes
+  (1.91 MiB, 19.1% of the cap, 8.09 MiB headroom); the three-path
+  proof (clean-tree pass, dirty-tree refusal, cap-overrun refusal)
+  ran green before landing. Landed with it: the three README
+  `<img>` tags moved from repo-relative `assets/` paths to absolute
+  raw.githubusercontent URLs — crates.io renders the README as HTML
+  and serves nothing else from the tarball, so the relative logo and
+  eagle-eyes images were 404 on the registry page permanently (the
+  same bug class the sibling estate closed); the assets themselves
+  are untouched, still git-tracked, byte-exact.
+
 - **night-cafe-mclaren-2 rev 3: the independent re-audit — the
   engine holds at peak, and the ported bot gets its own hardening.**
   The re-audit re-derived everything at the head twelve commits past

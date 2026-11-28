@@ -206,6 +206,12 @@ moments (NIGHT-dinner-1):
   each build leg before compiling (a stale lane would otherwise ship
   registry objects that differ from the release binaries' fresh
   rebuild, silently breaking the "same bytes" provenance contract).
+  The same ci.yml run the gate waits for also carries the registry
+  tarball's own size gate (the package_size job running
+  `scripts/gates/check-package-size.sh`, night-cafe-mclaren-5): an
+  over-cap .crate fails CI in about a minute instead of dying at
+  the registry with HTTP 413 Payload Too Large (max upload
+  10,485,760 bytes).
 
 So after ANY change under `ebpf/`, run the refresh and commit the
 lane in the same task:

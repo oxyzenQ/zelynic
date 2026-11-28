@@ -10,7 +10,7 @@
 > license - nothing between.
 
 <p align="center">
-  <img src="assets/zelynic-original-logo-2026.png" alt="zelynic logo" width="260">
+  <img src="https://raw.githubusercontent.com/oxyzenQ/zelynic/main/assets/zelynic-original-logo-2026.png" alt="zelynic logo" width="260">
 </p>
 
 <h1 align="center">zelynic</h1>
@@ -49,14 +49,14 @@
      owns the class. -->
 
 <p align="center">
-  <img src="assets/eagle-eyes.png"
+  <img src="https://raw.githubusercontent.com/oxyzenQ/zelynic/main/assets/eagle-eyes.png"
        alt="zelynic eagle-eyes"
        width="800"
        style="border-radius:24px; box-shadow:0 4px 20px rgba(0,0,0,0.15);">
 </p>
 
 <p align="center">
-  <img src="assets/eagle-eyes-depth.png"
+  <img src="https://raw.githubusercontent.com/oxyzenQ/zelynic/main/assets/eagle-eyes-depth.png"
        alt="zelynic eagle-eyes depth"
        width="800"
        style="border-radius:24px; box-shadow:0 4px 20px rgba(0,0,0,0.15);">
