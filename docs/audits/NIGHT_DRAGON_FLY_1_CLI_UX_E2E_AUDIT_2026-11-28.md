@@ -13,6 +13,14 @@
      closed before they were written; the re-measurement below owns
      the correction). -->
 
+<!-- rev 6 (2026-11-28): the dragon.3 release push (1e501ad6) shipped
+     two red CI rows that the forensics proved are runner physics, not
+     enforcement (the identical commit's green batch one minute
+     earlier, plus green kernel rows in both batches). The owner
+     approved the hardening pair on that evidence and
+     night-cafe-mclaren-2 rev 4 landed it — the two additions join the
+     Class C queue below as items 7 and 8 with their landing records. -->
+
 Source of truth: the owner's 154-case capture battery
 (`scripts/labs-exp/capture-cli-ux-e2e.sh`, run at 23:07-23:08 local on
 `nightpc`, kernel 6.18.65-1-cachyos-lts), diffed against the current
@@ -172,6 +180,33 @@ keeps the original classification with each item's outcome:**
    the contract spelled out. **LANDED in rev 5:** the USAGE.md RECWN
    section now spells the defensive-index contract (`has(...)` /
    `.recwn_limits // empty`) beside the absence law.
+7. **The battery's environment-vulnerable probes can red a whole
+   matrix on runner physics, not enforcement** (the dragon.3 release
+   push's CI forensics, 2026-11-28): the desktop-matrix low-specs leg's
+   one red row was `real internet: u --all restores speed` measuring
+   `0 B/s after u --all` against a re-measured baseline of `0 B/s` —
+   the runner's egress died UNDER the probe (the endpoint was dead for
+   both the restore read and the baseline), the limiter's `u --all`
+   exited zero, and every kernel row stayed green; the identical
+   commit's green batch one minute earlier pins the class. The
+   curl-upload fold the same run surfaced was verified ALREADY
+   deterministic (the zero-fold fork reads SKIP with the kernel rows
+   carried — it did not count toward the tally, so this record's
+   earlier fold framing was the wrong suspect; the forensics own the
+   correction). **LANDED in night-cafe-mclaren-2 rev 4** (the owner
+   approved the pair on the dragon.3 forensics): the restore probe's
+   dead-baseline fork reads SKIP with the numbers carried and the 1e6
+   fallback floor is gone — a live baseline with a red restore read
+   stays a FAIL (the limit-may-still-stand signal).
+8. **The sustain guard's under-side re-attempt is one deep, while a
+   steal burst can outlast it** (the same forensics, the noble 6.8 E2E
+   leg: `sustain` went a1 AND a2 red — median 29%/28% against the 33%
+   floor — on identical code one minute after a green median-72%
+   batch). **LANDED in night-cafe-mclaren-2 rev 4** (the owner
+   approved): a third under-side attempt (a3) joins a2 under the same
+   median-plus-drift verdict; the band floor is untouched (sampling,
+   not threshold drift), a persistent deficit still fails all three
+   series, and every attempt stays named in the detail.
 
 ## What survived with distinction
 
