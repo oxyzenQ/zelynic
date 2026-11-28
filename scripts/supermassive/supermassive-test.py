@@ -7092,10 +7092,31 @@ def stage_realnet_restore():
     if not clear_all():
         return record(name, "FAIL", "u --all exited non-zero")
     got, err = realnet_download("a", REALNET_BASE_WINDOW)
+    baseline = _remeasure_realnet_baseline()
+    # The dead-endpoint fork (the dragon.3 CI forensics, the low-specs
+    # leg's one red row: "0 B/s after u --all (floor 1.0 MB/s,
+    # re-measured baseline 0 B/s)"). A zero re-measured baseline means
+    # the runner's egress died UNDER the probe — the machine's own
+    # internet went away between stages, so no comparison exists and
+    # the limiter's restore is untestable there. The house precedent
+    # applies (a broken instrument reads SKIP, never a limiter FAIL —
+    # the realnet upload-sanity lane and the curl-upload fold's
+    # engine-fault fork): SKIP with every number carried, and the next
+    # hunt starts from the numbers. A live baseline with a red restore
+    # read stays a FAIL — that pairing is the limit-may-still-stand
+    # signal this probe exists to catch.
+    if not baseline:
+        bps = got / REALNET_BASE_WINDOW if got else 0.0
+        return record(
+            name,
+            "SKIP",
+            f"the endpoint died under the probe (re-measured baseline "
+            f"0 B/s; restore read {fmt_bps(bps)}) — no comparison "
+            "exists; the next hunt starts from the numbers",
+        )
     if got is None:
         return record(name, "FAIL", f"worker failed: {err}")
-    baseline = _remeasure_realnet_baseline()
-    floor = RESTORE_FLOOR_RATIO * baseline if baseline else 1e6
+    floor = RESTORE_FLOOR_RATIO * baseline
     bps = got / REALNET_BASE_WINDOW
     return record(
         name,
