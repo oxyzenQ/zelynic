@@ -197,6 +197,26 @@ pub fn parse_rate(s: &str) -> Result<u64> {
     } else if let Some(v) = s.strip_suffix("b") {
         (v, 1u64)
     } else {
+        // night-focus-1 (P5): the branch used to fire the lowercase
+        // verdict unconditionally — `10mbps` (already lowercase, its
+        // crime the unknown unit) read "Use lowercase: ..." and sent
+        // the reader hunting a case problem that does not exist. The
+        // same lane the suffix-strip branch owns (night-cafe-1, F6):
+        // alpha residue with no uppercase means the UNIT is the crime
+        // and the verdict names it; an uppercase carrier (`1MB`,
+        // `5.5XB`) keeps the lowercase verdict, which is true there.
+        if s.chars().any(|c| c.is_ascii_alphabetic())
+            && !s.chars().any(|c| c.is_ascii_uppercase())
+        {
+            let unit = typed_unit_word(s);
+            let mut msg = format!(
+                "Invalid rate '{s}': unknown unit '{unit}' — the ladder is b, kb, mb, gb, tb (decimal SI)"
+            );
+            if let Some(tip) = crate::cli::ux::rate_tip(s) {
+                msg.push_str(&tip);
+            }
+            bail!("{msg}")
+        }
         // Flagship typo rescue: suggest the near-miss rate the user
         // probably meant (`1MB` -> `1mb`, `1kib` -> `1kb`, `10mbps` ->
         // `10mb`, `5.5XB` -> `5.5kb`). The tip line renders white via

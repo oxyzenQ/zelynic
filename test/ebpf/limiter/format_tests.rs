@@ -67,6 +67,35 @@ fn test_parse_rate_near_miss_unit_suggestion() {
     );
 }
 
+// night-focus-1 (P5): a lowercase input outside the ladder names the
+// unknown unit — never the lowercase sentence about an input that
+// carries no uppercase at all. `10mbps` ends in 's', so the suffix
+// strip misses and the verdict must name 'mbps' like `1kib` names
+// 'kib' on the suffix-strip lane.
+#[test]
+fn test_parse_rate_lowercase_unknown_unit_names_the_unit() {
+    let err_msg = format!("{}", parse_rate("10mbps").unwrap_err());
+    assert!(
+        err_msg.contains("unknown unit 'mbps'"),
+        "error must name the unknown unit, got: {err_msg}"
+    );
+    assert!(
+        !err_msg.contains("Use lowercase"),
+        "a lowercase input must not draw the lowercase verdict, got: {err_msg}"
+    );
+}
+
+// The twin keeps its verdict: an uppercase carrier outside the ladder
+// still reads the lowercase sentence, which is TRUE there.
+#[test]
+fn test_parse_rate_uppercase_unknown_unit_keeps_lowercase_verdict() {
+    let err_msg = format!("{}", parse_rate("10MBPS").unwrap_err());
+    assert!(
+        err_msg.contains("Use lowercase"),
+        "an uppercase input keeps the lowercase verdict, got: {err_msg}"
+    );
+}
+
 #[test]
 fn test_parse_rate_invalid() {
     assert!(parse_rate("abc").is_err());
