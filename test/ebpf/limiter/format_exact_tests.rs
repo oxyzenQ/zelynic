@@ -3,9 +3,10 @@
 
 //! The exact-twin and comma-lane pins (NIGHT-hunt-Z7, the owner's
 //! `-d 100.51kb` and `100,50kb` finds): the config-surface formatters
-//! that round-trip through the production grammar, and the number
-//! layer's comma diagnosis. One theme, one file: the one-decimal
-//! formatter and parser pins live in format_tests.rs.
+//! that round-trip through the production grammar, the number
+//! layer's comma diagnosis, and the unknown-unit verdict pins
+//! (night-focus-1). One theme, one file: the one-decimal formatter
+//! and parser pins live in format_tests.rs.
 
 use super::*;
 // The parser bridge, same as the sibling pin file.
@@ -148,5 +149,34 @@ fn test_comma_carrying_rates_get_their_own_repairs() {
     assert!(
         dur.contains("use '.' as the decimal separator, not ','"),
         "the duration twin carries the same repair, got: {dur}"
+    );
+}
+
+// night-focus-1 (P5): a lowercase input outside the ladder names the
+// unknown unit — never the lowercase sentence about an input that
+// carries no uppercase at all. `10mbps` ends in 's', so the suffix
+// strip misses and the verdict must name 'mbps' like `1kib` names
+// 'kib' on the suffix-strip lane.
+#[test]
+fn test_parse_rate_lowercase_unknown_unit_names_the_unit() {
+    let err_msg = format!("{}", parse_rate("10mbps").unwrap_err());
+    assert!(
+        err_msg.contains("unknown unit 'mbps'"),
+        "error must name the unknown unit, got: {err_msg}"
+    );
+    assert!(
+        !err_msg.contains("Use lowercase"),
+        "a lowercase input must not draw the lowercase verdict, got: {err_msg}"
+    );
+}
+
+// The twin keeps its verdict: an uppercase carrier outside the ladder
+// still reads the lowercase sentence, which is TRUE there.
+#[test]
+fn test_parse_rate_uppercase_unknown_unit_keeps_lowercase_verdict() {
+    let err_msg = format!("{}", parse_rate("10MBPS").unwrap_err());
+    assert!(
+        err_msg.contains("Use lowercase"),
+        "an uppercase input keeps the lowercase verdict, got: {err_msg}"
     );
 }
