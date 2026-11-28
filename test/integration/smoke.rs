@@ -277,8 +277,19 @@ fn test_version() {
             && depth.contains(
                 "layers=d0:masked-words,d1:masked-words,d2:dual-fingerprint,d3:blake3-anchor"
             )
-            && depth.ends_with("(runtime depths; d4/d5 ride zelynic sig)"),
+            && depth.contains("(runtime depths; d4 rides zelynic sig)"),
         "Depth-matrix line must carry the verified shape, got: {depth}"
+    );
+    // night-focus-1: the d5 commit-signature state rides the same
+    // line as its own field — the bare stamp word (never the
+    // evidence fpr), whatever the building HEAD's signature is.
+    let commit_sig = depth
+        .split(" commit-sig=")
+        .nth(1)
+        .expect("commit-sig field present");
+    assert!(
+        !commit_sig.is_empty() && !commit_sig.contains(' '),
+        "commit-sig carries one bare state word, got: {commit_sig}"
     );
     assert!(
         stdout.contains("zelynic: v")

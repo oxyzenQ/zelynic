@@ -436,13 +436,12 @@ mod tests {
         // stamps commit-sig=unsigned — both must pass here.
         let commit_sig = &depth[commit_sig_pos + " commit-sig=".len()..];
         assert!(
-            !commit_sig.is_empty()
-                && !commit_sig.contains(' ')
-                && !commit_sig.contains(':'),
+            !commit_sig.is_empty() && !commit_sig.contains(' ') && !commit_sig.contains(':'),
             "the d5 field carries one bare state word: {commit_sig}"
         );
         assert!(
-            depth.starts_with("Depth-matrix: fp=") && !depth.starts_with("Depth-matrix: commit-sig="),
+            depth.starts_with("Depth-matrix: fp=")
+                && !depth.starts_with("Depth-matrix: commit-sig="),
             "the leading shape stays byte-stable: {depth}"
         );
     }

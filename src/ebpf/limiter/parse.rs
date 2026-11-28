@@ -205,8 +205,7 @@ pub fn parse_rate(s: &str) -> Result<u64> {
         // alpha residue with no uppercase means the UNIT is the crime
         // and the verdict names it; an uppercase carrier (`1MB`,
         // `5.5XB`) keeps the lowercase verdict, which is true there.
-        if s.chars().any(|c| c.is_ascii_alphabetic())
-            && !s.chars().any(|c| c.is_ascii_uppercase())
+        if s.chars().any(|c| c.is_ascii_alphabetic()) && !s.chars().any(|c| c.is_ascii_uppercase())
         {
             let unit = typed_unit_word(s);
             let mut msg = format!(
