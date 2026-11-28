@@ -746,7 +746,11 @@ sudo zelynic b --all [--force-this]
 
 Cut internet access entirely — packets are dropped at the cgroup
 boundary in both directions. Same target grammar (single target or
-a `::` list) and `--force-this` contract as strict. `unstrict`
+a `::` list) and `--force-this` contract as strict — the container
+references strict accepts ride block's single lane too
+(`docker://nginx`, `k8s://prod/web-abc`, `netns://sandbox`,
+`iface://red`: the container gets its own block, lists do not take
+containers). `unstrict`
 removes a block exactly like it removes a rate limit (blocks and
 limits live in the same policy maps; a blocked cgroup shows a
 0-rate policy in `status`).
@@ -2100,9 +2104,35 @@ release verification lane) can gate on the verdict:
 zelynic sig && echo authentic || echo tampered
 ```
 
+Provenance policy for research commits (night-focus-1): the audit
+sandbox lands `Internal research:` commits WITHOUT a GPG signature —
+every build from such a HEAD stamps D5 `unsigned`, prints
+`commit-sig=unsigned` on the -V Depth-matrix line, and `zelynic sig`
+exits 1 BY DESIGN (fail-closed). Between releases on main this is
+expected state, not a tamper signal on its own. The release chain
+binds to the pinned maintainer key: release artifacts build from
+tag pushes, and the release commit carrying the maintainer
+signature is what flips D5 to `verified` — signing research commits
+on the maintainer machine (`git commit -S`) restores a fully signed
+main at any time.
+
 `-V/--version` carries the same verdict inline as the Depth-matrix
-line (`fp=... status=verified anchor=b3:...`) — one line a script
-can grep without running the full report.
+line — one line a script can grep without running the full report:
+
+```bash
+zelynic -V | grep Depth-matrix
+# Depth-matrix: fp=... status=verified anchor=b3:... layers=d0:masked-words,... (runtime depths; d4 rides zelynic sig) commit-sig=verified
+```
+
+Two fields, two scopes — a script gating on FULL provenance checks
+BOTH (night-focus-1): `status=` is the RUNTIME verdict over depths
+d0-d3 (`verified`/`tampered`), while `commit-sig=` is the d5
+build-time commit-signature state (`verified`, `wrong-key`,
+`no-key`, `bad-signature`, `unsigned`, `no-vcs`, `unavailable` —
+the evidence fingerprint rides the `sig` report's D5 row). A build
+from an unsigned HEAD prints `status=verified commit-sig=unsigned`:
+the runtime depths hold, the commit binding does not, and
+`zelynic sig` exits 1 on that same binary by design.
 
 ---
 
@@ -2113,7 +2143,7 @@ can grep without running the full report.
 | `-h, --help` | The single end-to-end reference (commands, options, formats, examples). No separate man page exists — this is it. |
 | `-V, --version` | Version + build report (build label, hash, timestamp, lane-honest Signature). Parses at every level — after a subcommand's arguments too (NIGHT-boost-12), and the practice now matches the claim: a verbatim `-V`/`--version` typed where a verb still awaits its required positionals (`zelynic s -V`) is a version REQUEST — the report prints, exit 0, the command never runs (night-cafe-1, F7). |
 | `--check-update` | Checks the latest GitHub release. **Refuses to run as root** — it is a plain network fetch and must not ride sudo. Swarm-bounded (NIGHT-critical-infra-1): at most one completed network exchange per hour per user — a per-user runtime stamp (`$XDG_RUNTIME_DIR/zelynic-update.stamp`, `/tmp/.zelynic-update-<uid>` fallback) arms after a real exchange (success or HTTP error, never a DNS/timeout failure); an invocation inside the window prints the disclosed throttle verdict (remaining minutes, exit 0) instead of fetching. Remove the stamp to force a check. |
-| `-v, --verbose` | stderr diagnostic trace: target resolution (pids per cgroup), every policy write (rate + burst), BPF lifecycle (pin reuse, schema, link mode), plus loader-level eBPF debug — object size, kernel release, load/attach timings, and the loaded map inventory (id, type, key/value size, max_entries, the `bpftool` facts). JSON output stays clean. |
+| `-v, --verbose` | stderr diagnostic trace: target resolution (pids per cgroup), every policy write (rate + burst), BPF lifecycle (pin reuse, schema, link mode), plus loader-level eBPF debug — object size, kernel release, load/attach timings, and the loaded map inventory (id, type, key/value size, max_entries, the `bpftool` facts). The query lanes (`status`, `list-apps`) carry no trace trail — under `-v` they print one stderr line (`verbose: nothing to trace on this lane ...`) instead of output identical to a non-verbose run (night-focus-1). JSON output stays clean. |
 | `--print-json` | Machine-readable output — the surface set is `status`, `list-apps`, `eagle-eyes --depth`, `doctor`: one compact JSON line each, the stable v11 scripting API (see the JSON reference below). Every other surface renders text (enforcement verbs, the live `eagle-eyes` monitor, `-h`, `-V`, `--check-update`), and the option never silently no-ops (NIGHT-boost-24, the depth report joined the set at NIGHT-master-1): on a surface that ignores it, exactly one stderr line notes `--print-json ignored (JSON surface: status, list-apps, eagle-eyes --depth, doctor)` — stdout and exit codes are untouched, so scripts stay clean. |
 | `--color-mode MODE` | Force the terminal color depth: `0` mono, `16` classic palette, `8`/`256` xterm cube, `24`/`32` truecolor (NIGHT-boost-23, the cosmostrix contract). Default is AUTO: the ladder falls back per terminal — truecolor where the environment reports it, the 256 cube, the 16 palette, mono under `NO_COLOR`/pipes. The option is the escape hatch for the environment that LIES (COLORTERM inherited over SSH into a terminal that is not truecolor, tmux passthrough without Tc): forcing the depth the terminal actually honors makes every surface — errors, help, the monitor frame and its gradient rails — render correctly what truecolor escapes would garble. Invalid values exit 2 with the allowed grammar. |
 
