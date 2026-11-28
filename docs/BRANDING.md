@@ -480,7 +480,7 @@ families above.
 
 ### 4.1. Logo file
 
-The official logo is located at [`assets/zelynic-original-logo-2026.png`](../assets/zelynic-original-logo-2026.png).
+The official logo is located at [`assets/z.png`](../assets/z.png).
 
 ### 4.2. Usage rules
 

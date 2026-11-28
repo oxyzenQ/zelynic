@@ -10,7 +10,7 @@
 > license - nothing between.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/oxyzenQ/zelynic/main/assets/zelynic-original-logo-2026.png" alt="zelynic logo" width="260">
+  <img src="https://raw.githubusercontent.com/oxyzenQ/zelynic/main/assets/z.png" alt="zelynic logo" width="260">
 </p>
 
 <h1 align="center">zelynic</h1>

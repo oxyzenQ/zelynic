@@ -10,13 +10,17 @@ Local tooling notes for the repo's own assets — the commands the owner
 runs by hand when an asset changes, written down so the next asset pass
 does not re-derive them.
 
-## rounded corners for the logo (assets/zelynic-logo-master.png)
+## rounded corners for the logo (assets/z.png)
 
 The master logo ships 1254x1254; the README renders it at width 260.
-For a rounded-square variant (68 px corner radius on the master size):
+For a rounded-square variant (68 px corner radius on the master size) —
+write the composited result to a temporary name, then rename it over
+`assets/z.png`, so the raw un-rounded master never lingers as a second
+file (executed verbatim at the 2026-11-28 logo pass):
 
 ```sh
-magick assets/zelynic-logo-master.png \( -size 1254x1254 xc:none -fill white -draw 'roundrectangle 0,0 1253,1253 68,68' \) -alpha off -compose CopyOpacity -composite assets/zelynic-logo-rounded.png
+magick assets/z.png \( -size 1254x1254 xc:none -fill white -draw 'roundrectangle 0,0 1253,1253 68,68' \) -alpha off -compose CopyOpacity -composite assets/zelynic-logo-rounded.png
+mv assets/zelynic-logo-rounded.png assets/z.png
 ```
 
 ## for demo on terminal use this size
